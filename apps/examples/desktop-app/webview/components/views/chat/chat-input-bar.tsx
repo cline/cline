@@ -5,7 +5,15 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cloud,
+	Cpu,
+	Paperclip,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -121,6 +129,7 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
+const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -252,6 +261,10 @@ type ChatInputBarProps = {
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	gitBranch: string;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -293,6 +306,10 @@ function ChatInputBarImpl({
 	thinking,
 	reasoningEffort,
 	gitBranch,
+	executionTarget = "local",
+	repoUrl,
+	cloudBranch,
+	hasActiveSession = false,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
@@ -367,12 +384,28 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft;
+	const needsCloudRepository =
+		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
+	const canSend = hasDraft && !needsCloudRepository;
+	const cloudContextLabel = useMemo(() => {
+		const repository = repoUrl
+			?.replace(/\.git$/i, "")
+			.replace(/\/+$/, "")
+			.split(/[/:]/)
+			.filter(Boolean)
+			.slice(-2)
+			.join("/");
+		return [repository || "Cloud", cloudBranch?.trim()]
+			.filter(Boolean)
+			.join(" / ");
+	}, [cloudBranch, repoUrl]);
 	const handleSend = useCallback(() => {
+		if (!canSend) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [canSend, onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [promptInputFocused, setPromptInputFocused] = useState(false);
@@ -390,7 +423,10 @@ function ChatInputBarImpl({
 	const mentionKey = activeMention
 		? `${activeMention.start}:${activeMention.query}`
 		: null;
-	const mentionOpen = mentionKey !== null && dismissedMentionKey !== mentionKey;
+	const mentionOpen =
+		executionTarget === "local" &&
+		mentionKey !== null &&
+		dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
@@ -408,7 +444,12 @@ function ChatInputBarImpl({
 	const slashKey = activeSlash
 		? `${activeSlash.slashIndex}:${activeSlash.query}`
 		: null;
-	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
+	// Slash commands resolve against locally installed skills/workflows, which
+	// the cloud sandbox cannot run — gate them like @-mentions.
+	const slashOpen =
+		executionTarget === "local" &&
+		slashKey !== null &&
+		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
 		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
@@ -419,6 +460,14 @@ function ChatInputBarImpl({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	useEffect(() => {
+		if (
+			executionTarget === "cloud" &&
+			normalizeProviderId(provider) !== "cline"
+		) {
+			onProviderChange("cline");
+		}
+	}, [executionTarget, onProviderChange, provider]);
 	const hasExplicitReasoningSelection =
 		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
@@ -874,11 +923,17 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-								variant === "welcome"
-									? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-									: isBusy
+								needsCloudRepository
+									? "Choose a repository"
+									: isBusy && variant !== "welcome"
 										? "Agent is working... submit to queue another message"
-										: "Enter your question or type / for commands or @ for context"
+										: executionTarget === "cloud"
+											? // Mentions and slash commands are local-only; do not
+												// advertise them in cloud sessions.
+												"Describe what Cline should do in this repository."
+											: variant === "welcome"
+												? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+												: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
 							role="combobox"
@@ -890,6 +945,14 @@ function ChatInputBarImpl({
 							value={promptInput}
 						/>
 						<div className="flex shrink-0 items-center gap-2">
+							{needsCloudRepository ? (
+								<span
+									aria-live="polite"
+									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+								>
+									Repository required
+								</span>
+							) : null}
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
@@ -915,7 +978,11 @@ function ChatInputBarImpl({
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
-									title="Send (Enter)"
+									title={
+										needsCloudRepository
+											? "Choose a repository"
+											: "Send (Enter)"
+									}
 									type="button"
 								>
 									<ArrowUp className="size-3" />
@@ -949,26 +1016,30 @@ function ChatInputBarImpl({
 			{/* Composer settings */}
 			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
-					<button
-						aria-label="Attach files"
-						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
-						onClick={() => fileInputRef.current?.click()}
-						type="button"
-					>
-						<Paperclip className="size-3" />
-					</button>
-					<input
-						accept="*/*"
-						className="hidden"
-						multiple
-						onChange={(event) => {
-							const files = Array.from(event.target.files ?? []);
-							if (files.length > 0) onAttachFiles(files);
-							event.currentTarget.value = "";
-						}}
-						ref={fileInputRef}
-						type="file"
-					/>
+					{executionTarget === "local" ? (
+						<button
+							aria-label="Attach files"
+							className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
+							onClick={() => fileInputRef.current?.click()}
+							type="button"
+						>
+							<Paperclip className="size-3" />
+						</button>
+					) : null}
+					{executionTarget === "local" ? (
+						<input
+							accept="*/*"
+							className="hidden"
+							multiple
+							onChange={(event) => {
+								const files = Array.from(event.target.files ?? []);
+								if (files.length > 0) onAttachFiles(files);
+								event.currentTarget.value = "";
+							}}
+							ref={fileInputRef}
+							type="file"
+						/>
+					) : null}
 					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
@@ -1003,7 +1074,12 @@ function ChatInputBarImpl({
 					</div>
 					<div className="min-w-0 shrink-0">
 						<ModelSelector
-							isBusy={isBusy}
+							allowedProviderIds={
+								executionTarget === "cloud"
+									? CLINE_ONLY_PROVIDER_IDS
+									: undefined
+							}
+							isBusy={isBusy || cloudSettingsLocked}
 							model={model}
 							onModelChange={onModelChange}
 							onModelSupportsReasoningChange={
@@ -1014,7 +1090,7 @@ function ChatInputBarImpl({
 						/>
 					</div>
 					<Select
-						disabled={modelSupportsReasoning !== true}
+						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
 						onValueChange={handleEffortChange}
 						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
 					>
@@ -1023,9 +1099,11 @@ function ChatInputBarImpl({
 							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
-								modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
+								cloudSettingsLocked
+									? "Model and thinking are fixed when a cloud session starts"
+									: modelSupportsReasoning === false
+										? "The selected model does not report reasoning support"
+										: undefined
 							}
 						>
 							<Brain className="size-3" />
@@ -1047,17 +1125,27 @@ function ChatInputBarImpl({
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
 							<div className="min-w-0 overflow-visible">
-								<WorkspaceSelector
-									currentBranch={gitBranch}
-									disabled
-									onListGitBranches={onListGitBranches}
-									onRefreshWorkspaces={onRefreshWorkspaces}
-									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={onSwitchWorkspace}
-									workspaces={workspaces}
-									workspaceRoot={workspaceRoot}
-								/>
+								{executionTarget === "cloud" ? (
+									<span
+										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
+										title={cloudContextLabel}
+									>
+										<Cloud className="size-3 shrink-0" />
+										<span className="truncate">{cloudContextLabel}</span>
+									</span>
+								) : (
+									<WorkspaceSelector
+										currentBranch={gitBranch}
+										disabled
+										onListGitBranches={onListGitBranches}
+										onRefreshWorkspaces={onRefreshWorkspaces}
+										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+										onSwitchGitBranch={onSwitchGitBranch}
+										onSwitchWorkspace={onSwitchWorkspace}
+										workspaces={workspaces}
+										workspaceRoot={workspaceRoot}
+									/>
+								)}
 							</div>
 							<TokenUsageRing
 								usage={{
@@ -1084,6 +1172,7 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
+	allowedProviderIds,
 	provider,
 	model,
 	isBusy,
@@ -1091,6 +1180,7 @@ const ModelSelector = memo(function ModelSelector({
 	onModelChange,
 	onModelSupportsReasoningChange,
 }: {
+	allowedProviderIds?: string[];
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1116,10 +1206,13 @@ const ModelSelector = memo(function ModelSelector({
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
+			if (allowedProviderIds && !allowedProviderIds.includes(providerId)) {
+				continue;
+			}
 			next[providerId] = providerModels[providerId] ?? [];
 		}
 		return next;
-	}, [enabledProviderIds, providerModels]);
+	}, [allowedProviderIds, enabledProviderIds, providerModels]);
 	const providers = useMemo(
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
@@ -1280,6 +1373,13 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
+		// isBusy also covers a locked cloud composer: silently "correcting" an
+		// attached cloud session's model (e.g. an org-catalog id missing from
+		// the local list) would push a real model change to the remote session
+		// on the next send, contradicting the locked-settings tooltip.
+		if (isBusy) {
+			return;
+		}
 		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
@@ -1287,6 +1387,7 @@ const ModelSelector = memo(function ModelSelector({
 			onModelChange(resolvedModel);
 		}
 	}, [
+		isBusy,
 		model,
 		onModelChange,
 		onProviderChange,
@@ -1430,7 +1531,7 @@ const ModelSelector = memo(function ModelSelector({
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]"/>
+				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
 		</div>

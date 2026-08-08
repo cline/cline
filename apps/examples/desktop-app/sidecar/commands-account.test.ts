@@ -110,8 +110,10 @@ describe("cline_account command auth states", () => {
 		const serviceOptions = clineAccountServiceCtorMock.mock.calls[0][0] as {
 			getAuthToken: () => Promise<string | undefined>;
 		};
+		// Persisted OAuth tokens gain the `workos:` prefix required by
+		// core-platform (see cline-auth.ts).
 		await expect(serviceOptions.getAuthToken()).resolves.toBe(
-			"persisted-token",
+			"workos:persisted-token",
 		);
 		expect(capture).not.toHaveBeenCalled();
 	});

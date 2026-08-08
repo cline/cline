@@ -80,7 +80,7 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
-	resolve: (result: ToolApprovalResult) => void;
+	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {
@@ -119,6 +119,10 @@ export type SidecarContext = {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;
+	cloudSessionManager: {
+		dispose(): Promise<void>;
+		isCloudSession(sessionId: string): boolean;
+	} | null;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };
