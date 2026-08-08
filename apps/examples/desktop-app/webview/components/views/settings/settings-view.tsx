@@ -43,34 +43,17 @@ import {
 	ProviderListContent,
 } from "./provider-list-view";
 import { RoutineSchedulesContent } from "./routine-view";
+import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
 
-// -----------------------------------------------------------
-// Settings nav categories
-// -----------------------------------------------------------
+// Nav categories live in ./sections so the always-mounted sidebar can import
+// them without pulling this module graph into the initial bundle.
+export {
+	CUSTOMIZATION_SECTIONS,
+	SETTINGS_SECTIONS,
+	type SettingsSection,
+} from "./sections";
 
-export const SETTINGS_SECTIONS = [
-	"General",
-	"Models",
-	"Channels",
-	"Schedules",
-	"Account",
-] as const;
-
-// Mirrors the Cline Hub dashboard's Customizations nav group.
-export const CUSTOMIZATION_SECTIONS = [
-	"Plugins",
-	"Skills",
-	"MCP",
-	"Hooks",
-	"Rules",
-	"Agents",
-	"Tools",
-] as const;
-
-export type SettingsSection =
-	| (typeof SETTINGS_SECTIONS)[number]
-	| (typeof CUSTOMIZATION_SECTIONS)[number];
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
