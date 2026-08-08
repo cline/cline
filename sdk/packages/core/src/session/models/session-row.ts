@@ -72,6 +72,14 @@ export interface CreateRootSessionWithArtifactsInput {
 	prompt?: string;
 	metadata?: Record<string, unknown>;
 	startedAt?: string;
+	/**
+	 * Seeded conversation history written into the messages artifact as part
+	 * of session materialization. Passing it here (instead of a follow-up
+	 * `persistSessionMessages` call) leaves no crash window in which the
+	 * session row is discoverable while its messages file is still empty.
+	 */
+	initialMessages?: import("@cline/llms").MessageWithMetadata[];
+	systemPrompt?: string;
 }
 
 export interface RootSessionArtifacts {

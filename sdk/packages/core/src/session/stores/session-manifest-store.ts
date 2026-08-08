@@ -93,8 +93,26 @@ export class SessionManifestStore {
 		row: SessionRow,
 		path: string,
 		startedAt: string,
+		seed?: {
+			messages: LlmsProviders.MessageWithMetadata[];
+			systemPrompt?: string;
+		},
 	): void {
-		writeEmptyMessagesFile(path, startedAt, resolveMessagesFileContext(row));
+		if (!seed || seed.messages.length === 0) {
+			writeEmptyMessagesFile(path, startedAt, resolveMessagesFileContext(row));
+			return;
+		}
+		// Seeded history is written in the same step that materializes the
+		// session, so a crash can never leave a discoverable session row with
+		// an empty messages file.
+		const payload = buildMessagesFilePayload({
+			updatedAt: startedAt,
+			context: resolveMessagesFileContext(row),
+			messages: seed.messages as StoredMessageWithMetadata[],
+			systemPrompt: seed.systemPrompt,
+		});
+		mkdirSync(dirname(path), { recursive: true });
+		writeFileSync(path, `${JSON.stringify(payload, null, 2)}\n`, "utf8");
 	}
 
 	writeSessionManifest(manifestPath: string, manifest: SessionManifest): void {

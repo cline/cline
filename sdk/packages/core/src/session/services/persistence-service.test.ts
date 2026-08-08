@@ -58,6 +58,49 @@ describe("UnifiedSessionPersistenceService", () => {
 		expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
 	});
 
+	it("writes seeded initial messages as part of session materialization", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "seeded-create-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "seeded-session";
+		const initialMessages = [
+			{ role: "user" as const, content: "remember the codeword" },
+			{ role: "assistant" as const, content: "acknowledged" },
+		];
+
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "anthropic",
+			model: "claude-sonnet",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: false,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+			initialMessages,
+			systemPrompt: "You are a test agent",
+		});
+
+		// The messages artifact is born with the seeded transcript — there is
+		// no separate follow-up write a crash could interrupt, so a
+		// discoverable session can never have an empty messages file while
+		// seeded history exists.
+		const payload = JSON.parse(readFileSync(artifacts.messagesPath, "utf8")) as {
+			messages?: Array<{ role?: string; content?: unknown }>;
+			system_prompt?: string;
+		};
+		expect(payload.messages).toHaveLength(2);
+		expect(payload.messages?.[0]).toMatchObject({
+			role: "user",
+			content: "remember the codeword",
+		});
+		expect(payload.system_prompt).toBe("You are a test agent");
+	});
+
 	sqliteIt(
 		"re-adopts the session row from the on-disk manifest when the DB row is missing",
 		async () => {
