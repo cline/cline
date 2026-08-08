@@ -175,7 +175,6 @@ export async function getStateToPostToWebview(controller: {
 		lastDismissedCliBannerVersion,
 		dismissedBanners,
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
-		backgroundEditHintDismissed: stateManager.getGlobalStateKey("backgroundEditHintDismissed"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
 		banners,

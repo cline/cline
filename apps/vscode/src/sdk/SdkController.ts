@@ -71,6 +71,7 @@ import {
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
+import { BackgroundEditNotifier } from "./background-edit-notifier"
 import { SdkDiffEditCoordinator } from "./sdk-diff-edit-coordinator"
 import { SdkFollowupCoordinator } from "./sdk-followup-coordinator"
 import { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-coordinator"
@@ -171,6 +172,7 @@ export class Controller {
 	private sessionRebuilds: SdkSessionRebuildScheduler
 	private interactions: SdkInteractionCoordinator
 	private diffEdits: SdkDiffEditCoordinator
+	private backgroundEditNotifier: BackgroundEditNotifier
 	private sessionConfigBuilder: SdkSessionConfigBuilder
 	private taskHistory: SdkTaskHistory
 	private mode: SdkModeCoordinator
@@ -326,9 +328,20 @@ export class Controller {
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
+		this.backgroundEditNotifier = new BackgroundEditNotifier({
+			isBackgroundEditEnabled: () => !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+			isHintDismissed: () => !!this.stateManager.getGlobalStateKey("backgroundEditHintDismissed"),
+			enableBackgroundEdit: () => {
+				this.stateManager.setGlobalState("backgroundEditEnabled", true)
+				this.stateManager.setGlobalState("backgroundEditHintDismissed", true)
+			},
+			dismissHint: () => this.stateManager.setGlobalState("backgroundEditHintDismissed", true),
+			postStateToWebview: () => this.postStateToWebview(),
+		})
 		this.diffEdits = new SdkDiffEditCoordinator({
 			getCwd: () => this.getWorkspaceRoot(),
 			isBackgroundEditEnabled: () => !!this.stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
+			onPreviewOpened: () => this.backgroundEditNotifier.onDiffPreviewOpened(),
 		})
 		this.interactions = new SdkInteractionCoordinator({
 			messages: this.messages,

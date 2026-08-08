@@ -303,6 +303,25 @@ describe("SdkDiffEditCoordinator", () => {
 		expect(previews).toHaveLength(0)
 	})
 
+	it("notifies onPreviewOpened only when a preview actually opens", async () => {
+		const onPreviewOpened = vi.fn()
+		coordinator = makeCoordinator({ onPreviewOpened })
+
+		// Successful preview open → notified
+		await writeFile("a.ts", "line1\nline2\n")
+		await coordinator.openForApproval("tc1", "editor", { path: "a.ts", old_text: "line1", new_text: "changed" })
+		expect(onPreviewOpened).toHaveBeenCalledTimes(1)
+
+		// Failed preview open (old_text doesn't match) → not notified
+		await coordinator.openForApproval("tc2", "editor", { path: "a.ts", old_text: "nope", new_text: "x" })
+		expect(onPreviewOpened).toHaveBeenCalledTimes(1)
+
+		// Background edit on → no preview, not notified
+		backgroundEdit = true
+		await coordinator.openForApproval("tc3", "editor", { path: "a.ts", old_text: "line2", new_text: "x" })
+		expect(onPreviewOpened).toHaveBeenCalledTimes(1)
+	})
+
 	it("never throws from openForApproval and the executor still applies the edit", async () => {
 		await writeFile("a.ts", "content")
 		// old_text won't match — computeNewEditorContent throws, preview is skipped

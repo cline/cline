@@ -34,6 +34,8 @@ export interface SdkDiffEditCoordinatorOptions {
 	getCwd: () => Promise<string>
 	/** When Background Edit is enabled, edits apply headlessly with no preview. */
 	isBackgroundEditEnabled: () => boolean
+	/** Notified after each diff preview tab opens successfully. */
+	onPreviewOpened?: () => void
 	/** Injectable for tests. Defaults to the host-registered factory. */
 	createEditPreview?: () => EditPreview
 	/** Injectable for tests. Defaults to the SDK's disk-writing editor executor. */
@@ -360,6 +362,7 @@ export class SdkDiffEditCoordinator {
 			absolutePath: content.absolutePath,
 			revealPath: content.revealPath ?? content.absolutePath,
 		})
+		this.options.onPreviewOpened?.()
 	}
 
 	private createPreview(): EditPreview {
