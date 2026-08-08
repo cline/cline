@@ -11,7 +11,6 @@ import {
 	disposeSidecarContext,
 	initializeSessionManager,
 } from "./context";
-import { disposeDesktopFeatureFlagsService } from "./feature-flags";
 import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
@@ -85,7 +84,6 @@ async function main() {
 				try {
 					await disposeSidecarContext(ctx, reason);
 				} finally {
-					await disposeDesktopFeatureFlagsService().catch(() => undefined);
 					await observability.dispose();
 				}
 			})(),

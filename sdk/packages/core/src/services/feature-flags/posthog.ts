@@ -67,7 +67,7 @@ export class PostHogFeatureFlagsProvider implements IFeatureFlagsProvider {
 			return result as FeatureFlagsAndPayloads;
 		} catch (error) {
 			this.logger?.error?.("Error getting PostHog feature flags", { error });
-			throw error;
+			return {};
 		}
 	}
 

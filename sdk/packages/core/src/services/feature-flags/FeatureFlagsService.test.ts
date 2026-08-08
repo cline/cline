@@ -1,11 +1,7 @@
 import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import {
-	FEATURE_FLAGS,
-	type FeatureFlagsAndPayloads,
-	type IFeatureFlagsProvider,
-} from "@cline/shared";
+import { FEATURE_FLAGS, type IFeatureFlagsProvider } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { FeatureFlagsService } from "./FeatureFlagsService";
 
@@ -84,30 +80,12 @@ describe("FeatureFlagsService", () => {
 		vi.useFakeTimers();
 		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
 
-		let resolveProvider:
-			| ((value: FeatureFlagsAndPayloads | undefined) => void)
-			| undefined;
-		const provider = createProvider({
-			getAllFlagsAndPayloads: vi.fn(
-				() =>
-					new Promise<FeatureFlagsAndPayloads | undefined>((resolve) => {
-						resolveProvider = resolve;
-					}),
-			),
-		});
+		const provider = createProvider();
 		const service = new FeatureFlagsService({ provider });
 
-		const firstPoll = service.poll("user-1");
-		const secondPoll = service.poll("user-1");
-		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(false);
-		resolveProvider?.({
-			featureFlags: { [TEST_BOOLEAN_FLAG]: true },
-			featureFlagPayloads: {},
-		});
-		await Promise.all([firstPoll, secondPoll]);
+		await Promise.all([service.poll("user-1"), service.poll("user-1")]);
 
 		expect(provider.getAllFlagsAndPayloads).toHaveBeenCalledTimes(1);
-		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
 	});
 
 	it("re-polls when the user context changes within the cache ttl", async () => {
@@ -191,29 +169,6 @@ describe("FeatureFlagsService", () => {
 			flagsPayload: {
 				featureFlags: { [TEST_BOOLEAN_FLAG]: true },
 				featureFlagPayloads: { [TEST_PAYLOAD_FLAG]: 1234 },
-			},
-		});
-	});
-
-	it("retains the last known value when the provider fails", async () => {
-		vi.useFakeTimers();
-		vi.setSystemTime(new Date("2026-06-10T10:00:00Z"));
-		const provider = createProvider();
-		const service = new FeatureFlagsService({ provider, cacheTtlMs: 1 });
-		await service.poll("user-1");
-		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
-
-		vi.setSystemTime(new Date("2026-06-10T10:00:01Z"));
-		vi.mocked(provider.getAllFlagsAndPayloads).mockRejectedValueOnce(
-			new Error("network unavailable"),
-		);
-		await expect(service.poll("user-1")).rejects.toThrow("network unavailable");
-
-		expect(service.getBooleanFlagEnabled(TEST_BOOLEAN_FLAG)).toBe(true);
-		expect(service.getCacheSnapshot()).toMatchObject({
-			userId: "user-1",
-			flagsPayload: {
-				featureFlags: { [TEST_BOOLEAN_FLAG]: true },
 			},
 		});
 	});

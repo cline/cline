@@ -75,10 +75,7 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
-import {
-	isCloudAgentsEnabled,
-	refreshDesktopFeatureFlags,
-} from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -1140,8 +1137,6 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		// Refresh before the first UI read; failures fall back to cache/defaults.
-		await refreshDesktopFeatureFlags(ctx.logger);
 		return { cloudAgents: isCloudAgentsEnabled() };
 	}
 	if (command === "list_cloud_repositories") {

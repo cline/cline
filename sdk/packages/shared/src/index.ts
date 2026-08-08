@@ -102,7 +102,7 @@ export {
 export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
 export {
 	FEATURE_FLAGS,
-	FeatureFlag,
+	type FeatureFlag,
 	FeatureFlagDefaultValue,
 	type FeatureFlagPayload,
 	type FeatureFlagsAndPayloads,

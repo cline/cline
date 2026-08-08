@@ -1,15 +1,9 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { FeatureFlagsService, NoOpFeatureFlagsProvider } from "@cline/core";
-import { FeatureFlag } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setCloudSessionsEnabled } from "./desktop-settings";
-import {
-	applyDesktopFeatureFlagsContext,
-	buildDesktopFeatureFlagsContext,
-	isCloudAgentsEnabled,
-} from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 
 let dataDir: string;
 
@@ -25,37 +19,6 @@ afterEach(() => {
 });
 
 describe("isCloudAgentsEnabled", () => {
-	it("targets signed-in feature flags by account id", () => {
-		expect(buildDesktopFeatureFlagsContext(" account-123 ")).toMatchObject({
-			distinctId: "account-123",
-			userId: "account-123",
-		});
-	});
-
-	it("does not reuse another account's cached rollout value", () => {
-		const service = new FeatureFlagsService({
-			provider: new NoOpFeatureFlagsProvider(),
-		});
-		service.hydrateCache({
-			updateTime: Date.now(),
-			userId: "account-a",
-			flagsPayload: {
-				featureFlags: { [FeatureFlag.CLINE_PASS]: true },
-			},
-		});
-
-		applyDesktopFeatureFlagsContext(
-			service,
-			buildDesktopFeatureFlagsContext("account-b"),
-		);
-
-		expect(service.getCacheSnapshot()).toMatchObject({
-			updateTime: 0,
-			userId: "account-b",
-		});
-		expect(service.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS)).toBe(false);
-	});
-
 	it("defaults to off with no setting and no override", () => {
 		expect(isCloudAgentsEnabled()).toBe(false);
 	});
