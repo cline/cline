@@ -9,7 +9,7 @@ import {
 	RefreshCw,
 	Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -243,6 +243,11 @@ export function McpServersContent() {
 	const [probingServerName, setProbingServerName] = useState<string | null>(
 		null,
 	);
+	// Monotonic per-server counters that identify the newest probing action.
+	// A response carrying a probe result is discarded when a newer action on
+	// the same server started while it was in flight, so a slow Test
+	// connection cannot overwrite the status of an edited configuration.
+	const probeEpochsRef = useRef<Record<string, number>>({});
 
 	const setServerActionError = useCallback(
 		(serverName: string, message?: string) => {
@@ -261,17 +266,29 @@ export function McpServersContent() {
 		[],
 	);
 
+	const beginProbeEpoch = useCallback((serverName: string) => {
+		const next = (probeEpochsRef.current[serverName] ?? 0) + 1;
+		probeEpochsRef.current[serverName] = next;
+		return next;
+	}, []);
+
 	const applyResponse = useCallback(
-		(response: McpServersResponse) => {
+		(response: McpServersResponse, probeEpoch?: number) => {
 			setServers(response.servers);
 			setSettingsPath(response.settingsPath);
 			setHasSettingsFile(response.hasSettingsFile);
-			const probe = response.probeResult;
+			const names = new Set(response.servers.map((server) => server.name));
+			const probe =
+				response.probeResult &&
+				names.has(response.probeResult.name) &&
+				(probeEpoch === undefined ||
+					probeEpoch === probeEpochsRef.current[response.probeResult.name])
+					? response.probeResult
+					: undefined;
 			// Probe outcomes only stay meaningful for servers that still exist;
 			// entries for deleted or renamed servers would otherwise resurface
 			// if a server is later re-added under the same name.
 			setProbeConnected((current) => {
-				const names = new Set(response.servers.map((server) => server.name));
 				const next: Record<string, boolean> = {};
 				for (const [name, connected] of Object.entries(current)) {
 					if (names.has(name)) {
@@ -328,6 +345,7 @@ export function McpServersContent() {
 		setBusyServerName(server.name);
 		setErrorMessage(null);
 		setServerActionError(server.name);
+		const probeEpoch = beginProbeEpoch(server.name);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"set_mcp_server_disabled",
@@ -336,7 +354,7 @@ export function McpServersContent() {
 					disabled,
 				},
 			);
-			applyResponse(response);
+			applyResponse(response, probeEpoch);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setServerActionError(server.name, message);
@@ -348,6 +366,7 @@ export function McpServersContent() {
 	const upsertServer = async (input: McpServerUpsertInput) => {
 		setBusyServerName(input.previousName ?? input.name);
 		setErrorMessage(null);
+		const probeEpoch = beginProbeEpoch(input.name);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"upsert_mcp_server",
@@ -355,7 +374,7 @@ export function McpServersContent() {
 					input,
 				},
 			);
-			applyResponse(response);
+			applyResponse(response, probeEpoch);
 		} finally {
 			setBusyServerName(null);
 		}
@@ -384,6 +403,7 @@ export function McpServersContent() {
 	const probeServer = async (serverName: string) => {
 		setProbingServerName(serverName);
 		setErrorMessage(null);
+		const probeEpoch = beginProbeEpoch(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"probe_mcp_server",
@@ -391,11 +411,15 @@ export function McpServersContent() {
 					name: serverName,
 				},
 			);
-			applyResponse(response);
+			applyResponse(response, probeEpoch);
 		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setServerActionError(serverName, message);
-			setProbeConnected((current) => ({ ...current, [serverName]: false }));
+			// A stale failure must not stomp the status of a newer action on
+			// the same server; that action reports its own outcome.
+			if (probeEpoch === probeEpochsRef.current[serverName]) {
+				const message = error instanceof Error ? error.message : String(error);
+				setServerActionError(serverName, message);
+				setProbeConnected((current) => ({ ...current, [serverName]: false }));
+			}
 		} finally {
 			setProbingServerName(null);
 		}
