@@ -251,6 +251,29 @@ export abstract class ConnectorBase<Options, State>
 		removeFile(statePath);
 	}
 
+	/**
+	 * Remove the state file only while it still describes `pid`.
+	 *
+	 * Every instance of a connector shares one state path, so an exiting process
+	 * must not delete a record another process has since claimed. When it does,
+	 * the surviving connector keeps serving its platform but disappears from
+	 * `doctor`, `connect --stop` can no longer find it, and the hub cannot adopt
+	 * it — a live bot that no tooling can see.
+	 */
+	protected removeStateFileIfOwnedBy(
+		statePath: string,
+		pid: number,
+		readState: (path: string) => State | undefined,
+		getPid: (state: State) => number,
+	): boolean {
+		const state = readState(statePath);
+		if (state && getPid(state) !== pid) {
+			return false;
+		}
+		this.removeStateFile(statePath);
+		return true;
+	}
+
 	protected removeStaleState(
 		statePath: string,
 		readState: (path: string) => State | undefined,

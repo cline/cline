@@ -17,6 +17,8 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -42,6 +44,13 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
+	captureProcessStartTicket: vi.fn(
+		(): { pid: number; startTicks: number } | undefined => ({
+			pid: 12345,
+			startTicks: 4_500_000,
+		}),
+	),
+	killHubProcessBoundToTicket: vi.fn(() => "killed"),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -92,6 +101,11 @@ vi.mock("../discovery", () => ({
 	writeHubDiscovery,
 }));
 
+vi.mock("./process-identity", () => ({
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
+}));
+
 describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
@@ -112,6 +126,13 @@ describe("ensureDetachedHubServer", () => {
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
+		captureProcessStartTicket.mockReset();
+		captureProcessStartTicket.mockReturnValue({
+			pid: 12345,
+			startTicks: 4_500_000,
+		});
+		killHubProcessBoundToTicket.mockReset();
+		killHubProcessBoundToTicket.mockReturnValue("killed");
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
@@ -311,6 +332,191 @@ describe("ensureDetachedHubServer", () => {
 			expect(spawn).toHaveBeenCalledOnce();
 			expect(spawnArgs).toContain("--port");
 			expect(spawnArgs).toContain("0");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("escalates to SIGKILL when a hub ignores the retirement signal", async () => {
+		// The CLI installs its own SIGTERM handling, so a daemon can ignore both the
+		// graceful shutdown request and the signal. Giving up there leaks it: the
+		// discovery record is cleared and a replacement binds the port, so every
+		// nightly auto-update would strand the previous build.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			// Still answering after SIGTERM, and it reports the same pid, so the
+			// process we are about to force really does own this hub.
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			// The identity probe must ask for /version. `/health` omits the pid and
+			// `/status` needs a token, so any other route makes this guard
+			// unsatisfiable against a real server however the mock is shaped.
+			expect(probeHubServer).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				expect.objectContaining({ endpoint: "version" }),
+			);
+			// The force-kill goes through the identity-bound path (start tick
+			// captured before the probe, SIGSTOP, exact tick match re-read while
+			// frozen, then SIGKILL), never through a bare process.kill.
+			expect(captureProcessStartTicket).toHaveBeenCalledWith(12345);
+			expect(killHubProcessBoundToTicket).toHaveBeenCalledWith({
+				pid: 12345,
+				startTicks: 4_500_000,
+			});
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when the frozen process no longer matches the ticket", async () => {
+		// The P1 race: the daemon can die between answering /version and the
+		// kill, and the OS can hand its pid to a bystander. The bound kill
+		// freezes the pid and re-reads its start tick while it cannot exit; a
+		// recycled pid carries a strictly greater tick than the pre-probe
+		// ticket, so it is spared (SIGCONT) — no tolerance window to slip
+		// through, however fast the pid changed hands.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
+			});
+			killHubProcessBoundToTicket.mockReturnValue("spared");
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(killHubProcessBoundToTicket).toHaveBeenCalledWith({
+				pid: 12345,
+				startTicks: 4_500_000,
+			});
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill a pid the responding hub does not claim", async () => {
+		// A discovery record outlives its daemon and the OS recycles pids, so the
+		// recorded pid can belong to an unrelated process while a different daemon
+		// answers at that URL. SIGKILL there would kill a bystander outright.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				// A different daemon owns the port now.
+				pid: 99999,
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+			// A pid the serving hub does not claim never reaches the bound kill.
+			expect(killHubProcessBoundToTicket).not.toHaveBeenCalled();
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when no identity ticket can be captured", async () => {
+		// No readable /proc start tick — the recorded process is already gone,
+		// or this platform has no /proc. Without a captured identity there is
+		// nothing to bind a SIGKILL to, so none is sent.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
+			});
+			captureProcessStartTicket.mockReturnValue(undefined);
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(killHubProcessBoundToTicket).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when the hub is too old to report a pid", async () => {
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			// Leaking a daemon beats killing an unidentified process.
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();
