@@ -275,7 +275,7 @@ function WorkspacePicker({
 							variant="ghost"
 						>
 							<Plus className="size-3" />
-							{picking ? "Opening folder picker..." : "Add project..."}
+							{picking ? "Opening folder picker..." : "Open folder..."}
 						</Button>
 						<Button
 							className="w-full justify-start text-xs text-muted-foreground"
@@ -310,8 +310,8 @@ function BranchPicker({
 	open: boolean;
 	onToggle: () => void;
 	onClose: () => void;
-	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
-	currentBranch: string | null;
+	/** Always a real branch name: the parent only mounts this for git repos. */
+	currentBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -338,10 +338,7 @@ function BranchPicker({
 		};
 	}, [open, onListGitBranches]);
 
-	// Pending discovery gets the same label as a non-repo folder; only a
-	// resolved branch name is worth displaying.
-	const hasGit = currentBranch !== null && currentBranch !== "no-git";
-	const branchLabel = hasGit ? currentBranch : "No branch";
+	const branchLabel = currentBranch;
 
 	const filteredBranches = branches.filter((branch) =>
 		branch.toLowerCase().includes(search.toLowerCase()),
@@ -483,7 +480,12 @@ export function WelcomeWorkspaceControls({
 				workspaceRoot={workspaceRoot}
 				workspaces={workspaces}
 			/>
-			{!isChatWorkspace ? (
+			{/* Git is a developer affordance: a plain (non-git) folder gets no
+			    branch chrome at all instead of a confusing "No branch" chip.
+			    Pending discovery (null) is treated the same until it resolves. */}
+			{!isChatWorkspace &&
+			currentBranch !== null &&
+			currentBranch !== "no-git" ? (
 				<BranchPicker
 					currentBranch={currentBranch}
 					onClose={() => setOpenMenu(null)}

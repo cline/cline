@@ -1,7 +1,14 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
-import { Check, FolderCode, GitBranch, Plus, Search } from "lucide-react";
+import {
+	Check,
+	Folder,
+	FolderCode,
+	GitBranch,
+	Plus,
+	Search,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -81,6 +88,10 @@ export function WorkspaceSelector({
 		() => normalizeWorkspacePath(workspaceRoot),
 		[workspaceRoot],
 	);
+	// Git chrome (branch label, branch list, create-branch) is a developer
+	// affordance; a plain folder shows only folder language. Pending branch
+	// discovery (null) is presented like a plain folder until it resolves.
+	const hasGit = currentBranch !== null && currentBranch !== "no-git";
 
 	const openMenu = async () => {
 		if (disabled) {
@@ -222,10 +233,6 @@ export function WorkspaceSelector({
 		w.toLowerCase().includes(search.toLowerCase()),
 	);
 
-	// Display-only fallback: while branch discovery is pending, show the same
-	// label as a non-repo folder rather than an empty slot.
-	const branchLabel = currentBranch ?? "no-git";
-
 	return (
 		<div className="relative min-w-0 max-w-full">
 			<Tooltip>
@@ -238,7 +245,11 @@ export function WorkspaceSelector({
 					>
 						<Button
 							variant="ghost"
-							aria-label={`Workspace ${workspaceName}, branch ${branchLabel}`}
+							aria-label={
+								hasGit
+									? `Workspace ${workspaceName}, branch ${currentBranch}`
+									: `Folder ${workspaceName}`
+							}
 							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
 							disabled={disabled || switching}
 							id="git-branch-btn"
@@ -253,21 +264,30 @@ export function WorkspaceSelector({
 								void openMenu();
 							}}
 						>
-							<GitBranch className="size-3" />
+							{hasGit ? (
+								<GitBranch className="size-3" />
+							) : (
+								<Folder className="size-3" />
+							)}
 							<span className="max-w-20 shrink-0 truncate max-[560px]:sr-only">
 								{workspaceName}
 							</span>
-							<span className="shrink-0 text-muted-foreground/60 max-[560px]:sr-only">
-								/
-							</span>
-							<span className="min-w-0 truncate max-[560px]:sr-only">
-								{branchLabel}
-							</span>
+							{hasGit ? (
+								<>
+									<span className="shrink-0 text-muted-foreground/60 max-[560px]:sr-only">
+										/
+									</span>
+									<span className="min-w-0 truncate max-[560px]:sr-only">
+										{currentBranch}
+									</span>
+								</>
+							) : null}
 						</Button>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent align="end" side="top" sideOffset={6}>
-					{workspaceRoot || workspaceName} / {branchLabel}
+					{workspaceRoot || workspaceName}
+					{hasGit ? ` / ${currentBranch}` : ""}
 				</TooltipContent>
 			</Tooltip>
 
@@ -297,7 +317,11 @@ export function WorkspaceSelector({
 									autoFocus
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
-									placeholder="Search workspaces & branches"
+									placeholder={
+										hasGit
+											? "Search workspaces & branches"
+											: "Search workspaces"
+									}
 									className="flex-1 h-auto border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
 								/>
 							</div>
@@ -381,7 +405,7 @@ export function WorkspaceSelector({
 									>
 										{pickingWorkspace
 											? "Opening folder picker..."
-											: "Switch workspace path..."}
+											: "Open folder..."}
 									</Button>
 									{showWorkspacePathInput ? (
 										<div className="mt-1 flex items-center gap-1">
@@ -423,102 +447,106 @@ export function WorkspaceSelector({
 									)}
 								</div>
 
-								{/* Branches section */}
-								<div className="p-1.5">
-									<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-										Branches
+								{/* Branches section (git repos only) */}
+								{hasGit ? (
+									<div className="p-1.5">
+										<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+											Branches
+										</div>
+										<div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
+											{filteredBranches.length === 0 ? (
+												<div className="px-2 py-2 text-xs text-muted-foreground">
+													No branches found
+												</div>
+											) : (
+												filteredBranches.map((branch) => (
+													<Button
+														variant="ghost"
+														key={branch}
+														disabled={switching}
+														onClick={() => {
+															void handleSelectBranch(branch);
+														}}
+														className={cn(
+															"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
+															currentBranch === branch
+																? "bg-surface-hover"
+																: "hover:bg-surface-hover-lighter",
+														)}
+													>
+														<GitBranch className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+														<div className="flex-1 min-w-0">
+															<div className="flex items-center gap-2">
+																<span className="text-xs font-medium text-foreground truncate">
+																	{branch}
+																</span>
+																{currentBranch === branch && (
+																	<Check className="h-3 w-3 text-foreground ml-auto shrink-0" />
+																)}
+															</div>
+														</div>
+													</Button>
+												))
+											)}
+										</div>
 									</div>
-									<div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
-										{filteredBranches.length === 0 ? (
-											<div className="px-2 py-2 text-xs text-muted-foreground">
-												No branches found
+								) : null}
+
+								{/* Create branch (git repos only) */}
+								{hasGit ? (
+									<div className="border-t border-border p-1.5">
+										{showCreateBranch ? (
+											<div className="flex flex-col gap-2 p-2">
+												{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+												<Input
+													autoFocus
+													value={newBranchName}
+													onChange={(e) => setNewBranchName(e.target.value)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter") void handleCreateBranch();
+														if (e.key === "Escape") {
+															setShowCreateBranch(false);
+															setNewBranchName("");
+														}
+													}}
+													placeholder="Branch name"
+													className="h-8 text-xs"
+												/>
+												<div className="flex items-center gap-2">
+													<Button
+														onClick={() => void handleCreateBranch()}
+														disabled={!newBranchName.trim() || switching}
+														size="sm"
+														className="flex-1 text-xs"
+													>
+														Create
+													</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => {
+															setShowCreateBranch(false);
+															setNewBranchName("");
+														}}
+														className="flex-1 text-xs text-muted-foreground"
+													>
+														Cancel
+													</Button>
+												</div>
 											</div>
 										) : (
-											filteredBranches.map((branch) => (
-												<Button
-													variant="ghost"
-													key={branch}
-													disabled={switching}
-													onClick={() => {
-														void handleSelectBranch(branch);
-													}}
-													className={cn(
-														"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
-														currentBranch === branch
-															? "bg-surface-hover"
-															: "hover:bg-surface-hover-lighter",
-													)}
-												>
-													<GitBranch className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-													<div className="flex-1 min-w-0">
-														<div className="flex items-center gap-2">
-															<span className="text-xs font-medium text-foreground truncate">
-																{branch}
-															</span>
-															{currentBranch === branch && (
-																<Check className="h-3 w-3 text-foreground ml-auto shrink-0" />
-															)}
-														</div>
-													</div>
-												</Button>
-											))
+											<Button
+												variant="ghost"
+												onClick={() => setShowCreateBranch(true)}
+												size="sm"
+												className="justify-start w-full text-xs text-muted-foreground"
+											>
+												<Plus className="size-3" />
+												Create and checkout new branch...
+											</Button>
 										)}
 									</div>
-								</div>
-
-								{/* Create branch */}
-								<div className="border-t border-border p-1.5">
-									{showCreateBranch ? (
-										<div className="flex flex-col gap-2 p-2">
-											{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-											<Input
-												autoFocus
-												value={newBranchName}
-												onChange={(e) => setNewBranchName(e.target.value)}
-												onKeyDown={(e) => {
-													if (e.key === "Enter") void handleCreateBranch();
-													if (e.key === "Escape") {
-														setShowCreateBranch(false);
-														setNewBranchName("");
-													}
-												}}
-												placeholder="Branch name"
-												className="h-8 text-xs"
-											/>
-											<div className="flex items-center gap-2">
-												<Button
-													onClick={() => void handleCreateBranch()}
-													disabled={!newBranchName.trim() || switching}
-													size="sm"
-													className="flex-1 text-xs"
-												>
-													Create
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => {
-														setShowCreateBranch(false);
-														setNewBranchName("");
-													}}
-													className="flex-1 text-xs text-muted-foreground"
-												>
-													Cancel
-												</Button>
-											</div>
-										</div>
-									) : (
-										<Button
-											variant="ghost"
-											onClick={() => setShowCreateBranch(true)}
-											size="sm"
-											className="justify-start w-full text-xs text-muted-foreground"
-										>
-											<Plus className="size-3" />
-											Create and checkout new branch...
-										</Button>
-									)}
-								</div>
+								) : null}
 							</>
 						)}
 					</div>

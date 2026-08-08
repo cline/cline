@@ -108,7 +108,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 		const pathOption = [
 			...container.querySelectorAll<HTMLButtonElement>("button"),
-		].find((candidate) => candidate.textContent?.includes("Open folder"));
+		].find((candidate) => candidate.textContent?.includes("Open folder \u201c"));
 		expect(pathOption).toBeUndefined();
 	});
 
@@ -153,7 +153,7 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 		expect(container.textContent).toContain('Couldn\'t open "/does/not/exist"');
 	});
 
-	it("surfaces picker failures from Add project instead of a silent no-op", async () => {
+	it("surfaces picker failures from Open folder instead of a silent no-op", async () => {
 		const onPickWorkspaceDirectory = vi.fn(async () => {
 			throw new Error(
 				"No system folder picker found (zenity or kdialog). Type or paste a folder path in the workspace selector instead.",
@@ -162,8 +162,68 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 		await renderControls({ onPickWorkspaceDirectory });
 		await openWorkspaceMenu();
 
-		await clickButton("Add project...");
+		await clickButton("Open folder...");
 
 		expect(container.textContent).toContain("No system folder picker found");
+	});
+});
+
+async function renderBranchChipControls(overrides: {
+	currentBranch: string;
+}): Promise<void> {
+	await act(async () => {
+		root.render(
+			<WelcomeWorkspaceControls
+				currentBranch={overrides.currentBranch}
+				onListGitBranches={vi.fn(async () => ({
+					current: overrides.currentBranch,
+					branches:
+						overrides.currentBranch === "no-git"
+							? []
+							: [overrides.currentBranch],
+				}))}
+				onPickWorkspaceDirectory={vi.fn(async () => null)}
+				onRefreshWorkspaces={vi.fn(async () => undefined)}
+				onSelectChat={vi.fn(async () => true)}
+				onSwitchGitBranch={vi.fn(async () => true)}
+				onSwitchWorkspace={vi.fn(async () => true)}
+				workspaceRoot="/home/beatrix/recipes"
+				workspaces={["/home/beatrix/recipes"]}
+			/>,
+		);
+		await Promise.resolve();
+	});
+}
+
+describe("WelcomeWorkspaceControls branch chip", () => {
+	it("hides the branch chip entirely for a plain (non-git) folder", async () => {
+		await renderBranchChipControls({ currentBranch: "no-git" });
+
+		expect(container.textContent).toContain("recipes");
+		// No git terminology may leak for non-developers: previously this
+		// rendered a chip reading "No branch".
+		expect(container.textContent).not.toContain("No branch");
+		expect(container.textContent).not.toContain("no-git");
+		const buttons = [...container.querySelectorAll("button")];
+		expect(buttons).toHaveLength(1);
+	});
+
+	it("keeps the branch switcher chip for git repositories", async () => {
+		await renderBranchChipControls({ currentBranch: "main" });
+
+		expect(container.textContent).toContain("recipes");
+		expect(container.textContent).toContain("main");
+		const buttons = [...container.querySelectorAll("button")];
+		expect(buttons).toHaveLength(2);
+	});
+
+	it("offers Open folder wording instead of Add project", async () => {
+		await renderBranchChipControls({ currentBranch: "no-git" });
+
+		await clickButton("recipes");
+		await vi.waitFor(() => {
+			expect(container.textContent).toContain("Open folder...");
+		});
+		expect(container.textContent).not.toContain("Add project");
 	});
 });
