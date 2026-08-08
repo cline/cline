@@ -25,7 +25,10 @@ import {
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
-import { resolveClineDir } from "@cline/shared/storage";
+import {
+	discoverPluginModulePaths,
+	resolveClineDir,
+} from "@cline/shared/storage";
 import { deleteMcpServer, readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
 
@@ -584,7 +587,9 @@ function isOfficialPluginSlug(source: string): boolean {
 	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.trim());
 }
 
-function getOfficialPluginInstallPath(source: string): string | undefined {
+export function getOfficialPluginInstallPath(
+	source: string,
+): string | undefined {
 	const slug = source.trim();
 	if (!isOfficialPluginSlug(slug)) return undefined;
 	const sourceKey = `official:${OFFICIAL_PLUGINS_REPO}#plugins/${slug}`;
@@ -597,12 +602,33 @@ function getOfficialPluginInstallPath(source: string): string | undefined {
 	);
 }
 
-function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
-	if (entry.type !== "plugin") return false;
+type OfficialPluginInstallState = "installed" | "partial" | "missing";
+
+function getOfficialPluginInstallState(
+	entry: MarketplaceInstallInput,
+): OfficialPluginInstallState {
+	if (entry.type !== "plugin") return "missing";
 	const [source] = entry.install.args ?? [];
-	if (!source) return false;
+	if (!source) return "missing";
 	const installPath = getOfficialPluginInstallPath(source);
-	return Boolean(installPath && existsSync(installPath));
+	if (!installPath || !existsSync(installPath)) return "missing";
+	// A bare directory is not an install: a failed or interrupted install can
+	// leave the directory behind with no plugin inside, and treating that as
+	// installed makes the next install attempt "succeed" silently ("already
+	// installed") while nothing actually works. Require a loadable plugin
+	// module before reporting the entry as installed; a directory without one
+	// is "partial" so the installer can reclaim it with --force.
+	try {
+		return discoverPluginModulePaths(installPath).length > 0
+			? "installed"
+			: "partial";
+	} catch {
+		return "partial";
+	}
+}
+
+function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
+	return getOfficialPluginInstallState(entry) === "installed";
 }
 
 function resolveHomeDir(): string {
@@ -805,7 +831,8 @@ async function installPlugin(
 			"Plugin marketplace installs currently support exactly one source argument.",
 		);
 	}
-	if (isOfficialPluginInstalled(entry)) {
+	const installState = getOfficialPluginInstallState(entry);
+	if (installState === "installed") {
 		return {
 			id: entry.id,
 			type: entry.type,
@@ -819,6 +846,12 @@ async function installPlugin(
 		"plugin",
 		"install",
 		installArgs[0] ?? "",
+		// Reclaim a leftover directory from a failed or interrupted install:
+		// without --force the CLI refuses to replace the existing path and
+		// every retry from the UI would fail the same way. This is safe
+		// because the state check just confirmed the directory contains no
+		// loadable plugin module.
+		...(installState === "partial" ? ["--force"] : []),
 		"--json",
 	]);
 	if (result.exitCode !== 0) {

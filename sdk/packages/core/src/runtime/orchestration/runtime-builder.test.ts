@@ -604,8 +604,8 @@ process.stdin.on("data", (chunk) => {
 							command: process.execPath,
 							args: [serverPath],
 							// Keep the test fast: the Content-Length fallback
-							// attempt otherwise waits out the default 30s
-							// connect budget against this silent server.
+							// attempt otherwise waits out the default connect
+							// budget against this silent server.
 							timeout: 1,
 						},
 					},
