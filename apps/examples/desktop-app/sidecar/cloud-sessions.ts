@@ -1432,7 +1432,15 @@ export class CloudSessionManager {
 					}
 				}
 			}
-			const prompts = queueReply
+			// A reply is only an authoritative queue snapshot when it succeeded
+			// and actually carries a prompts array; treating an unsuccessful or
+			// malformed reply as authoritative would publish an empty queue and
+			// drop the buffered queue events that still hold the real state.
+			const queueSnapshotValid =
+				queueReply !== undefined &&
+				queueReply.ok !== false &&
+				Array.isArray(queueReply.payload?.prompts);
+			const prompts = queueSnapshotValid
 				? this.applyQueueSnapshot(outerSessionId, queueReply)
 				: undefined;
 			await this.refreshPendingApprovals(outerSessionId, connection);
@@ -1454,7 +1462,7 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
-				{ queueSnapshotApplied: Boolean(queueReply) },
+				{ queueSnapshotApplied: queueSnapshotValid },
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;

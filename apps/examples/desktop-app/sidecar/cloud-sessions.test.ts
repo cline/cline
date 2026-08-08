@@ -67,6 +67,7 @@ class FakeHubClient {
 	onFailedSend?: () => void;
 	commandHook?: (command: string) => void | Promise<void>;
 	invalidMessagesSnapshot = false;
+	malformedQueueReply = false;
 	listedModel?: string;
 	messages: unknown[] = [{ role: "user", content: "hi" }];
 	prompts: Array<Record<string, unknown>> = [
@@ -145,6 +146,9 @@ class FakeHubClient {
 				ok: true,
 				payload: { approvals: this.pendingApprovals },
 			};
+		}
+		if (command === "session.pending_prompts" && this.malformedQueueReply) {
+			return { ok: true, payload: {} };
 		}
 		if (
 			command === "session.pending_prompts" ||
@@ -942,6 +946,50 @@ describe("CloudSessionManager", () => {
 					event.payload.sessionId === "ses-outer",
 			),
 		).toBe(true);
+	});
+
+	it("keeps buffered queue state when the queue snapshot reply is malformed", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.malformedQueueReply = true;
+		// A queue event arrives while the rehydration snapshot is in flight,
+		// so it lands in the reconnect buffer.
+		hub.commandHook = async (command) => {
+			if (command !== "session.messages") return;
+			hub.events?.({
+				version: "v1",
+				event: "session.pending_prompts",
+				eventId: "evt-queue-buffered",
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: {
+					prompts: [
+						{
+							id: "q-buffered",
+							prompt: "still queued",
+							delivery: "queue",
+							attachmentCount: 0,
+						},
+					],
+				},
+			});
+		};
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		// Reading with an unknown transcript forces the rehydration snapshot.
+		await manager.readMessages("ses-outer");
+
+		// The malformed reply must not count as an authoritative snapshot;
+		// the buffered queue event is replayed and keeps the queued prompt.
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-buffered", prompt: "still queued" },
+		]);
 	});
 
 	it("queues one rerun when a second sync overlaps the active snapshot", async () => {
