@@ -30,6 +30,7 @@ import {
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
 	type CloudRepositoryOption,
+	cloudRepositoryLabel,
 	normalizeCloudRepositoryUrl,
 	preferredCloudBranch,
 } from "@/lib/cloud-repositories";
@@ -60,15 +61,6 @@ const TRIGGER_CLASS =
 	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl";
-
-function repositoryName(repoUrl: string): string {
-	const normalized = normalizeCloudRepositoryUrl(repoUrl).replace(
-		/\.git$/i,
-		"",
-	);
-	const parts = normalized.split(/[/:]/).filter(Boolean);
-	return parts.slice(-2).join("/") || "Cloud repo";
-}
 
 function ExecutionTargetPicker({
 	executionTarget,
@@ -172,7 +164,9 @@ function CloudRepositoryPicker({
 					className="size-4 shrink-0 text-muted-foreground"
 				/>
 				<span className="max-w-56 truncate">
-					{repoUrl ? repositoryName(repoUrl) : "Select repository…"}
+					{repoUrl
+						? cloudRepositoryLabel(repoUrl, "Cloud repo")
+						: "Select repository…"}
 				</span>
 			</button>
 

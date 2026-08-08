@@ -32,6 +32,7 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -388,18 +389,13 @@ function ChatInputBarImpl({
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
 	const canSend = hasDraft && !needsCloudRepository;
-	const cloudContextLabel = useMemo(() => {
-		const repository = repoUrl
-			?.replace(/\.git$/i, "")
-			.replace(/\/+$/, "")
-			.split(/[/:]/)
-			.filter(Boolean)
-			.slice(-2)
-			.join("/");
-		return [repository || "Cloud", cloudBranch?.trim()]
-			.filter(Boolean)
-			.join(" / ");
-	}, [cloudBranch, repoUrl]);
+	const cloudContextLabel = useMemo(
+		() =>
+			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
+				.filter(Boolean)
+				.join(" / "),
+		[cloudBranch, repoUrl],
+	);
 	const handleSend = useCallback(() => {
 		if (!canSend) return;
 		const prompt = promptInput.trim();

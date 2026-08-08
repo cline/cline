@@ -46,6 +46,10 @@ import { toast } from "@/hooks/use-toast";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	cloudRepositoryLabel,
+	isCloudProvisioningSessionId,
+} from "@/lib/cloud-repositories";
+import {
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
@@ -150,13 +154,7 @@ const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
-	const repoLabel = repoUrl
-		?.replace(/\.git$/i, "")
-		.replace(/\/+$/, "")
-		.split(/[/:]/)
-		.filter(Boolean)
-		.slice(-2)
-		.join("/");
+	const repoLabel = cloudRepositoryLabel(repoUrl ?? "");
 	const phases = useMemo(
 		() => [
 			"Spinning up a fresh sandbox",
@@ -773,7 +771,7 @@ function ChatThreadPane({
 	// sidebar row disappears, but this thread stays open).
 	useEffect(() => {
 		const placeholderId = historySession?.sessionId;
-		if (!placeholderId?.startsWith("cloud-provisioning-")) return;
+		if (!placeholderId || !isCloudProvisioningSessionId(placeholderId)) return;
 		return desktopClient.subscribe(
 			"cloud_session_provisioning_failed",
 			(payload) => {
@@ -793,7 +791,10 @@ function ChatThreadPane({
 	const isProvisioningCloudSession =
 		!provisioningError &&
 		(liveHistoryStatus === "provisioning" ||
-			Boolean(historySession?.sessionId?.startsWith("cloud-provisioning-")));
+			Boolean(
+				historySession?.sessionId &&
+					isCloudProvisioningSessionId(historySession.sessionId),
+			));
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
 	);

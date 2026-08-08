@@ -9,11 +9,13 @@ import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 } from "@cline/shared";
-import type {
-	CloudBranchListOptions,
-	CloudBranchListResult,
-	CloudRepositoryListResult,
-	CloudRepositoryOption,
+import {
+	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
+	type CloudRepositoryOption,
+	cloudRepositoryLabel,
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
@@ -63,15 +65,6 @@ export type CloudSessionRecord = {
 
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
-}
-
-function repositoryLabel(repoUrl: string): string {
-	const parts = repoUrl
-		.replace(/\.git$/i, "")
-		.replace(/\/+$/, "")
-		.split(/[/:]/)
-		.filter(Boolean);
-	return parts.slice(-2).join("/") || "repository";
 }
 
 export type CreateCloudSessionInput = {
@@ -511,9 +504,12 @@ export class CloudSessionApi {
 							// so only require a match when we asked for a specific one.
 							(!requestedBranch ||
 								session.repoContext.branch === requestedBranch) &&
-							// Generous slack: this compares the client clock against
-							// the server's createdAt, and the claim set already
-							// prevents adopting another request's session.
+							// Generous slack for client-vs-server clock skew. The
+							// claim set (process-wide) plus the peer wait above
+							// prevent adopting another in-process request's
+							// session; the timeout/5xx recovery gate keeps this
+							// from matching identical-config sessions created by
+							// other devices in the window.
 							Date.parse(session.createdAt) >= requestedAt - 60_000,
 					)
 					.sort(
@@ -711,6 +707,33 @@ function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 				: undefined,
 		status: record.status,
 		attachedViaHub: true,
+	};
+}
+
+/** Reply shape for chat_session_command start/attach on a cloud session. */
+function attachResultPayload(
+	record: CloudSessionRecord,
+	status: string,
+): JsonRecord {
+	return {
+		sessionId: record.id,
+		origin: "cloud",
+		executionTarget: "cloud",
+		status,
+		provider: "cline",
+		model: record.metadata.modelId ?? "",
+		repoUrl: record.repoContext.repoUrl ?? "",
+		branch: record.repoContext.branch ?? "",
+		cwd: CLOUD_WORKSPACE_ROOT,
+		workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		metadata: {
+			origin: "cloud",
+			repoUrl: record.repoContext.repoUrl ?? "",
+			git: {
+				url: record.repoContext.repoUrl ?? "",
+				branch: record.repoContext.branch ?? "",
+			},
+		},
 	};
 }
 
@@ -1110,7 +1133,7 @@ export class CloudSessionManager {
 			throw new Error("Cloud session manager was disposed");
 		}
 		// Keep the session visible while the blocking create request provisions it.
-		const placeholderId = `cloud-provisioning-${randomUUID()}`;
+		const placeholderId = `${CLOUD_PROVISIONING_SESSION_ID_PREFIX}${randomUUID()}`;
 		const startedAt = new Date().toISOString();
 		this.pendingCreates.set(placeholderId, {
 			sessionId: placeholderId,
@@ -1128,7 +1151,7 @@ export class CloudSessionManager {
 				origin: "cloud",
 				repoUrl: input.repoUrl,
 				git: { url: input.repoUrl, branch: input.branch ?? "" },
-				title: `Provisioning ${repositoryLabel(input.repoUrl)}…`,
+				title: `Provisioning ${cloudRepositoryLabel(input.repoUrl, "repository")}…`,
 			},
 		});
 		// Show the placeholder before the next sidebar poll.
@@ -1285,26 +1308,7 @@ export class CloudSessionManager {
 		await this.refreshPendingApprovals(outerSessionId, connection);
 		const record = connection.remote;
 		const live = this.ctx.liveSessions.get(outerSessionId);
-		return {
-			sessionId: outerSessionId,
-			origin: "cloud",
-			executionTarget: "cloud",
-			status: live?.status ?? record.status,
-			provider: "cline",
-			model: record.metadata.modelId ?? "",
-			repoUrl: record.repoContext.repoUrl ?? "",
-			branch: record.repoContext.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
-			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			metadata: {
-				origin: "cloud",
-				repoUrl: record.repoContext.repoUrl ?? "",
-				git: {
-					url: record.repoContext.repoUrl ?? "",
-					branch: record.repoContext.branch ?? "",
-				},
-			},
-		};
+		return attachResultPayload(record, live?.status ?? record.status);
 	}
 
 	async send(
@@ -1860,26 +1864,7 @@ export class CloudSessionManager {
 		live.status = "expired";
 		this.ctx.liveSessions.set(record.id, live);
 		await this.loadArchivedMessages(record).catch(() => undefined);
-		return {
-			sessionId: record.id,
-			origin: "cloud",
-			executionTarget: "cloud",
-			status: "expired",
-			provider: "cline",
-			model: record.metadata.modelId ?? "",
-			repoUrl: record.repoContext.repoUrl ?? "",
-			branch: record.repoContext.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
-			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			metadata: {
-				origin: "cloud",
-				repoUrl: record.repoContext.repoUrl ?? "",
-				git: {
-					url: record.repoContext.repoUrl ?? "",
-					branch: record.repoContext.branch ?? "",
-				},
-			},
-		};
+		return attachResultPayload(record, "expired");
 	}
 
 	private async loadArchivedMessages(

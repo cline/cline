@@ -134,6 +134,36 @@ export function normalizeRuntimeConfig(
 	};
 }
 
+/**
+ * Maps a cloud runtime status (hub vocabulary plus the sidecar-side
+ * "expired"/"error" values) to the chat UI status. Returns null for unknown
+ * values so callers leave the current status alone — a malformed snapshot
+ * must never flip a running turn to "done".
+ */
+export function mapCloudRuntimeStatus(
+	status: string | undefined,
+): ChatSessionStatus | null {
+	switch (status) {
+		case "failed":
+		case "error":
+			return "failed";
+		case "aborted":
+		case "cancelled":
+			return "cancelled";
+		case "running":
+		case "pending":
+			return "running";
+		case "idle":
+		case "ready":
+			return "idle";
+		case "completed":
+		case "expired":
+			return "completed";
+		default:
+			return null;
+	}
+}
+
 export function resolveCredentialError(
 	config: ChatSessionConfig,
 	options?: { hasActiveSession?: boolean },

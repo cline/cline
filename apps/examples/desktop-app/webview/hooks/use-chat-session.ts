@@ -11,6 +11,7 @@ import {
 	extractAssistantTurnDataFromRpcMessages,
 	inferHydratedChatStatus,
 	makeId,
+	mapCloudRuntimeStatus,
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
@@ -203,9 +204,11 @@ export function mergeCloudSnapshotWithLive(
 		preserveUnmatchedLive?: boolean;
 	},
 ): ChatMessage[] {
+	const messageKey = (message: ChatMessage) =>
+		`${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
 	const hydratedKeyCounts = new Map<string, number>();
 	for (const message of hydrated) {
-		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const key = messageKey(message);
 		hydratedKeyCounts.set(key, (hydratedKeyCounts.get(key) ?? 0) + 1);
 	}
 	const hydratedAssistantTexts = hydrated
@@ -226,7 +229,7 @@ export function mergeCloudSnapshotWithLive(
 			optimistic.push(message);
 			continue;
 		}
-		const key = `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const key = messageKey(message);
 		const hydratedCount = hydratedKeyCounts.get(key) ?? 0;
 		if (hydratedCount > 0) {
 			if (hydratedCount === 1) hydratedKeyCounts.delete(key);
@@ -1657,19 +1660,10 @@ export function useChatSession() {
 							nextStatus === "running" || nextStatus === "pending",
 					});
 					clearLiveToolRefs();
-					if (nextStatus === "failed" || nextStatus === "error") {
-						setStatus("failed");
-					} else if (nextStatus === "aborted" || nextStatus === "cancelled") {
-						setStatus("cancelled");
-					} else if (nextStatus === "running" || nextStatus === "pending") {
-						setStatus("running");
-					} else if (nextStatus === "idle" || nextStatus === "ready") {
-						setStatus("idle");
-					} else if (nextStatus === "completed" || nextStatus === "expired") {
-						setStatus("completed");
+					const mappedStatus = mapCloudRuntimeStatus(nextStatus);
+					if (mappedStatus) {
+						setStatus(mappedStatus);
 					}
-					// Unknown or missing statuses leave the current one alone: a
-					// malformed snapshot must not flip a running turn to "done".
 				};
 				if (Array.isArray(record.messages)) {
 					applySnapshot(record.messages);
@@ -2263,29 +2257,10 @@ export function useChatSession() {
 				if (abortedRef.current) {
 					setStatus("cancelled");
 				} else if (payload.recoveredAfterDisconnect) {
-					if (payload.status === "failed" || payload.status === "error") {
-						setStatus("failed");
-					} else if (
-						payload.status === "aborted" ||
-						payload.status === "cancelled"
-					) {
-						setStatus("cancelled");
-					} else if (
-						payload.status === "running" ||
-						payload.status === "pending"
-					) {
-						setStatus("running");
-					} else if (payload.status === "idle" || payload.status === "ready") {
-						setStatus("idle");
-					} else if (
-						payload.status === "completed" ||
-						payload.status === "expired"
-					) {
-						setStatus("completed");
+					const recoveredStatus = mapCloudRuntimeStatus(payload.status);
+					if (recoveredStatus) {
+						setStatus(recoveredStatus);
 					}
-					// Unknown or missing statuses leave the current one alone,
-					// matching the cloud_session_rehydrated handler: a malformed
-					// recovery must not flip a running turn to "done".
 				} else if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it

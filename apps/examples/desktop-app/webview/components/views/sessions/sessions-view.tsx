@@ -50,6 +50,7 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
@@ -656,7 +657,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												{/* Cloud sessions support rename (PATCH title), matching
 												    the sidebar and chat header affordances. Provisioning
 												    placeholders have no server session to rename yet. */}
-												{!thread.id.startsWith("cloud-provisioning-") ? (
+												{!isCloudProvisioningSessionId(thread.id) ? (
 													<DropdownMenuItem onClick={() => startRename(thread)}>
 														<Pencil className="size-4" />
 														Rename
@@ -674,7 +675,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												<DropdownMenuItem
 													// Provisioning placeholders have no server session
 													// to delete yet; the sidecar rejects the request.
-													disabled={thread.id.startsWith("cloud-provisioning-")}
+													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>

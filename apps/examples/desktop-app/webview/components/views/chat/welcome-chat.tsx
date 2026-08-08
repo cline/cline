@@ -1,5 +1,6 @@
 "use client";
 
+import { getClineEnvironmentConfig } from "@cline/shared/browser";
 import {
 	AgentAurora,
 	AgentHeroHeading,
@@ -41,7 +42,9 @@ const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
 	},
 ];
 
-const FALLBACK_CONNECT_URL = "https://app.cline.bot/dashboard/integrations";
+// Used only until the API's connectUrl arrives (or when it is blank), so a
+// staging/local build still points at its own dashboard.
+const FALLBACK_CONNECT_URL = `${getClineEnvironmentConfig().appBaseUrl}/dashboard/integrations`;
 // The dashboard hand-off happens in the browser, so re-check often enough
 // that the panel flips to ready shortly after the user finishes there.
 const CLOUD_SETUP_POLL_INTERVAL_MS = 6_000;

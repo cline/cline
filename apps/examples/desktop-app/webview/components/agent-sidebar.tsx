@@ -85,6 +85,7 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -1184,8 +1185,8 @@ function ThreadItem({
 				allowFork={thread.origin !== "cloud"}
 				// Provisioning placeholders have no server session to rename or
 				// delete yet (the sidecar rejects both until the create settles).
-				allowRename={!thread.id.startsWith("cloud-provisioning-")}
-				allowDelete={!thread.id.startsWith("cloud-provisioning-")}
+				allowRename={!isCloudProvisioningSessionId(thread.id)}
+				allowDelete={!isCloudProvisioningSessionId(thread.id)}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}

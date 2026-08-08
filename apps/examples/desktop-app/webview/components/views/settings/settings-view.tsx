@@ -528,28 +528,12 @@ function GeneralSettingsContent() {
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
 	>(null);
-	// The Cloud sessions row will eventually be gated on a PostHog feature
-	// flag so we can control who sees the preview setting. That flag does
-	// not exist in PostHog yet, so the gate is hard-wired on for now; once
-	// the flag is added, register it in @cline/shared's feature-flags.ts,
-	// expose it from the sidecar's get_feature_flags command, and swap in
-	// the commented lookup below. Note the sidecar's remote-flag (PostHog)
-	// evaluation plumbing was removed with the old rollout gate, so wiring
-	// this up also means re-adding a FeatureFlagsService to the sidecar
-	// (see git history of sidecar/feature-flags.ts for the hardened version).
+	// Hard-wired on for the preview. If rollout control is ever needed,
+	// gate this on a PostHog flag exposed through the sidecar's
+	// get_feature_flags command (the sidecar's remote-flag evaluation
+	// plumbing was removed with the old rollout gate; see the git history
+	// of sidecar/feature-flags.ts for the hardened version).
 	const cloudSessionsSettingVisible = true;
-	// const [cloudSessionsSettingVisible, setCloudSessionsSettingVisible] =
-	// 	useState(false);
-	// useEffect(() => {
-	// 	desktopClient
-	// 		.invoke<{ cloudSessionsSettingVisible?: boolean }>("get_feature_flags")
-	// 		.then((flags) =>
-	// 			setCloudSessionsSettingVisible(
-	// 				Boolean(flags.cloudSessionsSettingVisible),
-	// 			),
-	// 		)
-	// 		.catch(() => undefined);
-	// }, []);
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
 		try {
