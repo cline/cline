@@ -6,9 +6,15 @@ import { jsonrepair } from "jsonrepair";
  * plausible but incorrect value. This guards against truncated tool-call
  * arguments being silently repaired into valid-looking JSON whose values
  * are cut off mid-content.
+ *
+ * Tracks both double-quoted and single-quoted strings so literal quotes
+ * inside the opposite delimiter style do not trigger false positives
+ * (e.g. a bare-object value like `{"commands": grep -c " file.txt}` or
+ * a single-quoted payload like `{'commands': ['grep " foo']}`).
  */
 function hasUnterminatedString(text: string): boolean {
-	let inString = false;
+	let inDouble = false;
+	let inSingle = false;
 	let escapeNext = false;
 	for (let i = 0; i < text.length; i += 1) {
 		const ch = text[i];
@@ -20,11 +26,13 @@ function hasUnterminatedString(text: string): boolean {
 			escapeNext = true;
 			continue;
 		}
-		if (ch === '"') {
-			inString = !inString;
+		if (!inSingle && ch === '"') {
+			inDouble = !inDouble;
+		} else if (!inDouble && ch === "'") {
+			inSingle = !inSingle;
 		}
 	}
-	return inString;
+	return inDouble || inSingle;
 }
 
 const BARE_OBJECT_RE = /^\{\s*"([A-Za-z0-9_.$-]+)"\s*:\s*([\s\S]+?)\s*\}$/;
@@ -72,11 +80,19 @@ export function parseJsonStream(input: unknown): unknown {
 		// Not valid JSON — attempt repair below.
 	}
 
+	// bare-object repair wraps the value verbatim through JSON.stringify
+	// and cannot invent a string terminator; try it first.
+	const bare = repairBareObjectValue(text);
+	if (bare !== undefined) {
+		return bare;
+	}
+
 	// If the text has an unterminated string literal the content was almost
 	// certainly cut off mid-value (e.g. the model hit max_tokens while
-	// writing a file-contents argument). Repairing this would close the
-	// string with a synthetic quote and produce a valid-looking but wrong
-	// value. Reject it instead so the error propagates naturally.
+	// writing a file-contents argument). Repairing this with jsonrepair
+	// would close the string with a synthetic quote and produce a
+	// valid-looking but wrong value. Reject it instead so the error
+	// propagates naturally.
 	if (hasUnterminatedString(text)) {
 		return input;
 	}
@@ -84,10 +100,10 @@ export function parseJsonStream(input: unknown): unknown {
 	try {
 		return JSON.parse(jsonrepair(text));
 	} catch {
-		// jsonrepair failed — try the last strategy below.
+		// jsonrepair failed — return original for the caller to handle.
 	}
 
-	return repairBareObjectValue(text) ?? input;
+	return input;
 }
 
 export function safeJsonStringify(input: unknown): string {

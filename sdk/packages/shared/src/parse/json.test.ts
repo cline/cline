@@ -27,6 +27,24 @@ describe("parseJsonStream", () => {
 		expect(parseJsonStream(truncated)).toBe(truncated);
 	});
 
+	it("repairs bare-object values with literal double quotes", () => {
+		expect(parseJsonStream('{"commands": echo \'it"s fine\'}')).toEqual({
+			commands: "echo 'it\"s fine'",
+		});
+	});
+
+	it("repairs bare-object values with unbalanced double quotes in shell commands", () => {
+		expect(parseJsonStream('{"commands": grep -c " file.txt}')).toEqual({
+			commands: 'grep -c " file.txt',
+		});
+	});
+
+	it("repairs single-quoted JSON with double-quote characters inside values", () => {
+		expect(parseJsonStream("{'commands': ['grep \" foo']}")).toEqual({
+			commands: ['grep " foo'],
+		});
+	});
+
 	it("repairs unclosed containers with complete string values", () => {
 		expect(parseJsonStream('{"commands": ["ls"')).toEqual({
 			commands: ["ls"],
