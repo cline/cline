@@ -284,6 +284,19 @@ class StdioMcpClient implements McpServerClient {
 		// Termination is escalated rather than fire-and-forget so one-shot
 		// lifecycles (such as connection probes) cannot accumulate processes
 		// whose commands ignore the polite signal.
+		if (process.platform === "win32") {
+			// Windows stdio servers are spawned through a shell, and
+			// TerminateProcess (what kill() maps to) only reaches that wrapper;
+			// taskkill /T terminates the actual server process tree.
+			const treeKill = spawn(
+				"taskkill",
+				["/pid", String(child.pid), "/T", "/F"],
+				{ windowsHide: true, stdio: "ignore" },
+			);
+			treeKill.once("error", () => child.kill());
+			await waitForChildExit(child, STDIO_KILL_GRACE_MS);
+			return;
+		}
 		child.kill();
 		if (await waitForChildExit(child, STDIO_KILL_GRACE_MS)) {
 			return;
