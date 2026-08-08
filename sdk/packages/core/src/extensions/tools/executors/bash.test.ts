@@ -439,4 +439,34 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		const output = await executor("echo shell-ok", process.cwd(), ctx);
 		expect(output.trim()).toBe("shell-ok");
 	});
+
+	it("returns promptly when a backgrounded job keeps stdout open", async () => {
+		// Reproduces the hang that used to SIGKILL the whole process group:
+		// `cd && nohup ... &` leaves a grandchild holding the shell's stdout
+		// pipe, so `close` never fires. After the fix, the shell's own `exit`
+		// settles the promise within the detach grace window.
+		const marker = join(
+			tmpdir(),
+			`cline-bg-alive-${Date.now()}-${Math.random().toString(16).slice(2)}.marker`,
+		);
+		const shell = createShellExecutor({ timeoutMs: 5_000 });
+		const started = Date.now();
+		const output = await shell(
+			`cd /tmp && nohup bash -c 'touch "${marker}"; sleep 30' >/dev/null 2>&1 & echo PID:$!`,
+			process.cwd(),
+			ctx,
+		);
+		const elapsed = Date.now() - started;
+		expect(elapsed).toBeLessThan(3_000);
+		expect(output).toMatch(/PID:\d+/);
+
+		// The background job must still be alive — we must not have
+		// process-group-killed it on settle.
+		const deadline = Date.now() + 2_000;
+		while (Date.now() < deadline && !(await fileExists(marker))) {
+			await new Promise((r) => setTimeout(r, 50));
+		}
+		expect(await fileExists(marker)).toBe(true);
+		await rm(marker, { force: true });
+	});
 });

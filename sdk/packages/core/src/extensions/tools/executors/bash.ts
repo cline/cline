@@ -29,6 +29,16 @@ export class CommandExitError extends Error {
 }
 
 /**
+ * Grace period after the launched shell exits before we resolve a command
+ * whose stdio pipes are still open. This only matters when a backgrounded or
+ * detached grandchild inherited the shell's stdout/stderr: the shell itself
+ * has exited (so `close` will never fire and we'd otherwise wait for the
+ * timeout and SIGKILL the whole process group), but a little slack lets any
+ * output the shell already emitted flush before we snapshot it.
+ */
+const BACKGROUND_DETACH_GRACE_MS = 750;
+
+/**
  * Options for the shell executor
  */
 export interface ShellExecutorOptions {
@@ -207,9 +217,11 @@ function spawnAndCollect(
 		};
 
 		let timeout: NodeJS.Timeout;
+		let exitGrace: NodeJS.Timeout | undefined;
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
 		const cleanup = () => {
 			clearTimeout(timeout);
+			if (exitGrace) clearTimeout(exitGrace);
 			context.signal?.removeEventListener("abort", abortHandler);
 		};
 		const killAndReject = (error: Error) => {
@@ -240,10 +252,7 @@ function spawnAndCollect(
 			stderr.append(data);
 		});
 
-		child.on("close", (code) => {
-			cleanup();
-			if (killed) return;
-
+		const finalizeFromStreams = (code: number | null) => {
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
 
@@ -283,6 +292,34 @@ function spawnAndCollect(
 				}
 				settle(() => resolve(output));
 			}
+		};
+
+		child.on("close", (code) => {
+			cleanup();
+			if (killed) return;
+			finalizeFromStreams(code);
+		});
+
+		// A backgrounded or detached grandchild (e.g. `nohup foo &`, or a
+		// `cd dir && cmd &` subshell) inherits the launched shell's stdout/
+		// stderr pipes, so `close` never fires even after the shell we spawned
+		// has already exited. Without this the command would sit until the
+		// timeout and then be SIGKILL'd as a process group — killing the
+		// intentionally-detached job too. Once the direct shell exits, give
+		// buffered output a brief window to flush, then resolve with what we
+		// have and leave the detached process running (no process-tree kill).
+		child.on("exit", (code) => {
+			if (settled || killed) return;
+			exitGrace = setTimeout(() => {
+				if (settled || killed) return;
+				cleanup();
+				// Stop waiting on the inherited pipe without killing the
+				// detached child (it keeps its own redirected fds).
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+				child.unref?.();
+				finalizeFromStreams(code ?? 0);
+			}, BACKGROUND_DETACH_GRACE_MS);
 		});
 
 		child.on("error", (error) => {

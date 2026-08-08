@@ -111,6 +111,23 @@ describe("createRetryEmptyResponseMiddleware", () => {
 		expect(parts.some((p) => p.type === "tool-call")).toBe(true);
 	});
 
+	it("retries a whitespace-only turn (not real content)", async () => {
+		const whitespaceParts = [
+			streamStart,
+			{ type: "text-delta" as const, id: "t", delta: " \n" },
+			finish(),
+		];
+		const doStream = vi
+			.fn()
+			.mockResolvedValueOnce(streamOf(whitespaceParts))
+			.mockResolvedValueOnce(streamOf(textParts));
+		const parts = await collect(await run(doStream));
+		expect(doStream).toHaveBeenCalledTimes(2);
+		expect(
+			parts.some((p) => p.type === "text-delta" && p.delta === "hello"),
+		).toBe(true);
+	});
+
 	it("gives up after maxAttempts and forwards the final empty finish", async () => {
 		const doStream = vi.fn(async () => streamOf(emptyParts));
 		const parts = await collect(await run(doStream, { maxAttempts: 3 }));

@@ -134,10 +134,63 @@ export function coalesceOrphanReadRanges(input: unknown): unknown {
 	return input;
 }
 
+/**
+ * Parse a string that is a JSON array of strings, e.g. `'["ls","pwd"]'`.
+ * Returns undefined for anything else so a legitimate single command that
+ * merely starts with `[` is left untouched.
+ */
+function tryParseJsonStringArray(value: string): string[] | undefined {
+	const trimmed = value.trim();
+	if (trimmed[0] !== "[") return undefined;
+	try {
+		const parsed = JSON.parse(trimmed);
+		if (Array.isArray(parsed) && parsed.every((x) => typeof x === "string")) {
+			return parsed;
+		}
+	} catch {
+		// Not valid JSON — treat as an ordinary command string.
+	}
+	return undefined;
+}
+
+/**
+ * Some models emit `commands` as a *stringified* JSON array (a single string
+ * like `'["find ...","grep ..."]'`) instead of an actual array, or as a
+ * one-element array whose sole element is that stringified array. Left as-is
+ * the shell would try to execute the literal `["..."]` text and fail. Unwrap
+ * those shapes back into a real array before schema validation.
+ */
+function unwrapStringifiedCommands(input: unknown): unknown {
+	if (
+		!input ||
+		typeof input !== "object" ||
+		Array.isArray(input) ||
+		!("commands" in input)
+	) {
+		return input;
+	}
+	const commands = (input as { commands: unknown }).commands;
+	if (typeof commands === "string") {
+		const parsed = tryParseJsonStringArray(commands);
+		if (parsed) return { ...input, commands: parsed };
+	} else if (
+		Array.isArray(commands) &&
+		commands.length === 1 &&
+		typeof commands[0] === "string"
+	) {
+		const parsed = tryParseJsonStringArray(commands[0]);
+		if (parsed) return { ...input, commands: parsed };
+	}
+	return input;
+}
+
 export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
-	const validate = validateWithZod(RunCommandsInputUnionSchema, input);
+	const validate = validateWithZod(
+		RunCommandsInputUnionSchema,
+		unwrapStringifiedCommands(input),
+	);
 
 	if (typeof validate === "string") {
 		return [validate];

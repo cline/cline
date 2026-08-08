@@ -42,8 +42,10 @@ export interface RetryEmptyResponseOptions {
 	logger?: RetryLogger;
 }
 
-/** Default total attempts (first try + 2 retries). */
-export const DEFAULT_EMPTY_RESPONSE_MAX_ATTEMPTS = 3;
+/** Default total attempts (first try + retries). Local backends (Ollama) can
+ * emit several empty turns in a row, so allow a few more than a cloud provider
+ * would need. */
+export const DEFAULT_EMPTY_RESPONSE_MAX_ATTEMPTS = 5;
 /** Default delay before a retry. */
 export const DEFAULT_EMPTY_RESPONSE_RETRY_DELAY_MS = 250;
 
@@ -66,7 +68,10 @@ function isContentPart(part: LanguageModelV3StreamPart): boolean {
 	switch (part.type) {
 		case "text-delta":
 		case "reasoning-delta":
-			return part.delta.length > 0;
+			// Whitespace-only deltas are not real output: some local backends
+			// emit a lone space/newline then stop, which would otherwise count
+			// as content and suppress the retry, surfacing an "empty response".
+			return part.delta.trim().length > 0;
 		case "tool-call":
 		case "tool-input-start":
 		case "tool-input-delta":
