@@ -25,7 +25,10 @@ import {
 	uninstallMarketplaceEntry as uninstallCoreMarketplaceEntry,
 	uninstallPlugin as uninstallLocalPlugin,
 } from "@cline/core";
-import { resolveClineDir } from "@cline/shared/storage";
+import {
+	discoverPluginModulePaths,
+	resolveClineDir,
+} from "@cline/shared/storage";
 import { deleteMcpServer, readMcpServersResponse } from "./mcp";
 import type { JsonRecord } from "./types";
 
@@ -584,7 +587,9 @@ function isOfficialPluginSlug(source: string): boolean {
 	return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(source.trim());
 }
 
-function getOfficialPluginInstallPath(source: string): string | undefined {
+export function getOfficialPluginInstallPath(
+	source: string,
+): string | undefined {
 	const slug = source.trim();
 	if (!isOfficialPluginSlug(slug)) return undefined;
 	const sourceKey = `official:${OFFICIAL_PLUGINS_REPO}#plugins/${slug}`;
@@ -602,7 +607,17 @@ function isOfficialPluginInstalled(entry: MarketplaceInstallInput): boolean {
 	const [source] = entry.install.args ?? [];
 	if (!source) return false;
 	const installPath = getOfficialPluginInstallPath(source);
-	return Boolean(installPath && existsSync(installPath));
+	if (!installPath || !existsSync(installPath)) return false;
+	// A bare directory is not an install: a failed or interrupted install can
+	// leave the directory behind with no plugin inside, and treating that as
+	// installed makes the next install attempt "succeed" silently ("already
+	// installed") while nothing actually works. Require a loadable plugin
+	// module before reporting the entry as installed.
+	try {
+		return discoverPluginModulePaths(installPath).length > 0;
+	} catch {
+		return false;
+	}
 }
 
 function resolveHomeDir(): string {
