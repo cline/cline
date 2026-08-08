@@ -1600,49 +1600,57 @@ export class Controller {
 	 */
 	async viewLatestCheckpointChanges(): Promise<void> {
 		const activeSession = this.sessions.getActiveSession()
-		if (!activeSession) {
+		const sessionId = activeSession?.sessionId ?? this.task?.taskId
+		if (!sessionId) {
 			throw new Error("No active task to show changes for")
 		}
-		const sessionHost = activeSession.sdkHost
-		if (!sessionHost.compareCheckpoint) {
-			throw new Error("This session host does not support checkpoint comparison")
-		}
+		// After a window reload the latest task is shown from history without a
+		// live session, so fall back to a temporary host for the comparison.
+		let tempHost: VscodeSessionHost | undefined
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		try {
+			if (!sessionHost.compareCheckpoint) {
+				throw new Error("This session host does not support checkpoint comparison")
+			}
 
-		const sessionRecord = await sessionHost.get(activeSession.sessionId)
-		const latestCheckpoint = readSessionCheckpointHistory(sessionRecord).reduce(
-			(latest, entry) => (!latest || entry.runCount > latest.runCount ? entry : latest),
-			undefined as ReturnType<typeof readSessionCheckpointHistory>[number] | undefined,
-		)
-		if (!latestCheckpoint) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
+			const sessionRecord = await sessionHost.get(sessionId)
+			const latestCheckpoint = readSessionCheckpointHistory(sessionRecord).reduce(
+				(latest, entry) => (!latest || entry.runCount > latest.runCount ? entry : latest),
+				undefined as ReturnType<typeof readSessionCheckpointHistory>[number] | undefined,
+			)
+			if (!latestCheckpoint) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
+				})
+				return
+			}
+
+			const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
+			const { diffs } = await sessionHost.compareCheckpoint({
+				sessionId,
+				checkpointRunCount: latestCheckpoint.runCount,
+				cwd,
 			})
-			return
-		}
+			if (diffs.length === 0) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No file changes found since your last message.",
+				})
+				return
+			}
 
-		const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
-		const { diffs } = await sessionHost.compareCheckpoint({
-			sessionId: activeSession.sessionId,
-			checkpointRunCount: latestCheckpoint.runCount,
-			cwd,
-		})
-		if (diffs.length === 0) {
-			HostProvider.window.showMessage({
-				type: ShowMessageType.INFORMATION,
-				message: "No file changes found since your last message.",
+			await HostProvider.diff.openMultiFileDiff({
+				title: "Changes since your last message",
+				diffs: diffs.map((diff) => ({
+					filePath: diff.filePath,
+					leftContent: diff.leftContent,
+					rightContent: diff.rightContent,
+				})),
 			})
-			return
+		} finally {
+			await tempHost?.dispose("viewLatestCheckpointChanges")
 		}
-
-		await HostProvider.diff.openMultiFileDiff({
-			title: "Changes since your last message",
-			diffs: diffs.map((diff) => ({
-				filePath: diff.filePath,
-				leftContent: diff.leftContent,
-				rightContent: diff.rightContent,
-			})),
-		})
 	}
 
 	/**
