@@ -522,6 +522,12 @@ function GeneralSettingsContent() {
 	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
 		null,
 	);
+	// The gate the composer actually uses. It can diverge from the stored
+	// setting when the CLINE_CODE_CLOUD_AGENTS env override is set; without
+	// surfacing that, the toggle silently appears to do nothing.
+	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
+		boolean | null
+	>(null);
 	// The Cloud sessions row will eventually be gated on a PostHog feature
 	// flag so we can control who sees the preview setting. That flag does
 	// not exist in PostHog yet, so the gate is hard-wired on for now; once
@@ -545,6 +551,17 @@ function GeneralSettingsContent() {
 	// 		.catch(() => undefined);
 	// }, []);
 
+	const refreshCloudSessionsEffective = useCallback(async () => {
+		try {
+			const flags = await desktopClient.invoke<{ cloudAgents?: boolean }>(
+				"get_feature_flags",
+			);
+			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+		} catch {
+			setCloudSessionsEffective(null);
+		}
+	}, []);
+
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
@@ -552,33 +569,45 @@ function GeneralSettingsContent() {
 		setAutoUpdateError(null);
 		setCloudSessionsLoading(true);
 		setCloudSessionsError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setTelemetryError(message);
-			setAutoUpdateError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
-		}
-		try {
-			const desktopSettings = await desktopClient.invoke<{
-				cloudSessionsEnabled: boolean;
-			}>("get_desktop_settings");
-			setCloudSessionsEnabled(Boolean(desktopSettings.cloudSessionsEnabled));
-		} catch (error) {
-			setCloudSessionsError(
-				error instanceof Error ? error.message : String(error),
-			);
-		} finally {
-			setCloudSessionsLoading(false);
-		}
-	}, []);
+		// Independent backends: load them concurrently so one slow call cannot
+		// hold the other's toggle in its loading state.
+		await Promise.all([
+			(async () => {
+				try {
+					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+						"get_global_settings",
+					);
+					setTelemetryOptOut(settings.telemetryOptOut);
+					setAutoUpdateEnabled(settings.autoUpdateEnabled);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setTelemetryError(message);
+					setAutoUpdateError(message);
+				} finally {
+					setTelemetryLoading(false);
+					setAutoUpdateLoading(false);
+				}
+			})(),
+			(async () => {
+				try {
+					const desktopSettings = await desktopClient.invoke<{
+						cloudSessionsEnabled: boolean;
+					}>("get_desktop_settings");
+					setCloudSessionsEnabled(
+						Boolean(desktopSettings.cloudSessionsEnabled),
+					);
+				} catch (error) {
+					setCloudSessionsError(
+						error instanceof Error ? error.message : String(error),
+					);
+				} finally {
+					setCloudSessionsLoading(false);
+				}
+			})(),
+			refreshCloudSessionsEffective(),
+		]);
+	}, [refreshCloudSessionsEffective]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -637,6 +666,7 @@ function GeneralSettingsContent() {
 				cloudSessionsEnabled: boolean;
 			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
 			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+			await refreshCloudSessionsEffective();
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setCloudSessionsEnabled(previousValue);
@@ -818,6 +848,16 @@ function GeneralSettingsContent() {
 							{cloudSessionsError ? (
 								<p className="mt-2 text-xs text-destructive" role="alert">
 									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+							{cloudSessionsEffective !== null &&
+							!cloudSessionsLoading &&
+							cloudSessionsEffective !== cloudSessionsEnabled ? (
+								<p className="mt-2 text-xs text-muted-foreground">
+									Cloud sessions are currently{" "}
+									{cloudSessionsEffective ? "enabled" : "disabled"} by the
+									CLINE_CODE_CLOUD_AGENTS environment override, which takes
+									precedence over this setting.
 								</p>
 							) : null}
 						</div>

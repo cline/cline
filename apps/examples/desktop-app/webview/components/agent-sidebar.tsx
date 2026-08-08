@@ -1182,8 +1182,10 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowFavorite={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				// Provisioning placeholders have no server session to rename yet.
+				// Provisioning placeholders have no server session to rename or
+				// delete yet (the sidecar rejects both until the create settles).
 				allowRename={!thread.id.startsWith("cloud-provisioning-")}
+				allowDelete={!thread.id.startsWith("cloud-provisioning-")}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
@@ -1282,6 +1284,7 @@ function SessionContextMenuContent({
 	allowFavorite,
 	allowFork,
 	allowRename,
+	allowDelete = true,
 	favorited,
 	onRename,
 	onToggleFavorite,
@@ -1292,6 +1295,7 @@ function SessionContextMenuContent({
 	allowFavorite: boolean;
 	allowFork: boolean;
 	allowRename: boolean;
+	allowDelete?: boolean;
 	favorited: boolean;
 	onRename: () => void;
 	onToggleFavorite: () => void;
@@ -1329,7 +1333,7 @@ function SessionContextMenuContent({
 				</ContextMenuItem>
 			) : null}
 			<ContextMenuItem
-				disabled={pending}
+				disabled={pending || !allowDelete}
 				onSelect={onDelete}
 				variant="destructive"
 			>

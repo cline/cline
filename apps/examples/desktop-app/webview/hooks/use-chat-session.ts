@@ -1659,7 +1659,7 @@ export function useChatSession() {
 					clearLiveToolRefs();
 					if (nextStatus === "failed" || nextStatus === "error") {
 						setStatus("failed");
-					} else if (nextStatus === "aborted") {
+					} else if (nextStatus === "aborted" || nextStatus === "cancelled") {
 						setStatus("cancelled");
 					} else if (nextStatus === "running" || nextStatus === "pending") {
 						setStatus("running");
@@ -1681,7 +1681,10 @@ export function useChatSession() {
 						maxMessages: MAX_MESSAGES,
 					})
 					.then(applySnapshot)
-					.catch((error) => setError(errorMessage(error)));
+					.catch((error) => {
+						if (activeSessionIdRef.current !== targetSessionId) return;
+						setError(humanizeCloudSessionError(errorMessage(error)));
+					});
 			},
 		);
 		const unsubscribeSyncFailed = desktopClient.subscribe(
@@ -1690,8 +1693,10 @@ export function useChatSession() {
 				if (!payload || typeof payload !== "object") return;
 				const record = payload as { sessionId?: string; message?: string };
 				if (record.sessionId?.trim() !== activeSessionIdRef.current) return;
+				// Sync failures carry sidecar CloudSessionError messages (e.g.
+				// signed-out reconnects); show the human text, not the envelope.
 				setError(
-					record.message?.trim() ||
+					humanizeCloudSessionError(record.message?.trim() || "") ||
 						"Cloud session history could not be refreshed. Live updates are still connected.",
 				);
 			},
@@ -2260,7 +2265,10 @@ export function useChatSession() {
 				} else if (payload.recoveredAfterDisconnect) {
 					if (payload.status === "failed" || payload.status === "error") {
 						setStatus("failed");
-					} else if (payload.status === "aborted") {
+					} else if (
+						payload.status === "aborted" ||
+						payload.status === "cancelled"
+					) {
 						setStatus("cancelled");
 					} else if (
 						payload.status === "running" ||
@@ -2269,9 +2277,15 @@ export function useChatSession() {
 						setStatus("running");
 					} else if (payload.status === "idle" || payload.status === "ready") {
 						setStatus("idle");
-					} else {
+					} else if (
+						payload.status === "completed" ||
+						payload.status === "expired"
+					) {
 						setStatus("completed");
 					}
+					// Unknown or missing statuses leave the current one alone,
+					// matching the cloud_session_rehydrated handler: a malformed
+					// recovery must not flip a running turn to "done".
 				} else if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it

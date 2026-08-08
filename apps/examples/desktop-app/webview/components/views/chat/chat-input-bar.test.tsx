@@ -146,8 +146,11 @@ describe("ChatInputBar", () => {
 
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
-			expect(onModelChange).toHaveBeenCalledWith("cline-test");
 		});
+		// The locked session's model must never be silently "corrected" to a
+		// catalog id: that would push a real model change to the remote
+		// session on the next send, contradicting the locked-settings tooltip.
+		expect(onModelChange).not.toHaveBeenCalled();
 		expect(container.querySelector('[aria-label="Attach files"]')).toBeNull();
 		expect(container.querySelector("#git-branch-btn")).toBeNull();
 		expect(container.textContent).toContain("cline/cline / feature/cloud");

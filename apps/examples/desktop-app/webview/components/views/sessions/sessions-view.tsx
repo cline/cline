@@ -672,6 +672,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
+													// Provisioning placeholders have no server session
+													// to delete yet; the sidecar rejects the request.
+													disabled={thread.id.startsWith("cloud-provisioning-")}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>

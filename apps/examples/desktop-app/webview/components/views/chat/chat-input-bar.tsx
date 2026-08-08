@@ -444,7 +444,12 @@ function ChatInputBarImpl({
 	const slashKey = activeSlash
 		? `${activeSlash.slashIndex}:${activeSlash.query}`
 		: null;
-	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
+	// Slash commands resolve against locally installed skills/workflows, which
+	// the cloud sandbox cannot run — gate them like @-mentions.
+	const slashOpen =
+		executionTarget === "local" &&
+		slashKey !== null &&
+		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
 		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
@@ -1368,6 +1373,13 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
+		// isBusy also covers a locked cloud composer: silently "correcting" an
+		// attached cloud session's model (e.g. an org-catalog id missing from
+		// the local list) would push a real model change to the remote session
+		// on the next send, contradicting the locked-settings tooltip.
+		if (isBusy) {
+			return;
+		}
 		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
@@ -1375,6 +1387,7 @@ const ModelSelector = memo(function ModelSelector({
 			onModelChange(resolvedModel);
 		}
 	}, [
+		isBusy,
 		model,
 		onModelChange,
 		onProviderChange,
