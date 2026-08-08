@@ -267,13 +267,25 @@ export function McpServersContent() {
 			setSettingsPath(response.settingsPath);
 			setHasSettingsFile(response.hasSettingsFile);
 			const probe = response.probeResult;
+			// Probe outcomes only stay meaningful for servers that still exist;
+			// entries for deleted or renamed servers would otherwise resurface
+			// if a server is later re-added under the same name.
+			setProbeConnected((current) => {
+				const names = new Set(response.servers.map((server) => server.name));
+				const next: Record<string, boolean> = {};
+				for (const [name, connected] of Object.entries(current)) {
+					if (names.has(name)) {
+						next[name] = connected;
+					}
+				}
+				if (probe) {
+					next[probe.name] = probe.connected;
+				}
+				return next;
+			});
 			if (!probe) {
 				return;
 			}
-			setProbeConnected((current) => ({
-				...current,
-				[probe.name]: probe.connected,
-			}));
 			if (probe.connected) {
 				setServerActionError(probe.name);
 			} else if (!probe.authorizationRequired) {
@@ -294,6 +306,9 @@ export function McpServersContent() {
 				await desktopClient.invoke<McpServersResponse>("list_mcp_servers");
 			applyResponse(response);
 			setServerActionErrors({});
+			// A manual refresh can pick up out-of-band settings edits, so stale
+			// probe outcomes for a possibly-changed configuration are dropped.
+			setProbeConnected({});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
