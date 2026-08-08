@@ -7,6 +7,41 @@ import {
 } from "./agent-message-codec";
 
 describe("agent message codec", () => {
+	it("loads old messages without model-tool metadata and preserves new metadata", () => {
+		const oldMessage = {
+			id: "old-session-message",
+			role: "assistant" as const,
+			ts: 1,
+			content: [{ type: "text" as const, text: "Existing history" }],
+		};
+		const [restoredOld] = messageToAgentMessages(oldMessage);
+		expect(restoredOld?.metadata).toBeUndefined();
+
+		const metadata = {
+			modelToolActivities: [
+				{
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "Cline" },
+					output: { results: [] },
+				},
+			],
+		};
+		const [restoredNew] = messageToAgentMessages({
+			...oldMessage,
+			id: "new-session-message",
+			metadata,
+		});
+		expect(restoredNew?.metadata).toEqual(metadata);
+		if (!restoredNew) {
+			throw new Error("Expected the new message to be restored");
+		}
+		expect(agentMessageToMessageWithMetadata(restoredNew).metadata).toEqual(
+			metadata,
+		);
+	});
+
 	it("replaces empty persisted messages with an explicit error text part", () => {
 		expect(
 			messageToAgentMessages({

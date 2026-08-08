@@ -1030,10 +1030,23 @@ async function* emitAiSdkEvents(
 					// must not enter AgentRuntime's local execution/approval loop. The same
 					// applies to provider-defined client tools: streamText executes those
 					// and continues the internal model step before returning control.
-					if (
-						part.providerExecuted === true ||
-						request.modelTools?.some((tool) => tool.name === toolName)
-					) {
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool) {
+							yield {
+								type: "tool-call-delta",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+							};
+						}
 						continue;
 					}
 					sawToolCalls = true;
@@ -1060,15 +1073,57 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "tool-result") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool && part.preliminary !== true) {
+							yield {
+								type: "tool-result",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+								output: part.output ?? part.result,
+							};
+						}
+						continue;
+					}
+				}
+
 				if (part.type === "tool-error") {
 					const toolName =
 						(part.toolName as string | undefined) ??
 						(part.name as string | undefined) ??
 						"tool";
-					if (
-						part.providerExecuted === true ||
-						request.modelTools?.some((tool) => tool.name === toolName)
-					) {
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool) {
+							yield {
+								type: "tool-result",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+								output: { error: extractErrorMessage(part.error) },
+								isError: true,
+							};
+						}
 						continue;
 					}
 					sawToolCalls = true;

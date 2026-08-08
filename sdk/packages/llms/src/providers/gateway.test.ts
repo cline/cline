@@ -460,12 +460,31 @@ describe("sdk-gateway", () => {
 	});
 
 	it("translates portable web_search intent into a native provider tool", async () => {
-		mockSuccessfulStream();
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					input: { query: "Cline" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					input: { query: "Cline" },
+					output: { results: [] },
+					providerExecuted: true,
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
 		const gateway = createGateway({
 			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
 		});
 
-		await collect(
+		const events = await collect(
 			await gateway.stream({
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-5",
@@ -478,6 +497,22 @@ describe("sdk-gateway", () => {
 					},
 				],
 			}),
+		);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "provider",
+				}),
+				expect.objectContaining({
+					type: "tool-result",
+					toolCallId: "search_1",
+					output: { results: [] },
+					execution: "provider",
+				}),
+			]),
 		);
 
 		expect(nativeWebSearchSpy).toHaveBeenCalledWith(
@@ -4277,7 +4312,7 @@ describe("sdk-gateway", () => {
 		{
 			name: "does not inherit active reasoning through a structured disable",
 			defaults: {
-				reasoning: { effort: "high", budgetTokens: 4096 },
+				reasoning: { effort: "high" as const, budgetTokens: 4096 },
 			},
 			options: {
 				reasoning: { enabled: false },
@@ -5164,8 +5199,7 @@ describe("sdk-gateway", () => {
 	});
 
 	it("does not fall back to conversationId for OpenRouter session_id", async () => {
-		const { fetchMock: customFetchMock, fetch: customFetch } =
-			createFetchMock();
+		const { fetch: customFetch } = createFetchMock();
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([{ type: "finish", finishReason: "stop" }]),
 		});

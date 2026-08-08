@@ -107,6 +107,52 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("streams and persists model-tool activity without local execution", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [{ url: "https://example.com" }] },
+				},
+				{ type: "text-delta", text: "It is sunny." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const eventTypes: string[] = [];
+		runtime.subscribe((event) => eventTypes.push(event.type));
+
+		const result = await runtime.run("Check the weather");
+
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages.some((message) => message.role === "tool")).toBe(
+			false,
+		);
+		expect(result.messages.at(-1)?.metadata).toEqual({
+			modelToolActivities: [
+				{
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+					output: { results: [{ url: "https://example.com" }] },
+				},
+			],
+		});
+		expect(eventTypes).toContain("tool-started");
+		expect(eventTypes).toContain("tool-finished");
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),
