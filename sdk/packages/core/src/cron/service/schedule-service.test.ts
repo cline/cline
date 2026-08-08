@@ -49,6 +49,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-1" })),
 				sendSession: vi.fn(async () => ({
@@ -147,6 +148,7 @@ describe("HubScheduleService", () => {
 
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "unused" })),
 					sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
@@ -173,6 +175,7 @@ describe("HubScheduleService", () => {
 		}> = [];
 		const service = new HubScheduleService({
 			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 			runtimeHandlers: {
 				startSession: vi.fn(async () => ({ sessionId: "session-failed" })),
 				sendSession: vi.fn(async () => {
@@ -223,6 +226,7 @@ describe("HubScheduleService", () => {
 			cleanupPaths.push(dbPath);
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "session-once" })),
 					sendSession: vi.fn(async () => ({ result: { text: "done" } })),
@@ -264,6 +268,7 @@ describe("HubScheduleService", () => {
 			cleanupPaths.push(dbPath);
 			const service = new HubScheduleService({
 				dbPath,
+				specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
 				runtimeHandlers: {
 					startSession: vi.fn(async () => ({ sessionId: "session-2" })),
 					sendSession: vi.fn(async () => ({ result: { text: "done" } })),

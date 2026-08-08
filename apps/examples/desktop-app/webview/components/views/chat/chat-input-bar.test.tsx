@@ -479,6 +479,87 @@ describe("ChatInputBar", () => {
 
 		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
 	});
+
+	it("displays a queued team command as its slash form, not the runtime envelope", async () => {
+		const onEditPromptInQueue = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={onEditPromptInQueue}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[
+							{
+								id: "queued-team",
+								prompt:
+									'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+								steer: false,
+							},
+						]}
+						provider="cline"
+						reasoningEffort="low"
+						status="running"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const queueToggle = [
+			...container.querySelectorAll<HTMLButtonElement>(
+				"button[aria-controls][aria-expanded]",
+			),
+		].find((button) => button.textContent?.includes("prompt queued"));
+		await act(async () => queueToggle?.click());
+
+		const queuedPrompts = document.getElementById(
+			queueToggle?.getAttribute("aria-controls") ?? "",
+		);
+		expect(queuedPrompts?.textContent).toContain("/team inspect the app");
+		expect(queuedPrompts?.textContent).not.toContain("<user_command");
+
+		// Editing prefills the slash form; the sidecar re-resolves it on save.
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Edit queued prompt"]')
+				?.click();
+		});
+		const editor = container.querySelector<HTMLTextAreaElement>(
+			'[aria-label="Edit queued prompt"]',
+		);
+		expect(editor?.value).toBe("/team inspect the app");
+	});
 });
 
 describe("ChatInputBar token ring", () => {
