@@ -7,6 +7,7 @@
 import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
+	type CompareCheckpointResult,
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
@@ -1623,11 +1624,12 @@ export class Controller {
 	}
 
 	/**
-	 * "View Changes" on the completion row: opens a multi-file diff of
-	 * everything that changed between the latest checkpoint — snapshotted when
-	 * the user's last message started this run — and the current working tree.
+	 * Diffs the latest checkpoint — snapshotted when the user's last message
+	 * started a run — against the current working tree. Returns undefined when
+	 * no checkpoint exists (e.g. the workspace is not a git repository).
+	 * Throws when there is no task at all.
 	 */
-	async viewLatestCheckpointChanges(): Promise<void> {
+	private async computeLatestCheckpointChanges(): Promise<CompareCheckpointResult["diffs"] | undefined> {
 		const activeSession = this.sessions.getActiveSession()
 		const sessionId = activeSession?.sessionId ?? this.task?.taskId
 		if (!sessionId) {
@@ -1648,11 +1650,7 @@ export class Controller {
 				undefined as ReturnType<typeof readSessionCheckpointHistory>[number] | undefined,
 			)
 			if (!latestCheckpoint) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
-				})
-				return
+				return undefined
 			}
 
 			const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
@@ -1661,25 +1659,56 @@ export class Controller {
 				checkpointRunCount: latestCheckpoint.runCount,
 				cwd,
 			})
-			if (diffs.length === 0) {
-				HostProvider.window.showMessage({
-					type: ShowMessageType.INFORMATION,
-					message: "No file changes found since your last message.",
-				})
-				return
-			}
-
-			await HostProvider.diff.openMultiFileDiff({
-				title: "Changes since your last message",
-				diffs: diffs.map((diff) => ({
-					filePath: diff.filePath,
-					leftContent: diff.leftContent,
-					rightContent: diff.rightContent,
-				})),
-			})
+			return diffs
 		} finally {
 			await tempHost?.dispose("viewLatestCheckpointChanges")
 		}
+	}
+
+	/**
+	 * Gates the "View Changes" button on the completion row: the number of
+	 * files changed since the latest checkpoint, or 0 when nothing can be
+	 * compared (no task, no checkpoint, comparison failure).
+	 */
+	async getLatestCheckpointChangesCount(): Promise<number> {
+		try {
+			return (await this.computeLatestCheckpointChanges())?.length ?? 0
+		} catch (error) {
+			Logger.debug(`[SdkController] Failed to count latest checkpoint changes: ${error}`)
+			return 0
+		}
+	}
+
+	/**
+	 * "View Changes" on the completion row: opens a multi-file diff of
+	 * everything that changed between the latest checkpoint — snapshotted when
+	 * the user's last message started this run — and the current working tree.
+	 */
+	async viewLatestCheckpointChanges(): Promise<void> {
+		const diffs = await this.computeLatestCheckpointChanges()
+		if (diffs === undefined) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
+			})
+			return
+		}
+		if (diffs.length === 0) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: "No file changes found since your last message.",
+			})
+			return
+		}
+
+		await HostProvider.diff.openMultiFileDiff({
+			title: "Changes since your last message",
+			diffs: diffs.map((diff) => ({
+				filePath: diff.filePath,
+				leftContent: diff.leftContent,
+				rightContent: diff.rightContent,
+			})),
+		})
 	}
 
 	/**
