@@ -87,4 +87,73 @@ describe("createCline", () => {
 		).rejects.toThrow("allowed domains or blocked domains");
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
+
+	it.each([
+		"openai/gpt-5.4",
+		"openai/o3-mini",
+	])("sends max_completion_tokens for reasoning model %s", async (modelId) => {
+		fetchMock.mockResolvedValue(jsonCompletionResponse(modelId));
+		const cline = createCline({
+			apiKey: "test-key",
+			baseURL: "https://api.cline.bot/api/v1",
+			fetch: fetchMock,
+		});
+
+		await cline(modelId).doGenerate({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			maxOutputTokens: 8_192,
+		});
+
+		const body = capturedRequestBody(fetchMock);
+		expect(body).toMatchObject({
+			model: modelId,
+			max_completion_tokens: 8_192,
+		});
+		expect(body).not.toHaveProperty("max_tokens");
+	});
+
+	it("keeps max_tokens for non-reasoning models", async () => {
+		const modelId = "anthropic/claude-sonnet-4.6";
+		fetchMock.mockResolvedValue(jsonCompletionResponse(modelId));
+		const cline = createCline({
+			apiKey: "test-key",
+			baseURL: "https://api.cline.bot/api/v1",
+			fetch: fetchMock,
+		});
+
+		await cline(modelId).doGenerate({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			maxOutputTokens: 8_192,
+		});
+
+		const body = capturedRequestBody(fetchMock);
+		expect(body).toMatchObject({ model: modelId, max_tokens: 8_192 });
+		expect(body).not.toHaveProperty("max_completion_tokens");
+	});
 });
+
+function capturedRequestBody(
+	fetchMock: ReturnType<typeof vi.fn<typeof fetch>>,
+): Record<string, unknown> {
+	const init = fetchMock.mock.calls[0]?.[1];
+	return JSON.parse(String(init?.body)) as Record<string, unknown>;
+}
+
+function jsonCompletionResponse(modelId: string): Response {
+	return new Response(
+		JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [
+				{
+					index: 0,
+					message: { role: "assistant", content: "OK" },
+					finish_reason: "stop",
+				},
+			],
+			usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+		}),
+		{ status: 200, headers: { "content-type": "application/json" } },
+	);
+}
