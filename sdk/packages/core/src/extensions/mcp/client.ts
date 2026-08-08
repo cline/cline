@@ -43,13 +43,18 @@ type JsonRpcMessage = {
 };
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-// Initialize budget when no timeout is configured. Stdio servers routinely
-// need several seconds to become ready (JVM-based servers like Oracle SQLcl,
-// uvx downloading a package on first run), so the default matches the ~30s
-// startup budget other MCP clients allow. A configured `timeout` overrides
-// it in either direction. Dead commands still fail fast through the spawn
-// error/exit path; only an alive-but-silent server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 30_000;
+// Initialize budget when no timeout is configured. This wait sits on the
+// session-create critical path, which the hub caps at 30s
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
+// then Content-Length framing), so the doubled total MUST stay well under
+// that cap or a hung server takes the whole session down with it. 3s covers
+// typical stdio startup while keeping the worst case (~6s per server, probed
+// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
+// ones like Oracle SQLcl, uvx downloading a package on first run) need an
+// explicit `timeout`, which overrides this in either direction. Dead commands
+// still fail fast through the spawn error/exit path; only an alive-but-silent
+// server waits out this budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -172,7 +177,6 @@ class StdioMcpClient implements McpServerClient {
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
 	private connected = false;
-	private disposed = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -196,11 +200,6 @@ class StdioMcpClient implements McpServerClient {
 		if (this.connected) {
 			return;
 		}
-		if (this.disposed) {
-			throw new Error(
-				`MCP server "${this.registration.name}" has been disposed.`,
-			);
-		}
 		if (this.registration.transport.type !== "stdio") {
 			throw new Error(
 				`Unsupported MCP transport for "${this.registration.name}": ${this.registration.transport.type}`,
@@ -221,11 +220,6 @@ class StdioMcpClient implements McpServerClient {
 			);
 		} catch (newlineError) {
 			await this.disconnect().catch(() => {});
-			// If we're being torn down, don't spend a second connect budget on
-			// the framed fallback — fail now so the manager lock is released.
-			if (this.disposed) {
-				throw newlineError;
-			}
 			this.spawnProcess("framed");
 			try {
 				await this.request(
@@ -244,13 +238,6 @@ class StdioMcpClient implements McpServerClient {
 		}
 		this.notify("notifications/initialized");
 		this.connected = true;
-	}
-
-	async close(): Promise<void> {
-		// Mark disposed first so an in-flight connect() bails out of its retry
-		// loop as soon as disconnect() rejects the pending request.
-		this.disposed = true;
-		await this.disconnect();
 	}
 
 	async disconnect(): Promise<void> {
