@@ -8,6 +8,7 @@ import { isToggleableInteractiveConfigItem } from "../../tui/interactive-config"
 export type ConfigAction =
 	| { kind: "open-provider" }
 	| { kind: "open-model" }
+	| { kind: "open-theme" }
 	| { kind: "toggle-item"; item: InteractiveConfigItem }
 	| { kind: "delete-item"; item: InteractiveConfigItem }
 	| {

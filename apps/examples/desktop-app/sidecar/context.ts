@@ -325,6 +325,35 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
+// The runtime's queue drain emits a pending_prompts snapshot (head removed)
+// and a pending_prompt_submitted event for the same prompt back-to-back, and
+// both are translated here into chat_queued_prompt_start — dedupe by prompt
+// id or the UI renders the user message twice.
+function emitQueuedPromptStart(
+	ctx: SidecarContext,
+	sessionId: string,
+	session: LiveSession | undefined,
+	input: {
+		promptId: string;
+		prompt: string;
+		attachmentCount: number;
+		userImages?: string[];
+	},
+): void {
+	if (session) {
+		if (session.lastQueuedPromptStartId === input.promptId) {
+			return;
+		}
+		session.lastQueuedPromptStartId = input.promptId;
+	}
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_queued_prompt_start",
+		serializeQueuedPromptStart(input),
+	);
+}
+
 function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -367,17 +396,12 @@ function handleCoreSessionEvent(
 					previous[0] &&
 					previous[0].id !== mapped[0]?.id
 				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						serializeQueuedPromptStart({
-							promptId: previous[0].id,
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-							userImages: previous[0].userImages,
-						}),
-					);
+					emitQueuedPromptStart(ctx, sessionId, session, {
+						promptId: previous[0].id,
+						prompt: previous[0].prompt,
+						attachmentCount: previous[0].attachmentCount ?? 0,
+						userImages: previous[0].userImages,
+					});
 				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
@@ -386,18 +410,14 @@ function handleCoreSessionEvent(
 		case "pending_prompt_submitted": {
 			const { sessionId, id, prompt, attachmentCount, userImages } =
 				event.payload;
-			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_queued_prompt_start",
-				serializeQueuedPromptStart({
-					promptId: id,
-					prompt,
-					attachmentCount: attachmentCount ?? 0,
-					userImages,
-				}),
-			);
+			const session = ctx.liveSessions.get(sessionId);
+			markQueuedAttachmentsSubmitted(session, id);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId: id,
+				prompt,
+				attachmentCount: attachmentCount ?? 0,
+				userImages,
+			});
 			break;
 		}
 		case "ended": {

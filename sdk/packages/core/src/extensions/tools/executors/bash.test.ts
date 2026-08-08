@@ -1,4 +1,5 @@
-import { access, mkdtemp, rm } from "node:fs/promises";
+import { spawnSync } from "node:child_process";
+import { access, copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
@@ -329,6 +330,97 @@ describe("createShellExecutor", () => {
 });
 
 describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
+	const hasPwsh =
+		spawnSync("where.exe", ["pwsh.exe"], {
+			stdio: "ignore",
+			windowsHide: true,
+		}).status === 0;
+	for (const shell of ["powershell.exe", "pwsh.exe"]) {
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`preserves Unicode through ${shell} command input and output`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const output = await executor(
+					"Write-Output '中文'",
+					process.cwd(),
+					ctx,
+				);
+				expect(output.trim()).toBe("中文");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`reports a failed final native command through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				let error: unknown;
+				try {
+					await executor("cmd /c exit 5", process.cwd(), ctx);
+				} catch (caught) {
+					error = caught;
+				}
+				expect(error).toBeInstanceOf(CommandExitError);
+				// Direct PowerShell -Command normalizes a failed final command to 1.
+				expect((error as CommandExitError).exitCode).toBe(1);
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`reports a PowerShell failure after a native command through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				let error: unknown;
+				try {
+					await executor("cmd /c exit 5; Write-Error boom", process.cwd(), ctx);
+				} catch (caught) {
+					error = caught;
+				}
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).exitCode).toBe(1);
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`preserves an explicit exit code through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				let error: unknown;
+				try {
+					await executor("exit 7", process.cwd(), ctx);
+				} catch (caught) {
+					error = caught;
+				}
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).exitCode).toBe(7);
+			},
+		);
+	}
+
+	it("runs PowerShell commands beyond the Windows command-line limit", async () => {
+		const executor = createShellExecutor();
+		const payload = "x".repeat(40_000);
+		const output = await executor(
+			`Write-Output '${payload.length}'; $null = '${payload}'`,
+			process.cwd(),
+			ctx,
+		);
+		expect(output.trim()).toBe("40000");
+	});
+
+	it("rejects safely when PowerShell exits without reading command input", async () => {
+		const tempDir = await mkdtemp(join(tmpdir(), "shell-stdin-error-"));
+		const fakePowerShell = join(tempDir, "pwsh.exe");
+		try {
+			await copyFile(process.execPath, fakePowerShell);
+			const executor = createShellExecutor({ shell: fakePowerShell });
+			await expect(
+				executor(`Write-Output '${"x".repeat(5_000_000)}'`, process.cwd(), ctx),
+			).rejects.toThrow();
+		} finally {
+			await rm(tempDir, { recursive: true, force: true });
+		}
+	});
+
 	it("runs structured commands without shell parsing", async () => {
 		const executor = createShellExecutor();
 		const output = await executor(

@@ -242,6 +242,11 @@ export class Controller {
 	private userInstructionServiceRoot?: string
 	private isDisposed = false
 
+	// Synchronous snapshot of getWorkspaceRoot()'s latest result, for the message
+	// translator (which runs synchronously and relativizes the tool paths shown in
+	// the chat view). Warmed in the constructor and refreshed on every call.
+	private lastKnownWorkspaceRoot?: string
+
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
 	}
@@ -292,7 +297,20 @@ export class Controller {
 			undefined,
 			() => this.getActiveProviderId(),
 			() => (this.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"),
+			() => this.lastKnownWorkspaceRoot,
+			// Model backing the active turn — lets error reshaping recognize
+			// retired cline-free/ models (the error payload itself never names one).
+			// The task shim is preferred over session-start metadata: a mid-task
+			// model-only switch updates the running session's model in place
+			// (updateActiveSessionModel) and refreshes the shim, but never touches
+			// startConfig/manifest, which would otherwise report the stale model.
+			// The shim starts as "unknown" (filtered out by getTaskModelId), so
+			// fresh sessions still resolve through their start metadata.
+			() => this.getTaskModelId() ?? this.getSessionModelId(),
 		)
+		// Warm the synchronous workspace-root snapshot used for display-path
+		// relativization (getWorkspaceRoot never rejects — it falls back internally).
+		void this.getWorkspaceRoot()
 		// Authoritative UI-mode tracker, sharing the one id/seq/epoch authority.
 		this.turnStateTracker = new TurnStateTracker(this.messageTranslatorState.getMinter())
 		this.messages = new SdkMessageCoordinator({
@@ -304,10 +322,6 @@ export class Controller {
 		this.sessionConfigBuilder = new SdkSessionConfigBuilder({
 			stateManager: this.stateManager,
 			emitHookMessage: (msg) => this.messages.emitHookMessage(msg),
-			onSwitchToActMode: () => {
-				this.mode.queueSwitchToActMode()
-			},
-			shouldStopAfterModeSwitch: () => this.mode.hasPendingModeChange(),
 			onConsecutiveMistakeLimitReached: (context) => this.interactions.handleConsecutiveMistakeLimitReached(context),
 		})
 		this.diffEdits = new SdkDiffEditCoordinator({
@@ -336,6 +350,7 @@ export class Controller {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
 			mcpHub: this.mcpHub,
@@ -678,15 +693,6 @@ export class Controller {
 	}
 
 	private handleSessionBecameIdle(): void {
-		if (this.mode?.hasPendingModeChange()) {
-			// The mode rebuild reads the latest provider and tool configuration, so
-			// it supersedes any passive rebuild that was queued for the old mode.
-			this.sessionRebuilds.cancel("provider")
-			this.mode.applyPendingModeChange().catch((error) => {
-				Logger.error("[SdkController] Failed to apply deferred mode change:", error)
-			})
-			return
-		}
 		this.sessionRebuilds?.sessionBecameIdle()
 	}
 
@@ -862,9 +868,11 @@ export class Controller {
 			const workspaceRoot = await this.getWorkspaceRoot()
 			const service = await this.ensureUserInstructionService(workspaceRoot)
 			const remoteWorkflows = this.stateManager.getRemoteConfigSettings()?.remoteGlobalWorkflows ?? []
-			const workflowRecords = service
-				.listRecords("workflow")
-				.map((record) => ({ name: record.item.name, filePath: record.filePath }))
+			const workflowRecords = service.listRecords("workflow").map((record) => ({
+				id: record.id,
+				name: record.item.name,
+				filePath: record.filePath,
+			}))
 			const disabledWorkflowNames = buildDisabledWorkflowNames({
 				records: workflowRecords,
 				globalToggles: this.stateManager.getGlobalSettingsKey("globalWorkflowToggles"),
@@ -949,10 +957,12 @@ export class Controller {
 		const noWorkspaceFallback = getDesktopDir()
 		try {
 			const { paths } = await HostProvider.workspace.getWorkspacePaths({})
-			return resolveWorkspaceRootPath(paths, noWorkspaceFallback)
+			this.lastKnownWorkspaceRoot = resolveWorkspaceRootPath(paths, noWorkspaceFallback)
+			return this.lastKnownWorkspaceRoot
 		} catch (error) {
 			Logger.warn("[SdkController] Failed to get workspace paths, falling back to Desktop:", error)
 		}
+		this.lastKnownWorkspaceRoot = noWorkspaceFallback
 		return noWorkspaceFallback
 	}
 
@@ -1053,6 +1063,12 @@ export class Controller {
 			requestId: clineError.requestId,
 			errorType: event.errorType,
 			failurePhase: event.failurePhase,
+			// Every event here is a failure the user actually saw: transient
+			// errors are retried inside the provider layer before any event
+			// reaches this adapter, and recoverable in-run notices are filtered
+			// out upstream. The legacy extension applies the same
+			// surfaced-failures-only rule at its emission sites, so the A/B
+			// cohorts compare directly with no query-side filtering.
 		})
 	}
 
@@ -1437,6 +1453,12 @@ export class Controller {
 					},
 				})
 			}
+
+			// The edit supersedes the old session — settle any pending tool
+			// approval / ask_question exactly like cancelTask does. Without this,
+			// the old run stays suspended forever on a promise nothing can
+			// resolve, and the stale parked resolver intercepts later responses.
+			this.interactions.clearPending("Superseded by an edited message")
 
 			const { startResult, sdkHost } = await this.sessions.startNewSession(startInput)
 

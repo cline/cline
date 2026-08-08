@@ -15,13 +15,13 @@ import { useDebounceEffect } from "@/utils/useDebounceEffect"
  * @param initialValue - The initial value for the input
  * @param onChange - Callback function to save the value (e.g., to backend)
  * @param debounceMs - Debounce delay in milliseconds (default: 500ms)
- * @returns A tuple of [currentValue, setValue] similar to useState
+ * @returns The current value, an editing setter, and an authoritative sync setter
  */
 export function useDebouncedInput<T>(
 	initialValue: T,
 	onChange: (value: T) => void,
 	debounceMs: number = 100,
-): [T, (value: T) => void] {
+): [T, (value: T) => void, (value: T) => void] {
 	// Local state to prevent jumpy input - initialize once
 	const [localValue, setLocalValueState] = useState(initialValue)
 
@@ -36,13 +36,22 @@ export function useDebouncedInput<T>(
 		hasPendingUserEditRef.current = true
 		setLocalValueState(value)
 	}, [])
+	const syncLocalValue = useCallback((value: T) => {
+		hasPendingUserEditRef.current = false
+		setLocalValueState(value)
+	}, [])
 
-	// Sync local state when initialValue changes externally (e.g., when switching Plan/Act tabs)
+	// Sync local state when initialValue changes externally (e.g., when switching
+	// Plan/Act tabs). Skip the resync while a user edit is pending: because each
+	// debounced save round-trips through the backend and updates initialValue,
+	// an in-flight save can echo back an older value while the user is still
+	// typing, and resyncing would visibly delete their newest keystrokes.
 	useEffect(() => {
 		if (prevInitialValueRef.current !== initialValue) {
-			hasPendingUserEditRef.current = false
-			setLocalValueState(initialValue)
 			prevInitialValueRef.current = initialValue
+			if (!hasPendingUserEditRef.current) {
+				setLocalValueState(initialValue)
+			}
 		}
 	}, [initialValue])
 
@@ -59,5 +68,19 @@ export function useDebouncedInput<T>(
 		[localValue],
 	)
 
-	return [localValue, setLocalValue]
+	// Flush a pending edit on unmount so keystrokes typed within the debounce
+	// window still save when the view closes (e.g. clicking Done in settings).
+	const latestRef = useRef({ localValue, onChange })
+	latestRef.current = { localValue, onChange }
+	useEffect(
+		() => () => {
+			if (hasPendingUserEditRef.current) {
+				hasPendingUserEditRef.current = false
+				latestRef.current.onChange(latestRef.current.localValue)
+			}
+		},
+		[],
+	)
+
+	return [localValue, setLocalValue, syncLocalValue]
 }

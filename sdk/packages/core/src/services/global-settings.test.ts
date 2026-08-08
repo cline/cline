@@ -15,9 +15,11 @@ import {
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	readTuiThemeGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
+	setTuiThemeGlobally,
 	writeGlobalSettings,
 } from "./global-settings";
 
@@ -282,6 +284,29 @@ describe("global-settings", () => {
 			expect(readToolAutoApproveGlobally()).toBe(false);
 			setToolAutoApproveGlobally(true);
 			expect(readToolAutoApproveGlobally()).toBe(true);
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("reads and writes the TUI theme globally", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			expect(readTuiThemeGlobally()).toBeUndefined();
+			setTuiThemeGlobally("tokyo-night");
+			expect(readTuiThemeGlobally()).toBe("tokyo-night");
+			expect(JSON.parse(await readFile(settingsPath, "utf8"))).toEqual({
+				autoUpdateEnabled: true,
+				telemetryOptOut: false,
+				tuiTheme: "tokyo-night",
+			});
+
+			// Blank values normalize to unset instead of persisting whitespace.
+			writeGlobalSettings({ tuiTheme: "  " });
+			expect(readTuiThemeGlobally()).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -96,10 +96,16 @@ export function normalizeClineRecommendedProviderModels(
 		const capabilities =
 			openRouterModels?.[entry.id] ??
 			findORModelCapabilities(entry, openRouterModelsByName);
-		const entryName = capabilities.name?.trim() || entry.name?.trim();
+		// The recommended-models endpoint only sends slug-like names (e.g.
+		// "deepseek-v4-flash"), so prefer the OpenRouter catalog's display name
+		// for every free entry. Without this, the free overlay overwrites the
+		// nice OpenRouter names in the merged cline/cline-pass catalogs and the
+		// pickers end up rendering raw model ids for the Free section.
+		const entryName =
+			capabilities.name?.trim() || entry.name?.trim() || entry.id;
 		const name = entry.id.startsWith("cline-free/")
 			? `${entryName} (free)`
-			: entry.name;
+			: entryName;
 
 		const modelInfo = {
 			...capabilities,

@@ -9,7 +9,7 @@ Use this skill when the user asks to release the desktop app, publish Cline Code
 
 > Working directory: run every command below from the repository root.
 
-Desktop releases are macOS-only today (signed + notarized DMG for Apple Silicon and Intel) and are built entirely in GitHub Actions — there is no local publish path. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user.
+Desktop releases are macOS-only today (a single signed + notarized universal DMG that runs natively on both Apple Silicon and Intel) and are built entirely in GitHub Actions — there is no local publish path. Installed apps discover new releases automatically through the Tauri updater, so publishing a release is what ships the update to every existing user.
 
 ## Release contract
 
@@ -17,7 +17,7 @@ Desktop releases are macOS-only today (signed + notarized DMG for Apple Silicon 
 - Release tag: `desktop-vX.Y.Z`, where `X.Y.Z` matches both version files.
 - Release prep includes approved release notes, the version bumps, and an `apps/examples/desktop-app/CHANGELOG.md` update.
 - Publish path: `.github/workflows/desktop-publish.yml` (workflow_dispatch, requires the tag to exist, point at the checked-out commit, and be reachable from `origin/main`).
-- The workflow creates the `desktop-vX.Y.Z` GitHub release (DMGs + updater artifacts + `latest.json`) and refreshes the rolling `desktop-latest` release, which is the static auto-update feed every installed app polls. Never delete the `desktop-latest` release or tag.
+- The workflow creates the `desktop-vX.Y.Z` GitHub release (universal DMG + updater artifact + `latest.json`) and refreshes the rolling `desktop-latest` release, which is the static auto-update feed every installed app polls. Never delete the `desktop-latest` release or tag.
 - The changelog's top `## X.Y.Z` section is extracted verbatim into the GitHub release body, the Slack announcement, and the updater manifest notes.
 - Always ask before pushing commits or tags.
 
@@ -90,9 +90,22 @@ gh workflow run desktop-publish.yml -f git_tag=desktop-vX.Y.Z -f confirm_publish
 gh run list --workflow=desktop-publish.yml --limit=1 --json url,status,conclusion,createdAt --jq '.[0]'
 ```
 
-The workflow builds both architectures in parallel (aarch64 native, x86_64 cross-compiled), signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs updater artifacts with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
+**The run pauses for approval.** `validate` runs immediately, then the `build`
+job waits on the `PublishDesktop` environment until a required reviewer approves
+it — the run sits in `waiting`, which is expected, not a hang. Approve it in the
+run's web UI ("Review deployments"), or:
 
-If the workflow fails on missing credentials, see "Repo secrets (one-time setup)" below.
+```sh
+gh api repos/cline/cline/actions/runs/<run-id>/pending_deployments \
+  --method POST -f state=approved -f comment="desktop vX.Y.Z" \
+  -F 'environment_ids[]=19152605990'   # PublishDesktop
+```
+
+Nothing after `validate` runs — and no signing key is readable — until then.
+
+The workflow builds one universal macOS bundle (`tauri build --target universal-apple-darwin` lipos the aarch64 + x86_64 Rust binaries; the Bun sidecar is lipo'd by `build-sidecar-bin.ts`), verifies every Mach-O in the bundle carries both slices, signs with the Developer ID certificate, notarizes with the App Store Connect API key, signs the updater artifact with the Tauri updater key, creates the GitHub release, refreshes `desktop-latest/latest.json`, and posts to Slack. Notarization typically adds 2–10 minutes.
+
+If the workflow fails on missing credentials, see "Publish secrets (one-time setup)" below.
 
 9. Verify the update feed after the run succeeds.
 
@@ -100,17 +113,30 @@ If the workflow fails on missing credentials, see "Repo secrets (one-time setup)
 curl -sL https://github.com/cline/cline/releases/download/desktop-latest/latest.json | head -30
 ```
 
-The `version` field must be the new release and both `darwin-aarch64` and `darwin-x86_64` URLs must point at the new `desktop-vX.Y.Z` assets. Installed apps pick the update up on next launch or within 2 hours.
+The `version` field must be the new release and both `darwin-aarch64` and `darwin-x86_64` entries must point at the same new `desktop-vX.Y.Z` universal `.app.tar.gz` asset (each slice of the fat binary requests its own arch key at runtime, so both keys serve the one artifact). Installed apps — including older per-arch installs — pick the update up on next launch or within 2 hours.
 
 10. Final response.
 
 Report: version, tag, changelog updated, commit hash, what was pushed, workflow URL, and the feed verification result.
 
-## Repo secrets (one-time setup)
+## Publish secrets (one-time setup)
 
-The workflow needs these repository secrets. The Apple ones come from the same
-Apple Developer account used for manual signing (see the app README's "macOS
-signing & notarization" section for how to obtain them):
+These live on the **`PublishDesktop` environment**, not at repository level, so
+only the `build` job can read them and only after an approval. Set them under
+Settings → Environments → PublishDesktop → Environment secrets. The environment
+also restricts deployments to `main` and requires a reviewer.
+
+Adding one of these as a *repository* secret is the common mistake. The build
+would still succeed — an environment-gated job resolves repository secrets too,
+with environment values simply taking precedence — so the credential would sit
+repo-wide while everything looked fine. `validate` therefore fails the run if any
+of them resolves in a job with no environment. If you hit that, delete the
+repository-level copy rather than duplicating it.
+
+If a secret is missing everywhere, the preflight in `build` fails the run naming
+the missing entries. The Apple values come from the same Apple Developer account
+used for manual signing (see the app README's "macOS signing & notarization"
+section for how to obtain them):
 
 | Secret | Value |
 | --- | --- |
@@ -124,4 +150,8 @@ signing & notarization" section for how to obtain them):
 | `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` | Password for that key |
 
 The Slack + telemetry secrets (`SLACK_RELEASE_BOT_TOKEN`, `TELEMETRY_SERVICE_API_KEY`,
-OTEL settings) are shared with the CLI publish workflow and already configured.
+`ERROR_SERVICE_API_KEY`, OTEL settings) are shared with the CLI, SDK, and extension
+publish workflows and already configured. **Do not move these into
+`PublishDesktop`** — scoping them to this environment empties them in every other
+publish workflow, silently, with no error beyond missing telemetry and a failed
+Slack post.
