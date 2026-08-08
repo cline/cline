@@ -355,7 +355,12 @@ function CloudBranchPicker({
 		} catch {
 			if (requestKeyRef.current === requestKey) setLoadMoreError(true);
 		} finally {
-			if (requestKeyRef.current === requestKey) setLoadingMore(false);
+			// Reset unconditionally: only one page fetch can be in flight (the
+			// loadingMore guard above), so this always refers to that fetch. A
+			// key-guarded reset would leave loadingMore stuck true forever when
+			// the search query changes mid-fetch, permanently killing
+			// pagination for this picker.
+			setLoadingMore(false);
 		}
 	}, [debouncedQuery, loadingMore, nextToken, onListBranches, repositoryId]);
 

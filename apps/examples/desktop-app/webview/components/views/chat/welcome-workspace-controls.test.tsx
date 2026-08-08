@@ -233,6 +233,136 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		);
 	});
 
+	it("recovers pagination when the search changes while a page fetch is in flight", async () => {
+		let intersectionCallback:
+			| ((entries: IntersectionObserverEntry[]) => void)
+			| undefined;
+		vi.stubGlobal(
+			"IntersectionObserver",
+			class {
+				constructor(callback: (entries: IntersectionObserverEntry[]) => void) {
+					intersectionCallback = callback;
+				}
+				observe() {}
+				disconnect() {}
+			},
+		);
+		let releaseHungPage:
+			| ((result: {
+					available: boolean;
+					branches: string[];
+					nextToken?: string;
+			  }) => void)
+			| undefined;
+		let cursorFetches = 0;
+		const onListCloudBranches = vi.fn(
+			async (
+				_repositoryId: number,
+				options?: { cursor?: string; query?: string },
+			) => {
+				if (options?.cursor) {
+					cursorFetches += 1;
+					if (cursorFetches === 1) {
+						// First page fetch hangs until the test releases it.
+						return new Promise<{
+							available: boolean;
+							branches: string[];
+							nextToken?: string;
+						}>((resolve) => {
+							releaseHungPage = resolve;
+						});
+					}
+					return { available: true, branches: ["feature/cloud"], nextToken: "" };
+				}
+				if (options?.query) {
+					return { available: true, branches: ["feature/cloud"], nextToken: "" };
+				}
+				return { available: true, branches: ["main"], nextToken: "2" };
+			},
+		);
+		const props = renderControls({
+			executionTarget: "cloud",
+			onListCloudBranches,
+		});
+		await act(async () => {
+			button("Select repository").click();
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		await click(button("cline/cline"));
+		renderControls({
+			executionTarget: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+			cloudBranch: "main",
+			onListCloudRepositories: props.onListCloudRepositories,
+			onListCloudBranches,
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42),
+		);
+		await click(button("main"));
+		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
+		await act(async () => {
+			intersectionCallback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]);
+		});
+		await vi.waitFor(() => expect(releaseHungPage).toBeDefined());
+
+		// Type a search character while the page fetch is still in flight; the
+		// request key changes under it.
+		const search = container.querySelector<HTMLInputElement>(
+			'input[placeholder="Search branches…"]',
+		);
+		expect(search).not.toBeNull();
+		await act(async () => {
+			const valueSetter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			valueSetter?.call(search, "feature");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await vi.waitFor(() =>
+			expect(onListCloudBranches).toHaveBeenCalledWith(42, {
+				query: "feature",
+			}),
+		);
+		// The stale page fetch settles after the key changed; its results are
+		// discarded but the loading flag must be released.
+		await act(async () => {
+			releaseHungPage?.({
+				available: true,
+				branches: ["stale/page"],
+				nextToken: "3",
+			});
+			await Promise.resolve();
+		});
+		expect(container.textContent).not.toContain("stale/page");
+
+		// Clear the search and scroll again: pagination must still work.
+		await act(async () => {
+			const valueSetter = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			valueSetter?.call(search, "");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		await vi.waitFor(() =>
+			expect(container.textContent).not.toContain("Searching…"),
+		);
+		await act(async () => {
+			intersectionCallback?.([
+				{ isIntersecting: true } as IntersectionObserverEntry,
+			]);
+		});
+		await vi.waitFor(() => expect(cursorFetches).toBe(2));
+		await vi.waitFor(() =>
+			expect(container.textContent).toContain("feature/cloud"),
+		);
+	});
+
 	it("searches branches through the server", async () => {
 		const onListCloudBranches = vi.fn(
 			async (_repositoryId: number, options?: { query?: string }) =>
