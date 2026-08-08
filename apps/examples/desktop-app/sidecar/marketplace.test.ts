@@ -61,6 +61,41 @@ describe("official plugin install detection", () => {
 		expect(spawnCommand).toHaveBeenCalledTimes(1);
 	});
 
+	it("passes --force so a retry can reclaim the leftover directory", async () => {
+		// Without --force the CLI refuses to replace the existing path
+		// ("Plugin is already installed at ... Use --force to replace it."),
+		// so every retry from the UI would fail against the stale directory.
+		await mkdir(goalInstallDir(), { recursive: true });
+		const spawnCommand = vi.fn(async (_command: string, _args: string[]) => ({
+			exitCode: 0,
+			stdout: "",
+			stderr: "",
+		}));
+
+		const result = await installMarketplaceEntry(
+			{ entry: GOAL_ENTRY },
+			{ spawnCommand },
+		);
+
+		expect(result).toMatchObject({
+			status: "installed",
+			message: "Installed Goal.",
+		});
+		expect(spawnCommand.mock.calls[0]?.[1]).toContain("--force");
+	});
+
+	it("does not pass --force for a clean first install", async () => {
+		const spawnCommand = vi.fn(async (_command: string, _args: string[]) => ({
+			exitCode: 0,
+			stdout: "",
+			stderr: "",
+		}));
+
+		await installMarketplaceEntry({ entry: GOAL_ENTRY }, { spawnCommand });
+
+		expect(spawnCommand.mock.calls[0]?.[1]).not.toContain("--force");
+	});
+
 	it("still short-circuits when the directory contains a plugin module", async () => {
 		const installDir = goalInstallDir();
 		await mkdir(join(installDir, "package"), { recursive: true });
@@ -72,7 +107,10 @@ describe("official plugin install detection", () => {
 				cline: { plugins: [{ paths: ["./package/index.ts"] }] },
 			}),
 		);
-		await writeFile(join(installDir, "package", "index.ts"), "export default {};");
+		await writeFile(
+			join(installDir, "package", "index.ts"),
+			"export default {};",
+		);
 		const spawnCommand = vi.fn(async () => ({
 			exitCode: 0,
 			stdout: "",
@@ -94,15 +132,17 @@ describe("official plugin install detection", () => {
 	it("excludes partial install directories from the installed entries list", async () => {
 		await mkdir(goalInstallDir(), { recursive: true });
 
-		const empty = listMarketplaceInstalledEntries(
-			{ entries: [GOAL_ENTRY] },
-			{ plugins: [] } as JsonRecord,
-		);
+		const empty = listMarketplaceInstalledEntries({ entries: [GOAL_ENTRY] }, {
+			plugins: [],
+		} as JsonRecord);
 		expect(empty.installedKeys).toEqual([]);
 
 		const installDir = goalInstallDir();
 		await mkdir(join(installDir, "package"), { recursive: true });
-		await writeFile(join(installDir, "package", "index.ts"), "export default {};");
+		await writeFile(
+			join(installDir, "package", "index.ts"),
+			"export default {};",
+		);
 		const populated = listMarketplaceInstalledEntries(
 			{ entries: [GOAL_ENTRY] },
 			{ plugins: [] } as JsonRecord,
