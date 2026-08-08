@@ -127,6 +127,51 @@ describe("InMemoryMcpManager", () => {
 		expect(client.disconnect).toHaveBeenCalledTimes(2);
 	});
 
+	it("disposes promptly even while a client is hung in connect()", async () => {
+		// Model a stdio server stuck in `initialize`: connect() only settles
+		// once close() is called (as disconnect() rejecting the pending request
+		// does for the real client). Without close() being invoked outside the
+		// operation lock, dispose() would block behind the in-flight connect.
+		let disposed = false;
+		let releaseConnect: (() => void) | undefined;
+		let signalConnectStarted: (() => void) | undefined;
+		const connectStarted = new Promise<void>((resolve) => {
+			signalConnectStarted = resolve;
+		});
+		const client = createClient({
+			connect: vi.fn(
+				() =>
+					new Promise<void>((_resolve, reject) => {
+						signalConnectStarted?.();
+						if (disposed) {
+							reject(new Error("disposed"));
+							return;
+						}
+						releaseConnect = () =>
+							reject(new Error("disposed while connecting"));
+					}),
+			),
+			close: vi.fn(async () => {
+				disposed = true;
+				releaseConnect?.();
+			}),
+		});
+		const manager = new InMemoryMcpManager({
+			clientFactory: async () => client,
+		});
+		await manager.registerServer({
+			name: "hangs",
+			transport: { type: "stdio", command: "node" },
+		});
+
+		const pendingConnect = manager.connectServer("hangs").catch(() => {});
+		await connectStarted;
+		await manager.dispose();
+
+		expect(client.close).toHaveBeenCalledTimes(1);
+		await pendingConnect;
+	});
+
 	it("replaces the client when its timeout snapshot changes", async () => {
 		const firstClient = createClient();
 		const secondClient = createClient();

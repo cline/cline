@@ -108,6 +108,14 @@ export interface McpServerSnapshot {
 export interface McpServerClient {
 	connect(): Promise<void>;
 	disconnect(): Promise<void>;
+	/**
+	 * Permanently tear the client down. Unlike {@link disconnect}, this signals
+	 * that no further connection attempts should be made, so an in-flight
+	 * `connect()` aborts instead of retrying its framed fallback. Used during
+	 * manager disposal so a server hung in `initialize` cannot hold its
+	 * operation lock (or a pending request timer) after teardown.
+	 */
+	close?(): Promise<void>;
 	listTools(): Promise<readonly McpToolDescriptor[]>;
 	callTool(request: {
 		name: string;

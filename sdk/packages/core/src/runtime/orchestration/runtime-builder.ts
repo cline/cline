@@ -6,6 +6,7 @@ import type {
 	TeamTeammateSpec,
 } from "@cline/shared";
 import {
+	HUB_DEFAULT_COMMAND_TIMEOUT_MS,
 	hasRuntimeConfigExtension,
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
@@ -190,6 +191,57 @@ function isSkillsToolEnabledForSession(input: {
 
 const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
+// MCP tool discovery runs on the session.create critical path, which the hub
+// caps at HUB_DEFAULT_COMMAND_TIMEOUT_MS. A stdio server that never finishes
+// its initialize would otherwise hold its connect open (up to the doubled
+// DEFAULT_MCP_CONNECT_TIMEOUT_MS) and stall session creation past that cap,
+// tearing the whole session down. Bound each server's startup discovery safely
+// below the hub cap so creation always returns: healthy servers contribute
+// their tools; a slow/hung one is skipped for this session (its error still
+// surfaces through the MCP manager / panel).
+const MCP_STARTUP_LOAD_BUDGET_MS = Math.max(
+	5_000,
+	HUB_DEFAULT_COMMAND_TIMEOUT_MS - 10_000,
+);
+
+function resolveMcpStartupLoadBudgetMs(): number {
+	const override = Number.parseInt(
+		process.env.CLINE_MCP_STARTUP_BUDGET_MS ?? "",
+		10,
+	);
+	return Number.isFinite(override) && override > 0
+		? override
+		: MCP_STARTUP_LOAD_BUDGET_MS;
+}
+
+async function withStartupBudget<T>(
+	work: Promise<T>,
+	budgetMs: number,
+): Promise<T> {
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			work,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() =>
+						reject(
+							new Error(`did not finish initializing within ${budgetMs}ms`),
+						),
+					budgetMs,
+				);
+				// Never let the budget timer keep a short-lived process (e.g.
+				// one-shot mode) alive after discovery has otherwise settled.
+				timer.unref?.();
+			}),
+		]);
+	} finally {
+		if (timer) {
+			clearTimeout(timer);
+		}
+	}
+}
+
 async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	tools: AgentTool[];
 	shutdown?: () => Promise<void>;
@@ -222,15 +274,19 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	}
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
+	const startupBudgetMs = resolveMcpStartupLoadBudgetMs();
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
-			createMcpTools({
-				serverName: r.name,
-				provider: manager,
-				// Keep the tool wrapper timeout in agreement with the MCP
-				// request timeout: both derive from the server's registration.
-				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
-			}),
+			withStartupBudget(
+				createMcpTools({
+					serverName: r.name,
+					provider: manager,
+					// Keep the tool wrapper timeout in agreement with the MCP
+					// request timeout: both derive from the server's registration.
+					timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
+				}),
+				startupBudgetMs,
+			),
 		),
 	);
 	const tools: AgentTool[] = [];
