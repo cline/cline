@@ -1,3 +1,5 @@
+import { resolveWorkspaceFilePath } from "./workspace-paths";
+
 export type SessionHookEvent = {
 	hookEventName?:
 		| "tool_call"
@@ -456,7 +458,38 @@ function parseApplyPatchFileDiffs(event: SessionHookEvent): SessionFileDiff[] {
 	return parseApplyPatchInput(patchInput);
 }
 
-export function mergeToolDiffs(events: SessionHookEvent[]): SessionFileDiff[] {
+/**
+ * Tool calls address the same file inconsistently across a session — one
+ * edit uses "journal.txt", a later one "/tmp/workspace/journal.txt". Keying
+ * diffs by the raw string would list that file twice with split counts, so
+ * paths are canonicalized against the session cwd first. Files inside the
+ * cwd display as workspace-relative paths; everything else displays as the
+ * resolved path.
+ */
+function canonicalizeDiffPath(
+	path: string,
+	cwd?: string,
+): { key: string; display: string } {
+	const trimmed = path.trim().replace(/^\.\//, "");
+	const base = (cwd ?? "").trim().replace(/[\\/]+$/, "");
+	if (!base) {
+		return { key: trimmed, display: trimmed };
+	}
+	const resolved = resolveWorkspaceFilePath(trimmed, base);
+	const withinBase =
+		resolved.length > base.length + 1 &&
+		resolved.startsWith(base) &&
+		(resolved[base.length] === "/" || resolved[base.length] === "\\");
+	return {
+		key: resolved,
+		display: withinBase ? resolved.slice(base.length + 1) : resolved,
+	};
+}
+
+export function mergeToolDiffs(
+	events: SessionHookEvent[],
+	cwd?: string,
+): SessionFileDiff[] {
 	const byPath = new Map<string, SessionFileDiff>();
 
 	for (const event of events) {
@@ -471,13 +504,14 @@ export function mergeToolDiffs(events: SessionHookEvent[]): SessionFileDiff[] {
 		}
 
 		for (const diff of diffs) {
-			const existing = byPath.get(diff.path);
+			const { key, display } = canonicalizeDiffPath(diff.path, cwd);
+			const existing = byPath.get(key);
 			if (!existing) {
-				byPath.set(diff.path, diff);
+				byPath.set(key, { ...diff, path: display });
 				continue;
 			}
 
-			byPath.set(diff.path, {
+			byPath.set(key, {
 				...existing,
 				additions: existing.additions + diff.additions,
 				deletions: existing.deletions + diff.deletions,
@@ -504,8 +538,9 @@ export function summarizeFileDiffs(
 
 export function buildSessionDiffState(
 	events: SessionHookEvent[],
+	cwd?: string,
 ): SessionDiffState {
-	const fileDiffs = mergeToolDiffs(events);
+	const fileDiffs = mergeToolDiffs(events, cwd);
 	return {
 		fileDiffs,
 		summary: summarizeFileDiffs(fileDiffs),
