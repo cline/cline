@@ -1,5 +1,40 @@
 import { jsonrepair } from "jsonrepair";
 
+/**
+ * Returns true when the text contains an unterminated string value,
+ * meaning repair would close it with a synthetic quote and produce a
+ * plausible but incorrect value. This guards against truncated tool-call
+ * arguments being silently repaired into valid-looking JSON whose values
+ * are cut off mid-content.
+ *
+ * Tracks both double-quoted and single-quoted strings so literal quotes
+ * inside the opposite delimiter style do not trigger false positives
+ * (e.g. a bare-object value like `{"commands": grep -c " file.txt}` or
+ * a single-quoted payload like `{'commands': ['grep " foo']}`).
+ */
+function hasUnterminatedString(text: string): boolean {
+	let inDouble = false;
+	let inSingle = false;
+	let escapeNext = false;
+	for (let i = 0; i < text.length; i += 1) {
+		const ch = text[i];
+		if (escapeNext) {
+			escapeNext = false;
+			continue;
+		}
+		if (ch === "\\") {
+			escapeNext = true;
+			continue;
+		}
+		if (!inSingle && ch === '"') {
+			inDouble = !inDouble;
+		} else if (!inDouble && ch === "'") {
+			inSingle = !inSingle;
+		}
+	}
+	return inDouble || inSingle;
+}
+
 const BARE_OBJECT_RE = /^\{\s*"([A-Za-z0-9_.$-]+)"\s*:\s*([\s\S]+?)\s*\}$/;
 /**
  * Attempt to repair `{"key": some unquoted value}` by wrapping the value in quotes.
@@ -32,27 +67,42 @@ function repairBareObjectValue(
 	return JSON.parse(`{"${key}":${JSON.stringify(value)}}`);
 }
 
-/** Parse strategies applied in order — first success wins. */
-const strategies: Array<(text: string) => unknown> = [
-	(text) => JSON.parse(text),
-	(text) => JSON.parse(jsonrepair(text)),
-	repairBareObjectValue,
-];
-
 export function parseJsonStream(input: unknown): unknown {
 	if (typeof input !== "string") return input;
 
 	const text = input.trimStart();
 	if (text[0] !== "{" && text[0] !== "[") return input;
 
-	for (const strategy of strategies) {
-		try {
-			const result = strategy(text);
-			if (result !== undefined) return result;
-		} catch {
-			// strategy failed — try next
-		}
+	// Always attempt a straight parse first — this is the common path.
+	try {
+		return JSON.parse(text);
+	} catch {
+		// Not valid JSON — attempt repair below.
 	}
+
+	// bare-object repair wraps the value verbatim through JSON.stringify
+	// and cannot invent a string terminator; try it first.
+	const bare = repairBareObjectValue(text);
+	if (bare !== undefined) {
+		return bare;
+	}
+
+	// If the text has an unterminated string literal the content was almost
+	// certainly cut off mid-value (e.g. the model hit max_tokens while
+	// writing a file-contents argument). Repairing this with jsonrepair
+	// would close the string with a synthetic quote and produce a
+	// valid-looking but wrong value. Reject it instead so the error
+	// propagates naturally.
+	if (hasUnterminatedString(text)) {
+		return input;
+	}
+
+	try {
+		return JSON.parse(jsonrepair(text));
+	} catch {
+		// jsonrepair failed — return original for the caller to handle.
+	}
+
 	return input;
 }
 
