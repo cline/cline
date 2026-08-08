@@ -308,13 +308,21 @@ export class PendingPromptsController {
 		session.drainingPendingPrompts = true;
 		let continueDrain = true;
 		try {
-			await this.deps.send({
+			const result = await this.deps.send({
 				sessionId,
 				prompt: next.prompt,
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
 			});
+			// A turn that resolves with an error finish ran (the prompt is in
+			// the conversation and the error is surfaced), so the entry is not
+			// requeued — but stop draining instead of firing the remaining
+			// queue into a failing provider. The rest stays queued and drains
+			// on the next enqueue/update or successful turn.
+			if (isErrorFinish(result)) {
+				continueDrain = false;
+			}
 		} catch {
 			continueDrain = false;
 			this.service.requeueFront(session, next);
@@ -349,6 +357,15 @@ export class PendingPromptsController {
 			},
 		});
 	}
+}
+
+function isErrorFinish(result: unknown): boolean {
+	return (
+		typeof result === "object" &&
+		result !== null &&
+		"finishReason" in result &&
+		(result as { finishReason?: unknown }).finishReason === "error"
+	);
 }
 
 function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
