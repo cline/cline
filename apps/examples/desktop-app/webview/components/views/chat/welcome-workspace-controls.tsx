@@ -310,7 +310,8 @@ function BranchPicker({
 	open: boolean;
 	onToggle: () => void;
 	onClose: () => void;
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -337,7 +338,9 @@ function BranchPicker({
 		};
 	}, [open, onListGitBranches]);
 
-	const hasGit = currentBranch !== "no-git";
+	// Pending discovery gets the same label as a non-repo folder; only a
+	// resolved branch name is worth displaying.
+	const hasGit = currentBranch !== null && currentBranch !== "no-git";
 	const branchLabel = hasGit ? currentBranch : "No branch";
 
 	const filteredBranches = branches.filter((branch) =>
@@ -438,7 +441,8 @@ export function WelcomeWorkspaceControls({
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
 	onSelectChat: () => Promise<boolean>;
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {

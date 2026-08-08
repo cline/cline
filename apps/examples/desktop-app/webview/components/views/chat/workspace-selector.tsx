@@ -41,7 +41,8 @@ export function WorkspaceSelector({
 	onCreateGitBranch,
 	disabled = false,
 }: {
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	workspaceRoot: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	workspaces: string[];
@@ -221,6 +222,10 @@ export function WorkspaceSelector({
 		w.toLowerCase().includes(search.toLowerCase()),
 	);
 
+	// Display-only fallback: while branch discovery is pending, show the same
+	// label as a non-repo folder rather than an empty slot.
+	const branchLabel = currentBranch ?? "no-git";
+
 	return (
 		<div className="relative min-w-0 max-w-full">
 			<Tooltip>
@@ -233,7 +238,7 @@ export function WorkspaceSelector({
 					>
 						<Button
 							variant="ghost"
-							aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
+							aria-label={`Workspace ${workspaceName}, branch ${branchLabel}`}
 							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
 							disabled={disabled || switching}
 							id="git-branch-btn"
@@ -256,13 +261,13 @@ export function WorkspaceSelector({
 								/
 							</span>
 							<span className="min-w-0 truncate max-[560px]:sr-only">
-								{currentBranch}
+								{branchLabel}
 							</span>
 						</Button>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent align="end" side="top" sideOffset={6}>
-					{workspaceRoot || workspaceName} / {currentBranch}
+					{workspaceRoot || workspaceName} / {branchLabel}
 				</TooltipContent>
 			</Tooltip>
 
