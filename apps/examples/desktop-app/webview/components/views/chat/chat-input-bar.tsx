@@ -1,6 +1,9 @@
 "use client";
 
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	formatDisplayUserInput,
+} from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowUp,
@@ -680,6 +683,19 @@ function ChatInputBarImpl({
 		[activeSlash, promptInput, setPromptInput],
 	);
 
+	// Queued prompts are stored in their runtime form (a /team command is
+	// persisted as its <user_command> envelope), so fold them back to the
+	// slash form for display and editing. Saving an edit re-resolves the
+	// slash form through the sidecar, so the round trip is lossless.
+	const displayPromptsInQueue = useMemo(
+		() =>
+			promptsInQueue.map((item) => ({
+				...item,
+				prompt: formatDisplayUserInput(item.prompt),
+			})),
+		[promptsInQueue],
+	);
+
 	return (
 		<div
 			className={cn(
@@ -692,7 +708,7 @@ function ChatInputBarImpl({
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				<AgentPromptQueue
-					items={promptsInQueue}
+					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}

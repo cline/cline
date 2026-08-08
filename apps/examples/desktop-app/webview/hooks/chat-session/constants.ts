@@ -32,8 +32,6 @@ export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	thinking: undefined,
 	reasoningEffort: undefined,
 	enableTools: true,
-	enableSpawn: undefined,
-	enableTeams: undefined,
 	autoApproveTools: true,
 	missionStepInterval: undefined,
 	missionTimeIntervalMs: undefined,

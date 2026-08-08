@@ -21,10 +21,7 @@ import {
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
-	setDisabledPlugin,
-	setDisabledTools,
 	setTelemetryOptOutGlobally,
-	toggleDisabledTool,
 } from "@cline/core";
 import { getClineEnvironmentConfig } from "@cline/shared";
 import {
@@ -297,7 +294,13 @@ export async function handleDesktopCommand(
 	if (command === "toggle_disabled_plugin_tool") {
 		const toolName = String(args?.name ?? "").trim();
 		if (!toolName) throw new Error("tool name is required");
-		toggleDisabledTool(toolName);
+		if (!ctx.uiClient) throw new Error("Hub settings client is not connected");
+		await ctx.uiClient.toggleSetting({
+			type: "tools",
+			name: toolName,
+			workspaceRoot,
+			cwd: workspaceRoot,
+		});
 		return await listUserInstructionConfigs(workspaceRoot);
 	}
 	if (command === "set_tool_disabled") {
@@ -306,13 +309,30 @@ export async function handleDesktopCommand(
 			.map((name) => String(name ?? "").trim())
 			.filter(Boolean);
 		if (toolNames.length === 0) throw new Error("tool name is required");
-		setDisabledTools(toolNames, args?.disabled === true);
+		for (const name of toolNames) {
+			if (!ctx.uiClient)
+				throw new Error("Hub settings client is not connected");
+			await ctx.uiClient.toggleSetting({
+				type: "tools",
+				name,
+				enabled: args?.disabled !== true,
+				workspaceRoot,
+				cwd: workspaceRoot,
+			});
+		}
 		return await listUserInstructionConfigs(workspaceRoot);
 	}
 	if (command === "set_plugin_disabled") {
 		const pluginPath = String(args?.path ?? "").trim();
 		if (!pluginPath) throw new Error("plugin path is required");
-		setDisabledPlugin(pluginPath, args?.disabled === true);
+		if (!ctx.uiClient) throw new Error("Hub settings client is not connected");
+		await ctx.uiClient.toggleSetting({
+			type: "plugins",
+			path: pluginPath,
+			enabled: args?.disabled !== true,
+			workspaceRoot,
+			cwd: workspaceRoot,
+		});
 		return await listUserInstructionConfigs(workspaceRoot);
 	}
 	throw new Error(`unsupported desktop command: ${command}`);
