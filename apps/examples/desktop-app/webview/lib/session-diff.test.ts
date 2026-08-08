@@ -14,10 +14,7 @@ function editorCreateEvent(path: string, newText: string): SessionHookEvent {
 	};
 }
 
-function editorReplaceEvent(
-	path: string,
-	diffBody: string,
-): SessionHookEvent {
+function editorReplaceEvent(path: string, diffBody: string): SessionHookEvent {
 	return {
 		hookName: "tool_result",
 		toolName: "editor",
