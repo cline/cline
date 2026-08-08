@@ -6,6 +6,7 @@ import type {
 	TeamTeammateSpec,
 } from "@cline/shared";
 import {
+	HUB_DEFAULT_COMMAND_TIMEOUT_MS,
 	hasRuntimeConfigExtension,
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
@@ -190,6 +191,32 @@ function isSkillsToolEnabledForSession(input: {
 
 const SKILLS_PROBE_EXECUTOR = (async () => "") as SkillsExecutorWithMetadata;
 
+// MCP tool discovery runs on the session-create critical path, which the hub
+// enforces with HUB_DEFAULT_COMMAND_TIMEOUT_MS. A stdio server that never
+// finishes initializing would otherwise hold its connect open for the full
+// DEFAULT_MCP_CONNECT_TIMEOUT_MS (doubled across the newline/framed attempts),
+// blowing past the hub timeout and tearing the whole session down. Bound the
+// startup load safely below the hub budget so session creation always returns
+// in time: servers that connect within the budget contribute their tools;
+// slower or hung servers are skipped for this session (their state and error
+// still surface through the MCP manager) instead of taking the session with
+// them.
+const MCP_STARTUP_CONNECT_BUDGET_MS = Math.max(
+	5_000,
+	HUB_DEFAULT_COMMAND_TIMEOUT_MS - 10_000,
+);
+
+function resolveMcpStartupConnectBudgetMs(): number {
+	const raw = process.env.CLINE_MCP_STARTUP_BUDGET_MS;
+	if (raw !== undefined) {
+		const parsed = Number.parseInt(raw, 10);
+		if (Number.isFinite(parsed) && parsed > 0) {
+			return parsed;
+		}
+	}
+	return MCP_STARTUP_CONNECT_BUDGET_MS;
+}
+
 async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	tools: AgentTool[];
 	shutdown?: () => Promise<void>;
@@ -222,29 +249,70 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	}
 
 	const enabled = registrations.filter((r) => r.disabled !== true);
-	const results = await Promise.allSettled(
-		enabled.map((r) =>
-			createMcpTools({
-				serverName: r.name,
+	// Collect per-server results by index so tool ordering stays deterministic
+	// regardless of which servers finish connecting first.
+	const perServerTools: (AgentTool[] | undefined)[] = new Array(enabled.length);
+	const pending = new Set(enabled.map((r) => r.name));
+
+	const loadOne = async (index: number): Promise<void> => {
+		const registration = enabled[index];
+		try {
+			perServerTools[index] = await createMcpTools({
+				serverName: registration.name,
 				provider: manager,
 				// Keep the tool wrapper timeout in agreement with the MCP
 				// request timeout: both derive from the server's registration.
-				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
-			}),
-		),
-	);
-	const tools: AgentTool[] = [];
-	for (const [i, result] of results.entries()) {
-		if (result.status === "fulfilled") {
-			tools.push(...result.value);
-		} else {
-			const message =
-				result.reason instanceof Error
-					? result.reason.message
-					: String(result.reason);
+				timeoutMs: resolveMcpTimeoutSeconds(registration.timeoutSeconds) * 1000,
+			});
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
 			logger?.log(
-				`[mcp] Failed to load tools from MCP server "${enabled[i].name}", skipping: ${message}`,
+				`[mcp] Failed to load tools from MCP server "${registration.name}", skipping: ${message}`,
 			);
+		} finally {
+			pending.delete(registration.name);
+		}
+	};
+
+	// `loadOne` never rejects (it catches per server), so this settles once
+	// every server has either produced its tools or failed.
+	const allLoaded = Promise.allSettled(
+		enabled.map((_, index) => loadOne(index)),
+	);
+
+	const budgetMs = resolveMcpStartupConnectBudgetMs();
+	let budgetTimer: ReturnType<typeof setTimeout> | undefined;
+	const budgetElapsed = new Promise<"timeout">((resolve) => {
+		budgetTimer = setTimeout(() => resolve("timeout"), budgetMs);
+		// Don't let the startup budget keep the process alive on its own.
+		budgetTimer.unref?.();
+	});
+
+	const outcome = await Promise.race([
+		allLoaded.then(() => "done" as const),
+		budgetElapsed,
+	]);
+	if (budgetTimer) {
+		clearTimeout(budgetTimer);
+	}
+
+	if (outcome === "timeout" && pending.size > 0) {
+		logger?.log(
+			`[mcp] MCP server(s) ${[...pending]
+				.map((name) => `"${name}"`)
+				.join(
+					", ",
+				)} did not finish initializing within ${budgetMs}ms; continuing without them. Their tools will be unavailable for this session.`,
+		);
+		// Leave the in-flight connects running in the background; the manager
+		// keeps ownership so they get cleaned up on shutdown (and their error
+		// state stays visible via the MCP panel). We just stop waiting on them.
+	}
+
+	const tools: AgentTool[] = [];
+	for (const serverTools of perServerTools) {
+		if (serverTools) {
+			tools.push(...serverTools);
 		}
 	}
 

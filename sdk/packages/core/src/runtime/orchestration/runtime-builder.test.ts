@@ -631,6 +631,70 @@ process.stdin.on("data", (chunk) => {
 		}
 	});
 
+	it("does not block session build on an MCP server that never initializes", async () => {
+		const tempRoot = mkdtempSync(join(tmpdir(), "runtime-builder-mcp-hang-"));
+		const serverPath = join(tempRoot, "hanging-mcp-server.js");
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		const previousStartupBudget = process.env.CLINE_MCP_STARTUP_BUDGET_MS;
+
+		// A server that stays alive but never responds to `initialize`. With no
+		// configured timeout it would otherwise hold the connect open for the
+		// full default connect budget (doubled across framing attempts).
+		writeFileSync(
+			serverPath,
+			`process.stdin.resume();
+setInterval(() => {}, 1 << 30);`,
+			"utf8",
+		);
+		writeFileSync(
+			settingsPath,
+			JSON.stringify(
+				{
+					mcpServers: {
+						hangs: {
+							command: process.execPath,
+							args: [serverPath],
+							// Intentionally no `timeout`, so the default connect
+							// budget applies — this is the scenario that used to
+							// stall session creation past the hub timeout.
+						},
+					},
+				},
+				null,
+				2,
+			),
+			"utf8",
+		);
+
+		// Keep the test fast while still exercising the real startup-budget path.
+		process.env.CLINE_MCP_STARTUP_BUDGET_MS = "750";
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		try {
+			const startedAt = Date.now();
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig(),
+			});
+			const elapsedMs = Date.now() - startedAt;
+
+			// The build must return promptly (well under the default connect
+			// budget) rather than waiting out the hung server.
+			expect(elapsedMs).toBeLessThan(10_000);
+			const mcpTools = runtime.tools.filter((t) =>
+				t.name.startsWith("hangs__"),
+			);
+			expect(mcpTools).toEqual([]);
+			await runtime.shutdown("test");
+		} finally {
+			process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			if (previousStartupBudget === undefined) {
+				delete process.env.CLINE_MCP_STARTUP_BUDGET_MS;
+			} else {
+				process.env.CLINE_MCP_STARTUP_BUDGET_MS = previousStartupBudget;
+			}
+		}
+	});
+
 	it("skips invalid MCP settings file without crashing", async () => {
 		const tempRoot = mkdtempSync(
 			join(tmpdir(), "runtime-builder-mcp-invalid-"),

@@ -172,6 +172,7 @@ class StdioMcpClient implements McpServerClient {
 	private newlineParser = new NewlineMessageParser();
 	private stderrBuffer = "";
 	private connected = false;
+	private disposed = false;
 	private protocolMode: StdioProtocolMode = "newline";
 	private readonly requestTimeoutMs: number;
 	private readonly connectAttemptTimeoutMs: number;
@@ -195,6 +196,11 @@ class StdioMcpClient implements McpServerClient {
 		if (this.connected) {
 			return;
 		}
+		if (this.disposed) {
+			throw new Error(
+				`MCP server "${this.registration.name}" has been disposed.`,
+			);
+		}
 		if (this.registration.transport.type !== "stdio") {
 			throw new Error(
 				`Unsupported MCP transport for "${this.registration.name}": ${this.registration.transport.type}`,
@@ -215,6 +221,12 @@ class StdioMcpClient implements McpServerClient {
 			);
 		} catch (newlineError) {
 			await this.disconnect().catch(() => {});
+			// If we're being torn down, don't burn a second connect budget on
+			// the framed fallback — surface the failure immediately so the
+			// manager's operation lock is released promptly.
+			if (this.disposed) {
+				throw newlineError;
+			}
 			this.spawnProcess("framed");
 			try {
 				await this.request(
@@ -233,6 +245,13 @@ class StdioMcpClient implements McpServerClient {
 		}
 		this.notify("notifications/initialized");
 		this.connected = true;
+	}
+
+	async close(): Promise<void> {
+		// Mark disposed first so an in-flight connect() bails out of its retry
+		// loop as soon as disconnect() rejects the pending request.
+		this.disposed = true;
+		await this.disconnect();
 	}
 
 	async disconnect(): Promise<void> {
