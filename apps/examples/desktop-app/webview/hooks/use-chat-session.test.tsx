@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -942,6 +943,99 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
+	it("resets to the remembered provider/model after viewing a historical session", async () => {
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "cline",
+				lastModelByProvider: { cline: "remembered-model" },
+			}),
+		);
+		const hydratedSessionId = "session-historical";
+		let startConfig: Record<string, unknown> | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "assistant-1",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "Historical response",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: Record<string, unknown> }
+						| undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "openrouter",
+							model: "historical-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "start") {
+						startConfig = request.config;
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "done", finishReason: "completed" },
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "openrouter",
+				model: "historical-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			});
+		});
+		expect(current.config).toMatchObject({
+			provider: "openrouter",
+			model: "historical-model",
+		});
+
+		// Starting a new chat from a hydrated pane resets the session; the
+		// composer must return to the remembered defaults instead of retaining
+		// the historical session's provider/model.
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config.sessionId).toBeUndefined();
+		expect(current.config).toMatchObject({
+			provider: "cline",
+			model: "remembered-model",
+		});
+
+		// The next session then starts with the remembered defaults.
+		await act(async () => current.sendPrompt("Start a fresh task"));
+		expect(startConfig).toMatchObject({
+			provider: "cline",
+			model: "remembered-model",
+		});
 	});
 
 	it("returns to a completed status when a queued turn finishes via chat_done", async () => {

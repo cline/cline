@@ -2181,10 +2181,21 @@ export function useChatSession() {
 		setRawTranscript("");
 		setError(null);
 		resetCounters();
-		setConfig((prev) => ({
-			...prev,
-			sessionId: undefined,
-		}));
+		setConfig((prev) => {
+			// Re-seed the composer from the remembered defaults (the same
+			// source a freshly mounted thread uses) so a reset after viewing
+			// a historical session does not retain that session's
+			// provider/model for the next chat.
+			const initial = getInitialChatConfig();
+			return {
+				...prev,
+				sessionId: undefined,
+				provider: initial.provider,
+				model: initial.model,
+				apiKey:
+					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+			};
+		});
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
 		outstandingOptimisticUserIdsRef.current.clear();
