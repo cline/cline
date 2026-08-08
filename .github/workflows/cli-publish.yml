@@ -36,8 +36,145 @@ defaults:
     working-directory: .
 
 jobs:
+  build-darwin:
+    name: Build signed Darwin artifacts
+    if: |
+      github.repository == 'cline/cline' &&
+      github.ref == 'refs/heads/main' &&
+      (
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_target == 'main' &&
+          github.event.inputs.confirm_publish == 'publish' &&
+          !endsWith(github.actor, '[bot]')
+        ) ||
+        github.event_name == 'schedule' ||
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.event.inputs.publish_target == 'nightly'
+        )
+      )
+    runs-on: macos-latest
+    outputs:
+      skip: ${{ steps.prepare.outputs.skip }}
+      version: ${{ steps.prepare.outputs.version }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.publish_target == 'main' && github.event.inputs.git_tag || github.sha }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24.x"
+
+      - name: Prepare build version
+        id: prepare
+        env:
+          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
+          TAG: ${{ github.event.inputs.git_tag }}
+          TARGET: ${{ github.event_name == 'schedule' && 'nightly' || github.event.inputs.publish_target }}
+        run: |
+          if [ "$TARGET" = "main" ]; then
+            if [ -z "$TAG" ]; then
+              echo "git_tag is required when publish_target=main"
+              exit 1
+            fi
+            VERSION="${TAG#cli-v}"
+            PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+            if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+              echo "apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+              exit 1
+            fi
+          else
+            if [ "$FORCE_PUBLISH" != "true" ] && [ "$(git rev-list --count HEAD --since='24 hours ago')" -eq 0 ]; then
+              echo "No commits in last 24 hours, skipping publish"
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
+            VERSION="${BASE_VERSION}-nightly.$(date +%s)"
+          fi
+
+          echo "Building Darwin artifacts for ${VERSION}"
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Setup Bun
+        if: steps.prepare.outputs.skip != 'true'
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Install dependencies
+        if: steps.prepare.outputs.skip != 'true'
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update nightly package version
+        if: steps.prepare.outputs.skip != 'true' && (github.event_name == 'schedule' || github.event.inputs.publish_target == 'nightly')
+        env:
+          VERSION: ${{ steps.prepare.outputs.version }}
+        run: |
+          node -e '
+            const fs = require("node:fs");
+            const path = "apps/cli/package.json";
+            const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
+            pkg.version = process.env.VERSION;
+            fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
+          '
+
+      - name: Build SDK packages
+        if: steps.prepare.outputs.skip != 'true'
+        run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Build and sign Darwin binaries
+        if: steps.prepare.outputs.skip != 'true'
+        run: bun script/build.ts --target-os darwin --install-native-variants --skip-sdk-build
+        working-directory: apps/cli
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Archive signed Darwin artifacts
+        if: steps.prepare.outputs.skip != 'true'
+        run: |
+          tar -C apps/cli/dist -czf "$RUNNER_TEMP/cli-darwin.tgz" \
+            cli-darwin-arm64 \
+            cli-darwin-x64
+
+      - name: Upload signed Darwin artifacts
+        if: steps.prepare.outputs.skip != 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: cli-darwin-${{ github.run_id }}
+          path: ${{ runner.temp }}/cli-darwin.tgz
+          if-no-files-found: error
+          retention-days: 1
+
   publish-main:
     name: Publish cline
+    needs: build-darwin
     permissions:
       contents: write
       id-token: write
@@ -146,7 +283,7 @@ jobs:
         run: bun run test
 
       - name: Build platform binaries
-        run: bun script/build.ts --install-native-variants --skip-sdk-build
+        run: bun script/build.ts --target-os linux --target-os win32 --install-native-variants --skip-sdk-build
         working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -157,6 +294,15 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Download signed Darwin artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-darwin-${{ github.run_id }}
+          path: ${{ runner.temp }}/cli-darwin
+
+      - name: Extract signed Darwin artifacts
+        run: tar -C apps/cli/dist -xzf "$RUNNER_TEMP/cli-darwin/cli-darwin.tgz"
 
       - name: Verify build output
         env:
@@ -256,6 +402,7 @@ jobs:
 
   publish-nightly:
     name: Publish cline nightly
+    needs: build-darwin
     permissions:
       contents: read
       id-token: write
@@ -280,21 +427,10 @@ jobs:
       - name: Check for recent commits
         id: check_commits
         env:
-          FORCE_PUBLISH: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.force_nightly_publish == 'true' }}
+          SKIP: ${{ needs.build-darwin.outputs.skip }}
         run: |
-          if [ "$FORCE_PUBLISH" = "true" ]; then
-            echo "force_nightly_publish enabled, proceeding with publish"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
-
-          if [ "$(git rev-list --count HEAD --since='24 hours ago')" -eq 0 ]; then
-            echo "No commits in last 24 hours, skipping publish"
-            echo "skip=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "Found recent commits, proceeding with publish"
-            echo "skip=false" >> "$GITHUB_OUTPUT"
-          fi
+          echo "skip=${SKIP}" >> "$GITHUB_OUTPUT"
+          echo "Darwin build skip=${SKIP}"
 
       - name: Setup Bun
         if: steps.check_commits.outputs.skip != 'true'
@@ -348,14 +484,10 @@ jobs:
       - name: Generate nightly version
         if: steps.check_commits.outputs.skip != 'true'
         id: version
+        env:
+          VERSION: ${{ needs.build-darwin.outputs.version }}
         run: |
-          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
-          TIMESTAMP=$(date +%s)
-          VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
-
-          echo "Base version: ${BASE_VERSION}"
           echo "Generated nightly version: ${VERSION}"
-          echo "base_version=${BASE_VERSION}" >> "$GITHUB_OUTPUT"
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
 
       - name: Update nightly package version
@@ -374,7 +506,7 @@ jobs:
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
-        run: bun script/build.ts --install-native-variants --skip-sdk-build
+        run: bun script/build.ts --target-os linux --target-os win32 --install-native-variants --skip-sdk-build
         working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
@@ -385,6 +517,17 @@ jobs:
           OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
           OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
           OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Download signed Darwin artifacts
+        if: steps.check_commits.outputs.skip != 'true'
+        uses: actions/download-artifact@v4
+        with:
+          name: cli-darwin-${{ github.run_id }}
+          path: ${{ runner.temp }}/cli-darwin
+
+      - name: Extract signed Darwin artifacts
+        if: steps.check_commits.outputs.skip != 'true'
+        run: tar -C apps/cli/dist -xzf "$RUNNER_TEMP/cli-darwin/cli-darwin.tgz"
 
       - name: Verify build output
         if: steps.check_commits.outputs.skip != 'true'
