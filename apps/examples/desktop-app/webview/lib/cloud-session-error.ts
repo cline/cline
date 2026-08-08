@@ -1,3 +1,5 @@
+import { CLINE_ENVIRONMENTS } from "@cline/shared/browser";
+
 const CLOUD_SESSION_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 
 export type CloudSessionError = {
@@ -10,6 +12,30 @@ export type CloudSessionError = {
 	message: string;
 	connectUrl?: string;
 };
+
+/**
+ * The error envelope travels in Error.message and is authenticated by string
+ * prefix only, so error strings a session pod controls can smuggle a spoofed
+ * envelope through the sidecar. Legitimate connectUrls are always built from
+ * the Cline app base URL; only honor those origins, or the "Connect GitHub"
+ * action would open an attacker-chosen page in the user's browser.
+ */
+function trustedConnectUrl(value: unknown): string | undefined {
+	if (typeof value !== "string" || !value.trim()) {
+		return undefined;
+	}
+	const trimmed = value.trim();
+	try {
+		const origin = new URL(trimmed).origin;
+		return Object.values(CLINE_ENVIRONMENTS).some(
+			(environment) => new URL(environment.appBaseUrl).origin === origin,
+		)
+			? trimmed
+			: undefined;
+	} catch {
+		return undefined;
+	}
+}
 
 export function parseCloudSessionError(
 	value: string | null | undefined,
@@ -34,10 +60,7 @@ export function parseCloudSessionError(
 		return {
 			code: parsed.code,
 			message: parsed.message,
-			connectUrl:
-				typeof parsed.connectUrl === "string" && parsed.connectUrl.trim()
-					? parsed.connectUrl.trim()
-					: undefined,
+			connectUrl: trustedConnectUrl(parsed.connectUrl),
 		};
 	} catch {
 		return null;
