@@ -43,13 +43,18 @@ type JsonRpcMessage = {
 };
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-// Initialize budget when no timeout is configured. Stdio servers routinely
-// need several seconds to become ready (JVM-based servers like Oracle SQLcl,
-// uvx downloading a package on first run), so the default matches the ~30s
-// startup budget other MCP clients allow. A configured `timeout` overrides
-// it in either direction. Dead commands still fail fast through the spawn
-// error/exit path; only an alive-but-silent server waits out this budget.
-export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 30_000;
+// Initialize budget when no timeout is configured. This wait sits on the
+// session-create critical path, which the hub caps at 30s
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
+// then Content-Length framing), so the doubled total MUST stay well under
+// that cap or a hung server takes the whole session down with it. 3s covers
+// typical stdio startup while keeping the worst case (~6s per server, probed
+// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
+// ones like Oracle SQLcl, uvx downloading a package on first run) need an
+// explicit `timeout`, which overrides this in either direction. Dead commands
+// still fail fast through the spawn error/exit path; only an alive-but-silent
+// server waits out this budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
