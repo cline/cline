@@ -13,6 +13,7 @@ import { type ToolSet, wrapLanguageModel } from "ai";
 import { z } from "zod";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
+import { withMaxCompletionTokensForReasoningModels } from "./openai-compatible";
 import type { ProviderFactoryResult } from "./types";
 
 export interface ClineWebSearchInput {
@@ -186,6 +187,7 @@ export function createCline(options: ClineProviderOptions): ClineProvider {
 		headers: options.headers,
 		fetch: providerFetch,
 		includeUsage: true,
+		transformRequestBody: withMaxCompletionTokensForReasoningModels,
 	});
 	const createModel = (modelId: string): LanguageModelV4 =>
 		wrapLanguageModel({
