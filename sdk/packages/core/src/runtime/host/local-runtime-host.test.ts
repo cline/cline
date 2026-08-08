@@ -3137,6 +3137,118 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
+		const sessionId = "sess-second-abort-clears-queue";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		const sentPrompts: string[] = [];
+		const rejectors: Array<(error: Error) => void> = [];
+		// Every run hangs until aborted, so each abort targets the turn that
+		// is actually in flight (first the user turn, then the drained turn).
+		const run = vi.fn().mockImplementation(
+			(prompt: string) =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					sentPrompts.push(prompt);
+					activeRun = true;
+					rejectors.push((error) => {
+						activeRun = false;
+						reject(error);
+					});
+				}),
+		);
+		const agent = {
+			run,
+			continue: vi.fn().mockResolvedValue(createResult()),
+			abort: vi.fn(() => {
+				rejectors.shift()?.(new Error("user cancelled"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await vi.waitFor(() => {
+			expect(run).toHaveBeenCalledTimes(1);
+		});
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued one",
+			delivery: "queue",
+		});
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued two",
+			delivery: "queue",
+		});
+
+		// First abort: the user-initiated turn stops, the queue survives, and
+		// the drain starts running "queued one".
+		await manager.abort(sessionId, new Error("first abort"));
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		await vi.waitFor(() => {
+			expect(run).toHaveBeenCalledTimes(2);
+		});
+		expect(sentPrompts[1]).toContain("queued one");
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map(
+				(prompt) => prompt.prompt,
+			),
+		).toEqual(["queued two"]);
+
+		// Second abort lands on a queue-initiated turn: that means "stop the
+		// queued work too" — the remainder is dropped so repeated aborts
+		// reliably bring the session to a full stop instead of consuming one
+		// queued prompt (and one provider call) per abort.
+		await manager.abort(sessionId, new Error("second abort"));
+		await vi.waitFor(async () => {
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(run).toHaveBeenCalledTimes(2);
+		expect(sentPrompts).toHaveLength(2);
+	});
+
 	it("does not drain queued prompts after a turn that finishes with error", async () => {
 		const sessionId = "sess-error-holds-prompts";
 		const manifest = createManifest(sessionId);
