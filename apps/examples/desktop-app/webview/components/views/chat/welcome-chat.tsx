@@ -115,7 +115,24 @@ export function WelcomeScreen({
 	} = useWorkspace();
 	const actions =
 		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
-	const listCloudRepositories = useCallback(
+	const applyCloudSetupResult = useCallback(
+		(result: CloudRepositoryListResult) => {
+			setCloudSetup({
+				status:
+					result.connected === false
+						? "not_connected"
+						: result.repositories.length === 0
+							? "no_repositories"
+							: "ready",
+				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+				repositoryUrls: result.repositories.map((repository) =>
+					normalizeCloudRepositoryUrl(repository.url),
+				),
+			});
+		},
+		[],
+	);
+	const fetchCloudRepositories = useCallback(
 		() =>
 			desktopClient.invoke<CloudRepositoryListResult>(
 				"list_cloud_repositories",
@@ -123,6 +140,19 @@ export function WelcomeScreen({
 			),
 		[],
 	);
+	const listCloudRepositories = useCallback(async () => {
+		// Every successful repository fetch — the picker's own load included —
+		// refreshes the snapshot the stale-selection guard below compares
+		// against. Without this, an org switch leaves the guard holding the
+		// old scope's list and it wipes a repository just picked from the new
+		// scope's correctly filtered picker.
+		const requestId = ++cloudSetupRequestRef.current;
+		const result = await fetchCloudRepositories();
+		if (cloudSetupRequestRef.current === requestId) {
+			applyCloudSetupResult(result);
+		}
+		return result;
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
 	const listCloudBranches = useCallback(
 		async (repositoryId: number, options: CloudBranchListOptions = {}) => {
 			const result = await desktopClient.invoke<{
@@ -156,20 +186,9 @@ export function WelcomeScreen({
 		const requestId = ++cloudSetupRequestRef.current;
 		setCloudSetupChecking(true);
 		try {
-			const result = await listCloudRepositories();
+			const result = await fetchCloudRepositories();
 			if (cloudSetupRequestRef.current !== requestId) return;
-			setCloudSetup({
-				status:
-					result.connected === false
-						? "not_connected"
-						: result.repositories.length === 0
-							? "no_repositories"
-							: "ready",
-				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
-				repositoryUrls: result.repositories.map((repository) =>
-					normalizeCloudRepositoryUrl(repository.url),
-				),
-			});
+			applyCloudSetupResult(result);
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
 			setCloudSetup((prev) => ({ ...prev, status: "error" }));
@@ -178,7 +197,7 @@ export function WelcomeScreen({
 				setCloudSetupChecking(false);
 			}
 		}
-	}, [listCloudRepositories]);
+	}, [applyCloudSetupResult, fetchCloudRepositories]);
 
 	// Check GitHub connectivity whenever the cloud composer becomes relevant
 	// or the signed-in account changes, and keep watching while onboarding is
@@ -204,6 +223,16 @@ export function WelcomeScreen({
 			window.clearInterval(interval);
 		};
 	}, [accountUserId, checkCloudSetup, cloudModeActive, signedIn]);
+
+	// Account/organization switches re-scope the repository list on the
+	// sidecar side; refresh the setup snapshot immediately instead of waiting
+	// for a focus event or the onboarding poll (which stops in "ready").
+	useEffect(() => {
+		if (!cloudModeActive || !signedIn) return;
+		return desktopClient.subscribe("cloud_sessions_changed", () => {
+			void checkCloudSetup();
+		});
+	}, [checkCloudSetup, cloudModeActive, signedIn]);
 
 	useEffect(() => {
 		if (active && executionTarget === "local") void refreshWorkspaces();
