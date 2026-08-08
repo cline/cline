@@ -310,6 +310,7 @@ function BranchPicker({
 	open: boolean;
 	onToggle: () => void;
 	onClose: () => void;
+	/** Always a real branch name: the parent only mounts this for git repos. */
 	currentBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
@@ -437,7 +438,8 @@ export function WelcomeWorkspaceControls({
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
 	onSelectChat: () => Promise<boolean>;
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -479,8 +481,11 @@ export function WelcomeWorkspaceControls({
 				workspaces={workspaces}
 			/>
 			{/* Git is a developer affordance: a plain (non-git) folder gets no
-			    branch chrome at all instead of a confusing "No branch" chip. */}
-			{!isChatWorkspace && currentBranch !== "no-git" ? (
+			    branch chrome at all instead of a confusing "No branch" chip.
+			    Pending discovery (null) is treated the same until it resolves. */}
+			{!isChatWorkspace &&
+			currentBranch !== null &&
+			currentBranch !== "no-git" ? (
 				<BranchPicker
 					currentBranch={currentBranch}
 					onClose={() => setOpenMenu(null)}

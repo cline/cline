@@ -48,7 +48,8 @@ export function WorkspaceSelector({
 	onCreateGitBranch,
 	disabled = false,
 }: {
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	workspaceRoot: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	workspaces: string[];
@@ -88,8 +89,9 @@ export function WorkspaceSelector({
 		[workspaceRoot],
 	);
 	// Git chrome (branch label, branch list, create-branch) is a developer
-	// affordance; a plain folder shows only folder language.
-	const hasGit = currentBranch !== "no-git";
+	// affordance; a plain folder shows only folder language. Pending branch
+	// discovery (null) is presented like a plain folder until it resolves.
+	const hasGit = currentBranch !== null && currentBranch !== "no-git";
 
 	const openMenu = async () => {
 		if (disabled) {
