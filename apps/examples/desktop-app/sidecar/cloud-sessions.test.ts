@@ -11,6 +11,7 @@ import {
 	reconcileBufferedCloudEvents,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { disposeSidecarContext } from "./context";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -1536,6 +1537,143 @@ describe("CloudSessionManager", () => {
 		expect(hub.disposed).toBe(true);
 		expect(deleted).toBe("ses-outer");
 		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("blocks a concurrent attach from re-dialing a session mid-delete", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let releaseDelete!: () => void;
+		const deleteBlocked = new Promise<void>((resolve) => {
+			releaseDelete = resolve;
+		});
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => {
+					await deleteBlocked;
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		const deleting = manager.delete("ses-outer");
+		// Yield so delete() reaches the (blocked) REST call.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		// Without the tombstone this would dial a fresh connection that
+		// outlives the delete and reconnect-loops against a dead session.
+		await expect(manager.attach("ses-outer")).rejects.toMatchObject({
+			name: "CloudSessionError",
+		});
+		releaseDelete();
+		await deleting;
+		expect(hub.disposed).toBe(true);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("still cleans up locally when the session is already gone remotely", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [REMOTE_SESSION],
+				delete: async () => {
+					throw new CloudSessionError("session_not_found", "already gone");
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await expect(manager.delete("ses-outer")).resolves.toBeUndefined();
+		expect(hub.disposed).toBe(true);
+		expect(ctx.liveSessions.has("ses-outer")).toBe(false);
+	});
+
+	it("reaps the connection when the sidebar poll reports the session expired", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		let expired = false;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () =>
+					expired
+						? [
+								{
+									...REMOTE_SESSION,
+									expiredAt: new Date(Date.now() - 60_000).toISOString(),
+								},
+							]
+						: [REMOTE_SESSION],
+				history: async () => [],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		expect(hub.disposed).toBe(false);
+
+		// The session's TTL lapses while the app is open; the next sidebar
+		// poll must stop the connection's reconnect loop.
+		expired = true;
+		await manager.list();
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(hub.disposed).toBe(true);
+	});
+
+	it("leaves cloud approvals pending on app shutdown instead of denying them", async () => {
+		const { ctx } = createContext();
+		ctx.cloudSessionManager = {
+			dispose: async () => {},
+			isCloudSession: (sessionId: string) => sessionId === "ses-outer",
+		};
+		const approvalItem = {
+			requestId: "",
+			sessionId: "",
+			createdAt: new Date().toISOString(),
+			toolCallId: "call-1",
+			toolName: "run_command",
+			input: {},
+		};
+		const cloudResolve = vi.fn();
+		const localResolve = vi.fn();
+		ctx.pendingApprovals.set("ses-outer:app-1", {
+			item: {
+				...approvalItem,
+				requestId: "ses-outer:app-1",
+				sessionId: "ses-outer",
+			},
+			resolve: cloudResolve,
+		});
+		ctx.pendingApprovals.set("local-1:app-2", {
+			item: {
+				...approvalItem,
+				requestId: "local-1:app-2",
+				sessionId: "local-1",
+			},
+			resolve: localResolve,
+		});
+
+		await disposeSidecarContext(ctx, "code_sidecar_shutdown");
+
+		// The pod outlives the app; its approval must stay answerable from
+		// another surface. Local sessions die with the app and are denied.
+		expect(cloudResolve).not.toHaveBeenCalled();
+		expect(localResolve).toHaveBeenCalledWith({
+			approved: false,
+			reason: "code_sidecar_shutdown",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
 	});
 
 	it("drops authenticated cloud connections when account context changes", async () => {

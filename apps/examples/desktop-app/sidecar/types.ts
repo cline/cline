@@ -119,7 +119,10 @@ export type SidecarContext = {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;
-	cloudSessionManager: { dispose(): Promise<void> } | null;
+	cloudSessionManager: {
+		dispose(): Promise<void>;
+		isCloudSession(sessionId: string): boolean;
+	} | null;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

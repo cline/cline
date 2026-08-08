@@ -527,6 +527,13 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
+		// Cloud sessions outlive this app: denying their approvals on local
+		// shutdown would fail a tool call on a pod that keeps running and
+		// could otherwise be answered later (from here or another surface).
+		// Drop those entries locally and leave the remote approval pending.
+		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
+			continue;
+		}
 		try {
 			approvalCleanup.push(
 				Promise.resolve(pending.resolve({ approved: false, reason })),
@@ -777,20 +784,12 @@ export function handleHubLiveEvent(
 				session,
 				mapped.map((item) => item.id),
 			);
-			const previous = session.promptsInQueue;
+			// No "head submitted" inference here, unlike the local queue-drain
+			// handler: the hub emits an explicit session.pending_prompt_submitted
+			// for real submissions, and a snapshot can also shrink because a
+			// prompt was REMOVED — inferring a start would render the deleted
+			// prompt in the transcript as if it had been sent.
 			session.promptsInQueue = mapped;
-			if (
-				previous.length > mapped.length &&
-				previous[0] &&
-				previous[0].id !== mapped[0]?.id
-			) {
-				emitQueuedPromptStart(ctx, sessionId, session, {
-					promptId: previous[0].id,
-					prompt: previous[0].prompt,
-					attachmentCount: previous[0].attachmentCount ?? 0,
-					userImages: previous[0].userImages,
-				});
-			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			return;
 		}

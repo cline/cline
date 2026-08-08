@@ -241,14 +241,34 @@ export class CloudSessionApi {
 		const query = organizationId?.trim()
 			? `?organizationId=${encodeURIComponent(organizationId.trim())}`
 			: "";
-		return (
+		const rows =
 			(await this.request<CloudSessionRecord[]>(
 				`/api/v1/session${query}`,
 				{},
 				undefined,
 				authToken,
-			)) ?? []
-		);
+			)) ?? [];
+		// Normalize before anything touches the rows: one malformed record
+		// (missing repoContext/metadata) must not crash discovery or turn a
+		// create-timeout recovery into an opaque TypeError.
+		return rows.flatMap((row) => {
+			if (!row || typeof row !== "object" || typeof row.id !== "string") {
+				return [];
+			}
+			return [
+				{
+					...row,
+					repoContext:
+						row.repoContext && typeof row.repoContext === "object"
+							? row.repoContext
+							: {},
+					metadata:
+						row.metadata && typeof row.metadata === "object"
+							? row.metadata
+							: {},
+				},
+			];
+		});
 	}
 
 	async listRepositories(
@@ -415,11 +435,16 @@ export class CloudSessionApi {
 				(error instanceof CloudSessionError && error.code === "request_failed");
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
+				// The blocking create can run for ~10 minutes; the token captured
+				// at its start may have expired since. Prefer a fresh token for
+				// the recovery list, falling back to the captured one.
+				const recoveryToken =
+					(await this.options.getAuthToken().catch(() => undefined))?.trim() ||
+					creationAuthToken;
 				const candidates = (
-					await this.listWithToken(
-						input.organizationId,
-						creationAuthToken,
-					).catch(() => [])
+					await this.listWithToken(input.organizationId, recoveryToken).catch(
+						() => [],
+					)
 				)
 					.filter(
 						(session) =>
@@ -429,7 +454,10 @@ export class CloudSessionApi {
 							// so only require a match when we asked for a specific one.
 							(!requestedBranch ||
 								session.repoContext.branch === requestedBranch) &&
-							Date.parse(session.createdAt) >= requestedAt - 5_000,
+							// Generous slack: this compares the client clock against
+							// the server's createdAt, and the claim set already
+							// prevents adopting another request's session.
+							Date.parse(session.createdAt) >= requestedAt - 60_000,
 					)
 					.sort(
 						(left, right) =>
@@ -552,6 +580,12 @@ type CloudConnection = {
 	seenEventIdOrder: string[];
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
+	/** Set by disposeConnection; late timers and approval callbacks must not
+	 * command (and thereby resurrect) a disposed client. */
+	disposed?: boolean;
+	/** Rate-limits cloud_session_sync_failed to state transitions so a
+	 * reconnect loop cannot spam the UI on every attempt. */
+	syncFailureNotified?: boolean;
 	unsubscribe: () => void;
 };
 
@@ -879,6 +913,8 @@ export class CloudSessionManager {
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
 	// REST cannot list sessions that are still provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
+	// Sessions mid-delete; blocks concurrent code from re-dialing them.
+	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
 		CloudSessionManagerOptions["createHubClient"]
 	>;
@@ -908,6 +944,16 @@ export class CloudSessionManager {
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
+			const connection = this.connections.get(session.id);
+			if (connection) {
+				// Keep the connection's record current (title/model changes from
+				// other devices), and reap connections whose sandbox expired so
+				// they stop reconnect-looping against a dead proxy.
+				connection.remote = session;
+				if (isExpiredRecord(session)) {
+					void this.disposeConnection(session.id).catch(() => undefined);
+				}
+			}
 		}
 		this.lastListedSessions = scoped;
 		return scoped;
@@ -1148,6 +1194,9 @@ export class CloudSessionManager {
 		}
 		const known = await this.ensureKnownSession(outerSessionId);
 		if (isExpiredRecord(known)) {
+			// A connection left over from before expiry would reconnect-loop
+			// against a dead sandbox forever.
+			await this.disposeConnection(outerSessionId);
 			return await this.attachExpired(known);
 		}
 		let connection: CloudConnection;
@@ -1157,6 +1206,7 @@ export class CloudSessionManager {
 			// Re-check expiry after a proxy upgrade failure.
 			const refreshed = await this.refreshKnownSession(outerSessionId);
 			if (refreshed && isExpiredRecord(refreshed)) {
+				await this.disposeConnection(outerSessionId);
 				return await this.attachExpired(refreshed);
 			}
 			throw error;
@@ -1472,6 +1522,7 @@ export class CloudSessionManager {
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
+			connection.syncFailureNotified = false;
 			for (const event of buffered) {
 				this.forwardEvent(outerSessionId, connection, event);
 			}
@@ -1484,10 +1535,15 @@ export class CloudSessionManager {
 			for (const event of buffered) {
 				this.forwardEvent(outerSessionId, connection, event);
 			}
-			sendEvent(this.ctx, "cloud_session_sync_failed", {
-				sessionId: outerSessionId,
-				message: error instanceof Error ? error.message : String(error),
-			});
+			// Notify on the transition only: reconnect loops rehydrate on every
+			// attempt, and one toast per attempt would flood the UI.
+			if (!connection.syncFailureNotified) {
+				connection.syncFailureNotified = true;
+				sendEvent(this.ctx, "cloud_session_sync_failed", {
+					sessionId: outerSessionId,
+					message: error instanceof Error ? error.message : String(error),
+				});
+			}
 			throw error;
 		}
 	}
@@ -1513,6 +1569,12 @@ export class CloudSessionManager {
 	}
 
 	async pendingPrompts(outerSessionId: string): Promise<JsonRecord> {
+		const connection = await this.ensureConnection(outerSessionId);
+		// No inner session means nothing was ever queued; answering [] beats
+		// throwing after having dialed a socket just to fail.
+		if (!connection.innerSessionId) {
+			return { sessionId: outerSessionId, promptsInQueue: [] };
+		}
 		const reply = await this.queueCommand(
 			outerSessionId,
 			"session.pending_prompts",
@@ -1658,19 +1720,35 @@ export class CloudSessionManager {
 				"This cloud session is still provisioning and cannot be deleted yet.",
 			);
 		}
-		// Settle an in-flight connect before deleting its connection.
-		const pendingConnect = this.connectionPromises.get(outerSessionId);
-		if (pendingConnect) {
-			await pendingConnect.catch(() => undefined);
-		}
-		await this.disposeConnection(outerSessionId);
-		await this.options.api.delete(outerSessionId);
-		this.knownSessions.delete(outerSessionId);
-		this.ctx.liveSessions.delete(outerSessionId);
-		for (const [requestId, pending] of this.ctx.pendingApprovals) {
-			if (pending.item.sessionId === outerSessionId) {
-				this.ctx.pendingApprovals.delete(requestId);
+		// Tombstone the id so a concurrent attach/send/readMessages cannot dial
+		// a fresh connection for a session that is being torn down.
+		this.deletingSessions.add(outerSessionId);
+		try {
+			// Settle an in-flight connect before deleting its connection.
+			const pendingConnect = this.connectionPromises.get(outerSessionId);
+			if (pendingConnect) {
+				await pendingConnect.catch(() => undefined);
 			}
+			await this.disposeConnection(outerSessionId);
+			try {
+				await this.options.api.delete(outerSessionId);
+			} catch (error) {
+				// A session already gone remotely must still be deletable
+				// locally, or its row becomes permanently stuck in the UI.
+				const code = error instanceof CloudSessionError ? error.code : "";
+				if (code !== "session_not_found" && code !== "session_expired") {
+					throw error;
+				}
+			}
+			this.knownSessions.delete(outerSessionId);
+			this.ctx.liveSessions.delete(outerSessionId);
+			for (const [requestId, pending] of this.ctx.pendingApprovals) {
+				if (pending.item.sessionId === outerSessionId) {
+					this.ctx.pendingApprovals.delete(requestId);
+				}
+			}
+		} finally {
+			this.deletingSessions.delete(outerSessionId);
 		}
 	}
 
@@ -1789,6 +1867,12 @@ export class CloudSessionManager {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
+		if (this.deletingSessions.has(outerSessionId)) {
+			throw new CloudSessionError(
+				"session_not_found",
+				"This cloud session is being deleted.",
+			);
+		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
 			if (options.createInner && !existing.innerSessionId) {
@@ -1833,11 +1917,20 @@ export class CloudSessionManager {
 					socketAttempt += 1;
 					if (reconnecting) {
 						setTimeout(() => {
-							if (!connection) return;
+							const reconnected = connection;
+							if (!reconnected || reconnected.disposed) return;
+							// A dropped transport invalidates the duplicate-prompt
+							// baseline send() computes from live.messages.
+							reconnected.transcriptKnown = false;
 							void this.rehydrateAfterTransportDrop(
 								outerSessionId,
-								connection,
-							).catch(() => undefined);
+								reconnected,
+							).catch(() =>
+								this.disposeConnectionIfSessionGone(
+									outerSessionId,
+									reconnected,
+								),
+							);
 						}, 0);
 					}
 					const token = await this.options.getAuthToken();
@@ -1890,8 +1983,17 @@ export class CloudSessionManager {
 			} catch (error) {
 				// Never retain a client whose registration or inner creation failed.
 				this.connections.delete(outerSessionId);
+				connection.disposed = true;
 				connection.unsubscribe();
 				await client.dispose().catch(() => undefined);
+				// Approvals stored during the failed setup hold resolve closures
+				// over this dead connection; drop them so a later user response
+				// cannot resurrect the disposed client.
+				for (const [requestId, pending] of this.ctx.pendingApprovals) {
+					if (pending.item.sessionId === outerSessionId) {
+						this.ctx.pendingApprovals.delete(requestId);
+					}
+				}
 				throw error;
 			}
 		})().finally(() => {
@@ -2063,6 +2165,13 @@ export class CloudSessionManager {
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
 			resolve: async (result) => {
+				if (connection.disposed) {
+					// Commanding a disposed NodeHubClient would silently redial;
+					// make the user reopen the session instead.
+					throw new Error(
+						"This cloud session connection is closed; reopen the session to respond.",
+					);
+				}
 				await this.ensureAttached(connection);
 				await connection.client.command(
 					"approval.respond",
@@ -2147,8 +2256,38 @@ export class CloudSessionManager {
 		if (!connection) {
 			return;
 		}
+		connection.disposed = true;
 		connection.unsubscribe();
 		await connection.client.dispose();
+	}
+
+	/**
+	 * Stops a reconnect loop whose session is confirmed expired. Without
+	 * this, an expired sandbox left open in the app redials the proxy every
+	 * few seconds indefinitely. An unreachable or scope-switched list keeps
+	 * the connection (offline must not kill live sessions).
+	 */
+	private async disposeConnectionIfSessionGone(
+		outerSessionId: string,
+		connection: CloudConnection,
+	): Promise<void> {
+		if (connection.disposed || this.disposed) return;
+		const organizationId = await this.resolveActiveOrganizationId().catch(
+			() => undefined,
+		);
+		const sessions = await this.options.api
+			.list(organizationId)
+			.catch(() => undefined);
+		if (!sessions || connection.disposed) return;
+		const listed = sessions.find((session) => session.id === outerSessionId);
+		if (listed) {
+			this.knownSessions.set(outerSessionId, listed);
+			connection.remote = listed;
+		}
+		if (listed && isExpiredRecord(listed)) {
+			await this.attachExpired(listed).catch(() => undefined);
+			await this.disposeConnection(outerSessionId).catch(() => undefined);
+		}
 	}
 }
 
