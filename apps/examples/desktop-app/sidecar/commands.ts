@@ -66,7 +66,6 @@ import {
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
 } from "./context";
-import { pickWorkspaceDirectory } from "./folder-picker";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
