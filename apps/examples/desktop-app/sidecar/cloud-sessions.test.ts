@@ -518,13 +518,17 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		// Two identical requests fail over to list-based recovery; each must
-		// claim a different record or one sandbox is orphaned.
-		const first = await api.create(input);
-		const second = await api.create(input);
+		// Two identical CONCURRENT requests fail over to list-based recovery;
+		// each must claim a different record or one sandbox is orphaned.
+		const [first, second] = await Promise.all([
+			api.create(input),
+			api.create(input),
+		]);
 
-		expect(first.sessionId).toBe("ses-newer");
-		expect(second.sessionId).toBe("ses-older");
+		expect([first.sessionId, second.sessionId].sort()).toEqual([
+			"ses-newer",
+			"ses-older",
+		]);
 	});
 
 	it("never adopts a session that a successful concurrent create already owns", async () => {
@@ -989,6 +993,35 @@ describe("CloudSessionManager", () => {
 		// the buffered queue event is replayed and keeps the queued prompt.
 		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
 			{ id: "q-buffered", prompt: "still queued" },
+		]);
+	});
+
+	it("rejects malformed queue command replies instead of clearing the queue", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		// Seed the queue from a valid snapshot first.
+		await manager.pendingPrompts("ses-outer");
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-1" },
+		]);
+
+		hub.malformedQueueReply = true;
+
+		// A prompts-less reply must surface as an error, not become an
+		// authoritative empty queue that hides queued prompts.
+		await expect(manager.pendingPrompts("ses-outer")).rejects.toThrow(
+			"invalid pending-prompts snapshot",
+		);
+		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
+			{ id: "q-1" },
 		]);
 	});
 

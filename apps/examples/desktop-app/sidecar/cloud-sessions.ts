@@ -424,7 +424,7 @@ export class CloudSessionApi {
 				(error instanceof CloudSessionError && error.code === "request_failed");
 			if (mayStillBeProvisioning) {
 				const requestedBranch = input.branch?.trim();
-				const recovered = (
+				const candidates = (
 					await this.listWithToken(
 						input.organizationId,
 						creationAuthToken,
@@ -432,8 +432,6 @@ export class CloudSessionApi {
 				)
 					.filter(
 						(session) =>
-							// Skip records another concurrent create already owns.
-							!this.claimedSessionIds.has(session.id) &&
 							session.repoContext.repoUrl === input.repoUrl &&
 							session.metadata.modelId === input.modelId &&
 							// The backend may resolve an omitted branch to the repo default,
@@ -445,9 +443,9 @@ export class CloudSessionApi {
 					.sort(
 						(left, right) =>
 							Date.parse(right.createdAt) - Date.parse(left.createdAt),
-					)[0];
+					);
+				const recovered = this.claimFirstUnclaimed(candidates);
 				if (recovered) {
-					this.claimedSessionIds.add(recovered.id);
 					return {
 						sessionId: recovered.id,
 						sandboxUrl: recovered.sandboxUrl,
@@ -459,6 +457,23 @@ export class CloudSessionApi {
 		} finally {
 			clearTimeout(timeout);
 		}
+	}
+
+	/**
+	 * Selects and claims a recovery candidate in one synchronous step. No
+	 * awaits may ever separate the unclaimed check from the claim itself:
+	 * that atomicity (per event-loop continuation) is what guarantees two
+	 * concurrent recoveries can never adopt the same session record.
+	 */
+	private claimFirstUnclaimed(
+		candidates: CloudSessionRecord[],
+	): CloudSessionRecord | undefined {
+		for (const candidate of candidates) {
+			if (this.claimedSessionIds.has(candidate.id)) continue;
+			this.claimedSessionIds.add(candidate.id);
+			return candidate;
+		}
+		return undefined;
 	}
 
 	async delete(sessionId: string, authToken?: string): Promise<void> {
@@ -1577,9 +1592,12 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		reply: { payload?: Record<string, unknown> },
 	): PromptInQueue[] {
-		const items = Array.isArray(reply.payload?.prompts)
-			? (reply.payload.prompts as Array<Record<string, unknown>>)
-			: [];
+		// A reply without a prompts array is not a snapshot; treating it as
+		// an empty queue would silently hide queued or steered prompts.
+		if (!Array.isArray(reply.payload?.prompts)) {
+			throw new Error("Cloud Hub returned an invalid pending-prompts snapshot");
+		}
+		const items = reply.payload.prompts as Array<Record<string, unknown>>;
 		const mapped: PromptInQueue[] = items
 			.map((item) => ({
 				id: typeof item.id === "string" ? item.id : "",
