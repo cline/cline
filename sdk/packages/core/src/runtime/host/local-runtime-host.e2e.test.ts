@@ -176,6 +176,54 @@ class LocalFileSessionService {
 		);
 	}
 
+	readSessionManifest(sessionId: string): SessionManifest | undefined {
+		const manifestPath = join(this.sessionsDir, sessionId, `${sessionId}.json`);
+		try {
+			return JSON.parse(readFileSync(manifestPath, "utf8")) as SessionManifest;
+		} catch {
+			return undefined;
+		}
+	}
+
+	// Mirrors the real persistence service contract: an update lands in both
+	// the session row and the on-disk manifest.
+	updateSession(input: {
+		sessionId: string;
+		prompt?: string | null;
+		metadata?: Record<string, unknown> | null;
+		title?: string | null;
+	}): { updated: boolean } {
+		const row = this.rows.get(input.sessionId);
+		if (!row) return { updated: false };
+		if (input.prompt !== undefined) {
+			row.prompt = input.prompt ?? null;
+		}
+		const metadata = { ...(row.metadata ?? {}) } as Record<string, unknown>;
+		if (input.metadata !== undefined) {
+			Object.assign(metadata, input.metadata ?? {});
+		}
+		if (input.title !== undefined) {
+			if (input.title) {
+				metadata.title = input.title;
+			} else {
+				delete metadata.title;
+			}
+		}
+		row.metadata = Object.keys(metadata).length > 0 ? metadata : null;
+		const manifest = this.readSessionManifest(input.sessionId);
+		if (manifest) {
+			if (input.prompt !== undefined) {
+				manifest.prompt = input.prompt ?? undefined;
+			}
+			manifest.metadata = row.metadata ?? undefined;
+			this.writeSessionManifest(
+				join(this.sessionsDir, input.sessionId, `${input.sessionId}.json`),
+				manifest,
+			);
+		}
+		return { updated: true };
+	}
+
 	updateSessionStatus(
 		sessionId: string,
 		status: SessionStatus,
@@ -633,9 +681,13 @@ describe("LocalRuntimeHost e2e", () => {
 		});
 		// The real agent appends the user turn before the provider stream
 		// starts, so a cancelled turn leaves the prompt in the transcript.
-		const continueFn = vi.fn(
-			(prompt: string) =>
-				new Promise<AgentResult>((_resolve, reject) => {
+		// The first continue hangs until aborted; later continues complete
+		// normally so the recovered session can run a real turn.
+		let continueCalls = 0;
+		const continueFn = vi.fn((prompt: string) => {
+			continueCalls += 1;
+			if (continueCalls === 1) {
+				return new Promise<AgentResult>((_resolve, reject) => {
 					appendUser(prompt);
 					running = true;
 					rejectRun = (error) => {
@@ -643,8 +695,18 @@ describe("LocalRuntimeHost e2e", () => {
 						reject(error);
 					};
 					markRunStarted?.();
-				}),
-		);
+				});
+			}
+			appendUser(prompt);
+			messages = [
+				...messages,
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "tests added" }],
+				},
+			] as LlmsProviders.Message[];
+			return Promise.resolve(createResult({ text: "tests added", messages }));
+		});
 		const abort = vi.fn(() => rejectRun?.(new Error("user cancelled")));
 		const createAgent = vi.fn(
 			() =>
@@ -733,9 +795,40 @@ describe("LocalRuntimeHost e2e", () => {
 		).resolves.toHaveLength(3);
 
 		// Materializing at start means there is no first prompt to title the
-		// row with, so the seeded transcript has to supply one or the session
-		// shows up untitled in history.
+		// row with, so the seeded transcript supplies an interim title and the
+		// session never shows up untitled in history.
 		const recoveredRow = await thirdHost.getSession(recovered.sessionId);
 		expect(recoveredRow?.metadata?.title).toBe("explain the auth flow");
+		expect(recoveredRow?.prompt ?? undefined).toBeUndefined();
+
+		// The first prompt after the seed retitles the row — pre-eager-
+		// persistence parity, where a fork was named after what the user did
+		// with it rather than the conversation it inherited.
+		await secondHost.runTurn({
+			sessionId: recovered.sessionId,
+			prompt: "now add tests",
+		});
+		const retitledRow = await thirdHost.getSession(recovered.sessionId);
+		expect(retitledRow?.metadata?.title).toBe("now add tests");
+		expect(retitledRow?.prompt).toContain("now add tests");
+
+		// A rename between materialization and the first prompt wins over the
+		// automatic retitle; the prompt column is still backfilled.
+		messages = [...recoveredMessages];
+		const renamedFork = await secondHost.startSession({
+			interactive: true,
+			initialMessages: recoveredMessages as never,
+			...config,
+		});
+		await secondHost.updateSession(renamedFork.sessionId, {
+			title: "my renamed fork",
+		});
+		await secondHost.runTurn({
+			sessionId: renamedFork.sessionId,
+			prompt: "refactor the parser",
+		});
+		const renamedRow = await thirdHost.getSession(renamedFork.sessionId);
+		expect(renamedRow?.metadata?.title).toBe("my renamed fork");
+		expect(renamedRow?.prompt).toContain("refactor the parser");
 	});
 });
