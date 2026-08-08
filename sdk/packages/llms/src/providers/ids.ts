@@ -34,6 +34,7 @@ export enum BUILT_IN_PROVIDER {
 	FIREWORKS = "fireworks",
 	GROQ = "groq",
 	POOLSIDE = "poolside",
+	PIONEER = "pioneer",
 	CEREBRAS = "cerebras",
 	SAMBANOVA = "sambanova",
 	NEBIUS = "nebius",
