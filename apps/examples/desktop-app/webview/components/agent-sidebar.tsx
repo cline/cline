@@ -971,9 +971,9 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "
-							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
-							from local history.
+							{deleteConfirmThread?.origin === "cloud"
+								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
+								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1182,7 +1182,8 @@ function ThreadItem({
 			<SessionContextMenuContent
 				allowFavorite={thread.origin !== "cloud"}
 				allowFork={thread.origin !== "cloud"}
-				allowRename
+				// Provisioning placeholders have no server session to rename yet.
+				allowRename={!thread.id.startsWith("cloud-provisioning-")}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}

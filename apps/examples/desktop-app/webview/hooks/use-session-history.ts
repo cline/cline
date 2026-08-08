@@ -1186,10 +1186,12 @@ export function useSessionHistory({
 				toast({
 					variant: "destructive",
 					title: "Rename failed",
-					description:
+					// Cloud failures arrive as a machine envelope; never show it raw.
+					description: humanizeCloudSessionError(
 						error instanceof Error
 							? error.message
 							: "The session title could not be updated.",
+					),
 				});
 				return false;
 			} finally {

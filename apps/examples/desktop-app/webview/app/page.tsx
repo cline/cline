@@ -167,19 +167,17 @@ function useCloudProvisioningPhase(repoUrl?: string): string {
 		[repoLabel],
 	);
 	const [phaseIndex, setPhaseIndex] = useState(0);
+	// Hold the final phase so provisioning does not appear to restart. The
+	// interval stops via this guard instead of inside the state updater,
+	// which must stay pure (StrictMode double-invokes it).
+	const lastPhase = phaseIndex >= phases.length - 1;
 	useEffect(() => {
-		// Hold the final phase so provisioning does not appear to restart.
+		if (lastPhase) return;
 		const interval = window.setInterval(() => {
-			setPhaseIndex((current) => {
-				const next = Math.min(current + 1, phases.length - 1);
-				if (next === phases.length - 1) {
-					window.clearInterval(interval);
-				}
-				return next;
-			});
+			setPhaseIndex((current) => Math.min(current + 1, phases.length - 1));
 		}, PROVISIONING_PHASE_INTERVAL_MS);
 		return () => window.clearInterval(interval);
-	}, [phases.length]);
+	}, [lastPhase, phases.length]);
 	return `${phases[phaseIndex]}...`;
 }
 
@@ -767,10 +765,35 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const [provisioningError, setProvisioningError] = useState<string | null>(
+		null,
+	);
+	// Terminal signal for an open placeholder thread; without it the pane
+	// would show the provisioning loader forever after a failed create (the
+	// sidebar row disappears, but this thread stays open).
+	useEffect(() => {
+		const placeholderId = historySession?.sessionId;
+		if (!placeholderId?.startsWith("cloud-provisioning-")) return;
+		return desktopClient.subscribe(
+			"cloud_session_provisioning_failed",
+			(payload) => {
+				const failure = payload as {
+					placeholderId?: string;
+					message?: string;
+				};
+				if (failure?.placeholderId !== placeholderId) return;
+				setProvisioningError(
+					humanizeCloudSessionError(failure.message?.trim() || "") ||
+						"The cloud session could not be started.",
+				);
+			},
+		);
+	}, [historySession?.sessionId]);
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
-		liveHistoryStatus === "provisioning" ||
-		Boolean(historySession?.sessionId?.startsWith("cloud-provisioning-"));
+		!provisioningError &&
+		(liveHistoryStatus === "provisioning" ||
+			Boolean(historySession?.sessionId?.startsWith("cloud-provisioning-")));
 	const provisioningPhase = useCloudProvisioningPhase(
 		config.repoUrl || historySession?.repoUrl,
 	);
@@ -1834,7 +1857,22 @@ function ChatThreadPane({
 				<WelcomeScreen
 					active={isWelcomeState}
 					body={
-						isProvisioningCloudSession ? (
+						provisioningError ? (
+							<div className="px-6 py-6">
+								<div
+									className="rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+									role="alert"
+								>
+									<p className="font-medium">
+										This cloud session could not be started
+									</p>
+									<p className="mt-1">{provisioningError}</p>
+									<p className="mt-1 text-destructive/80">
+										Start a new cloud session to try again.
+									</p>
+								</div>
+							</div>
+						) : isProvisioningCloudSession ? (
 							<CloudProvisioningPane phase={provisioningPhase} />
 						) : isCloudSession &&
 							displayedIsSwitching &&

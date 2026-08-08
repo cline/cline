@@ -1082,6 +1082,14 @@ export class CloudSessionManager {
 				sessionId: String(created.sessionId ?? ""),
 			});
 			return created;
+		} catch (error) {
+			// A thread opened on the placeholder needs a terminal signal, or
+			// its provisioning pane spins forever after the row disappears.
+			sendEvent(this.ctx, "cloud_session_provisioning_failed", {
+				placeholderId,
+				message: error instanceof Error ? error.message : String(error),
+			});
+			throw error;
 		} finally {
 			this.pendingCreates.delete(placeholderId);
 			sendEvent(this.ctx, "chat_session_status", {

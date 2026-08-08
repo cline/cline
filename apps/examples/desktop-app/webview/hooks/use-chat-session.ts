@@ -214,6 +214,10 @@ export function mergeCloudSnapshotWithLive(
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
+		// Never let another session's live messages bleed into this merge.
+		if (message.sessionId && message.sessionId !== options.sessionId) {
+			continue;
+		}
 		const optimisticState = options.optimisticStates.get(message.id);
 		if (
 			message.role === "user" &&
@@ -236,7 +240,12 @@ export function mergeCloudSnapshotWithLive(
 		) {
 			continue;
 		}
-		if (options.preserveUnmatchedLive === false) continue;
+		// UI-only error bubbles never appear in canonical snapshots; dropping
+		// them here would erase the explanation for the most recent failure
+		// (mirrors applyCanonicalHistory for local sessions).
+		if (options.preserveUnmatchedLive === false && message.role !== "error") {
+			continue;
+		}
 		liveOnly.push(message);
 	}
 
@@ -1320,6 +1329,19 @@ export function useChatSession() {
 								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
 								rekeyedOptimisticIdByMessageIdRef.current[userMessageId] =
 									candidate.id;
+								// Keep the cloud optimistic bookkeeping attached to the
+								// bubble across the re-key, or its failed-send retention
+								// semantics silently stop applying.
+								const cloudState = cloudOptimisticStatesRef.current.get(
+									candidate.id,
+								);
+								if (cloudState) {
+									cloudOptimisticStatesRef.current.delete(candidate.id);
+									cloudOptimisticStatesRef.current.set(
+										userMessageId,
+										cloudState,
+									);
+								}
 								const next = [...prev];
 								next[i] = {
 									...candidate,
@@ -1643,9 +1665,11 @@ export function useChatSession() {
 						setStatus("running");
 					} else if (nextStatus === "idle" || nextStatus === "ready") {
 						setStatus("idle");
-					} else {
+					} else if (nextStatus === "completed" || nextStatus === "expired") {
 						setStatus("completed");
 					}
+					// Unknown or missing statuses leave the current one alone: a
+					// malformed snapshot must not flip a running turn to "done".
 				};
 				if (Array.isArray(record.messages)) {
 					applySnapshot(record.messages);
@@ -2454,6 +2478,9 @@ export function useChatSession() {
 		outstandingOptimisticUserIdsRef.current.clear();
 		rekeyedOptimisticIdByMessageIdRef.current = {};
 		lastCoreErrorBySessionRef.current = {};
+		cloudOptimisticStatesRef.current.clear();
+		cloudTranscriptKnownRef.current = {};
+		cloudTranscriptUserCountsRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);

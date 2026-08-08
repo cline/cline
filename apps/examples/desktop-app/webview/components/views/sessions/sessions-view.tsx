@@ -654,11 +654,14 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													</DropdownMenuItem>
 												) : null}
 												{/* Cloud sessions support rename (PATCH title), matching
-												    the sidebar and chat header affordances. */}
-												<DropdownMenuItem onClick={() => startRename(thread)}>
-													<Pencil className="size-4" />
-													Rename
-												</DropdownMenuItem>
+												    the sidebar and chat header affordances. Provisioning
+												    placeholders have no server session to rename yet. */}
+												{!thread.id.startsWith("cloud-provisioning-") ? (
+													<DropdownMenuItem onClick={() => startRename(thread)}>
+														<Pencil className="size-4" />
+														Rename
+													</DropdownMenuItem>
+												) : null}
 												{thread.origin !== "cloud" ? (
 													<DropdownMenuItem
 														onClick={() => void history.forkThread(thread.id)}
@@ -774,8 +777,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "{deleteCandidate?.title ?? "this session"}" from
-							local history.
+							{deleteCandidate?.origin === "cloud"
+								? `This deletes "${deleteCandidate?.title ?? "this session"}" and its cloud workspace.`
+								: `This removes "${deleteCandidate?.title ?? "this session"}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

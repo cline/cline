@@ -904,11 +904,15 @@ function ChatInputBarImpl({
 							placeholder={
 								needsCloudRepository
 									? "Choose a repository"
-									: variant === "welcome"
-										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-										: isBusy
-											? "Agent is working... submit to queue another message"
-											: "Enter your question or type / for commands or @ for context"
+									: isBusy && variant !== "welcome"
+										? "Agent is working... submit to queue another message"
+										: executionTarget === "cloud"
+											? // Mentions and slash commands are local-only; do not
+												// advertise them in cloud sessions.
+												"Describe what Cline should do in this repository."
+											: variant === "welcome"
+												? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+												: "Enter your question or type / for commands or @ for context"
 							}
 							ref={promptInputRef}
 							role="combobox"

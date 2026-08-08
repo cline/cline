@@ -11,10 +11,11 @@ import type { ReactNode } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useAccount } from "@/contexts/account-context";
 import { useWorkspace } from "@/contexts/workspace-context";
-import type {
-	CloudBranchListOptions,
-	CloudBranchListResult,
-	CloudRepositoryListResult,
+import {
+	type CloudBranchListOptions,
+	type CloudBranchListResult,
+	type CloudRepositoryListResult,
+	normalizeCloudRepositoryUrl,
 } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
@@ -54,6 +55,8 @@ type CloudSetupState = {
 		| "no_repositories"
 		| "error";
 	connectUrl: string;
+	/** Normalized URLs of repositories the account can currently access. */
+	repositoryUrls: string[];
 };
 
 export function WelcomeScreen({
@@ -98,6 +101,7 @@ export function WelcomeScreen({
 	const [cloudSetup, setCloudSetup] = useState<CloudSetupState>({
 		status: "unknown",
 		connectUrl: FALLBACK_CONNECT_URL,
+		repositoryUrls: [],
 	});
 	const [cloudSetupChecking, setCloudSetupChecking] = useState(false);
 	const cloudSetupRequestRef = useRef(0);
@@ -162,6 +166,9 @@ export function WelcomeScreen({
 							? "no_repositories"
 							: "ready",
 				connectUrl: result.connectUrl?.trim() || FALLBACK_CONNECT_URL,
+				repositoryUrls: result.repositories.map((repository) =>
+					normalizeCloudRepositoryUrl(repository.url),
+				),
 			});
 		} catch {
 			if (cloudSetupRequestRef.current !== requestId) return;
@@ -201,6 +208,29 @@ export function WelcomeScreen({
 	useEffect(() => {
 		if (active && executionTarget === "local") void refreshWorkspaces();
 	}, [active, executionTarget, refreshWorkspaces]);
+
+	// A previously selected repository can disappear from the account's reach
+	// (GitHub App access revoked, account/org switched). Clear the stale
+	// selection so the "Repository required" gate re-engages instead of
+	// letting the send fail server-side after the fact.
+	useEffect(() => {
+		if (!cloudModeActive || cloudSetup.status === "unknown") return;
+		if (cloudSetup.status === "error" || cloudSetup.status === "checking") {
+			return;
+		}
+		const normalized = normalizeCloudRepositoryUrl(repoUrl);
+		if (!normalized) return;
+		if (!cloudSetup.repositoryUrls.includes(normalized)) {
+			onRepoUrlChange("");
+			onCloudBranchChange("");
+		}
+	}, [
+		cloudModeActive,
+		cloudSetup,
+		onCloudBranchChange,
+		onRepoUrlChange,
+		repoUrl,
+	]);
 
 	const signIn = async () => {
 		if (signingIn) return;
