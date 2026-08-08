@@ -1,6 +1,7 @@
 import { EmptyRequest } from "@shared/proto/cline/common"
 import { GitCompareIcon } from "lucide-react"
-import { memo, useState } from "react"
+import { memo, useEffect, useState } from "react"
+import { cn } from "@/lib/utils"
 import { CheckpointsServiceClient } from "@/services/grpc-client"
 import { CopyButton } from "../common/CopyButton"
 import SuccessButton from "../common/SuccessButton"
@@ -17,6 +18,8 @@ interface CompletionOutputRowProps {
 	 * multi-file diff of everything that changed between the latest checkpoint
 	 * (taken when the user's last message started the run) and the current
 	 * working tree. Only meaningful on the latest, finalized completion row.
+	 * The button renders faded and disabled until the host confirms there are
+	 * changes to show.
 	 */
 	showViewChanges?: boolean
 }
@@ -31,6 +34,31 @@ interface CompletionOutputRowProps {
 export const CompletionOutputRow = memo(
 	({ text, quoteButtonState, handleQuoteClick, showViewChanges }: CompletionOutputRowProps) => {
 		const [viewChangesPending, setViewChangesPending] = useState(false)
+		// undefined = still checking; the button stays faded + disabled until
+		// the host confirms the latest run actually changed files.
+		const [hasChanges, setHasChanges] = useState<boolean | undefined>(undefined)
+
+		useEffect(() => {
+			if (!showViewChanges) {
+				return
+			}
+			let cancelled = false
+			CheckpointsServiceClient.checkpointLatestChangesCount(EmptyRequest.create({}))
+				.then((count) => {
+					if (!cancelled) {
+						setHasChanges((count.value ?? 0) > 0)
+					}
+				})
+				.catch((err) => {
+					console.error("Failed to check for latest changes:", err)
+					if (!cancelled) {
+						setHasChanges(false)
+					}
+				})
+			return () => {
+				cancelled = true
+			}
+		}, [showViewChanges])
 
 		return (
 			<div className="rounded-sm border border-success/20 overflow-visible bg-success/10">
@@ -47,15 +75,22 @@ export const CompletionOutputRow = memo(
 				{showViewChanges && (
 					<div className="px-2 pb-2">
 						<SuccessButton
-							className="w-full"
-							disabled={viewChangesPending}
+							className={cn("w-full transition-opacity duration-300", hasChanges ? "opacity-100" : "opacity-40")}
+							disabled={hasChanges !== true || viewChangesPending}
 							onClick={() => {
 								setViewChangesPending(true)
 								CheckpointsServiceClient.checkpointViewLatestChanges(EmptyRequest.create({}))
 									.catch((err) => console.error("Failed to view latest changes:", err))
 									.finally(() => setViewChangesPending(false))
 							}}
-							style={{ cursor: viewChangesPending ? "wait" : "pointer" }}>
+							style={{ cursor: viewChangesPending ? "wait" : hasChanges ? "pointer" : "default" }}
+							title={
+								hasChanges === undefined
+									? "Checking for changes…"
+									: hasChanges
+										? undefined
+										: "No file changes since your last message"
+							}>
 							<GitCompareIcon className="size-3 mr-1.5" />
 							View Changes
 						</SuccessButton>
