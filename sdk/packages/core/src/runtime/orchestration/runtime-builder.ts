@@ -143,6 +143,7 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	webSearchEnabledByDefault?: boolean,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -151,11 +152,14 @@ function createBuiltinToolsList(
 		mode,
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
-	// web_search is opt-in (enabledTools global setting) and only works on
-	// providers backed by the Cline account API.
+	// web_search only works on providers backed by the Cline account API and
+	// is opt-in (enabledTools global setting) unless the host declares it on
+	// by default; an explicit user opt-out (disabledTools) is enforced by
+	// filterAvailableTools either way.
 	const enableWebSearch =
 		isWebSearchSupportedProvider(providerId) &&
-		resolveEnabledToolNames().has("web_search");
+		(resolveEnabledToolNames().has("web_search") ||
+			webSearchEnabledByDefault === true);
 
 	return filterAvailableTools(
 		createBuiltinTools({
@@ -518,6 +522,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					undefined,
 					sessionToolExecutors,
 					telemetry ?? config.telemetry,
+					config.webSearchEnabledByDefault,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -591,6 +596,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 													: undefined,
 												sessionToolExecutors,
 												telemetry ?? config.telemetry,
+												config.webSearchEnabledByDefault,
 											),
 											agent,
 										)
@@ -696,6 +702,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									undefined,
 									sessionToolExecutors,
 									telemetry ?? config.telemetry,
+									config.webSearchEnabledByDefault,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

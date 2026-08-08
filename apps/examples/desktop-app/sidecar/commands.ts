@@ -865,9 +865,16 @@ async function listUserInstructionConfigs(
 
 	const globalSettings = readGlobalSettings();
 	const disabledTools = new Set(globalSettings.disabledTools ?? []);
+	const enabledTools = new Set(globalSettings.enabledTools ?? []);
+	// Desktop product default: web_search is on unless the user explicitly
+	// opted out. Mirrors webSearchEnabledByDefault in the session config
+	// (chat-session.ts) so the Tools settings switch reflects reality.
+	if (!disabledTools.has("web_search")) {
+		enabledTools.add("web_search");
+	}
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		disabledToolIds: disabledTools,
-		enabledToolIds: new Set(globalSettings.enabledTools ?? []),
+		enabledToolIds: enabledTools,
 	});
 
 	return {

@@ -296,11 +296,14 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 }
 
 /**
- * Built-in tools that are OFF by default and require an explicit opt-in via
- * the `enabledTools` global setting. Toggling these tools through
- * {@link toggleDisabledTool} / {@link setDisabledTools} writes to
- * `enabledTools` instead of `disabledTools`, so every host's existing tool
- * toggle UI works unchanged.
+ * Built-in tools that are OFF by default (in most hosts) and require an
+ * explicit opt-in via the `enabledTools` global setting. Hosts may instead
+ * declare such a tool on by default (e.g. the desktop app for web_search),
+ * so these tools carry a tri-state across apps: explicitly on (in
+ * `enabledTools`), explicitly off (in `disabledTools`), or unset (host
+ * default). Toggling through {@link toggleDisabledTool} /
+ * {@link setDisabledTools} keeps the two lists mutually exclusive, so every
+ * host's existing tool toggle UI works unchanged.
  */
 export const OPT_IN_TOOL_NAMES: ReadonlySet<string> = new Set(["web_search"]);
 
@@ -343,13 +346,25 @@ export function toggleDisabledTool(toolName: string): boolean {
 	if (isOptInTool(toolName)) {
 		const settings = readGlobalSettings();
 		const enabled = new Set(settings.enabledTools ?? []);
+		const disabled = new Set(settings.disabledTools ?? []);
+		// Blind toggle flips the explicit opt-in, matching the opt-in display
+		// (unset shows as off). Both directions resolve to an explicit state
+		// (mutually exclusive lists) so they override host defaults. Hosts
+		// with a default-on display (desktop) use setDisabledTools with an
+		// explicit direction instead of this blind toggle.
 		const wasEnabled = enabled.has(toolName);
 		if (wasEnabled) {
 			enabled.delete(toolName);
+			disabled.add(toolName);
 		} else {
 			enabled.add(toolName);
+			disabled.delete(toolName);
 		}
-		writeGlobalSettings({ ...settings, enabledTools: [...enabled] });
+		writeGlobalSettings({
+			...settings,
+			enabledTools: [...enabled],
+			disabledTools: [...disabled],
+		});
 		return wasEnabled;
 	}
 
@@ -381,12 +396,16 @@ export function setDisabledTools(
 	const enabled = resolveEnabledToolNames(settings.enabledTools);
 	for (const name of names) {
 		if (isOptInTool(name)) {
-			// Opt-in tools live in the enabledTools allowlist: "disabling" one
-			// simply drops the opt-in instead of polluting disabledTools.
+			// Opt-in tools resolve to an explicit tri-state entry: disabling
+			// records an explicit opt-out (so it overrides hosts where the
+			// tool is on by default), enabling records the explicit opt-in.
+			// The two lists stay mutually exclusive.
 			if (disabledValue) {
 				enabled.delete(name);
+				disabled.add(name);
 			} else {
 				enabled.add(name);
+				disabled.delete(name);
 			}
 			continue;
 		}

@@ -78,6 +78,70 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("spawn_agent");
 	});
 
+	describe("web_search gating", () => {
+		function useTempGlobalSettings(settings: Record<string, unknown>): void {
+			const dir = mkdtempSync(join(tmpdir(), "cline-websearch-settings-"));
+			tempDirs.push(dir);
+			const settingsPath = join(dir, "global-settings.json");
+			writeFileSync(settingsPath, JSON.stringify(settings));
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		}
+
+		async function builtToolNames(
+			overrides: Partial<CoreSessionConfig>,
+		): Promise<string[]> {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					disableMcpSettingsTools: true,
+					...overrides,
+				}),
+			});
+			return runtime.tools.map((tool) => tool.name);
+		}
+
+		it("registers web_search on the cline provider only after opt-in", async () => {
+			useTempGlobalSettings({});
+			expect(await builtToolNames({ providerId: "cline" })).not.toContain(
+				"web_search",
+			);
+
+			useTempGlobalSettings({ enabledTools: ["web_search"] });
+			expect(await builtToolNames({ providerId: "cline" })).toContain(
+				"web_search",
+			);
+			expect(await builtToolNames({ providerId: "anthropic" })).not.toContain(
+				"web_search",
+			);
+		});
+
+		it("honors the host default-on flag with explicit opt-out override", async () => {
+			useTempGlobalSettings({});
+			expect(
+				await builtToolNames({
+					providerId: "cline",
+					webSearchEnabledByDefault: true,
+				}),
+			).toContain("web_search");
+
+			// The host default never widens the provider gate.
+			expect(
+				await builtToolNames({
+					providerId: "anthropic",
+					webSearchEnabledByDefault: true,
+				}),
+			).not.toContain("web_search");
+
+			// An explicit user opt-out beats the host default.
+			useTempGlobalSettings({ disabledTools: ["web_search"] });
+			expect(
+				await builtToolNames({
+					providerId: "cline",
+					webSearchEnabledByDefault: true,
+				}),
+			).not.toContain("web_search");
+		});
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},
