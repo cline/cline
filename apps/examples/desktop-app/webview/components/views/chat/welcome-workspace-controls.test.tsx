@@ -357,9 +357,14 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			valueSetter?.call(search, "");
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		await vi.waitFor(() =>
-			expect(container.textContent).not.toContain("Searching…"),
-		);
+		// Wait until the post-clear base list finished loading; scrolling while
+		// its fetch is still in flight would race the page append against the
+		// base list replacing state.
+		await vi.waitFor(() => {
+			expect(container.textContent).not.toContain("Searching…");
+			expect(container.textContent).not.toContain("Loading branches…");
+			expect(container.textContent).toContain("main");
+		});
 		await act(async () => {
 			intersectionCallback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
