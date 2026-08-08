@@ -148,18 +148,36 @@ describe("provider-ids", () => {
 	});
 
 	it("routes Responses API built-ins through the OpenAI provider factory", async () => {
+		const provider = await getProvider("kilo");
+		expect(provider).toMatchObject({
+			id: "kilo",
+			protocol: "openai-responses",
+			client: "openai",
+		});
+
+		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+			(item) => item.manifest.id === "kilo",
+		);
+		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+			createProvider: createOpenAIProvider,
+		});
+	});
+
+	it("routes LiteLLM through Chat Completions like other openai-compatible built-ins", async () => {
+		// LiteLLM proxies commonly serve /chat/completions but not /responses;
+		// pinning the provider to the Responses API broke them (#10781, #13003).
 		const provider = await getProvider("litellm");
 		expect(provider).toMatchObject({
 			id: "litellm",
-			protocol: "openai-responses",
-			client: "openai",
+			protocol: "openai-chat",
+			client: "openai-compatible",
 		});
 
 		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
 			(item) => item.manifest.id === "litellm",
 		);
 		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
-			createProvider: createOpenAIProvider,
+			createProvider: createOpenAICompatibleProvider,
 		});
 	});
 
