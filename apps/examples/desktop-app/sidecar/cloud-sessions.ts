@@ -1548,7 +1548,9 @@ export class CloudSessionManager {
 						live.endedAt ??= Date.now();
 						sendEvent(this.ctx, "chat_session_ended", {
 							sessionId: outerSessionId,
-							reason: status,
+							// The live run.failed path reports "error"; keep the
+							// rehydrated terminal state on the same vocabulary.
+							reason: status === "failed" ? "error" : status,
 						});
 					} else {
 						sendEvent(this.ctx, "chat_session_status", {
@@ -1828,11 +1830,11 @@ export class CloudSessionManager {
 			...this.connections.keys(),
 			...this.knownSessions.keys(),
 		]);
-		await Promise.allSettled(
-			Array.from(this.connections.keys()).map((sessionId) =>
-				this.disposeConnection(sessionId),
-			),
-		);
+		// Clear desktop-visible state synchronously BEFORE the async socket
+		// teardown: resetCloudSessionManager nulls the context slot first, so
+		// a command arriving mid-dispose builds a fresh manager — deleting
+		// liveSessions/pendingApprovals after an await would destroy entries
+		// that new manager just re-created.
 		for (const [requestId, pending] of this.ctx.pendingApprovals) {
 			if (sessionIds.has(pending.item.sessionId)) {
 				this.ctx.pendingApprovals.delete(requestId);
@@ -1844,6 +1846,11 @@ export class CloudSessionManager {
 		}
 		this.knownSessions.clear();
 		this.pendingCreates.clear();
+		await Promise.allSettled(
+			Array.from(this.connections.keys()).map((sessionId) =>
+				this.disposeConnection(sessionId),
+			),
+		);
 	}
 
 	private async attachExpired(record: CloudSessionRecord): Promise<JsonRecord> {
@@ -2332,10 +2339,11 @@ export class CloudSessionManager {
 	}
 
 	/**
-	 * Stops a reconnect loop whose session is confirmed expired. Without
-	 * this, an expired sandbox left open in the app redials the proxy every
-	 * few seconds indefinitely. An unreachable or scope-switched list keeps
-	 * the connection (offline must not kill live sessions).
+	 * Stops a reconnect loop whose session is confirmed expired or deleted.
+	 * Without this, a dead sandbox left open in the app redials the proxy
+	 * every few seconds indefinitely (plus a REST list per attempt). An
+	 * unreachable list keeps the connection (offline must not kill live
+	 * sessions).
 	 */
 	private async disposeConnectionIfSessionGone(
 		outerSessionId: string,
@@ -2350,11 +2358,17 @@ export class CloudSessionManager {
 			.catch(() => undefined);
 		if (!sessions || connection.disposed) return;
 		const listed = sessions.find((session) => session.id === outerSessionId);
-		if (listed) {
-			this.knownSessions.set(outerSessionId, listed);
-			connection.remote = listed;
+		if (!listed) {
+			// The list succeeded and the session is absent: it was deleted
+			// (possibly from another device) or the account scope changed.
+			// Drop the connection so it stops redialing a dead proxy; a later
+			// attach redials on demand if the session reappears.
+			await this.disposeConnection(outerSessionId).catch(() => undefined);
+			return;
 		}
-		if (listed && isExpiredRecord(listed)) {
+		this.knownSessions.set(outerSessionId, listed);
+		connection.remote = listed;
+		if (isExpiredRecord(listed)) {
 			await this.attachExpired(listed).catch(() => undefined);
 			await this.disposeConnection(outerSessionId).catch(() => undefined);
 		}
