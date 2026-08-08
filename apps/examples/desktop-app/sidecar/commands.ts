@@ -175,15 +175,18 @@ function readProviderSettingsUpdate(
 function mcpTransportIdentity(name: string, record: JsonRecord): string {
 	try {
 		const resolved = parseMcpServerRegistration(name, record).transport;
-		// Stdio identity includes the launch command so editing a broken
-		// command/args triggers a fresh connection probe on save.
+		// Stdio identity covers the full launch configuration (command, args,
+		// cwd, and env) so editing anything that changes the spawned process —
+		// including an env-only fix — triggers a fresh connection probe on save.
 		return resolved.type === "stdio"
-			? [
-					"stdio",
+			? `stdio\u0000${JSON.stringify([
 					resolved.command,
-					...(resolved.args ?? []),
+					resolved.args ?? [],
 					resolved.cwd ?? "",
-				].join("\u0000")
+					Object.entries(resolved.env ?? {}).sort(([a], [b]) =>
+						a.localeCompare(b),
+					),
+				])}`
 			: `${resolved.type}\u0000${resolved.url}`;
 	} catch {
 		// Preserve a best-effort identity for malformed entries so the editor can
