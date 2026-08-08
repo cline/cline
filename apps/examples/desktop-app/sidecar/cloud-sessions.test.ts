@@ -647,6 +647,180 @@ describe("CloudSessionApi", () => {
 		await expect(api.create(input)).rejects.toThrow();
 	});
 
+	it("does not run list recovery after a fast client-side rejection", async () => {
+		let listRequests = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					return jsonResponse({ success: false, error: "invalid branch" }, 422);
+				}
+				listRequests += 1;
+				return jsonResponse({ success: true, data: [] });
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow(/invalid branch/);
+		// A 4xx never provisioned anything; recovering on it could adopt an
+		// identical-config session created by another device on the account.
+		expect(listRequests).toBe(0);
+	});
+
+	it("an earlier failing create waits out a later in-flight POST instead of adopting its session", async () => {
+		const now = new Date().toISOString();
+		let posts = 0;
+		let releaseSlowCreate!: () => void;
+		const slowCreateBlocked = new Promise<void>((resolve) => {
+			releaseSlowCreate = resolve;
+		});
+		let announceSecondPost!: () => void;
+		const secondPostStarted = new Promise<void>((resolve) => {
+			announceSecondPost = resolve;
+		});
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					posts += 1;
+					if (posts === 1) {
+						// The earlier request fails only once the later POST is
+						// in flight — the inverted direction of the claim race.
+						await secondPostStarted;
+						return jsonResponse(
+							{ success: false, error: "gateway timeout" },
+							500,
+						);
+					}
+					announceSecondPost();
+					await slowCreateBlocked;
+					return jsonResponse(
+						{
+							success: true,
+							data: { sessionId: "ses-inflight", sandboxUrl: "pod" },
+						},
+						201,
+					);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-inflight",
+							status: "provisioning",
+							sandboxUrl: "pod",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "anthropic/claude-sonnet-5" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const failing = api.create(input);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const slow = api.create(input);
+		await secondPostStarted;
+		// Give the failing request time to reach its recovery wait; it must
+		// block on the later peer instead of adopting ses-inflight.
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		releaseSlowCreate();
+
+		await expect(slow).resolves.toMatchObject({ sessionId: "ses-inflight" });
+		await expect(failing).rejects.toThrow();
+	});
+
+	it("a branchless recovery cannot adopt a branch-specific peer's in-flight session", async () => {
+		const now = new Date().toISOString();
+		let posts = 0;
+		let releaseSlowCreate!: () => void;
+		const slowCreateBlocked = new Promise<void>((resolve) => {
+			releaseSlowCreate = resolve;
+		});
+		let announceSecondPost!: () => void;
+		const secondPostStarted = new Promise<void>((resolve) => {
+			announceSecondPost = resolve;
+		});
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "sk_test",
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					posts += 1;
+					if (posts === 1) {
+						await secondPostStarted;
+						return jsonResponse(
+							{ success: false, error: "gateway timeout" },
+							500,
+						);
+					}
+					announceSecondPost();
+					await slowCreateBlocked;
+					return jsonResponse(
+						{
+							success: true,
+							data: { sessionId: "ses-branch", sandboxUrl: "pod" },
+						},
+						201,
+					);
+				}
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-branch",
+							status: "provisioning",
+							sandboxUrl: "pod",
+							repoContext: {
+								repoUrl: "https://github.com/cline/test",
+								branch: "dev",
+							},
+							metadata: { modelId: "anthropic/claude-sonnet-5" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+
+		// The branchless create's recovery filter accepts any branch, so it
+		// must wait on the branch-specific peer despite the different config.
+		const branchless = api.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		const branchSpecific = api.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			branch: "dev",
+		});
+		await secondPostStarted;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		releaseSlowCreate();
+
+		await expect(branchSpecific).resolves.toMatchObject({
+			sessionId: "ses-branch",
+		});
+		await expect(branchless).rejects.toThrow();
+	});
+
 	it("returns the GitHub connection action when no integration exists", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",

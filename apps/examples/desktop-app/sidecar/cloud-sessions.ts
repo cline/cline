@@ -115,6 +115,8 @@ export class CloudSessionError extends Error {
 		readonly code: CloudErrorCode,
 		message: string,
 		readonly connectUrl?: string,
+		/** HTTP status of the failed request, when one was received. */
+		readonly status?: number,
 	) {
 		super(
 			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message, connectUrl })}`,
@@ -170,7 +172,7 @@ function cloudErrorForResponse(
 				`${trimTrailingSlash(appBaseUrl)}/dashboard/integrations`,
 		);
 	}
-	return new CloudSessionError("request_failed", message);
+	return new CloudSessionError("request_failed", message, undefined, status);
 }
 
 export class CloudSessionApi {
@@ -184,11 +186,14 @@ export class CloudSessionApi {
 	// overlapping requests could both adopt the same record and orphan the
 	// other sandbox.
 	private readonly claimedSessionIds = new Set<string>();
-	// Orders concurrent identical creates: a session becomes visible in the
-	// list the moment the server starts provisioning it — long before the
-	// successful POST returns — so recovery must wait for earlier peers to
-	// record their claims before adopting a listed session. Later peers wait
-	// on earlier ones only, so waits can never cycle.
+	// Concurrent creates for the same repo/model/org: a session becomes
+	// visible in the list the moment the server starts provisioning it — long
+	// before the successful POST returns — so a recovery must wait for every
+	// peer's POST to settle (and record its claim) before adopting a listed
+	// session, in both directions. Each entry settles when its POST settles,
+	// never after its recovery, so waits cannot cycle. Branch is deliberately
+	// excluded from the key: a branchless create's recovery filter ignores
+	// branch, so branch-specific peers must be visible to it.
 	private createSequence = 0;
 	private readonly inFlightCreates = new Map<
 		string,
@@ -411,21 +416,20 @@ export class CloudSessionApi {
 		const controller = new AbortController();
 		const timeout = setTimeout(() => controller.abort(), this.createTimeoutMs);
 		const requestedAt = Date.now();
-		const claimKey = [
+		const peerKey = [
 			input.repoUrl,
 			input.modelId,
-			input.branch?.trim() ?? "",
 			input.organizationId?.trim() ?? "",
 		].join("\u0000");
 		const sequence = ++this.createSequence;
-		let settleClaimDecision!: () => void;
-		const claimDecision = new Promise<void>((resolve) => {
-			settleClaimDecision = resolve;
+		let settlePost!: () => void;
+		const postSettled = new Promise<void>((resolve) => {
+			settlePost = resolve;
 		});
 		const peers =
-			this.inFlightCreates.get(claimKey) ?? new Map<number, Promise<void>>();
-		peers.set(sequence, claimDecision);
-		this.inFlightCreates.set(claimKey, peers);
+			this.inFlightCreates.get(peerKey) ?? new Map<number, Promise<void>>();
+		peers.set(sequence, postSettled);
+		this.inFlightCreates.set(peerKey, peers);
 		try {
 			const created = await this.request<{
 				sessionId: string;
@@ -454,19 +458,39 @@ export class CloudSessionApi {
 			}
 			return { ...created, cleanupAuthToken: creationAuthToken };
 		} catch (error) {
-			// Provisioning may outlive the synchronous request; recover its record.
+			// Provisioning may outlive the synchronous request only when the
+			// POST timed out or the server failed after possibly accepting it
+			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
+			// provisioned anything, and recovering on one risks silently
+			// adopting an identical-config session created by another device
+			// on the same account.
 			const mayStillBeProvisioning =
 				controller.signal.aborted ||
-				(error instanceof CloudSessionError && error.code === "request_failed");
+				(error instanceof CloudSessionError &&
+					error.code === "request_failed" &&
+					(error.status === undefined || error.status >= 500));
 			if (mayStillBeProvisioning) {
-				// Let every earlier identical request record its claim first;
-				// otherwise this recovery could adopt a session whose POST is
-				// still completing and hand two composers the same sandbox.
-				await Promise.allSettled(
-					[...peers.entries()]
-						.filter(([peerSequence]) => peerSequence < sequence)
-						.map(([, decision]) => decision),
-				);
+				// This POST is settled; record that before waiting on peers so
+				// two failing peers cannot deadlock waiting on each other.
+				settlePost();
+				// Wait for every other in-flight POST for this repo/model/org
+				// (earlier AND later — a later peer's record is listed before
+				// its POST returns) to settle and record its claim; only then
+				// can an unclaimed listed record be safely adopted. Re-snapshot
+				// until stable so creates that started mid-wait are covered.
+				const awaited = new Set<number>([sequence]);
+				while (true) {
+					const pending = [...peers.entries()].filter(
+						([peerSequence]) => !awaited.has(peerSequence),
+					);
+					if (pending.length === 0) {
+						break;
+					}
+					for (const [peerSequence] of pending) {
+						awaited.add(peerSequence);
+					}
+					await Promise.allSettled(pending.map(([, settled]) => settled));
+				}
 				const requestedBranch = input.branch?.trim();
 				// The blocking create can run for ~10 minutes; the token captured
 				// at its start may have expired since. Prefer a fresh token for
@@ -508,10 +532,10 @@ export class CloudSessionApi {
 			throw error;
 		} finally {
 			clearTimeout(timeout);
-			settleClaimDecision();
+			settlePost();
 			peers.delete(sequence);
 			if (peers.size === 0) {
-				this.inFlightCreates.delete(claimKey);
+				this.inFlightCreates.delete(peerKey);
 			}
 		}
 	}
