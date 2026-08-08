@@ -78,6 +78,28 @@ describe("DefaultRuntimeBuilder", () => {
 		expect(names).not.toContain("spawn_agent");
 	});
 
+	it("derives enabled provider tools without registering a local executor", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools: { web_search: { enabled: true } } }),
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).toEqual([{ name: "web_search" }]);
+		expect(runtime.tools.some((tool) => tool.name === "web_search")).toBe(
+			false,
+		);
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	createClineProvider,
 	createOpenAICompatibleProvider,
 	createOpenAIProvider,
 	createSapAiCoreProvider,
@@ -117,12 +118,14 @@ describe("provider-ids", () => {
 		});
 		expect(models).toHaveProperty(provider?.defaultModelId ?? "");
 
-		const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
-			(item) => item.manifest.id === "cline-pass",
-		);
-		await expect(registration?.loadProvider?.()).resolves.toMatchObject({
-			createProvider: createOpenAICompatibleProvider,
-		});
+		for (const providerId of ["cline", "cline-pass"]) {
+			const registration = BUILTIN_PROVIDER_REGISTRATIONS.find(
+				(item) => item.manifest.id === providerId,
+			);
+			await expect(registration?.loadProvider?.()).resolves.toMatchObject({
+				createProvider: createClineProvider,
+			});
+		}
 	});
 
 	it("registers Poolside as an OpenAI-compatible built-in provider", async () => {
