@@ -48,6 +48,7 @@ import {
 	mergeModelOptions,
 	type ToolCallRecord,
 } from "@cline/shared";
+import { DefaultToolNames } from "../../extensions/tools/constants";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
@@ -112,6 +113,50 @@ function formatToolResultError(output: unknown): string {
 	} catch {
 		return String(output);
 	}
+}
+
+const OPERATION_RESULT_TOOL_NAMES = new Set<string>([
+	DefaultToolNames.READ_FILES,
+	DefaultToolNames.SEARCH_CODEBASE,
+	DefaultToolNames.RUN_COMMANDS,
+	DefaultToolNames.FETCH_WEB_CONTENT,
+	DefaultToolNames.APPLY_PATCH,
+	DefaultToolNames.EDITOR,
+]);
+
+function isToolOperationResult(
+	value: unknown,
+): value is { query: string; result: unknown; success: boolean } {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		!Array.isArray(value) &&
+		typeof (value as { query?: unknown }).query === "string" &&
+		"result" in value &&
+		typeof (value as { success?: unknown }).success === "boolean"
+	);
+}
+
+function classifyToolOutcome(
+	toolName: string,
+	output: unknown,
+): { successful: boolean; output: unknown } {
+	if (!OPERATION_RESULT_TOOL_NAMES.has(toolName)) {
+		return { successful: true, output };
+	}
+	const operations = Array.isArray(output) ? output : [output];
+	if (operations.length === 0 || !operations.every(isToolOperationResult)) {
+		return { successful: true, output };
+	}
+	const successfulOperations = operations.filter(
+		(operation) => operation.success,
+	);
+	return {
+		successful: successfulOperations.length > 0,
+		output: Array.isArray(output)
+			? successfulOperations
+			: successfulOperations[0],
+	};
 }
 
 async function resolveRuleContent(
@@ -914,6 +959,7 @@ export class SessionRuntime {
 					{ agentId: this.agentId, error },
 				);
 			}
+			this.loopTracker.clearPendingCalls();
 			this.activeRuntime = null;
 			this.running = false;
 			this.abortRequested = false;
@@ -1129,6 +1175,24 @@ export class SessionRuntime {
 				);
 				const isError =
 					resultPart?.type === "tool-result" && resultPart.isError === true;
+				const loopOutcome =
+					!isError && resultPart?.type === "tool-result"
+						? classifyToolOutcome(event.toolCall.toolName, resultPart.output)
+						: {
+								successful: false,
+								output:
+									resultPart?.type === "tool-result"
+										? resultPart.output
+										: undefined,
+							};
+				this.loopTracker.observeOutcome(
+					{
+						iteration: event.iteration,
+						name: event.toolCall.toolName,
+						input: event.toolCall.input,
+					},
+					loopOutcome,
+				);
 				const errorText = isError
 					? formatToolResultError(
 							resultPart?.type === "tool-result"
@@ -1270,7 +1334,11 @@ export class SessionRuntime {
 		if (this.trackerAbortInFlight || this.loopDetectionDisabled) {
 			return;
 		}
-		const verdict = this.loopTracker.inspect({ name: toolName, input });
+		const verdict = this.loopTracker.inspect({
+			iteration,
+			name: toolName,
+			input,
+		});
 		if (verdict.kind === "ok") {
 			return;
 		}
