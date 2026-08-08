@@ -171,6 +171,30 @@ describe("createClineWebSearchExecutor", () => {
 		).rejects.toMatchObject({ name: "AbortError" });
 	});
 
+	it("aborts immediately when the run was cancelled before the request starts", async () => {
+		const abortController = new AbortController();
+		abortController.abort();
+		const executor = createClineWebSearchExecutor({
+			getAuthToken: () => "token-abc",
+			apiBaseUrl: "https://api.cline.test",
+			fetchImpl: ((_url: string, init: RequestInit) => {
+				if (init.signal?.aborted) {
+					const error = new Error("This operation was aborted");
+					error.name = "AbortError";
+					return Promise.reject(error);
+				}
+				return Promise.resolve(jsonResponse({ data: { results: [] } }));
+			}) as unknown as typeof fetch,
+		});
+
+		await expect(
+			executor(
+				{ query: "anything" },
+				createContext({ signal: abortController.signal }),
+			),
+		).rejects.toMatchObject({ name: "AbortError" });
+	});
+
 	it("converts an aborted request into a timeout error", async () => {
 		const executor = createClineWebSearchExecutor({
 			getAuthToken: () => "token-abc",

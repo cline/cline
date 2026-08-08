@@ -141,8 +141,14 @@ export function createClineWebSearchExecutor(
 		}, timeoutMs);
 		let contextAbortHandler: (() => void) | undefined;
 		if (context.signal) {
-			contextAbortHandler = () => controller.abort();
-			context.signal.addEventListener("abort", contextAbortHandler);
+			if (context.signal.aborted) {
+				// The run was cancelled before this listener could register;
+				// abort up front so the request never goes out.
+				controller.abort();
+			} else {
+				contextAbortHandler = () => controller.abort();
+				context.signal.addEventListener("abort", contextAbortHandler);
+			}
 		}
 
 		try {
