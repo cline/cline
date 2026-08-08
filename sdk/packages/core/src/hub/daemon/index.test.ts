@@ -17,6 +17,7 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
+	hubProcessStartMatchesReport,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -42,6 +43,7 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
+	hubProcessStartMatchesReport: vi.fn(() => true),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -92,6 +94,10 @@ vi.mock("../discovery", () => ({
 	writeHubDiscovery,
 }));
 
+vi.mock("./process-identity", () => ({
+	hubProcessStartMatchesReport,
+}));
+
 describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
@@ -112,6 +118,8 @@ describe("ensureDetachedHubServer", () => {
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
+		hubProcessStartMatchesReport.mockReset();
+		hubProcessStartMatchesReport.mockReturnValue(true);
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
@@ -337,6 +345,7 @@ describe("ensureDetachedHubServer", () => {
 				protocolVersion: "v1",
 				buildId: "old-build",
 				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
 			});
 
 			const { prewarmDetachedHubServer } = await import(".");
@@ -352,6 +361,46 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				expect.objectContaining({ endpoint: "version" }),
 			);
+			// The pid must also be bound to the reporting process via its /proc
+			// start time, using the startedAt the hub itself served.
+			expect(hubProcessStartMatchesReport).toHaveBeenCalledWith(
+				12345,
+				"2026-08-06T16:15:00.000Z",
+			);
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when the pid's process is younger than the hub's report", async () => {
+		// The P1 race: the daemon can die between answering /version and the
+		// kill, and the OS can hand its pid to a bystander. The /proc start-time
+		// check re-reads identity at the last instant, so a recycled pid —
+		// necessarily younger than the report it did not write — is spared.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
+			});
+			hubProcessStartMatchesReport.mockReturnValue(false);
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();

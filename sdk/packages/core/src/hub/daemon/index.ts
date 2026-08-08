@@ -33,6 +33,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
+import { hubProcessStartMatchesReport } from "./process-identity";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
@@ -134,18 +135,28 @@ async function retireDiscoveredHub(
 	// auto-update retires the previous build through this path, which is how a
 	// long-lived host accumulates one orphaned hub per night.
 	if (!retired && record.pid) {
-		// Force only what we can prove we own. A discovery record outlives its
-		// daemon, and the OS recycles pids: the recorded pid may now belong to an
-		// unrelated process while a different daemon answers at the recorded URL.
-		// SIGTERM to the wrong process is usually survivable; SIGKILL is not, so
-		// escalate only when the hub currently serving that URL reports the very
-		// pid we are about to kill. A hub too old to report its pid is left alone
-		// — leaking a daemon is the better failure.
-		// `/version`, not the default probe: `/health` omits the pid entirely and
-		// `/status` needs a token this record may not have — which is exactly the
-		// tokenless retirement path.
+		// Force only what we can prove we own, twice over. A discovery record
+		// outlives its daemon and the OS recycles pids, so the recorded pid may
+		// belong to anything by now — and SIGKILL to the wrong process is not
+		// survivable. First proof: the hub currently serving the URL must
+		// self-report the very pid we are about to kill. `/version`, not the
+		// default probe: `/health` omits the pid entirely and `/status` needs a
+		// token this record may not have — which is exactly the tokenless
+		// retirement path. Second proof: the process holding that pid must have
+		// started no later than the hub says it began serving, read from /proc
+		// at the last instant before the signal — a pid recycled after the
+		// probe answered belongs to a process younger than the answer, so it
+		// fails this even inside the probe-to-kill window. Where either proof
+		// is unavailable (a hub too old to report pid or startedAt, a platform
+		// without /proc) the daemon is left alone: leaking is the better
+		// failure, and new builds retire themselves via the in-daemon shutdown
+		// watchdog anyway. Every observed orphan lived on Linux.
 		const serving = await safeProbeHubServer(record.url, undefined, "version");
-		if (serving?.pid !== undefined && serving.pid === record.pid) {
+		if (
+			serving?.pid !== undefined &&
+			serving.pid === record.pid &&
+			hubProcessStartMatchesReport(record.pid, serving.startedAt)
+		) {
 			try {
 				process.kill(record.pid, "SIGKILL");
 			} catch {

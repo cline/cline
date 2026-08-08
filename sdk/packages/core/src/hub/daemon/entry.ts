@@ -13,6 +13,10 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import {
+	armHubDaemonShutdownWatchdog,
+	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+} from "./shutdown-watchdog";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -118,6 +122,18 @@ async function main(): Promise<void> {
 	setActiveConnectorSupervisor(supervisor);
 
 	const shutdown = async (): Promise<void> => {
+		// server.close() can stall forever (Bun never resolves it once a WebSocket
+		// upgrade happened), and with signal handlers installed nothing else will
+		// end the process — so the exit must not depend on the graceful path.
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 0,
+			onTimeout: () => {
+				process.stderr.write(
+					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
+				);
+			},
+		});
 		// Stop supervising but leave the connectors running: they are detached on
 		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
 		// hub adopts them from their state files.
@@ -134,6 +150,15 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 1,
+			onTimeout: () => {
+				process.stderr.write(
+					`[hub-daemon] shutdown after ${label} stalled; forcing exit\n`,
+				);
+			},
+		});
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
