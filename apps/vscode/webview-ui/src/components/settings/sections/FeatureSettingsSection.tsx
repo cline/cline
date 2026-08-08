@@ -37,6 +37,14 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
+	{
+		id: "web-search",
+		label: "Web Search",
+		description:
+			"Give Cline a web search tool powered by your Cline account. Available when using Cline as your provider.",
+		stateKey: "webSearchEnabled",
+		settingKey: "webSearchEnabled",
+	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
@@ -160,6 +168,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		remoteConfigSettings,
 		backgroundEditEnabled,
 		showFeatureTips,
+		webSearchEnabled,
 	} = useExtensionState()
 
 	const isYoloRemoteLocked = remoteConfigSettings?.yoloModeToggled !== undefined
@@ -173,6 +182,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,
+		webSearchEnabled,
 		yoloModeToggled: isYoloRemoteLocked ? remoteConfigSettings?.yoloModeToggled : yoloModeToggled,
 	}
 

@@ -424,6 +424,11 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 			config.missionStepInterval ?? config.missionLogIntervalSteps,
 		missionLogIntervalMs:
 			config.missionTimeIntervalMs ?? config.missionLogIntervalMs,
+		// Desktop product default: web_search is on out of the box (still
+		// Cline-provider-only). Users can opt out via Settings > Extensions >
+		// Tools, which records an explicit disabledTools entry that overrides
+		// this default.
+		webSearchEnabledByDefault: true,
 		checkpoint: { enabled: true },
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,

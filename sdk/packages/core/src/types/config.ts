@@ -57,6 +57,14 @@ export interface CoreRuntimeFeatures {
 	enableAgentTeams: boolean;
 	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
+	/**
+	 * Host default for the opt-in web_search tool. When true, sessions treat
+	 * web_search as enabled unless the user explicitly disabled it in global
+	 * settings (`disabledTools`). When false/omitted, web_search requires the
+	 * explicit `enabledTools` opt-in. Either way the tool only registers on
+	 * providers backed by the Cline account API.
+	 */
+	webSearchEnabledByDefault?: boolean;
 }
 
 export type CoreCompactionMode = "auto" | "manual" | "overflow_recovery";

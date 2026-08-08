@@ -208,6 +208,8 @@ export function formatToolInput(toolName: string, input: unknown): string {
 				);
 			}
 			break;
+		case "web_search":
+			return truncate(String(obj.query ?? ""), 120);
 		case "spawn_agent":
 			return truncate(String(obj.task ?? ""), 50);
 		case "skills":

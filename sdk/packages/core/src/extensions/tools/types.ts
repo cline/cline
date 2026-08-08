@@ -15,6 +15,7 @@ import type {
 	EditFileInput,
 	ReadFileRequest,
 	StructuredCommandInput,
+	WebSearchInput,
 } from "./schemas";
 
 // =============================================================================
@@ -94,6 +95,18 @@ export type ShellExecutor = (
 export type WebFetchExecutor = (
 	url: string,
 	prompt: string,
+	context: AgentToolContext,
+) => Promise<string>;
+
+/**
+ * Executor for performing web searches
+ *
+ * @param input - Validated web_search tool input
+ * @param context - Tool execution context
+ * @returns Formatted search results
+ */
+export type WebSearchExecutor = (
+	input: WebSearchInput,
 	context: AgentToolContext,
 ) => Promise<string>;
 
@@ -205,6 +218,8 @@ export interface ToolExecutors {
 	bash?: ShellExecutor;
 	/** Web content fetching implementation */
 	webFetch?: WebFetchExecutor;
+	/** Web search implementation */
+	webSearch?: WebSearchExecutor;
 	/** Filesystem editor implementation */
 	editor?: EditorExecutor;
 	/** Apply patch implementation */
@@ -229,6 +244,7 @@ export type DefaultToolName =
 	| "search_codebase"
 	| "run_commands"
 	| "fetch_web_content"
+	| "web_search"
 	| "apply_patch"
 	| "editor"
 	| "skills"
@@ -270,6 +286,15 @@ export interface DefaultToolsConfig {
 	 * @default true
 	 */
 	enableWebFetch?: boolean;
+
+	/**
+	 * Enable the web_search tool
+	 *
+	 * Off by default: the tool is backed by the Cline account API and users
+	 * must opt in (and use the `cline` provider) for it to be registered.
+	 * @default false
+	 */
+	enableWebSearch?: boolean;
 
 	/**
 	 * Enable the apply_patch tool
@@ -331,6 +356,12 @@ export interface DefaultToolsConfig {
 	 * @default 30000
 	 */
 	webFetchTimeoutMs?: number;
+
+	/**
+	 * Timeout for web search operations in milliseconds
+	 * @default 30000
+	 */
+	webSearchTimeoutMs?: number;
 
 	/**
 	 * Timeout for search operations in milliseconds

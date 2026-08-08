@@ -57,6 +57,8 @@ import {
 	type StructuredCommandInput,
 	type SubmitInput,
 	SubmitInputSchema,
+	type WebSearchInput,
+	WebSearchInputSchema,
 } from "./schemas";
 import type {
 	ApplyPatchExecutor,
@@ -71,6 +73,7 @@ import type {
 	ToolOperationResult,
 	VerifySubmitExecutor,
 	WebFetchExecutor,
+	WebSearchExecutor,
 } from "./types";
 
 // =============================================================================
@@ -565,6 +568,40 @@ export function createWebFetchTool(
 	});
 }
 
+/**
+ * Create the web_search tool
+ *
+ * Performs a web search through the Cline account API and returns result
+ * titles and URLs.
+ */
+export function createWebSearchTool(
+	executor: WebSearchExecutor,
+	config: Pick<DefaultToolsConfig, "webSearchTimeoutMs"> = {},
+): AgentTool<WebSearchInput, string> {
+	const timeoutMs = config.webSearchTimeoutMs ?? 30000;
+
+	return createTool<WebSearchInput, string>({
+		name: "web_search",
+		description:
+			"Performs a web search and returns relevant results with titles and URLs. " +
+			"Use this when you need current public information such as news, docs, or recent facts; use fetch_web_content afterward when a page needs deeper inspection. " +
+			"Optionally filter results with allowed_domains OR blocked_domains (not both). " +
+			"This tool is read-only and does not modify any files.",
+		inputSchema: zodToJsonSchema(WebSearchInputSchema),
+		timeoutMs: timeoutMs * 2,
+		retryable: true,
+		maxRetries: 1,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(WebSearchInputSchema, input);
+			return withTimeout(
+				executor(validatedInput, context),
+				timeoutMs,
+				`Web search timed out after ${timeoutMs}ms`,
+			);
+		},
+	});
+}
+
 const APPLY_PATCH_TOOL_DESC = `Use \`apply_patch\` to edit files with the canonical freeform patch grammar. Pass the patch text directly as the \`input\` string. Prefer the exact format below:
 
 *** Begin Patch
@@ -881,6 +918,7 @@ export function createDefaultTools(
 		enableSearch = true,
 		enableBash = true,
 		enableWebFetch = true,
+		enableWebSearch = false,
 		enableApplyPatch = false,
 		enableEditor = true,
 		enableSkills = true,
@@ -909,6 +947,11 @@ export function createDefaultTools(
 	// Add fetch_web_content tool if enabled and executor provided
 	if (enableWebFetch && executors.webFetch) {
 		tools.push(createWebFetchTool(executors.webFetch, config));
+	}
+
+	// Add web_search tool if enabled and executor provided (opt-in only)
+	if (enableWebSearch && executors.webSearch) {
+		tools.push(createWebSearchTool(executors.webSearch, config));
 	}
 
 	// Add editor tool if enabled and executor provided,

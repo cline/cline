@@ -105,13 +105,15 @@ export async function listUserInstructionConfigs(
 			cwd: targetWorkspaceRoot,
 		}),
 	]);
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const globalSettings = readGlobalSettings();
+	const disabledTools = new Set(globalSettings.disabledTools ?? []);
 	// Pin spawn/teams availability so this listing matches the desktop
 	// sidecar's (sidecar/commands.ts) even if the preset defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
 		disabledToolIds: disabledTools,
+		enabledToolIds: new Set(globalSettings.enabledTools ?? []),
 	});
 
 	return {

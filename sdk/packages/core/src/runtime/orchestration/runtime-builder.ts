@@ -10,6 +10,7 @@ import {
 	resolveMcpTimeoutSeconds,
 } from "@cline/shared";
 import { nanoid } from "nanoid";
+import { getPersistedProviderApiKey } from "../../auth/provider-auth-registry";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
 	createDefaultMcpServerClientFactory,
@@ -21,7 +22,9 @@ import {
 } from "../../extensions/mcp";
 import {
 	createBuiltinTools,
+	createClineWebSearchExecutor,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	isWebSearchSupportedProvider,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -42,7 +45,9 @@ import { createConfiguredAgentTools } from "../../extensions/tools/team/configur
 import {
 	filterDisabledTools,
 	resolveDisabledToolNames,
+	resolveEnabledToolNames,
 } from "../../services/global-settings";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
 import type {
@@ -138,6 +143,7 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	webSearchEnabledByDefault?: boolean,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -146,6 +152,14 @@ function createBuiltinToolsList(
 		mode,
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
+	// web_search only works on providers backed by the Cline account API and
+	// is opt-in (enabledTools global setting) unless the host declares it on
+	// by default; an explicit user opt-out (disabledTools) is enforced by
+	// filterAvailableTools either way.
+	const enableWebSearch =
+		isWebSearchSupportedProvider(providerId) &&
+		(resolveEnabledToolNames().has("web_search") ||
+			webSearchEnabledByDefault === true);
 
 	return filterAvailableTools(
 		createBuiltinTools({
@@ -154,6 +168,7 @@ function createBuiltinToolsList(
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
+			enableWebSearch,
 			executors: {
 				...(skillsExecutor
 					? {
@@ -361,6 +376,38 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		// Default web_search executor backed by the Cline account API. The
+		// token follows the same precedence as inference requests: the active
+		// session's own key first (for the cline provider that key is the
+		// account token), then persisted cline credentials (resolved lazily
+		// per search so refreshed credentials are picked up), then the
+		// CLINE_API_KEY environment variable. Hosts may still override the
+		// executor via input.toolExecutors.
+		const sessionToolExecutors: Partial<ToolExecutors> = {
+			webSearch: createClineWebSearchExecutor({
+				getAuthToken: async () => {
+					const sessionKey =
+						config.providerId === "cline" ? config.apiKey?.trim() : undefined;
+					if (sessionKey) {
+						return sessionKey;
+					}
+					try {
+						const manager = new ProviderSettingsManager();
+						const persisted = getPersistedProviderApiKey(
+							"cline",
+							manager.getProviderSettings("cline"),
+						);
+						if (persisted) {
+							return persisted;
+						}
+					} catch {
+						// Fall back to the environment key below.
+					}
+					return process.env.CLINE_API_KEY?.trim() || undefined;
+				},
+			}),
+			...toolExecutors,
+		};
 		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
 		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
@@ -433,7 +480,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				modelId: config.modelId,
 				toolRoutingRules: config.toolRoutingRules,
 				toolPolicies: effectiveToolPolicies,
-				toolExecutors,
+				toolExecutors: sessionToolExecutors,
 			});
 
 		const userInstructionPlugin =
@@ -478,8 +525,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					config.toolRoutingRules,
 					effectiveToolPolicies,
 					undefined,
-					toolExecutors,
+					sessionToolExecutors,
 					telemetry ?? config.telemetry,
+					config.webSearchEnabledByDefault,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -551,8 +599,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 															agent.skills,
 														)
 													: undefined,
-												toolExecutors,
+												sessionToolExecutors,
 												telemetry ?? config.telemetry,
+												config.webSearchEnabledByDefault,
 											),
 											agent,
 										)
@@ -656,8 +705,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									config.toolRoutingRules,
 									effectiveToolPolicies,
 									undefined,
-									toolExecutors,
+									sessionToolExecutors,
 									telemetry ?? config.telemetry,
+									config.webSearchEnabledByDefault,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

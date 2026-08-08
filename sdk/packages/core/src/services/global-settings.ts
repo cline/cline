@@ -54,6 +54,7 @@ export const GlobalSettingsSchema = z
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		enabledTools: GlobalSettingsStringListSchema.optional(),
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
@@ -67,6 +68,7 @@ export const GlobalSettingsSchema = z
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
+			enabledTools?: string[];
 			disabledPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
@@ -89,6 +91,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
+		}
+		if (settings.enabledTools?.length) {
+			normalized.enabledTools = settings.enabledTools;
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
@@ -122,6 +127,9 @@ function invalidateSettingsCache(): void {
 function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
+	}
+	if (value.enabledTools) {
+		Object.freeze(value.enabledTools);
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
@@ -287,10 +295,39 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
 	writeGlobalSettings({ ...readGlobalSettings(), toolAutoApprove });
 }
 
+/**
+ * Built-in tools that are OFF by default (in most hosts) and require an
+ * explicit opt-in via the `enabledTools` global setting. Hosts may instead
+ * declare such a tool on by default (e.g. the desktop app for web_search),
+ * so these tools carry a tri-state across apps: explicitly on (in
+ * `enabledTools`), explicitly off (in `disabledTools`), or unset (host
+ * default). Toggling through {@link toggleDisabledTool} /
+ * {@link setDisabledTools} keeps the two lists mutually exclusive, so every
+ * host's existing tool toggle UI works unchanged.
+ */
+export const OPT_IN_TOOL_NAMES: ReadonlySet<string> = new Set(["web_search"]);
+
+function isOptInTool(toolName: string): boolean {
+	return OPT_IN_TOOL_NAMES.has(toolName);
+}
+
 export function resolveDisabledToolNames(
 	disabledToolNames?: ReadonlyArray<string>,
 ): Set<string> {
 	return new Set(disabledToolNames ?? readGlobalSettings().disabledTools ?? []);
+}
+
+/**
+ * Opt-in tool names the user has explicitly enabled via global settings.
+ */
+export function resolveEnabledToolNames(
+	enabledToolNames?: ReadonlyArray<string>,
+): Set<string> {
+	return new Set(enabledToolNames ?? readGlobalSettings().enabledTools ?? []);
+}
+
+export function isToolEnabledGlobally(toolName: string): boolean {
+	return resolveEnabledToolNames().has(toolName);
 }
 
 export function resolveDisabledPluginPaths(
@@ -306,6 +343,31 @@ export function isToolDisabledGlobally(toolName: string): boolean {
 }
 
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isOptInTool(toolName)) {
+		const settings = readGlobalSettings();
+		const enabled = new Set(settings.enabledTools ?? []);
+		const disabled = new Set(settings.disabledTools ?? []);
+		// Blind toggle flips the explicit opt-in, matching the opt-in display
+		// (unset shows as off). Both directions resolve to an explicit state
+		// (mutually exclusive lists) so they override host defaults. Hosts
+		// with a default-on display (desktop) use setDisabledTools with an
+		// explicit direction instead of this blind toggle.
+		const wasEnabled = enabled.has(toolName);
+		if (wasEnabled) {
+			enabled.delete(toolName);
+			disabled.add(toolName);
+		} else {
+			enabled.add(toolName);
+			disabled.delete(toolName);
+		}
+		writeGlobalSettings({
+			...settings,
+			enabledTools: [...enabled],
+			disabledTools: [...disabled],
+		});
+		return wasEnabled;
+	}
+
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -331,14 +393,33 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const enabled = resolveEnabledToolNames(settings.enabledTools);
 	for (const name of names) {
+		if (isOptInTool(name)) {
+			// Opt-in tools resolve to an explicit tri-state entry: disabling
+			// records an explicit opt-out (so it overrides hosts where the
+			// tool is on by default), enabling records the explicit opt-in.
+			// The two lists stay mutually exclusive.
+			if (disabledValue) {
+				enabled.delete(name);
+				disabled.add(name);
+			} else {
+				enabled.add(name);
+				disabled.delete(name);
+			}
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({
+		...settings,
+		disabledTools: [...disabled],
+		enabledTools: [...enabled],
+	});
 }
 
 export function setToolDisabledGlobally(

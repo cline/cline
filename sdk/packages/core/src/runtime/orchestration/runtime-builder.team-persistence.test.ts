@@ -70,6 +70,8 @@ vi.mock("../../extensions/tools/team", () => ({
 vi.mock("../../extensions/tools", () => ({
 	ALL_DEFAULT_TOOL_NAMES: [],
 	createBuiltinTools: createBuiltinToolsMock,
+	createClineWebSearchExecutor: () => async () => "",
+	isWebSearchSupportedProvider: () => false,
 	ToolPresets: {
 		development: {},
 		readonly: {},
