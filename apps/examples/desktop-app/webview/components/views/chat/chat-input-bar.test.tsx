@@ -673,6 +673,92 @@ describe("ChatInputBar", () => {
 
 		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
 	});
+
+	it("attaches clipboard images on paste instead of inserting text", async () => {
+		const onAttachFiles = vi.fn();
+		const onPromptInputChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={onAttachFiles}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={onPromptInputChange}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput).not.toBeNull();
+
+		const pasteWithClipboard = async (items: unknown[]) => {
+			const event = new Event("paste", { bubbles: true, cancelable: true });
+			Object.defineProperty(event, "clipboardData", {
+				value: { items, getData: () => "" },
+			});
+			await act(async () => {
+				promptInput?.dispatchEvent(event);
+				await Promise.resolve();
+			});
+			return event;
+		};
+
+		const png = new File(["fake"], "image.png", { type: "image/png" });
+		const imagePaste = await pasteWithClipboard([
+			{ kind: "file", type: "image/png", getAsFile: () => png },
+		]);
+		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		const attached = onAttachFiles.mock.calls[0][0] as File[];
+		expect(attached).toHaveLength(1);
+		expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		expect(imagePaste.defaultPrevented).toBe(true);
+
+		// Plain-text pastes stay untouched so normal text pasting keeps working.
+		const textPaste = await pasteWithClipboard([
+			{ kind: "string", type: "text/plain", getAsFile: () => null },
+		]);
+		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		expect(textPaste.defaultPrevented).toBe(false);
+	});
 });
 
 describe("ChatInputBar token ring", () => {

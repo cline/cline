@@ -24,6 +24,7 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
+import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -797,6 +798,15 @@ function ChatInputBarImpl({
 							}
 							onBlur={() => setPromptInputFocused(false)}
 							onFocus={() => setPromptInputFocused(true)}
+							onPaste={(e) => {
+								const images = imageFilesFromClipboard(e.clipboardData);
+								if (images.length > 0) {
+									// Attach the image instead of pasting its fallback
+									// text representation (e.g. a file path or URL).
+									e.preventDefault();
+									onAttachFiles(images);
+								}
+							}}
 							onKeyDown={(e) => {
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
