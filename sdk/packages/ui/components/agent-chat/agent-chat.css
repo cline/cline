@@ -326,11 +326,9 @@
 
 	.cline-chat-tool-code {
 		max-width: 100%;
-		max-height: 13rem;
 		margin: 0.5rem 0 0;
 		padding: 0.5rem;
 		overflow-x: hidden;
-		overflow-y: auto;
 		border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
 		border-radius: calc(var(--radius) - 2px);
 		background: color-mix(in oklab, var(--background) 60%, transparent);

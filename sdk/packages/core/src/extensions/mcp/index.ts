@@ -5,6 +5,7 @@ export type {
 } from "./client";
 export {
 	createDefaultMcpServerClientFactory,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	probeMcpServerConnection,
 } from "./client";
 export type {
