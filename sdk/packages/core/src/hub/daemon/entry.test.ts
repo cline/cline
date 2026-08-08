@@ -188,6 +188,49 @@ describe("hub daemon entry", () => {
 		});
 	});
 
+	it("ignores abort-family unhandled rejections instead of shutting down", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (reason: unknown) => void>();
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			handler: (reason: unknown) => void,
+		) => {
+			handlers.set(event, handler);
+			return process;
+		}) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const onUnhandledRejection = handlers.get("unhandledRejection");
+		expect(onUnhandledRejection).toBeDefined();
+
+		// Cancelling a turn can leave provider fetches rejecting on floating
+		// promises after the run settled. None of these may kill the daemon —
+		// it hosts every resident session.
+		const { AgentRuntimeAbortError } = await import("@cline/agents");
+		onUnhandledRejection?.(new AgentRuntimeAbortError("run aborted"));
+		const domAbort = new Error("This operation was aborted");
+		domAbort.name = "AbortError";
+		onUnhandledRejection?.(domAbort);
+		const nodeAbort = Object.assign(new Error("The operation was aborted"), {
+			code: "ABORT_ERR",
+		});
+		onUnhandledRejection?.(nodeAbort);
+		expect(exitSpy).not.toHaveBeenCalled();
+
+		// Anything else is still fatal.
+		onUnhandledRejection?.(new Error("boom"));
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
+		});
+	});
+
 	it("disposes telemetry and exits when server startup fails", async () => {
 		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
 		tempDirs.push(cwd);

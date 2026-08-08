@@ -865,6 +865,40 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
 		}
+		// Sessions seeded with history (mode-switch restarts, forks, missing-
+		// session recovery) must be durable immediately. Lazy persistence
+		// otherwise keeps the seed memory-only until the first completed turn,
+		// so losing the resident session before then (hub restart/crash) would
+		// rebuild it from an empty disk file and silently wipe the
+		// conversation. Brand-new empty sessions stay lazy.
+		if (initialMessages.length > 0 && !resumedArtifacts) {
+			try {
+				await this.ensureSessionPersisted(active);
+				await this.invoke<void>(
+					"persistSessionMessages",
+					sessionId,
+					initialMessages,
+					active.config.systemPrompt,
+				);
+			} catch (error) {
+				active.config.logger?.error?.(
+					"Failed to persist seeded session messages at start",
+					{ sessionId, error },
+				);
+				captureSdkError(active.config.telemetry, {
+					component: "core",
+					operation: "session.persist_seeded_messages",
+					error,
+					severity: "warn",
+					handled: true,
+					context: {
+						sessionId,
+						providerId: active.config.providerId,
+						modelId: active.config.modelId,
+					},
+				});
+			}
+		}
 		this.emitStatus(sessionId, "running");
 
 		let result: AgentResult | undefined;
@@ -1649,6 +1683,40 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const usage = createInitialAccumulatedUsage();
 		session.persistedMessages = messages;
 		session.started = session.started || messages.length > 0;
+		// Flush the transcript now: persistence otherwise lags at
+		// assistant-message/turn boundaries, so without this an aborted turn
+		// (including the user's prompt) exists only in memory. If the session
+		// later has to be rebuilt from disk (hub restart, session eviction),
+		// the recovery would silently drop the aborted exchange — or, for a
+		// session seeded with in-memory history, the entire conversation.
+		if (messages.length > 0) {
+			try {
+				await this.ensureSessionPersisted(session);
+				await this.invoke<void>(
+					"persistSessionMessages",
+					session.sessionId,
+					messages,
+					session.config.systemPrompt,
+				);
+			} catch (error) {
+				session.config.logger?.error?.(
+					"Failed to persist session messages after abort",
+					{ sessionId: session.sessionId, error },
+				);
+				captureSdkError(session.config.telemetry, {
+					component: "core",
+					operation: "session.persist_messages_after_abort",
+					error,
+					severity: "warn",
+					handled: true,
+					context: {
+						sessionId: session.sessionId,
+						providerId: session.config.providerId,
+						modelId: session.config.modelId,
+					},
+				});
+			}
+		}
 		this.eventBridge.dispatchAgentEvent(session.sessionId, session.config, {
 			type: "done",
 			reason: "aborted",

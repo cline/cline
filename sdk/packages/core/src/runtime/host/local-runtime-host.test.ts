@@ -1106,7 +1106,7 @@ describe("LocalRuntimeHost", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
-	it("keeps seeded history in memory until the next user turn", async () => {
+	it("persists seeded history at session start so recovery can rebuild it", async () => {
 		const sessionId = "sess-fork-copy";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
@@ -1173,10 +1173,18 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		expect(agent.run).not.toHaveBeenCalled();
-		expect(
-			sessionService.createRootSessionWithArtifacts,
-		).not.toHaveBeenCalled();
-		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
+		// Seeded history is durable immediately: if the resident session is
+		// lost before the first completed turn (hub restart/crash), the
+		// missing-session recovery rebuilds from the persisted file instead of
+		// silently wiping the conversation.
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId }),
+		);
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			initialMessages,
+			"You are a test agent",
+		);
 		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
 		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
 			initialMessages,
@@ -1185,13 +1193,7 @@ describe("LocalRuntimeHost", () => {
 		await manager.runTurn({ sessionId, prompt: "continue" });
 
 		expect(agent.continue).toHaveBeenCalledTimes(1);
-		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
-			expect.objectContaining({
-				sessionId,
-				prompt: expect.stringContaining("continue"),
-			}),
-		);
-		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+		expect(sessionService.persistSessionMessages).toHaveBeenLastCalledWith(
 			sessionId,
 			expect.arrayContaining(
 				continuedMessages.map((message) => expect.objectContaining(message)),
@@ -1202,6 +1204,66 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			status: "idle",
 		});
+	});
+
+	it("keeps brand-new empty sessions lazy until the first user turn", async () => {
+		const sessionId = "sess-lazy-empty";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		// No seeded history to protect: closing the runtime before any user
+		// turn must still leave no empty history entry behind.
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
 	});
 
 	it("readLiveSessionMessages serves in-memory messages for resident sessions before persistence", async () => {
@@ -1412,11 +1474,12 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
+		// No seeded history: the session never materializes artifacts, so
+		// disposing it must not write a status row.
 		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
-				initialMessages: [{ role: "user", content: "done already" }],
 			}),
 		);
 		sessionService.updateSessionStatus.mockClear();
@@ -3243,6 +3306,14 @@ describe("LocalRuntimeHost", () => {
 		await expect(firstTurn).resolves.toMatchObject({
 			finishReason: "aborted",
 		});
+		// The aborted turn is flushed to disk immediately: persistence
+		// otherwise lags to the next assistant message or turn end, so a hub
+		// restart in between would rebuild the session without this exchange.
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			[{ role: "user", content: "slow" }],
+			"You are a test agent",
+		);
 
 		await expect(
 			manager.runTurn({ sessionId, prompt: "next turn after abort" }),
@@ -5341,11 +5412,8 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
-		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
-
-		await manager.runTurn({ sessionId, prompt: "continue" });
-
-		expect(continueRun).toHaveBeenCalledTimes(1);
+		// Seeded sessions persist eagerly, so the unowned state is bound and
+		// written as soon as the session starts.
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -5353,6 +5421,10 @@ describe("LocalRuntimeHost", () => {
 				messages: initialCompactionState.messages,
 			}),
 		);
+
+		await manager.runTurn({ sessionId, prompt: "continue" });
+
+		expect(continueRun).toHaveBeenCalledTimes(1);
 	});
 
 	// Manual /compact persists a sidecar regardless of the auto-compaction
@@ -5437,13 +5509,9 @@ describe("LocalRuntimeHost", () => {
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
 		expect(prepareTurn).toBeDefined();
 
-		// The initial sidecar stays in memory until a user continues the session.
-		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
-
-		await manager.runTurn({ sessionId, prompt: "follow-up" });
-
-		// The first new user turn persists the sidecar, which remains available
-		// for projection without enabling automatic re-compaction.
+		// Seeded sessions persist eagerly, so the sidecar lands on disk with
+		// the seeded transcript and remains available for projection without
+		// enabling automatic re-compaction.
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -5451,6 +5519,8 @@ describe("LocalRuntimeHost", () => {
 				messages: initialCompactionState.messages,
 			}),
 		);
+
+		await manager.runTurn({ sessionId, prompt: "follow-up" });
 		const followUpMessages = [
 			...initialMessages,
 			{ role: "user", content: "follow-up" },
