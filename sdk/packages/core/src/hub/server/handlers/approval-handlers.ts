@@ -4,7 +4,12 @@ import type {
 	ToolApprovalRequest,
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
-import { errorReply, type HubTransportContext, okReply } from "./context";
+import {
+	errorReply,
+	extractSessionId,
+	type HubTransportContext,
+	okReply,
+} from "./context";
 
 function pendingApprovalPayload(
 	approvalId: string,
@@ -61,9 +66,7 @@ export function handleApprovalListPending(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
 ): HubReplyEnvelope {
-	const sessionId = String(
-		envelope.sessionId ?? envelope.payload?.sessionId ?? "",
-	).trim();
+	const sessionId = extractSessionId(envelope);
 	if (!sessionId) {
 		return errorReply(
 			envelope,

@@ -202,6 +202,157 @@ describe("NodeHubClient connection headers", () => {
 		expect(client.isConnected()).toBe(false);
 	});
 
+	it("surfaces resolver failures and reruns the resolver on the next connect", async () => {
+		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+		servers.push(server);
+		await new Promise<void>((resolve) => server.once("listening", resolve));
+		server.on("connection", (socket) => {
+			socket.on("message", (data) => {
+				const frame = JSON.parse(data.toString()) as {
+					kind?: string;
+					envelope?: { command?: string; requestId?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				socket.send(
+					JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							command: frame.envelope.command,
+							requestId: frame.envelope.requestId,
+							ok: true,
+							clientId: "hub",
+							payload: {},
+						},
+					}),
+				);
+			});
+		});
+
+		const { port } = server.address() as AddressInfo;
+		let attempts = 0;
+		const client = new NodeHubClient({
+			url: `ws://127.0.0.1:${port}/hub`,
+			resolveConnectionHeaders: async () => {
+				attempts += 1;
+				if (attempts === 1) {
+					throw new Error("token refresh failed: signed out");
+				}
+				return { Authorization: "Bearer account-token" };
+			},
+		});
+
+		try {
+			await expect(client.connect()).rejects.toMatchObject({
+				code: "hub_connect_failed",
+				message: expect.stringContaining("signed out"),
+			});
+			// The real cause must be visible to state consumers, not a stale
+			// "Hub connection closed" default.
+			expect(client.getConnectionError()).toMatchObject({
+				code: "hub_connect_failed",
+				message: expect.stringContaining("signed out"),
+			});
+			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(attempts).toBe(2);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("lets a fresh connect supersede an attempt stuck in header resolution after close()", async () => {
+		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+		servers.push(server);
+		await new Promise<void>((resolve) => server.once("listening", resolve));
+		server.on("connection", (socket) => {
+			socket.on("message", (data) => {
+				const frame = JSON.parse(data.toString()) as {
+					kind?: string;
+					envelope?: { command?: string; requestId?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				socket.send(
+					JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							command: frame.envelope.command,
+							requestId: frame.envelope.requestId,
+							ok: true,
+							clientId: "hub",
+							payload: {},
+						},
+					}),
+				);
+			});
+		});
+
+		const { port } = server.address() as AddressInfo;
+		let releaseFirstResolver:
+			| ((headers: Readonly<Record<string, string>>) => void)
+			| undefined;
+		let attempts = 0;
+		const client = new NodeHubClient({
+			url: `ws://127.0.0.1:${port}/hub`,
+			resolveConnectionHeaders: () => {
+				attempts += 1;
+				if (attempts === 1) {
+					return new Promise<Readonly<Record<string, string>>>((resolve) => {
+						releaseFirstResolver = resolve;
+					});
+				}
+				return Promise.resolve({ Authorization: "Bearer account-token" });
+			},
+		});
+
+		try {
+			const doomed = client.connect();
+			client.close();
+			// The next connect() must start a fresh attempt instead of being
+			// deduped onto the closed one and rejecting spuriously.
+			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			// The first attempt aborts once its resolver settles, without
+			// clobbering the newer connection's socket.
+			releaseFirstResolver?.({ Authorization: "Bearer stale-token" });
+			await expect(doomed).rejects.toMatchObject({
+				code: "hub_connection_closed",
+			});
+			expect(client.isConnected()).toBe(true);
+		} finally {
+			client.close();
+		}
+	});
+
+	it("times out a hung header resolver instead of pinning connect() forever", async () => {
+		vi.useFakeTimers();
+		const client = new NodeHubClient({
+			url: "ws://127.0.0.1:25463/hub",
+			// Never settles: simulates a token refresh that hangs.
+			resolveConnectionHeaders: () => new Promise(() => {}),
+		});
+
+		try {
+			const connecting = client.connect();
+			const expectation = expect(connecting).rejects.toMatchObject({
+				code: "hub_connect_timeout",
+			});
+			await vi.advanceTimersByTimeAsync(8_100);
+			await expectation;
+			expect(client.getConnectionError()).toMatchObject({
+				code: "hub_connect_timeout",
+			});
+		} finally {
+			vi.useRealTimers();
+			client.close();
+		}
+	});
+
 	it("closes the socket when registration fails so reconnect re-registers", async () => {
 		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
 		servers.push(server);

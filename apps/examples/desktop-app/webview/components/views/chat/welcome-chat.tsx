@@ -142,6 +142,11 @@ export function WelcomeScreen({
 	const cloudModeActive =
 		active && cloudAgentsEnabled && executionTarget === "cloud";
 	const signedIn = Boolean(user);
+	const accountUserId = user?.id ?? null;
+	// Read by the poll interval without making the state updater impure or
+	// re-subscribing the effect on every status change.
+	const cloudSetupStatusRef = useRef(cloudSetup.status);
+	cloudSetupStatusRef.current = cloudSetup.status;
 
 	const checkCloudSetup = useCallback(async () => {
 		const requestId = ++cloudSetupRequestRef.current;
@@ -168,10 +173,12 @@ export function WelcomeScreen({
 		}
 	}, [listCloudRepositories]);
 
-	// Check GitHub connectivity whenever the cloud composer becomes relevant,
-	// and keep watching while onboarding is on screen: the connect flow
-	// finishes in the browser, so the panel must notice on its own.
+	// Check GitHub connectivity whenever the cloud composer becomes relevant
+	// or the signed-in account changes, and keep watching while onboarding is
+	// on screen: the connect flow finishes in the browser, so the panel must
+	// notice on its own.
 	useEffect(() => {
+		void accountUserId;
 		if (!cloudModeActive || !signedIn) return;
 		setCloudSetup((prev) =>
 			prev.status === "unknown" ? { ...prev, status: "checking" } : prev,
@@ -180,21 +187,16 @@ export function WelcomeScreen({
 		const handleFocus = () => void checkCloudSetup();
 		window.addEventListener("focus", handleFocus);
 		const interval = window.setInterval(() => {
-			setCloudSetup((prev) => {
-				if (
-					prev.status === "not_connected" ||
-					prev.status === "no_repositories"
-				) {
-					void checkCloudSetup();
-				}
-				return prev;
-			});
+			const status = cloudSetupStatusRef.current;
+			if (status === "not_connected" || status === "no_repositories") {
+				void checkCloudSetup();
+			}
 		}, CLOUD_SETUP_POLL_INTERVAL_MS);
 		return () => {
 			window.removeEventListener("focus", handleFocus);
 			window.clearInterval(interval);
 		};
-	}, [checkCloudSetup, cloudModeActive, signedIn]);
+	}, [accountUserId, checkCloudSetup, cloudModeActive, signedIn]);
 
 	useEffect(() => {
 		if (active && executionTarget === "local") void refreshWorkspaces();
