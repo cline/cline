@@ -1,5 +1,5 @@
 /**
- * Adapter from the new `AgentRuntimeEvent` union (13 variants, defined
+ * Adapter from the new `AgentRuntimeEvent` union (defined
  * in `@cline/shared/src/agent.ts`) to the legacy `AgentEvent` union
  * (9 top-level types, defined in
  * `@cline/shared/src/agents/types.ts`) consumed by today's
@@ -294,7 +294,12 @@ export class RuntimeEventAdapter {
 	}
 
 	private translateToolStarted(event: {
-		toolCall: { toolCallId: string; toolName: string; input: unknown };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			input: unknown;
+			execution?: "client" | "provider";
+		};
 	}): AgentEvent[] {
 		this.toolStartedAt.set(event.toolCall.toolCallId, Date.now());
 		return [
@@ -304,12 +309,17 @@ export class RuntimeEventAdapter {
 				toolName: event.toolCall.toolName,
 				toolCallId: event.toolCall.toolCallId,
 				input: event.toolCall.input,
+				execution: event.toolCall.execution,
 			},
 		];
 	}
 
 	private translateToolFinished(event: {
-		toolCall: { toolCallId: string; toolName: string };
+		toolCall: {
+			toolCallId: string;
+			toolName: string;
+			execution?: "client" | "provider";
+		};
 		message: AgentMessage;
 	}): AgentEvent[] {
 		const startedAt = this.toolStartedAt.get(event.toolCall.toolCallId);
@@ -328,6 +338,7 @@ export class RuntimeEventAdapter {
 				output,
 				error,
 				durationMs,
+				execution: event.toolCall.execution,
 			},
 		];
 	}
