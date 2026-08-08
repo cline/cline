@@ -1176,17 +1176,15 @@ describe("LocalRuntimeHost", () => {
 		// Seeded history is durable immediately: if the resident session is
 		// lost before the first completed turn (hub restart/crash), the
 		// missing-session recovery rebuilds from the persisted file instead of
-		// silently wiping the conversation. The seed travels inside session
-		// materialization so no crash window separates the session row from
-		// its messages content.
+		// silently wiping the conversation.
 		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
-			expect.objectContaining({
-				sessionId,
-				initialMessages,
-				systemPrompt: "You are a test agent",
-			}),
+			expect.objectContaining({ sessionId }),
 		);
-		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			initialMessages,
+			"You are a test agent",
+		);
 		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
 		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
 			initialMessages,

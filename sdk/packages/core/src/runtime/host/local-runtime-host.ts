@@ -870,13 +870,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// otherwise keeps the seed memory-only until the first completed turn,
 		// so losing the resident session before then (hub restart/crash) would
 		// rebuild it from an empty disk file and silently wipe the
-		// conversation. The seed travels inside session materialization
-		// (ensureSessionPersisted -> createRootSessionWithArtifacts), so there
-		// is no window in which the session row exists while its messages
-		// file is still empty. Brand-new empty sessions stay lazy.
+		// conversation. Brand-new empty sessions stay lazy.
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			try {
 				await this.ensureSessionPersisted(active);
+				await this.invoke<void>(
+					"persistSessionMessages",
+					sessionId,
+					initialMessages,
+					active.config.systemPrompt,
+				);
 			} catch (error) {
 				active.config.logger?.error?.(
 					"Failed to persist seeded session messages at start",
@@ -1949,13 +1952,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
 		if (session.artifacts) return;
 		const workspacePath = resolveWorkspacePath(session.config);
-		// Seed the messages artifact with the best-known transcript so it is
-		// written in the same step that materializes the session — a crash
-		// right after this call can never leave a discoverable session row
-		// with an empty messages file.
-		const seededMessages = session.persistedMessages?.length
-			? session.persistedMessages
-			: undefined;
 		session.artifacts = (await this.invoke("createRootSessionWithArtifacts", {
 			sessionId: session.sessionId,
 			source: session.source,
@@ -1972,12 +1968,6 @@ export class LocalRuntimeHost implements RuntimeHost {
 			prompt: session.pendingPrompt,
 			metadata: session.sessionMetadata,
 			startedAt: session.startedAt,
-			...(seededMessages
-				? {
-						initialMessages: seededMessages,
-						systemPrompt: session.config.systemPrompt,
-					}
-				: {}),
 		})) as RootSessionArtifacts;
 		if (session.compactionState) {
 			const result = await this.persistActiveSessionCompactionState(

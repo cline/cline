@@ -172,22 +172,10 @@ export class UnifiedSessionPersistenceService {
 			messagesPath,
 			updatedAt: nowIso(),
 		};
-		// Write the messages artifact before committing the session row so a
-		// crash between the two cannot leave a discoverable session whose
-		// seeded history is missing; a file without a row is simply unused.
-		this.manifestStore.initializeMessagesFile(
-			row,
-			messagesPath,
-			startedAt,
-			input.initialMessages?.length
-				? {
-						messages: input.initialMessages,
-						systemPrompt: input.systemPrompt,
-					}
-				: undefined,
-		);
-		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 		await this.adapter.upsertSession(row);
+
+		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
+		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 		return { manifestPath, messagesPath, compactionPath, manifest };
 	}
 
