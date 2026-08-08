@@ -1,3 +1,4 @@
+import { join } from "node:path";
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
@@ -7,12 +8,14 @@ import {
 } from "../../services/connectors/connector-supervisor";
 import { reconnectDaemonConnectors } from "../../services/connectors/daemon-connector-reconnect";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
+import { resolveClineDataDir } from "../discovery";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import { startHubLogRotation } from "./log-rotation";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -77,6 +80,7 @@ function parseArgs(argv: string[]): {
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
+	startHubLogRotation(join(resolveClineDataDir(), "logs", "hub-daemon.log"));
 
 	const endpoint = resolveHubEndpointOptions({
 		host: options.host,

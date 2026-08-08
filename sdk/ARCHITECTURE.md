@@ -109,7 +109,7 @@ Design rules:
 - `core` is the app-facing orchestration layer over `agents`.
 - hub-related modules live under `packages/core/src/hub/`, grouped by service:
   - `client/` contains host-facing hub clients and browser connection helpers
-  - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
+  - `daemon/` contains detached daemon startup, entrypoint, local runtime handler wiring, and size-based rotation of `hub-daemon.log`
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
