@@ -43,6 +43,7 @@ export function SearchCombobox({
 	const [open, setOpen] = useState(false);
 	const [search, setSearch] = useState("");
 	const containerRef = useRef<HTMLDivElement>(null);
+	const triggerRef = useRef<HTMLButtonElement>(null);
 
 	useEffect(() => {
 		if (!open) {
@@ -76,6 +77,11 @@ export function SearchCombobox({
 		setOpen(false);
 	};
 
+	const closeAndRestoreFocus = () => {
+		setOpen(false);
+		triggerRef.current?.focus();
+	};
+
 	return (
 		<div
 			className="cline-ui-search-combobox relative min-w-0"
@@ -87,13 +93,14 @@ export function SearchCombobox({
 				aria-haspopup="dialog"
 				aria-label={`${ariaLabel}: ${displayedValue}`}
 				className={[
-					"cline-ui-search-combobox__trigger inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-cline-ui-md border-0 bg-transparent px-2 py-1 font-cline-ui-medium text-cline-ui-foreground transition-[background-color] duration-150 ease-[ease] [&:hover:not(:disabled)]:bg-cline-ui-accent focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
+					"cline-ui-search-combobox__trigger inline-flex min-w-0 cursor-pointer items-center gap-1.5 rounded-cline-ui-md border-0 bg-transparent px-2 py-1 text-cline-ui-sm font-cline-ui-medium text-cline-ui-foreground ease-[ease] [&:hover:not(:disabled)]:bg-cline-ui-surface-hover focus-visible:outline-2 focus-visible:outline-cline-ui-ring focus-visible:outline-offset-0 disabled:cursor-not-allowed disabled:opacity-50 motion-reduce:transition-none",
 					className,
 				]
 					.filter(Boolean)
 					.join(" ")}
 				disabled={disabled}
 				onClick={() => setOpen((current) => !current)}
+				ref={triggerRef}
 				title={displayedValue}
 				type="button"
 			>
@@ -113,6 +120,13 @@ export function SearchCombobox({
 						align === "start" ? "left-0" : "right-0",
 						placement === "top" ? "bottom-full mb-2" : "top-full mt-2",
 					].join(" ")}
+					onKeyDown={(event) => {
+						if (event.key === "Escape") {
+							event.preventDefault();
+							event.stopPropagation();
+							closeAndRestoreFocus();
+						}
+					}}
 					role="dialog"
 				>
 					<div className="cline-ui-search-combobox__search-row border-cline-ui-border border-b p-2">
@@ -134,7 +148,7 @@ export function SearchCombobox({
 								aria-label={searchPlaceholder}
 								// biome-ignore lint/a11y/noAutofocus: opening the picker focuses search
 								autoFocus
-								className="cline-ui-search-combobox__search h-auto w-full rounded-cline-ui-md border-0 bg-transparent p-0 text-cline-ui-muted-foreground text-cline-ui-xs outline-0 placeholder:text-cline-ui-muted-foreground cline-ui-dark:bg-cline-ui-input/30 md:text-cline-ui-sm"
+								className="cline-ui-search-combobox__search h-auto w-full rounded-cline-ui-md border-0 bg-transparent p-0 text-cline-ui-sm text-cline-ui-muted-foreground outline-0 placeholder:text-cline-ui-muted-foreground cline-ui-dark:bg-cline-ui-input/30"
 								onChange={(event) => setSearch(event.target.value)}
 								placeholder={searchPlaceholder}
 								value={search}
@@ -143,25 +157,25 @@ export function SearchCombobox({
 					</div>
 					<div className="cline-ui-search-combobox__options flex max-h-56 flex-col gap-0.5 overflow-y-auto p-1.5">
 						{loading ? (
-							<div className="cline-ui-search-combobox__empty p-2 text-cline-ui-muted-foreground text-cline-ui-xs">
+							<div className="cline-ui-search-combobox__empty p-2 text-cline-ui-sm text-cline-ui-muted-foreground">
 								{loadingText}
 							</div>
 						) : filtered.length === 0 ? (
-							<div className="cline-ui-search-combobox__empty p-2 text-cline-ui-muted-foreground text-cline-ui-xs">
+							<div className="cline-ui-search-combobox__empty p-2 text-cline-ui-sm text-cline-ui-muted-foreground">
 								{emptyText}
 							</div>
 						) : (
 							filtered.map((option) => (
 								<button
 									aria-pressed={option.value === value}
-									className="cline-ui-search-combobox__option flex w-full cursor-pointer items-center justify-between gap-2 rounded-cline-ui-md border-0 bg-transparent px-2 py-1.5 text-left text-cline-ui-foreground transition-[background-color] duration-150 ease-[ease] [&:hover:not([aria-pressed=true])]:bg-[color-mix(in_srgb,var(--accent)_50%,transparent)] aria-pressed:bg-cline-ui-accent focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-cline-ui-ring motion-reduce:transition-none"
+									className="cline-ui-search-combobox__option flex w-full cursor-pointer items-center justify-between gap-2 rounded-cline-ui-md border-0 bg-transparent px-2 py-1.5 text-left text-cline-ui-foreground transition-[background-color] duration-150 ease-[ease] [&:hover:not([aria-pressed=true])]:bg-cline-ui-surface-hover aria-pressed:bg-cline-ui-accent focus-visible:-outline-offset-2 focus-visible:outline-2 focus-visible:outline-cline-ui-ring motion-reduce:transition-none"
 									disabled={disabled}
 									key={option.value}
 									onClick={() => handleSelect(option)}
 									type="button"
 								>
 									{option.icon}
-									<span className="cline-ui-search-combobox__option-copy flex min-w-0 flex-1 flex-col text-cline-ui-xs">
+									<span className="cline-ui-search-combobox__option-copy flex min-w-0 flex-1 flex-col text-cline-ui-sm">
 										<span className="truncate">{option.label}</span>
 										{option.description ? (
 											<small className="truncate text-[0.625rem] text-cline-ui-muted-foreground">
