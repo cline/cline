@@ -1839,6 +1839,138 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("edits the right retained payload when queued prompts share the same label", async () => {
+		let resolveFirstSend:
+			| ((value: Record<string, unknown>) => void)
+			| undefined;
+		const firstSendReply = new Promise<Record<string, unknown>>((resolve) => {
+			resolveFirstSend = resolve;
+		});
+		const directSendRequests: Array<Record<string, unknown>> = [];
+		// Server-side queue state: two queued prompts with identical text.
+		let serverQueue: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| {
+								action?: string;
+								delivery?: string;
+								prompt?: string;
+								promptId?: string;
+								config?: { sessionId?: string };
+						  }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "pending_prompts") {
+						return { ok: true, promptsInQueue: serverQueue };
+					}
+					if (request?.action === "update_pending_prompt") {
+						serverQueue = serverQueue.map((item) =>
+							item.id === request.promptId
+								? { ...item, prompt: request.prompt }
+								: item,
+						);
+						return { ok: true, promptsInQueue: serverQueue };
+					}
+					if (request?.action === "send") {
+						if (request.delivery === "queue") {
+							serverQueue = [
+								...serverQueue,
+								{
+									id: `queued-${serverQueue.length + 1}`,
+									prompt: "Dup prompt",
+									steer: false,
+									attachmentCount: 1,
+								},
+							];
+							return { ok: true, queued: true, promptsInQueue: serverQueue };
+						}
+						directSendRequests.push(request as Record<string, unknown>);
+						if (directSendRequests.length === 1) {
+							return await firstSendReply;
+						}
+						return {
+							ok: true,
+							result: { text: "All done.", finishReason: "completed" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		// While turn A runs, two same-text prompts with different files queue up.
+		const firstFile = makeTextFile("FIRST", "first.txt");
+		const secondFile = makeTextFile("SECOND", "second.txt");
+		await act(async () => {
+			const turnA = current.sendPrompt("First prompt");
+			await new Promise((resolve) => setTimeout(resolve, 0));
+			await current.sendPrompt("Dup prompt", [firstFile]);
+			await current.sendPrompt("Dup prompt", [secondFile]);
+			resolveFirstSend?.({
+				ok: true,
+				result: { text: "First done.", finishReason: "completed" },
+			});
+			await turnA;
+		});
+
+		// The user edits the SECOND duplicate; the first must keep its payload.
+		await act(async () => {
+			await current.updatePromptInQueue("queued-2", "Edited second prompt");
+		});
+
+		// The first queued prompt starts (text unchanged) and fails.
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-1",
+					prompt: "Dup prompt",
+					attachmentCount: 1,
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error", text: "Rate limited." }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+
+		await act(async () => {
+			await current.retryFailedTurn();
+		});
+
+		// The retry belongs to the FIRST duplicate: original text, first file.
+		expect(directSendRequests).toHaveLength(2);
+		const retryRequest = directSendRequests[1] as {
+			prompt?: string;
+			attachments?: { userFiles?: Array<{ name?: string; content?: string }> };
+		};
+		expect(retryRequest.prompt).toBe("Dup prompt");
+		expect(retryRequest.attachments?.userFiles).toEqual([
+			{ name: "first.txt", content: "FIRST" },
+		]);
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {

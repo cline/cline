@@ -2366,15 +2366,53 @@ export function useChatSession() {
 		[postSession],
 	);
 
+	// Locate the retained retry payload belonging to one queue entry. Queue
+	// entries are identified by server prompt id, while retained payloads only
+	// carry text — so when several queued prompts share the same text, the
+	// entry's position among its same-text duplicates picks the matching
+	// payload (both the queue and the retained list drain FIFO). Queue entries
+	// carry either the raw prompt (server snapshots) or the display label
+	// (optimistic entries), so match against both.
+	const findRetainedPayloadForQueueEntry = useCallback(
+		(promptId: string): SentTurnPayload | undefined => {
+			const queue = promptsInQueueRef.current;
+			const target = queue.find((item) => item.id === promptId);
+			if (!target) {
+				return undefined;
+			}
+			let duplicateRank = 0;
+			for (const item of queue) {
+				if (item.id === promptId) {
+					break;
+				}
+				if (item.prompt === target.prompt) {
+					duplicateRank += 1;
+				}
+			}
+			let matchesSeen = 0;
+			for (const entry of pendingQueuedTurnPayloadsRef.current) {
+				if (entry.label === target.prompt || entry.prompt === target.prompt) {
+					if (matchesSeen === duplicateRank) {
+						return entry;
+					}
+					matchesSeen += 1;
+				}
+			}
+			return undefined;
+		},
+		[],
+	);
+
 	const updatePromptInQueue = useCallback(
 		async (promptId: string, prompt: string) => {
 			const activeSessionId = activeSessionIdRef.current;
 			if (!activeSessionId || !promptId.trim()) {
 				return;
 			}
-			const previousEntry = promptsInQueueRef.current.find(
-				(item) => item.id === promptId,
-			);
+			// Resolve the retained payload before the queue changes; re-locate it
+			// by identity afterwards in case a queued start consumed entries in
+			// the meantime.
+			const retainedEntry = findRetainedPayloadForQueueEntry(promptId);
 			const payload = await postSession({
 				action: "update_pending_prompt",
 				sessionId: activeSessionId,
@@ -2386,32 +2424,26 @@ export function useChatSession() {
 			);
 			// Re-key the submission's retained payload to the edited text so the
 			// eventual queued start still pairs with it and a failed-turn retry
-			// keeps the original attachments. Queue entries carry either the raw
-			// prompt (server snapshots) or the display label (optimistic
-			// entries), so match against both.
-			const previousPrompt = previousEntry?.prompt;
-			if (typeof previousPrompt === "string") {
-				const retainedIndex = pendingQueuedTurnPayloadsRef.current.findIndex(
-					(entry) =>
-						entry.label === previousPrompt || entry.prompt === previousPrompt,
-				);
-				const retained = pendingQueuedTurnPayloadsRef.current[retainedIndex];
-				if (retained) {
+			// keeps the original attachments.
+			if (retainedEntry) {
+				const retainedIndex =
+					pendingQueuedTurnPayloadsRef.current.indexOf(retainedEntry);
+				if (retainedIndex >= 0) {
 					const nextPrompt = prompt.trim();
 					const next = [...pendingQueuedTurnPayloadsRef.current];
 					next[retainedIndex] = {
 						label: buildUserPromptDisplayLabel(
 							nextPrompt,
-							retained.attachedFiles,
+							retainedEntry.attachedFiles,
 						),
 						prompt: nextPrompt,
-						attachedFiles: retained.attachedFiles,
+						attachedFiles: retainedEntry.attachedFiles,
 					};
 					pendingQueuedTurnPayloadsRef.current = next;
 				}
 			}
 		},
-		[postSession],
+		[postSession, findRetainedPayloadForQueueEntry],
 	);
 
 	const removePromptInQueue = useCallback(
@@ -2420,6 +2452,9 @@ export function useChatSession() {
 			if (!activeSessionId || !promptId.trim()) {
 				return undefined;
 			}
+			// Resolve the retained payload before the queue changes so the right
+			// entry is dropped even when several queued prompts share a label.
+			const retainedEntry = findRetainedPayloadForQueueEntry(promptId);
 			const payload = await postSession({
 				action: "remove_pending_prompt",
 				sessionId: activeSessionId,
@@ -2428,27 +2463,17 @@ export function useChatSession() {
 			setPromptsInQueue(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
-			// Drop the removed submission's retained payload (oldest match first,
-			// mirroring queue order) so it can never be paired with a later turn
-			// that reuses the same label. The removed entry carries either the
-			// raw prompt or the display label, so match against both.
-			const removedPromptLabel = payload.prompt?.prompt;
-			if (typeof removedPromptLabel === "string") {
-				const staleIndex = pendingQueuedTurnPayloadsRef.current.findIndex(
-					(entry) =>
-						entry.label === removedPromptLabel ||
-						entry.prompt === removedPromptLabel,
-				);
-				if (staleIndex >= 0) {
-					pendingQueuedTurnPayloadsRef.current = [
-						...pendingQueuedTurnPayloadsRef.current.slice(0, staleIndex),
-						...pendingQueuedTurnPayloadsRef.current.slice(staleIndex + 1),
-					];
-				}
+			// Drop the removed submission's retained payload so it can never be
+			// paired with a later turn that reuses the same label.
+			if (retainedEntry) {
+				pendingQueuedTurnPayloadsRef.current =
+					pendingQueuedTurnPayloadsRef.current.filter(
+						(entry) => entry !== retainedEntry,
+					);
 			}
 			return payload.prompt;
 		},
-		[postSession],
+		[postSession, findRetainedPayloadForQueueEntry],
 	);
 
 	const summary = useMemo(
