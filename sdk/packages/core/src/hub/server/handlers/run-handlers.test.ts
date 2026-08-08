@@ -14,6 +14,7 @@ function createContext(
 		pendingApprovals: new Map(),
 		pendingCapabilityRequests: new Map(),
 		suppressNextTerminalEventBySession: new Map(),
+		activeRpcTurnCountBySession: new Map(),
 		sessionHost: {
 			startSession: vi.fn(),
 			runTurn: vi.fn(),
@@ -159,6 +160,57 @@ describe("run handlers", () => {
 
 		resolveRun?.(undefined);
 		await expect(promise).resolves.toMatchObject({ ok: true });
+	});
+
+	it("tracks the in-flight RPC turn for the projector while runTurn is pending", async () => {
+		let resolveRun: ((result: undefined) => void) | undefined;
+		const ctx = createContext({
+			runTurn: vi.fn(
+				() =>
+					new Promise<undefined>((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+
+		const promise = handleSessionInput(ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: "req-track",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", prompt: "go" },
+		});
+		await Promise.resolve();
+
+		expect(ctx.activeRpcTurnCountBySession.get("session-1")).toBe(1);
+
+		resolveRun?.(undefined);
+		await expect(promise).resolves.toMatchObject({ ok: true });
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+	});
+
+	it("clears the in-flight RPC turn when runTurn rejects", async () => {
+		const ctx = createContext({
+			runTurn: vi.fn().mockRejectedValue(new Error("boom")),
+		});
+
+		await expect(
+			handleSessionInput(ctx, {
+				version: "v1",
+				command: "run.start",
+				requestId: "req-track-reject",
+				sessionId: "session-1",
+				payload: { sessionId: "session-1", prompt: "go" },
+			}),
+		).rejects.toThrow("boom");
+
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+		expect(ctx.events).toContainEqual(
+			expect.objectContaining({
+				event: "run.failed",
+				payload: expect.objectContaining({ error: "boom" }),
+			}),
+		);
 	});
 
 	it("treats abort as applied when the runtime abort hook rejects", async () => {
