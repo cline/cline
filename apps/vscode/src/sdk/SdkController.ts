@@ -12,6 +12,7 @@ import {
 	ensureChatWorkspace,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
+	readSessionCheckpointHistory,
 	resolveDefaultMcpSettingsPath,
 	type SessionHistoryRecord,
 	setTelemetryOptOutGlobally,
@@ -1619,6 +1620,66 @@ export class Controller {
 			sessionId: restored.sessionId,
 		}
 		await this.postStateToWebview()
+	}
+
+	/**
+	 * "View Changes" on the completion row: opens a multi-file diff of
+	 * everything that changed between the latest checkpoint — snapshotted when
+	 * the user's last message started this run — and the current working tree.
+	 */
+	async viewLatestCheckpointChanges(): Promise<void> {
+		const activeSession = this.sessions.getActiveSession()
+		const sessionId = activeSession?.sessionId ?? this.task?.taskId
+		if (!sessionId) {
+			throw new Error("No active task to show changes for")
+		}
+		// After a window reload the latest task is shown from history without a
+		// live session, so fall back to a temporary host for the comparison.
+		let tempHost: VscodeSessionHost | undefined
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		try {
+			if (!sessionHost.compareCheckpoint) {
+				throw new Error("This session host does not support checkpoint comparison")
+			}
+
+			const sessionRecord = await sessionHost.get(sessionId)
+			const latestCheckpoint = readSessionCheckpointHistory(sessionRecord).reduce(
+				(latest, entry) => (!latest || entry.runCount > latest.runCount ? entry : latest),
+				undefined as ReturnType<typeof readSessionCheckpointHistory>[number] | undefined,
+			)
+			if (!latestCheckpoint) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No checkpoint was taken for this task. Checkpoints require the workspace to be a git repository.",
+				})
+				return
+			}
+
+			const cwd = sessionRecord?.cwd?.trim() || sessionRecord?.workspaceRoot?.trim() || (await this.getWorkspaceRoot())
+			const { diffs } = await sessionHost.compareCheckpoint({
+				sessionId,
+				checkpointRunCount: latestCheckpoint.runCount,
+				cwd,
+			})
+			if (diffs.length === 0) {
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: "No file changes found since your last message.",
+				})
+				return
+			}
+
+			await HostProvider.diff.openMultiFileDiff({
+				title: "Changes since your last message",
+				diffs: diffs.map((diff) => ({
+					filePath: diff.filePath,
+					leftContent: diff.leftContent,
+					rightContent: diff.rightContent,
+				})),
+			})
+		} finally {
+			await tempHost?.dispose("viewLatestCheckpointChanges")
+		}
 	}
 
 	/**
