@@ -1,3 +1,4 @@
+import { resolveAgentTeamsEnabled } from "@cline/core";
 import type { InteractiveTurnResult } from "../../tui/types";
 import type { ChatCommandHost } from "../../utils/chat-commands";
 import {
@@ -57,7 +58,10 @@ export async function runInteractiveChatCommand(input: {
 				turnResult: commandTurnResult(TEAM_COMMAND_USAGE),
 			};
 		}
-		if (!input.config.enableAgentTeams) {
+		// Teams are opt-in: /team enables them for this session when the
+		// user has not already opted in (enabledTools global setting). Only
+		// restart when the running session does not have teams yet.
+		if (!resolveAgentTeamsEnabled(input.config)) {
 			await enableTeamsForPrompt(input.config);
 			await input.sessionRuntime.restartEmpty();
 		}

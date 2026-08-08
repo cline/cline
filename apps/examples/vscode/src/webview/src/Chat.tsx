@@ -701,7 +701,7 @@ export default function Chat() {
 	const [mode, setMode] = useState<"act" | "plan">("act");
 	const [thinking, setThinking] = useState(false);
 	const [enableTools, setEnableTools] = useState(true);
-	const [enableSpawn, setEnableSpawn] = useState(true);
+	const [enableSpawn, setEnableSpawn] = useState(false);
 	const [enableTeams, setEnableTeams] = useState(false);
 	const [autoApproveTools, setAutoApproveTools] = useState(true);
 	const [modelSelectorOpen, setModelSelectorOpen] = useState(false);

@@ -47,6 +47,10 @@ import {
 	resolveDisabledToolNames,
 	resolveEnabledToolNames,
 } from "../../services/global-settings";
+import {
+	resolveAgentTeamsEnabled,
+	resolveSpawnAgentEnabled,
+} from "../../services/session-capabilities";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { createLocalTeamStore } from "../../services/storage/team-store";
 import type { CoreAgentMode, CoreSessionConfig } from "../../types/config";
@@ -309,9 +313,7 @@ function isRuntimeLifecycleShutdownReason(reason: string | undefined): boolean {
 	}
 }
 
-function normalizeConfig(
-	config: CoreSessionConfig,
-): Required<
+function normalizeConfig(config: CoreSessionConfig): Required<
 	Pick<
 		CoreSessionConfig,
 		| "mode"
@@ -324,17 +326,24 @@ function normalizeConfig(
 		| "missionLogIntervalMs"
 		| "sessionId"
 	>
-> {
+> & {
+	/**
+	 * Configured `.cline/agents` subagent tools follow the host allowance
+	 * only: authoring an agent config is itself an explicit opt-in, so the
+	 * spawn_agent enabledTools opt-in does not gate them.
+	 */
+	enableConfiguredAgents: boolean;
+} {
 	const preset = ToolPresets[resolveToolPresetName({ mode: config.mode })];
 	return {
 		sessionId: config.sessionId || "",
 		mode:
 			config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act",
 		enableTools: config.enableTools !== false,
-		enableSpawnAgent:
+		enableSpawnAgent: resolveSpawnAgentEnabled(config),
+		enableAgentTeams: resolveAgentTeamsEnabled(config),
+		enableConfiguredAgents:
 			config.enableSpawnAgent ?? preset.enableSpawnAgent ?? true,
-		enableAgentTeams:
-			config.enableAgentTeams ?? preset.enableAgentTeams ?? true,
 		disableMcpSettingsTools: config.disableMcpSettingsTools === true,
 		yolo: config.yolo === true,
 		missionLogIntervalSteps:
@@ -414,7 +423,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
-		const configuredAgents = normalized.enableSpawnAgent
+		const configuredAgents = normalized.enableConfiguredAgents
 			? loadConfiguredAgentConfigs({
 					workspaceRoot: workspaceConfigRoot,
 				})
@@ -576,7 +585,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
-		if (normalized.enableSpawnAgent) {
+		if (normalized.enableConfiguredAgents) {
 			if (configuredAgents.configs.length > 0) {
 				tools.push(
 					...filterAvailableTools(

@@ -53,8 +53,23 @@ export interface CoreModelConfig {
 
 export interface CoreRuntimeFeatures {
 	enableTools: boolean;
-	enableSpawnAgent: boolean;
-	enableAgentTeams: boolean;
+	/**
+	 * Whether the generic spawn_agent tool is available. Omitted means
+	 * opt-in: the tool stays off unless the user enabled the `spawn_agent`
+	 * tool via the `enabledTools` global setting (and the mode preset allows
+	 * it). An explicit value always wins, for hosts with their own
+	 * session-level toggle. Configured `.cline/agents` subagent tools are
+	 * not gated by the opt-in; an explicit `false` disables those too.
+	 */
+	enableSpawnAgent?: boolean;
+	/**
+	 * Whether the agent teams runtime and team_* tools are available.
+	 * Omitted means opt-in: teams stay off unless the user enabled the
+	 * `teams` tool via the `enabledTools` global setting (and the mode
+	 * preset allows it). An explicit value always wins, e.g. the CLI /team
+	 * command enables teams for its session.
+	 */
+	enableAgentTeams?: boolean;
 	disableMcpSettingsTools?: boolean;
 	yolo?: boolean;
 	/**

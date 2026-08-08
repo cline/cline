@@ -91,6 +91,10 @@ import type { SessionRecord } from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
+import {
+	resolveAgentTeamsEnabled,
+	resolveSpawnAgentEnabled,
+} from "../../services/session-capabilities";
 import { DefaultRuntimeBuilder } from "../orchestration/runtime-builder";
 import {
 	OAuthReauthRequiredError,
@@ -433,8 +437,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			workspace_root: workspacePath,
 			team_name: startInput.config.teamName,
 			enable_tools: startInput.config.enableTools,
-			enable_spawn: startInput.config.enableSpawnAgent,
-			enable_teams: startInput.config.enableAgentTeams,
+			enable_spawn: resolveSpawnAgentEnabled(startInput.config),
+			enable_teams: resolveAgentTeamsEnabled(startInput.config),
 			prompt: startInput.prompt?.trim() || undefined,
 			messages_path: messagesPath,
 		});
@@ -1895,8 +1899,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			workspaceRoot: workspacePath,
 			teamName: session.config.teamName,
 			enableTools: session.config.enableTools,
-			enableSpawn: session.config.enableSpawnAgent,
-			enableTeams: session.config.enableAgentTeams,
+			enableSpawn: resolveSpawnAgentEnabled(session.config),
+			enableTeams: resolveAgentTeamsEnabled(session.config),
 			prompt: session.pendingPrompt,
 			metadata: session.sessionMetadata,
 			startedAt: session.startedAt,

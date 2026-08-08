@@ -177,6 +177,8 @@ describe("global-settings", () => {
 
 			expect(OPT_IN_TOOL_NAMES.has("web_search")).toBe(true);
 			expect(isToolEnabledGlobally("web_search")).toBe(false);
+			expect(OPT_IN_TOOL_NAMES.has("spawn_agent")).toBe(true);
+			expect(OPT_IN_TOOL_NAMES.has("teams")).toBe(true);
 
 			// "Enabling" an opt-in tool records the explicit opt-in and clears
 			// any explicit opt-out.
@@ -202,6 +204,32 @@ describe("global-settings", () => {
 				"web_search",
 			]);
 			expect(readGlobalSettings().enabledTools).toBeUndefined();
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
+	});
+
+	it("routes the teams toggle batch with its headless tool names", async () => {
+		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
+		try {
+			const settingsPath = join(root, "global-settings.json");
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+			// Hosts toggle the catalog id together with its headless names
+			// (e.g. ["teams", "team_status", ...]). Only the opt-in id lands
+			// in enabledTools; headless names ride the plain denylist.
+			setDisabledTools(["teams", "team_status", "team_run_task"], true);
+			expect(readGlobalSettings().enabledTools).toBeUndefined();
+			expect(readGlobalSettings().disabledTools).toEqual([
+				"team_run_task",
+				"team_status",
+				"teams",
+			]);
+
+			setDisabledTools(["teams", "team_status", "team_run_task"], false);
+			expect(readGlobalSettings().enabledTools).toEqual(["teams"]);
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
+			expect(isToolEnabledGlobally("teams")).toBe(true);
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

@@ -770,7 +770,9 @@ export class AcpAgent implements Agent {
 			mode: session.currentMode,
 			defaultToolAutoApprove: false,
 			toolPolicies: { "*": { autoApprove: false } },
-			enableSpawnAgent: true,
+			// spawn_agent is opt-in: leave it unset so the runtime resolves it
+			// from the enabledTools global setting.
+			enableSpawnAgent: undefined,
 			enableAgentTeams: false,
 			enableTools: true,
 			cwd,

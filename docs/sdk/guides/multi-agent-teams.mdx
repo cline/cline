@@ -8,7 +8,7 @@ Multi-agent teams let you break complex work across multiple agents that coordin
 
 ## Enabling Teams
 
-Teams are a ClineCore feature. Enable them in the session config:
+Teams are a ClineCore feature and are **off by default**. Enable them explicitly in the session config, as below. When the flags are omitted, teams and the generic `spawn_agent` tool stay disabled unless the user opted in through the `enabledTools` global setting (the Tools toggles in the CLI `/settings`, `cline config tools`, or the desktop app), or the CLI `/team` command enables teams for that session.
 
 ```typescript
 import { ClineCore } from "@cline/sdk"

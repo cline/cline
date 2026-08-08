@@ -50,7 +50,11 @@ import {
 	resolveStartupMode,
 	resolveStartupToolAutoApprove,
 } from "./utils/startup-settings";
-import { rewriteTeamPrompt, TEAM_COMMAND_USAGE } from "./utils/team-command";
+import {
+	enableTeamsForPrompt,
+	rewriteTeamPrompt,
+	TEAM_COMMAND_USAGE,
+} from "./utils/team-command";
 import {
 	captureCliExtensionActivated,
 	getCliTelemetryService,
@@ -1081,8 +1085,16 @@ export async function runCli(): Promise<void> {
 			telemetry: getCliTelemetryService(loggerAdapter.core),
 			defaultToolAutoApprove,
 			toolPolicies,
-			enableSpawnAgent: !isYoloMode,
-			enableAgentTeams: !isYoloMode,
+			// spawn_agent and teams are opt-in: leave them unset outside yolo
+			// so the runtime resolves them from the enabledTools global
+			// setting. An explicit --team-name (like the /team command) is a
+			// direct request for teams, so it enables them for this session.
+			enableSpawnAgent: isYoloMode ? false : undefined,
+			enableAgentTeams: isYoloMode
+				? false
+				: args.teamName?.trim()
+					? true
+					: undefined,
 			enableTools: true,
 			cwd,
 			workspaceRoot,
@@ -1147,6 +1159,9 @@ export async function runCli(): Promise<void> {
 				if (rewrittenTeamPrompt.kind === "usage") {
 					writeln(TEAM_COMMAND_USAGE);
 					return;
+				}
+				if (rewrittenTeamPrompt.kind === "rewritten") {
+					await enableTeamsForPrompt(config);
 				}
 				const pipedEffectivePrompt =
 					rewrittenTeamPrompt.kind === "rewritten"
@@ -1216,6 +1231,9 @@ export async function runCli(): Promise<void> {
 		if (rewrittenTeamPrompt.kind === "usage") {
 			writeln(TEAM_COMMAND_USAGE);
 			return;
+		}
+		if (rewrittenTeamPrompt.kind === "rewritten") {
+			await enableTeamsForPrompt(config);
 		}
 		const effectivePrompt =
 			rewrittenTeamPrompt.kind === "rewritten"

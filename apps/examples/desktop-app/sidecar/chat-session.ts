@@ -139,6 +139,7 @@ type TeamPromptAvailability = {
 	/** Session mode as stored in config; anything but plan/yolo counts as act. */
 	mode?: unknown;
 	disabledTools?: ReadonlySet<string>;
+	enabledTools?: ReadonlySet<string>;
 };
 
 export function rewriteDesktopTeamPrompt(
@@ -153,10 +154,15 @@ export function rewriteDesktopTeamPrompt(
 			"Usage: /team <task description>. Starts a team of agents for the given task.",
 		);
 	}
+	const settings = readGlobalSettings();
 	const disabledTools =
-		availability.disabledTools ??
-		new Set(readGlobalSettings().disabledTools ?? []);
-	if (disabledTools.has("teams")) {
+		availability.disabledTools ?? new Set(settings.disabledTools ?? []);
+	// Teams are opt-in: the runtime only enables them when the user turned
+	// the Teams tool on (enabledTools global setting), so /team must reject
+	// with guidance until then.
+	const enabledTools =
+		availability.enabledTools ?? new Set(settings.enabledTools ?? []);
+	if (disabledTools.has("teams") || !enabledTools.has("teams")) {
 		throw new Error(
 			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
 		);
@@ -168,9 +174,10 @@ export function rewriteDesktopTeamPrompt(
 		availability.mode === "plan" || availability.mode === "yolo"
 			? availability.mode
 			: "act";
-	const teamsAvailable = getCoreBuiltinToolCatalog({ mode }).some(
-		(entry) => entry.id === "teams" && entry.defaultEnabled,
-	);
+	const teamsAvailable = getCoreBuiltinToolCatalog({
+		mode,
+		enabledToolIds: enabledTools,
+	}).some((entry) => entry.id === "teams" && entry.defaultEnabled);
 	if (!teamsAvailable) {
 		throw new Error(`Agent teams are not available in ${mode} mode.`);
 	}

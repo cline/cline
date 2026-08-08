@@ -24,8 +24,8 @@ export interface BuiltinToolAvailabilityContext {
 	disabledToolIds?: ReadonlySet<string>;
 	/**
 	 * Opt-in tool ids the user explicitly enabled (e.g. from the
-	 * `enabledTools` global setting). Opt-in entries such as `web_search`
-	 * stay disabled unless listed here.
+	 * `enabledTools` global setting). Opt-in entries such as `web_search`,
+	 * `spawn_agent`, and `teams` stay disabled unless listed here.
 	 */
 	enabledToolIds?: ReadonlySet<string>;
 }
@@ -199,6 +199,16 @@ function isEntryEnabledByDefault(
 	// setting was visible regardless of the active provider.
 	if (entryId === "web_search") {
 		return context.enabledToolIds?.has(entryId) === true;
+	}
+
+	// spawn_agent and teams are opt-in too: they stay off unless the user
+	// explicitly enabled them (enabledTools global setting). Preset/mode
+	// gates (e.g. yolo disables both) still apply on top of the opt-in.
+	if (
+		(entryId === "spawn_agent" || entryId === "teams") &&
+		context.enabledToolIds?.has(entryId) !== true
+	) {
+		return false;
 	}
 
 	const { flags } = resolvePresetFlags(context);

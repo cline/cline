@@ -1,4 +1,8 @@
 import { resolveWorkspacePath } from "../../../services/config";
+import {
+	resolveAgentTeamsEnabled,
+	resolveSpawnAgentEnabled,
+} from "../../../services/session-capabilities";
 import type { FileSessionService } from "../../../session/services/file-session-service";
 import type { CoreSessionService } from "../../../session/services/session-service";
 import type { ActiveSession } from "../../../types/session";
@@ -22,8 +26,8 @@ export function toActiveSessionRecord(session: ActiveSession): SessionRecord {
 		workspaceRoot: resolveWorkspacePath(session.config),
 		teamName: session.config.teamName?.trim() || undefined,
 		enableTools: session.config.enableTools,
-		enableSpawn: session.config.enableSpawnAgent,
-		enableTeams: session.config.enableAgentTeams,
+		enableSpawn: resolveSpawnAgentEnabled(session.config),
+		enableTeams: resolveAgentTeamsEnabled(session.config),
 		parentSessionId:
 			typeof session.sessionMetadata?.parentSessionId === "string"
 				? session.sessionMetadata.parentSessionId

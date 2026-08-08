@@ -110,8 +110,10 @@ export function createLocalHubScheduleRuntimeHandlers(
 					mode: resolveMode(request),
 					maxIterations: request.maxIterations,
 					enableTools: request.enableTools !== false,
-					enableSpawnAgent: request.enableSpawn !== false,
-					enableAgentTeams: request.enableTeams !== false,
+					// Pass explicit values through and leave the rest to the
+					// runtime's opt-in defaults (enabledTools global setting).
+					enableSpawnAgent: request.enableSpawn,
+					enableAgentTeams: request.enableTeams,
 					disableMcpSettingsTools: request.disableMcpSettingsTools,
 					missionLogIntervalSteps: request.missionStepInterval,
 					missionLogIntervalMs: request.missionTimeIntervalMs,

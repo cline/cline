@@ -12,6 +12,7 @@ import type {
 import { createSpawnAgentTool } from "../../../extensions/tools/team";
 import { buildTelemetryAgentIdentity } from "../../../services/agent-events";
 import { filterDisabledTools } from "../../../services/global-settings";
+import { resolveSpawnAgentEnabled } from "../../../services/session-capabilities";
 import {
 	captureAgentCreated,
 	captureSubagentExecution,
@@ -138,7 +139,7 @@ export function createSessionSpawnTool(
 					executors: toolExecutors,
 				})
 			: [];
-		if (config.enableSpawnAgent) {
+		if (resolveSpawnAgentEnabled(config)) {
 			tools.push(
 				createSessionSpawnTool(deps, config, rootSessionId, toolExecutors),
 			);

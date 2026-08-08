@@ -8,6 +8,7 @@ import {
 	buildTeamProgressSummary,
 	toTeamProgressLifecycleEvent,
 } from "../../extensions/tools/team";
+import { resolveAgentTeamsEnabled } from "../../services/session-capabilities";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, TeamRunUpdate } from "../../types/session";
 
@@ -180,7 +181,7 @@ export function shouldAutoContinueTeamRuns(
 		return false;
 	}
 	return (
-		session.config.enableAgentTeams === true && hasPendingTeamRunWork(session)
+		resolveAgentTeamsEnabled(session.config) && hasPendingTeamRunWork(session)
 	);
 }
 

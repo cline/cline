@@ -13,14 +13,54 @@ describe("builtin tool catalog", () => {
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
 	});
 
-	it("marks teams enabled by default in act mode", () => {
+	it("keeps teams and spawn disabled by default in act mode", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
+		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
+			false,
+		);
+		expect(
+			catalog.find((entry) => entry.id === "spawn_agent")?.defaultEnabled,
+		).toBe(false);
+	});
+
+	it("enables teams and spawn via the enabledToolIds opt-in", () => {
+		const catalog = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledToolIds: new Set(["teams", "spawn_agent"]),
+		});
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
 			true,
 		);
 		expect(
 			catalog.find((entry) => entry.id === "spawn_agent")?.defaultEnabled,
 		).toBe(true);
+	});
+
+	it("keeps opted-in teams and spawn disabled in yolo mode", () => {
+		const catalog = getCoreBuiltinToolCatalog({
+			mode: "yolo",
+			enabledToolIds: new Set(["teams", "spawn_agent"]),
+		});
+		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
+			false,
+		);
+		expect(
+			catalog.find((entry) => entry.id === "spawn_agent")?.defaultEnabled,
+		).toBe(false);
+	});
+
+	it("keeps opted-in teams and spawn disabled when explicitly disabled", () => {
+		const catalog = getCoreBuiltinToolCatalog({
+			mode: "act",
+			enabledToolIds: new Set(["teams", "spawn_agent"]),
+			disabledToolIds: new Set(["teams", "spawn_agent"]),
+		});
+		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(
+			false,
+		);
+		expect(
+			catalog.find((entry) => entry.id === "spawn_agent")?.defaultEnabled,
+		).toBe(false);
 	});
 
 	it("marks teams and spawn disabled by default in yolo mode", () => {
@@ -110,8 +150,21 @@ describe("builtin tool catalog", () => {
 			enabled: true,
 			availabilityContext: { mode: "act" },
 		});
-		expect(selected.has("teams")).toBe(true);
-		expect(selected.has("spawn_agent")).toBe(true);
-		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).toContain("teams");
+		expect(selected.has("teams")).toBe(false);
+		expect(selected.has("spawn_agent")).toBe(false);
+		expect(selected.has("read_files")).toBe(true);
+		expect(getCoreDefaultEnabledToolIds({ mode: "act" })).not.toContain(
+			"teams",
+		);
+
+		const optedIn = resolveCoreSelectedToolIds({
+			enabled: true,
+			availabilityContext: {
+				mode: "act",
+				enabledToolIds: new Set(["teams", "spawn_agent"]),
+			},
+		});
+		expect(optedIn.has("teams")).toBe(true);
+		expect(optedIn.has("spawn_agent")).toBe(true);
 	});
 });

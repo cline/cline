@@ -1466,8 +1466,56 @@ describe("runCli lightweight command dispatch", () => {
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
 			'<user_command slash="team">spawn a team of agents for the following task: find the bug</user_command>',
 			expect.objectContaining({
+				// /team opts the session into teams explicitly and assigns a
+				// persistent team name for restore.
 				enableAgentTeams: true,
-				teamName: undefined,
+				teamName: expect.stringMatching(/^team-/),
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("leaves teams and spawn unset for plain prompts so the opt-in default applies", async () => {
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "find the bug"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"find the bug",
+			expect.objectContaining({
+				enableAgentTeams: undefined,
+				enableSpawnAgent: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("enables teams when an explicit --team-name is provided", async () => {
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--team-name",
+			"auth-sprint",
+			"continue the sprint",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"continue the sprint",
+			expect.objectContaining({
+				enableAgentTeams: true,
+				teamName: "auth-sprint",
 			}),
 			expect.anything(),
 		);

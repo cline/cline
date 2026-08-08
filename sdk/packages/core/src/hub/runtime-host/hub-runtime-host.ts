@@ -28,6 +28,10 @@ import { version as corePackageVersion } from "../../../package.json";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
+import {
+	resolveAgentTeamsEnabled,
+	resolveSpawnAgentEnabled,
+} from "../../services/session-capabilities";
 import type {
 	PendingPromptMutationResult,
 	PendingPromptsServiceApi,
@@ -180,8 +184,8 @@ function buildCommandSessionMetadata(
 		provider: input.config.providerId,
 		model: input.config.modelId,
 		enableTools: input.config.enableTools,
-		enableSpawn: input.config.enableSpawnAgent,
-		enableTeams: input.config.enableAgentTeams,
+		enableSpawn: resolveSpawnAgentEnabled(input.config),
+		enableTeams: resolveAgentTeamsEnabled(input.config),
 		teamName: input.config.teamName,
 		prompt: input.prompt,
 		interactive: input.interactive === true,
@@ -715,8 +719,8 @@ function buildManifest(
 		workspace_root: workspaceRoot,
 		team_name: input.config.teamName,
 		enable_tools: input.config.enableTools,
-		enable_spawn: input.config.enableSpawnAgent,
-		enable_teams: input.config.enableAgentTeams,
+		enable_spawn: resolveSpawnAgentEnabled(input.config),
+		enable_teams: resolveAgentTeamsEnabled(input.config),
 		prompt: input.prompt?.trim() || undefined,
 		metadata: buildSessionHistoryMetadata(input),
 	});

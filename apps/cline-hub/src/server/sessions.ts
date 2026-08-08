@@ -107,8 +107,11 @@ function buildSessionStartInput(
 			...reasoningOptions,
 			maxIterations: options?.maxIterations,
 			enableTools: options?.enableTools !== false,
-			enableSpawnAgent: options?.enableSpawn !== false,
-			enableAgentTeams: options?.enableTeams === true,
+			// spawn_agent and teams are opt-in: pass the webview's explicit
+			// toggle values through and leave the rest to the runtime's
+			// opt-in defaults (enabledTools global setting).
+			enableSpawnAgent: options?.enableSpawn,
+			enableAgentTeams: options?.enableTeams,
 			teamName: options?.teamName ?? "cline-hub",
 			missionLogIntervalSteps: 3,
 			missionLogIntervalMs: 120000,

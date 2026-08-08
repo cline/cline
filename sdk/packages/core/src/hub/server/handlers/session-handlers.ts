@@ -325,10 +325,18 @@ export async function handleSessionCreate(
 					: undefined),
 			enableTools:
 				sessionConfig?.enableTools ?? runtimeOptions.enableTools !== false,
+			// Pass explicit values through and leave the rest to the runtime's
+			// opt-in defaults (enabledTools global setting).
 			enableSpawnAgent:
-				sessionConfig?.enableSpawnAgent ?? runtimeOptions.enableSpawn !== false,
+				sessionConfig?.enableSpawnAgent ??
+				(typeof runtimeOptions.enableSpawn === "boolean"
+					? runtimeOptions.enableSpawn
+					: undefined),
 			enableAgentTeams:
-				sessionConfig?.enableAgentTeams ?? runtimeOptions.enableTeams !== false,
+				sessionConfig?.enableAgentTeams ??
+				(typeof runtimeOptions.enableTeams === "boolean"
+					? runtimeOptions.enableTeams
+					: undefined),
 			checkpoint:
 				sessionConfig?.checkpoint ??
 				(runtimeOptions.checkpointEnabled === true
@@ -583,12 +591,18 @@ export async function handleSessionRestore(
 						enableTools:
 							sessionConfig?.enableTools ??
 							runtimeOptions.enableTools !== false,
+						// Pass explicit values through and leave the rest to the
+						// runtime's opt-in defaults (enabledTools global setting).
 						enableSpawnAgent:
 							sessionConfig?.enableSpawnAgent ??
-							runtimeOptions.enableSpawn !== false,
+							(typeof runtimeOptions.enableSpawn === "boolean"
+								? runtimeOptions.enableSpawn
+								: undefined),
 						enableAgentTeams:
 							sessionConfig?.enableAgentTeams ??
-							runtimeOptions.enableTeams !== false,
+							(typeof runtimeOptions.enableTeams === "boolean"
+								? runtimeOptions.enableTeams
+								: undefined),
 						checkpoint:
 							sessionConfig?.checkpoint ??
 							(runtimeOptions.checkpointEnabled === true

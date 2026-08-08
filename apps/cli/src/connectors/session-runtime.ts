@@ -128,8 +128,11 @@ export function buildThreadStartRequest<TState extends ConnectorThreadState>(
 	return {
 		...base,
 		enableTools,
-		enableSpawn: enableTools,
-		enableTeams: enableTools,
+		// spawn_agent and teams are opt-in: only force them off when tools
+		// are disabled, otherwise let the runtime resolve them from the
+		// enabledTools global setting.
+		enableSpawn: enableTools ? undefined : false,
+		enableTeams: enableTools ? undefined : false,
 		autoApproveTools: state.autoApproveTools ?? base.autoApproveTools,
 		cwd: state.cwd || base.cwd,
 		workspaceRoot: state.workspaceRoot || base.workspaceRoot,

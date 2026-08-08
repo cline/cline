@@ -305,7 +305,11 @@ export function setToolAutoApproveGlobally(toolAutoApprove: boolean): void {
  * {@link setDisabledTools} keeps the two lists mutually exclusive, so every
  * host's existing tool toggle UI works unchanged.
  */
-export const OPT_IN_TOOL_NAMES: ReadonlySet<string> = new Set(["web_search"]);
+export const OPT_IN_TOOL_NAMES: ReadonlySet<string> = new Set([
+	"web_search",
+	"spawn_agent",
+	"teams",
+]);
 
 function isOptInTool(toolName: string): boolean {
 	return OPT_IN_TOOL_NAMES.has(toolName);

@@ -142,6 +142,99 @@ describe("DefaultRuntimeBuilder", () => {
 		});
 	});
 
+	describe("spawn_agent and teams opt-in gating", () => {
+		function useTempGlobalSettings(settings: Record<string, unknown>): void {
+			const dir = mkdtempSync(join(tmpdir(), "cline-optin-settings-"));
+			tempDirs.push(dir);
+			const settingsPath = join(dir, "global-settings.json");
+			writeFileSync(settingsPath, JSON.stringify(settings));
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+		}
+
+		async function builtToolNames(
+			overrides: Partial<CoreSessionConfig>,
+		): Promise<string[]> {
+			const runtime = await new DefaultRuntimeBuilder().build({
+				config: makeBaseConfig({
+					disableMcpSettingsTools: true,
+					enableSpawnAgent: undefined,
+					enableAgentTeams: undefined,
+					...overrides,
+				}),
+				createSpawnTool: makeSpawnTool,
+			});
+			return runtime.tools.map((tool) => tool.name);
+		}
+
+		it("keeps spawn_agent and team tools off without an opt-in", async () => {
+			useTempGlobalSettings({});
+			const names = await builtToolNames({});
+			expect(names).not.toContain("spawn_agent");
+			expect(names).not.toContain("team_status");
+		});
+
+		it("registers spawn_agent after the enabledTools opt-in", async () => {
+			useTempGlobalSettings({ enabledTools: ["spawn_agent"] });
+			const names = await builtToolNames({});
+			expect(names).toContain("spawn_agent");
+			expect(names).not.toContain("team_status");
+		});
+
+		it("registers team tools after the enabledTools opt-in", async () => {
+			useTempGlobalSettings({ enabledTools: ["teams"] });
+			const names = await builtToolNames({});
+			expect(names).toContain("team_status");
+			expect(names).not.toContain("spawn_agent");
+		});
+
+		it("honors explicit session opt-ins without the global setting", async () => {
+			useTempGlobalSettings({});
+			const names = await builtToolNames({
+				enableSpawnAgent: true,
+				enableAgentTeams: true,
+			});
+			expect(names).toContain("spawn_agent");
+			expect(names).toContain("team_status");
+		});
+
+		it("keeps opted-in spawn and teams off in yolo mode", async () => {
+			useTempGlobalSettings({ enabledTools: ["spawn_agent", "teams"] });
+			const names = await builtToolNames({ mode: "yolo" });
+			expect(names).not.toContain("spawn_agent");
+			expect(names).not.toContain("team_status");
+		});
+
+		it("keeps configured subagent tools available without the spawn opt-in", async () => {
+			useTempGlobalSettings({});
+			const tempHome = mkdtempSync(join(tmpdir(), "cline-agent-home-"));
+			const workspaceRoot = mkdtempSync(
+				join(tmpdir(), "cline-agent-workspace-"),
+			);
+			tempDirs.push(tempHome, workspaceRoot);
+			setHomeDir(tempHome);
+
+			const globalAgentsDir = join(tempHome, ".cline", "agents");
+			mkdirSync(globalAgentsDir, { recursive: true });
+			writeFileSync(
+				join(globalAgentsDir, "code-reviewer.yml"),
+				`---
+name: code-reviewer
+description: Reviews code for quality and best practices
+tools: Execute_Command, Read_File
+---
+You are a code reviewer.`,
+				"utf8",
+			);
+
+			const names = await builtToolNames({
+				cwd: workspaceRoot,
+				workspaceRoot,
+			});
+			expect(names).toContain("subagent_code_reviewer");
+			expect(names).not.toContain("spawn_agent");
+		});
+	});
+
 	it("forwards runtime logger for downstream agent creation", async () => {
 		const logger = {
 			debug: () => {},

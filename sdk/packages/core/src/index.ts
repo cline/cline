@@ -481,6 +481,10 @@ export {
 	DefaultRuntimeBuilder,
 } from "./runtime/orchestration/runtime-builder";
 export {
+	resolveAgentTeamsEnabled,
+	resolveSpawnAgentEnabled,
+} from "./services/session-capabilities";
+export {
 	OAuthReauthRequiredError,
 	type RuntimeOAuthResolution,
 	RuntimeOAuthTokenManager,

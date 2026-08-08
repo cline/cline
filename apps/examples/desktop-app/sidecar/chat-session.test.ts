@@ -28,6 +28,7 @@ describe("rewriteDesktopTeamPrompt", () => {
 		expect(
 			rewriteDesktopTeamPrompt("/team inspect the app", {
 				disabledTools: new Set(),
+				enabledTools: new Set(["teams"]),
 			}),
 		).toBe(
 			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
@@ -38,6 +39,16 @@ describe("rewriteDesktopTeamPrompt", () => {
 		expect(() =>
 			rewriteDesktopTeamPrompt("/team inspect the app", {
 				disabledTools: new Set(["teams"]),
+				enabledTools: new Set(["teams"]),
+			}),
+		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team until the user opts into the Teams tool", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+				enabledTools: new Set(),
 			}),
 		).toThrow("Agent teams are disabled");
 	});
@@ -47,16 +58,18 @@ describe("rewriteDesktopTeamPrompt", () => {
 			rewriteDesktopTeamPrompt("/team inspect the app", {
 				mode: "yolo",
 				disabledTools: new Set(),
+				enabledTools: new Set(["teams"]),
 			}),
 		).toThrow("Agent teams are not available in yolo mode");
 	});
 
-	it("accepts /team in act and plan modes", () => {
+	it("accepts opted-in /team in act and plan modes", () => {
 		for (const mode of ["act", "plan", undefined]) {
 			expect(
 				rewriteDesktopTeamPrompt("/team inspect the app", {
 					mode,
 					disabledTools: new Set(),
+					enabledTools: new Set(["teams"]),
 				}),
 			).toContain('<user_command slash="team">');
 		}
@@ -1471,12 +1484,28 @@ Follow the desktop send skill instructions.`,
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
-		await handleChatSessionCommand(ctx, {
-			action: "update_pending_prompt",
-			sessionId,
-			promptId: "queued-team",
-			prompt: "/team inspect the app",
-		});
+		// Teams are opt-in, so the rewrite requires the enabledTools setting.
+		const settingsDir = mkdtempSync(join(tmpdir(), "desktop-team-settings-"));
+		const settingsPath = join(settingsDir, "global-settings.json");
+		writeFileSync(settingsPath, JSON.stringify({ enabledTools: ["teams"] }));
+		const previousSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = settingsPath;
+
+		try {
+			await handleChatSessionCommand(ctx, {
+				action: "update_pending_prompt",
+				sessionId,
+				promptId: "queued-team",
+				prompt: "/team inspect the app",
+			});
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_GLOBAL_SETTINGS_PATH = previousSettingsPath;
+			}
+			rmSync(settingsDir, { recursive: true, force: true });
+		}
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,

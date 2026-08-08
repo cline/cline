@@ -146,8 +146,8 @@ type StartConfig = {
 	maxIterations?: number;
 	thinking?: boolean;
 	enableTools: boolean;
-	enableSpawnAgent: boolean;
-	enableAgentTeams: boolean;
+	enableSpawnAgent?: boolean;
+	enableAgentTeams?: boolean;
 	teamName: string;
 	missionLogIntervalSteps: number;
 	missionLogIntervalMs: number;
@@ -1134,8 +1134,11 @@ class CoreChatWebviewController implements vscode.Disposable {
 			maxIterations: normalizedMaxIterations,
 			thinking: config?.thinking === true,
 			enableTools: config?.enableTools !== false,
-			enableSpawnAgent: config?.enableSpawn !== false,
-			enableAgentTeams: config?.enableTeams === true,
+			// spawn_agent and teams are opt-in: pass the webview's explicit
+			// toggle values through and leave the rest to the runtime's
+			// opt-in defaults (enabledTools global setting).
+			enableSpawnAgent: config?.enableSpawn,
+			enableAgentTeams: config?.enableTeams,
 			teamName: "vscode-chat",
 			missionLogIntervalSteps: 3,
 			missionLogIntervalMs: 120000,
