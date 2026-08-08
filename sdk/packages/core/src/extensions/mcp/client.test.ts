@@ -256,23 +256,24 @@ describe("mcp client request timeout", () => {
 		}
 	}, 30_000);
 
-	it("keeps the fast probe default when no timeout is configured", async () => {
+	it("connects a slow-starting server without a configured timeout", async () => {
 		const factory = createDefaultMcpServerClientFactory();
-		// 3s of startup work exceeds the 1.5s default probe, so connect must
-		// fail quickly instead of stalling startup.
+		// Regression test for https://github.com/cline/cline/issues/13035:
+		// JVM-based servers (e.g. Oracle SQLcl's `sql -mcp`) need several
+		// seconds to start. The old 1.5s initialize probe killed them before
+		// they could answer, so they never loaded without a `timeout` field.
 		const client = await factory(
 			fakeServerRegistration({ delayMs: 0, initDelayMs: 3_000 }),
 		);
-		const startedAt = Date.now();
 		try {
-			await expect(client.connect()).rejects.toThrow(/timed out/);
-			expect(Date.now() - startedAt).toBeLessThan(8_000);
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
 		} finally {
 			await client.disconnect();
 		}
 	}, 30_000);
 
-	it("keeps the fast probe when a malformed settings timeout is ignored", async () => {
+	it("uses the default connect budget when a malformed settings timeout is ignored", async () => {
 		const filePath = join(tempRoot, `malformed-timeout-${Date.now()}.json`);
 		writeFileSync(
 			filePath,
@@ -292,10 +293,9 @@ describe("mcp client request timeout", () => {
 		const [registration] = resolveMcpServerRegistrations({ filePath });
 		expect(registration.timeoutSeconds).toBeUndefined();
 		const client = await createDefaultMcpServerClientFactory()(registration);
-		const startedAt = Date.now();
 		try {
-			await expect(client.connect()).rejects.toThrow(/timed out/);
-			expect(Date.now() - startedAt).toBeLessThan(8_000);
+			await client.connect();
+			expect(await client.listTools()).toEqual([]);
 		} finally {
 			await client.disconnect();
 		}

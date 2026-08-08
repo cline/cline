@@ -129,6 +129,91 @@ describe("desktop error telemetry", () => {
 		});
 	});
 
+	it("forwards bounded source attribution for uncaught webview errors", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: {
+					origin: "tauri://localhost",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					operation: "webview.uncaught_error",
+					errorMessage: "Unexpected token '<'",
+					errorType: "SyntaxError",
+					handled: false,
+					transportState: "connecting",
+					sourceUrl: `tauri://localhost/_vercel/insights/script.js?${"q".repeat(600)}`,
+					lineno: 1,
+					colno: 1,
+					stack: `SyntaxError: Unexpected token '<'\n${"x".repeat(600)}`,
+				}),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(202);
+		expect(capture).toHaveBeenCalledWith({
+			event: "sdk.error",
+			properties: expect.objectContaining({
+				component: "desktop",
+				operation: "webview.uncaught_error",
+				error_type: "SyntaxError",
+				error_message: "Unexpected token '<'",
+				handled: false,
+				transportState: "connecting",
+				lineno: 1,
+				colno: 1,
+			}),
+		});
+		const properties = capture.mock.calls[0]?.[0]?.properties as Record<
+			string,
+			unknown
+		>;
+		expect(properties.sourceUrl).toHaveLength(500);
+		expect(
+			String(properties.sourceUrl).startsWith(
+				"tauri://localhost/_vercel/insights/script.js",
+			),
+		).toBe(true);
+		expect(properties.stack).toHaveLength(500);
+	});
+
+	it("drops malformed source attribution fields", async () => {
+		const server = createTestServer();
+		const { handler, capture } = createTelemetryHandler();
+		const response = await handler(
+			new Request("http://127.0.0.1:3126/telemetry/error", {
+				method: "POST",
+				headers: {
+					origin: "tauri://localhost",
+					"content-type": "application/json",
+				},
+				body: JSON.stringify({
+					operation: "webview.uncaught_error",
+					errorMessage: "boom",
+					sourceUrl: 42,
+					lineno: "one",
+					colno: null,
+					stack: "   ",
+				}),
+			}),
+			server,
+		);
+
+		expect(response?.status).toBe(202);
+		const properties = capture.mock.calls[0]?.[0]?.properties as Record<
+			string,
+			unknown
+		>;
+		expect("sourceUrl" in properties).toBe(false);
+		expect("lineno" in properties).toBe(false);
+		expect("colno" in properties).toBe(false);
+		expect("stack" in properties).toBe(false);
+	});
+
 	it("rejects error reports from untrusted origins", async () => {
 		const server = createTestServer();
 		const { handler, capture } = createTelemetryHandler();
