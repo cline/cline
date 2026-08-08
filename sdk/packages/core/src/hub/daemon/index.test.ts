@@ -330,7 +330,68 @@ describe("ensureDetachedHubServer", () => {
 				authToken: "",
 				pid: 12345,
 			});
-			// Still answering after SIGTERM: the hub never retires.
+			// Still answering after SIGTERM, and it reports the same pid, so the
+			// process we are about to force really does own this hub.
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill a pid the responding hub does not claim", async () => {
+		// A discovery record outlives its daemon and the OS recycles pids, so the
+		// recorded pid can belong to an unrelated process while a different daemon
+		// answers at that URL. SIGKILL there would kill a bystander outright.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				// A different daemon owns the port now.
+				pid: 99999,
+			});
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when the hub is too old to report a pid", async () => {
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
 			probeHubServer.mockResolvedValue({
 				url: "ws://127.0.0.1:25463/hub",
 				protocolVersion: "v1",
@@ -341,8 +402,8 @@ describe("ensureDetachedHubServer", () => {
 			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
 			await vi.runAllTimersAsync();
 
-			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
-			expect(kill).toHaveBeenCalledWith(12345, "SIGKILL");
+			// Leaking a daemon beats killing an unidentified process.
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();

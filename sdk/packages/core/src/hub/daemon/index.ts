@@ -133,12 +133,22 @@ async function retireDiscoveredHub(
 	// auto-update retires the previous build through this path, which is how a
 	// long-lived host accumulates one orphaned hub per night.
 	if (!retired && record.pid) {
-		try {
-			process.kill(record.pid, "SIGKILL");
-		} catch {
-			// Already gone, or not ours to signal.
+		// Force only what we can prove we own. A discovery record outlives its
+		// daemon, and the OS recycles pids: the recorded pid may now belong to an
+		// unrelated process while a different daemon answers at the recorded URL.
+		// SIGTERM to the wrong process is usually survivable; SIGKILL is not, so
+		// escalate only when the hub currently serving that URL reports the very
+		// pid we are about to kill. A hub too old to report its pid is left alone
+		// — leaking a daemon is the better failure.
+		const serving = await safeProbeHubServer(record.url);
+		if (serving?.pid !== undefined && serving.pid === record.pid) {
+			try {
+				process.kill(record.pid, "SIGKILL");
+			} catch {
+				// Already gone, or not ours to signal.
+			}
+			retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
 		}
-		retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
 	}
 	await clearHubDiscovery(discoveryPath).catch(() => undefined);
 	return retired;
