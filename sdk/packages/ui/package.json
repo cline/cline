@@ -26,6 +26,7 @@
 		"./components/agent-chat.css": "./components/agent-chat/agent-chat.css",
 		"./components/markdown.css": "./components/markdown.css",
 		"./theme/index.css": "./theme/index.css",
+		"./theme/palette.css": "./theme/palette.css",
 		"./theme/scoped-tokens.css": "./theme/scoped-tokens.css",
 		"./theme/tokens.css": "./theme/tokens.css",
 		"./theme/theme.css": "./theme/theme.css",
@@ -57,7 +58,8 @@
 		"dist",
 		"theme",
 		"ADOPTION.md",
-		"README.md"
+		"README.md",
+		"RADIX-COLORS-LICENSE"
 	],
 	"sideEffects": [
 		"./components.css",

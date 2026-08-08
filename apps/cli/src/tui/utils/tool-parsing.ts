@@ -213,6 +213,41 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 	}
 
 	if (typeof raw === "object") {
+		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
+		// text so multi-line results keep real newlines instead of being
+		// JSON-escaped into one giant line that floods the terminal (#13038).
+		// Non-text blocks keep their identifying metadata (resource text/URIs,
+		// mime types) so mixed results are not silently truncated.
+		const content = (raw as { content?: unknown }).content;
+		if (Array.isArray(content)) {
+			const parts = content
+				.map((part) => {
+					if (!isRecord(part)) return "";
+					if (part.type === "text" && typeof part.text === "string") {
+						return part.text;
+					}
+					if (part.type === "resource" && isRecord(part.resource)) {
+						if (typeof part.resource.text === "string") {
+							return part.resource.text;
+						}
+						if (typeof part.resource.uri === "string") {
+							return `[resource: ${part.resource.uri}]`;
+						}
+					}
+					if (part.type === "resource_link" && typeof part.uri === "string") {
+						return `[resource_link: ${part.uri}]`;
+					}
+					if (
+						(part.type === "image" || part.type === "audio") &&
+						typeof part.mimeType === "string"
+					) {
+						return `[${part.type}: ${part.mimeType}]`;
+					}
+					return typeof part.type === "string" ? `[${part.type}]` : "";
+				})
+				.filter(Boolean);
+			if (parts.length > 0) return parts.join("\n");
+		}
 		try {
 			return JSON.stringify(raw, null, 2);
 		} catch {

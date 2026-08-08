@@ -599,7 +599,7 @@ export function McpServersContent() {
 		return (
 			<div
 				key={server.name}
-				className="group relative rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+				className="group relative rounded-lg border border-border px-5 py-4 hover:bg-surface-hover"
 			>
 				<div className="flex items-center gap-3">
 					<Circle
@@ -837,7 +837,7 @@ export function McpServersContent() {
 							>
 								<Label
 									htmlFor="mcp-server-type-local"
-									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
 								>
 									<RadioGroupItem
 										className="mt-0.5"
@@ -856,7 +856,7 @@ export function McpServersContent() {
 								</Label>
 								<Label
 									htmlFor="mcp-server-type-remote"
-									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-accent/30"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
 								>
 									<RadioGroupItem
 										className="mt-0.5"
@@ -1016,7 +1016,7 @@ export function McpServersContent() {
 							<CollapsibleTrigger asChild>
 								<button
 									type="button"
-									className="flex w-fit items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+									className="flex w-fit items-center gap-1 text-sm text-muted-foreground  hover:text-foreground"
 								>
 									<ChevronRight
 										className={cn(
