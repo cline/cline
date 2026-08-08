@@ -15,6 +15,17 @@ export type WorkspacePathSource = {
 	endedAt?: string;
 };
 
+/** Typed/pasted folder paths in search boxes double as manual path entry. */
+export function looksLikeFolderPath(value: string): boolean {
+	const trimmed = value.trim();
+	return (
+		trimmed.startsWith("/") ||
+		trimmed === "~" ||
+		trimmed.startsWith("~/") ||
+		/^[A-Za-z]:[\\/]/.test(trimmed)
+	);
+}
+
 export function normalizeWorkspacePath(path: string): string {
 	const trimmed = path.trim();
 	if (!trimmed) {

@@ -861,10 +861,13 @@ function ChatThreadPane({
 				return true;
 			}
 			const validation = await desktopClient
-				.invoke<{ valid?: boolean }>("validate_workspace_directory", {
+				.invoke<{
+					valid?: boolean;
+					path?: string;
+				}>("validate_workspace_directory", {
 					path: nextWorkspace,
 				})
-				.catch(() => ({ valid: false }));
+				.catch(() => ({ valid: false, path: undefined }));
 			if (validation.valid !== true) {
 				return false;
 			}
@@ -872,14 +875,21 @@ function ChatThreadPane({
 				return false;
 			}
 
+			// The sidecar may resolve shorthand input (e.g. "~/projects/app")
+			// into an absolute path; adopt the resolved form.
+			const resolvedWorkspace =
+				typeof validation.path === "string" && validation.path.trim()
+					? validation.path.trim()
+					: nextWorkspace;
+
 			invalidateGitBranch();
-			setWorkspacePath(nextWorkspace);
+			setWorkspacePath(resolvedWorkspace);
 			setWorkspaces((prev) =>
-				filterWorkspacePaths(mergeWorkspacePaths(prev, [nextWorkspace])),
+				filterWorkspacePaths(mergeWorkspacePaths(prev, [resolvedWorkspace])),
 			);
 
 			// Refresh the merged history, stored, and current workspace catalog.
-			void refreshWorkspaces(nextWorkspace);
+			void refreshWorkspaces(resolvedWorkspace);
 
 			return true;
 		},
@@ -895,6 +905,9 @@ function ChatThreadPane({
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
+			// Resolves to null when the user cancels; rethrows picker failures
+			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
+			// and offer manual path entry instead of a silent no-op.
 			try {
 				const selected = await desktopClient.invoke<string | null>(
 					"pick_workspace_directory",
@@ -907,8 +920,12 @@ function ChatThreadPane({
 				}
 				const trimmed = selected.trim();
 				return trimmed.length > 0 ? trimmed : null;
-			} catch {
-				return null;
+			} catch (error) {
+				throw new Error(
+					error instanceof Error && error.message.trim()
+						? error.message
+						: "The folder picker could not be opened.",
+				);
 			}
 		},
 		[],

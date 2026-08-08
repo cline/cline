@@ -100,6 +100,7 @@ import type {
 	JsonRecord,
 	SidecarContext,
 } from "./types";
+import { pickWorkspaceDirectory } from "./workspace-picker";
 
 // All child processes in this module run asynchronously: the sidecar is a
 // single event loop shared by every UI command and streaming chat session, so
@@ -869,41 +870,6 @@ async function listUserInstructionConfigs(
 // ---------------------------------------------------------------------------
 // Native OS commands
 // ---------------------------------------------------------------------------
-
-// Async is load-bearing here: the native picker blocks until the user chooses
-// a folder, and a synchronous exec would freeze every other sidecar command
-// (chat streams, history, settings) for however long the dialog stays open.
-async function pickWorkspaceDirectory(): Promise<string | null> {
-	const platform = process.platform;
-	if (platform === "darwin") {
-		try {
-			const { stdout } = await execFileAsync(
-				"osascript",
-				[
-					"-e",
-					'set theFolder to choose folder with prompt "Select workspace directory"',
-					"-e",
-					"return POSIX path of theFolder",
-				],
-				{ encoding: "utf8" },
-			);
-			return stdout.trim() || null;
-		} catch {
-			return null;
-		}
-	}
-	// Linux — try zenity
-	try {
-		const { stdout } = await execFileAsync(
-			"zenity",
-			["--file-selection", "--directory", "--title=Select workspace directory"],
-			{ encoding: "utf8" },
-		);
-		return stdout.trim() || null;
-	} catch {
-		return null;
-	}
-}
 
 function openFileInEditor(filePath: string): void {
 	const platform = process.platform;
@@ -1885,10 +1851,18 @@ export async function handleCommand(
 	if (command === "validate_workspace_directory") {
 		const workspacePath = String(args?.path ?? "").trim();
 		if (!workspacePath) return { valid: false };
+		// Support typed/pasted paths like "~/projects/app" from the manual
+		// path-entry fallback; return the resolved path so the caller adopts it.
+		const resolved =
+			workspacePath === "~"
+				? homedir()
+				: workspacePath.startsWith("~/") || workspacePath.startsWith("~\\")
+					? join(homedir(), workspacePath.slice(2))
+					: workspacePath;
 		try {
-			return { valid: statSync(workspacePath).isDirectory() };
+			return { valid: statSync(resolved).isDirectory(), path: resolved };
 		} catch {
-			return { valid: false };
+			return { valid: false, path: resolved };
 		}
 	}
 	if (command === "pick_workspace_directory") {
