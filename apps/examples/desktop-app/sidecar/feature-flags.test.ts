@@ -40,7 +40,7 @@ describe("isCloudAgentsEnabled", () => {
 			updateTime: Date.now(),
 			userId: "account-a",
 			flagsPayload: {
-				featureFlags: { [FeatureFlag.CODE_CLOUD_AGENTS]: true },
+				featureFlags: { [FeatureFlag.CLINE_PASS]: true },
 			},
 		});
 
@@ -53,9 +53,7 @@ describe("isCloudAgentsEnabled", () => {
 			updateTime: 0,
 			userId: "account-b",
 		});
-		expect(service.getBooleanFlagEnabled(FeatureFlag.CODE_CLOUD_AGENTS)).toBe(
-			false,
-		);
+		expect(service.getBooleanFlagEnabled(FeatureFlag.CLINE_PASS)).toBe(false);
 	});
 
 	it("defaults to off with no setting and no override", () => {

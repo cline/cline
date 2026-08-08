@@ -522,6 +522,25 @@ function GeneralSettingsContent() {
 	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
 		null,
 	);
+	// The Cloud sessions row will eventually be gated on a PostHog feature
+	// flag so we can control who sees the preview setting. That flag does
+	// not exist in PostHog yet, so the gate is hard-wired on for now; once
+	// the flag is added, register it in @cline/shared's feature-flags.ts,
+	// expose it from the sidecar's get_feature_flags command, and swap in
+	// the commented lookup below.
+	const cloudSessionsSettingVisible = true;
+	// const [cloudSessionsSettingVisible, setCloudSessionsSettingVisible] =
+	// 	useState(false);
+	// useEffect(() => {
+	// 	desktopClient
+	// 		.invoke<{ cloudSessionsSettingVisible?: boolean }>("get_feature_flags")
+	// 		.then((flags) =>
+	// 			setCloudSessionsSettingVisible(
+	// 				Boolean(flags.cloudSessionsSettingVisible),
+	// 			),
+	// 		)
+	// 		.catch(() => undefined);
+	// }, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
@@ -779,34 +798,36 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
-				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
-					<div className="flex flex-col gap-1">
-						<p className="flex items-center gap-2 text-base font-semibold text-foreground">
-							Cloud sessions
-							<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
-								Preview
-							</span>
-						</p>
-						<p className="text-sm text-muted-foreground">
-							Run Cline on your GitHub repositories in secure cloud sandboxes.
-							Adds a Cloud option to the new-session composer. Requires a Cline
-							account with GitHub connected.
-						</p>
-						{cloudSessionsError ? (
-							<p className="mt-2 text-xs text-destructive" role="alert">
-								Failed to update cloud sessions setting: {cloudSessionsError}
+				{cloudSessionsSettingVisible ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+								Cloud sessions
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+									Preview
+								</span>
 							</p>
-						) : null}
+							<p className="text-sm text-muted-foreground">
+								Run Cline on your GitHub repositories in secure cloud sandboxes.
+								Adds a Cloud option to the new-session composer. Requires a
+								Cline account with GitHub connected.
+							</p>
+							{cloudSessionsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Cloud sessions"
+							checked={cloudSessionsEnabled}
+							disabled={cloudSessionsLoading || cloudSessionsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudSessionsEnabled(checked)
+							}
+						/>
 					</div>
-					<Switch
-						aria-label="Cloud sessions"
-						checked={cloudSessionsEnabled}
-						disabled={cloudSessionsLoading || cloudSessionsSaving}
-						onCheckedChange={(checked) =>
-							void updateCloudSessionsEnabled(checked)
-						}
-					/>
-				</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>
