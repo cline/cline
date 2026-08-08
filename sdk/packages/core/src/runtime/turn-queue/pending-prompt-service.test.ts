@@ -139,9 +139,11 @@ describe("PendingPromptService", () => {
 			},
 		} as unknown as ActiveSession;
 		const events: CoreSessionEvent[] = [];
+		const onChanged = vi.fn();
 		const controller = new PendingPromptsController({
 			getSession: () => session,
 			emit: (event) => events.push(event),
+			onChanged,
 			send: vi.fn().mockRejectedValue(new Error("send failed")),
 		});
 
@@ -164,5 +166,6 @@ describe("PendingPromptService", () => {
 					event.payload.prompts.some((prompt) => prompt.prompt === "try later"),
 			),
 		).toBe(true);
+		expect(onChanged).toHaveBeenCalledTimes(2);
 	});
 });

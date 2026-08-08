@@ -33,6 +33,7 @@ export type ActiveSession = {
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;
 	pendingPrompts: PendingPrompt[];
+	pendingPromptsWriteQueue?: Promise<void>;
 	drainingPendingPrompts: boolean;
 	pluginSandboxShutdown?: () => Promise<void>;
 	turnUsageBaseline?: SessionAccumulatedUsage;

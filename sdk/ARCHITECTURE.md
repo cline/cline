@@ -113,6 +113,7 @@ Design rules:
   - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
   - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
+- Interactive pending prompts are persisted with session metadata so stopping and reopening a session preserves its queue; explicit aborts clear the persisted queue.
 
 ## Runtime Flows
 

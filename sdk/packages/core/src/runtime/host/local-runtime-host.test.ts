@@ -3546,6 +3546,13 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				"cline.pendingPrompts": [
+					{
+						id: "pending-resumed",
+						prompt: "queued before switching tasks",
+						delivery: "queue",
+					},
+				],
 				checkpoint: {
 					latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
 					history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
@@ -3658,6 +3665,26 @@ describe("LocalRuntimeHost", () => {
 				checkpoint: manifest.metadata.checkpoint,
 			}),
 		);
+		const [resumedPrompt] = await manager.pendingPrompts.list({ sessionId });
+		expect([resumedPrompt]).toEqual([
+			expect.objectContaining({
+				id: "pending-resumed",
+				prompt: "queued before switching tasks",
+				delivery: "queue",
+			}),
+		]);
+		await manager.pendingPrompts.delete({
+			sessionId,
+			promptId: resumedPrompt?.id ?? "",
+		});
+		const metadataAfterDelete = updateSession.mock.calls[0]?.[0]
+			.metadata as Record<string, unknown>;
+		expect(metadataAfterDelete).not.toHaveProperty("cline.pendingPrompts");
+		sessionService.readSessionManifest.mockReturnValue({
+			...manifest,
+			metadata: metadataAfterDelete,
+		});
+		updateSession.mockClear();
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({
 			inputTokens: 11,
 			outputTokens: 7,
