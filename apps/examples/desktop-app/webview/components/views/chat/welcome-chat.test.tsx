@@ -40,7 +40,7 @@ async function renderWelcomeScreen({
 }: {
 	workspaceRoot: string;
 	workspaces: string[];
-	gitBranch?: string;
+	gitBranch?: string | null;
 	onStartChat?: (prompt: string) => void;
 	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
@@ -137,6 +137,52 @@ describe("WelcomeScreen", () => {
 		expect(onStartChat).toHaveBeenCalledWith(
 			"Look through the files in this folder and give me a plain-language summary of what's here.",
 		);
+	});
+
+	it("shows no suggestions for a folder while branch discovery is pending", async () => {
+		// Initial load and workspace switches report null until the folder is
+		// classified; guessing a card set here would misclassify git repos.
+		await renderWelcomeScreen({
+			gitBranch: null,
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(container.textContent).not.toContain("Review changes");
+		expect(container.textContent).not.toContain("Check for build errors");
+		expect(container.textContent).not.toContain("Summarize this folder");
+		expect(container.textContent).not.toContain("Draft a document");
+	});
+
+	it("resolves pending branch discovery to the matching card set", async () => {
+		await renderWelcomeScreen({
+			gitBranch: null,
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+		await renderWelcomeScreen({
+			gitBranch: "main",
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		expect(container.textContent).toContain("Review changes");
+		expect(container.textContent).toContain("Check for build errors");
+		expect(container.textContent).not.toContain("Summarize this folder");
+	});
+
+	it("offers folderless suggestions even while branch state is pending", async () => {
+		// Switching to "Just chat" resets branch discovery to pending; the
+		// chat cards never depend on git state, so they show immediately.
+		await renderWelcomeScreen({
+			gitBranch: null,
+			workspaceRoot: "",
+			workspaces: [],
+		});
+
+		expect(container.textContent).toContain("Draft a document");
+		expect(container.textContent).toContain("Research a topic");
+		expect(container.textContent).toContain("Plan something");
 	});
 
 	it("offers folderless suggestions when no workspace is selected", async () => {

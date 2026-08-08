@@ -86,18 +86,25 @@ const CHAT_QUICK_ACTIONS: AgentQuickAction[] = [
  * Picks starter suggestions that match what the user actually opened: code
  * cards only make sense inside a git repo; a plain folder gets file-oriented
  * cards; no folder at all gets folderless general-purpose cards.
+ *
+ * `gitBranch` is `null` while branch discovery for the selected folder is
+ * still pending; no cards are suggested until the folder is classified so a
+ * git repo never flashes the plain-folder set (or vice versa).
  */
 export function defaultQuickActionsForContext({
 	workspaceRoot,
 	gitBranch,
 }: {
 	workspaceRoot: string;
-	gitBranch: string;
+	gitBranch: string | null;
 }): AgentQuickAction[] {
 	const isChatWorkspace =
 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 	if (isChatWorkspace) {
 		return CHAT_QUICK_ACTIONS;
+	}
+	if (gitBranch === null) {
+		return [];
 	}
 	if (gitBranch !== "no-git") {
 		return DEVELOPER_QUICK_ACTIONS;
@@ -120,7 +127,8 @@ export function WelcomeScreen({
 	composer: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: AgentQuickAction[];
-	gitBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -171,7 +179,7 @@ export function WelcomeScreen({
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
-									currentBranch={gitBranch}
+									currentBranch={gitBranch ?? "no-git"}
 									onListGitBranches={onListGitBranches}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
