@@ -170,4 +170,83 @@ describe("createApplyPatchExecutor", () => {
 
 		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
 	});
+
+	it("rejects moving a file to itself instead of deleting it", async () => {
+		const filePath = path.join(tempDir, "a.ts");
+		const original = "export const a = 1;\n";
+		await fs.writeFile(filePath, original, "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Update File: a.ts",
+						"*** Move to: ./a.ts",
+						"@@",
+						" export const a = 1;",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/same as the source/);
+
+		await expect(fs.readFile(filePath, "utf-8")).resolves.toBe(original);
+	});
+
+	it("rejects moving a file onto an existing destination instead of overwriting it", async () => {
+		const sourcePath = path.join(tempDir, "notes.md");
+		const destPath = path.join(tempDir, "archive.md");
+		await fs.writeFile(sourcePath, "new notes\n", "utf-8");
+		await fs.writeFile(destPath, "important archived content\n", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		await expect(
+			execute(
+				{
+					input: [
+						"*** Update File: notes.md",
+						"*** Move to: archive.md",
+						"@@",
+						" new notes",
+					].join("\n"),
+				},
+				tempDir,
+				{} as never,
+			),
+		).rejects.toThrow(/already exists/);
+
+		await expect(fs.readFile(destPath, "utf-8")).resolves.toBe(
+			"important archived content\n",
+		);
+		await expect(fs.readFile(sourcePath, "utf-8")).resolves.toBe("new notes\n");
+	});
+
+	it("moves a file to a genuinely new destination", async () => {
+		const sourcePath = path.join(tempDir, "notes.md");
+		const destPath = path.join(tempDir, "archive.md");
+		await fs.writeFile(sourcePath, "line one\n", "utf-8");
+		const execute = createApplyPatchExecutor();
+
+		const result = await execute(
+			{
+				input: [
+					"*** Update File: notes.md",
+					"*** Move to: archive.md",
+					"@@",
+					" line one",
+					"+line two",
+				].join("\n"),
+			},
+			tempDir,
+			{} as never,
+		);
+
+		expect(result).toContain("notes.md -> archive.md");
+		await expect(fs.readFile(destPath, "utf-8")).resolves.toBe(
+			"line one\nline two\n",
+		);
+		await expect(fs.access(sourcePath)).rejects.toThrow();
+	});
 });

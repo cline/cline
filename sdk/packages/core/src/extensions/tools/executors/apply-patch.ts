@@ -308,6 +308,31 @@ async function applyChanges(
 						change.movePath,
 						restrictToCwd,
 					);
+					if (moveAbsPath === sourceAbsPath) {
+						throw new DiffError(
+							`Move destination is the same as the source: ${filePath}`,
+						);
+					}
+					// lstat (not access/stat) so a symlink at the destination —
+					// even a dangling one — still counts as "exists" rather than
+					// being followed and reported as missing. Only ENOENT means
+					// there's genuinely nothing there; any other error (e.g. a
+					// permission problem) should surface instead of being read
+					// as "safe to overwrite."
+					const destExists = await fs.lstat(moveAbsPath).then(
+						() => true,
+						(error: NodeJS.ErrnoException) => {
+							if (error.code === "ENOENT") {
+								return false;
+							}
+							throw error;
+						},
+					);
+					if (destExists) {
+						throw new DiffError(
+							`Move destination already exists: ${change.movePath}`,
+						);
+					}
 					await fs.mkdir(path.dirname(moveAbsPath), { recursive: true });
 					await fs.writeFile(moveAbsPath, change.newContent, { encoding });
 					await fs.rm(sourceAbsPath, { force: true });
