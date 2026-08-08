@@ -32,6 +32,10 @@ import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { DiffView } from "@/components/views/chat/diff-view";
 import { formatChatMessageContent } from "@/components/views/chat/message-content";
+import {
+	type RetryTurnPayload,
+	resolveRetryTurnPayload,
+} from "@/components/views/chat/retry-failed-turn";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { OnboardingView } from "@/components/views/onboarding/onboarding-view";
 import { SessionsView } from "@/components/views/sessions/sessions-view";
@@ -505,6 +509,10 @@ function ChatThreadPane({
 	const [workspacesLoaded, setWorkspacesLoaded] = useState(false);
 	const hydratedSessionRef = useRef<string | null>(null);
 	const resetThreadRef = useRef<string | null>(null);
+	// Exact payload of the most recent send, kept so a failed turn can be
+	// retried without dropping attachments — the transcript only stores a
+	// display label like "[attached 2 files]", not the files themselves.
+	const lastSentTurnRef = useRef<RetryTurnPayload | null>(null);
 	const manualTitleSessionRef = useRef<string | null>(null);
 	const workspaceSelectionRequestRef = useRef(0);
 	const gitBranchRequestGateRef = useRef(createLatestSuccessfulRequestGate());
@@ -843,6 +851,7 @@ function ChatThreadPane({
 		resetThreadRef.current = threadId;
 		hydratedSessionRef.current = null;
 		manualTitleSessionRef.current = null;
+		lastSentTurnRef.current = null;
 		setPromptInput("");
 		setPendingAttachments([]);
 		setManualTitle("");
@@ -857,6 +866,7 @@ function ChatThreadPane({
 			return;
 		}
 		hydratedSessionRef.current = historySession.sessionId;
+		lastSentTurnRef.current = null;
 		setPromptInput(initialPromptDraft ?? "");
 		if (initialPromptDraft !== undefined) {
 			onInitialPromptDraftConsumed?.(threadId);
@@ -886,13 +896,17 @@ function ChatThreadPane({
 			setPromptInput("");
 			const toSend = [...pendingAttachments];
 			setPendingAttachments([]);
+			lastSentTurnRef.current = { prompt: trimmed, attachments: toSend };
 			await sendPrompt(trimmed, toSend);
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
 
-	// Failed turns are retried in the same session by re-sending the last user
-	// prompt — no fork, no draft round-trip through the composer.
+	// Failed turns are retried in the same session by re-sending the failed
+	// prompt — no fork, no draft round-trip through the composer. The last-send
+	// ref carries the exact prompt text and original attachments; the
+	// transcript-derived text below is only a fallback for failures that
+	// predate any send from this pane (it cannot recover attachments).
 	const lastUserPrompt = useMemo(() => {
 		const lastUserMessage = [...messages]
 			.reverse()
@@ -908,7 +922,14 @@ function ChatThreadPane({
 			return null;
 		}
 		return async () => {
-			await sendPrompt(lastUserPrompt);
+			const payload = resolveRetryTurnPayload(
+				lastSentTurnRef.current,
+				lastUserPrompt,
+			);
+			if (!payload) {
+				return;
+			}
+			await sendPrompt(payload.prompt, payload.attachments);
 		};
 	}, [lastUserPrompt, sendPrompt]);
 

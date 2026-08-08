@@ -79,6 +79,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"stopping",
 ]);
 
+// Shown when a turn fails without any provider error text. Shared between the
+// chat_done stream handler and the send() result path so their
+// dedupe-by-content checks treat both fallbacks as the same feedback.
+const TURN_FAILED_FALLBACK_TEXT =
+	"Runtime turn failed before completing a response.";
+
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
 // ---------------------------------------------------------------------------
@@ -1095,8 +1101,12 @@ export function useChatSession() {
 				}
 				// Queued prompts resolve only through this event, so a failed turn
 				// would otherwise end with no transcript feedback at all. The done
-				// payload's text carries the provider error for these failures.
-				if (doneReason === "error" && !activeAssistantMessageIdRef.current) {
+				// payload's text carries the provider error for these failures —
+				// even when the provider streamed partial output first, because the
+				// runtime reports the error message (not the partial prose) as the
+				// failed run's text. Any streamed output already lives in the
+				// transcript, so appending the error bubble after it is correct.
+				if (doneReason === "error") {
 					setMessages((prev) => {
 						if (prev.at(-1)?.role === "error") {
 							return prev;
@@ -1105,8 +1115,7 @@ export function useChatSession() {
 							...prev,
 							makeErrorChatMessage(
 								listeningSessionId,
-								doneText ||
-									"Runtime turn failed before an assistant response was produced.",
+								doneText || TURN_FAILED_FALLBACK_TEXT,
 							),
 						]);
 					});
@@ -1606,15 +1615,13 @@ export function useChatSession() {
 				);
 				const rawAssistantText = assistantText || fallbackAssistantTurn.text;
 				const turnFailed = result?.finishReason === "error";
-				// When the turn fails before any streamed output, the result text is
-				// the provider error (e.g. "invalid x-api-key"), not assistant prose.
-				// Keep it out of the assistant bubble so the failure branch below can
-				// surface it as error feedback instead.
-				const failedBeforeStreaming =
-					turnFailed && !activeAssistantMessageIdRef.current;
-				const resolvedAssistantText = failedBeforeStreaming
-					? ""
-					: rawAssistantText;
+				// When the turn fails, the result text is the provider error (e.g.
+				// "invalid x-api-key"), not assistant prose — the runtime reports the
+				// error message even when partial output streamed first. Keep it out
+				// of the assistant bubble so the failure branch below can surface it
+				// as error feedback instead; streamed partial output already lives in
+				// the transcript.
+				const resolvedAssistantText = turnFailed ? "" : rawAssistantText;
 				if (resolvedAssistantText) {
 					const assistantMessageId =
 						activeAssistantMessageIdRef.current ?? makeId("assistant");
@@ -1785,25 +1792,33 @@ export function useChatSession() {
 				if (abortedRef.current) {
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
-					if (!resolvedAssistantText) {
-						const toolError = Array.isArray(result?.toolCalls)
-							? result.toolCalls.find((c) => c.error)?.error
-							: undefined;
-						const failureText =
-							(failedBeforeStreaming ? rawAssistantText : "") ||
-							toolError?.trim() ||
-							"Runtime turn failed before an assistant response was produced.";
-						setMessages((prev) => {
-							const last = prev.at(-1);
-							if (last?.role === "error" && last.content === failureText) {
-								return prev;
-							}
+					const toolError = Array.isArray(result?.toolCalls)
+						? result.toolCalls.find((c) => c.error)?.error
+						: undefined;
+					// Prefer result.text (the provider error) and never fall back to
+					// canonical-message prose: for a failed turn the last assistant
+					// message is partial output, not an error.
+					const failureText =
+						assistantText || toolError?.trim() || TURN_FAILED_FALLBACK_TEXT;
+					setMessages((prev) => {
+						const last = prev.at(-1);
+						if (last?.role !== "error") {
 							return sliceMessages([
 								...prev,
 								makeErrorChatMessage(activeSessionId, failureText),
 							]);
-						});
-					}
+						}
+						if (
+							last.content === failureText ||
+							failureText === TURN_FAILED_FALLBACK_TEXT
+						) {
+							return prev;
+						}
+						// chat_done raced ahead with a generic bubble for this same
+						// turn — upgrade it in place with the specific provider error
+						// instead of stacking a second bubble.
+						return prev.slice(0, -1).concat({ ...last, content: failureText });
+					});
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
 					setStatus("cancelled");

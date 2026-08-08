@@ -1231,6 +1231,197 @@ describe("useChatSession", () => {
 		expect(historyReads).toHaveLength(0);
 	});
 
+	it("keeps streamed output as prose and surfaces the provider error when a direct send fails mid-stream", async () => {
+		let startedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						startedSessionId = request.config?.sessionId ?? "session-test";
+						return {
+							sessionId: startedSessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// The provider streams a partial answer before failing, so
+						// the send resolves with the error while an assistant bubble
+						// is already live in the transcript.
+						const chatEventHandler = subscribeMock.mock.calls.find(
+							([eventName]) => eventName === "chat_event",
+						)?.[1] as ((payload: unknown) => void) | undefined;
+						chatEventHandler?.({
+							sessionId: startedSessionId,
+							stream: "chat_text",
+							chunk: "The repository is a monorepo",
+							ts: Date.now(),
+							index: 1,
+						});
+						return {
+							ok: true,
+							result: {
+								text: "stream disconnected: overloaded_error",
+								finishReason: "error",
+							},
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("Summarize the repo");
+			// Let the coalesced text delta flush into the assistant bubble.
+			await new Promise((resolve) => setTimeout(resolve, 80));
+		});
+
+		expect(current.status).toBe("failed");
+		// The streamed partial output stays as assistant prose...
+		const assistantMessage = current.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessage?.content).toBe("The repository is a monorepo");
+		// ...and the provider error never merges into it: it renders as
+		// dedicated error feedback after the partial output.
+		const lastMessage = current.messages.at(-1);
+		expect(lastMessage?.role).toBe("error");
+		expect(lastMessage?.content).toBe("stream disconnected: overloaded_error");
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(1);
+	});
+
+	it("upgrades a generic chat_done error bubble with the specific send error instead of stacking a second one", async () => {
+		let startedSessionId = "";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						startedSessionId = request.config?.sessionId ?? "session-test";
+						return {
+							sessionId: startedSessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						// Infra failures publish run.failed without a result, so the
+						// streamed chat_done carries no error text while the send RPC
+						// reply does.
+						const chatEventHandler = subscribeMock.mock.calls.find(
+							([eventName]) => eventName === "chat_event",
+						)?.[1] as ((payload: unknown) => void) | undefined;
+						chatEventHandler?.({
+							sessionId: startedSessionId,
+							stream: "chat_done",
+							chunk: JSON.stringify({ reason: "error" }),
+							ts: Date.now(),
+							index: 1,
+						});
+						return {
+							ok: true,
+							result: { text: "invalid x-api-key", finishReason: "error" },
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("hello there"));
+
+		expect(current.status).toBe("failed");
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toBe("invalid x-api-key");
+	});
+
+	it("surfaces the provider error when a queued turn fails after partial streaming", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Partial answer before the failure",
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({
+					reason: "error",
+					text: "Rate limit exceeded.",
+				}),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		expect(current.status).toBe("failed");
+		// The active assistant bubble must not swallow the failure: the
+		// streamed prose stays put and the error renders after it.
+		const assistantMessage = current.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessage?.content).toBe("Partial answer before the failure");
+		const lastMessage = current.messages.at(-1);
+		expect(lastMessage?.role).toBe("error");
+		expect(lastMessage?.content).toBe("Rate limit exceeded.");
+	});
+
 	it("shares one cold start and queues a second prompt behind it", async () => {
 		let resolveStart: ((value: { sessionId: string }) => void) | undefined;
 		const startResponse = new Promise<{ sessionId: string }>((resolve) => {
