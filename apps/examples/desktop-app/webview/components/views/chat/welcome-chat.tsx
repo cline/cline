@@ -179,7 +179,7 @@ export function WelcomeScreen({
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
-									currentBranch={gitBranch ?? "no-git"}
+									currentBranch={gitBranch}
 									onListGitBranches={onListGitBranches}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}

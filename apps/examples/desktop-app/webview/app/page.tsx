@@ -1342,7 +1342,7 @@ function ChatThreadPane({
 				})
 			}
 			onSend={(prompt) => void handleSend(prompt)}
-			gitBranch={gitBranch ?? "no-git"}
+			gitBranch={gitBranch}
 			model={config.model}
 			modelContextWindow={modelContextWindow}
 			mode={config.mode}
