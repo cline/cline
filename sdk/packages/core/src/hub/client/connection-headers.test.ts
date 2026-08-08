@@ -410,6 +410,109 @@ describe("NodeHubClient connection headers", () => {
 		}
 	});
 
+	it("aborts a registration whose reply raced close(), and never leaves a zombie socket", async () => {
+		const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
+		servers.push(server);
+		await new Promise<void>((resolve) => server.once("listening", resolve));
+
+		// silent: the test injects the register reply locally; reject/ack: the
+		// server answers registration itself.
+		let registrationMode: "silent" | "reject" | "ack" = "silent";
+		let connectionCount = 0;
+		let announceRegister: ((requestId: string) => void) | undefined;
+		server.on("connection", (socket) => {
+			connectionCount += 1;
+			socket.on("message", (data) => {
+				const frame = JSON.parse(data.toString()) as {
+					kind?: string;
+					envelope?: { command?: string; requestId?: string };
+				};
+				if (
+					frame.kind !== "command" ||
+					frame.envelope?.command !== "client.register" ||
+					!frame.envelope.requestId
+				) {
+					return;
+				}
+				if (registrationMode !== "silent") {
+					const rejected = registrationMode === "reject";
+					socket.send(
+						JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								command: frame.envelope.command,
+								requestId: frame.envelope.requestId,
+								ok: !rejected,
+								clientId: "hub",
+								...(rejected
+									? { error: { code: "not_authorized", message: "expired" } }
+									: { payload: {} }),
+							},
+						}),
+					);
+				}
+				announceRegister?.(frame.envelope.requestId);
+			});
+		});
+
+		const { port } = server.address() as AddressInfo;
+		const client = new NodeHubClient({
+			url: `ws://127.0.0.1:${port}/hub`,
+			resolveConnectionHeaders: () => ({
+				Authorization: "Bearer account-token",
+			}),
+		});
+
+		try {
+			// Attempt 1: deliver the register reply and close() in one
+			// synchronous stretch, before the registration continuation's
+			// microtask can run. The attempt must reject instead of marking a
+			// closed client registered.
+			const registerRequestId = new Promise<string>((resolve) => {
+				announceRegister = resolve;
+			});
+			const raced = client.connect();
+			const requestId = await registerRequestId;
+			(
+				client as unknown as { handleFrame: (frame: unknown) => void }
+			).handleFrame({
+				kind: "reply",
+				envelope: {
+					version: "v1",
+					command: "client.register",
+					requestId,
+					ok: true,
+					clientId: "hub",
+					payload: {},
+				},
+			});
+			client.close();
+			await expect(raced).rejects.toMatchObject({
+				code: "hub_connection_closed",
+			});
+			expect(client.isConnected()).toBe(false);
+
+			// Attempt 2: the hub rejects registration. A stale registered flag
+			// from attempt 1 must not make the client keep this unregistered
+			// socket alive.
+			registrationMode = "reject";
+			await expect(client.connect()).rejects.toMatchObject({
+				code: "not_authorized",
+			});
+			expect(client.isConnected()).toBe(false);
+
+			// Attempt 3: a fresh connect must dial a new socket and register,
+			// not resolve against a zombie left over from attempt 2.
+			registrationMode = "ack";
+			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(connectionCount).toBe(3);
+		} finally {
+			client.close();
+		}
+	});
+
 	it("rejects connection headers combined with an auth token in the URL", async () => {
 		const resolveConnectionHeaders = vi.fn(() => ({
 			Authorization: "Bearer account-token",

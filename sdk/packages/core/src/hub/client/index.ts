@@ -407,6 +407,19 @@ export class NodeHubClient {
 				undefined,
 				false,
 			);
+			// A close() (or a newer attempt after it) may have superseded this
+			// attempt while the register reply was in flight. Marking the client
+			// registered now would poison later failure handling (a stale
+			// `registered === true` makes a future failed attempt skip closing
+			// its socket) and leave a zombie connection behind.
+			if (generation !== this.connectGeneration || this.closedByClient) {
+				try {
+					socket.close();
+				} catch {
+					// best-effort close
+				}
+				throw this.lastCloseError;
+			}
 			this.registered = true;
 			for (const key of this.subscriptionCounts.keys()) {
 				this.sendSubscriptionFrame(
@@ -427,7 +440,10 @@ export class NodeHubClient {
 			// connect() would see it open and resolve without a registered client.
 			// Close only THIS attempt's socket — after close()+connect() races the
 			// current socket may belong to a newer attempt that must stay alive.
-			if (!this.registered && attemptSocket && this.socket === attemptSocket) {
+			// Deliberately not conditioned on `this.registered`: the socket
+			// identity check alone decides ownership and cannot be poisoned by a
+			// stale registration flag.
+			if (attemptSocket && this.socket === attemptSocket) {
 				try {
 					attemptSocket.close();
 				} catch {
@@ -515,14 +531,16 @@ export class NodeHubClient {
 				}
 				settled = true;
 				suppressCloseMessage = true;
-				this.lastCloseError = new HubTransportError(
+				const timeoutError = new HubTransportError(
 					"hub_connect_timeout",
 					`Timed out connecting to hub after ${HUB_CONNECT_TIMEOUT_MS}ms`,
 				);
-				this.sawSocketClose = false;
 				// Guarded on identity: a stale attempt's late failure must not
-				// clobber a newer in-flight attempt's dedupe state.
+				// clobber a newer in-flight attempt's dedupe state or its
+				// reported connection error.
 				if (this.socket === socket) {
+					this.lastCloseError = timeoutError;
+					this.sawSocketClose = false;
 					this.connectPromise = undefined;
 					this.socket = undefined;
 				}
@@ -531,7 +549,7 @@ export class NodeHubClient {
 				} catch {
 					// best-effort close
 				}
-				reject(this.lastCloseError);
+				reject(timeoutError);
 			}, HUB_CONNECT_TIMEOUT_MS);
 			socket.addEventListener("open", () => {
 				if (settled) {
@@ -547,13 +565,14 @@ export class NodeHubClient {
 				}
 				settled = true;
 				clearTimeout(timeout);
-				this.lastCloseError = normalizeWebSocketConnectError(error, url);
-				this.sawSocketClose = false;
+				const connectError = normalizeWebSocketConnectError(error, url);
 				if (this.socket === socket) {
+					this.lastCloseError = connectError;
+					this.sawSocketClose = false;
 					this.connectPromise = undefined;
 					this.socket = undefined;
 				}
-				reject(this.lastCloseError);
+				reject(connectError);
 			});
 			socket.addEventListener("close", (event: unknown) => {
 				if (settled) {
@@ -561,15 +580,18 @@ export class NodeHubClient {
 				}
 				settled = true;
 				clearTimeout(timeout);
-				if (!suppressCloseMessage) {
-					this.lastCloseError = createHubCloseError(event);
-					this.sawSocketClose = true;
-				}
+				const closeError = suppressCloseMessage
+					? this.lastCloseError
+					: createHubCloseError(event);
 				if (this.socket === socket) {
+					if (!suppressCloseMessage) {
+						this.lastCloseError = closeError;
+						this.sawSocketClose = true;
+					}
 					this.connectPromise = undefined;
 					this.socket = undefined;
 				}
-				reject(this.lastCloseError);
+				reject(closeError);
 			});
 		});
 
@@ -824,10 +846,16 @@ export class NodeHubClient {
 		this.connectGeneration += 1;
 		this.clearReconnectTimer();
 		this.registered = false;
-		this.lastCloseError = new HubTransportError(
-			"hub_connection_closed",
-			DEFAULT_HUB_CLOSED_MESSAGE,
-		);
+		// Without a socket there is nothing this close() is tearing down, so
+		// keep the real failure cause (e.g. a connect error) for
+		// getConnectionError() readers instead of wiping it with the generic
+		// closed message.
+		if (socket) {
+			this.lastCloseError = new HubTransportError(
+				"hub_connection_closed",
+				DEFAULT_HUB_CLOSED_MESSAGE,
+			);
+		}
 		for (const pending of this.pendingReplies.values()) {
 			pending.reject(this.lastCloseError);
 		}
