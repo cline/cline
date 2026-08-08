@@ -189,7 +189,7 @@ export function AddProviderContent({
 					<Button
 						onClick={onBack}
 						variant="secondary"
-						className="rounded-md p-1.5 transition-colors"
+						className="rounded-md p-1.5"
 						aria-label="Back to providers"
 					>
 						<ArrowLeft className="h-4 w-4" />
@@ -441,7 +441,7 @@ export function AddProviderContent({
 									))}
 									<Button
 										onClick={addHeader}
-										className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-fit"
+										className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium hover:text-foreground transition-colors w-fit"
 									>
 										<Plus className="h-3 w-3" />
 										Add Header
@@ -457,7 +457,7 @@ export function AddProviderContent({
 				<div className="flex items-center justify-end gap-3 pt-2">
 					<Button
 						onClick={onBack}
-						className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-foreground hover:bg-primary transition-colors"
+						className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-surface-hover hover:text-foreground"
 					>
 						Cancel
 					</Button>
@@ -465,10 +465,10 @@ export function AddProviderContent({
 						onClick={() => void handleSave()}
 						disabled={!canSave || saving}
 						className={cn(
-							"rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+							"rounded-lg px-4 py-2 text-sm font-medium",
 							canSave && !saving
-								? "bg-primary text-primary-foreground hover:bg-primary/90"
-								: "bg-muted text-muted-foreground cursor-not-allowed",
+								? "bg-primary hover:bg-primary/90"
+								: "bg-muted cursor-not-allowed text-foreground",
 						)}
 					>
 						{saving ? "Saving..." : "Add Provider"}

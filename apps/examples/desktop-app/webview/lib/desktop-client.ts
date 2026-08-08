@@ -107,7 +107,29 @@ export type DesktopErrorReport = {
 	handled?: boolean;
 	command?: string;
 	timeoutMs?: number;
+	/** Failing resource URL from an ErrorEvent's `filename`. */
+	sourceUrl?: string;
+	lineno?: number;
+	colno?: number;
 };
+
+/**
+ * Upper bound for free-form attribution strings (source URLs, stack traces)
+ * so a single report stays small on the wire and in telemetry storage.
+ */
+const ERROR_REPORT_FIELD_LIMIT = 500;
+
+function boundedReportString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim()
+		? value.slice(0, ERROR_REPORT_FIELD_LIMIT)
+		: undefined;
+}
+
+function finiteReportNumber(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value)
+		? value
+		: undefined;
+}
 
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
@@ -200,6 +222,12 @@ class DesktopClient {
 					command: report.command,
 					timeoutMs: report.timeoutMs,
 					transportState: this.transportState,
+					sourceUrl: boundedReportString(report.sourceUrl),
+					lineno: finiteReportNumber(report.lineno),
+					colno: finiteReportNumber(report.colno),
+					stack: boundedReportString(
+						error instanceof Error ? error.stack : undefined,
+					),
 				}),
 			});
 			if (!response.ok) return false;

@@ -8,6 +8,7 @@ import {
 	type McpServerEntry,
 	type McpTransport,
 	removeServer,
+	setServerOAuthClient,
 	toggleServer,
 	updateServer,
 } from "./settings";
@@ -49,6 +50,7 @@ type RemoteAuthMode = "none" | "headers" | "oauth";
 interface UrlServerConfig {
 	transport: McpTransport;
 	authMode: RemoteAuthMode;
+	oauthClient?: { clientId: string; clientSecret?: string };
 }
 
 export interface McpAddDefaults {
@@ -196,7 +198,29 @@ async function collectUrlTransport(
 	});
 	if (isCancel(authMode)) return null;
 
-	if (authMode === "oauth" || authMode === "none") {
+	if (authMode === "oauth") {
+		const clientId = await p.text({
+			message: "OAuth client ID (leave empty for dynamic registration)",
+		});
+		if (isCancel(clientId)) return null;
+		const normalizedClientId = (clientId as string).trim();
+		let clientSecret: string | undefined;
+		if (normalizedClientId) {
+			const secret = await p.password({
+				message: "OAuth client secret (leave empty for public clients)",
+			});
+			if (isCancel(secret)) return null;
+			clientSecret = (secret as string).trim() || undefined;
+		}
+		return {
+			transport: { type, url: (url as string).trim() },
+			authMode,
+			oauthClient: normalizedClientId
+				? { clientId: normalizedClientId, clientSecret }
+				: undefined,
+		};
+	}
+	if (authMode === "none") {
 		return {
 			transport: { type, url: (url as string).trim() },
 			authMode,
@@ -270,6 +294,7 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 
 	let transport: McpTransport | null;
 	let authMode: RemoteAuthMode = "none";
+	let oauthClient: UrlServerConfig["oauthClient"];
 	if (type === "stdio") {
 		transport = await collectStdioTransport(defaults?.command);
 	} else {
@@ -279,6 +304,7 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 		);
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
+		oauthClient = config?.oauthClient;
 	}
 	if (!transport) return;
 
@@ -286,6 +312,8 @@ async function actionAdd(defaults?: McpAddDefaults): Promise<void> {
 	addServer(serverName, transport);
 	if (authMode !== "oauth") {
 		clearServerOAuth(serverName);
+	} else {
+		setServerOAuthClient(serverName, oauthClient);
 	}
 	p.log.success(`Added "${serverName}" to ${getSettingsPath()}`);
 	if (authMode === "oauth") {
@@ -374,18 +402,22 @@ async function actionEdit(): Promise<void> {
 
 	let transport: McpTransport | null;
 	let authMode: RemoteAuthMode = "none";
+	let oauthClient: UrlServerConfig["oauthClient"];
 	if (type === "stdio") {
 		transport = await collectStdioTransport();
 	} else {
 		const config = await collectUrlTransport(type as "sse" | "streamableHttp");
 		transport = config?.transport ?? null;
 		authMode = config?.authMode ?? "none";
+		oauthClient = config?.oauthClient;
 	}
 	if (!transport) return;
 
 	updateServer(name, transport);
 	if (type === "stdio" || authMode !== "oauth") {
 		clearServerOAuth(name);
+	} else {
+		setServerOAuthClient(name, oauthClient);
 	}
 	p.log.success(`Updated "${name}"`);
 	if (authMode === "oauth") {

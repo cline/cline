@@ -5,12 +5,13 @@ import {
 	formatMcpTimeoutErrorMessage,
 	isMcpTimeoutConfigured,
 } from "@cline/shared";
-import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import type { FetchLike } from "@modelcontextprotocol/sdk/shared/transport.js";
 import {
+	createMcpOAuthClientInformation,
 	createMcpOAuthProviderContext,
 	createMcpSdkTransport,
+	isMcpUnauthorizedError,
 	type McpOAuthProviderContext,
 } from "./oauth";
 import { augmentMcpTimeoutError, resolveMcpRequestTimeoutMs } from "./timeout";
@@ -42,10 +43,18 @@ type JsonRpcMessage = {
 };
 
 const MCP_PROTOCOL_VERSION = "2024-11-05";
-// Initialize budget when no timeout is configured. A configured `timeout`
-// raises it, which lets slow-starting servers (e.g. uvx downloading on first
-// run) get through initialize.
-const MCP_CONNECT_PROBE_TIMEOUT_MS = 1_500;
+// Initialize budget when no timeout is configured. This wait sits on the
+// session-create critical path, which the hub caps at 30s
+// (HUB_DEFAULT_COMMAND_TIMEOUT_MS), and connect() may spend it twice (newline
+// then Content-Length framing), so the doubled total MUST stay well under
+// that cap or a hung server takes the whole session down with it. 3s covers
+// typical stdio startup while keeping the worst case (~6s per server, probed
+// in parallel) far from the hub deadline. Slow-starting servers (JVM-based
+// ones like Oracle SQLcl, uvx downloading a package on first run) need an
+// explicit `timeout`, which overrides this in either direction. Dead commands
+// still fail fast through the spawn error/exit path; only an alive-but-silent
+// server waits out this budget.
+export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
@@ -177,14 +186,14 @@ class StdioMcpClient implements McpServerClient {
 		this.requestTimeoutMs = resolveMcpRequestTimeoutMs(
 			registration.timeoutSeconds,
 		);
-		// Keep the fast probe default unless the user opted into patience:
-		// an unconfigured server must not stall startup longer than it did
-		// before per-server timeouts existed.
+		// Initialize gets its own default budget so slow-starting servers
+		// connect out of the box; an explicit `timeout` overrides it in
+		// either direction.
 		this.connectAttemptTimeoutMs = isMcpTimeoutConfigured(
 			registration.timeoutSeconds,
 		)
 			? this.requestTimeoutMs
-			: MCP_CONNECT_PROBE_TIMEOUT_MS;
+			: DEFAULT_MCP_CONNECT_TIMEOUT_MS;
 	}
 
 	async connect(): Promise<void> {
@@ -539,6 +548,19 @@ export interface DefaultMcpServerClientFactoryOptions {
 	fetch?: FetchLike;
 }
 
+export interface ProbeMcpServerConnectionOptions
+	extends Omit<DefaultMcpServerClientFactoryOptions, "settingsPath"> {
+	serverName: string;
+	filePath?: string;
+}
+
+export interface ProbeMcpServerConnectionResult {
+	serverName: string;
+	connected: boolean;
+	authorizationRequired: boolean;
+	error?: string;
+}
+
 class SdkUrlMcpClient implements McpServerClient {
 	private client?: Client;
 	private authContext?: McpOAuthProviderContext;
@@ -568,8 +590,18 @@ class SdkUrlMcpClient implements McpServerClient {
 			serverName: this.registration.name,
 			redirectUrl:
 				this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
+			clientInformation: createMcpOAuthClientInformation(
+				this.registration.oauthClient,
+			),
 		});
 		this.authContext = authContext;
+		// A normal connection may consume/refresh existing credentials, but it
+		// must not initiate a new interactive OAuth flow. Without stored tokens,
+		// omit the provider so the MCP SDK reports UnauthorizedError immediately;
+		// the host can then render an explicit authorization action.
+		const oauthProvider = (await authContext.provider.tokens())
+			? authContext.provider
+			: undefined;
 		let client: Client | undefined;
 		try {
 			client = new Client({
@@ -578,7 +610,7 @@ class SdkUrlMcpClient implements McpServerClient {
 			});
 			const transport = createMcpSdkTransport({
 				registration: this.registration,
-				oauthProvider: authContext.provider,
+				oauthProvider,
 				fetch: this.options.fetch,
 			});
 			await client.connect(transport, { timeout: this.requestTimeoutMs });
@@ -591,13 +623,15 @@ class SdkUrlMcpClient implements McpServerClient {
 				this.registration.name,
 				this.requestTimeoutMs,
 			);
-			const message =
-				error instanceof UnauthorizedError
-					? this.formatUnauthorizedMessage(
-							authContext.getLastAuthorizationUrl(),
-						)
-					: toErrorMessage(effectiveError);
-			await authContext.markError(message);
+			const unauthorized = isMcpUnauthorizedError(error);
+			const message = unauthorized
+				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
+				: toErrorMessage(effectiveError);
+			if (unauthorized && !this.hasStaticAuthorizationHeader()) {
+				await authContext.markAuthorizationRequired(message);
+			} else {
+				await authContext.markConnectionError(message);
+			}
 			throw new Error(message);
 		}
 	}
@@ -665,11 +699,24 @@ class SdkUrlMcpClient implements McpServerClient {
 	}
 
 	private formatUnauthorizedMessage(authUrl: string | undefined): string {
+		if (this.hasStaticAuthorizationHeader()) {
+			return `MCP server "${this.registration.name}" rejected its configured Authorization header. Update or remove that header before connecting with OAuth.`;
+		}
 		const base = `MCP server "${this.registration.name}" requires OAuth authorization.`;
 		if (!authUrl) {
 			return `${base} Run authorizeMcpServerOAuth for this server.`;
 		}
 		return `${base} Run authorizeMcpServerOAuth for this server and complete this URL: ${authUrl}`;
+	}
+
+	private hasStaticAuthorizationHeader(): boolean {
+		const transport = this.registration.transport;
+		if (transport.type === "stdio") {
+			return false;
+		}
+		return Object.keys(transport.headers ?? {}).some(
+			(name) => name.toLowerCase() === "authorization",
+		);
 	}
 
 	private async handleOperationError(error: unknown): Promise<never> {
@@ -680,17 +727,24 @@ class SdkUrlMcpClient implements McpServerClient {
 				serverName: this.registration.name,
 				redirectUrl:
 					this.registration.oauth?.redirectUrl ?? DEFAULT_HTTP_MCP_REDIRECT_URL,
+				clientInformation: createMcpOAuthClientInformation(
+					this.registration.oauthClient,
+				),
 			});
 		const effectiveError = augmentMcpTimeoutError(
 			error,
 			this.registration.name,
 			this.requestTimeoutMs,
 		);
-		const message =
-			error instanceof UnauthorizedError
-				? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
-				: toErrorMessage(effectiveError);
-		await authContext.markError(message);
+		const unauthorized = isMcpUnauthorizedError(error);
+		const message = unauthorized
+			? this.formatUnauthorizedMessage(authContext.getLastAuthorizationUrl())
+			: toErrorMessage(effectiveError);
+		if (unauthorized && !this.hasStaticAuthorizationHeader()) {
+			await authContext.markAuthorizationRequired(message);
+		} else {
+			await authContext.markConnectionError(message);
+		}
 		throw new Error(message);
 	}
 }
@@ -702,4 +756,60 @@ export function createDefaultMcpServerClientFactory(
 		registration.transport.type === "stdio"
 			? new StdioMcpClient(registration)
 			: new SdkUrlMcpClient(registration, options);
+}
+
+/**
+ * Passively verifies a configured remote MCP endpoint. This may use or refresh
+ * existing credentials, but it never starts an interactive OAuth redirect.
+ */
+export async function probeMcpServerConnection(
+	options: ProbeMcpServerConnectionOptions,
+): Promise<ProbeMcpServerConnectionResult> {
+	const serverName = options.serverName.trim();
+	if (!serverName) {
+		throw new Error("MCP server name cannot be empty.");
+	}
+	const { getMcpServerOAuthStatus, resolveMcpServerRegistration } =
+		await import("./config-loader");
+	const registration = resolveMcpServerRegistration(serverName, {
+		filePath: options.filePath,
+	});
+	if (!registration) {
+		throw new Error(`MCP server "${serverName}" is not configured.`);
+	}
+	if (registration.transport.type === "stdio") {
+		throw new Error(
+			`MCP server "${serverName}" uses stdio and cannot be passively probed.`,
+		);
+	}
+
+	const client = await createDefaultMcpServerClientFactory({
+		settingsPath: options.filePath,
+		clientName: options.clientName,
+		clientVersion: options.clientVersion,
+		fetch: options.fetch,
+	})(registration);
+	let connectionError: string | undefined;
+	try {
+		await client.connect();
+	} catch (error) {
+		connectionError = toErrorMessage(error);
+	} finally {
+		await client.disconnect().catch(() => undefined);
+	}
+
+	const updatedRegistration = resolveMcpServerRegistration(serverName, {
+		filePath: options.filePath,
+	});
+	const oauthStatus = updatedRegistration
+		? getMcpServerOAuthStatus(updatedRegistration)
+		: undefined;
+	return {
+		serverName,
+		connected: connectionError === undefined,
+		authorizationRequired: oauthStatus?.authorizationRequired === true,
+		...(connectionError
+			? { error: oauthStatus?.lastError ?? connectionError }
+			: {}),
+	};
 }

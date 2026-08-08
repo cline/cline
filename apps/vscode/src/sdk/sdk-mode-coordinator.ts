@@ -40,6 +40,14 @@ export interface SdkModeCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Authoritative phase of the current turn, from the controller's TurnStateTracker. */
 	getTurnPhase: () => TurnPhase
+	/**
+	 * Sets the authoritative turn phase. Aborting a running turn for a mode
+	 * change must settle the phase to "resumable" (mirroring cancelTask):
+	 * leaving it on "streaming" keeps the footer stuck on Thinking with the
+	 * input disabled, and leaving it on "awaiting_approval" keeps dead
+	 * Approve/Reject buttons wired to an approval that was already denied.
+	 */
+	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	resolveContextMentions: (text: string) => Promise<string>
 	/**
 	 * Called right before an auto-continue send kicks off a new turn. Mirrors
@@ -405,12 +413,31 @@ export class SdkModeCoordinator {
 		this.options.sessions.setRunning(false)
 
 		const task = this.options.getTask()
-		if (!task?.messageStateHandler) {
-			return
+		if (task?.messageStateHandler) {
+			const current = task.messageStateHandler.getClineMessages()
+			const finalized = this.options.messages.finalizeMessagesForSave(current)
+			this.options.messages.appendMessages(finalized)
 		}
 
-		const current = task.messageStateHandler.getClineMessages()
-		const finalized = this.options.messages.finalizeMessagesForSave(current)
-		this.options.messages.appendMessages(finalized)
+		// The turn was aborted mid-flight, so nothing will ever settle its phase:
+		// the aborted session's done event is fenced off as a stale event once the
+		// rebuild unsubscribes it. Mirror cancelTask — append a resume ask and mark
+		// the turn resumable — so the footer offers Resume Task with the input
+		// enabled instead of an eternal Thinking spinner (aborted while streaming)
+		// or dead approval buttons (aborted while awaiting approval). When the
+		// rebuild auto-continues, onAutoContinueStarting flips the phase back to
+		// streaming before anything is sent.
+		const resumeMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "resume_task",
+			text: "",
+			partial: false,
+		}
+		this.options.messages.appendAndEmit([resumeMessage], {
+			type: "status",
+			payload: { sessionId: oldSessionId, status: "cancelled" },
+		})
+		this.options.setTurnPhase("resumable", resumeMessage.ts)
 	}
 }
