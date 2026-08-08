@@ -1547,6 +1547,66 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	it("retries a failed image-only turn even though its transcript label is empty", async () => {
+		const sendRequests: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "send") {
+						sendRequests.push(request as Record<string, unknown>);
+						return sendRequests.length === 1
+							? {
+									ok: true,
+									result: { text: "invalid x-api-key", finishReason: "error" },
+								}
+							: {
+									ok: true,
+									result: { text: "A screenshot.", finishReason: "completed" },
+								};
+					}
+				}
+				return [];
+			},
+		);
+
+		const image = new File([new Uint8Array([1, 2, 3])], "shot.png", {
+			type: "image/png",
+		});
+		await act(async () => {
+			await current.sendPrompt("", [image]);
+		});
+		expect(current.status).toBe("failed");
+		// Image-only prompts produce an empty transcript label, so the retry
+		// fallback text is empty — the retained payload must carry the retry.
+		await act(async () => {
+			await current.retryFailedTurn("");
+		});
+
+		expect(sendRequests).toHaveLength(2);
+		const retryRequest = sendRequests[1] as {
+			prompt?: string;
+			attachments?: { userImages?: string[] };
+		};
+		expect(retryRequest.prompt).toBe("");
+		expect(retryRequest.attachments?.userImages).toEqual([
+			"data:image/png;base64,AQID",
+		]);
+		expect(current.status).toBe("completed");
+	});
+
 	it("retries the failed turn's own payload, not a prompt with the same label queued behind it", async () => {
 		let resolveFirstSend:
 			| ((value: Record<string, unknown>) => void)

@@ -895,26 +895,26 @@ function ChatThreadPane({
 	// Failed turns are retried in the same session by re-sending the failed
 	// turn's original payload — no fork, no draft round-trip through the
 	// composer. The session hook tracks that payload by turn lifecycle; the
-	// transcript-derived text below is only its fallback (and the gate for
-	// showing the Retry button at all).
-	const lastUserPrompt = useMemo(() => {
-		const lastUserMessage = [...messages]
-			.reverse()
-			.find((message) => message.role === "user");
-		if (!lastUserMessage) {
-			return "";
-		}
-		return formatChatMessageContent("user", lastUserMessage.content).trim();
-	}, [messages]);
+	// transcript-derived text below is only its fallback. Retry is offered
+	// whenever the failed turn has a user message at all — including
+	// image-only prompts, whose transcript label is empty.
+	const lastUserMessage = useMemo(
+		() => [...messages].reverse().find((message) => message.role === "user"),
+		[messages],
+	);
 
 	const handleRetryFailedTurn = useMemo(() => {
-		if (!lastUserPrompt) {
+		if (!lastUserMessage) {
 			return null;
 		}
+		const lastUserPrompt = formatChatMessageContent(
+			"user",
+			lastUserMessage.content,
+		).trim();
 		return async () => {
 			await retryFailedTurn(lastUserPrompt);
 		};
-	}, [lastUserPrompt, retryFailedTurn]);
+	}, [lastUserMessage, retryFailedTurn]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
