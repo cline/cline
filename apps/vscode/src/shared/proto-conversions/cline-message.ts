@@ -214,6 +214,7 @@ export function convertClineMessageToProto(message: AppClineMessage): ProtoCline
 		askNewTask: undefined,
 		apiReqInfo: undefined,
 		modelInfo: message.modelInfo ?? undefined,
+		backendName: message.backendName ?? "",
 	}
 
 	return protoMessage
@@ -288,6 +289,9 @@ export function convertProtoToClineMessage(protoMessage: ProtoClineMessage): App
 	}
 	if (protoMessage.epoch && protoMessage.epoch !== 0) {
 		message.epoch = protoMessage.epoch
+	}
+	if (protoMessage.backendName !== "") {
+		message.backendName = protoMessage.backendName
 	}
 
 	return message

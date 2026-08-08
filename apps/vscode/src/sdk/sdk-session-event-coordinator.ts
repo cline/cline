@@ -93,6 +93,16 @@ export class SdkSessionEventCoordinator {
 		}
 
 		if (result.messages.length > 0) {
+			// Multichat: stamp every message with the backend that produced it, so the
+			// webview can color-code responses and show "who said this" on hover. Only
+			// messages actually authored by the model matter here; user-authored
+			// messages are constructed elsewhere and never carry this field.
+			const backendName = this.options.stateManager?.getGlobalSettingsKey("defaultBackendName")
+			if (backendName) {
+				for (const message of result.messages) {
+					message.backendName = backendName
+				}
+			}
 			this.options.messages.appendAndEmit(result.messages, event)
 		}
 

@@ -43,6 +43,7 @@ import { useExtensionState } from "@/context/ExtensionStateContext"
 import { cn } from "@/lib/utils"
 import { FileServiceClient, UiServiceClient } from "@/services/grpc-client"
 import { findMatchingResourceOrTemplate } from "@/utils/mcp"
+import { backendColor } from "@/utils/multichatColors"
 import CodeAccordian, { cleanPathPrefix } from "../common/CodeAccordian"
 import { CommandOutputContent, CommandOutputRow } from "./CommandOutputRow"
 import CompactionRow from "./CompactionRow"
@@ -102,8 +103,15 @@ const ChatRow = memo(
 		// This allows us to detect changes without causing re-renders
 		const prevHeightRef = useRef(0)
 
+		// Multichat: color-code and label this row by whichever backend produced it
+		// (undefined/no-op for messages with no backendName, e.g. user messages).
+		const color = backendColor(message.backendName)
+
 		const [chatrow, { height }] = useSize(
-			<div className="relative pt-2.5 px-4">
+			<div
+				className="relative pt-2.5 px-4"
+				style={color ? { borderLeft: `3px solid ${color}`, paddingLeft: "13px" } : undefined}
+				title={message.backendName ? `Response from "${message.backendName}"` : undefined}>
 				<ChatRowContent {...props} />
 			</div>,
 		)

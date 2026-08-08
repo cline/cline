@@ -60,6 +60,13 @@ export interface ApiHandlerOptions extends Partial<ApiHandlerSettings> {
 
 export type ApiConfiguration = ApiHandlerOptions
 
+// Multichat: a saved, named snapshot of an ApiConfiguration that a running task
+// can be switched onto mid-conversation (see SdkMultichatCoordinator).
+export interface NamedApiBackend {
+	name: string
+	config: ApiConfiguration
+}
+
 // Models
 
 interface PriceTier {

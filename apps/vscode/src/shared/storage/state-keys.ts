@@ -4,6 +4,7 @@ import {
 	DEFAULT_API_PROVIDER,
 	LiteLLMModelInfo,
 	ModelInfo,
+	type NamedApiBackend,
 	type OcaModelInfo,
 	OpenAiCompatibleModelInfo,
 } from "@shared/api"
@@ -278,6 +279,15 @@ const USER_SETTINGS_FIELDS = {
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
+	// Multichat: label for whatever ApiConfiguration is currently live, and the
+	// list of additional saved backends addressable by name mid-conversation.
+	// Regenerating proto/cline/state.proto (generate-state-proto.mjs) folds a
+	// complex type like NamedApiBackend[] to a plain `string` Settings field, so
+	// it crosses the UpdateSettingsRequest boundary JSON-encoded (see
+	// updateSettings.ts / getStateToPostToWebview.ts), same as other
+	// object-shaped settings in this file.
+	defaultBackendName: { default: "" as string },
+	namedApiBackends: { default: [] as NamedApiBackend[] },
 	mode: { default: "act" as Mode },
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
