@@ -1,14 +1,29 @@
-const EXTENSION_BY_MEDIA_TYPE: Record<string, string> = {
+import { SUPPORTED_IMAGE_MEDIA_TYPES } from "@cline/shared/browser";
+
+// Restricted to the media types message serialization accepts
+// (SUPPORTED_IMAGE_MEDIA_TYPES); anything else would render an attachment
+// chip but be silently dropped from the sent message.
+const EXTENSION_BY_MEDIA_TYPE: Record<
+	(typeof SUPPORTED_IMAGE_MEDIA_TYPES)[number],
+	string
+> = {
 	"image/png": "png",
 	"image/jpeg": "jpg",
-	"image/webp": "webp",
 	"image/gif": "gif",
-	"image/bmp": "bmp",
-	"image/svg+xml": "svg",
+	"image/webp": "webp",
 };
 
-function pastedImageName(mediaType: string, index: number): string {
-	const extension = EXTENSION_BY_MEDIA_TYPE[mediaType] ?? "png";
+function isSupportedImageMediaType(
+	mediaType: string,
+): mediaType is (typeof SUPPORTED_IMAGE_MEDIA_TYPES)[number] {
+	return (SUPPORTED_IMAGE_MEDIA_TYPES as readonly string[]).includes(mediaType);
+}
+
+function pastedImageName(
+	mediaType: (typeof SUPPORTED_IMAGE_MEDIA_TYPES)[number],
+	index: number,
+): string {
+	const extension = EXTENSION_BY_MEDIA_TYPE[mediaType];
 	const stamp = new Date()
 		.toISOString()
 		.replaceAll(":", "-")
@@ -21,6 +36,10 @@ function pastedImageName(mediaType: string, index: number): string {
  * Extracts image files from a clipboard paste. Clipboard images arrive with
  * generic names (e.g. "image.png"), so each is renamed to a timestamped
  * "pasted-image-…" file to keep attachment chips and dedupe keys distinct.
+ *
+ * Only media types supported by message serialization are extracted;
+ * unsupported formats (e.g. BMP, SVG) are left to the default paste behavior
+ * rather than shown as attachments that would be dropped on send.
  */
 export function imageFilesFromClipboard(
 	clipboardData: Pick<DataTransfer, "items"> | null,
@@ -30,11 +49,11 @@ export function imageFilesFromClipboard(
 	}
 	const files: File[] = [];
 	for (const item of clipboardData.items) {
-		if (item.kind !== "file" || !item.type.startsWith("image/")) {
+		if (item.kind !== "file" || !isSupportedImageMediaType(item.type)) {
 			continue;
 		}
 		const file = item.getAsFile();
-		if (!file) {
+		if (!file || !isSupportedImageMediaType(file.type)) {
 			continue;
 		}
 		files.push(

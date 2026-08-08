@@ -38,6 +38,25 @@ describe("imageFilesFromClipboard", () => {
 		expect(files).toHaveLength(0);
 	});
 
+	it("ignores image formats that message serialization does not support", () => {
+		const bmp = new File(["fake"], "image.bmp", { type: "image/bmp" });
+		const svg = new File(["<svg/>"], "image.svg", {
+			type: "image/svg+xml",
+		});
+		const png = new File(["fake"], "image.png", { type: "image/png" });
+		const files = imageFilesFromClipboard(
+			makeClipboardItems([
+				{ kind: "file", type: "image/bmp", file: bmp },
+				{ kind: "file", type: "image/svg+xml", file: svg },
+				{ kind: "file", type: "image/png", file: png },
+			]),
+		);
+
+		expect(files).toHaveLength(1);
+		expect(files[0].type).toBe("image/png");
+		expect(files[0].name).toMatch(/^pasted-image-.+\.png$/);
+	});
+
 	it("gives multiple pasted images distinct names", () => {
 		const png = new File(["a"], "image.png", { type: "image/png" });
 		const jpeg = new File(["b"], "image.jpg", { type: "image/jpeg" });
