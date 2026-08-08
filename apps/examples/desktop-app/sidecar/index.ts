@@ -64,7 +64,6 @@ async function main() {
 	});
 
 	prewarmWorkspaceMetadata(workspaceRoot);
-	// Let the webview's awaited first read poll and warm the creation gate.
 	observability.logger.log(
 		"Login shell PATH resolution",
 		await shellPathPromise,

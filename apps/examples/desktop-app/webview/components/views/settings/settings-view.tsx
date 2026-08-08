@@ -527,7 +527,10 @@ function GeneralSettingsContent() {
 	// not exist in PostHog yet, so the gate is hard-wired on for now; once
 	// the flag is added, register it in @cline/shared's feature-flags.ts,
 	// expose it from the sidecar's get_feature_flags command, and swap in
-	// the commented lookup below.
+	// the commented lookup below. Note the sidecar's remote-flag (PostHog)
+	// evaluation plumbing was removed with the old rollout gate, so wiring
+	// this up also means re-adding a FeatureFlagsService to the sidecar
+	// (see git history of sidecar/feature-flags.ts for the hardened version).
 	const cloudSessionsSettingVisible = true;
 	// const [cloudSessionsSettingVisible, setCloudSessionsSettingVisible] =
 	// 	useState(false);

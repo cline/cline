@@ -9,6 +9,12 @@ import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 } from "@cline/shared";
+import type {
+	CloudBranchListOptions,
+	CloudBranchListResult,
+	CloudRepositoryListResult,
+	CloudRepositoryOption,
+} from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
 	handleHubLiveEvent,
@@ -79,30 +85,15 @@ export type CreateCloudSessionInput = {
 	organizationId?: string;
 };
 
-export type CloudRepositoryOption = {
-	id: number;
-	name: string;
-	fullName: string;
-	url: string;
-	defaultBranch: string;
-};
-
-export type CloudRepositoryListResult = {
-	connected: boolean;
-	connectUrl: string;
-	repositories: CloudRepositoryOption[];
-};
-
-export type CloudBranchListResult = {
-	available: boolean;
-	branches: string[];
-	nextToken?: string;
-};
-
-export type CloudBranchListOptions = {
-	cursor?: string;
-	query?: string;
-};
+// The repository/branch wire contract is owned by the webview lib so the two
+// sides of the desktop client cannot silently drift; re-exported here for
+// sidecar-side consumers.
+export type {
+	CloudBranchListOptions,
+	CloudBranchListResult,
+	CloudRepositoryListResult,
+	CloudRepositoryOption,
+} from "../webview/lib/cloud-repositories";
 
 type CloudSessionApiOptions = {
 	apiBaseUrl: string;

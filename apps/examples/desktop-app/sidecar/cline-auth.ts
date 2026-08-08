@@ -1,8 +1,8 @@
 import {
 	captureAuthRefreshSoftFailure,
+	getProviderAuthHandler,
 	type ProviderSettingsManager,
 	RuntimeOAuthTokenManager,
-	resolveLocalClineAuthToken,
 } from "@cline/core";
 import type { SidecarContext } from "./types";
 
@@ -31,8 +31,11 @@ export async function resolveFreshClineAuthToken(
 		// surfaces the auth failure to the caller.
 		refreshError = error instanceof Error ? error : new Error(String(error));
 	}
-	const persisted = withProviderPrefix(
-		resolveLocalClineAuthToken(manager.getProviderSettings("cline")),
+	// The canonical handler applies the same formatting the refresh path uses:
+	// OAuth access tokens gain the `workos:` prefix core-platform expects,
+	// while raw API keys pass through untouched.
+	const persisted = getProviderAuthHandler("cline")?.getApiKey(
+		manager.getProviderSettings("cline"),
 	);
 	// Never-signed-in resolves to undefined without a refresh attempt and is
 	// silent. A refresh failure with no persisted fallback means credentials
@@ -48,21 +51,4 @@ export async function resolveFreshClineAuthToken(
 		});
 	}
 	return persisted;
-}
-
-// Persisted OAuth tokens omit the `workos:` prefix required by core-platform.
-function withProviderPrefix(token: string | undefined): string | undefined {
-	const trimmed = token?.trim();
-	if (!trimmed) {
-		return undefined;
-	}
-	if (trimmed.startsWith("sk_") || trimmed.includes(":")) {
-		return trimmed;
-	}
-	return `workos:${trimmed}`;
-}
-
-/** Test-only reset so auth tests do not leak a cached OAuth manager. */
-export function resetFreshClineAuthTokenManagerForTests(): void {
-	clineOAuthTokenManager = undefined;
 }

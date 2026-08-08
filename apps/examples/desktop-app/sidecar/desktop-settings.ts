@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { resolveClineDataDir } from "@cline/shared/storage";
 
@@ -42,7 +42,11 @@ export function readDesktopSettings(): DesktopSettings {
 export function writeDesktopSettings(settings: DesktopSettings): void {
 	const filePath = resolveDesktopSettingsPath();
 	mkdirSync(dirname(filePath), { recursive: true });
-	writeFileSync(filePath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+	// Write-then-rename keeps the file whole if two app instances race or the
+	// process dies mid-write; a torn JSON file would silently reset settings.
+	const tempPath = `${filePath}.${process.pid}.tmp`;
+	writeFileSync(tempPath, `${JSON.stringify(settings, null, 2)}\n`, "utf8");
+	renameSync(tempPath, filePath);
 }
 
 export function setCloudSessionsEnabled(enabled: boolean): DesktopSettings {

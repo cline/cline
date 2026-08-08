@@ -51,9 +51,6 @@ import {
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
-
-const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
-
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { resolveFreshClineAuthToken } from "./cline-auth";
@@ -130,6 +127,11 @@ const execFileAsync = promisify(execFile);
 // anything broader (file:, custom app schemes) would let webview content
 // launch arbitrary local handlers.
 const OPENABLE_URL_PROTOCOLS = new Set(["https:", "http:", "mailto:", "tel:"]);
+
+// Caps how long session discovery waits on the cloud API so a slow or
+// unreachable backend can never stall the sidebar; the manager falls back to
+// its last cached list.
+const CLOUD_DISCOVERY_BUDGET_MS = 2_000;
 
 function openUrlInDefaultBrowser(url: string): Promise<void> {
 	const platform = process.platform;
@@ -1207,7 +1209,12 @@ export async function handleCommand(
 		// flag gates NEW creation only, so a rollback never strands a session.
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
-			.catch(() => []);
+			.catch((error) => {
+				// A persistent listing failure silently empties the sidebar's
+				// cloud rows; keep a diagnostic trail.
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
 		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "list_cli_sessions") {
@@ -1224,7 +1231,10 @@ export async function handleCommand(
 		)) as JsonRecord[];
 		const cloud = await getCloudSessionManager(ctx)
 			.listForDiscovery({ timeoutMs: CLOUD_DISCOVERY_BUDGET_MS })
-			.catch(() => []);
+			.catch((error) => {
+				ctx.logger?.error?.("Cloud session discovery failed", { error });
+				return [];
+			});
 		return mergeDiscoveredSessionLists(cloud, local, Math.max(1, limit));
 	}
 	if (command === "get_discovered_session") {
@@ -1481,6 +1491,9 @@ export async function handleCommand(
 		});
 		if (providerId === "cline") {
 			await resetCloudSessionManager(ctx);
+			// Sign-out must clear cloud rows from the sidebar immediately,
+			// not on the next 12s poll.
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
 	}
@@ -1536,7 +1549,7 @@ export async function handleCommand(
 	if (command === "run_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
 		const manager = new ProviderSettingsManager();
-		return await runCancellableProviderOAuthLogin(
+		const result = await runCancellableProviderOAuthLogin(
 			manager,
 			providerId,
 			(url) => {
@@ -1550,6 +1563,14 @@ export async function handleCommand(
 			},
 			{ owner: options?.connection },
 		);
+		if (providerId === "cline") {
+			// New credentials re-scope cloud sessions just like switchAccount:
+			// drop the manager's cached org/session state and refresh the
+			// sidebar immediately instead of on the next poll.
+			await resetCloudSessionManager(ctx);
+			broadcastEvent(ctx, "cloud_sessions_changed", {});
+		}
+		return result;
 	}
 	if (command === "cancel_provider_oauth_login") {
 		const providerId = normalizeOAuthProvider(String(args?.provider ?? ""));
