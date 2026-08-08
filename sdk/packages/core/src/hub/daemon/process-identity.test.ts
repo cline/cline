@@ -1,15 +1,17 @@
 import { describe, expect, it } from "vitest";
 import {
-	hubProcessStartMatchesReport,
-	killHubProcessBoundToReport,
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
+	type ProcessStartTicket,
 	type ProcReader,
-	readLinuxProcessStartWallClockMs,
+	readLinuxProcessStartTicks,
 } from "./process-identity";
 
-const BOOT_SECONDS = 1_754_000_000;
-// starttime ticks are USER_HZ (100/s): 4_500_000 ticks = 45_000s after boot.
 const START_TICKS = 4_500_000;
-const PROCESS_START_MS = BOOT_SECONDS * 1_000 + START_TICKS * 10;
+
+function statLine(startTicks: number, comm = "(node)"): string {
+	return `12345 ${comm} S 1 12345 12345 0 -1 4194560 100 0 0 0 5 3 0 0 20 0 11 0 ${startTicks} 1000000 500 18446744073709551615`;
+}
 
 function linuxReader(
 	overrides: Partial<Record<string, string>> = {},
@@ -24,106 +26,65 @@ function linuxReader(
 				}
 				return value;
 			}
-			if (path === "/proc/stat") {
-				return `cpu  1 2 3 4\nbtime ${BOOT_SECONDS}\nprocesses 999\n`;
-			}
 			if (path.startsWith("/proc/") && path.endsWith("/stat")) {
-				return `12345 (node) S 1 12345 12345 0 -1 4194560 100 0 0 0 5 3 0 0 20 0 11 0 ${START_TICKS} 1000000 500 18446744073709551615`;
+				return statLine(START_TICKS);
 			}
 			throw new Error(`ENOENT: ${path}`);
 		},
 	};
 }
 
-describe("readLinuxProcessStartWallClockMs", () => {
-	it("converts starttime ticks anchored at boot time into wall-clock ms", () => {
-		expect(readLinuxProcessStartWallClockMs(12345, linuxReader())).toBe(
-			PROCESS_START_MS,
-		);
+const darwinReader: ProcReader = {
+	platform: "darwin",
+	readFile: () => {
+		throw new Error("should not be read");
+	},
+};
+
+describe("readLinuxProcessStartTicks", () => {
+	it("reads field 22 of /proc/<pid>/stat", () => {
+		expect(readLinuxProcessStartTicks(12345, linuxReader())).toBe(START_TICKS);
 	});
 
 	it("parses past a comm containing spaces and parens", () => {
-		// comm is an arbitrary process name: "(tmux: server)" is legal, and a
-		// first-")" parse would land on the wrong field and misread starttime.
+		// comm is an arbitrary process name: "(tmux: server (2))" is legal, and
+		// a first-")" parse would land on the wrong field and misread the tick.
 		const reader = linuxReader({
-			"/proc/12345/stat": `12345 (tmux: server (2)) S 1 12345 12345 0 -1 4194560 100 0 0 0 5 3 0 0 20 0 11 0 ${START_TICKS} 1000000 500 18446744073709551615`,
+			"/proc/12345/stat": statLine(START_TICKS, "(tmux: server (2))"),
 		});
-		expect(readLinuxProcessStartWallClockMs(12345, reader)).toBe(
-			PROCESS_START_MS,
-		);
+		expect(readLinuxProcessStartTicks(12345, reader)).toBe(START_TICKS);
 	});
 
 	it("returns undefined off Linux", () => {
-		const reader: ProcReader = {
-			platform: "darwin",
-			readFile: () => {
-				throw new Error("should not be read");
-			},
-		};
-		expect(readLinuxProcessStartWallClockMs(12345, reader)).toBeUndefined();
+		expect(readLinuxProcessStartTicks(12345, darwinReader)).toBeUndefined();
 	});
 
 	it("returns undefined when the process has already exited", () => {
 		const reader = linuxReader({ "/proc/12345/stat": undefined });
-		expect(readLinuxProcessStartWallClockMs(12345, reader)).toBeUndefined();
-	});
-
-	it("returns undefined when btime is missing", () => {
-		const reader = linuxReader({ "/proc/stat": "cpu  1 2 3 4\n" });
-		expect(readLinuxProcessStartWallClockMs(12345, reader)).toBeUndefined();
+		expect(readLinuxProcessStartTicks(12345, reader)).toBeUndefined();
 	});
 });
 
-describe("hubProcessStartMatchesReport", () => {
-	it("confirms a process that started before its reported listen time", () => {
-		// Normal case: the daemon booted, loaded modules, then began serving.
-		const startedAt = new Date(PROCESS_START_MS + 1_500).toISOString();
-		expect(hubProcessStartMatchesReport(12345, startedAt, linuxReader())).toBe(
-			true,
-		);
+describe("captureProcessStartTicket", () => {
+	it("captures the pid with its exact start tick", () => {
+		expect(captureProcessStartTicket(12345, linuxReader())).toEqual({
+			pid: 12345,
+			startTicks: START_TICKS,
+		});
 	});
 
-	it("rejects a process younger than the report — a recycled pid", () => {
-		// An impostor can only exist because the reporting daemon died after
-		// answering, so the impostor's start is always later than startedAt.
-		const startedAt = new Date(PROCESS_START_MS - 10_000).toISOString();
-		expect(hubProcessStartMatchesReport(12345, startedAt, linuxReader())).toBe(
-			false,
-		);
+	it("returns undefined off Linux, where identity cannot be proven", () => {
+		expect(captureProcessStartTicket(12345, darwinReader)).toBeUndefined();
 	});
 
-	it("rejects when the report carries no startedAt", () => {
-		expect(hubProcessStartMatchesReport(12345, undefined, linuxReader())).toBe(
-			false,
-		);
-	});
-
-	it("rejects when startedAt is unparsable", () => {
-		expect(
-			hubProcessStartMatchesReport(12345, "not-a-date", linuxReader()),
-		).toBe(false);
-	});
-
-	it("rejects off Linux, where identity cannot be proven", () => {
-		const reader: ProcReader = {
-			platform: "darwin",
-			readFile: () => {
-				throw new Error("should not be read");
-			},
-		};
-		expect(
-			hubProcessStartMatchesReport(
-				12345,
-				new Date(PROCESS_START_MS).toISOString(),
-				reader,
-			),
-		).toBe(false);
+	it("returns undefined when the process is already gone", () => {
+		const reader = linuxReader({ "/proc/12345/stat": undefined });
+		expect(captureProcessStartTicket(12345, reader)).toBeUndefined();
 	});
 });
 
-describe("killHubProcessBoundToReport", () => {
-	const OWNED_STARTED_AT = new Date(PROCESS_START_MS + 1_500).toISOString();
-	const FOREIGN_STARTED_AT = new Date(PROCESS_START_MS - 10_000).toISOString();
+describe("killHubProcessBoundToTicket", () => {
+	const TICKET: ProcessStartTicket = { pid: 12345, startTicks: START_TICKS };
 
 	function recordingKill(failWith?: Partial<Record<string, string>>) {
 		const sent: string[] = [];
@@ -141,10 +102,10 @@ describe("killHubProcessBoundToReport", () => {
 		};
 	}
 
-	it("freezes, verifies while frozen, then kills: SIGSTOP before SIGKILL", () => {
+	it("freezes, re-reads the tick while frozen, then kills on an exact match", () => {
 		// The freeze is the point: a stopped process cannot exit, so the pid
-		// cannot be recycled between the /proc read and the kill. The /proc
-		// read must therefore happen between the two signals.
+		// cannot be recycled between the /proc read and the kill. The re-read
+		// must therefore happen between the two signals.
 		const { sent, kill } = recordingKill();
 		let readsAfterStop = 0;
 		const reader = linuxReader();
@@ -157,7 +118,7 @@ describe("killHubProcessBoundToReport", () => {
 				return reader.readFile(path);
 			},
 		};
-		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+		const outcome = killHubProcessBoundToTicket(TICKET, {
 			reader: countingReader,
 			kill,
 		});
@@ -166,15 +127,16 @@ describe("killHubProcessBoundToReport", () => {
 		expect(readsAfterStop).toBeGreaterThan(0);
 	});
 
-	it("thaws and spares a process younger than the report", () => {
-		// A recycled pid: the impostor is frozen, examined, found younger than
-		// the report it never wrote, and resumed — losing microseconds, not
-		// its life.
+	it("thaws and spares a recycled pid — any successor has a different tick", () => {
+		// A successor on a recycled pid was created later, at a strictly
+		// greater tick, so exact equality cannot pass however fast the pid
+		// changed hands. The impostor is frozen, examined, resumed — losing
+		// microseconds, not its life.
 		const { sent, kill } = recordingKill();
-		const outcome = killHubProcessBoundToReport(12345, FOREIGN_STARTED_AT, {
-			reader: linuxReader(),
-			kill,
+		const reader = linuxReader({
+			"/proc/12345/stat": statLine(START_TICKS + 700),
 		});
+		const outcome = killHubProcessBoundToTicket(TICKET, { reader, kill });
 		expect(outcome).toBe("spared");
 		expect(sent).toEqual(["SIGSTOP", "SIGCONT"]);
 	});
@@ -182,17 +144,14 @@ describe("killHubProcessBoundToReport", () => {
 	it("thaws and spares when the process exits before it can be examined", () => {
 		const { sent, kill } = recordingKill();
 		const reader = linuxReader({ "/proc/12345/stat": undefined });
-		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
-			reader,
-			kill,
-		});
+		const outcome = killHubProcessBoundToTicket(TICKET, { reader, kill });
 		expect(outcome).toBe("spared");
 		expect(sent).toEqual(["SIGSTOP", "SIGCONT"]);
 	});
 
 	it("reports gone when the pid no longer exists at freeze time", () => {
 		const { sent, kill } = recordingKill({ SIGSTOP: "ESRCH" });
-		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+		const outcome = killHubProcessBoundToTicket(TICKET, {
 			reader: linuxReader(),
 			kill,
 		});
@@ -202,7 +161,7 @@ describe("killHubProcessBoundToReport", () => {
 
 	it("spares when the pid is not ours to signal", () => {
 		const { sent, kill } = recordingKill({ SIGSTOP: "EPERM" });
-		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+		const outcome = killHubProcessBoundToTicket(TICKET, {
 			reader: linuxReader(),
 			kill,
 		});
@@ -212,34 +171,11 @@ describe("killHubProcessBoundToReport", () => {
 
 	it("sends no signals at all off Linux", () => {
 		const { sent, kill } = recordingKill();
-		const reader: ProcReader = {
-			platform: "darwin",
-			readFile: () => {
-				throw new Error("should not be read");
-			},
-		};
-		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
-			reader,
+		const outcome = killHubProcessBoundToTicket(TICKET, {
+			reader: darwinReader,
 			kill,
 		});
 		expect(outcome).toBe("spared");
-		expect(sent).toEqual([]);
-	});
-
-	it("sends no signals without a parsable startedAt", () => {
-		const { sent, kill } = recordingKill();
-		expect(
-			killHubProcessBoundToReport(12345, undefined, {
-				reader: linuxReader(),
-				kill,
-			}),
-		).toBe("spared");
-		expect(
-			killHubProcessBoundToReport(12345, "not-a-date", {
-				reader: linuxReader(),
-				kill,
-			}),
-		).toBe("spared");
 		expect(sent).toEqual([]);
 	});
 });

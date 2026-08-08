@@ -17,7 +17,8 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
-	killHubProcessBoundToReport,
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -43,7 +44,13 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
-	killHubProcessBoundToReport: vi.fn(() => "killed"),
+	captureProcessStartTicket: vi.fn(
+		(): { pid: number; startTicks: number } | undefined => ({
+			pid: 12345,
+			startTicks: 4_500_000,
+		}),
+	),
+	killHubProcessBoundToTicket: vi.fn(() => "killed"),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -95,7 +102,8 @@ vi.mock("../discovery", () => ({
 }));
 
 vi.mock("./process-identity", () => ({
-	killHubProcessBoundToReport,
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
 }));
 
 describe("ensureDetachedHubServer", () => {
@@ -118,8 +126,13 @@ describe("ensureDetachedHubServer", () => {
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
-		killHubProcessBoundToReport.mockReset();
-		killHubProcessBoundToReport.mockReturnValue("killed");
+		captureProcessStartTicket.mockReset();
+		captureProcessStartTicket.mockReturnValue({
+			pid: 12345,
+			startTicks: 4_500_000,
+		});
+		killHubProcessBoundToTicket.mockReset();
+		killHubProcessBoundToTicket.mockReturnValue("killed");
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
@@ -360,13 +373,14 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				expect.objectContaining({ endpoint: "version" }),
 			);
-			// The force-kill goes through the identity-bound path (SIGSTOP →
-			// verify /proc start time against the startedAt the hub itself
-			// served → SIGKILL), never through a bare process.kill.
-			expect(killHubProcessBoundToReport).toHaveBeenCalledWith(
-				12345,
-				"2026-08-06T16:15:00.000Z",
-			);
+			// The force-kill goes through the identity-bound path (start tick
+			// captured before the probe, SIGSTOP, exact tick match re-read while
+			// frozen, then SIGKILL), never through a bare process.kill.
+			expect(captureProcessStartTicket).toHaveBeenCalledWith(12345);
+			expect(killHubProcessBoundToTicket).toHaveBeenCalledWith({
+				pid: 12345,
+				startTicks: 4_500_000,
+			});
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
@@ -374,12 +388,13 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("does not force-kill when the pid's process is younger than the hub's report", async () => {
+	it("does not force-kill when the frozen process no longer matches the ticket", async () => {
 		// The P1 race: the daemon can die between answering /version and the
 		// kill, and the OS can hand its pid to a bystander. The bound kill
-		// freezes the pid, verifies /proc identity while it cannot exit, and
-		// spares (SIGCONT) a recycled pid — necessarily younger than the
-		// report it did not write.
+		// freezes the pid and re-reads its start tick while it cannot exit; a
+		// recycled pid carries a strictly greater tick than the pre-probe
+		// ticket, so it is spared (SIGCONT) — no tolerance window to slip
+		// through, however fast the pid changed hands.
 		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
@@ -395,17 +410,17 @@ describe("ensureDetachedHubServer", () => {
 				pid: 12345,
 				startedAt: "2026-08-06T16:15:00.000Z",
 			});
-			killHubProcessBoundToReport.mockReturnValue("spared");
+			killHubProcessBoundToTicket.mockReturnValue("spared");
 
 			const { prewarmDetachedHubServer } = await import(".");
 			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
 			await vi.runAllTimersAsync();
 
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
-			expect(killHubProcessBoundToReport).toHaveBeenCalledWith(
-				12345,
-				"2026-08-06T16:15:00.000Z",
-			);
+			expect(killHubProcessBoundToTicket).toHaveBeenCalledWith({
+				pid: 12345,
+				startTicks: 4_500_000,
+			});
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
@@ -440,7 +455,41 @@ describe("ensureDetachedHubServer", () => {
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 			// A pid the serving hub does not claim never reaches the bound kill.
-			expect(killHubProcessBoundToReport).not.toHaveBeenCalled();
+			expect(killHubProcessBoundToTicket).not.toHaveBeenCalled();
+		} finally {
+			kill.mockRestore();
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not force-kill when no identity ticket can be captured", async () => {
+		// No readable /proc start tick — the recorded process is already gone,
+		// or this platform has no /proc. Without a captured identity there is
+		// nothing to bind a SIGKILL to, so none is sent.
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+				startedAt: "2026-08-06T16:15:00.000Z",
+			});
+			captureProcessStartTicket.mockReturnValue(undefined);
+
+			const { prewarmDetachedHubServer } = await import(".");
+			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
+			await vi.runAllTimersAsync();
+
+			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(killHubProcessBoundToTicket).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();

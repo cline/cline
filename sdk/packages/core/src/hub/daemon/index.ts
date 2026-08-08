@@ -33,7 +33,10 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
-import { killHubProcessBoundToReport } from "./process-identity";
+import {
+	captureProcessStartTicket,
+	killHubProcessBoundToTicket,
+} from "./process-identity";
 
 const HUB_STARTUP_TIMEOUT_MS = 8_000;
 const HUB_STARTUP_POLL_MS = 200;
@@ -138,28 +141,36 @@ async function retireDiscoveredHub(
 		// Force only what we can prove we own, with the proof bound to the very
 		// process the signal lands on. A discovery record outlives its daemon
 		// and the OS recycles pids, so the recorded pid may belong to anything
-		// by now — and SIGKILL to the wrong process is not survivable. First,
-		// the hub currently serving the URL must self-report the pid we are
-		// about to kill. `/version`, not the default probe: `/health` omits the
-		// pid entirely and `/status` needs a token this record may not have —
-		// which is exactly the tokenless retirement path. Then the kill itself
-		// is identity-bound: the pid is frozen with SIGSTOP, its /proc start
-		// time is verified against the hub's self-reported startedAt while it
-		// cannot exit (so the pid cannot be recycled under us), and only then
-		// SIGKILLed — or thawed with SIGCONT and spared when the identity does
-		// not hold. Where identity cannot be proven (a hub too old to report
-		// pid or startedAt, a platform without /proc) the daemon is left
-		// alone: leaking is the better failure, and new builds retire
-		// themselves via the in-daemon shutdown watchdog anyway. Every
-		// observed orphan lived on Linux.
-		const serving = await safeProbeHubServer(record.url, undefined, "version");
-		if (serving?.pid !== undefined && serving.pid === record.pid) {
-			const outcome = killHubProcessBoundToReport(
-				record.pid,
-				serving.startedAt,
+		// by now — and SIGKILL to the wrong process is not survivable. The
+		// identity is an exact bracket around the probe: the pid's kernel
+		// start tick (/proc, immutable per process, strictly increasing across
+		// successive holders of a recycled pid) is captured BEFORE the hub is
+		// probed, the hub currently serving the URL must then self-report this
+		// very pid, and the kill re-reads the tick AFTER freezing the pid with
+		// SIGSTOP — a stopped process cannot exit, so the pid cannot change
+		// hands between the read and the signal. Only an exact tick match is
+		// killed; no wall-clock conversion, no tolerance window, so a pid
+		// recycled at any point — however quickly — reads as a different
+		// process and is thawed with SIGCONT instead. `/version`, not the
+		// default probe: `/health` omits the pid entirely and `/status` needs
+		// a token this record may not have — which is exactly the tokenless
+		// retirement path. Where identity cannot be proven (a hub too old to
+		// report its pid, a platform without /proc) the daemon is left alone:
+		// leaking is the better failure, and new builds retire themselves via
+		// the in-daemon shutdown watchdog anyway. Every observed orphan lived
+		// on Linux.
+		const ticket = captureProcessStartTicket(record.pid);
+		if (ticket) {
+			const serving = await safeProbeHubServer(
+				record.url,
+				undefined,
+				"version",
 			);
-			if (outcome !== "spared") {
-				retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+			if (serving?.pid !== undefined && serving.pid === record.pid) {
+				const outcome = killHubProcessBoundToTicket(ticket);
+				if (outcome !== "spared") {
+					retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+				}
 			}
 		}
 	}
