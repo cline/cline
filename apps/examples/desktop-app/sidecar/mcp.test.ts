@@ -62,10 +62,9 @@ describe("desktop MCP settings", () => {
 		);
 	});
 
-	it("does not probe an unchanged enabled remote server after editing", () => {
+	it("does not probe an unchanged enabled server after editing", () => {
 		expect(
 			shouldProbeMcpServerAfterUpsert({
-				isRemote: true,
 				requestedDisabled: false,
 				existingWasEnabled: true,
 				transportIdentityUnchanged: true,
@@ -73,12 +72,30 @@ describe("desktop MCP settings", () => {
 		).toBe(false);
 		expect(
 			shouldProbeMcpServerAfterUpsert({
-				isRemote: true,
 				requestedDisabled: false,
 				existingWasEnabled: true,
 				transportIdentityUnchanged: false,
 			}),
 		).toBe(true);
+	});
+
+	it("probes newly added or re-enabled servers regardless of transport", () => {
+		// Stdio servers are probed too: a server whose command cannot launch
+		// used to sit in the list looking healthy with no error anywhere.
+		expect(
+			shouldProbeMcpServerAfterUpsert({
+				requestedDisabled: false,
+				existingWasEnabled: false,
+				transportIdentityUnchanged: true,
+			}),
+		).toBe(true);
+		expect(
+			shouldProbeMcpServerAfterUpsert({
+				requestedDisabled: true,
+				existingWasEnabled: false,
+				transportIdentityUnchanged: false,
+			}),
+		).toBe(false);
 	});
 
 	it("keeps an unchanged enabled remote server enabled when saving metadata", async () => {

@@ -754,8 +754,11 @@ export function createDefaultMcpServerClientFactory(
 }
 
 /**
- * Passively verifies a configured remote MCP endpoint. This may use or refresh
- * existing credentials, but it never starts an interactive OAuth redirect.
+ * Verifies a configured MCP server is reachable. For remote transports this
+ * is passive: it may use or refresh existing credentials, but it never starts
+ * an interactive OAuth redirect. For stdio transports it launches the
+ * configured command once, performs the initialize handshake, and shuts the
+ * process down again — the same lifecycle any session start would run.
  */
 export async function probeMcpServerConnection(
 	options: ProbeMcpServerConnectionOptions,
@@ -771,11 +774,6 @@ export async function probeMcpServerConnection(
 	});
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
-	}
-	if (registration.transport.type === "stdio") {
-		throw new Error(
-			`MCP server "${serverName}" uses stdio and cannot be passively probed.`,
-		);
 	}
 
 	const client = await createDefaultMcpServerClientFactory({

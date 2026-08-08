@@ -8,13 +8,11 @@ import { resolveMcpSettingsPath } from "@cline/shared/storage";
 import type { JsonRecord } from "./types";
 
 export function shouldProbeMcpServerAfterUpsert(options: {
-	isRemote: boolean;
 	requestedDisabled: boolean;
 	existingWasEnabled: boolean;
 	transportIdentityUnchanged: boolean;
 }): boolean {
 	return (
-		options.isRemote &&
 		!options.requestedDisabled &&
 		!(options.existingWasEnabled && options.transportIdentityUnchanged)
 	);

@@ -514,3 +514,70 @@ describe("remote MCP OAuth connection", () => {
 		});
 	});
 });
+
+describe("stdio MCP connection probe", () => {
+	it("reports a working stdio server as connected", async () => {
+		const settingsPath = join(tempRoot, "stdio-probe-ok-settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					fake: {
+						transport: {
+							type: "stdio",
+							command:
+								process.platform === "win32"
+									? `"${process.execPath}"`
+									: process.execPath,
+							args: [join(tempRoot, "fake-server.js")],
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await probeMcpServerConnection({
+			serverName: "fake",
+			filePath: settingsPath,
+		});
+
+		expect(result).toMatchObject({
+			serverName: "fake",
+			connected: true,
+			authorizationRequired: false,
+		});
+		expect(result.error).toBeUndefined();
+	}, 30_000);
+
+	it("reports a stdio server whose command cannot launch as failed", async () => {
+		const settingsPath = join(tempRoot, "stdio-probe-broken-settings.json");
+		writeFileSync(
+			settingsPath,
+			JSON.stringify({
+				mcpServers: {
+					broken: {
+						transport: {
+							type: "stdio",
+							command: join(tempRoot, "does-not-exist-binary"),
+							args: ["--flag"],
+						},
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const result = await probeMcpServerConnection({
+			serverName: "broken",
+			filePath: settingsPath,
+		});
+
+		expect(result).toMatchObject({
+			serverName: "broken",
+			connected: false,
+		});
+		expect(typeof result.error).toBe("string");
+		expect(result.error?.length).toBeGreaterThan(0);
+	}, 30_000);
+});

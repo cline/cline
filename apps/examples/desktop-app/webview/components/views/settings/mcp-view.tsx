@@ -91,10 +91,18 @@ interface McpServer {
 	};
 }
 
+interface McpProbeResult {
+	name: string;
+	connected: boolean;
+	error?: string;
+	authorizationRequired?: boolean;
+}
+
 interface McpServersResponse {
 	settingsPath: string;
 	hasSettingsFile: boolean;
 	servers: McpServer[];
+	probeResult?: McpProbeResult;
 }
 
 interface McpServerUpsertInput {
@@ -227,12 +235,14 @@ export function McpServersContent() {
 	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
-
-	const applyResponse = useCallback((response: McpServersResponse) => {
-		setServers(response.servers);
-		setSettingsPath(response.settingsPath);
-		setHasSettingsFile(response.hasSettingsFile);
-	}, []);
+	// Last connection-probe outcome per server (true = handshake succeeded).
+	// Failures also land in serverActionErrors so the card shows the message.
+	const [probeConnected, setProbeConnected] = useState<
+		Record<string, boolean>
+	>({});
+	const [probingServerName, setProbingServerName] = useState<string | null>(
+		null,
+	);
 
 	const setServerActionError = useCallback(
 		(serverName: string, message?: string) => {
@@ -249,6 +259,31 @@ export function McpServersContent() {
 			});
 		},
 		[],
+	);
+
+	const applyResponse = useCallback(
+		(response: McpServersResponse) => {
+			setServers(response.servers);
+			setSettingsPath(response.settingsPath);
+			setHasSettingsFile(response.hasSettingsFile);
+			const probe = response.probeResult;
+			if (!probe) {
+				return;
+			}
+			setProbeConnected((current) => ({
+				...current,
+				[probe.name]: probe.connected,
+			}));
+			if (probe.connected) {
+				setServerActionError(probe.name);
+			} else if (!probe.authorizationRequired) {
+				setServerActionError(
+					probe.name,
+					probe.error ?? "The server did not answer the MCP handshake.",
+				);
+			}
+		},
+		[setServerActionError],
 	);
 
 	const refreshServers = useCallback(async () => {
@@ -328,6 +363,26 @@ export function McpServersContent() {
 			setServerActionError(serverName, message);
 		} finally {
 			setBusyServerName(null);
+		}
+	};
+
+	const probeServer = async (serverName: string) => {
+		setProbingServerName(serverName);
+		setErrorMessage(null);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"probe_mcp_server",
+				{
+					name: serverName,
+				},
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setServerActionError(serverName, message);
+			setProbeConnected((current) => ({ ...current, [serverName]: false }));
+		} finally {
+			setProbingServerName(null);
 		}
 	};
 
@@ -523,8 +578,21 @@ export function McpServersContent() {
 	const renderServerManagementActions = (server: McpServer) => {
 		const isBusy = busyServerName === server.name;
 		const isAuthorizing = authorizingServerName === server.name;
+		const isProbing = probingServerName === server.name;
 		return (
 			<div className="flex items-center gap-1">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Test connection to ${server.name}`}
+					title="Test connection"
+					onClick={() => void probeServer(server.name)}
+					disabled={isBusy || isAuthorizing || isProbing}
+				>
+					<RefreshCw
+						className={cn("h-3.5 w-3.5", isProbing && "animate-spin")}
+					/>
+				</Button>
 				<Button
 					variant="ghost"
 					size="icon-sm"
@@ -607,7 +675,9 @@ export function McpServersContent() {
 							"h-2.5 w-2.5 shrink-0",
 							server.disabled
 								? "fill-muted-foreground/40 text-muted-foreground/40"
-								: "fill-primary text-primary",
+								: probeConnected[server.name] === false
+									? "fill-destructive text-destructive"
+									: "fill-primary text-primary",
 						)}
 					/>
 					<h3 className="text-sm font-semibold text-foreground">
@@ -691,6 +761,19 @@ export function McpServersContent() {
 						</div>
 					) : null}
 					{renderServerDetails(server)}
+					{probingServerName === server.name ? (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="rounded-md border border-border px-2 py-0.5">
+								Testing connection...
+							</span>
+						</div>
+					) : !server.disabled && probeConnected[server.name] === true ? (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
+								Connected
+							</span>
+						</div>
+					) : null}
 					{server.oauthStatus?.configured ? (
 						<div className="flex items-center gap-2 text-xs text-muted-foreground">
 							<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
