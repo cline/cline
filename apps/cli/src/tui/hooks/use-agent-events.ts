@@ -6,7 +6,10 @@ import type {
 	PendingPromptSubmittedEvent,
 } from "../../runtime/session-events";
 import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
-import { resolveNonCompactionStatusLabel } from "../../utils/events";
+import {
+	resolveNonCompactionStatusLabel,
+	shouldRenderGenericToolEvent,
+} from "../../utils/events";
 import {
 	formatToolInput,
 	formatToolOutput,
@@ -92,6 +95,9 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 
 	const closeToolEntry = useCallback(
 		(event: AgentEvent & { type: "content_end" }) => {
+			if (!shouldRenderGenericToolEvent(event.toolName ?? "unknown_tool")) {
+				return;
+			}
 			const error = event.error ?? undefined;
 			const output = event.output;
 			const result = {
@@ -181,6 +187,9 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 						case "tool": {
 							closeInlineStream();
 							const toolName = event.toolName ?? "unknown_tool";
+							if (!shouldRenderGenericToolEvent(toolName)) {
+								break;
+							}
 							appendEntry({
 								kind: "tool_call",
 								toolCallId: event.toolCallId,
