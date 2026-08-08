@@ -100,7 +100,7 @@ import {
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
-import { manifestToSessionRecord } from "./history";
+import { inferTitleFromMessages, manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
 import {
 	type SessionBackend,
@@ -873,6 +873,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// conversation. Brand-new empty sessions stay lazy.
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			try {
+				// A seeded session has no start prompt, so materializing it here
+				// would otherwise leave the history row with no prompt and no
+				// title. Seed the title from the transcript the session inherits
+				// — the same inference `listSessionHistory` hydration applies —
+				// so forks and recoveries stay identifiable everywhere,
+				// including raw `session.list` payloads that never hydrate.
+				active.sessionMetadata = this.withSeededTitle(
+					active.sessionMetadata,
+					initialMessages,
+				);
 				await this.ensureSessionPersisted(active);
 				await this.invoke<void>(
 					"persistSessionMessages",
@@ -1951,6 +1961,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	// ── Session lifecycle ───────────────────────────────────────────────
+
+	private withSeededTitle(
+		metadata: Record<string, unknown> | undefined,
+		initialMessages: LlmsProviders.Message[],
+	): Record<string, unknown> | undefined {
+		if (typeof metadata?.title === "string" && metadata.title.trim()) {
+			return metadata;
+		}
+		const title = inferTitleFromMessages(initialMessages);
+		if (!title) return metadata;
+		return { ...(metadata ?? {}), title };
+	}
 
 	private async ensureSessionPersisted(session: ActiveSession): Promise<void> {
 		if (session.artifacts) return;

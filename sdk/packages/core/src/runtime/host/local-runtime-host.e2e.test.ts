@@ -72,6 +72,7 @@ class LocalFileSessionService {
 		enableSpawn: boolean;
 		enableTeams: boolean;
 		prompt?: string;
+		metadata?: Record<string, unknown>;
 		startedAt?: string;
 	}): RootSessionArtifacts {
 		const startedAt = input.startedAt ?? nowIso();
@@ -99,6 +100,7 @@ class LocalFileSessionService {
 			enable_spawn: input.enableSpawn,
 			enable_teams: input.enableTeams,
 			prompt,
+			metadata: input.metadata,
 			messages_path: messagesPath,
 		};
 		writeFileSync(
@@ -136,6 +138,7 @@ class LocalFileSessionService {
 			conversationId: null,
 			isSubagent: false,
 			prompt: prompt ?? null,
+			metadata: input.metadata ?? null,
 			hookPath: "",
 			messagesPath,
 			updatedAt: startedAt,
@@ -572,5 +575,167 @@ describe("LocalRuntimeHost e2e", () => {
 			cacheWriteTokens: 1,
 			cost: 0.13,
 		});
+	});
+
+	// Regression guard for the "cancel a turn, lose the whole conversation"
+	// report: the daemon dies while a cancelled turn is only in memory, the
+	// client recovers by seeding a replacement session from disk, and that
+	// replacement itself dies before its first turn. Every hop has to keep the
+	// transcript, so this walks the whole chain against real artifact files.
+	it("keeps the transcript across an abort, a host restart, and a seeded recovery that never runs a turn", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "core-e2e-durability-"));
+		tempDirs.push(sessionsDir);
+
+		// One service instance across every host: a daemon restart loses the
+		// resident sessions, not the session database or the artifact files.
+		const sessionService = new LocalFileSessionService(sessionsDir);
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const config = splitCoreSessionConfig({
+			providerId: "anthropic",
+			modelId: "claude-sonnet-4-6",
+			apiKey: "test-key",
+			cwd: sessionsDir,
+			systemPrompt: "You are a test agent",
+			mode: "act",
+			enableTools: false,
+			enableSpawnAgent: false,
+			enableAgentTeams: false,
+		});
+
+		let messages: LlmsProviders.Message[] = [];
+		let running = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const appendUser = (prompt: string) => {
+			messages = [
+				...messages,
+				{
+					role: "user",
+					content: [{ type: "text", text: prompt }],
+				},
+			] as LlmsProviders.Message[];
+		};
+		const run = vi.fn(async (prompt: string) => {
+			appendUser(prompt);
+			messages = [
+				...messages,
+				{
+					role: "assistant",
+					content: [{ type: "text", text: "the auth flow works like this" }],
+				},
+			] as LlmsProviders.Message[];
+			return createResult({ text: "the auth flow works like this", messages });
+		});
+		// The real agent appends the user turn before the provider stream
+		// starts, so a cancelled turn leaves the prompt in the transcript.
+		const continueFn = vi.fn(
+			(prompt: string) =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					appendUser(prompt);
+					running = true;
+					rejectRun = (error) => {
+						running = false;
+						reject(error);
+					};
+					markRunStarted?.();
+				}),
+		);
+		const abort = vi.fn(() => rejectRun?.(new Error("user cancelled")));
+		const createAgent = vi.fn(
+			() =>
+				({
+					run,
+					continue: continueFn,
+					abort,
+					canStartRun: vi.fn(() => !running),
+					getAgentId: vi.fn().mockReturnValue("agent-durability"),
+					getConversationId: vi.fn().mockReturnValue("conv-durability"),
+					restore: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn(() => [...messages]),
+				}) as never,
+		);
+
+		const firstHost = new RuntimeHostUnderTest({
+			distinctId: `test-${nanoid(5)}`,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+		const started = await firstHost.startSession({
+			interactive: true,
+			...config,
+		});
+		await firstHost.runTurn({
+			sessionId: started.sessionId,
+			prompt: "explain the auth flow",
+		});
+
+		const cancelledTurn = firstHost.runTurn({
+			sessionId: started.sessionId,
+			prompt: "now walk me through token refresh",
+		});
+		await runStarted;
+		await firstHost.abort(started.sessionId, new Error("user cancelled"));
+		await expect(cancelledTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		// The daemon dies here: no dispose, no graceful shutdown. Everything the
+		// replacement host knows has to come off disk.
+		const secondHost = new RuntimeHostUnderTest({
+			distinctId: `test-${nanoid(5)}`,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+		const recoveredMessages = await secondHost.readSessionMessages(
+			started.sessionId,
+		);
+		expect(
+			recoveredMessages.map((message) => [
+				message.role,
+				JSON.stringify(message.content),
+			]),
+		).toEqual([
+			["user", expect.stringContaining("explain the auth flow")],
+			["assistant", expect.stringContaining("the auth flow works like this")],
+			["user", expect.stringContaining("now walk me through token refresh")],
+		]);
+
+		// Client-side recovery: a brand-new session id seeded with the rescued
+		// transcript, exactly like the interactive CLI does on session_not_found.
+		messages = [...recoveredMessages];
+		const recovered = await secondHost.startSession({
+			interactive: true,
+			initialMessages: recoveredMessages as never,
+			...config,
+		});
+		expect(recovered.sessionId).not.toBe(started.sessionId);
+
+		// ...and that replacement dies too, before the user sends anything. The
+		// seed has to already be on disk or the conversation is gone for good.
+		const thirdHost = new RuntimeHostUnderTest({
+			distinctId: `test-${nanoid(5)}`,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent,
+		});
+		await expect(
+			thirdHost.readSessionMessages(recovered.sessionId),
+		).resolves.toHaveLength(3);
+
+		// Materializing at start means there is no first prompt to title the
+		// row with, so the seeded transcript has to supply one or the session
+		// shows up untitled in history.
+		const recoveredRow = await thirdHost.getSession(recovered.sessionId);
+		expect(recoveredRow?.metadata?.title).toBe("explain the auth flow");
 	});
 });

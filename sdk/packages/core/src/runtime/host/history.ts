@@ -237,7 +237,7 @@ function truncateText(text: string, limit: number): string {
 	return `${text.slice(0, Math.max(0, limit - 3)).trimEnd()}...`;
 }
 
-function inferTitleFromMessages(
+export function inferTitleFromMessages(
 	messages: LlmsProviders.Message[],
 ): string | undefined {
 	for (const role of ["user", "assistant"] as const) {
