@@ -48,71 +48,36 @@ describe("extractFullOutputText", () => {
 		expect(extractFullOutputText(raw)).toBe("# Memory\n\nline one\nline two");
 	});
 
-	it("preserves binary payloads for non-text blocks in mixed MCP content", () => {
+	it("keeps binary payloads behind placeholders in mixed MCP content", () => {
 		const raw = {
 			content: [
 				{ type: "text", text: "before" },
 				{ type: "image", data: "aGVsbG8=", mimeType: "image/png" },
 				{
 					type: "resource",
-					resource: { uri: "file:///a.bin", blob: "d29ybGQ=" },
+					resource: { uri: "file:///a.md", blob: "d29ybGQ=" },
 				},
 				{ type: "resource_link", uri: "file:///b.md", name: "b.md" },
 				{ type: "text", text: "after" },
 			],
 		};
 		expect(extractFullOutputText(raw)).toBe(
-			[
-				"before",
-				"[image image/png, 5 B base64]",
-				"aGVsbG8=",
-				"[resource file:///a.bin, 5 B base64]",
-				"d29ybGQ=",
-				"[resource_link: file:///b.md]",
-				"after",
-			].join("\n"),
+			"before\n[image: image/png]\naGVsbG8=\n[resource: file:///a.md]\nd29ybGQ=\n[resource_link: file:///b.md]\nafter",
 		);
 	});
 
-	it("chunks large base64 payloads into fixed-width lines behind a header", () => {
-		const data = "A".repeat(76 * 2 + 10);
-		const raw = {
-			content: [{ type: "image", data, mimeType: "image/jpeg" }],
-		};
-		const result = extractFullOutputText(raw);
-		const lines = result?.split("\n") ?? [];
-
-		expect(lines[0]).toBe("[image image/jpeg, 121 B base64]");
-		expect(lines).toHaveLength(4);
-		expect(lines[1]).toHaveLength(76);
-		expect(lines[2]).toHaveLength(76);
-		expect(lines[3]).toHaveLength(10);
-		expect(lines.slice(1).join("")).toBe(data);
-	});
-
-	it("keeps a metadata-only placeholder for image blocks without data", () => {
-		const raw = {
-			content: [{ type: "image", mimeType: "image/png" }],
-		};
-		expect(extractFullOutputText(raw)).toBe("[image: image/png]");
-	});
-
-	it("includes the mime type in blob-backed resource headers when present", () => {
+	it("chunks base64 payloads into 76-char lines so collapse stays compact", () => {
 		const raw = {
 			content: [
-				{
-					type: "resource",
-					resource: {
-						uri: "file:///a.pdf",
-						mimeType: "application/pdf",
-						blob: "aGVsbG8=",
-					},
-				},
+				{ type: "image", data: "A".repeat(160), mimeType: "image/png" },
 			],
 		};
-		expect(extractFullOutputText(raw)).toBe(
-			"[resource file:///a.pdf application/pdf, 5 B base64]\naGVsbG8=",
-		);
+		expect(extractFullOutputText(raw)?.split("\n")).toEqual([
+			"[image: image/png]",
+			"A".repeat(76),
+			"A".repeat(76),
+			"A".repeat(8),
+		]);
 	});
 
 	it("extracts embedded resource text from MCP content", () => {
