@@ -185,6 +185,31 @@ export function parseSpawnAgentInput(
 	return { task: input.task };
 }
 
+// Standard MIME width. Chunking base64 payloads into fixed-width lines lets
+// GenericOutput's line-based collapse keep the default view compact while the
+// expanded view still contains the complete payload.
+const BASE64_LINE_WIDTH = 76;
+
+function chunkBase64(data: string): string {
+	const lines: string[] = [];
+	for (let i = 0; i < data.length; i += BASE64_LINE_WIDTH) {
+		lines.push(data.slice(i, i + BASE64_LINE_WIDTH));
+	}
+	return lines.join("\n");
+}
+
+function formatBase64Size(data: string): string {
+	const padding = data.endsWith("==") ? 2 : data.endsWith("=") ? 1 : 0;
+	const bytes = Math.max(0, Math.floor((data.length * 3) / 4) - padding);
+	if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+	if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+	return `${bytes} B`;
+}
+
+function formatBinaryBlock(label: string, data: string): string {
+	return `[${label}, ${formatBase64Size(data)} base64]\n${chunkBase64(data)}`;
+}
+
 export function extractFullOutputText(raw: unknown): string | undefined {
 	if (raw === null || raw === undefined) return undefined;
 	if (typeof raw === "string") return raw;
@@ -216,8 +241,10 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 		// MCP tools return {content: [{type: "text", text}, ...]}. Extract the
 		// text so multi-line results keep real newlines instead of being
 		// JSON-escaped into one giant line that floods the terminal (#13038).
-		// Non-text blocks keep their identifying metadata (resource text/URIs,
-		// mime types) so mixed results are not silently truncated.
+		// Binary blocks (image/audio data, resource blobs) keep their full
+		// base64 payload, chunked into short lines behind a metadata header,
+		// so expanding a mixed result shows the complete tool output without
+		// re-flooding the collapsed view.
 		const content = (raw as { content?: unknown }).content;
 		if (Array.isArray(content)) {
 			const parts = content
@@ -230,8 +257,25 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 						if (typeof part.resource.text === "string") {
 							return part.resource.text;
 						}
-						if (typeof part.resource.uri === "string") {
-							return `[resource: ${part.resource.uri}]`;
+						const uri =
+							typeof part.resource.uri === "string"
+								? part.resource.uri
+								: undefined;
+						const mimeType =
+							typeof part.resource.mimeType === "string"
+								? part.resource.mimeType
+								: undefined;
+						if (
+							typeof part.resource.blob === "string" &&
+							part.resource.blob.length > 0
+						) {
+							const label = ["resource", uri, mimeType]
+								.filter(Boolean)
+								.join(" ");
+							return formatBinaryBlock(label, part.resource.blob);
+						}
+						if (uri) {
+							return `[resource: ${uri}]`;
 						}
 					}
 					if (part.type === "resource_link" && typeof part.uri === "string") {
@@ -241,6 +285,12 @@ export function extractFullOutputText(raw: unknown): string | undefined {
 						(part.type === "image" || part.type === "audio") &&
 						typeof part.mimeType === "string"
 					) {
+						if (typeof part.data === "string" && part.data.length > 0) {
+							return formatBinaryBlock(
+								`${part.type} ${part.mimeType}`,
+								part.data,
+							);
+						}
 						return `[${part.type}: ${part.mimeType}]`;
 					}
 					return typeof part.type === "string" ? `[${part.type}]` : "";

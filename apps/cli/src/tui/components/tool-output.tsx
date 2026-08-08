@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTheme } from "../hooks/use-theme";
 import type { ResolvedTheme } from "../themes";
 import { makeUnifiedDiff } from "../utils/diff";
@@ -297,6 +297,12 @@ export function ToolOutput(props: ToolOutputProps) {
 	const { toolName, outputSummary, rawOutput, rawInput, error } = props;
 	const terminalTheme = useTheme();
 	const [errorExpanded, setErrorExpanded] = useState(false);
+	// Extraction can chunk large base64 payloads (MCP images/blobs) into many
+	// lines, so avoid redoing that work on unrelated re-renders.
+	const fullText = useMemo(
+		() => (rawOutput ? extractFullOutputText(rawOutput) : undefined),
+		[rawOutput],
+	);
 
 	if (error) {
 		const presentation = getToolErrorPresentation(error);
@@ -325,8 +331,6 @@ export function ToolOutput(props: ToolOutputProps) {
 
 	if (toolName === "switch_to_act_mode") return null;
 	if (!outputSummary.trim() && !rawOutput) return null;
-
-	const fullText = rawOutput ? extractFullOutputText(rawOutput) : undefined;
 
 	if (isAskTool(toolName)) {
 		const answer = (fullText || outputSummary).trim();
