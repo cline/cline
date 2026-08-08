@@ -348,7 +348,12 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 		});
 		expect(container.textContent).not.toContain("stale/page");
 
-		// Clear the search and scroll again: pagination must still work.
+		// Clear the search and scroll again: pagination must still work. Drop
+		// the captured observer first: the effect only re-creates one after
+		// the post-clear base list applied (nextToken set again), so waiting
+		// for it guarantees the scroll uses fresh state instead of racing the
+		// base fetch with a stale closure.
+		intersectionCallback = undefined;
 		await act(async () => {
 			const valueSetter = Object.getOwnPropertyDescriptor(
 				HTMLInputElement.prototype,
@@ -357,14 +362,7 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 			valueSetter?.call(search, "");
 			search?.dispatchEvent(new Event("input", { bubbles: true }));
 		});
-		// Wait until the post-clear base list finished loading; scrolling while
-		// its fetch is still in flight would race the page append against the
-		// base list replacing state.
-		await vi.waitFor(() => {
-			expect(container.textContent).not.toContain("Searching…");
-			expect(container.textContent).not.toContain("Loading branches…");
-			expect(container.textContent).toContain("main");
-		});
+		await vi.waitFor(() => expect(intersectionCallback).toBeDefined());
 		await act(async () => {
 			intersectionCallback?.([
 				{ isIntersecting: true } as IntersectionObserverEntry,
