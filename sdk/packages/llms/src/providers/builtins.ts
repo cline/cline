@@ -727,8 +727,11 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
+		// No `protocol` override: LiteLLM's OpenAI-compatible surface is Chat
+		// Completions (`/chat/completions`), and self-hosted proxies commonly
+		// do not expose `/responses`. Inherit the family default (openai-chat)
+		// like every other openai-compatible built-in. See #10781 / #13003.
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		popular: 40,
 		capabilities: ["prompt-cache"],
 		defaultModelId: "gpt-5.4",

@@ -9,6 +9,8 @@ import {
 	ClineCore,
 	type ClineCoreListHistoryOptions,
 	type ClineCoreStartInput,
+	type CompareCheckpointInput,
+	type CompareCheckpointResult,
 	type CoreSessionEvent,
 	type EditorExecutor,
 	type HookEventPayload,
@@ -244,6 +246,10 @@ export class VscodeSessionHost implements SdkSessionHost {
 
 	async restore(input: RestoreInput): Promise<RestoreResult> {
 		return this.inner.restore(input)
+	}
+
+	async compareCheckpoint(input: CompareCheckpointInput): Promise<CompareCheckpointResult> {
+		return this.inner.compareCheckpoint(input)
 	}
 
 	async update(

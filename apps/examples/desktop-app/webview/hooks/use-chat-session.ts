@@ -254,15 +254,35 @@ const LOG_DISPATCH: Record<string, typeof console.info> = {
 	debug: console.debug,
 };
 
+// Core streams a steady flow of info/debug log chunks during a session.
+// Serializing them through the console on the streaming hot path costs real
+// CPU (DevTools keeps every entry alive), so anything below warn is dropped
+// unless the user opts in via `localStorage.setItem("cline:debug-logs", "1")`.
+let verboseCoreLogs: boolean | undefined;
+
+function shouldLogVerboseCoreLogs(): boolean {
+	if (verboseCoreLogs === undefined) {
+		try {
+			verboseCoreLogs = window.localStorage.getItem("cline:debug-logs") === "1";
+		} catch {
+			verboseCoreLogs = false;
+		}
+	}
+	return verboseCoreLogs;
+}
+
 function dispatchCoreLog(chunk: string): void {
 	let parsed: CoreLogChunk | undefined;
 	try {
 		parsed = JSON.parse(chunk) as CoreLogChunk;
 	} catch {
-		console.info("[core]", chunk);
+		if (shouldLogVerboseCoreLogs()) console.info("[core]", chunk);
 		return;
 	}
 	const level = parsed.level?.trim().toLowerCase() || "info";
+	if (level !== "error" && level !== "warn" && !shouldLogVerboseCoreLogs()) {
+		return;
+	}
 	const message = parsed.message?.trim() || chunk;
 	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
 }
@@ -1781,7 +1801,12 @@ export function useChatSession() {
 					setStatus("cancelled");
 					return;
 				}
-				const assistantText = (result?.text ?? "").trim();
+				// On a failed run the runtime reports the error string in
+				// result.text — it is not assistant content and must not be
+				// rendered as an assistant bubble (canonical rehydration would
+				// silently wipe it, leaving the user with a blank chat).
+				const isErrorResult = result?.finishReason === "error";
+				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -1952,12 +1977,18 @@ export function useChatSession() {
 				if (abortedRef.current) {
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
-					if (!resolvedAssistantText) {
-						const toolError = Array.isArray(result?.toolCalls)
-							? result.toolCalls.find((c) => c.error)?.error
-							: undefined;
-						appendTurnFailureMessage(activeSessionId, toolError?.trim() ?? "");
-					}
+					// On a failed run result.text is the runtime's error string
+					// (never assistant content — see isErrorResult above), so it
+					// is the best failure detail available. The reporter dedupes
+					// against the chat_done stream path.
+					const runError = (result?.text ?? "").trim();
+					const toolError = Array.isArray(result?.toolCalls)
+						? result.toolCalls.find((c) => c.error)?.error
+						: undefined;
+					appendTurnFailureMessage(
+						activeSessionId,
+						runError || toolError?.trim() || "",
+					);
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
 					setStatus("cancelled");

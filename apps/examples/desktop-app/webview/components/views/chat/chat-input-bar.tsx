@@ -1,16 +1,11 @@
 "use client";
 
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
-	ArrowUp,
-	Brain,
-	ChevronDown,
-	CircleStop,
-	Cpu,
-	Paperclip,
-	X,
-} from "lucide-react";
+	CLINE_DEFAULT_MODEL_ID,
+	formatDisplayUserInput,
+} from "@cline/shared/browser";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,6 +76,11 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+// Last known user commands, kept across composer instances so reopening the
+// slash menu paints instantly (stale-while-revalidate); the fetch that
+// follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -283,7 +283,7 @@ type ChatInputBarProps = {
 	};
 };
 
-export function ChatInputBar({
+function ChatInputBarImpl({
 	variant = "conversation",
 	status,
 	provider,
@@ -410,7 +410,7 @@ export function ChatInputBar({
 		: null;
 	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -454,18 +454,22 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	// Focus the composer on mount/variant change and when text is injected
+	// from outside (quick actions, queue undo). Deliberately NOT on every
+	// keystroke: refocusing an already-focused textarea per keypress causes
+	// caret flicker and forced layout while typing.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input) return;
+		if (!input || document.activeElement === input) return;
+		// The textarea is controlled, so its live value mirrors promptInput;
+		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
 			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
+			(variant === "welcome" && input.value.trim().length > 0)
 		) {
 			input.focus();
 		}
-	}, [promptInput, variant]);
+	}, [variant]);
 
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
@@ -574,15 +578,18 @@ export function ChatInputBar({
 			return;
 		}
 		let cancelled = false;
-		setSlashLoading(true);
+		// Only show the loading row when there is nothing cached to show.
+		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
 			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
 			.then((response) => {
 				if (cancelled) return;
-				setSlashCommands([
+				const next = [
 					...BUILTIN_SLASH_COMMANDS,
 					...buildUserInstructionSlashCommands(response),
-				]);
+				];
+				cachedSlashCommands = next;
+				setSlashCommands(next);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -632,6 +639,19 @@ export function ChatInputBar({
 		[activeSlash, promptInput, setPromptInput],
 	);
 
+	// Queued prompts are stored in their runtime form (a /team command is
+	// persisted as its <user_command> envelope), so fold them back to the
+	// slash form for display and editing. Saving an edit re-resolves the
+	// slash form through the sidecar, so the round trip is lossless.
+	const displayPromptsInQueue = useMemo(
+		() =>
+			promptsInQueue.map((item) => ({
+				...item,
+				prompt: formatDisplayUserInput(item.prompt),
+			})),
+		[promptsInQueue],
+	);
+
 	return (
 		<div
 			className={cn(
@@ -644,7 +664,7 @@ export function ChatInputBar({
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				<AgentPromptQueue
-					items={promptsInQueue}
+					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
@@ -657,7 +677,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{filteredSlashCommands.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
 										: "No matching commands"}
@@ -668,10 +688,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === slashSelectedIndex}
 											className={cn(
-												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ",
 												index === slashSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={cmd.name}
 											id={`slash-command-option-${index}`}
@@ -703,7 +723,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{mentionFiles.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{mentionLoading ? "Searching files..." : "No matching files"}
 								</div>
 							) : (
@@ -712,10 +732,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === mentionSelectedIndex}
 											className={cn(
-												"block w-full rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"block w-full rounded-md px-3 py-2 text-left text-sm ",
 												index === mentionSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={filePath}
 											id={`mention-file-option-${index}`}
@@ -737,7 +757,7 @@ export function ChatInputBar({
 					)}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
@@ -874,7 +894,7 @@ export function ChatInputBar({
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"bg-foreground p-1.5 text-background transition-colors hover:bg-destructive",
+										"bg-foreground p-1.5 text-background hover:bg-destructive",
 										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
@@ -888,7 +908,7 @@ export function ChatInputBar({
 								<button
 									aria-label="Send message"
 									className={cn(
-										"p-1.5 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
 										variant === "welcome"
 											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
 											: "rounded-full bg-primary text-background hover:bg-primary/80",
@@ -908,13 +928,13 @@ export function ChatInputBar({
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
 							<span
-								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-xs text-foreground"
+								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
 								key={attachment.id}
 							>
 								{attachment.isImage ? "image:" : "file:"} {attachment.name}
 								<button
 									aria-label={`Remove ${attachment.name}`}
-									className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+									className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 									onClick={() => onRemoveAttachment(attachment.id)}
 									type="button"
 								>
@@ -927,11 +947,11 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -953,7 +973,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "plan"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -968,7 +988,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "act"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "act"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -1000,7 +1020,7 @@ export function ChatInputBar({
 					>
 						<SelectTrigger
 							aria-label="Thinking level"
-							className="h-7 gap-1.5 border-0 bg-muted px-2 text-[11px] shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
 							size="sm"
 							title={
 								modelSupportsReasoning === false
@@ -1055,6 +1075,11 @@ export function ChatInputBar({
 		</div>
 	);
 }
+
+// Memoized: the chat pane re-renders on every stream flush (message deltas,
+// status, usage); the composer only cares about the props it receives, which
+// the pane keeps referentially stable.
+export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
@@ -1359,12 +1384,12 @@ const ModelSelector = memo(function ModelSelector({
 	);
 
 	return (
-		<div className="relative min-w-0 shrink-0 text-[11px]">
+		<div className="relative min-w-0 shrink-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
@@ -1383,19 +1408,19 @@ const ModelSelector = memo(function ModelSelector({
 					/>
 					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 								true,
 							)}
 						</div>
@@ -1404,9 +1429,9 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28 text-[11px]")}
-				<span className="text-muted-foreground/50">/</span>
-				{renderModelSelect("max-w-52 text-[11px]")}
+				{renderProviderSelect("max-w-28")}
+				<div className="bg-border-2 h-4 w-[0.1rem]"/>
+				{renderModelSelect("max-w-52")}
 			</div>
 		</div>
 	);
@@ -1455,7 +1480,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
@@ -1503,7 +1528,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 				<div className="px-3 py-3">
 					<div className="flex items-center justify-between gap-4 text-sm">
 						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-xs text-foreground">
+						<span className="font-mono text-sm text-foreground">
 							{contextUsageLabel}
 						</span>
 					</div>
@@ -1535,7 +1560,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							}}
 						/>
 					</div>
-					<div className="mt-3 space-y-2 text-xs">
+					<div className="mt-3 space-y-2 text-sm">
 						<div className="flex items-center justify-between gap-4">
 							<span className="text-muted-foreground">Input tokens</span>
 							<span className="font-mono text-foreground">

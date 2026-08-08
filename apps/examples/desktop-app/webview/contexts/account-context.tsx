@@ -9,6 +9,7 @@ import {
 	useMemo,
 	useState,
 } from "react";
+import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient } from "@/lib/desktop-client";
 
 export const ACCOUNT_IDENTITY_STORAGE_KEY = "cline.code.account-identity.v1";
@@ -101,6 +102,13 @@ export function AccountProvider({ children }: { children: React.ReactNode }) {
 				action: "clineAccount",
 				operation: "fetchMe",
 			});
+			// Signed out arrives as a typed result, not an error: an expected
+			// state that clears the cached identity without any error handling.
+			if (isClineAccountNotAuthenticatedResult(me)) {
+				setUser(null);
+				writeCachedAccountUser(null);
+				return;
+			}
 			setUser(me ?? null);
 			writeCachedAccountUser(me ?? null);
 		} catch (error) {

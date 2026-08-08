@@ -36,7 +36,7 @@ function workspaceName(path: string): string {
 }
 
 const TRIGGER_CLASS =
-	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl";
 
@@ -174,8 +174,8 @@ function WorkspacePicker({
 				title={workspaceLabel}
 				type="button"
 			>
-				<Folder className="size-4 shrink-0 text-muted-foreground" />
-				<span className="max-w-44 truncate">{workspaceLabel}</span>
+				<Folder className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="max-w-44 truncate text-sm">{workspaceLabel}</span>
 			</button>
 
 			{open && (
@@ -199,7 +199,9 @@ function WorkspacePicker({
 										<Button
 											className={cn(
 												"flex h-auto w-full items-center justify-between rounded-md p-2 text-left",
-												isActive ? "bg-accent" : "hover:bg-accent/50",
+												isActive
+													? "bg-surface-hover"
+													: "hover:bg-surface-hover-lighter",
 											)}
 											disabled={switching}
 											key={path}
@@ -314,8 +316,8 @@ function BranchPicker({
 				title={branchLabel}
 				type="button"
 			>
-				<GitBranch className="size-4 shrink-0 text-muted-foreground" />
-				<span className="min-w-0 truncate">{branchLabel}</span>
+				<GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="min-w-0 truncate text-sm">{branchLabel}</span>
 			</button>
 
 			{open && (
@@ -342,8 +344,8 @@ function BranchPicker({
 											className={cn(
 												"flex h-auto items-center gap-2 rounded-md px-2 py-2 text-left",
 												currentBranch === branch
-													? "bg-accent"
-													: "hover:bg-accent/50",
+													? "bg-surface-hover"
+													: "hover:bg-surface-hover-lighter",
 											)}
 											disabled={switching}
 											key={branch}
