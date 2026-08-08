@@ -17,7 +17,7 @@ const {
 	resolveClineDataDir,
 	resolveHubBuildId,
 	writeHubDiscovery,
-	hubProcessStartMatchesReport,
+	killHubProcessBoundToReport,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 } = vi.hoisted(() => ({
 	spawn: vi.fn(() => ({ unref: vi.fn() })),
@@ -43,7 +43,7 @@ const {
 	resolveClineDataDir: vi.fn(() => "/tmp/cline-data"),
 	resolveHubBuildId: vi.fn(() => "current-build"),
 	writeHubDiscovery: vi.fn(),
-	hubProcessStartMatchesReport: vi.fn(() => true),
+	killHubProcessBoundToReport: vi.fn(() => "killed"),
 	CLINE_RUN_AS_HUB_DAEMON_ENV: "CLINE_RUN_AS_HUB_DAEMON",
 }));
 
@@ -95,7 +95,7 @@ vi.mock("../discovery", () => ({
 }));
 
 vi.mock("./process-identity", () => ({
-	hubProcessStartMatchesReport,
+	killHubProcessBoundToReport,
 }));
 
 describe("ensureDetachedHubServer", () => {
@@ -118,8 +118,8 @@ describe("ensureDetachedHubServer", () => {
 		requestHubShutdown.mockReset();
 		requestHubShutdown.mockResolvedValue(true);
 		readHubDiscovery.mockReset();
-		hubProcessStartMatchesReport.mockReset();
-		hubProcessStartMatchesReport.mockReturnValue(true);
+		killHubProcessBoundToReport.mockReset();
+		killHubProcessBoundToReport.mockReturnValue("killed");
 		vi.stubGlobal("fetch", fetchMock);
 	});
 
@@ -353,7 +353,6 @@ describe("ensureDetachedHubServer", () => {
 			await vi.runAllTimersAsync();
 
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
-			expect(kill).toHaveBeenCalledWith(12345, "SIGKILL");
 			// The identity probe must ask for /version. `/health` omits the pid and
 			// `/status` needs a token, so any other route makes this guard
 			// unsatisfiable against a real server however the mock is shaped.
@@ -361,12 +360,14 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				expect.objectContaining({ endpoint: "version" }),
 			);
-			// The pid must also be bound to the reporting process via its /proc
-			// start time, using the startedAt the hub itself served.
-			expect(hubProcessStartMatchesReport).toHaveBeenCalledWith(
+			// The force-kill goes through the identity-bound path (SIGSTOP →
+			// verify /proc start time against the startedAt the hub itself
+			// served → SIGKILL), never through a bare process.kill.
+			expect(killHubProcessBoundToReport).toHaveBeenCalledWith(
 				12345,
 				"2026-08-06T16:15:00.000Z",
 			);
+			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();
@@ -375,9 +376,10 @@ describe("ensureDetachedHubServer", () => {
 
 	it("does not force-kill when the pid's process is younger than the hub's report", async () => {
 		// The P1 race: the daemon can die between answering /version and the
-		// kill, and the OS can hand its pid to a bystander. The /proc start-time
-		// check re-reads identity at the last instant, so a recycled pid —
-		// necessarily younger than the report it did not write — is spared.
+		// kill, and the OS can hand its pid to a bystander. The bound kill
+		// freezes the pid, verifies /proc identity while it cannot exit, and
+		// spares (SIGCONT) a recycled pid — necessarily younger than the
+		// report it did not write.
 		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
@@ -393,13 +395,17 @@ describe("ensureDetachedHubServer", () => {
 				pid: 12345,
 				startedAt: "2026-08-06T16:15:00.000Z",
 			});
-			hubProcessStartMatchesReport.mockReturnValue(false);
+			killHubProcessBoundToReport.mockReturnValue("spared");
 
 			const { prewarmDetachedHubServer } = await import(".");
 			prewarmDetachedHubServer("/workspace", { allowPortFallback: true });
 			await vi.runAllTimersAsync();
 
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
+			expect(killHubProcessBoundToReport).toHaveBeenCalledWith(
+				12345,
+				"2026-08-06T16:15:00.000Z",
+			);
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
 		} finally {
 			kill.mockRestore();
@@ -433,6 +439,8 @@ describe("ensureDetachedHubServer", () => {
 
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGKILL");
+			// A pid the serving hub does not claim never reaches the bound kill.
+			expect(killHubProcessBoundToReport).not.toHaveBeenCalled();
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();

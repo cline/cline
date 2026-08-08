@@ -88,3 +88,78 @@ export function hubProcessStartMatchesReport(
 	}
 	return processStartMs <= reportedMs + HUB_PROCESS_START_SLACK_MS;
 }
+
+export type BoundKillOutcome = "killed" | "spared" | "gone";
+
+export interface BoundKillDeps {
+	reader: ProcReader;
+	kill(pid: number, signal: NodeJS.Signals): void;
+}
+
+function isNoSuchProcessError(error: unknown): boolean {
+	return (
+		!!error &&
+		typeof error === "object" &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "ESRCH"
+	);
+}
+
+/**
+ * SIGKILLs `pid` only while it provably is the hub that reported
+ * `startedAt`, with the verification bound to the very process the signal
+ * lands on: the pid is frozen with SIGSTOP first, its /proc start time is
+ * read while frozen, and only then is it SIGKILLed — or SIGCONTed and spared
+ * when the identity does not hold.
+ *
+ * The freeze is what closes the verify-to-kill window. A stopped process
+ * cannot run, so it cannot exit, so its pid cannot be recycled between the
+ * /proc read and the signal; and SIGSTOP cannot be caught, blocked, or
+ * ignored. If pid reuse already happened before the freeze, the /proc read
+ * sees the impostor's younger start time and the impostor is thawed with
+ * SIGCONT, having lost only the microseconds it spent stopped — a
+ * recoverable imposition, where SIGKILL is not. (A pidfd would remove even
+ * the residual exposure to third parties signalling the frozen process, but
+ * Node exposes no pidfd API; this is the strongest binding available from
+ * userspace JS.)
+ *
+ * Non-Linux platforms return "spared" before any signal is sent: without
+ * /proc there is no identity to verify, and leaking a daemon is the better
+ * failure than an unowned kill.
+ */
+export function killHubProcessBoundToReport(
+	pid: number,
+	reportedStartedAt: string | undefined,
+	deps: BoundKillDeps = {
+		reader: defaultProcReader,
+		kill: (target, signal) => process.kill(target, signal),
+	},
+): BoundKillOutcome {
+	if (deps.reader.platform !== "linux") {
+		return "spared";
+	}
+	if (!reportedStartedAt || !Number.isFinite(Date.parse(reportedStartedAt))) {
+		return "spared";
+	}
+	try {
+		deps.kill(pid, "SIGSTOP");
+	} catch (error) {
+		// ESRCH: already exited, nothing left to retire. Anything else (EPERM):
+		// not ours to signal, so it cannot be the daemon we spawned.
+		return isNoSuchProcessError(error) ? "gone" : "spared";
+	}
+	if (!hubProcessStartMatchesReport(pid, reportedStartedAt, deps.reader)) {
+		try {
+			deps.kill(pid, "SIGCONT");
+		} catch {
+			// Exited while stopped, or was never ours; either way nothing to thaw.
+		}
+		return "spared";
+	}
+	try {
+		deps.kill(pid, "SIGKILL");
+	} catch (error) {
+		return isNoSuchProcessError(error) ? "gone" : "spared";
+	}
+	return "killed";
+}

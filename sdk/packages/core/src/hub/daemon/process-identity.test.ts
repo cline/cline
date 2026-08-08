@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
 	hubProcessStartMatchesReport,
+	killHubProcessBoundToReport,
 	type ProcReader,
 	readLinuxProcessStartWallClockMs,
 } from "./process-identity";
@@ -117,5 +118,128 @@ describe("hubProcessStartMatchesReport", () => {
 				reader,
 			),
 		).toBe(false);
+	});
+});
+
+describe("killHubProcessBoundToReport", () => {
+	const OWNED_STARTED_AT = new Date(PROCESS_START_MS + 1_500).toISOString();
+	const FOREIGN_STARTED_AT = new Date(PROCESS_START_MS - 10_000).toISOString();
+
+	function recordingKill(failWith?: Partial<Record<string, string>>) {
+		const sent: string[] = [];
+		return {
+			sent,
+			kill: (_pid: number, signal: NodeJS.Signals) => {
+				const code = failWith?.[signal];
+				if (code !== undefined) {
+					const error = new Error(code) as Error & { code: string };
+					error.code = code;
+					throw error;
+				}
+				sent.push(signal);
+			},
+		};
+	}
+
+	it("freezes, verifies while frozen, then kills: SIGSTOP before SIGKILL", () => {
+		// The freeze is the point: a stopped process cannot exit, so the pid
+		// cannot be recycled between the /proc read and the kill. The /proc
+		// read must therefore happen between the two signals.
+		const { sent, kill } = recordingKill();
+		let readsAfterStop = 0;
+		const reader = linuxReader();
+		const countingReader: ProcReader = {
+			platform: "linux",
+			readFile: (path) => {
+				if (sent.includes("SIGSTOP")) {
+					readsAfterStop += 1;
+				}
+				return reader.readFile(path);
+			},
+		};
+		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+			reader: countingReader,
+			kill,
+		});
+		expect(outcome).toBe("killed");
+		expect(sent).toEqual(["SIGSTOP", "SIGKILL"]);
+		expect(readsAfterStop).toBeGreaterThan(0);
+	});
+
+	it("thaws and spares a process younger than the report", () => {
+		// A recycled pid: the impostor is frozen, examined, found younger than
+		// the report it never wrote, and resumed — losing microseconds, not
+		// its life.
+		const { sent, kill } = recordingKill();
+		const outcome = killHubProcessBoundToReport(12345, FOREIGN_STARTED_AT, {
+			reader: linuxReader(),
+			kill,
+		});
+		expect(outcome).toBe("spared");
+		expect(sent).toEqual(["SIGSTOP", "SIGCONT"]);
+	});
+
+	it("thaws and spares when the process exits before it can be examined", () => {
+		const { sent, kill } = recordingKill();
+		const reader = linuxReader({ "/proc/12345/stat": undefined });
+		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+			reader,
+			kill,
+		});
+		expect(outcome).toBe("spared");
+		expect(sent).toEqual(["SIGSTOP", "SIGCONT"]);
+	});
+
+	it("reports gone when the pid no longer exists at freeze time", () => {
+		const { sent, kill } = recordingKill({ SIGSTOP: "ESRCH" });
+		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+			reader: linuxReader(),
+			kill,
+		});
+		expect(outcome).toBe("gone");
+		expect(sent).toEqual([]);
+	});
+
+	it("spares when the pid is not ours to signal", () => {
+		const { sent, kill } = recordingKill({ SIGSTOP: "EPERM" });
+		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+			reader: linuxReader(),
+			kill,
+		});
+		expect(outcome).toBe("spared");
+		expect(sent).toEqual([]);
+	});
+
+	it("sends no signals at all off Linux", () => {
+		const { sent, kill } = recordingKill();
+		const reader: ProcReader = {
+			platform: "darwin",
+			readFile: () => {
+				throw new Error("should not be read");
+			},
+		};
+		const outcome = killHubProcessBoundToReport(12345, OWNED_STARTED_AT, {
+			reader,
+			kill,
+		});
+		expect(outcome).toBe("spared");
+		expect(sent).toEqual([]);
+	});
+
+	it("sends no signals without a parsable startedAt", () => {
+		const { sent, kill } = recordingKill();
+		expect(
+			killHubProcessBoundToReport(12345, undefined, {
+				reader: linuxReader(),
+				kill,
+			}),
+		).toBe("spared");
+		expect(
+			killHubProcessBoundToReport(12345, "not-a-date", {
+				reader: linuxReader(),
+				kill,
+			}),
+		).toBe("spared");
+		expect(sent).toEqual([]);
 	});
 });
