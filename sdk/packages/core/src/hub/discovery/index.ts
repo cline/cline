@@ -259,11 +259,19 @@ export async function withHubStartupLock<T>(
 
 export async function probeHubServer(
 	url: string,
-	options?: { authToken?: string },
+	options?: { authToken?: string; endpoint?: "auto" | "version" },
 ): Promise<HubServerProbeRecord | undefined> {
 	try {
 		const response = await fetch(
-			options?.authToken ? toHubStatusUrl(url) : toHubHealthUrl(url),
+			// `/health` is deliberately minimal and omits the serving pid, and
+			// `/status` needs a token a legacy or tokenless record may not carry.
+			// `/version` is unauthenticated and serves the full payload, so callers
+			// that need the hub's identity ask for that route explicitly.
+			options?.endpoint === "version"
+				? toHubVersionUrl(url)
+				: options?.authToken
+					? toHubStatusUrl(url)
+					: toHubHealthUrl(url),
 			{
 				headers: options?.authToken
 					? { authorization: `Bearer ${options.authToken}` }
@@ -274,11 +282,22 @@ export async function probeHubServer(
 			return undefined;
 		}
 		const parsed = (await response.json()) as Partial<HubServerProbeRecord>;
+		// `/version` describes the daemon, not the endpoint it is reached through,
+		// so it carries no host/port/url. Those are known from the URL just
+		// requested, so fill them in rather than rejecting a valid response.
+		const requested =
+			options?.endpoint === "version" ? new URL(url) : undefined;
+		const host = parsed.host ?? requested?.hostname;
+		const port =
+			parsed.port ??
+			(requested ? Number.parseInt(requested.port, 10) : undefined);
+		const resolvedUrl = parsed.url ?? (requested ? url : undefined);
 		if (
 			typeof parsed.protocolVersion !== "string" ||
-			typeof parsed.host !== "string" ||
-			typeof parsed.port !== "number" ||
-			typeof parsed.url !== "string"
+			typeof host !== "string" ||
+			typeof port !== "number" ||
+			Number.isNaN(port) ||
+			typeof resolvedUrl !== "string"
 		) {
 			return undefined;
 		}
@@ -301,9 +320,9 @@ export async function probeHubServer(
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
-			host: parsed.host,
-			port: parsed.port,
-			url: parsed.url,
+			host,
+			port,
+			url: resolvedUrl,
 			hubId: typeof parsed.hubId === "string" ? parsed.hubId : undefined,
 			authToken:
 				typeof parsed.authToken === "string" ? parsed.authToken : undefined,
@@ -331,6 +350,12 @@ export function toHubHealthUrl(wsUrl: string): string {
 	parsed.protocol = parsed.protocol === "wss:" ? "https:" : "http:";
 	parsed.pathname = "/health";
 	parsed.search = "";
+	return parsed.toString();
+}
+
+export function toHubVersionUrl(wsUrl: string): string {
+	const parsed = new URL(toHubHealthUrl(wsUrl));
+	parsed.pathname = "/version";
 	return parsed.toString();
 }
 

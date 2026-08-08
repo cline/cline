@@ -345,6 +345,13 @@ describe("ensureDetachedHubServer", () => {
 
 			expect(kill).toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(kill).toHaveBeenCalledWith(12345, "SIGKILL");
+			// The identity probe must ask for /version. `/health` omits the pid and
+			// `/status` needs a token, so any other route makes this guard
+			// unsatisfiable against a real server however the mock is shaped.
+			expect(probeHubServer).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				expect.objectContaining({ endpoint: "version" }),
+			);
 		} finally {
 			kill.mockRestore();
 			vi.useRealTimers();

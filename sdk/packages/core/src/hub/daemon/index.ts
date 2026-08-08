@@ -89,9 +89,10 @@ function withMatchingDiscoveryRetirementMetadata(
 async function safeProbeHubServer(
 	url: string,
 	authToken?: string,
+	endpoint?: "auto" | "version",
 ): Promise<HubServerProbeRecord | undefined> {
 	try {
-		return await probeHubServer(url, { authToken });
+		return await probeHubServer(url, { authToken, endpoint });
 	} catch {
 		return undefined;
 	}
@@ -140,7 +141,10 @@ async function retireDiscoveredHub(
 		// escalate only when the hub currently serving that URL reports the very
 		// pid we are about to kill. A hub too old to report its pid is left alone
 		// — leaking a daemon is the better failure.
-		const serving = await safeProbeHubServer(record.url);
+		// `/version`, not the default probe: `/health` omits the pid entirely and
+		// `/status` needs a token this record may not have — which is exactly the
+		// tokenless retirement path.
+		const serving = await safeProbeHubServer(record.url, undefined, "version");
 		if (serving?.pid !== undefined && serving.pid === record.pid) {
 			try {
 				process.kill(record.pid, "SIGKILL");
