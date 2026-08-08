@@ -7,6 +7,34 @@
 
 .cline-ui-agent-approval-card__detail {
 	margin: 0.5rem 0 0;
+	overflow-x: hidden;
+	overflow-y: auto;
+	white-space: pre-wrap;
+	overflow-wrap: break-word;
+	border: 1px solid color-mix(in oklab, var(--border) 70%, transparent);
+	border-radius: var(--radius-md);
+	background: var(--background);
+	padding: 0.5rem;
+	color: var(--muted-foreground);
+	font-family: var(--font-mono);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__error {
+	margin-top: 0.5rem;
+	color: var(--error-text);
+	font-size: var(--text-xs);
+	line-height: var(--text-xs--line-height);
+	letter-spacing: var(--text-xs--letter-spacing);
+}
+
+.cline-ui-agent-approval-card__actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+	margin-top: 0.5rem;
 }
 
 .cline-ui-agent-approval-card__button {
