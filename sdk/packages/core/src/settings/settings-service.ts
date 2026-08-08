@@ -440,9 +440,9 @@ export class CoreSettingsService {
 						};
 					}
 				} catch {
-				// Settings listing is best-effort; unreadable plugin roots should
-				// not hide rules, skills, workflows, or built-in tools.
-			}
+					// Settings listing is best-effort; unreadable plugin roots should
+					// not hide rules, skills, workflows, or built-in tools.
+				}
 			}
 
 			const mcpSettingsPath = resolveDefaultMcpSettingsPath();
