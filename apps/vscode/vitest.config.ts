@@ -23,6 +23,7 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
 			"src/core/controller/models/__tests__/refreshProviderModels.test.ts",
 			"src/core/controller/models/__tests__/refreshOpenAiModels.test.ts",
+			"src/core/controller/models/__tests__/getLmStudioModels.test.ts",
 		],
 		environment: "node",
 		setupFiles: ["./src/test/vitest-setup.ts"],
