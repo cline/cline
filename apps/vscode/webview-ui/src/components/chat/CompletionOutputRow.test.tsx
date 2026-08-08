@@ -126,6 +126,30 @@ describe("CompletionOutputRow View Changes", () => {
 		expect(checkpointLatestChangesCount).not.toHaveBeenCalled()
 		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
 	})
+
+	it("re-checks instead of reusing a stale positive answer when showViewChanges toggles", async () => {
+		checkpointLatestChangesCount.mockResolvedValue({ value: 2 })
+
+		const { rerender } = renderWithViewChanges()
+		await screen.findByRole("button", { name: /View Changes/ })
+
+		rerender(<CompletionOutputRow handleQuoteClick={vi.fn()} quoteButtonState={hiddenQuoteButton} text="All done!" />)
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
+
+		// Second evaluation never resolves: the earlier `true` must not leak
+		// through and flash the button while the host is still checking.
+		checkpointLatestChangesCount.mockReturnValue(new Promise(() => {}))
+		rerender(
+			<CompletionOutputRow
+				handleQuoteClick={vi.fn()}
+				quoteButtonState={hiddenQuoteButton}
+				showViewChanges
+				text="All done!"
+			/>,
+		)
+		expect(checkpointLatestChangesCount).toHaveBeenCalledTimes(2)
+		expect(screen.queryByRole("button", { name: /View Changes/ })).toBeNull()
+	})
 })
 
 describe("PlanCompletionOutputRow", () => {

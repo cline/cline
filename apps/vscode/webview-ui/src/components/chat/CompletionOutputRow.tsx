@@ -42,6 +42,10 @@ export const CompletionOutputRow = memo(
 		const [hasChanges, setHasChanges] = useState<boolean | undefined>(undefined)
 
 		useEffect(() => {
+			// Reset on every re-check so a stale positive answer from a previous
+			// evaluation can't flash the button before the host confirms the new
+			// comparison.
+			setHasChanges(undefined)
 			if (!showViewChanges) {
 				return
 			}
