@@ -272,10 +272,18 @@ describe("WelcomeWorkspaceControls cloud mode", () => {
 							releaseHungPage = resolve;
 						});
 					}
-					return { available: true, branches: ["feature/cloud"], nextToken: "" };
+					return {
+						available: true,
+						branches: ["feature/cloud"],
+						nextToken: "",
+					};
 				}
 				if (options?.query) {
-					return { available: true, branches: ["feature/cloud"], nextToken: "" };
+					return {
+						available: true,
+						branches: ["feature/cloud"],
+						nextToken: "",
+					};
 				}
 				return { available: true, branches: ["main"], nextToken: "2" };
 			},

@@ -8,7 +8,9 @@ import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { WelcomeScreen } from "./welcome-chat";
 
 const { invokeMock, subscribeMock, accountRef } = vi.hoisted(() => ({
-	invokeMock: vi.fn(async (_command: string, _args?: unknown) => ({}) as unknown),
+	invokeMock: vi.fn(
+		async (_command: string, _args?: unknown) => ({}) as unknown,
+	),
 	subscribeMock: vi.fn(
 		(_eventName: string, _handler: (payload: unknown) => void) => () =>
 			undefined,
