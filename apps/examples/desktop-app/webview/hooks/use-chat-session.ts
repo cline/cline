@@ -625,6 +625,7 @@ export function useChatSession() {
 		setPromptsInQueue(value as PromptInQueue[]);
 	}, []);
 
+	const sessionDiffCwd = (config.cwd || config.workspaceRoot || "").trim();
 	const refreshSessionDiffSummary = useCallback(
 		async (targetSessionId: string) => {
 			try {
@@ -632,7 +633,7 @@ export function useChatSession() {
 					"read_session_hooks",
 					{ sessionId: targetSessionId, limit: MAX_MESSAGES },
 				);
-				const diffState = buildSessionDiffState(events);
+				const diffState = buildSessionDiffState(events, sessionDiffCwd);
 				setFileDiffs(diffState.fileDiffs);
 				setDiffSummary(diffState.summary);
 				setToolCalls(
@@ -645,7 +646,7 @@ export function useChatSession() {
 				// Ignore in non-Tauri mode.
 			}
 		},
-		[],
+		[sessionDiffCwd],
 	);
 
 	// ---- Message helpers ----
@@ -914,13 +915,13 @@ export function useChatSession() {
 		if (events.length === 0) {
 			return;
 		}
-		const diffState = buildSessionDiffState(events);
+		const diffState = buildSessionDiffState(events, sessionDiffCwd);
 		if (diffState.fileDiffs.length === 0) {
 			return;
 		}
 		setFileDiffs(diffState.fileDiffs);
 		setDiffSummary(diffState.summary);
-	}, [sessionId, messages, fileDiffs.length]);
+	}, [sessionId, messages, fileDiffs.length, sessionDiffCwd]);
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
