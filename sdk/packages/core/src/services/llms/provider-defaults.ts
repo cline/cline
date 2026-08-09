@@ -3,6 +3,7 @@
 import * as Llms from "@cline/llms";
 import {
 	fetchModelIdsFromSource,
+	resolveModelsSourceApiKey,
 	resolveModelsSourceUrl,
 } from "../providers/model-source";
 import type {
@@ -666,8 +667,9 @@ const PUBLIC_MODELS_IN_FLIGHT = new Map<
 function resolvePublicCacheKey(
 	providerId: string,
 	config: ProviderConfig,
+	authToken: string | undefined,
 ): string {
-	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}`;
+	return `${providerId}:${normalizeBaseUrl(config.baseUrl)}:${fingerprint(authToken ?? "")}`;
 }
 
 async function getPublicProviderModels(
@@ -684,9 +686,16 @@ async function getPublicProviderModels(
 	if (!sourceUrl) {
 		return {};
 	}
+	// Public model sources can still require auth (e.g. LM Studio with API
+	// tokens enabled): forward the configured key, or the provider's
+	// registered env var, as a Bearer token.
+	const authToken = resolveModelsSourceApiKey(
+		providerId,
+		resolveAuthToken(config),
+	);
 	const cacheTtlMs =
 		modelCatalog?.cacheTtlMs ?? DEFAULT_PRIVATE_MODELS_CACHE_TTL_MS;
-	const cacheKey = resolvePublicCacheKey(providerId, config);
+	const cacheKey = resolvePublicCacheKey(providerId, config, authToken);
 	const now = Date.now();
 
 	const cached = PUBLIC_MODELS_CACHE.get(cacheKey);
@@ -699,7 +708,11 @@ async function getPublicProviderModels(
 		return inFlight;
 	}
 
-	const request = fetchModelIdsFromSource(sourceUrl, providerId)
+	const request = fetchModelIdsFromSource(sourceUrl, providerId, {
+		apiKey: authToken,
+		headers: config.headers,
+		timeoutMs: DEFAULT_PRIVATE_MODELS_REQUEST_TIMEOUT_MS,
+	})
 		.then((modelIds) => {
 			const data = Object.fromEntries(
 				modelIds.map((id) => [

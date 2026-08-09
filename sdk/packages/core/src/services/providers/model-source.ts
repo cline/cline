@@ -1,3 +1,5 @@
+import * as Llms from "@cline/llms";
+
 function parseModelIdList(input: unknown): string[] {
 	if (!Array.isArray(input)) return [];
 	return input
@@ -52,20 +54,84 @@ export function extractModelIdsFromPayload(
 	return [];
 }
 
+export interface FetchModelIdsFromSourceOptions {
+	/** Sent as `Authorization: Bearer <apiKey>` unless headers already set one. */
+	apiKey?: string;
+	headers?: Record<string, string>;
+	timeoutMs?: number;
+}
+
+/**
+ * Resolve the API key to authenticate a models-source request with:
+ * the explicitly configured key, falling back to the provider's registered
+ * environment variables (e.g. `LMSTUDIO_API_KEY`, `OLLAMA_API_KEY`).
+ */
+export function resolveModelsSourceApiKey(
+	providerId: string,
+	explicitApiKey?: string,
+): string | undefined {
+	const explicit = explicitApiKey?.trim();
+	if (explicit) {
+		return explicit;
+	}
+	const envKeys =
+		(
+			Llms.MODEL_COLLECTIONS_BY_PROVIDER_ID[providerId] as
+				| Llms.ModelCollection
+				| undefined
+		)?.provider.env ?? [];
+	for (const key of envKeys) {
+		const value = globalThis.process?.env?.[key]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+const DEFAULT_MODELS_SOURCE_TIMEOUT_MS = 10_000;
+
 export async function fetchModelIdsFromSource(
 	url: string,
 	providerId: string,
+	options: FetchModelIdsFromSourceOptions = {},
 ): Promise<string[]> {
-	const response = await fetch(url, { method: "GET" });
-	if (!response.ok) {
-		throw new Error(
-			`failed to fetch models from ${url}: HTTP ${response.status}`,
-		);
-	}
-	return extractModelIdsFromPayload(
-		(await response.json()) as unknown,
-		providerId,
+	const headers: Record<string, string> = { ...options.headers };
+	const hasAuthorizationHeader = Object.keys(headers).some(
+		(key) => key.toLowerCase() === "authorization",
 	);
+	const apiKey = options.apiKey?.trim();
+	if (apiKey && !hasAuthorizationHeader) {
+		headers.Authorization = `Bearer ${apiKey}`;
+	}
+
+	// Fail fast when the model server hangs: this fetch runs inside hub
+	// session commands, which enforce their own (longer) timeouts and would
+	// otherwise stall on an unresponsive local server.
+	const controller = new AbortController();
+	const timeoutMs = options.timeoutMs ?? DEFAULT_MODELS_SOURCE_TIMEOUT_MS;
+	const timer = setTimeout(
+		() => controller.abort(new Error(`fetching models from ${url} timed out`)),
+		timeoutMs,
+	);
+	try {
+		const response = await fetch(url, {
+			method: "GET",
+			...(Object.keys(headers).length > 0 ? { headers } : {}),
+			signal: controller.signal,
+		});
+		if (!response.ok) {
+			throw new Error(
+				`failed to fetch models from ${url}: HTTP ${response.status}`,
+			);
+		}
+		return extractModelIdsFromPayload(
+			(await response.json()) as unknown,
+			providerId,
+		);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 function trimTrailingSlash(value: string): string {

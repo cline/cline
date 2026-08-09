@@ -408,7 +408,7 @@ describe("resolveProviderConfig", () => {
 	});
 
 	it("uses built-in modelsSourceUrl for keyless local provider models", async () => {
-		const fetchMock = vi.fn(async () => {
+		const fetchMock = vi.fn(async (_url: string, _init?: RequestInit) => {
 			return new Response(
 				JSON.stringify({ models: [{ name: "local-llama" }] }),
 				{
@@ -418,22 +418,93 @@ describe("resolveProviderConfig", () => {
 			);
 		});
 		vi.stubGlobal("fetch", fetchMock);
+		// Keep the test hermetic when the host has a real key exported.
+		vi.stubEnv("OLLAMA_API_KEY", "");
+		try {
+			const resolved = await resolveProviderConfig(
+				"ollama",
+				{ failOnError: false, cacheTtlMs: 0 },
+				{
+					providerId: "ollama",
+					modelId: "",
+					baseUrl: "http://tailscale-host:11434/v1",
+				},
+			);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"http://tailscale-host:11434/api/tags",
+				expect.objectContaining({ method: "GET" }),
+			);
+			expect(fetchMock.mock.calls[0]?.[1]?.headers).toBeUndefined();
+			expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("forwards the configured API key as a Bearer token to public model sources", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(JSON.stringify({ data: [{ id: "qwen3-8b" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
 
 		const resolved = await resolveProviderConfig(
-			"ollama",
+			"lmstudio",
 			{ failOnError: false, cacheTtlMs: 0 },
 			{
-				providerId: "ollama",
+				providerId: "lmstudio",
 				modelId: "",
-				baseUrl: "http://tailscale-host:11434/v1",
+				apiKey: "lm-token",
+				baseUrl: "http://localhost:1234/v1",
 			},
 		);
 
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://tailscale-host:11434/api/tags",
-			{ method: "GET" },
+			"http://localhost:1234/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: expect.objectContaining({
+					Authorization: "Bearer lm-token",
+				}),
+			}),
 		);
-		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["local-llama"]);
+		expect(Object.keys(resolved?.knownModels ?? {})).toEqual(["qwen3-8b"]);
+	});
+
+	it("falls back to the provider env API key for public model sources", async () => {
+		const fetchMock = vi.fn(async () => {
+			return new Response(JSON.stringify({ data: [{ id: "env-model" }] }), {
+				status: 200,
+				headers: { "content-type": "application/json" },
+			});
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		vi.stubEnv("LMSTUDIO_API_KEY", "env-token");
+		try {
+			await resolveProviderConfig(
+				"lmstudio",
+				{ failOnError: false, cacheTtlMs: 0 },
+				{
+					providerId: "lmstudio",
+					modelId: "",
+					baseUrl: "http://localhost:1234/v1",
+				},
+			);
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"http://localhost:1234/v1/models",
+				expect.objectContaining({
+					headers: expect.objectContaining({
+						Authorization: "Bearer env-token",
+					}),
+				}),
+			);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 
 	it("loads Poolside models from the authenticated models endpoint", async () => {

@@ -1631,27 +1631,84 @@ describe("refreshProviderModelsFromSource", () => {
 			json: async () => ({ models: [{ name: "remote-llama" }] }),
 		});
 		vi.stubGlobal("fetch", fetchMock);
+		// Keep the test hermetic when the host has a real key exported.
+		vi.stubEnv("OLLAMA_API_KEY", "");
+		try {
+			saveLocalProviderSettings(manager, {
+				providerId: "ollama",
+				baseUrl: "http://tailscale-host:11434/v1",
+			});
+
+			const result = await refreshProviderModelsFromSource(manager, "ollama");
+
+			expect(result).toMatchObject({ providerId: "ollama", refreshed: true });
+			expect(fetchMock).toHaveBeenCalledWith(
+				"http://tailscale-host:11434/api/tags",
+				expect.objectContaining({ method: "GET" }),
+			);
+			expect(fetchMock.mock.calls[0]?.[1]?.headers).toBeUndefined();
+			const modelsState = await readModelsFile(
+				resolveModelsRegistryPath(manager),
+			);
+			expect(modelsState.providers.ollama?.provider?.modelsSourceUrl).toBe(
+				"http://tailscale-host:11434/api/tags",
+			);
+			const { models } = await getLocalProviderModels("ollama");
+			expect(models.map((model) => model.id)).toContain("remote-llama");
+		} finally {
+			vi.unstubAllEnvs();
+		}
+	});
+
+	it("forwards the persisted API key as a Bearer token when refreshing LM Studio models", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ data: [{ id: "qwen3-8b" }] }),
+		});
+		vi.stubGlobal("fetch", fetchMock);
 		saveLocalProviderSettings(manager, {
-			providerId: "ollama",
-			baseUrl: "http://tailscale-host:11434/v1",
+			providerId: "lmstudio",
+			apiKey: "lm-token",
+			baseUrl: "http://localhost:1234/v1",
 		});
 
-		const result = await refreshProviderModelsFromSource(manager, "ollama");
+		const result = await refreshProviderModelsFromSource(manager, "lmstudio");
 
-		expect(result).toMatchObject({ providerId: "ollama", refreshed: true });
+		expect(result).toMatchObject({ providerId: "lmstudio", refreshed: true });
 		expect(fetchMock).toHaveBeenCalledWith(
-			"http://tailscale-host:11434/api/tags",
-			{
+			"http://localhost:1234/v1/models",
+			expect.objectContaining({
 				method: "GET",
-			},
+				headers: { Authorization: "Bearer lm-token" },
+			}),
 		);
-		const modelsState = await readModelsFile(
-			resolveModelsRegistryPath(manager),
-		);
-		expect(modelsState.providers.ollama?.provider?.modelsSourceUrl).toBe(
-			"http://tailscale-host:11434/api/tags",
-		);
-		const { models } = await getLocalProviderModels("ollama");
-		expect(models.map((model) => model.id)).toContain("remote-llama");
+		const { models } = await getLocalProviderModels("lmstudio");
+		expect(models.map((model) => model.id)).toContain("qwen3-8b");
+	});
+
+	it("falls back to the provider env API key when none is persisted", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ data: [{ id: "env-model" }] }),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		vi.stubEnv("LMSTUDIO_API_KEY", "env-token");
+		try {
+			saveLocalProviderSettings(manager, {
+				providerId: "lmstudio",
+				baseUrl: "http://localhost:1234/v1",
+			});
+
+			await refreshProviderModelsFromSource(manager, "lmstudio");
+
+			expect(fetchMock).toHaveBeenCalledWith(
+				"http://localhost:1234/v1/models",
+				expect.objectContaining({
+					headers: { Authorization: "Bearer env-token" },
+				}),
+			);
+		} finally {
+			vi.unstubAllEnvs();
+		}
 	});
 });

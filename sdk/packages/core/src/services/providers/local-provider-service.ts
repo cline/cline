@@ -35,6 +35,7 @@ import {
 } from "./local-provider-registry";
 import {
 	fetchModelIdsFromSource,
+	resolveModelsSourceApiKey,
 	resolveModelsSourceUrl,
 } from "./model-source";
 
@@ -322,12 +323,17 @@ async function resolveModelIds(params: {
 	modelsSourceUrl?: string;
 	fallbackModelIds?: string[];
 	shouldRecompute: boolean;
+	apiKey?: string;
+	headers?: Record<string, string>;
 }): Promise<string[]> {
 	if (!params.shouldRecompute) {
 		return params.fallbackModelIds ?? [];
 	}
 	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
+		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId, {
+				apiKey: resolveModelsSourceApiKey(params.providerId, params.apiKey),
+				headers: params.headers,
+			})
 		: [];
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
@@ -399,11 +405,14 @@ export async function addLocalProvider(
 
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
+	const requestHeaders = normalizeHeaders(request.headers);
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
 		shouldRecompute: true,
+		apiKey: apiKey || undefined,
+		headers: requestHeaders,
 	});
 	if (modelIds.length === 0) {
 		throw new Error(
@@ -420,14 +429,13 @@ export async function addLocalProvider(
 	const capabilities = request.capabilities?.length
 		? [...new Set(request.capabilities)]
 		: undefined;
-	const normalizedHeaders = normalizeHeaders(request.headers);
 
 	manager.saveProviderSettings(
 		{
 			provider: providerId,
 			apiKey: apiKey || undefined,
 			baseUrl,
-			headers: normalizedHeaders,
+			headers: requestHeaders,
 			timeout: request.timeoutMs,
 			model: defaultModelId,
 			protocol: request.protocol,
@@ -559,12 +567,23 @@ export async function updateLocalProvider(
 	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
+	const persistedSettings = manager.getProviderSettings(providerId);
+	const effectiveApiKey =
+		request.apiKey === undefined
+			? persistedSettings?.apiKey
+			: request.apiKey?.trim() || undefined;
+	const effectiveHeaders =
+		request.headers === undefined
+			? persistedSettings?.headers
+			: normalizeHeaders(request.headers);
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
 		fallbackModelIds: existingModelIds,
 		shouldRecompute: shouldRecomputeModels,
+		apiKey: effectiveApiKey,
+		headers: effectiveHeaders,
 	});
 	if (modelIds.length === 0) {
 		throw new Error(
@@ -581,9 +600,8 @@ export async function updateLocalProvider(
 			? defaultModelCandidate
 			: modelIds[0];
 
-	const existingSettings = manager.getProviderSettings(providerId);
 	const nextSettings: Record<string, unknown> = {
-		...(existingSettings ?? {}),
+		...(persistedSettings ?? {}),
 		provider: providerId,
 		baseUrl,
 		model: defaultModelId,
