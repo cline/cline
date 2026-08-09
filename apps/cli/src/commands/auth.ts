@@ -132,6 +132,16 @@ async function loadProviderCatalog(
 		.sort((a, b) => a.id.localeCompare(b.id));
 }
 
+// Providers whose base URL is user-configurable in quick setup. Mirrors the
+// providers with an editable base URL field in the provider settings UI.
+const QUICK_SETUP_BASE_URL_PROVIDER_IDS = new Set<string>([
+	BUILT_IN_PROVIDER.OPENAI_COMPATIBLE,
+	BUILT_IN_PROVIDER.OPENAI_NATIVE,
+	BUILT_IN_PROVIDER.OLLAMA,
+	BUILT_IN_PROVIDER.LMSTUDIO,
+	BUILT_IN_PROVIDER.LITELLM,
+]);
+
 async function ensureQuickSetupInputValid(
 	input: AuthQuickSetupInput,
 	providerSettingsManager: ProviderSettingsManager,
@@ -149,10 +159,9 @@ async function ensureQuickSetupInputValid(
 	}
 	if (
 		input.baseurl?.trim() &&
-		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_COMPATIBLE &&
-		normalizedProvider !== BUILT_IN_PROVIDER.OPENAI_NATIVE
+		!QUICK_SETUP_BASE_URL_PROVIDER_IDS.has(normalizedProvider)
 	) {
-		return "base URL is only supported for OpenAI and OpenAI-compatible providers";
+		return "base URL is only supported for OpenAI, OpenAI-compatible, and local (Ollama, LM Studio, LiteLLM) providers";
 	}
 	if (
 		input.azureApiVersion?.trim() &&
