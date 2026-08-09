@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest"
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { parseProviderId } from "./model-catalog/provider-id"
 import { SdkProviderChangeCoordinator, type SdkProviderChangeCoordinatorOptions } from "./sdk-provider-change-coordinator"
@@ -13,7 +13,12 @@ vi.mock("@/shared/services/Logger", () => ({
 
 describe("SdkProviderChangeCoordinator", () => {
 	beforeEach(() => {
+		vi.useRealTimers()
 		vi.clearAllMocks()
+	})
+
+	afterEach(() => {
+		vi.useRealTimers()
 	})
 
 	it("does nothing when the active mode provider did not change", () => {
@@ -52,14 +57,32 @@ describe("SdkProviderChangeCoordinator", () => {
 	})
 
 	it("restarts when active provider fields change while idle", async () => {
+		vi.useFakeTimers()
 		const activeSession = makeActiveSession()
 		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
 
-		await vi.waitFor(() => expect(options.sessions.replaceActiveSession).toHaveBeenCalledOnce())
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		await vi.runOnlyPendingTimersAsync()
+
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("coalesces repeated active provider field changes", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		await vi.runOnlyPendingTimersAsync()
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
 	})
 
 	it("does nothing when fields change for an inactive provider", () => {
@@ -72,14 +95,31 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
-	it("schedules a field-change restart while the active session is running", () => {
+	it("schedules a field-change restart while the active session is running", async () => {
+		vi.useFakeTimers()
 		const activeSession = makeActiveSession({ isRunning: true })
 		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
 
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+		await vi.runOnlyPendingTimersAsync()
+
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
+	})
+
+	it("keeps provider switches immediate and cancels a pending field-change restart", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "anthropic" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("anthropic"))
+		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+		await vi.runAllTimersAsync()
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
 	})
 
 	it("restarts immediately when the active provider changes while idle", async () => {

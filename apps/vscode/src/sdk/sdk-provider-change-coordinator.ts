@@ -16,6 +16,8 @@ type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
+const PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS = 300
+
 export interface SdkProviderChangeCoordinatorOptions {
 	stateManager: StateManager
 	sessions: SdkSessionLifecycle
@@ -39,6 +41,8 @@ function providerForMode(config: ApiConfiguration, mode: Mode): string | undefin
 }
 
 export class SdkProviderChangeCoordinator {
+	private providerFieldsRebuildTimer: ReturnType<typeof setTimeout> | undefined
+
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
 
 	handleProviderConfigFieldsChanged(providerId: ProviderId): void {
@@ -56,8 +60,18 @@ export class SdkProviderChangeCoordinator {
 			return
 		}
 
-		Logger.log(`[SdkController] Active provider fields changed for ${mode}: ${changedProvider}`)
-		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+		this.cancelPendingProviderFieldsRebuild()
+		this.providerFieldsRebuildTimer = setTimeout(() => {
+			this.providerFieldsRebuildTimer = undefined
+			const currentMode = this.getCurrentMode()
+			const currentProvider = providerForMode(this.options.stateManager.getApiConfiguration(), currentMode)
+			if (currentProvider !== changedProvider || !this.options.sessions.getActiveSession()) {
+				return
+			}
+
+			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${changedProvider}`)
+			this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+		}, PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS)
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
@@ -68,6 +82,8 @@ export class SdkProviderChangeCoordinator {
 		if (previousProvider === nextProvider) {
 			return
 		}
+
+		this.cancelPendingProviderFieldsRebuild()
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {
@@ -147,5 +163,12 @@ export class SdkProviderChangeCoordinator {
 
 	private getCurrentMode(): Mode {
 		return this.options.stateManager.getGlobalSettingsKey("mode") === "plan" ? "plan" : "act"
+	}
+
+	private cancelPendingProviderFieldsRebuild(): void {
+		if (this.providerFieldsRebuildTimer !== undefined) {
+			clearTimeout(this.providerFieldsRebuildTimer)
+			this.providerFieldsRebuildTimer = undefined
+		}
 	}
 }

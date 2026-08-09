@@ -1,7 +1,7 @@
 import { type ModelInfo, openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeLink, VSCodeOption, VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
-import { useCallback, useEffect, useMemo, useState } from "react"
+import { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
@@ -45,6 +45,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 	const [lmStudioModels, setLmStudioModels] = useState<LMStudioApiModel[]>([])
 	const [pendingSelectedModelId, setPendingSelectedModelId] = useState<string | undefined>(undefined)
+	const lmStudioModelsRequestRef = useRef(0)
 
 	const toLmStudioModelInfo = useCallback((model: LMStudioApiModel | undefined, modelId: string): ModelInfo => {
 		const contextWindow = model?.loaded_context_length ?? model?.max_context_length
@@ -117,18 +118,21 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	// user-configurable, see ENG-2344), so a server started after mount is
 	// still discovered.
 	const requestLmStudioModels = useCallback(async () => {
-		await ModelsServiceClient.getLmStudioModels({
-			value: endpoint,
-		})
-			.then((response) => {
-				if (response?.values) {
-					const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
-					setLmStudioModels(models)
-				}
-			})
-			.catch((error) => {
+		const requestId = ++lmStudioModelsRequestRef.current
+		try {
+			const response = await ModelsServiceClient.getLmStudioModels({ value: endpoint })
+			if (requestId !== lmStudioModelsRequestRef.current) {
+				return
+			}
+			if (response?.values) {
+				const models = response.values.map((v) => JSON.parse(v) as LMStudioApiModel)
+				setLmStudioModels(models)
+			}
+		} catch (error) {
+			if (requestId === lmStudioModelsRequestRef.current) {
 				console.error("Failed to parse LM Studio models:", error)
-			})
+			}
+		}
 	}, [endpoint])
 	const refreshModelsAfterApiKeyWrite = useCallback(() => {
 		void requestLmStudioModels()
@@ -143,6 +147,13 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	useEffect(() => {
 		requestLmStudioModels()
 	}, [requestLmStudioModels])
+
+	useEffect(
+		() => () => {
+			lmStudioModelsRequestRef.current++
+		},
+		[],
+	)
 
 	const lmStudioMaxTokens = currentLMStudioModel?.max_context_length?.toString()
 	const currentLoadedContext = currentLMStudioModel?.loaded_context_length?.toString()
