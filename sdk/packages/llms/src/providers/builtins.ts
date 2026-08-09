@@ -706,6 +706,17 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		defaults: { baseUrl: "https://api.groq.com/openai/v1" },
 	},
 	{
+		id: "hai",
+		name: "HAI",
+		description: "Japan-based OpenAI-compatible LLM Inference API (JPY billing)",
+		family: "openai-compatible",
+		defaultModelId: "kimi-k2.6",
+		apiKeyEnv: ["HAI_API_KEY"],
+		docsUrl: "https://hai.hcloud.ltd/docs",
+		defaults: { baseUrl: "https://hai-api.hcloud.ltd/v1" },
+	},
+
+	{
 		id: "cerebras",
 		name: "Cerebras",
 		description: "Fast inference on Cerebras wafer-scale chips",
