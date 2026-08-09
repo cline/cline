@@ -379,7 +379,13 @@ export function useChatSession() {
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
-	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Latest core-log error per session, stamped with the turn epoch it was
+	// received in so it can only ever explain a failure of that same turn —
+	// never a later turn whose lifecycle events happened to be dropped by a
+	// transport interruption.
+	const lastCoreErrorBySessionRef = useRef<
+		Record<string, { message: string; epoch: number }>
+	>({});
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -509,8 +515,19 @@ export function useChatSession() {
 	// visible so the RPC path and the chat_done stream never double-report.
 	const appendTurnFailureMessage = useCallback(
 		(sid: string, detail: string) => {
+			// A cached core error may only explain a detail-less failure of the
+			// turn it was received in: an entry from an older epoch means the
+			// clearing lifecycle events were dropped, and attributing it to this
+			// turn would be wrong. Consume the entry either way so it cannot be
+			// read twice.
+			const cachedCoreError = lastCoreErrorBySessionRef.current[sid];
+			delete lastCoreErrorBySessionRef.current[sid];
 			const description =
-				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+				detail.trim() ||
+				(cachedCoreError && cachedCoreError.epoch === turnEpochRef.current
+					? cachedCoreError.message.trim()
+					: "") ||
+				"";
 			// Deliberately avoids matching a bare "token": provider failures like
 			// "maximum context tokens exceeded" or rate-limit messages are not
 			// credential problems and must not point users at Settings → Models.
@@ -1289,8 +1306,10 @@ export function useChatSession() {
 						parsed.level?.trim().toLowerCase() === "error" &&
 						parsed.message?.trim()
 					) {
-						lastCoreErrorBySessionRef.current[payload.sessionId] =
-							parsed.message.trim();
+						lastCoreErrorBySessionRef.current[payload.sessionId] = {
+							message: parsed.message.trim(),
+							epoch: turnEpochRef.current,
+						};
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
