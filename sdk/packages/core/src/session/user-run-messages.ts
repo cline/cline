@@ -20,6 +20,7 @@ const SYNTHETIC_USER_MESSAGE_KINDS = new Set([
 	"completion_reminder",
 	"loop_detection_notice",
 	"manual_compaction",
+	"max_tokens_retry_notice",
 	"mistake_stop_notice",
 	"recovery_notice",
 ]);

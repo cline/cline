@@ -47,8 +47,46 @@ import {
 } from "@cline/shared";
 import { nanoid } from "nanoid";
 
-const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
+export const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
+
+/**
+ * Terminal message when a retried turn hits the output token limit again
+ * immediately after a previous max-tokens failure. Another identical retry is
+ * unlikely to succeed, so steer the user toward a real remedy instead.
+ */
+export const MAX_TOKENS_REPEATED_INCOMPLETE_TURN_MESSAGE =
+	"Model reached the maximum output token limit again on retry. Retrying is unlikely to help — start a new task, lower the reasoning effort, or switch to a different model.";
+
+/**
+ * Metadata flag set on the assistant message of a turn that ended with
+ * finish reason "max-tokens" and no tool calls. It travels with the persisted
+ * transcript, so a retry — even one that rebuilds the session from storage —
+ * can recognize that the previous attempt died at the output token limit.
+ */
+export const MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY =
+	"maxTokensIncompleteTurn";
+
+/**
+ * Metadata `kind` of the corrective reminder injected on the first turn after
+ * a max-tokens failure. Lets transcript consumers recognize the reminder as
+ * runtime-injected (no visible user bubble, no run counted).
+ */
+export const MAX_TOKENS_RETRY_NOTICE_KIND = "max_tokens_retry_notice";
+
+/**
+ * Corrective reminder injected when a run starts while the transcript's last
+ * assistant message hit the output token limit. Without it a retry re-sends
+ * the identical request and deterministically fails the same way.
+ */
+export const MAX_TOKENS_RETRY_REMINDER_MESSAGE =
+	"[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not deliberate at length this time: keep any reasoning brief, then give your final answer or tool call concisely.";
+
+function messageHasMaxTokensIncompleteTurnFlag(
+	message: AgentMessage | undefined,
+): boolean {
+	return message?.metadata?.[MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY] === true;
+}
 
 /**
  * Terminal message when a context-window overflow cannot be recovered because
@@ -633,8 +671,12 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
-	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
+	private async addUserReminderMessage(
+		text: string,
+		metadata?: Record<string, unknown>,
+	): Promise<AgentMessage> {
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
+			...metadata,
 			userRunSpan: 0,
 		});
 		this.state.messages.push(reminderMessage);
@@ -676,6 +718,28 @@ export class AgentRuntime {
 				});
 			}
 
+			// A retry after a max-tokens failure must differ from the failed
+			// attempt or it deterministically fails the same way. The failed
+			// turn's assistant message carries a metadata flag (set below when
+			// the failure happens), so this also works when the retry rebuilds
+			// the runtime from a persisted transcript.
+			if (this.isRetryAfterMaxTokensFailure()) {
+				await this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message:
+						"previous response hit the output token limit — retrying with an instruction to answer concisely",
+					metadata: {
+						kind: "max_tokens_retry",
+						reason: "max_tokens_retry",
+						iteration: this.state.iteration,
+					},
+				});
+				await this.addUserReminderMessage(MAX_TOKENS_RETRY_REMINDER_MESSAGE, {
+					kind: MAX_TOKENS_RETRY_NOTICE_KIND,
+				});
+			}
+
 			const completionToolReminder = this.getCompletionToolReminderMessage();
 			if (completionToolReminder) {
 				await this.addUserReminderMessage(completionToolReminder);
@@ -713,6 +777,23 @@ export class AgentRuntime {
 						part.type === "tool-call",
 				);
 
+				const maxTokensIncompleteTurn =
+					finishReason === "max-tokens" && toolCalls.length === 0;
+				// Whether the assistant message preceding this turn also died at
+				// the output token limit — i.e. this failure is the immediate
+				// re-failure of a retried turn. Read before pushing `message`.
+				const previousTurnHitMaxTokens = messageHasMaxTokensIncompleteTurnFlag(
+					this.findLastAssistantMessage(),
+				);
+				if (maxTokensIncompleteTurn) {
+					// Tag before push/emit so the flag rides along with
+					// persistence and event listeners.
+					message.metadata = {
+						...message.metadata,
+						[MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY]: true,
+					};
+				}
+
 				finalAssistantMessage = message;
 				this.state.messages.push(message);
 				await this.emit({
@@ -728,8 +809,12 @@ export class AgentRuntime {
 					finishReason,
 				});
 
-				if (finishReason === "max-tokens" && toolCalls.length === 0) {
-					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+				if (maxTokensIncompleteTurn) {
+					throw new Error(
+						previousTurnHitMaxTokens
+							? MAX_TOKENS_REPEATED_INCOMPLETE_TURN_MESSAGE
+							: MAX_TOKENS_INCOMPLETE_TURN_MESSAGE,
+					);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
 					throw new Error(this.state.lastError ?? "Model stream failed");
@@ -1785,6 +1870,18 @@ export class AgentRuntime {
 		return [...this.state.messages]
 			.reverse()
 			.find((message) => message.role === "assistant");
+	}
+
+	/**
+	 * True when the transcript's most recent assistant message is a turn that
+	 * ended at the output token limit without tool calls — i.e. this run is
+	 * retrying a failed max-tokens turn (only user/tool messages, such as the
+	 * retry input or a resumption prompt, may follow a failed turn).
+	 */
+	private isRetryAfterMaxTokensFailure(): boolean {
+		return messageHasMaxTokensIncompleteTurnFlag(
+			this.findLastAssistantMessage(),
+		);
 	}
 
 	private throwIfAborted(): void {

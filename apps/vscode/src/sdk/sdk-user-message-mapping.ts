@@ -81,11 +81,30 @@ function hasAttachmentBlocks(message: SdkUserMessage): boolean {
 }
 
 /**
+ * Runtime-injected user-role reminders, identified by their persisted
+ * metadata `kind`. They are suppressed live (message-added events are not
+ * rendered), so history rendering and ordinal mapping must skip them too.
+ * Mirrors the agents runtime's MAX_TOKENS_RETRY_NOTICE_KIND.
+ */
+const SYNTHETIC_USER_MESSAGE_KINDS: ReadonlySet<string> = new Set(["max_tokens_retry_notice"])
+
+function hasSyntheticMetadataKind(message: SdkUserMessage): boolean {
+	const metadata =
+		message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
+			? (message.metadata as Record<string, unknown>)
+			: undefined
+	return typeof metadata?.kind === "string" && SYNTHETIC_USER_MESSAGE_KINDS.has(metadata.kind)
+}
+
+/**
  * True when the SDK message has no visible user_feedback counterpart. An
  * attachment-only continuation carries the synthetic text alongside the
  * user's image/file blocks AND a visible bubble, so it must still be counted.
  */
 export function isSyntheticSdkUserMessage(message: SdkUserMessage): boolean {
+	if (hasSyntheticMetadataKind(message)) {
+		return true
+	}
 	const text = extractSdkUserText(message)
 	return !!text && isSyntheticUserPrompt(text) && !hasAttachmentBlocks(message)
 }
@@ -132,7 +151,9 @@ export function getSdkCheckpointRunCountForMessageIndex(sdkMessages: SdkUserMess
 			message.metadata && typeof message.metadata === "object" && !Array.isArray(message.metadata)
 				? (message.metadata as Record<string, unknown>)
 				: undefined
-		if (metadata?.kind !== "recovery_notice") {
+		// Runtime-injected reminders carry a synthetic kind and count as zero
+		// runs in the core checkpoint counter, so skip them here too.
+		if (metadata?.kind !== "recovery_notice" && !hasSyntheticMetadataKind(message)) {
 			runCount += 1
 		}
 	}

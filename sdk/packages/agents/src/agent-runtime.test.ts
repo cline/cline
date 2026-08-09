@@ -18,7 +18,14 @@ import {
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentRuntime } from "./index";
+import {
+	AgentRuntime,
+	MAX_TOKENS_INCOMPLETE_TURN_MESSAGE,
+	MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY,
+	MAX_TOKENS_REPEATED_INCOMPLETE_TURN_MESSAGE,
+	MAX_TOKENS_RETRY_NOTICE_KIND,
+	MAX_TOKENS_RETRY_REMINDER_MESSAGE,
+} from "./index";
 
 beforeEach(() => {
 	resetSdkErrorRateLimiterForTests();
@@ -149,6 +156,171 @@ describe("AgentRuntime", () => {
 				}),
 			}),
 		);
+	});
+
+	it("tags the failed assistant message and injects a corrective reminder when retrying after a max-tokens failure", async () => {
+		const maxTokensTurn = (): AgentModelEvent[] => [
+			{ type: "reasoning-delta", text: "thinking..." },
+			{ type: "finish", reason: "max-tokens" },
+		];
+		const model = new ScriptedModel([
+			maxTokensTurn,
+			() => [
+				{ type: "text-delta", text: "DONE" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const first = await runtime.run("Say DONE.");
+
+		expect(first.status).toBe("failed");
+		expect(first.error?.message).toBe(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+		expect(first.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			metadata: { [MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY]: true },
+		});
+		expect(statusNotices).toHaveLength(0);
+
+		const retry = await runtime.run("Retry.");
+
+		expect(retry.status).toBe("completed");
+		// The retried request is not identical to the failed one: it carries
+		// the corrective reminder after the retry input.
+		const retryRequest = model.requests[1];
+		const reminderTexts = (retryRequest?.messages ?? [])
+			.filter((message) => message.role === "user")
+			.flatMap((message) => message.content)
+			.filter(
+				(part): part is Extract<AgentMessagePart, { type: "text" }> =>
+					part.type === "text",
+			)
+			.map((part) => part.text)
+			.filter((text) => text === MAX_TOKENS_RETRY_REMINDER_MESSAGE);
+		expect(reminderTexts).toHaveLength(1);
+		const reminderMessage = retry.messages.find((message) =>
+			message.content.some(
+				(part) =>
+					part.type === "text" &&
+					part.text === MAX_TOKENS_RETRY_REMINDER_MESSAGE,
+			),
+		);
+		expect(reminderMessage).toMatchObject({
+			role: "user",
+			metadata: { kind: MAX_TOKENS_RETRY_NOTICE_KIND, userRunSpan: 0 },
+		});
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				metadata: expect.objectContaining({ kind: "max_tokens_retry" }),
+			}),
+		);
+	});
+
+	it("fails with distinct guidance when the retried turn hits the output token limit again", async () => {
+		const maxTokensTurn = (): AgentModelEvent[] => [
+			{ type: "reasoning-delta", text: "thinking..." },
+			{ type: "finish", reason: "max-tokens" },
+		];
+		const model = new ScriptedModel([maxTokensTurn, maxTokensTurn]);
+		const runtime = new AgentRuntime({ model });
+
+		const first = await runtime.run("Say DONE.");
+		const retry = await runtime.run("Retry.");
+
+		expect(first.error?.message).toBe(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+		expect(retry.status).toBe("failed");
+		expect(retry.error?.message).toBe(
+			MAX_TOKENS_REPEATED_INCOMPLETE_TURN_MESSAGE,
+		);
+	});
+
+	it("recognizes a max-tokens failure from a persisted transcript on a fresh runtime", async () => {
+		// The VS Code retry path rebuilds the session (and its runtime) from
+		// persisted messages, so detection must survive that round-trip via
+		// the metadata flag rather than in-memory state.
+		const initialMessages: AgentMessage[] = [
+			{
+				id: "msg_user1",
+				role: "user",
+				content: [{ type: "text", text: "Say DONE." }],
+				createdAt: 1,
+			},
+			{
+				id: "msg_failed",
+				role: "assistant",
+				content: [{ type: "reasoning", text: "thinking..." }],
+				createdAt: 2,
+				metadata: { [MAX_TOKENS_INCOMPLETE_TURN_METADATA_KEY]: true },
+			},
+		];
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking again..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model, initialMessages });
+
+		const result = await runtime.run("[TASK RESUMPTION] Retry.");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe(
+			MAX_TOKENS_REPEATED_INCOMPLETE_TURN_MESSAGE,
+		);
+		const request = model.requests[0];
+		const requestTexts = (request?.messages ?? [])
+			.flatMap((message) => message.content)
+			.filter(
+				(part): part is Extract<AgentMessagePart, { type: "text" }> =>
+					part.type === "text",
+			)
+			.map((part) => part.text);
+		expect(requestTexts).toContain(MAX_TOKENS_RETRY_REMINDER_MESSAGE);
+	});
+
+	it("does not escalate a max-tokens failure after an intervening successful turn", async () => {
+		const maxTokensTurn = (): AgentModelEvent[] => [
+			{ type: "reasoning-delta", text: "thinking..." },
+			{ type: "finish", reason: "max-tokens" },
+		];
+		const model = new ScriptedModel([
+			maxTokensTurn,
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+			maxTokensTurn,
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		await runtime.run("Say DONE.");
+		const recovered = await runtime.run("Retry.");
+		const third = await runtime.run("Another prompt.");
+
+		expect(recovered.status).toBe("completed");
+		expect(third.status).toBe("failed");
+		// The failure streak was broken, so this reads as a fresh failure.
+		expect(third.error?.message).toBe(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+		// No new reminder was injected for the third run: the only reminder in
+		// its request is the one left in the transcript by the earlier retry.
+		const thirdRequest = model.requests[2];
+		const reminderCount = (thirdRequest?.messages ?? [])
+			.flatMap((message) => message.content)
+			.filter(
+				(part) =>
+					part.type === "text" &&
+					part.text === MAX_TOKENS_RETRY_REMINDER_MESSAGE,
+			).length;
+		expect(reminderCount).toBe(1);
 	});
 
 	it("does not persist an empty assistant message when the model stream fails", async () => {

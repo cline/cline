@@ -3927,3 +3927,32 @@ describe("tool display paths are relativized to the cwd", () => {
 		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
 	})
 })
+
+describe("sdkMessagesToClineMessages — runtime-injected reminders", () => {
+	it("does not render a user bubble for a persisted max-tokens retry reminder", () => {
+		// The runtime injects this reminder on a retry after a max-tokens
+		// failure; live rendering suppresses message-added events, so history
+		// rendering must not invent a user_feedback bubble for it either.
+		const messages: SdkMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "Say DONE." }] } as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "partial" }] } as SdkMessage,
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: "[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not deliberate at length this time: keep any reasoning brief, then give your final answer or tool call concisely.",
+					},
+				],
+				metadata: { kind: "max_tokens_retry_notice", userRunSpan: 0 },
+			} as unknown as SdkMessage,
+			{ role: "assistant", content: [{ type: "text", text: "DONE" }] } as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+
+		const userBubbles = clineMessages.filter((m) => m.say === "task" || m.say === "user_feedback")
+		expect(userBubbles).toHaveLength(1)
+		expect(userBubbles[0]?.text).toBe("Say DONE.")
+	})
+})

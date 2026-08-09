@@ -4,8 +4,21 @@ import {
 	extractSdkUserText,
 	findSdkUserMessageIndexByOrdinal,
 	getSdkCheckpointRunCountForMessageIndex,
+	isSyntheticSdkUserMessage,
 	isSyntheticUserPrompt,
 } from "./sdk-user-message-mapping"
+
+// Mirrors the agents runtime's MAX_TOKENS_RETRY_NOTICE_KIND / reminder text.
+const maxTokensReminder = {
+	role: "user",
+	content: [
+		{
+			type: "text",
+			text: "[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not deliberate at length this time: keep any reasoning brief, then give your final answer or tool call concisely.",
+		},
+	],
+	metadata: { kind: "max_tokens_retry_notice", userRunSpan: 0 },
+}
 
 // Persisted prompts are wrapped by formatModePrompt before they reach SDK
 // history; the mapping must recognize the wrapped shape, not just raw text.
@@ -134,6 +147,23 @@ describe("findSdkUserMessageIndexByOrdinal", () => {
 
 		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(2)
 	})
+
+	it("skips runtime-injected max-tokens retry reminders", () => {
+		// A failed max-tokens turn retried via Retry persists: the resumption
+		// prompt plus the runtime's corrective reminder. Neither has a visible
+		// bubble, so ordinal mapping must skip both.
+		const messages = [
+			user(wrapped("Say DONE.")),
+			assistant("thinking..."),
+			user(wrapped("[TASK RESUMPTION] Please continue where you left off.")),
+			maxTokensReminder,
+			assistant("DONE"),
+			user(wrapped("thanks, next step")),
+		]
+
+		expect(isSyntheticSdkUserMessage(maxTokensReminder)).toBe(true)
+		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(5)
+	})
 })
 
 describe("getSdkCheckpointRunCountForMessageIndex", () => {
@@ -160,6 +190,14 @@ describe("getSdkCheckpointRunCountForMessageIndex", () => {
 		expect(getSdkCheckpointRunCountForMessageIndex(messages, 2)).toBe(2)
 		expect(getSdkCheckpointRunCountForMessageIndex(messages, 1)).toBe(1)
 		expect(getSdkCheckpointRunCountForMessageIndex(messages, 9)).toBeUndefined()
+	})
+
+	it("does not count max-tokens retry reminders as checkpoint runs", () => {
+		// The core checkpoint counter gives runtime reminders a run span of 0;
+		// the mirror here must match or restores after a retry go off by one.
+		const messages = [{ role: "user", content: "task" }, maxTokensReminder, { role: "user", content: "follow-up" }]
+
+		expect(getSdkCheckpointRunCountForMessageIndex(messages, 2)).toBe(2)
 	})
 })
 
