@@ -319,16 +319,25 @@ function calculateSimilarity(str1: string, str2: string): number {
 	const MAX_LENGTH = 5000;
 	let longerToCompare = longer;
 	let shorterToCompare = shorter;
+	let wasTruncated = false;
 
 	if (longerToCompare.length > MAX_LENGTH) {
+		wasTruncated = true;
 		longerToCompare = longerToCompare.slice(0, MAX_LENGTH);
 		shorterToCompare = shorterToCompare.slice(0, MAX_LENGTH);
 	}
 
 	const editDistance = levenshteinDistance(shorterToCompare, longerToCompare);
-	const scaledEditDistance = (editDistance / longerToCompare.length) * longer.length;
 
-	return Math.max(0, (longer.length - scaledEditDistance) / longer.length);
+	if (wasTruncated) {
+		const tailLonger = longer.length - MAX_LENGTH;
+		const tailShorter = Math.max(0, shorter.length - MAX_LENGTH);
+		const tailDiff = Math.abs(tailLonger - tailShorter);
+		const totalEstimatedEdits = editDistance + tailDiff;
+		return Math.max(0, (longer.length - totalEstimatedEdits) / longer.length);
+	}
+
+	return (longer.length - editDistance) / longer.length;
 }
 
 function levenshteinDistance(str1: string, str2: string): number {
