@@ -473,6 +473,9 @@ function handleCoreSessionEvent(
 					flushConsumedAttachments(sessionId, session);
 				}
 			}
+			// #region agent log
+			console.log(`[P0DBG] core status event -> chat_session_status: sid=${sessionId} status=${status} t=${Date.now()}`);
+			// #endregion
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			break;
 		}
@@ -777,6 +780,9 @@ export function handleHubLiveEvent(
 						: session.status;
 			session.status = status;
 			session.busy = status === "running";
+			// #region agent log
+			console.log(`[P0DBG] hub ${event.event} -> chat_session_status: sid=${sessionId} status=${status} t=${Date.now()}`);
+			// #endregion
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			return;
 		}
@@ -794,6 +800,9 @@ export function handleHubLiveEvent(
 			session.status = reason;
 			session.busy = false;
 			session.endedAt = nowMs();
+			// #region agent log
+			console.log(`[P0DBG] hub ${event.event} -> chat_session_ended: sid=${sessionId} reason=${reason} t=${Date.now()}`);
+			// #endregion
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			return;
 		}

@@ -373,6 +373,11 @@ export function useChatSession() {
 	// Bumped whenever a new turn begins; lets async queue checks detect that
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
+	// Epoch at which the current turn reached a terminal status. Hub-projected
+	// chat_session_status events are asynchronous and a stale "running" can
+	// trail chat_done; when no new turn has started since the turn settled
+	// (epoch unchanged), such a "running" must not reopen the turn.
+	const turnSettledEpochRef = useRef(-1);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -631,6 +636,7 @@ export function useChatSession() {
 					// #endregion
 					setPromptsInQueue(items);
 					if (items.length === 0) {
+						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus((current) =>
 							current === "running" ? "completed" : current,
 						);
@@ -1397,6 +1403,8 @@ export function useChatSession() {
 				setStatus(nextStatus);
 				if (nextStatus === "running") {
 					verifyQueueStillBusy(listeningSessionId);
+				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
 				}
 				return;
 			}
@@ -1518,6 +1526,9 @@ export function useChatSession() {
 					status?: string;
 				};
 				const targetSessionId = record.sessionId?.trim();
+				// #region agent log
+				p0dbg(`chat_session_status recv: sid=${targetSessionId} status=${record.status} activeSid=${activeSessionIdRef.current} applied=${Boolean(targetSessionId && targetSessionId === activeSessionIdRef.current && record.status?.trim())} statusBefore=${statusDebugRef.current} epoch=${turnEpochRef.current}`);
+				// #endregion
 				if (
 					!targetSessionId ||
 					targetSessionId !== activeSessionIdRef.current
@@ -1526,6 +1537,21 @@ export function useChatSession() {
 				}
 				const nextStatus = record.status?.trim();
 				if (!nextStatus) {
+					return;
+				}
+				// Status events are projected asynchronously from the hub's
+				// session record and can deliver a stale "running" after the
+				// stream's chat_done already settled the turn. A genuinely new
+				// turn always bumps the epoch (chat_queued_prompt_start) or
+				// goes through the local submit paths, so while the epoch still
+				// equals the settled epoch a "running" here can only be stale.
+				if (
+					nextStatus === "running" &&
+					turnEpochRef.current === turnSettledEpochRef.current
+				) {
+					// #region agent log
+					p0dbg(`chat_session_status: IGNORED stale running after settle; sid=${targetSessionId} settledEpoch=${turnSettledEpochRef.current} statusBefore=${statusDebugRef.current}`);
+					// #endregion
 					return;
 				}
 				setStatus(nextStatus as ChatSessionStatus);
@@ -1542,6 +1568,9 @@ export function useChatSession() {
 					reason?: string;
 				};
 				const targetSessionId = record.sessionId?.trim();
+				// #region agent log
+				p0dbg(`chat_session_ended recv: sid=${targetSessionId} reason=${record.reason} activeSid=${activeSessionIdRef.current} statusBefore=${statusDebugRef.current}`);
+				// #endregion
 				if (
 					!targetSessionId ||
 					targetSessionId !== activeSessionIdRef.current
@@ -1551,6 +1580,7 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				turnSettledEpochRef.current = turnEpochRef.current;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
 			},
 		);
@@ -1910,6 +1940,7 @@ export function useChatSession() {
 					// #endregion
 					applyPromptsInQueue(payload.promptsInQueue);
 					if (abortedRef.current) {
+						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus("cancelled");
 						return;
 					}
@@ -1920,6 +1951,7 @@ export function useChatSession() {
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 					return;
 				}
@@ -2097,6 +2129,7 @@ export function useChatSession() {
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
@@ -2111,12 +2144,15 @@ export function useChatSession() {
 						activeSessionId,
 						runError || toolError?.trim() || "",
 					);
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);

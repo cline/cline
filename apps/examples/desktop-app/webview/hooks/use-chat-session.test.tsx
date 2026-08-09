@@ -2154,6 +2154,125 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("completed");
 	});
 
+	// Session status events are projected asynchronously from the hub's
+	// session record, so a stale "running" can arrive after the stream's
+	// chat_done already settled the turn. Applying it would re-wedge the
+	// composer on "Agent is working…" with nothing left to reconcile.
+	it("ignores a stale 'running' status event arriving after the turn settled", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("Say the word ready");
+		const chatEventHandler = getChatEventHandler();
+		const statusHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_status",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(statusHandler).toBeDefined();
+		const sid = current.sessionId;
+
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({
+						promptId: "queued-prompt-1",
+						prompt: "Say the word ready",
+						attachmentCount: 0,
+					}),
+					index: 1,
+				},
+				{ stream: "chat_text", chunk: "ready", index: 2 },
+				{
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					index: 3,
+				},
+			]);
+		});
+		expect(current.status).toBe("completed");
+		await act(async () => {
+			sendResolvers[0]?.({ sessionId: sid, ok: true, queued: true });
+			await sendPromise;
+		});
+
+		// Trailing hub-projected status for the turn that already ended.
+		await act(async () => {
+			statusHandler?.({ sessionId: sid, status: "running" });
+		});
+		expect(current.status).toBe("completed");
+
+		// Non-busy trailing statuses still settle normally.
+		await act(async () => {
+			statusHandler?.({ sessionId: sid, status: "idle" });
+		});
+		expect(current.status).toBe("idle");
+	});
+
+	it("still applies 'running' status events once a new turn has started", async () => {
+		const sendResolvers = mockTransport();
+		const { sendPromise } = await dispatchPrompt("Say the word ready");
+		const chatEventHandler = getChatEventHandler();
+		const statusHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_status",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const sid = current.sessionId;
+
+		// Turn 1 completes.
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({
+						promptId: "queued-prompt-1",
+						prompt: "Say the word ready",
+						attachmentCount: 0,
+					}),
+					index: 1,
+				},
+				{
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					index: 2,
+				},
+			]);
+		});
+		await act(async () => {
+			sendResolvers[0]?.({ sessionId: sid, ok: true, queued: true });
+			await sendPromise;
+		});
+		expect(current.status).toBe("completed");
+
+		// Turn 2 starts via the stream (epoch bump): running status events
+		// belong to the live turn again and must apply.
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_queued_prompt_start",
+					chunk: JSON.stringify({
+						promptId: "queued-prompt-2",
+						prompt: "again",
+						attachmentCount: 0,
+					}),
+					index: 3,
+				},
+			]);
+		});
+		expect(current.status).toBe("running");
+		await act(async () => {
+			statusHandler?.({ sessionId: sid, status: "running" });
+		});
+		expect(current.status).toBe("running");
+
+		await act(async () => {
+			emitTurnEvents(chatEventHandler, sid, [
+				{
+					stream: "chat_done",
+					chunk: JSON.stringify({ reason: "completed" }),
+					index: 4,
+				},
+			]);
+		});
+		expect(current.status).toBe("completed");
+	});
+
 	it("still applies a queued response for a deliberately queued prompt", async () => {
 		// First send stays in flight (turn 1 running); the second prompt is
 		// deliberately queued behind it and its response must keep updating
