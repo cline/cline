@@ -19,7 +19,23 @@ interface DeepSeekHandlerOptions extends CommonApiHandlerOptions {
 	deepSeekApiKey?: string
 	apiModelId?: string
 	reasoningEffort?: string
+	requestTimeoutMs?: number
 }
+
+/**
+ * Time to wait for DeepSeek to send response headers before failing the
+ * attempt. Without an explicit value the openai SDK waits 10 minutes and
+ * retries connection timeouts internally (twice by default), so a stalled
+ * connection could hang a request for ~30 minutes before surfacing
+ * "Request timed out." — long after the user gave up (see #13112).
+ *
+ * The timeout only covers time-to-response-headers: once the stream starts,
+ * generation can take as long as it needs. DeepSeek sends SSE keep-alive
+ * comments as soon as a streaming request is accepted, even while the request
+ * queues under load, so headers arriving slowly means the connection is dead
+ * and re-dialing (which the task loop's auto-retry does) is the only fix.
+ */
+export const DEEPSEEK_DEFAULT_TIMEOUT_MS = 60_000
 
 export class DeepSeekHandler implements ApiHandler {
 	private options: DeepSeekHandlerOptions
@@ -39,6 +55,7 @@ export class DeepSeekHandler implements ApiHandler {
 					baseURL: "https://api.deepseek.com/v1",
 					apiKey: this.options.deepSeekApiKey,
 					defaultHeaders: buildExternalBasicHeaders(),
+					timeout: this.options.requestTimeoutMs || DEEPSEEK_DEFAULT_TIMEOUT_MS,
 					fetch, // Use configured fetch with proxy support
 				})
 			} catch (error) {

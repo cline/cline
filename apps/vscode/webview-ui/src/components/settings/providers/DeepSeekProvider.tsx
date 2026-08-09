@@ -2,6 +2,7 @@ import { deepSeekModels } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { useExtensionState } from "@/context/ExtensionStateContext"
 import { ApiKeyField } from "../common/ApiKeyField"
+import { DebouncedTextField } from "../common/DebouncedTextField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
@@ -59,6 +60,23 @@ export const DeepSeekProvider = ({ showModelOptions, isPopup, currentMode }: Dee
 					/>
 
 					{showReasoningEffort && <ReasoningEffortSelector currentMode={currentMode} />}
+
+					<DebouncedTextField
+						initialValue={apiConfiguration?.requestTimeoutMs ? apiConfiguration.requestTimeoutMs.toString() : "60000"}
+						onChange={(value) => {
+							// Convert to number, with validation
+							const numValue = parseInt(value, 10)
+							if (!Number.isNaN(numValue) && numValue > 0) {
+								handleFieldChange("requestTimeoutMs", numValue)
+							}
+						}}
+						placeholder="Default: 60000 (1 minute)"
+						style={{ width: "100%" }}>
+						<span className="font-semibold">Request Timeout (ms)</span>
+					</DebouncedTextField>
+					<p className="text-xs mt-0 text-description">
+						Maximum time in milliseconds to wait for the API to start responding before retrying.
+					</p>
 
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
