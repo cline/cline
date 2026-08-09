@@ -645,7 +645,7 @@ describe("vscode-to-file-migration", () => {
 			// Non-action fields are preserved; version is bumped for race-condition detection.
 			settings.enableNotifications.should.equal(true)
 			settings.version.should.equal(6)
-			// The dead key is cleared from the file store (never exported, but cleared defensively).
+			// The removed key is never exported to the file store (no longer a known key).
 			;(storageContext.globalState.get("yoloModeToggled") === undefined).should.be.true()
 		})
 
@@ -674,7 +674,8 @@ describe("vscode-to-file-migration", () => {
 			result.yoloModeMigrated.should.be.true()
 			const settings = storageContext.globalState.get("autoApprovalSettings") as any
 			settings.actions.should.deepEqual(allActionsEnabled)
-			;(storageContext.globalState.get("yoloModeToggled") === undefined).should.be.true()
+			// The dead key stays in place (inert for current builds, preserved for downgrades).
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(true)
 			storageContext.globalState.get("__vscodeMigrationVersion")!.should.equal(3)
 			storageContext.workspaceState.get("__vscodeMigrationVersion")!.should.equal(3)
 		})
@@ -694,8 +695,8 @@ describe("vscode-to-file-migration", () => {
 			result.yoloModeMigrated.should.be.false()
 			// autoApprovalSettings untouched (never written)
 			;(storageContext.globalState.get("autoApprovalSettings") === undefined).should.be.true()
-			// The dead key is still cleaned up
-			;(storageContext.globalState.get("yoloModeToggled") === undefined).should.be.true()
+			// The dead key stays in place (inert for current builds, preserved for downgrades).
+			storageContext.globalState.get("yoloModeToggled")!.should.equal(false)
 		})
 
 		it("does NOT touch auto-approval settings when yolo was never enabled", async () => {

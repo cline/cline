@@ -264,14 +264,18 @@ export async function exportVSCodeStorageToSharedFiles(
  * The "YOLO mode" and "auto-approve all" toggles were removed: both were blanket
  * "run without asking" switches that bypassed the per-action auto-approval
  * settings. To keep previously-unattended setups unattended, a user who had
- * either toggle enabled gets every auto-approval action enabled instead, and the
- * dead keys are cleared from the file store.
+ * either toggle enabled gets every auto-approval action enabled instead.
  *
  * Reads consider both stores: the file store wins when it has an explicit value
  * (matching the export's merge semantics — e.g. a user who turned YOLO off in
  * the SDK extension must not be re-migrated from a stale VSCode `true`), and the
  * VSCode memento covers legacy-extension users whose value was never exported
  * (the keys are no longer part of GlobalStateAndSettingKeys).
+ *
+ * The dead keys are intentionally left in place: current builds no longer read
+ * them (the state loader only visits known keys), and the file store is shared
+ * with older builds that still do — deleting the value would flip YOLO off for
+ * a user who downgrades. Same downgrade-safety rule as the v1 export.
  *
  * @returns true when the toggles were folded into autoApprovalSettings
  */
@@ -304,11 +308,6 @@ function migrateYoloModeToAutoApprovalSettings(vscodeContext: vscode.ExtensionCo
 		storage.globalState.update("autoApprovalSettings", migrated)
 		Logger.info("[Migration] Legacy YOLO/auto-approve-all toggle detected — enabled all auto-approval actions")
 	}
-
-	// Clear the dead keys from the file store either way; the VSCode memento is
-	// intentionally left untouched (same downgrade-safety rule as the v1 export).
-	storage.globalState.update("yoloModeToggled", undefined)
-	storage.globalState.update("autoApproveAllToggled", undefined)
 
 	return wasUnattended
 }
