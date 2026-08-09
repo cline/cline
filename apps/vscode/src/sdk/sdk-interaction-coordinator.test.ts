@@ -308,6 +308,79 @@ describe("SdkInteractionCoordinator", () => {
 		expect(recordApprovedToolMessage).not.toHaveBeenCalled()
 	})
 
+	it("auto-approves every tool when YOLO mode is enabled, even when settings deny it", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const postStateToWebview = vi.fn().mockResolvedValue(undefined)
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview,
+			shouldAutoApproveTool: () => false,
+			isYoloModeEnabled: () => true,
+		})
+
+		// File edits are the exact case from cline/cline#13114: policy forces the
+		// approval callback and the per-action setting (editFiles) is off.
+		await expect(
+			coordinator.handleRequestToolApproval({
+				agentId: "agent",
+				conversationId: "conversation",
+				iteration: 1,
+				toolCallId: "tool-call",
+				toolName: "editor",
+				input: { path: "hello.txt", new_text: "hi" },
+				policy: { autoApprove: false },
+			}),
+		).resolves.toEqual({ approved: true })
+
+		expect(task.messageStateHandler.getClineMessages()).toHaveLength(0)
+		expect(postStateToWebview).not.toHaveBeenCalled()
+	})
+
+	it("still asks for approval when YOLO mode is off and settings deny the tool", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			shouldAutoApproveTool: () => false,
+			isYoloModeEnabled: () => false,
+		})
+
+		void coordinator.handleRequestToolApproval({
+			agentId: "agent",
+			conversationId: "conversation",
+			iteration: 1,
+			toolCallId: "tool-call",
+			toolName: "editor",
+			input: { path: "hello.txt", new_text: "hi" },
+			policy: { autoApprove: false },
+		})
+		await vi.waitFor(() => expect(task.messageStateHandler.getClineMessages()).toHaveLength(1))
+		expect(task.messageStateHandler.getClineMessages()[0]).toMatchObject({ type: "ask", ask: "tool" })
+	})
+
+	it("auto-responds to ask_question when YOLO mode is enabled instead of blocking", async () => {
+		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
+		const coordinator = new SdkInteractionCoordinator({
+			messages: new SdkMessageCoordinator({ getTask: () => task }),
+			getSessionId: () => "session-123",
+			postStateToWebview: vi.fn().mockResolvedValue(undefined),
+			isYoloModeEnabled: () => true,
+		})
+
+		const answer = await coordinator.handleAskQuestion("Which database do you use?", [], undefined)
+		expect(answer).toContain("YOLO MODE")
+		expect(answer).toContain("Which database do you use?")
+
+		// The question surfaces as a non-blocking info row, not a followup ask.
+		const clineMessages = task.messageStateHandler.getClineMessages()
+		expect(clineMessages).toHaveLength(1)
+		expect(clineMessages[0]).toMatchObject({ type: "say", say: "info" })
+		expect(clineMessages[0].text).toContain("Which database do you use?")
+		expect(coordinator.resolvePendingAskQuestion("stale")).toBe(false)
+	})
+
 	it("emits an MCP approval ask with server, tool, and arguments", async () => {
 		const task = createTaskProxy("session-123", vi.fn(), vi.fn())
 		const coordinator = new SdkInteractionCoordinator({

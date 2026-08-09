@@ -110,6 +110,43 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("notifies onTurnAwaitingFollowup only after a clean turn settles to awaiting_followup", async () => {
+		const { coordinator, options, event } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: true,
+			},
+		})
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.setTurnPhase).toHaveBeenCalledWith("awaiting_followup")
+		expect(options.onTurnAwaitingFollowup).toHaveBeenCalledOnce()
+		// Called after the running flag is cleared, so the handler observes the settled state.
+		expect(options.sessions.setRunning.mock.invocationCallOrder[0]).toBeLessThan(
+			options.onTurnAwaitingFollowup.mock.invocationCallOrder[0],
+		)
+	})
+
+	it("does NOT notify onTurnAwaitingFollowup for completed or error turns", async () => {
+		const completed = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		completed.options.messageTranslatorState.setAttemptCompletionSeen()
+		await completed.coordinator.handleSessionEvent(completed.event)
+		expect(completed.options.setTurnPhase).toHaveBeenCalledWith("completed")
+		expect(completed.options.onTurnAwaitingFollowup).not.toHaveBeenCalled()
+
+		const errored = makeCoordinator({
+			translation: { messages: [], sessionEnded: false, turnComplete: true },
+		})
+		errored.options.messageTranslatorState.setErrorSeen()
+		await errored.coordinator.handleSessionEvent(errored.event)
+		expect(errored.options.setTurnPhase).toHaveBeenCalledWith("error")
+		expect(errored.options.onTurnAwaitingFollowup).not.toHaveBeenCalled()
+	})
+
 	it("resolves the turn phase to 'error' when the turn surfaced a provider error", async () => {
 		const { coordinator, options, event } = makeCoordinator({
 			translation: {
@@ -421,6 +458,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		beginProviderFailureTelemetryTurn: vi.fn(),
 		translateSessionEvent: vi.fn(() => input.translation ?? { messages: [], sessionEnded: false, turnComplete: false }),
 		isClineFreeModel: input.isClineFreeModel,
+		onTurnAwaitingFollowup: vi.fn(),
 	} as unknown as SdkSessionEventCoordinatorOptions & {
 		sessions: SdkSessionEventCoordinatorOptions["sessions"] & {
 			getActiveSession: ReturnType<typeof vi.fn>
@@ -433,6 +471,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		beginProviderFailureTelemetryTurn: ReturnType<typeof vi.fn>
 		translateSessionEvent: ReturnType<typeof vi.fn>
 		messageTranslatorState: MessageTranslatorState
+		onTurnAwaitingFollowup: ReturnType<typeof vi.fn>
 	}
 
 	return {

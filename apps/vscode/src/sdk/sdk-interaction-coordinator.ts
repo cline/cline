@@ -22,6 +22,15 @@ export interface SdkInteractionCoordinatorOptions {
 	getSessionId: () => string
 	postStateToWebview: () => Promise<void>
 	shouldAutoApproveTool?: (request: ToolApprovalRequest) => boolean
+	/**
+	 * YOLO mode is a blanket runtime override (legacy-extension parity): while
+	 * enabled, every tool approval is granted and ask_question is auto-answered,
+	 * WITHOUT mutating the user's saved per-action auto-approval settings — so
+	 * turning YOLO off restores exactly the configuration they had before.
+	 * Evaluated per request so mid-task toggles (and remote-config locks, which
+	 * take precedence in StateManager) apply immediately.
+	 */
+	isYoloModeEnabled?: () => boolean
 	recordApprovedToolMessage?: (toolCallId: string, messageTs: number) => void
 	recordDeniedToolApproval?: (toolCallId: string, toolName: string, reason: string) => void
 	/**
@@ -92,6 +101,10 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleRequestToolApproval(request: ToolApprovalRequest): Promise<{ approved: boolean; reason?: string }> {
+		if (this.options.isYoloModeEnabled?.() === true) {
+			Logger.log(`[SdkController] YOLO mode: auto-approving tool execution: tool=${request.toolName}`)
+			return { approved: true }
+		}
 		if (request.policy.autoApprove === true || this.options.shouldAutoApproveTool?.(request) === true) {
 			Logger.log(`[SdkController] Auto-approving tool execution: tool=${request.toolName}`)
 			return { approved: true }
@@ -131,6 +144,24 @@ export class SdkInteractionCoordinator {
 	}
 
 	async handleAskQuestion(question: string, options: string[], _context: unknown): Promise<string> {
+		// YOLO mode runs unattended, so blocking on user input would defeat it.
+		// Match the legacy extension: surface the question as an info row, then
+		// auto-respond telling the model to find the answer with tools instead.
+		if (this.options.isYoloModeEnabled?.() === true) {
+			const infoMessage: ClineMessage = {
+				ts: this.nextMessageTs(),
+				type: "say",
+				say: "info",
+				text: `[YOLO MODE] Auto-responding to question: "${question.substring(0, 100)}${question.length > 100 ? "..." : ""}"`,
+				partial: false,
+			}
+			this.options.messages.appendAndEmit([infoMessage], {
+				type: "status",
+				payload: { sessionId: this.options.getSessionId(), status: "running" },
+			})
+			return `[YOLO MODE: User input is not available in non-interactive mode. You must use available tools (read files, search, run commands, etc.) to gather the information you need instead of asking the user. Proceed with using tools to find the answer to your question: "${question}"]`
+		}
+
 		const askData: ClineAskQuestion = {
 			question,
 			options: options?.length ? options : undefined,

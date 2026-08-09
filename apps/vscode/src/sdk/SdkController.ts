@@ -250,6 +250,11 @@ export class Controller {
 	// the chat view). Warmed in the constructor and refreshed on every call.
 	private lastKnownWorkspaceRoot?: string
 
+	// Re-entrancy guard for the YOLO plan->act auto-switch: a turn can settle
+	// through more than one session event, and a second togglePlanActMode while
+	// the first rebuild is in flight would race the exclusive rebuild scheduler.
+	private yoloPlanToActSwitchInFlight = false
+
 	get remoteConfig(): RemoteConfig | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle?.remoteConfig
 	}
@@ -353,6 +358,9 @@ export class Controller {
 				const autoApprovalSettings = this.stateManager.getGlobalSettingsKey("autoApprovalSettings")
 				return autoApprovalSettings ? isToolAutoApproved(request.toolName, autoApprovalSettings, this.mcpHub) : false
 			},
+			// getGlobalSettingsKey gives remote config precedence, so an enterprise
+			// yoloModeAllowed=false lock forces this to false regardless of the toggle.
+			isYoloModeEnabled: () => !!this.stateManager.getGlobalSettingsKey("yoloModeToggled"),
 			getCwd: () => this.lastKnownWorkspaceRoot,
 		})
 		this.sessions = new SdkSessionLifecycle({
@@ -634,6 +642,7 @@ export class Controller {
 			getTurnPhase: () => this.turnStateTracker.currentPhase,
 			captureProviderApiError: (event) => this.captureProviderFailure(event),
 			beginProviderFailureTelemetryTurn: () => this.beginProviderFailureTelemetryTurn(),
+			onTurnAwaitingFollowup: () => this.maybeAutoSwitchPlanToActForYolo(),
 		})
 		// Subscribe to MCP tool list changes so we can restart the SDK session
 		// when servers are added/removed/reconnected. The SDK's DefaultSessionBuilder
@@ -1743,12 +1752,49 @@ export class Controller {
 
 	// ---- Mode switching ----
 
-	async toggleActModeForYoloMode(): Promise<boolean> {
-		return this.mode.toggleActModeForYoloMode()
-	}
-
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		return this.mode.togglePlanActMode(modeToSwitchTo, chatContent)
+	}
+
+	/**
+	 * YOLO parity with the legacy extension: when a plan-mode turn finishes by
+	 * presenting a plan while YOLO is enabled, switch to act mode automatically
+	 * instead of waiting for the user to approve the plan. The switch goes
+	 * through togglePlanActMode so the session is rebuilt with act-mode tools
+	 * and the existing plan-presented detection auto-continues the task.
+	 * Guarded on the plan-completion row so a plan turn that merely stopped
+	 * (no plan presented) never triggers a silent mode flip.
+	 */
+	private maybeAutoSwitchPlanToActForYolo(): void {
+		if (this.yoloPlanToActSwitchInFlight) {
+			return
+		}
+		if (!this.stateManager.getGlobalSettingsKey("yoloModeToggled")) {
+			return
+		}
+		if (this.stateManager.getGlobalSettingsKey("mode") !== "plan") {
+			return
+		}
+		const clineMessages = this.task?.messageStateHandler.getClineMessages() ?? []
+		const latestAssistantResult = [...clineMessages]
+			.reverse()
+			.find(
+				(message) =>
+					message.type === "say" && (message.say === "plan_completion_result" || message.say === "completion_result"),
+			)
+		if (latestAssistantResult?.say !== "plan_completion_result" || latestAssistantResult.partial) {
+			return
+		}
+		Logger.log("[SdkController] YOLO mode: plan presented; auto-switching to act mode")
+		this.yoloPlanToActSwitchInFlight = true
+		this.mode
+			.togglePlanActMode("act")
+			.catch((error) => {
+				Logger.error("[SdkController] YOLO mode: failed to auto-switch to act mode:", error)
+			})
+			.finally(() => {
+				this.yoloPlanToActSwitchInFlight = false
+			})
 	}
 
 	// ---- Telemetry ----

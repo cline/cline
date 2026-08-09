@@ -39,6 +39,14 @@ export interface SdkSessionEventCoordinatorOptions {
 	getTurnPhase?: () => TurnPhase
 	captureProviderApiError?: (event: ProviderFailureTelemetry) => void
 	beginProviderFailureTelemetryTurn?: () => void
+	/**
+	 * Fired after a clean (non-error, non-cancelled) turn settles to
+	 * "awaiting_followup" and the running flag is cleared. Used by the
+	 * controller to auto-switch plan -> act when YOLO mode is enabled and the
+	 * settled turn presented a plan. Called after the phase/running updates so
+	 * the handler observes the same state the mode coordinator will re-check.
+	 */
+	onTurnAwaitingFollowup?: () => void
 }
 
 export class SdkSessionEventCoordinator {
@@ -113,6 +121,7 @@ export class SdkSessionEventCoordinator {
 				// isRunning back to false mid-turn (see fireAndForgetSend). Keying on isRunning
 				// alone made the queued turn's real completion look like this straggler, leaving
 				// the phase stuck on "streaming" (endless Thinking).
+				let settledAwaitingFollowup = false
 				if (!activeSession.isRunning && this.options.getTurnPhase?.() === "resumable") {
 					Logger.debug("[SdkController] turn-complete straggler after cancel; preserving resumable phase")
 				} else if (this.options.messageTranslatorState.wasErrorSeen()) {
@@ -123,9 +132,13 @@ export class SdkSessionEventCoordinator {
 					this.options.setTurnPhase?.("completed")
 				} else {
 					this.options.setTurnPhase?.("awaiting_followup")
+					settledAwaitingFollowup = true
 				}
 
 				this.options.sessions.setRunning(false)
+				if (settledAwaitingFollowup) {
+					this.options.onTurnAwaitingFollowup?.()
+				}
 			}
 
 			if (result.usage && activeSession.startResult) {
