@@ -76,7 +76,7 @@ function hasProviderReasoningRouting(
 		input.context.provider.metadata?.routing?.reasoning != null ||
 		isClineProvider(input.request.providerId) ||
 		input.request.providerId === "openrouter" ||
-		input.request.providerId === "vercel"
+		input.request.providerId === "vercel-ai-gateway"
 	);
 }
 
