@@ -3941,7 +3941,7 @@ describe("sdkMessagesToClineMessages — runtime-injected reminders", () => {
 				content: [
 					{
 						type: "text",
-						text: "[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not deliberate at length this time: keep any reasoning brief, then give your final answer or tool call concisely.",
+						text: "[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not try to continue the truncated response. Start over with a far more concise approach: keep any reasoning brief and make your final answer or tool call short enough to fit well within the output limit.",
 					},
 				],
 				metadata: { kind: "max_tokens_retry_notice", userRunSpan: 0 },

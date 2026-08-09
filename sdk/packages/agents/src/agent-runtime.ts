@@ -80,7 +80,7 @@ export const MAX_TOKENS_RETRY_NOTICE_KIND = "max_tokens_retry_notice";
  * the identical request and deterministically fails the same way.
  */
 export const MAX_TOKENS_RETRY_REMINDER_MESSAGE =
-	"[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not deliberate at length this time: keep any reasoning brief, then give your final answer or tool call concisely.";
+	"[SYSTEM] Your previous response was cut off because it reached the maximum output token limit before completing. Do not try to continue the truncated response. Start over with a far more concise approach: keep any reasoning brief and make your final answer or tool call short enough to fit well within the output limit.";
 
 function messageHasMaxTokensIncompleteTurnFlag(
 	message: AgentMessage | undefined,
