@@ -54,4 +54,6 @@ export {
 	AgentRuntimeAbortError,
 	createAgent,
 	createAgentRuntime,
+	RESPONSE_INTERRUPTED_BY_USER_MARKER,
+	RESPONSE_INTERRUPTED_MARKER,
 } from "./agent-runtime";

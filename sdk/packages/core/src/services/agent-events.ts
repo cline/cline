@@ -268,11 +268,23 @@ export function handleAgentEvent(
 		);
 	}
 
-	if (event.type === "iteration_end" && isPrimaryAgentEvent) {
+	// Persist at every iteration boundary AND when the run ends for any
+	// reason. `iteration_end` alone left interrupted runs unpersisted: a turn
+	// aborted or failed mid-stream never reaches turn-finished, so the just
+	// sent user message and the salvaged partial assistant message (see
+	// AgentRuntime.salvageInterruptedAssistantMessage) died with the process —
+	// reopening the task after a window reload rendered an empty transcript.
+	// The liveSession guard also keeps a straggler event that arrives after
+	// session teardown from overwriting the persisted conversation with [].
+	const isPersistenceBoundary =
+		event.type === "iteration_end" ||
+		event.type === "done" ||
+		event.type === "error";
+	if (isPersistenceBoundary && isPrimaryAgentEvent && liveSession) {
 		ctx.persistMessages(
 			sessionId,
-			liveSession?.agent.getMessages() ?? [],
-			liveSession?.config.systemPrompt,
+			liveSession.agent.getMessages(),
+			liveSession.config.systemPrompt,
 		);
 	}
 

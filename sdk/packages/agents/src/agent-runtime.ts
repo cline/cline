@@ -404,6 +404,37 @@ function textFromMessage(message: AgentMessage | undefined): string {
 		.join("");
 }
 
+/**
+ * Whether an assistant message carries anything deliverable: final text, a
+ * tool call, or model-generated media. Reasoning parts deliberately do NOT
+ * count — reasoning is commentary about a response, not the response — so a
+ * reasoning-only turn is treated exactly like a fully empty one. The
+ * stream-level empty-response retry middleware cannot cover that case (the
+ * first reasoning delta accepts the attempt and streams live, so the turn
+ * can no longer be discarded and replayed once it turns out to be
+ * reasoning-only); the loop-level check here is the only place left that can
+ * refuse to end the run with nothing shown to the user.
+ */
+function hasDeliverableAssistantContent(message: AgentMessage): boolean {
+	return message.content.some((part) =>
+		part.type === "text"
+			? part.text.trim().length > 0
+			: part.type !== "reasoning",
+	);
+}
+
+/**
+ * Trailing text appended to an assistant message salvaged from an
+ * interrupted generation. Guarantees the salvaged message is never
+ * text-empty on resend (providers reject assistant messages whose content
+ * converts to nothing — e.g. reasoning-only content sent to an API that
+ * drops thinking blocks) and tells the model its previous response was cut
+ * off rather than deliberately short.
+ */
+export const RESPONSE_INTERRUPTED_BY_USER_MARKER =
+	"[Response interrupted by user]";
+export const RESPONSE_INTERRUPTED_MARKER = "[Response interrupted]";
+
 function textFromToolMessage(message: AgentMessage | undefined): string {
 	const result = message?.content.find(
 		(part): part is Extract<AgentMessagePart, { type: "tool-result" }> =>
@@ -699,14 +730,28 @@ export class AgentRuntime {
 				const { message, finishReason } =
 					await this.generateAssistantMessageWithOverflowRecovery();
 				if (finishReason === "aborted") {
+					// A provider that reacts to the abort by ENDING the stream
+					// (finish reason "aborted") instead of rejecting it still
+					// returns the assembled partial — salvage it like a thrown
+					// abort so the truncated response survives in the
+					// conversation and gets persisted.
+					this.salvageInterruptedAssistantMessage(message.content);
 					throw this.normalizeAbortError();
 				}
-				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+				if (!hasDeliverableAssistantContent(message)) {
+					// Covers both a fully empty turn and a reasoning-only turn
+					// (visible thinking that concludes, then no final text and no
+					// tool call). Completing the run in either case would end it
+					// with NOTHING shown to the user and nothing actionable in
+					// the conversation — fail loudly instead, preferring the
+					// finish reason's own diagnostics when it carries one.
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					if (finishReason === "max-tokens") {
+						throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+					}
+					throw new Error("Model returned empty response");
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
@@ -948,6 +993,62 @@ export class AgentRuntime {
 		return !turn.message.content.some((part) => part.type === "tool-call");
 	}
 
+	/**
+	 * Salvage whatever COMPLETE text/reasoning/media parts streamed before an
+	 * interrupted generation unwound into a truncated assistant message on the
+	 * conversation. Without this the partial response vanished wholesale: the
+	 * in-flight parts lived only in generateAssistantMessage locals, so a turn
+	 * cancelled mid-stream left `state.messages` ending on the user's message —
+	 * run-end persistence then wrote a conversation with no trace of the turn
+	 * and a window reload rendered the task transcript empty ("cancel a turn,
+	 * lose the conversation"). Incomplete tool assemblies are deliberately
+	 * dropped (a half-streamed tool call must not be replayed), and a trailing
+	 * marker keeps the salvaged message provider-safe on resend — never
+	 * text-empty, even when only reasoning streamed — while telling the model
+	 * its previous response was cut off rather than deliberately short.
+	 */
+	private salvageInterruptedAssistantMessage(
+		rawParts: readonly AgentMessagePart[],
+		usageBeforeModel?: AgentUsage,
+	): void {
+		const parts: AgentMessagePart[] = [];
+		for (const part of rawParts) {
+			// Tool activity from an interrupted turn is deliberately dropped:
+			// the tool never executed, so replaying a tool-call with no
+			// matching result would leave a dangling pair providers reject.
+			if (part.type === "tool-call" || part.type === "tool-result") {
+				continue;
+			}
+			if (
+				(part.type === "text" || part.type === "reasoning") &&
+				part.text.trim().length === 0
+			) {
+				continue;
+			}
+			parts.push({ ...part });
+		}
+		if (parts.length === 0) {
+			return;
+		}
+		parts.push({
+			type: "text",
+			text: this.abortController?.signal.aborted
+				? RESPONSE_INTERRUPTED_BY_USER_MARKER
+				: RESPONSE_INTERRUPTED_MARKER,
+		});
+		const message = createMessage("assistant", parts, { interrupted: true });
+		const metrics = usageBeforeModel
+			? usageDelta(usageBeforeModel, this.state.usage)
+			: undefined;
+		if (metrics) {
+			message.metrics = metrics;
+		}
+		if (this.config.messageModelInfo) {
+			message.modelInfo = { ...this.config.messageModelInfo };
+		}
+		this.state.messages.push(message);
+	}
+
 	private async generateAssistantMessage(options?: {
 		overflowRecovery?: boolean;
 	}): Promise<{
@@ -1052,138 +1153,151 @@ export class AgentRuntime {
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
 
-		for await (const event of stream) {
-			this.throwIfAborted();
-			switch (event.type) {
-				case "text-delta": {
-					accumulatedText += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "text") {
-						last.part.text += event.text;
-					} else {
-						sequence.push({
-							type: "part",
-							part: { type: "text", text: event.text },
+		try {
+			for await (const event of stream) {
+				this.throwIfAborted();
+				switch (event.type) {
+					case "text-delta": {
+						accumulatedText += event.text;
+						const last = sequence.at(-1);
+						if (last?.type === "part" && last.part.type === "text") {
+							last.part.text += event.text;
+						} else {
+							sequence.push({
+								type: "part",
+								part: { type: "text", text: event.text },
+							});
+						}
+						await this.emit({
+							type: "assistant-text-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							text: event.text,
+							accumulatedText,
 						});
+						break;
 					}
-					await this.emit({
-						type: "assistant-text-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText,
-					});
-					break;
-				}
-				case "reasoning-delta": {
-					accumulatedReasoning += event.text;
-					const last = sequence.at(-1);
-					if (last?.type === "part" && last.part.type === "reasoning") {
-						last.part.text += event.text;
-						last.part.redacted = event.redacted ?? last.part.redacted;
-						last.part.metadata = event.metadata ?? last.part.metadata;
-					} else {
-						sequence.push({
-							type: "part",
-							part: {
-								type: "reasoning",
-								text: event.text,
-								redacted: event.redacted,
-								metadata: event.metadata,
-							},
-						});
-					}
-					await this.emit({
-						type: "assistant-reasoning-delta",
-						snapshot: this.snapshot(),
-						iteration: this.state.iteration,
-						text: event.text,
-						accumulatedText: accumulatedReasoning,
-						redacted: event.redacted,
-						metadata: event.metadata,
-					});
-					break;
-				}
-				case "tool-call-delta": {
-					const key =
-						event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
-					if (event.index == null && event.toolCallId == null) {
-						nextToolIndex += 1;
-					}
-					let assembly = toolAssemblies.get(key);
-					if (!assembly) {
-						assembly = {
-							toolCallId: event.toolCallId ?? createUID("tool"),
-							inputText: "",
-						};
-						toolAssemblies.set(key, assembly);
-						sequence.push({ type: "tool", key });
-					}
-					if (event.toolCallId) {
-						assembly.toolCallId = event.toolCallId;
-					}
-					if (event.toolName) {
-						assembly.toolName = event.toolName;
-					}
-					if (event.input !== undefined) {
-						assembly.inputValue = event.input;
-					}
-					if (event.metadata !== undefined) {
-						assembly.metadata = mergeToolMetadata(
-							assembly.metadata,
-							event.metadata,
-						);
-					}
-					if (event.inputText) {
-						assembly.inputText = mergeToolInputText(
-							assembly.inputText,
-							event.inputText,
-						);
-					}
-					break;
-				}
-				case "file": {
-					// Model-generated file output. Preserved into the assistant
-					// message so a file-only turn is not treated as empty:
-					// images become image parts (the shape providers accept on
-					// resend); other media becomes a file part carrying the
-					// base64 payload.
-					sequence.push({
-						type: "part",
-						part: event.mediaType.startsWith("image/")
-							? {
-									type: "image",
-									image: event.data,
-									mediaType: event.mediaType,
-								}
-							: {
-									type: "file",
-									path: `model-generated-file-${sequence.length + 1}`,
-									content: event.data,
+					case "reasoning-delta": {
+						accumulatedReasoning += event.text;
+						const last = sequence.at(-1);
+						if (last?.type === "part" && last.part.type === "reasoning") {
+							last.part.text += event.text;
+							last.part.redacted = event.redacted ?? last.part.redacted;
+							last.part.metadata = event.metadata ?? last.part.metadata;
+						} else {
+							sequence.push({
+								type: "part",
+								part: {
+									type: "reasoning",
+									text: event.text,
+									redacted: event.redacted,
+									metadata: event.metadata,
 								},
-					});
-					break;
-				}
-				case "usage": {
-					await this.updateUsage(event.usage);
-					break;
-				}
-				case "finish": {
-					finishReason = event.reason;
-					if (event.error) {
-						this.state.lastError = event.error;
-						// Models that classify at their own error boundary (where the
-						// raw provider error is still structured) win. Anything else —
-						// custom `AgentModel` implementations, adapters that carry only
-						// a flattened message — is classified from the message so it
-						// stays eligible for overflow recovery.
-						this.state.lastErrorClass =
-							event.errorClass ?? classifyProviderError(event.error);
-						this.state.lastErrorReported = event.errorReported === true;
+							});
+						}
+						await this.emit({
+							type: "assistant-reasoning-delta",
+							snapshot: this.snapshot(),
+							iteration: this.state.iteration,
+							text: event.text,
+							accumulatedText: accumulatedReasoning,
+							redacted: event.redacted,
+							metadata: event.metadata,
+						});
+						break;
 					}
-					break;
+					case "tool-call-delta": {
+						const key =
+							event.toolCallId ?? `tool_${event.index ?? nextToolIndex}`;
+						if (event.index == null && event.toolCallId == null) {
+							nextToolIndex += 1;
+						}
+						let assembly = toolAssemblies.get(key);
+						if (!assembly) {
+							assembly = {
+								toolCallId: event.toolCallId ?? createUID("tool"),
+								inputText: "",
+							};
+							toolAssemblies.set(key, assembly);
+							sequence.push({ type: "tool", key });
+						}
+						if (event.toolCallId) {
+							assembly.toolCallId = event.toolCallId;
+						}
+						if (event.toolName) {
+							assembly.toolName = event.toolName;
+						}
+						if (event.input !== undefined) {
+							assembly.inputValue = event.input;
+						}
+						if (event.metadata !== undefined) {
+							assembly.metadata = mergeToolMetadata(
+								assembly.metadata,
+								event.metadata,
+							);
+						}
+						if (event.inputText) {
+							assembly.inputText = mergeToolInputText(
+								assembly.inputText,
+								event.inputText,
+							);
+						}
+						break;
+					}
+					case "file": {
+						// Model-generated file output. Preserved into the assistant
+						// message so a file-only turn is not treated as empty:
+						// images become image parts (the shape providers accept on
+						// resend); other media becomes a file part carrying the
+						// base64 payload.
+						sequence.push({
+							type: "part",
+							part: event.mediaType.startsWith("image/")
+								? {
+										type: "image",
+										image: event.data,
+										mediaType: event.mediaType,
+									}
+								: {
+										type: "file",
+										path: `model-generated-file-${sequence.length + 1}`,
+										content: event.data,
+									},
+						});
+						break;
+					}
+					case "usage": {
+						await this.updateUsage(event.usage);
+						break;
+					}
+					case "finish": {
+						finishReason = event.reason;
+						if (event.error) {
+							this.state.lastError = event.error;
+							// Models that classify at their own error boundary (where the
+							// raw provider error is still structured) win. Anything else —
+							// custom `AgentModel` implementations, adapters that carry only
+							// a flattened message — is classified from the message so it
+							// stays eligible for overflow recovery.
+							this.state.lastErrorClass =
+								event.errorClass ?? classifyProviderError(event.error);
+							this.state.lastErrorReported = event.errorReported === true;
+						}
+						break;
+					}
 				}
 			}
+		} catch (error) {
+			// The generation is unwinding (user abort or a stream death after
+			// output already flowed). Whatever complete parts streamed so far
+			// are the only copy of the partial response — salvage them into
+			// the conversation before rethrowing so the run-end persistence
+			// path can write them (see agent-events.ts run-boundary persist).
+			this.salvageInterruptedAssistantMessage(
+				sequence.flatMap((item) => (item.type === "part" ? [item.part] : [])),
+				usageBeforeModel,
+			);
+			throw error;
 		}
 
 		for (const item of sequence) {

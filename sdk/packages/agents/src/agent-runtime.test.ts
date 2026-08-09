@@ -18,7 +18,11 @@ import {
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { AgentRuntime } from "./index";
+import {
+	AgentRuntime,
+	RESPONSE_INTERRUPTED_BY_USER_MARKER,
+	RESPONSE_INTERRUPTED_MARKER,
+} from "./index";
 
 beforeEach(() => {
 	resetSdkErrorRateLimiterForTests();
@@ -126,11 +130,11 @@ describe("AgentRuntime", () => {
 		expect(result.status).toBe("failed");
 		expect(result.error?.message).toContain("maximum output token limit");
 		expect(model.requests).toHaveLength(1);
-		expect(result.messages).toHaveLength(2);
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "reasoning", text: "thinking..." }],
-		});
+		// The reasoning-only turn is undeliverable, so it is no longer pushed
+		// into history before the failure — the conversation ends on the
+		// user's message instead of a dangling reasoning-only assistant row.
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
 		expect(logger.log).toHaveBeenCalledWith(
 			"Agent loop caught error",
 			expect.objectContaining({
@@ -138,7 +142,7 @@ describe("AgentRuntime", () => {
 				status: "failed",
 				errorMessage: expect.stringContaining("maximum output token limit"),
 				iteration: 1,
-				assistantContentPartCount: 1,
+				assistantContentPartCount: 0,
 			}),
 		);
 		expect(logger.error).toHaveBeenCalledWith(
@@ -374,6 +378,220 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]?.role).toBe("user");
 	});
 
+	it("fails a reasoning-only turn as an empty response instead of completing silently", async () => {
+		// A turn that streams visible reasoning but produces no final text and
+		// no tool call must NOT complete the run: nothing deliverable exists,
+		// and the stream-level empty-response retry cannot cover this case
+		// (the first reasoning delta accepts the attempt and streams live).
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "I will comply and say C." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Say C.");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		// The reasoning-only assistant message is not pushed into history.
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("fails a reasoning-only max-tokens turn with the max-tokens diagnostics", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking forever..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Say DONE.");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe(
+			"Model reached the maximum output token limit before completing the turn",
+		);
+	});
+
+	it("fails a whitespace-only text turn as an empty response", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "  \n\t " },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+	});
+
+	it("still completes a turn that pairs reasoning with final text", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "let me think" },
+				{ type: "text-delta", text: "Here is the answer." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+	});
+});
+
+describe("interrupted turn salvage", () => {
+	/** A model that streams the given events, then blocks until aborted. */
+	const blockingModel = (events: AgentModelEvent[]) =>
+		new ScriptedModel([
+			async function* (request: AgentModelRequest) {
+				yield* events;
+				await new Promise<never>((_resolve, reject) => {
+					request.signal?.addEventListener(
+						"abort",
+						() => reject(request.signal?.reason),
+						{ once: true },
+					);
+				});
+			},
+		]);
+
+	it("salvages streamed reasoning and text into the conversation when a turn is aborted", async () => {
+		const model = blockingModel([
+			{ type: "reasoning-delta", text: "let me think about this" },
+			{ type: "text-delta", text: "The answer starts like" },
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			messageModelInfo: { id: "test/model", provider: "test" },
+		});
+
+		const run = runtime.run("Hi");
+		await vi.waitFor(() => {
+			expect(model.requests).toHaveLength(1);
+		});
+		// Give the stream loop a beat to consume the yielded deltas.
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		runtime.abort("user cancelled");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant).toBeDefined();
+		expect(assistant?.metadata?.interrupted).toBe(true);
+		expect(assistant?.content).toEqual([
+			{ type: "reasoning", text: "let me think about this" },
+			{ type: "text", text: "The answer starts like" },
+			{ type: "text", text: RESPONSE_INTERRUPTED_BY_USER_MARKER },
+		]);
+		expect(assistant?.modelInfo).toEqual({ id: "test/model", provider: "test" });
+	});
+
+	it("drops half-streamed tool calls from the salvaged message", async () => {
+		const model = blockingModel([
+			{ type: "text-delta", text: "Let me edit that file." },
+			{
+				type: "tool-call-delta",
+				toolCallId: "tool-1",
+				toolName: "write_file",
+				inputText: '{"path": "a.txt"',
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const run = runtime.run("Edit a.txt");
+		await vi.waitFor(() => {
+			expect(model.requests).toHaveLength(1);
+		});
+		await new Promise((resolve) => setTimeout(resolve, 10));
+		runtime.abort("user cancelled");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Let me edit that file." },
+			{ type: "text", text: RESPONSE_INTERRUPTED_BY_USER_MARKER },
+		]);
+	});
+
+	it("salvages nothing when the turn is aborted before any output", async () => {
+		const model = blockingModel([]);
+		const runtime = new AgentRuntime({ model });
+
+		const run = runtime.run("Hi");
+		await vi.waitFor(() => {
+			expect(model.requests).toHaveLength(1);
+		});
+		runtime.abort("user cancelled");
+		const result = await run;
+
+		expect(result.status).toBe("aborted");
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("salvages streamed output when the stream dies after content flowed", async () => {
+		const model = new ScriptedModel([
+			async function* () {
+				yield {
+					type: "text-delta",
+					text: "Partial answer before the line dropped",
+				} as AgentModelEvent;
+				throw new Error("terminated: read ECONNRESET");
+			},
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.metadata?.interrupted).toBe(true);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Partial answer before the line dropped" },
+			{ type: "text", text: RESPONSE_INTERRUPTED_MARKER },
+		]);
+	});
+
+	it("salvages the assembled partial when the provider ends the stream with an aborted finish", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Partial before provider self-abort" },
+				{ type: "finish", reason: "aborted" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.metadata?.interrupted).toBe(true);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Partial before provider self-abort" },
+			{ type: "text", text: RESPONSE_INTERRUPTED_MARKER },
+		]);
+	});
+});
+
+describe("AgentRuntime", () => {
 	it("treats a file-only model turn as content, assembling images onto the message", async () => {
 		// A model that answers with only a generated file (e.g. an
 		// image-output model) must not fail as "Model returned empty
