@@ -16,6 +16,12 @@ export interface ClineRecommendedModelsData {
 export const CLINE_RECOMMENDED_MODELS_FALLBACK: ClineRecommendedModelsData = {
 	recommended: [
 		{
+			id: "google/gemini-3.1-flash",
+			name: "Google Gemini 3.1 Flash",
+			description: "Latest Gemini flash model with 1m ctx window and strong coding performance",
+			tags: ["NEW"],
+		},
+		{
 			id: "google/gemini-3.1-pro-preview",
 			name: "Google Gemini 3.1 Pro Preview",
 			description: "Latest Gemini release with 1m ctx window and strong coding performance",
