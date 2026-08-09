@@ -102,6 +102,9 @@ export function createShellExecutor() {
 	return async () => ""
 }
 
+// The real connect/initialize budget constant, so tests assert against the
+// same value the extension applies at runtime.
+export { DEFAULT_MCP_CONNECT_TIMEOUT_MS } from "../../../../sdk/packages/core/src/extensions/mcp/client"
 export { augmentMcpTimeoutError } from "../../../../sdk/packages/core/src/extensions/mcp/timeout"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that

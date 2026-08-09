@@ -8,6 +8,7 @@
  */
 export {
 	DEFAULT_MCP_TIMEOUT_SECONDS,
+	isMcpTimeoutConfigured,
 	MAX_MCP_TIMEOUT_SECONDS,
 	MIN_MCP_TIMEOUT_SECONDS,
 	resolveMcpTimeoutSeconds,

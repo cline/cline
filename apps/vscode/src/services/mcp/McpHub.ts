@@ -45,7 +45,7 @@ import { McpOAuthManager } from "./McpOAuthManager"
 import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
 import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "./schemas"
 import { updateMcpSettingsFile } from "./settingsLock"
-import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
+import { augmentMcpTimeoutError, resolveMcpConnectTimeoutMs, resolveMcpServerTimeoutMs } from "./timeout"
 import type { McpConnection, McpServerConfig, Transport } from "./types"
 
 function stableJsonStringify(value: unknown): string {
@@ -671,10 +671,13 @@ export class McpHub {
 			}
 			this.connections.push(connection)
 
-			// Connect - wrap in try-catch to detect OAuth requirement
+			// Connect - wrap in try-catch to detect OAuth requirement.
+			// Connect/initialize gets its own budget (3s for a stdio server with
+			// no explicit `timeout`, matching SDK core policy); post-connect
+			// requests keep the 60s default via resolveMcpServerTimeoutMs.
+			const connectTimeoutMs = resolveMcpConnectTimeoutMs(connection.server.config)
 			try {
-				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
-				await client.connect(transport, { timeout })
+				await client.connect(transport, { timeout: connectTimeoutMs })
 			} catch (error) {
 				if (error instanceof UnauthorizedError) {
 					// Server requires OAuth authentication
@@ -701,8 +704,9 @@ export class McpHub {
 				}
 				await client.close().catch(() => {})
 				// Re-throw other errors with the same actionable timeout detail as
-				// post-initialize requests.
-				throw augmentMcpTimeoutError(error, name, resolveMcpServerTimeoutMs(connection.server.config))
+				// post-initialize requests, reporting the connect budget that was
+				// actually in effect.
+				throw augmentMcpTimeoutError(error, name, connectTimeoutMs)
 			}
 
 			connection.server.status = "connected"

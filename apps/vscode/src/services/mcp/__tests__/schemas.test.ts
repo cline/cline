@@ -132,7 +132,7 @@ describe("McpSettingsSchema", () => {
 
 			const server = result.data!.mcpServers["myServer"]
 			server.autoApprove!.should.deepEqual(["my_tool"])
-			server.timeout.should.equal(120)
+			server.timeout!.should.equal(120)
 		})
 
 		it("rejects nested format with an invalid transport type", () => {
@@ -268,10 +268,30 @@ describe("McpSettingsSchema", () => {
 			})
 
 			result.success.should.be.true()
-			result.data!.mcpServers.malformed.timeout.should.equal(60)
-			result.data!.mcpServers.tooSmall.timeout.should.equal(1)
-			result.data!.mcpServers.tooLarge.timeout.should.equal(3600)
-			result.data!.mcpServers.valid.timeout.should.equal(120)
+			// A malformed timeout is treated as unconfigured (not defaulted to
+			// 60) so the connect/initialize budget can still apply.
+			;(result.data!.mcpServers.malformed.timeout === undefined).should.be.true()
+			result.data!.mcpServers.tooSmall.timeout!.should.equal(1)
+			result.data!.mcpServers.tooLarge.timeout!.should.equal(3600)
+			result.data!.mcpServers.valid.timeout!.should.equal(120)
+		})
+
+		it("preserves an omitted timeout as undefined instead of defaulting it", () => {
+			// "Omitted" and "explicitly 60" must stay distinguishable: only an
+			// omitted timeout gets the short connect/initialize budget.
+			const result = McpSettingsSchema.safeParse({
+				mcpServers: {
+					flatOmitted: { command: "node" },
+					nestedOmitted: { transport: { type: "stdio", command: "node" } },
+					explicitDefault: { command: "node", timeout: 60 },
+				},
+			})
+
+			result.success.should.be.true()
+			;(result.data!.mcpServers.flatOmitted.timeout === undefined).should.be.true()
+			;("timeout" in result.data!.mcpServers.flatOmitted).should.be.false()
+			;(result.data!.mcpServers.nestedOmitted.timeout === undefined).should.be.true()
+			result.data!.mcpServers.explicitDefault.timeout!.should.equal(60)
 		})
 	})
 

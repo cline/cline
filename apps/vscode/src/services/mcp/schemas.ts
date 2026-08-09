@@ -1,17 +1,20 @@
-import {
-	DEFAULT_MCP_TIMEOUT_SECONDS,
-	MAX_MCP_TIMEOUT_SECONDS,
-	MIN_MCP_TIMEOUT_SECONDS,
-	resolveMcpTimeoutSeconds,
-} from "@shared/mcp"
+import { isMcpTimeoutConfigured, MAX_MCP_TIMEOUT_SECONDS, MIN_MCP_TIMEOUT_SECONDS, resolveMcpTimeoutSeconds } from "@shared/mcp"
 import { z } from "zod"
 import { TYPE_ERROR_MESSAGE } from "./constants"
 
 const AutoApproveSchema = z.array(z.string()).default([])
 
 // Settings reads are tolerant: a malformed optional timeout must not reject
-// every MCP server. Writes use the strict schema exported below.
-const ReadTimeoutSchema = z.preprocess(resolveMcpTimeoutSeconds, z.number()).optional().default(DEFAULT_MCP_TIMEOUT_SECONDS)
+// every MCP server. Omitted (and malformed) values parse to undefined instead
+// of the 60s default so downstream resolution can tell "user configured a
+// timeout" apart from "left it out" — the short connect/initialize budget only
+// applies to the latter (see resolveMcpConnectTimeoutMs in ./timeout). This
+// mirrors core's config-loader timeoutFieldSchema. Writes use the strict
+// schema exported below.
+const ReadTimeoutSchema = z.preprocess(
+	(value) => (isMcpTimeoutConfigured(value) ? resolveMcpTimeoutSeconds(value) : undefined),
+	z.number().optional(),
+)
 export const McpTimeoutSecondsSchema = z.number().finite().min(MIN_MCP_TIMEOUT_SECONDS).max(MAX_MCP_TIMEOUT_SECONDS)
 
 export const BaseConfigSchema = z.object({

@@ -1,6 +1,7 @@
 export { augmentMcpTimeoutError } from "@cline/core"
 
-import { resolveMcpTimeoutSeconds } from "@cline/shared"
+import { DEFAULT_MCP_CONNECT_TIMEOUT_MS } from "@cline/core"
+import { isMcpTimeoutConfigured, resolveMcpTimeoutSeconds } from "@cline/shared"
 import { secondsToMs } from "@utils/time"
 
 /**
@@ -19,4 +20,32 @@ export function resolveMcpServerTimeoutMs(configJson: string): number {
 	} catch {
 		return secondsToMs(resolveMcpTimeoutSeconds(undefined))
 	}
+}
+
+/**
+ * Resolve the connect/initialize timeout (ms) for a server from a raw server
+ * config JSON string. This applies ONLY to the `client.connect()` step; every
+ * post-connect request keeps resolving through resolveMcpServerTimeoutMs.
+ *
+ * Mirrors SDK core policy (DEFAULT_MCP_CONNECT_TIMEOUT_MS in @cline/core): a
+ * stdio server with no explicit `timeout` configured gets a short initialize
+ * budget so a hung command fails fast instead of waiting out the 60s request
+ * default; slow starters need an explicit `timeout`, which overrides the
+ * budget in either direction. Remote (sse/streamableHttp) servers keep the
+ * request timeout for connect, exactly as core's SDK-based client does.
+ */
+export function resolveMcpConnectTimeoutMs(configJson: string): number {
+	let config: { type?: unknown; timeout?: unknown } | undefined
+	try {
+		config = JSON.parse(configJson)
+	} catch {
+		config = undefined
+	}
+	if (isMcpTimeoutConfigured(config?.timeout)) {
+		return secondsToMs(resolveMcpTimeoutSeconds(config?.timeout))
+	}
+	if (config?.type === "stdio") {
+		return DEFAULT_MCP_CONNECT_TIMEOUT_MS
+	}
+	return secondsToMs(resolveMcpTimeoutSeconds(undefined))
 }
