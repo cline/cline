@@ -341,10 +341,13 @@ function emitQueuedPromptStart(
 	},
 ): void {
 	if (session) {
-		if (session.lastQueuedPromptStartId === input.promptId) {
+		if (session.lastQueuedPromptStart?.id === input.promptId) {
 			return;
 		}
-		session.lastQueuedPromptStartId = input.promptId;
+		session.lastQueuedPromptStart = {
+			id: input.promptId,
+			prompt: input.prompt,
+		};
 	}
 	emitChunk(
 		ctx,

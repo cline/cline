@@ -986,10 +986,22 @@ async function handleSend(
 			});
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
+			// Tell the client which queue entry this send created (or merged
+			// into — the runtime queue holds at most one entry per prompt text)
+			// so it can pair the submission with the eventual turn by id. When
+			// the session was actually idle, the drain microtask may have
+			// consumed the prompt before list() ran; the recorded start
+			// announcement carries the id in that case.
+			const queuedPromptId =
+				prompts.find((item) => item.prompt === runtimePrompt)?.id ??
+				(session?.lastQueuedPromptStart?.prompt === runtimePrompt
+					? session.lastQueuedPromptStart.id
+					: undefined);
 			return {
 				sessionId,
 				ok: true,
 				queued: true,
+				queuedPromptId,
 				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
 			};
 		}

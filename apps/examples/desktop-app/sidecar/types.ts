@@ -60,8 +60,12 @@ export type LiveSession = {
 	attachedViaHub?: boolean;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
-	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
-	lastQueuedPromptStartId?: string;
+	/**
+	 * Last prompt announced via chat_queued_prompt_start: dedupes emits, and
+	 * lets the send handler recover the queue entry id when the runtime
+	 * consumed the prompt before the handler could list the queue.
+	 */
+	lastQueuedPromptStart?: { id: string; prompt: string };
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
 };

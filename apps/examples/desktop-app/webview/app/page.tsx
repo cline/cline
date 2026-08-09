@@ -38,6 +38,7 @@ import type { OnboardingStep } from "@/components/views/onboarding/onboarding-vi
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { stripAttachedFilesSuffix } from "@/hooks/chat-session/attachments";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -1051,10 +1052,11 @@ function ChatThreadPane({
 		if (!lastUserMessage) {
 			return null;
 		}
-		const lastUserPrompt = formatChatMessageContent(
-			"user",
-			lastUserMessage.content,
-		).trim();
+		// The transcript label carries a display-only "[attached N files]"
+		// suffix; the fallback must not re-send it as prompt text.
+		const lastUserPrompt = stripAttachedFilesSuffix(
+			formatChatMessageContent("user", lastUserMessage.content),
+		);
 		return async () => {
 			await retryFailedTurn(lastUserPrompt);
 		};

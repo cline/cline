@@ -42,20 +42,39 @@ export async function serializeAttachments(
 }
 
 // The transcript stores non-image attachments as a display label appended to
-// the prompt text. Kept as the single source of truth so consumers that need
-// to match a transcript user message back to its send payload (e.g. the
-// failed-turn Retry action) compute the exact same label.
+// the prompt text. Every label producer (the optimistic send path builds it
+// from File objects, the queued-turn start event from an attachment count)
+// must go through these helpers so the transcript stays consistent no matter
+// which side rendered the user bubble.
+const ATTACHED_FILES_SUFFIX_PATTERN = /\n*\[attached \d+ files?\]$/;
+
+export function buildUserPromptDisplayLabelFromCount(
+	prompt: string,
+	attachedFileCount: number,
+): string {
+	const trimmed = prompt.trim();
+	if (attachedFileCount <= 0) {
+		return trimmed;
+	}
+	const suffix = `[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`;
+	return `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}${suffix}`;
+}
+
 export function buildUserPromptDisplayLabel(
 	prompt: string,
 	attachedFiles: readonly File[],
 ): string {
-	const trimmed = prompt.trim();
-	const attachedFileCount = attachedFiles.filter(
-		(file) => !file.type.startsWith("image/"),
-	).length;
-	return attachedFileCount > 0
-		? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-		: trimmed;
+	return buildUserPromptDisplayLabelFromCount(
+		prompt,
+		attachedFiles.filter((file) => !file.type.startsWith("image/")).length,
+	);
+}
+
+// Recovers the raw prompt text from a transcript user label. Used by the
+// retry fallback that only has the transcript to work from — the attachment
+// suffix is display decoration and must not be re-sent as prompt text.
+export function stripAttachedFilesSuffix(label: string): string {
+	return label.replace(ATTACHED_FILES_SUFFIX_PATTERN, "").trim();
 }
 
 export function toChatMessageImages(

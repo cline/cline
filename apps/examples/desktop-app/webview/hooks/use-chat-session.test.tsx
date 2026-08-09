@@ -1751,6 +1751,7 @@ describe("useChatSession", () => {
 							return {
 								ok: true,
 								queued: true,
+								queuedPromptId: "queued-b",
 								promptsInQueue: [
 									{
 										id: "queued-b",
@@ -1866,6 +1867,7 @@ describe("useChatSession", () => {
 							return {
 								ok: true,
 								queued: true,
+								queuedPromptId: "queued-b",
 								promptsInQueue: [
 									{
 										id: "queued-b",
@@ -1950,7 +1952,7 @@ describe("useChatSession", () => {
 		]);
 	});
 
-	it("edits the right retained payload when queued prompts share the same label", async () => {
+	it("keeps one retry payload when the runtime merges same-text queued prompts", async () => {
 		let resolveFirstSend:
 			| ((value: Record<string, unknown>) => void)
 			| undefined;
@@ -1958,8 +1960,6 @@ describe("useChatSession", () => {
 			resolveFirstSend = resolve;
 		});
 		const directSendRequests: Array<Record<string, unknown>> = [];
-		// Server-side queue state: two queued prompts with identical text.
-		let serverQueue: Array<Record<string, unknown>> = [];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1983,28 +1983,49 @@ describe("useChatSession", () => {
 						};
 					}
 					if (request?.action === "pending_prompts") {
-						return { ok: true, promptsInQueue: serverQueue };
-					}
-					if (request?.action === "update_pending_prompt") {
-						serverQueue = serverQueue.map((item) =>
-							item.id === request.promptId
-								? { ...item, prompt: request.prompt }
-								: item,
-						);
-						return { ok: true, promptsInQueue: serverQueue };
-					}
-					if (request?.action === "send") {
-						if (request.delivery === "queue") {
-							serverQueue = [
-								...serverQueue,
+						return {
+							ok: true,
+							promptsInQueue: [
 								{
-									id: `queued-${serverQueue.length + 1}`,
+									id: "queued-1",
 									prompt: "Dup prompt",
 									steer: false,
 									attachmentCount: 1,
 								},
-							];
-							return { ok: true, queued: true, promptsInQueue: serverQueue };
+							],
+						};
+					}
+					if (request?.action === "update_pending_prompt") {
+						return {
+							ok: true,
+							promptsInQueue: [
+								{
+									id: "queued-1",
+									prompt: request.prompt,
+									steer: false,
+									attachmentCount: 1,
+								},
+							],
+						};
+					}
+					if (request?.action === "send") {
+						if (request.delivery === "queue") {
+							// The runtime queue holds at most one entry per prompt
+							// text, so the second same-text submission merges into
+							// the first entry and both resolve to the same id.
+							return {
+								ok: true,
+								queued: true,
+								queuedPromptId: "queued-1",
+								promptsInQueue: [
+									{
+										id: "queued-1",
+										prompt: "Dup prompt",
+										steer: false,
+										attachmentCount: 1,
+									},
+								],
+							};
 						}
 						directSendRequests.push(request as Record<string, unknown>);
 						if (directSendRequests.length === 1) {
@@ -2020,14 +2041,15 @@ describe("useChatSession", () => {
 			},
 		);
 
-		// While turn A runs, two same-text prompts with different files queue up.
+		// While turn A runs, the same prompt is submitted twice: first with a
+		// file, then without one. The server merges them into one queue entry
+		// that keeps the earlier submission's attachment.
 		const firstFile = makeTextFile("FIRST", "first.txt");
-		const secondFile = makeTextFile("SECOND", "second.txt");
 		await act(async () => {
 			const turnA = current.sendPrompt("First prompt");
 			await new Promise((resolve) => setTimeout(resolve, 0));
 			await current.sendPrompt("Dup prompt", [firstFile]);
-			await current.sendPrompt("Dup prompt", [secondFile]);
+			await current.sendPrompt("Dup prompt");
 			resolveFirstSend?.({
 				ok: true,
 				result: { text: "First done.", finishReason: "completed" },
@@ -2035,12 +2057,12 @@ describe("useChatSession", () => {
 			await turnA;
 		});
 
-		// The user edits the SECOND duplicate; the first must keep its payload.
+		// The user edits the merged entry's text before it runs.
 		await act(async () => {
-			await current.updatePromptInQueue("queued-2", "Edited second prompt");
+			await current.updatePromptInQueue("queued-1", "Edited dup prompt");
 		});
 
-		// The first queued prompt starts (text unchanged) and fails.
+		// The merged prompt starts and fails.
 		const chatEventHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "chat_event",
 		)?.[1] as ((payload: unknown) => void) | undefined;
@@ -2050,7 +2072,7 @@ describe("useChatSession", () => {
 				stream: "chat_queued_prompt_start",
 				chunk: JSON.stringify({
 					promptId: "queued-1",
-					prompt: "Dup prompt",
+					prompt: "Edited dup prompt",
 					attachmentCount: 1,
 				}),
 				ts: Date.now(),
@@ -2070,13 +2092,14 @@ describe("useChatSession", () => {
 			await current.retryFailedTurn();
 		});
 
-		// The retry belongs to the FIRST duplicate: original text, first file.
+		// The retry re-sends the edited text with the attachment the merged
+		// entry inherited from the first submission.
 		expect(directSendRequests).toHaveLength(2);
 		const retryRequest = directSendRequests[1] as {
 			prompt?: string;
 			attachments?: { userFiles?: Array<{ name?: string; content?: string }> };
 		};
-		expect(retryRequest.prompt).toBe("Dup prompt");
+		expect(retryRequest.prompt).toBe("Edited dup prompt");
 		expect(retryRequest.attachments?.userFiles).toEqual([
 			{ name: "first.txt", content: "FIRST" },
 		]);
