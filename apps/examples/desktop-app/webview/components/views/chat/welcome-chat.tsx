@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	AgentAurora,
 	AgentHeroHeading,
@@ -7,12 +8,13 @@ import {
 	AgentQuickActions,
 } from "@cline/ui";
 import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
-const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
+/** Code-centric starters, shown only when the folder is a git repository. */
+const DEVELOPER_QUICK_ACTIONS: AgentQuickAction[] = [
 	{
 		id: "review-changes",
 		label: "Review changes",
@@ -27,10 +29,94 @@ const DEFAULT_QUICK_ACTIONS: AgentQuickAction[] = [
 	},
 ];
 
+/**
+ * General-purpose starters for a plain (non-git) folder — phrased around the
+ * files the agent can see, with no developer vocabulary.
+ */
+const FOLDER_QUICK_ACTIONS: AgentQuickAction[] = [
+	{
+		id: "summarize-folder",
+		label: "Summarize this folder",
+		description: "Get a plain-language overview of the files here.",
+		value:
+			"Look through the files in this folder and give me a plain-language summary of what's here.",
+	},
+	{
+		id: "organize-files",
+		label: "Organize these files",
+		description: "Tidy up names and structure, with your approval.",
+		value:
+			"Help me organize this folder: suggest a tidy structure and clearer file names, and check with me before moving anything.",
+	},
+	{
+		id: "draft-document",
+		label: "Draft a document",
+		description: "Start a new doc with a first draft you can edit.",
+		value:
+			"Help me draft a new document in this folder. Ask me a few questions about what it should cover, then write a first draft.",
+	},
+];
+
+/** Starters for chat with no folder selected at all. */
+const CHAT_QUICK_ACTIONS: AgentQuickAction[] = [
+	{
+		id: "draft-document",
+		label: "Draft a document",
+		description: "Start a new doc with a first draft you can edit.",
+		value:
+			"Help me draft a document. Ask me a few questions about what it should cover, then write a first draft.",
+	},
+	{
+		id: "research-topic",
+		label: "Research a topic",
+		description: "Gather the key facts and sum them up.",
+		value:
+			"Research a topic for me: ask me what I want to learn about, then summarize the key points in plain language.",
+	},
+	{
+		id: "plan-something",
+		label: "Plan something",
+		description: "Break a goal into clear, doable steps.",
+		value:
+			"Help me plan something. Ask me what I'm trying to get done, then break it into clear steps.",
+	},
+];
+
+/**
+ * Picks starter suggestions that match what the user actually opened: code
+ * cards only make sense inside a git repo; a plain folder gets file-oriented
+ * cards; no folder at all gets folderless general-purpose cards.
+ *
+ * `gitBranch` is `null` while branch discovery for the selected folder is
+ * still pending; no cards are suggested until the folder is classified so a
+ * git repo never flashes the plain-folder set (or vice versa).
+ */
+export function defaultQuickActionsForContext({
+	workspaceRoot,
+	gitBranch,
+}: {
+	workspaceRoot: string;
+	gitBranch: string | null;
+}): AgentQuickAction[] {
+	const isChatWorkspace =
+		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
+	if (isChatWorkspace) {
+		return CHAT_QUICK_ACTIONS;
+	}
+	if (gitBranch === null) {
+		return [];
+	}
+	if (gitBranch !== "no-git") {
+		return DEVELOPER_QUICK_ACTIONS;
+	}
+	return FOLDER_QUICK_ACTIONS;
+}
+
 export function WelcomeScreen({
 	active,
 	body,
 	composer,
+	notice,
 	onStartChat,
 	quickActions,
 	gitBranch,
@@ -40,9 +126,12 @@ export function WelcomeScreen({
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
+	/** Rendered above the composer on the welcome state (e.g. setup notice). */
+	notice?: ReactNode;
 	onStartChat: (prompt: string) => void;
 	quickActions: AgentQuickAction[];
-	gitBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -54,8 +143,11 @@ export function WelcomeScreen({
 		pickWorkspaceDirectory,
 		selectChat,
 	} = useWorkspace();
-	const actions =
-		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
+	const defaultActions = useMemo(
+		() => defaultQuickActionsForContext({ workspaceRoot, gitBranch }),
+		[workspaceRoot, gitBranch],
+	);
+	const actions = quickActions.length > 0 ? quickActions : defaultActions;
 
 	useEffect(() => {
 		if (active) void refreshWorkspaces();
@@ -85,7 +177,7 @@ export function WelcomeScreen({
 					)}
 				>
 					{active ? (
-						<>
+						<div className="cline-view-enter">
 							<AgentHeroHeading />
 
 							<div className="mt-11 flex min-w-0 items-center">
@@ -101,15 +193,21 @@ export function WelcomeScreen({
 									workspaces={workspaces}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 
 					<div
-						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						className={
+							active
+								? "hidden"
+								: "cline-view-enter h-full min-h-0 overflow-hidden"
+						}
 						key="conversation-body"
 					>
 						{body}
 					</div>
+
+					{active && notice ? notice : null}
 
 					<div
 						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
@@ -121,7 +219,7 @@ export function WelcomeScreen({
 					{active ? (
 						<AgentQuickActions
 							actions={actions}
-							className="mt-11"
+							className="cline-view-enter mt-11"
 							onSelect={(action) => onStartChat(action.value)}
 						/>
 					) : null}

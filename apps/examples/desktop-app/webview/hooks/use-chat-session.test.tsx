@@ -3,6 +3,7 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -150,24 +151,24 @@ describe("useChatSession", () => {
 	});
 
 	it.each([
+		// On success result.text is assistant content; on a failed run it is
+		// the runtime's error string and must surface as an error message
+		// (assistant bubbles for unpersisted turns are wiped by rehydration).
 		{
 			finishReason: "completed",
-			// Successful turns render the result text as assistant prose.
-			role: "assistant" as const,
+			expectedRole: "assistant",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 		{
 			finishReason: "error",
-			// Failed turns never streamed output, so the result text is the
-			// provider error and surfaces as error feedback instead.
-			role: "error" as const,
+			expectedRole: "error",
 			expected:
 				'[{"code":"too_small","path":["workspaces","/","hint"],"message":"expected string to have >=1 characters"}]',
 		},
 	])("handles schema-like assistant text for $finishReason responses", async ({
 		finishReason,
-		role,
+		expectedRole,
 		expected,
 	}) => {
 		const schemaLikeText =
@@ -204,9 +205,13 @@ describe("useChatSession", () => {
 
 		await act(async () => current.sendPrompt("Explain this validation error"));
 
+		// Error-role content goes through the turn-failure reporter, which
+		// wraps the detail in user-facing copy — assert containment, not
+		// equality, so the schema text is preserved either way.
 		expect(
-			current.messages.findLast((message) => message.role === role)?.content,
-		).toBe(expected);
+			current.messages.findLast((message) => message.role === expectedRole)
+				?.content,
+		).toContain(expected);
 	});
 
 	it("publishes the first user message before cold session startup resolves", async () => {
@@ -949,6 +954,99 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("resets to the remembered provider/model after viewing a historical session", async () => {
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "cline",
+				lastModelByProvider: { cline: "remembered-model" },
+			}),
+		);
+		const hydratedSessionId = "session-historical";
+		let startConfig: Record<string, unknown> | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "assistant-1",
+							sessionId: hydratedSessionId,
+							role: "assistant",
+							content: "Historical response",
+							createdAt: 1,
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: Record<string, unknown> }
+						| undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "openrouter",
+							model: "historical-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "start") {
+						startConfig = request.config;
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "done", finishReason: "completed" },
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "openrouter",
+				model: "historical-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			});
+		});
+		expect(current.config).toMatchObject({
+			provider: "openrouter",
+			model: "historical-model",
+		});
+
+		// Starting a new chat from a hydrated pane resets the session; the
+		// composer must return to the remembered defaults instead of retaining
+		// the historical session's provider/model.
+		await act(async () => {
+			await current.reset();
+		});
+		expect(current.config.sessionId).toBeUndefined();
+		expect(current.config).toMatchObject({
+			provider: "cline",
+			model: "remembered-model",
+		});
+
+		// The next session then starts with the remembered defaults.
+		await act(async () => current.sendPrompt("Start a fresh task"));
+		expect(startConfig).toMatchObject({
+			provider: "cline",
+			model: "remembered-model",
+		});
+	});
+
 	it("returns to a completed status when a queued turn finishes via chat_done", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1010,6 +1108,10 @@ describe("useChatSession", () => {
 	});
 
 	it("stays running on chat_done while more prompts wait in the queue", async () => {
+		// Server-side queue truth: chat_done double-checks pending prompts
+		// against the server, so the mock must answer consistently with the
+		// snapshots the test pushes below.
+		let serverQueue: Array<{ id: string; prompt: string; steer: boolean }> = [];
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -1024,6 +1126,9 @@ describe("useChatSession", () => {
 					}
 					if (request?.action === "send") {
 						return { ok: true };
+					}
+					if (request?.action === "pending_prompts") {
+						return { ok: true, promptsInQueue: serverQueue };
 					}
 				}
 				return [];
@@ -1043,6 +1148,7 @@ describe("useChatSession", () => {
 		expect(queueStateHandler).toBeDefined();
 
 		// A second prompt is waiting in the queue when the first turn ends.
+		serverQueue = [{ id: "queued-2", prompt: "Second prompt", steer: false }];
 		await act(async () => {
 			queueStateHandler?.({
 				sessionId: current.sessionId,
@@ -1071,6 +1177,7 @@ describe("useChatSession", () => {
 		expect(current.status).toBe("running");
 
 		// Once the queue drains, the next chat_done releases the composer.
+		serverQueue = [];
 		await act(async () => {
 			queueStateHandler?.({
 				sessionId: current.sessionId,
@@ -1141,6 +1248,70 @@ describe("useChatSession", () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
 				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+		// The failure must be visible in the transcript — queued turns never
+		// resolve through the send RPC, so chat_done is the only error signal.
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("The run failed");
+		// The optimistic user message and the queued materialization of the
+		// same prompt must not duplicate each other.
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages).toHaveLength(1);
+		expect(userMessages[0]?.content).toBe("First prompt");
+	});
+
+	it("refreshes the same turn's failure bubble and gives the next turn its own", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
 				chunk: JSON.stringify({
 					reason: "error",
 					text: "Anthropic API key is missing.",
@@ -1150,14 +1321,15 @@ describe("useChatSession", () => {
 			});
 		});
 		expect(current.status).toBe("failed");
-		// chat_done is the only signal for queued turns, so the failure must
-		// leave visible transcript feedback (the retry affordance hangs off it).
-		const lastMessage = current.messages.at(-1);
-		expect(lastMessage?.role).toBe("error");
-		expect(lastMessage?.content).toBe("Anthropic API key is missing.");
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(1);
+		expect(
+			current.messages.find((message) => message.role === "error")?.content,
+		).toContain("Anthropic API key is missing.");
 
-		// A second error completion for the same failure must not stack
-		// duplicate error bubbles.
+		// A duplicate completion signal for the same failure must not stack a
+		// second bubble.
 		await act(async () => {
 			chatEventHandler?.({
 				sessionId: current.sessionId,
@@ -1193,7 +1365,7 @@ describe("useChatSession", () => {
 		).toHaveLength(1);
 		expect(
 			current.messages.find((message) => message.role === "error")?.content,
-		).toBe("Anthropic API key is invalid.");
+		).toContain("Anthropic API key is invalid.");
 
 		// A failure of the NEXT turn is new feedback and gets its own bubble —
 		// the previous turn's trailing error must not swallow it, even when the
@@ -1224,72 +1396,9 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		expect(errorMessages).toHaveLength(2);
-		expect(errorMessages.at(-1)?.content).toBe("Anthropic API key is invalid.");
-	});
-
-	it("keeps provider error feedback when a direct send fails before streaming", async () => {
-		const historyReads: string[] = [];
-		invokeMock.mockImplementation(
-			async (command: string, args?: Record<string, unknown>) => {
-				if (command === "get_process_context") {
-					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
-				}
-				if (command === "read_session_messages") {
-					// Core never persisted the failed turn: canonical history only
-					// has the user prompt. Hydrating from it would wipe the error.
-					historyReads.push(String(args?.sessionId ?? ""));
-					return [
-						{
-							id: "hist_user",
-							sessionId: String(args?.sessionId ?? ""),
-							role: "user",
-							content: "hello there",
-							createdAt: Date.now(),
-						},
-					];
-				}
-				if (command === "chat_session_command") {
-					const request = args?.request as
-						| { action?: string; config?: { sessionId?: string } }
-						| undefined;
-					if (request?.action === "start") {
-						return {
-							sessionId: request.config?.sessionId ?? "session-test",
-							cwd: "/workspace/cline",
-							workspaceRoot: "/workspace/cline",
-						};
-					}
-					if (request?.action === "send") {
-						return {
-							ok: true,
-							result: { text: "invalid x-api-key", finishReason: "error" },
-						};
-					}
-				}
-				return [];
-			},
+		expect(errorMessages.at(-1)?.content).toContain(
+			"Anthropic API key is invalid.",
 		);
-
-		await act(async () => current.sendPrompt("hello there"));
-
-		expect(current.status).toBe("failed");
-		// The provider error is failure feedback, not assistant prose.
-		expect(
-			current.messages.some((message) => message.role === "assistant"),
-		).toBe(false);
-		const lastMessage = current.messages.at(-1);
-		expect(lastMessage?.role).toBe("error");
-		expect(lastMessage?.content).toBe("invalid x-api-key");
-		// The user's optimistic prompt bubble must survive the failed turn.
-		expect(
-			current.messages.some(
-				(message) =>
-					message.role === "user" && message.content.includes("hello there"),
-			),
-		).toBe(true);
-		// Canonical hydration is skipped for failed turns; it would replace the
-		// transcript with a history that has no record of the failure.
-		expect(historyReads).toHaveLength(0);
 	});
 
 	it("keeps streamed output as prose and surfaces the provider error when a direct send fails mid-stream", async () => {
@@ -1354,7 +1463,9 @@ describe("useChatSession", () => {
 		// dedicated error feedback after the partial output.
 		const lastMessage = current.messages.at(-1);
 		expect(lastMessage?.role).toBe("error");
-		expect(lastMessage?.content).toBe("stream disconnected: overloaded_error");
+		expect(lastMessage?.content).toContain(
+			"stream disconnected: overloaded_error",
+		);
 		expect(
 			current.messages.filter((message) => message.role === "error"),
 		).toHaveLength(1);
@@ -1410,7 +1521,7 @@ describe("useChatSession", () => {
 			(message) => message.role === "error",
 		);
 		expect(errorMessages).toHaveLength(1);
-		expect(errorMessages[0]?.content).toBe("invalid x-api-key");
+		expect(errorMessages[0]?.content).toContain("invalid x-api-key");
 	});
 
 	it("surfaces the provider error when a queued turn fails after partial streaming", async () => {
@@ -1480,7 +1591,7 @@ describe("useChatSession", () => {
 		expect(assistantMessage?.content).toBe("Partial answer before the failure");
 		const lastMessage = current.messages.at(-1);
 		expect(lastMessage?.role).toBe("error");
-		expect(lastMessage?.content).toBe("Rate limit exceeded.");
+		expect(lastMessage?.content).toContain("Rate limit exceeded.");
 	});
 
 	it("retries a failed turn with its original prompt text and attachments", async () => {
@@ -1968,6 +2079,352 @@ describe("useChatSession", () => {
 		expect(retryRequest.prompt).toBe("Dup prompt");
 		expect(retryRequest.attachments?.userFiles).toEqual([
 			{ name: "first.txt", content: "FIRST" },
+		]);
+	});
+
+	it("explains a failed turn with the latest core error log", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Unauthorized: invalid API key",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain("Unauthorized: invalid API key");
+		expect(errorMessage?.content).toContain("Settings");
+	});
+
+	it("never attributes an earlier turn's core error to a later detail-less failure", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// Turn A logs an error-level entry but ultimately completes (e.g. an
+		// internal retry succeeded). Its remembered error must die with it.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Unauthorized: invalid API key",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		// Turn B's start and log events were lost across a transport
+		// interruption (websocket events are not replayed); only its
+		// detail-less failure arrives. It must not resurrect turn A's error.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		expect(errorMessage?.content).toContain(
+			"The run failed before a response was produced.",
+		);
+		expect(errorMessage?.content).not.toContain("Unauthorized");
+	});
+
+	it("keeps the failure message when post-send hydration replaces the transcript", async () => {
+		// Real race: the runtime queues the first prompt of a fresh session, the
+		// turn fails fast (chat_done error appends the failure bubble), and only
+		// then the send RPC resolves — whose canonical-history hydration used to
+		// replace the transcript wholesale, wiping the UI-only error bubble.
+		let resolveSend: ((value: unknown) => void) | undefined;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "hist_user_1",
+							sessionId: args?.sessionId,
+							role: "user",
+							content: "First prompt",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return await new Promise((resolve) => {
+							resolveSend = resolve;
+						});
+					}
+				}
+				return [];
+			},
+		);
+
+		let sendPromise: Promise<void> | undefined;
+		await act(async () => {
+			sendPromise = current.sendPrompt("First prompt");
+		});
+		for (let i = 0; i < 10 && !resolveSend; i++) {
+			await act(async () => {
+				await Promise.resolve();
+			});
+		}
+		expect(resolveSend).toBeDefined();
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			true,
+		);
+
+		await act(async () => {
+			resolveSend?.({ ok: true });
+			await sendPromise;
+		});
+
+		// Canonical hydration replaced the transcript with persisted messages,
+		// which never contain UI-only error bubbles — the failure explanation
+		// must survive.
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages).toHaveLength(1);
+		const errorMessages = current.messages.filter(
+			(message) => message.role === "error",
+		);
+		expect(errorMessages).toHaveLength(1);
+		expect(errorMessages[0]?.content).toContain("The run failed");
+	});
+
+	it("does not give credential guidance for non-credential failures", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({
+					level: "error",
+					message: "Request exceeded the maximum context tokens for this model",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("failed");
+		const errorMessage = current.messages.find(
+			(message) => message.role === "error",
+		);
+		// "tokens" here is a context-window problem, not a credential problem;
+		// pointing users at Settings → Models would be misleading.
+		expect(errorMessage?.content).toContain("maximum context tokens");
+		expect(errorMessage?.content).not.toContain("Check your model connection");
+	});
+
+	it("drops stale failure bubbles from earlier turns on later hydration", async () => {
+		const history: Array<Record<string, unknown>> = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return history.map((message) => ({
+						...message,
+						sessionId: args?.sessionId,
+					}));
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		history.push({
+			id: "hist_user_1",
+			role: "user",
+			content: "First prompt",
+			createdAt: Date.now(),
+		});
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "error" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(current.messages.some((message) => message.role === "error")).toBe(
+			true,
+		);
+
+		// A later turn appends new messages after the failure bubble; its
+		// hydration must not re-pin the stale error to the bottom of the
+		// transcript out of chronological order.
+		history.push({
+			id: "hist_user_2",
+			role: "user",
+			content: "Second prompt",
+			createdAt: Date.now(),
+		});
+		await act(async () => {
+			await current.sendPrompt("Second prompt");
+		});
+		expect(
+			current.messages.filter((message) => message.role === "error"),
+		).toHaveLength(0);
+		const userMessages = current.messages.filter(
+			(message) => message.role === "user",
+		);
+		expect(userMessages.map((message) => message.content)).toEqual([
+			"First prompt",
+			"Second prompt",
 		]);
 	});
 

@@ -341,6 +341,47 @@ describe("createCheckpointHooks", () => {
 		}
 	});
 
+	it("starts checkpointing after the user runs git init mid-session", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "core-checkpoint-nogit-"));
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_git_init_later",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			// First turn: no git repo yet, so no checkpoint is written.
+			await writeFile(join(cwd, "note.txt"), "before-init\n", "utf8");
+			await runCheckpointHooks(hooks);
+			expect(metadata?.checkpoint).toBeUndefined();
+
+			// The user initializes git mid-session.
+			await runGit(cwd, "init");
+			await runGit(cwd, "config", "user.name", "Codex Test");
+			await runGit(cwd, "config", "user.email", "codex@example.com");
+			await runGit(cwd, "add", "note.txt");
+			await runGit(cwd, "commit", "-m", "initial");
+
+			// Next turn on the same hook instance picks up the new repo and
+			// checkpoints from here forward.
+			await writeFile(join(cwd, "note.txt"), "after-init\n", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.history).toHaveLength(1);
+			expect(checkpoint.latest.runCount).toBe(2);
+			expect(checkpoint.latest.kind).toBe("stash");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
 	it("skips checkpoint creation for subagents", async () => {
 		const cwd = await createGitRepo();
 		let writes = 0;
