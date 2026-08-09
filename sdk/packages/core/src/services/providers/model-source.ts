@@ -52,20 +52,93 @@ export function extractModelIdsFromPayload(
 	return [];
 }
 
+export interface FetchModelIdsOptions {
+	/** Sent as `Authorization: Bearer <apiKey>` unless headers already set one. */
+	apiKey?: string;
+	headers?: Record<string, string>;
+	timeoutMs?: number;
+}
+
+/**
+ * Keep model-source fetches well under the hub's 30s command timeout so a
+ * stalled local server (e.g. LM Studio) fails fast instead of wedging hub
+ * commands that resolve provider models.
+ */
+const DEFAULT_MODEL_SOURCE_TIMEOUT_MS = 10_000;
+
+/**
+ * Resolve an API key from the provider's registered environment variables
+ * (e.g. `LMSTUDIO_API_KEY`), mirroring the chat-request path's env fallback.
+ */
+export function resolveApiKeyFromEnv(
+	envKeys: readonly string[] | undefined,
+): string | undefined {
+	const env = globalThis.process?.env;
+	if (!env || !envKeys) {
+		return undefined;
+	}
+	for (const key of envKeys) {
+		const value = env[key]?.trim();
+		if (value) {
+			return value;
+		}
+	}
+	return undefined;
+}
+
+function buildModelSourceHeaders(
+	options: FetchModelIdsOptions,
+): Record<string, string> | undefined {
+	const headers: Record<string, string> = { ...options.headers };
+	const hasAuthHeader = Object.keys(headers).some(
+		(key) => key.toLowerCase() === "authorization",
+	);
+	const apiKey = options.apiKey?.trim();
+	if (apiKey && !hasAuthHeader) {
+		headers.Authorization = `Bearer ${apiKey}`;
+	}
+	return Object.keys(headers).length > 0 ? headers : undefined;
+}
+
 export async function fetchModelIdsFromSource(
 	url: string,
 	providerId: string,
+	options: FetchModelIdsOptions = {},
 ): Promise<string[]> {
-	const response = await fetch(url, { method: "GET" });
-	if (!response.ok) {
-		throw new Error(
-			`failed to fetch models from ${url}: HTTP ${response.status}`,
-		);
-	}
-	return extractModelIdsFromPayload(
-		(await response.json()) as unknown,
-		providerId,
+	const headers = buildModelSourceHeaders(options);
+	const timeoutMs = options.timeoutMs ?? DEFAULT_MODEL_SOURCE_TIMEOUT_MS;
+	const controller = new AbortController();
+	const timer = setTimeout(
+		() =>
+			controller.abort(
+				new Error(
+					`failed to fetch models from ${url}: timed out after ${timeoutMs}ms`,
+				),
+			),
+		timeoutMs,
 	);
+	try {
+		const response = await fetch(url, {
+			method: "GET",
+			...(headers ? { headers } : {}),
+			signal: controller.signal,
+		});
+		if (!response.ok) {
+			const authHint =
+				response.status === 401 || response.status === 403
+					? ` (authentication failed — configure an API key for "${providerId}")`
+					: "";
+			throw new Error(
+				`failed to fetch models from ${url}: HTTP ${response.status}${authHint}`,
+			);
+		}
+		return extractModelIdsFromPayload(
+			(await response.json()) as unknown,
+			providerId,
+		);
+	} finally {
+		clearTimeout(timer);
+	}
 }
 
 function trimTrailingSlash(value: string): string {

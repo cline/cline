@@ -55,6 +55,7 @@ afterEach(() => {
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
+	vi.unstubAllEnvs();
 });
 
 describe("models registry parsing", () => {
@@ -1631,6 +1632,7 @@ describe("refreshProviderModelsFromSource", () => {
 			json: async () => ({ models: [{ name: "remote-llama" }] }),
 		});
 		vi.stubGlobal("fetch", fetchMock);
+		vi.stubEnv("OLLAMA_API_KEY", "");
 		saveLocalProviderSettings(manager, {
 			providerId: "ollama",
 			baseUrl: "http://tailscale-host:11434/v1",
@@ -1641,10 +1643,12 @@ describe("refreshProviderModelsFromSource", () => {
 		expect(result).toMatchObject({ providerId: "ollama", refreshed: true });
 		expect(fetchMock).toHaveBeenCalledWith(
 			"http://tailscale-host:11434/api/tags",
-			{
+			expect.objectContaining({
 				method: "GET",
-			},
+			}),
 		);
+		const init = fetchMock.mock.calls[0]?.[1] as RequestInit;
+		expect(init.headers).toBeUndefined();
 		const modelsState = await readModelsFile(
 			resolveModelsRegistryPath(manager),
 		);
@@ -1653,5 +1657,31 @@ describe("refreshProviderModelsFromSource", () => {
 		);
 		const { models } = await getLocalProviderModels("ollama");
 		expect(models.map((model) => model.id)).toContain("remote-llama");
+	});
+
+	it("forwards the saved API key as a Bearer token when refreshing models", async () => {
+		const fetchMock = vi.fn().mockResolvedValue({
+			ok: true,
+			json: async () => ({ data: [{ id: "authed-model" }] }),
+		});
+		vi.stubGlobal("fetch", fetchMock);
+		saveLocalProviderSettings(manager, {
+			providerId: "lmstudio",
+			baseUrl: "http://localhost:1234/v1",
+			apiKey: "lmstudio-token",
+		});
+
+		const result = await refreshProviderModelsFromSource(manager, "lmstudio");
+
+		expect(result).toMatchObject({ providerId: "lmstudio", refreshed: true });
+		expect(fetchMock).toHaveBeenCalledWith(
+			"http://localhost:1234/v1/models",
+			expect.objectContaining({
+				method: "GET",
+				headers: { Authorization: "Bearer lmstudio-token" },
+			}),
+		);
+		const { models } = await getLocalProviderModels("lmstudio");
+		expect(models.map((model) => model.id)).toContain("authed-model");
 	});
 });

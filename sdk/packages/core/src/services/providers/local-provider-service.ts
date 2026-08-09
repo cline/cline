@@ -35,6 +35,7 @@ import {
 } from "./local-provider-registry";
 import {
 	fetchModelIdsFromSource,
+	resolveApiKeyFromEnv,
 	resolveModelsSourceUrl,
 } from "./model-source";
 
@@ -322,12 +323,19 @@ async function resolveModelIds(params: {
 	modelsSourceUrl?: string;
 	fallbackModelIds?: string[];
 	shouldRecompute: boolean;
+	apiKey?: string;
+	headers?: Record<string, string>;
+	timeoutMs?: number;
 }): Promise<string[]> {
 	if (!params.shouldRecompute) {
 		return params.fallbackModelIds ?? [];
 	}
 	const fetchedModels = params.modelsSourceUrl
-		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId)
+		? await fetchModelIdsFromSource(params.modelsSourceUrl, params.providerId, {
+				apiKey: params.apiKey,
+				headers: params.headers,
+				timeoutMs: params.timeoutMs,
+			})
 		: [];
 	return [...new Set([...(params.explicitModels ?? []), ...fetchedModels])];
 }
@@ -399,11 +407,15 @@ export async function addLocalProvider(
 
 	const typedModels = uniqueTrimmed(request.models);
 	const sourceUrl = request.modelsSourceUrl?.trim();
+	const normalizedHeaders = normalizeHeaders(request.headers);
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels: typedModels,
 		modelsSourceUrl: sourceUrl,
 		shouldRecompute: true,
+		apiKey: apiKey || undefined,
+		headers: normalizedHeaders,
+		timeoutMs: request.timeoutMs ?? undefined,
 	});
 	if (modelIds.length === 0) {
 		throw new Error(
@@ -420,7 +432,6 @@ export async function addLocalProvider(
 	const capabilities = request.capabilities?.length
 		? [...new Set(request.capabilities)]
 		: undefined;
-	const normalizedHeaders = normalizeHeaders(request.headers);
 
 	manager.saveProviderSettings(
 		{
@@ -477,11 +488,11 @@ export async function updateLocalProvider(
 	const modelsPath = resolveModelsRegistryPath(manager);
 	const modelsState = await readModelsFile(modelsPath);
 	let existingEntry = modelsState.providers[providerId];
+	const existingSettings = manager.getProviderSettings(providerId);
+	const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
+		providerId
+	] as LlmsModels.ModelCollection | undefined;
 	if (!existingEntry) {
-		const existingSettings = manager.getProviderSettings(providerId);
-		const registeredCollection = LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID[
-			providerId
-		] as LlmsModels.ModelCollection | undefined;
 		const registeredProvider = registeredCollection?.provider;
 		if (!existingSettings) {
 			throw new Error(`provider "${providerId}" does not exist`);
@@ -559,12 +570,28 @@ export async function updateLocalProvider(
 	const existingModelIds = Object.keys(existingEntry.models ?? {})
 		.map((id) => id.trim())
 		.filter(Boolean);
+	const fetchApiKey =
+		request.apiKey !== undefined
+			? request.apiKey?.trim() || undefined
+			: (existingSettings?.apiKey ??
+				resolveApiKeyFromEnv(registeredCollection?.provider.env));
+	const fetchHeaders =
+		request.headers !== undefined
+			? (normalizeHeaders(request.headers) ?? undefined)
+			: existingSettings?.headers;
+	const fetchTimeoutMs =
+		request.timeoutMs !== undefined
+			? (request.timeoutMs ?? undefined)
+			: existingSettings?.timeout;
 	const modelIds = await resolveModelIds({
 		providerId,
 		explicitModels,
 		modelsSourceUrl: nextModelsSourceUrl,
 		fallbackModelIds: existingModelIds,
 		shouldRecompute: shouldRecomputeModels,
+		apiKey: fetchApiKey,
+		headers: fetchHeaders,
+		timeoutMs: fetchTimeoutMs,
 	});
 	if (modelIds.length === 0) {
 		throw new Error(
@@ -581,7 +608,6 @@ export async function updateLocalProvider(
 			? defaultModelCandidate
 			: modelIds[0];
 
-	const existingSettings = manager.getProviderSettings(providerId);
 	const nextSettings: Record<string, unknown> = {
 		...(existingSettings ?? {}),
 		provider: providerId,
