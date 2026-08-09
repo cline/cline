@@ -286,9 +286,9 @@ function migrateYoloModeToAutoApprovalSettings(vscodeContext: vscode.ExtensionCo
 		return effective === true
 	}
 
-	const wasUnattended = readRemovedToggle("yoloModeToggled") || readRemovedToggle("autoApproveAllToggled")
+	const shouldEnableAllActions = readRemovedToggle("yoloModeToggled") || readRemovedToggle("autoApproveAllToggled")
 
-	if (wasUnattended) {
+	if (shouldEnableAllActions) {
 		const existing = storage.globalState.get<AutoApprovalSettings>("autoApprovalSettings") ?? DEFAULT_AUTO_APPROVAL_SETTINGS
 		const migrated: AutoApprovalSettings = {
 			...existing,
@@ -309,5 +309,5 @@ function migrateYoloModeToAutoApprovalSettings(vscodeContext: vscode.ExtensionCo
 		Logger.info("[Migration] Legacy YOLO/auto-approve-all toggle detected — enabled all auto-approval actions")
 	}
 
-	return wasUnattended
+	return shouldEnableAllActions
 }
