@@ -1,5 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
-import { realpathSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import {
 	clearHubDiscovery,
 	isAutoUpdateEnabledGlobally,
@@ -42,6 +42,10 @@ interface InstallationInfo {
 interface ManualUpdateCommand {
 	command: string;
 	env?: Readonly<Record<string, string>>;
+	/** Suppress the spawned command's output (used by background updates). */
+	silent?: boolean;
+	/** Detach the spawned command so it survives if the CLI exits early. */
+	detached?: boolean;
 }
 
 function isNightlyVersion(v: string): boolean {
@@ -174,6 +178,101 @@ export function withMinimumReleaseAgeBypass(
 	}
 }
 
+/**
+ * Command that reinstalls the exact version of the CLI that is currently
+ * running. Used to restore a working install after a failed self-update,
+ * so the user is never left without a `cline` binary on PATH.
+ */
+export function getRollbackCommand(
+	packageManager: PackageManager,
+	packageName: CliPackageName,
+	targetVersion: string,
+): ManualUpdateCommand | undefined {
+	let command: string | undefined;
+	switch (packageManager) {
+		case PackageManager.NPM:
+			command = `npm install -g ${packageName}@${targetVersion}`;
+			break;
+		case PackageManager.PNPM:
+			command = `pnpm add -g ${packageName}@${targetVersion}`;
+			break;
+		case PackageManager.YARN:
+			command = `yarn global add ${packageName}@${targetVersion}`;
+			break;
+		case PackageManager.BUN:
+			command = `bun add -g ${packageName}@${targetVersion}`;
+			break;
+		default:
+			return undefined;
+	}
+	return withMinimumReleaseAgeBypass(command, packageManager);
+}
+
+const VERIFY_INSTALL_TIMEOUT_MS = 60_000;
+
+function waitForProcessExitWithTimeout(
+	child: ChildProcess,
+	timeoutMs: number,
+): Promise<number> {
+	return new Promise<number>((resolve) => {
+		const timer = setTimeout(() => {
+			try {
+				child.kill("SIGKILL");
+			} catch {
+				// best-effort
+			}
+			resolve(1);
+		}, timeoutMs);
+		timer.unref?.();
+		child.once("close", (code) => {
+			clearTimeout(timer);
+			resolve(code ?? 1);
+		});
+		child.once("error", () => {
+			clearTimeout(timer);
+			resolve(1);
+		});
+	});
+}
+
+/**
+ * Smoke-check the global CLI install after a package manager ran.
+ *
+ * A failed `npm update -g` can leave the global package tree half-replaced
+ * with the wrapper script deleted, which strands the user with no `cline`
+ * on PATH. This verifies the wrapper still exists and (on Unix) that it can
+ * resolve and execute the platform binary. Returns true when the install
+ * looks healthy or when there is no wrapper to check (dev builds).
+ */
+export async function verifyCliInstallHealthy(
+	env: NodeJS.ProcessEnv = process.env,
+	platform: NodeJS.Platform = process.platform,
+): Promise<boolean> {
+	const wrapperPath = env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath) return true;
+	if (!existsSync(wrapperPath)) return false;
+	if (platform === "win32") {
+		// npm invokes the wrapper through a .cmd shim on Windows; the wrapper
+		// script itself is not directly spawnable, so existence is the best
+		// cheap check available.
+		return true;
+	}
+	try {
+		const child = spawn(wrapperPath, ["version"], {
+			env: { ...env, CLINE_NO_AUTO_UPDATE: "1" },
+			stdio: "ignore",
+			windowsHide: true,
+		});
+		const exitCode = await waitForProcessExitWithTimeout(
+			child,
+			VERIFY_INSTALL_TIMEOUT_MS,
+		);
+		return exitCode === 0;
+	} catch {
+		return false;
+	}
+}
+
 async function getLatestVersion(
 	packageName: CliPackageName,
 	currentVersion: string,
@@ -213,14 +312,116 @@ async function runCliUpdate(
 	updateCommand: ManualUpdateCommand,
 ): Promise<number> {
 	const updateProcess = spawn(updateCommand.command, {
-		stdio: "inherit",
+		stdio: updateCommand.silent ? "ignore" : "inherit",
 		shell: true,
+		detached: updateCommand.detached === true,
 		env: updateCommand.env
 			? { ...process.env, ...updateCommand.env }
 			: process.env,
 		windowsHide: true,
 	});
 	return waitForProcessExit(updateProcess);
+}
+
+interface CliUpdateAttempt {
+	/** The new version was installed and the install passed the smoke check. */
+	updated: boolean;
+	/** The previous version was reinstalled after a failure. */
+	rolledBack: boolean;
+}
+
+/**
+ * Run the self-update command, verify the resulting install actually works,
+ * and roll back to the currently running version when it does not.
+ *
+ * Package managers replace the global package in place, so a failure partway
+ * through (network error, blocked postinstall, …) can delete the previous
+ * install without providing a new one. Reinstalling the pinned previous
+ * version restores a working `cline` instead of stranding the user.
+ */
+async function runCliUpdateWithRollback(input: {
+	updateCommand: ManualUpdateCommand;
+	packageManager: PackageManager;
+	packageName: CliPackageName;
+	currentVersion: string;
+	quiet?: boolean;
+}): Promise<CliUpdateAttempt> {
+	const quiet = input.quiet ?? false;
+	const report = (message: string | undefined) => {
+		if (!quiet && message) writeErr(message);
+	};
+
+	let failureReason: string | undefined;
+	let installKnownBroken = false;
+	try {
+		const exitCode = await runCliUpdate(input.updateCommand);
+		if (exitCode === 0) {
+			if (await verifyCliInstallHealthy()) {
+				return { updated: true, rolledBack: false };
+			}
+			failureReason =
+				"Cline update completed but the installed CLI failed its health check.";
+			installKnownBroken = true;
+		} else {
+			failureReason = `Cline update failed (exit code ${exitCode}). Try running: ${input.updateCommand.command}`;
+		}
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		failureReason = `Failed to run Cline update command ${input.updateCommand.command}: ${message}`;
+	}
+	report(failureReason);
+
+	// Only reinstall when the failed update actually damaged the install.
+	// A failed command that left the previous version intact needs no
+	// repair, and reinstalling over a healthy tree adds risk.
+	if (!installKnownBroken && (await verifyCliInstallHealthy())) {
+		if (!quiet) {
+			writeln(
+				`${c.dim}Your existing ${input.packageName}@${input.currentVersion} install is intact.${c.reset}`,
+			);
+		}
+		return { updated: false, rolledBack: false };
+	}
+
+	const rollbackCommand = getRollbackCommand(
+		input.packageManager,
+		input.packageName,
+		input.currentVersion,
+	);
+	if (!rollbackCommand) {
+		report(
+			`If \`${input.packageName}\` is missing or broken, reinstall it with your package manager.`,
+		);
+		return { updated: false, rolledBack: false };
+	}
+
+	if (!quiet) {
+		writeln(
+			`${c.cyan}Restoring ${input.packageName}@${input.currentVersion}…${c.reset}`,
+		);
+	}
+	let restored = false;
+	try {
+		const rollbackExitCode = await runCliUpdate(
+			quiet ? { ...rollbackCommand, silent: true } : rollbackCommand,
+		);
+		restored = rollbackExitCode === 0 && (await verifyCliInstallHealthy());
+	} catch {
+		restored = false;
+	}
+
+	if (restored) {
+		if (!quiet) {
+			writeln(
+				`${c.green}✓${c.reset} Restored previous version ${c.bold}${input.packageName}@${input.currentVersion}${c.reset}`,
+			);
+		}
+	} else {
+		report(
+			`Could not restore the previous version. If \`${input.packageName}\` is missing or broken, run: ${rollbackCommand.command}`,
+		);
+	}
+	return { updated: false, rolledBack: restored };
 }
 
 type KanbanInstallCommand = NonNullable<
@@ -413,23 +614,22 @@ export function autoUpdateOnStartup(): void {
 		try {
 			const latest = await getLatestVersion(packageName, version);
 			if (!latest || compareVersions(version, latest) >= 0) return;
-			const autoUpdateCommand = withMinimumReleaseAgeBypass(
-				updateCommand,
-				packageManager,
-			);
-			const child = spawn(autoUpdateCommand.command, {
-				shell: true,
+			const autoUpdateCommand: ManualUpdateCommand = {
+				...withMinimumReleaseAgeBypass(updateCommand, packageManager),
+				silent: true,
+				// Detached so the update survives if the CLI exits early.
+				// windowsHide in runCliUpdate prevents a console window from
+				// flashing on Windows for detached processes.
 				detached: true,
-				stdio: "ignore",
-				env: autoUpdateCommand.env
-					? { ...process.env, ...autoUpdateCommand.env }
-					: process.env,
-				// Prevent a console window from flashing on Windows; detached
-				// processes otherwise allocate a new visible console.
-				windowsHide: true,
+			};
+			const attempt = await runCliUpdateWithRollback({
+				updateCommand: autoUpdateCommand,
+				packageManager,
+				packageName,
+				currentVersion: version,
+				quiet: true,
 			});
-			const exitCode = await waitForProcessExit(child);
-			if (exitCode === 0) {
+			if (attempt.updated) {
 				await restartHubServerIfRunning();
 			}
 		} catch {
@@ -550,23 +750,16 @@ export async function checkForUpdates(
 				writeln(
 					`${c.cyan}Installing ${packageName}@${latestVersion}…${c.reset}`,
 				);
-				try {
-					const exitCode = await runCliUpdate(manualUpdateCommand);
-					if (exitCode === 0) {
-						installedUpdates.push(`${packageName}@${latestVersion}`);
-						await restartHubServerIfRunning();
-					} else {
-						writeErr(
-							`Cline update failed (exit code ${exitCode}). Try running: ${manualUpdateCommand.command}`,
-						);
-						hadFailure = true;
-					}
-				} catch (error) {
-					const message =
-						error instanceof Error ? error.message : String(error);
-					writeErr(
-						`Failed to run Cline update command ${manualUpdateCommand.command}: ${message}`,
-					);
+				const attempt = await runCliUpdateWithRollback({
+					updateCommand: manualUpdateCommand,
+					packageManager,
+					packageName,
+					currentVersion,
+				});
+				if (attempt.updated) {
+					installedUpdates.push(`${packageName}@${latestVersion}`);
+					await restartHubServerIfRunning();
+				} else {
 					hadFailure = true;
 				}
 			}

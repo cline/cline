@@ -22,13 +22,16 @@ vi.mock("../utils/hub-runtime", () => ({
 	ensureCliHubServer: mockEnsureCliHubServer,
 }));
 
+import { version as currentVersion } from "../../package.json";
 import {
 	autoUpdateOnStartup,
 	checkForUpdates,
 	ensureCliHubServerAfterUpdate,
 	getInstallationInfo,
+	getRollbackCommand,
 	PackageManager,
 	resolveCliHubOwnerContext,
+	verifyCliInstallHealthy,
 	withMinimumReleaseAgeBypass,
 } from "./update";
 
@@ -326,6 +329,225 @@ describe("post-update hub launch", () => {
 		).rejects.toThrow(
 			"freshly installed Cline failed to start the hub (exit code 1)",
 		);
+	});
+});
+
+describe("getRollbackCommand", () => {
+	it("pins the currently running version per package manager", () => {
+		expect(
+			getRollbackCommand(PackageManager.NPM, "cline", "1.2.3")?.command,
+		).toBe("npm install -g cline@1.2.3 --min-release-age=0");
+		expect(
+			getRollbackCommand(PackageManager.PNPM, "cline", "1.2.3")?.command,
+		).toBe("pnpm add -g cline@1.2.3");
+		expect(
+			getRollbackCommand(PackageManager.YARN, "cline", "1.2.3")?.command,
+		).toBe("yarn global add cline@1.2.3");
+		expect(
+			getRollbackCommand(PackageManager.BUN, "cline", "1.2.3")?.command,
+		).toBe("bun add -g cline@1.2.3 --minimum-release-age=0");
+	});
+
+	it("supports nightly versions and returns undefined for unmanaged installs", () => {
+		expect(
+			getRollbackCommand(PackageManager.NPM, "cline", "1.2.3-nightly.456")
+				?.command,
+		).toBe("npm install -g cline@1.2.3-nightly.456 --min-release-age=0");
+		expect(
+			getRollbackCommand(PackageManager.NPX, "cline", "1.2.3"),
+		).toBeUndefined();
+		expect(
+			getRollbackCommand(PackageManager.UNKNOWN, "cline", "1.2.3"),
+		).toBeUndefined();
+	});
+});
+
+describe("verifyCliInstallHealthy", () => {
+	afterEach(() => {
+		mockSpawn.mockReset();
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	it("passes when there is no wrapper to check (dev builds)", async () => {
+		await expect(verifyCliInstallHealthy({}, "linux")).resolves.toBe(true);
+		expect(mockSpawn).not.toHaveBeenCalled();
+	});
+
+	it("fails when the wrapper script was deleted by a broken update", async () => {
+		await expect(
+			verifyCliInstallHealthy(
+				{ CLINE_WRAPPER_PATH: "/nonexistent/lib/node_modules/cline/bin/cline" },
+				"linux",
+			),
+		).resolves.toBe(false);
+		expect(mockSpawn).not.toHaveBeenCalled();
+	});
+
+	it("executes the wrapper on Unix and reports its exit code", async () => {
+		const wrapperPath = createTempFile("lib/node_modules/cline/bin/cline");
+		mockSpawn.mockReturnValue(createChildProcessThatCloses(0));
+
+		await expect(
+			verifyCliInstallHealthy({ CLINE_WRAPPER_PATH: wrapperPath }, "linux"),
+		).resolves.toBe(true);
+
+		expect(mockSpawn).toHaveBeenCalledWith(
+			wrapperPath,
+			["version"],
+			expect.objectContaining({
+				env: expect.objectContaining({ CLINE_NO_AUTO_UPDATE: "1" }),
+				stdio: "ignore",
+			}),
+		);
+
+		mockSpawn.mockReturnValue(createChildProcessThatCloses(1));
+		await expect(
+			verifyCliInstallHealthy({ CLINE_WRAPPER_PATH: wrapperPath }, "linux"),
+		).resolves.toBe(false);
+	});
+
+	it("only checks wrapper existence on Windows", async () => {
+		const wrapperPath = createTempFile("npm/node_modules/cline/bin/cline");
+
+		await expect(
+			verifyCliInstallHealthy({ CLINE_WRAPPER_PATH: wrapperPath }, "win32"),
+		).resolves.toBe(true);
+		expect(mockSpawn).not.toHaveBeenCalled();
+	});
+});
+
+describe("checkForUpdates rollback", () => {
+	afterEach(() => {
+		process.argv = [...originalArgv];
+		if (originalWrapperPath === undefined) {
+			delete process.env.CLINE_WRAPPER_PATH;
+		} else {
+			process.env.CLINE_WRAPPER_PATH = originalWrapperPath;
+		}
+		if (originalDataDir === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = originalDataDir;
+		}
+		mockSpawn.mockReset();
+		vi.restoreAllMocks();
+		for (const dir of tempDirs.splice(0)) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+	});
+
+	function setupNpmInstall(): string {
+		const wrapperPath = createTempFile("lib/node_modules/cline/bin/cline");
+		process.env.CLINE_WRAPPER_PATH = wrapperPath;
+		process.env.CLINE_DATA_DIR = dirname(wrapperPath);
+		process.argv = ["bun", "/$bunfs/root/cline", "update"];
+		vi.spyOn(globalThis, "fetch").mockResolvedValue({
+			ok: true,
+			json: async () => ({ version: "999.0.0" }),
+		} as Response);
+		return wrapperPath;
+	}
+
+	it("restores the previous version when a failed update breaks the install", async () => {
+		const wrapperPath = setupNpmInstall();
+		const spawnedCommands: string[] = [];
+		mockSpawn.mockImplementation((command: string) => {
+			spawnedCommands.push(command);
+			if (command.startsWith("npm update -g cline")) {
+				// Simulate npm deleting the previous install before failing.
+				rmSync(wrapperPath, { force: true });
+				return createChildProcessThatCloses(1);
+			}
+			if (command.startsWith("npm install -g cline@")) {
+				// Rollback reinstalls the wrapper.
+				createFile(wrapperPath);
+				return createChildProcessThatCloses(0);
+			}
+			// Post-rollback health check through the wrapper.
+			return createChildProcessThatCloses(0);
+		});
+
+		const exitCode = await checkForUpdates({ includeKanban: false });
+
+		expect(exitCode).toBe(1);
+		expect(spawnedCommands[0]).toBe(
+			"npm update -g cline --tag latest --min-release-age=0",
+		);
+		expect(spawnedCommands[1]).toBe(
+			`npm install -g cline@${currentVersion} --min-release-age=0`,
+		);
+		expect(spawnedCommands[2]).toBe(wrapperPath);
+	});
+
+	it("skips rollback when the failed update left the install intact", async () => {
+		const wrapperPath = setupNpmInstall();
+		const spawnedCommands: string[] = [];
+		mockSpawn.mockImplementation((command: string) => {
+			spawnedCommands.push(command);
+			if (command.startsWith("npm update -g cline")) {
+				return createChildProcessThatCloses(1);
+			}
+			return createChildProcessThatCloses(0);
+		});
+
+		const exitCode = await checkForUpdates({ includeKanban: false });
+
+		expect(exitCode).toBe(1);
+		expect(spawnedCommands).toEqual([
+			"npm update -g cline --tag latest --min-release-age=0",
+			wrapperPath,
+		]);
+		expect(
+			spawnedCommands.some((command) =>
+				command.startsWith("npm install -g cline@"),
+			),
+		).toBe(false);
+	});
+
+	it("rolls back when the update succeeds but the install fails its health check", async () => {
+		const wrapperPath = setupNpmInstall();
+		const spawnedCommands: string[] = [];
+		mockSpawn.mockImplementation((command: string) => {
+			spawnedCommands.push(command);
+			if (command.startsWith("npm update -g cline")) {
+				// npm exits 0 but leaves the install without a working wrapper.
+				rmSync(wrapperPath, { force: true });
+				return createChildProcessThatCloses(0);
+			}
+			if (command.startsWith("npm install -g cline@")) {
+				createFile(wrapperPath);
+				return createChildProcessThatCloses(0);
+			}
+			return createChildProcessThatCloses(0);
+		});
+
+		const exitCode = await checkForUpdates({ includeKanban: false });
+
+		expect(exitCode).toBe(1);
+		expect(spawnedCommands).toEqual([
+			"npm update -g cline --tag latest --min-release-age=0",
+			`npm install -g cline@${currentVersion} --min-release-age=0`,
+			wrapperPath,
+		]);
+	});
+
+	it("reports success when the update passes the post-install health check", async () => {
+		const wrapperPath = setupNpmInstall();
+		const spawnedCommands: string[] = [];
+		mockSpawn.mockImplementation((command: string) => {
+			spawnedCommands.push(command);
+			return createChildProcessThatCloses(0);
+		});
+
+		const exitCode = await checkForUpdates({ includeKanban: false });
+
+		expect(exitCode).toBe(0);
+		expect(spawnedCommands).toEqual([
+			"npm update -g cline --tag latest --min-release-age=0",
+			wrapperPath,
+		]);
 	});
 });
 
