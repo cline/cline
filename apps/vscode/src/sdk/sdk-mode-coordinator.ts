@@ -40,6 +40,14 @@ export interface SdkModeCoordinatorOptions {
 	postStateToWebview: () => Promise<void>
 	/** Authoritative phase of the current turn, from the controller's TurnStateTracker. */
 	getTurnPhase: () => TurnPhase
+	/**
+	 * Sets the authoritative turn phase. Aborting a running turn for a mode
+	 * change must settle the phase to "resumable" (mirroring cancelTask):
+	 * leaving it on "streaming" keeps the footer stuck on Thinking with the
+	 * input disabled, and leaving it on "awaiting_approval" keeps dead
+	 * Approve/Reject buttons wired to an approval that was already denied.
+	 */
+	setTurnPhase: (phase: TurnPhase, anchorTs?: number) => void
 	resolveContextMentions: (text: string) => Promise<string>
 	/**
 	 * Called right before an auto-continue send kicks off a new turn. Mirrors
@@ -59,7 +67,6 @@ export interface SdkModeCoordinatorOptions {
 }
 
 export class SdkModeCoordinator {
-	private pendingModeChange: Mode | null = null
 	private rebuildInFlight: Promise<void> | undefined
 	/**
 	 * Pending user-initiated mode switch, stamped as a <mode_notice> onto the
@@ -121,26 +128,6 @@ export class SdkModeCoordinator {
 		}
 	}
 
-	queueSwitchToActMode(): void {
-		this.pendingModeChange = "act"
-	}
-
-	hasPendingModeChange(): boolean {
-		return this.pendingModeChange !== null
-	}
-
-	async applyPendingModeChange(): Promise<void> {
-		const target = this.pendingModeChange
-		if (!target) {
-			return
-		}
-		this.pendingModeChange = null
-		Logger.log(`[SdkController] applyPendingModeChange: switching to ${target}`)
-		// The tool result told the model to proceed with the plan, so rebuild with
-		// act-mode tools and auto-continue rather than waiting for another user message.
-		await this.rebuildSessionForMode(target, { autoContinue: target === "act", source: "tool" })
-	}
-
 	async toggleActModeForYoloMode(): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 		if (currentMode === "act") {
@@ -191,7 +178,6 @@ export class SdkModeCoordinator {
 				userContinuationPrompt: autoContinue ? userPrompt : undefined,
 				userImages: autoContinue ? userImages : undefined,
 				userFiles: autoContinue ? userFiles : undefined,
-				source: "ui",
 			})
 			// True tells the webview the composer content was consumed, so it clears it.
 			return continuationSent && hasUserContent
@@ -214,13 +200,6 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
-			/**
-			 * Who initiated the switch. Only "ui" toggles record a <mode_notice>
-			 * for the next outbound message; the model-initiated
-			 * switch_to_act_mode path ("tool") already announces itself via the
-			 * tool result and continuation prompt, matching the CLI's semantics.
-			 */
-			source?: "ui" | "tool"
 		} = {},
 	): Promise<boolean> {
 		const operation = this.options.rebuilds.runExclusive(() => this.performRebuildSessionForMode(newMode, options))
@@ -241,7 +220,6 @@ export class SdkModeCoordinator {
 			userContinuationPrompt?: string
 			userImages?: string[]
 			userFiles?: string[]
-			source?: "ui" | "tool"
 		},
 	): Promise<boolean> {
 		const previousMode = this.options.stateManager.getGlobalSettingsKey("mode")
@@ -340,9 +318,7 @@ export class SdkModeCoordinator {
 			// fails earlier rolls the mode setting back, and a notice for a switch
 			// that never took effect would lie to the model. Recording before the
 			// auto-continue send lets that send carry the notice.
-			if (options.source === "ui") {
-				this.recordModeSwitchNotice(startResult.sessionId, previousMode, newMode)
-			}
+			this.recordModeSwitchNotice(startResult.sessionId, previousMode, newMode)
 			if (options.autoContinue) {
 				const userPrompt = options.userContinuationPrompt
 				const userImages = options.userImages
@@ -437,12 +413,31 @@ export class SdkModeCoordinator {
 		this.options.sessions.setRunning(false)
 
 		const task = this.options.getTask()
-		if (!task?.messageStateHandler) {
-			return
+		if (task?.messageStateHandler) {
+			const current = task.messageStateHandler.getClineMessages()
+			const finalized = this.options.messages.finalizeMessagesForSave(current)
+			this.options.messages.appendMessages(finalized)
 		}
 
-		const current = task.messageStateHandler.getClineMessages()
-		const finalized = this.options.messages.finalizeMessagesForSave(current)
-		this.options.messages.appendMessages(finalized)
+		// The turn was aborted mid-flight, so nothing will ever settle its phase:
+		// the aborted session's done event is fenced off as a stale event once the
+		// rebuild unsubscribes it. Mirror cancelTask — append a resume ask and mark
+		// the turn resumable — so the footer offers Resume Task with the input
+		// enabled instead of an eternal Thinking spinner (aborted while streaming)
+		// or dead approval buttons (aborted while awaiting approval). When the
+		// rebuild auto-continues, onAutoContinueStarting flips the phase back to
+		// streaming before anything is sent.
+		const resumeMessage: ClineMessage = {
+			ts: Date.now(),
+			type: "ask",
+			ask: "resume_task",
+			text: "",
+			partial: false,
+		}
+		this.options.messages.appendAndEmit([resumeMessage], {
+			type: "status",
+			payload: { sessionId: oldSessionId, status: "cancelled" },
+		})
+		this.options.setTurnPhase("resumable", resumeMessage.ts)
 	}
 }

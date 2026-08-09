@@ -42,6 +42,7 @@ import {
 	ANTHROPIC_ROUTING_METADATA,
 	QWEN_CACHE_ROUTING_METADATA,
 } from "./routing/anthropic-compatible";
+import { BEDROCK_ROUTING_METADATA } from "./routing/bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./routing/glm-thinking";
 import { MINIMAX_THINKING_ROUTING_METADATA } from "./routing/minimax-thinking";
 
@@ -398,16 +399,24 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
+// Vercel-only model ids surfaced for the Cline provider while the OpenRouter
+// catalog lacks them (Cline's backend routes these to Vercel AI Gateway).
+// Remove an id once the OpenRouter catalog lists it.
+const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
+	"meta/muse-spark-1.2-contributor",
+];
+
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
 	// can return Vercel-style ids. Include those exact ids so runtime metadata
 	// resolves without adding duplicate OpenRouter aliases to the picker.
 	const vercelAliasModels = Object.fromEntries(
-		Object.entries(generatedModels("vercel-ai-gateway")).filter(([modelId]) =>
-			isCanonicalModelIdForAliasRules(
-				modelId,
-				VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
-			),
+		Object.entries(generatedModels("vercel-ai-gateway")).filter(
+			([modelId]) =>
+				isCanonicalModelIdForAliasRules(
+					modelId,
+					VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				) || VERCEL_ONLY_CLINE_MODEL_IDS.includes(modelId),
 		),
 	);
 	return preferCanonicalModelIds(
@@ -718,8 +727,11 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		id: "litellm",
 		name: "LiteLLM",
 		description: "Self-hosted LLM proxy",
+		// No `protocol` override: LiteLLM's OpenAI-compatible surface is Chat
+		// Completions (`/chat/completions`), and self-hosted proxies commonly
+		// do not expose `/responses`. Inherit the family default (openai-chat)
+		// like every other openai-compatible built-in. See #10781 / #13003.
 		family: "openai-compatible",
-		protocol: "openai-responses",
 		popular: 40,
 		capabilities: ["prompt-cache"],
 		defaultModelId: "gpt-5.4",
@@ -1068,7 +1080,7 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		],
 		modelsProviderId: "bedrock",
 		configFields: BEDROCK_CONFIG_FIELDS,
-		metadata: ANTHROPIC_ROUTING_METADATA,
+		metadata: BEDROCK_ROUTING_METADATA,
 	},
 	{
 		id: "mistral",
@@ -1077,14 +1089,6 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 	},
 	{
 		id: "minimax",
-		name: "MiniMax",
-		description: "MiniMax models via Anthropic-compatible API",
-		family: "anthropic",
-		capabilities: ["tools", "reasoning", "prompt-cache"],
-		defaultModelId: "MiniMax-M2.5",
-		apiKeyEnv: ["MINIMAX_API_KEY"],
-		modelsProviderId: "minimax",
-		defaults: { baseUrl: "https://api.minimax.io/anthropic/v1" },
 		apiLineBaseUrls: {
 			china: "https://api.minimaxi.com/anthropic/v1",
 			international: "https://api.minimax.io/anthropic/v1",

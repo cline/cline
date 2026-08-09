@@ -13,7 +13,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import {
+	looksLikeFolderPath,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -36,7 +39,7 @@ function workspaceName(path: string): string {
 }
 
 const TRIGGER_CLASS =
-	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
+	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl";
 
@@ -91,6 +94,7 @@ function WorkspacePicker({
 	const [switching, setSwitching] = useState(false);
 	const [picking, setPicking] = useState(false);
 	const [selectingChat, setSelectingChat] = useState(false);
+	const [error, setError] = useState<string | null>(null);
 	const isChatWorkspace =
 		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
 
@@ -100,11 +104,20 @@ function WorkspacePicker({
 	);
 
 	// Refresh the catalog and clear the filter each time the menu opens.
+	// The refresh callback lives in a ref: its identity changes whenever the
+	// workspace catalog re-derives (e.g. periodic session-history refresh), and
+	// re-running this effect mid-open would wipe the user's typed path and any
+	// visible error message.
+	const refreshWorkspacesRef = useRef(onRefreshWorkspaces);
+	useEffect(() => {
+		refreshWorkspacesRef.current = onRefreshWorkspaces;
+	}, [onRefreshWorkspaces]);
 	useEffect(() => {
 		if (!open) return;
 		setSearch("");
-		void onRefreshWorkspaces();
-	}, [open, onRefreshWorkspaces]);
+		setError(null);
+		void refreshWorkspacesRef.current();
+	}, [open]);
 
 	// The active workspace can be an excluded path (restored session, process
 	// cwd fallback); register it explicitly so it stays visible while active.
@@ -131,20 +144,34 @@ function WorkspacePicker({
 			return;
 		}
 		if (switching) return;
+		setError(null);
 		setSwitching(true);
 		const switched = await onSwitchWorkspace(next);
 		setSwitching(false);
-		if (switched) onClose();
+		if (switched) {
+			onClose();
+			return;
+		}
+		setError(
+			`Couldn't open "${next}". Check that the folder exists and try again.`,
+		);
 	};
 
 	const handleAddWorkspace = async () => {
 		if (picking || selectingChat || switching) return;
+		setError(null);
 		setPicking(true);
 		try {
 			const picked = await onPickWorkspaceDirectory(
 				isChatWorkspace ? undefined : workspaceRoot || undefined,
 			);
 			if (picked?.trim()) await handleSelect(picked.trim());
+		} catch (pickError) {
+			setError(
+				pickError instanceof Error && pickError.message.trim()
+					? pickError.message
+					: "The folder picker could not be opened. Type a folder path above instead.",
+			);
 		} finally {
 			setPicking(false);
 		}
@@ -174,22 +201,40 @@ function WorkspacePicker({
 				title={workspaceLabel}
 				type="button"
 			>
-				<Folder className="size-4 shrink-0 text-muted-foreground" />
-				<span className="max-w-44 truncate">{workspaceLabel}</span>
+				<Folder className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="max-w-44 truncate text-sm">{workspaceLabel}</span>
 			</button>
 
 			{open && (
 				<div className={PANEL_CLASS}>
 					<SearchInput
-						onChange={setSearch}
-						placeholder="Search workspaces"
+						onChange={(value) => {
+							setSearch(value);
+							setError(null);
+						}}
+						placeholder="Search workspaces, or type a folder path"
 						value={search}
 					/>
 					<div className="p-1.5">
+						{looksLikeFolderPath(search) && (
+							<Button
+								className="mb-0.5 flex h-auto w-full items-center justify-start gap-2 rounded-md p-2 text-left"
+								disabled={switching}
+								onClick={() => void handleSelect(search)}
+								variant="ghost"
+							>
+								<Folder className="size-3 shrink-0 text-muted-foreground" />
+								<span className="truncate text-xs text-foreground">
+									Open folder “{search.trim()}”
+								</span>
+							</Button>
+						)}
 						<div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
 							{filteredWorkspaces.length === 0 ? (
 								<div className="px-2 py-2 text-xs text-muted-foreground">
-									No workspaces found
+									{looksLikeFolderPath(search)
+										? "Press the option above to open this folder"
+										: "No workspaces found — type a full folder path to add one"}
 								</div>
 							) : (
 								filteredWorkspaces.map((path) => {
@@ -199,7 +244,9 @@ function WorkspacePicker({
 										<Button
 											className={cn(
 												"flex h-auto w-full items-center justify-between rounded-md p-2 text-left",
-												isActive ? "bg-accent" : "hover:bg-accent/50",
+												isActive
+													? "bg-surface-hover"
+													: "hover:bg-surface-hover-lighter",
 											)}
 											disabled={switching}
 											key={path}
@@ -228,7 +275,7 @@ function WorkspacePicker({
 							variant="ghost"
 						>
 							<Plus className="size-3" />
-							{picking ? "Opening folder picker..." : "Add project..."}
+							{picking ? "Opening folder picker..." : "Open folder..."}
 						</Button>
 						<Button
 							className="w-full justify-start text-xs text-muted-foreground"
@@ -240,6 +287,11 @@ function WorkspacePicker({
 							<FilePlus2 className="size-3" />
 							{selectingChat ? "Switching to chat..." : "Just chat"}
 						</Button>
+						{error && (
+							<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+								{error}
+							</div>
+						)}
 					</div>
 				</div>
 			)}
@@ -258,6 +310,7 @@ function BranchPicker({
 	open: boolean;
 	onToggle: () => void;
 	onClose: () => void;
+	/** Always a real branch name: the parent only mounts this for git repos. */
 	currentBranch: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
@@ -285,8 +338,7 @@ function BranchPicker({
 		};
 	}, [open, onListGitBranches]);
 
-	const hasGit = currentBranch !== "no-git";
-	const branchLabel = hasGit ? currentBranch : "No branch";
+	const branchLabel = currentBranch;
 
 	const filteredBranches = branches.filter((branch) =>
 		branch.toLowerCase().includes(search.toLowerCase()),
@@ -314,8 +366,8 @@ function BranchPicker({
 				title={branchLabel}
 				type="button"
 			>
-				<GitBranch className="size-4 shrink-0 text-muted-foreground" />
-				<span className="min-w-0 truncate">{branchLabel}</span>
+				<GitBranch className="size-3.5 shrink-0 text-muted-foreground" />
+				<span className="min-w-0 truncate text-sm">{branchLabel}</span>
 			</button>
 
 			{open && (
@@ -342,8 +394,8 @@ function BranchPicker({
 											className={cn(
 												"flex h-auto items-center gap-2 rounded-md px-2 py-2 text-left",
 												currentBranch === branch
-													? "bg-accent"
-													: "hover:bg-accent/50",
+													? "bg-surface-hover"
+													: "hover:bg-surface-hover-lighter",
 											)}
 											disabled={switching}
 											key={branch}
@@ -386,7 +438,8 @@ export function WelcomeWorkspaceControls({
 	onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
 	onPickWorkspaceDirectory: (initialPath?: string) => Promise<string | null>;
 	onSelectChat: () => Promise<boolean>;
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -427,7 +480,12 @@ export function WelcomeWorkspaceControls({
 				workspaceRoot={workspaceRoot}
 				workspaces={workspaces}
 			/>
-			{!isChatWorkspace ? (
+			{/* Git is a developer affordance: a plain (non-git) folder gets no
+			    branch chrome at all instead of a confusing "No branch" chip.
+			    Pending discovery (null) is treated the same until it resolves. */}
+			{!isChatWorkspace &&
+			currentBranch !== null &&
+			currentBranch !== "no-git" ? (
 				<BranchPicker
 					currentBranch={currentBranch}
 					onClose={() => setOpenMenu(null)}

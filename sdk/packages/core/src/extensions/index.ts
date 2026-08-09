@@ -1,6 +1,7 @@
 export type { ResolveAgentPluginPathsOptions } from "./plugin/plugin-config-loader";
 export {
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	resolveAgentPluginPaths,
 	resolveAndLoadAgentPlugins,
 	resolvePluginConfigSearchPaths,

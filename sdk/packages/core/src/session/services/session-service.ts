@@ -119,7 +119,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				`UPDATE sessions
 				 SET status = 'running', ended_at = NULL, exit_code = NULL, updated_at = ?, status_lock = ?,
 					 parent_session_id = ?, parent_agent_id = ?, agent_id = ?, conversation_id = ?, is_subagent = 1,
-					 prompt = COALESCE(prompt, ?)
+					 prompt = COALESCE(prompt, ?), metadata_json = ?
 				 WHERE session_id = ? AND status_lock = ?`,
 				[
 					nowIso(),
@@ -129,6 +129,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 					input.agentId ?? null,
 					input.conversationId ?? null,
 					input.prompt ?? null,
+					stringifyMetadata(input.metadata),
 					input.sessionId,
 					input.expectedStatusLock,
 				],

@@ -30,6 +30,7 @@ import type {
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
 } from "../../types/session";
+import { withSessionHistoryOriginMetadata } from "../history-origin";
 import type { SessionCompactionState } from "../models/session-compaction";
 import type { SessionRow } from "../models/session-row";
 import { SessionManifestStore } from "../stores/session-manifest-store";
@@ -115,7 +116,10 @@ export class UnifiedSessionPersistenceService {
 		const manifestPath =
 			this.manifestStore.artifacts.sessionManifestPath(sessionId);
 		const metadata = resolveMetadataWithTitle({
-			metadata: input.metadata,
+			metadata: withSessionHistoryOriginMetadata(input.metadata, {
+				mode: input.mode,
+				version: input.version,
+			}),
 			prompt: input.prompt,
 		});
 		const manifest = {
@@ -139,7 +143,7 @@ export class UnifiedSessionPersistenceService {
 			messages_path: messagesPath,
 		};
 
-		await this.adapter.upsertSession({
+		const row: SessionRow = {
 			sessionId,
 			source: input.source,
 			pid: input.pid,
@@ -167,13 +171,10 @@ export class UnifiedSessionPersistenceService {
 			hookPath: "",
 			messagesPath,
 			updatedAt: nowIso(),
-		});
+		};
+		await this.adapter.upsertSession(row);
 
-		this.manifestStore.initializeMessagesFile(
-			sessionId,
-			messagesPath,
-			startedAt,
-		);
+		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
 		this.manifestStore.writeSessionManifest(manifestPath, manifest);
 		return { manifestPath, messagesPath, compactionPath, manifest };
 	}

@@ -13,7 +13,7 @@ import {
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -62,7 +62,7 @@ type AgentHeaderProps = {
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
 };
 
-export function AgentHeader({
+function AgentHeaderImpl({
 	title,
 	canEditTitle,
 	renamingTitle,
@@ -123,7 +123,10 @@ export function AgentHeader({
 	const triggerDeleteSession = () => onDeleteSession?.();
 
 	return (
-		<header className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7">
+		<header
+			className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
+			data-tauri-drag-region="deep"
+		>
 			{/* Left: thread title */}
 			<div className="flex min-w-0 flex-1 items-center gap-2">
 				<SessionStatus
@@ -137,7 +140,14 @@ export function AgentHeader({
 					}
 					tone={statusTone}
 				/>
-				{isEditingTitle ? (
+				{!canEditTitle ? (
+					<span
+						className="min-w-0 truncate text-sm font-medium text-foreground"
+						title={threadTitle}
+					>
+						{threadTitle}
+					</span>
+				) : isEditingTitle ? (
 					<form
 						className="m-0 min-w-0 max-w-full shrink-0"
 						onSubmit={(event) => {
@@ -169,9 +179,9 @@ export function AgentHeader({
 						className={cn(
 							"min-w-0 truncate text-sm font-medium text-foreground",
 							canEditTitle &&
-								"rounded px-1 py-0.5 transition-colors hover:bg-accent",
+								"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
 						)}
-						disabled={!canEditTitle || renamingTitle}
+						disabled={renamingTitle}
 						onClick={(event) => {
 							if (!canEditTitle || renamingTitle) {
 								return;
@@ -255,7 +265,7 @@ export function AgentHeader({
 					) : (
 						<Button
 							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
 							variant="ghost"
@@ -268,6 +278,11 @@ export function AgentHeader({
 		</header>
 	);
 }
+
+// Memoized: the header sits above the streaming conversation and would
+// otherwise re-render on every stream flush; its props are kept
+// referentially stable by the chat pane.
+export const AgentHeader = memo(AgentHeaderImpl);
 
 /**
  * Route from a child agent run back to the session that spawned it, in the
@@ -294,7 +309,7 @@ function SubagentSessionBadge({
 	return (
 		<Button
 			aria-label={hint}
-			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 			disabled={!onOpenParentSession}
 			id="subagent-session-badge"
 			onClick={() => void onOpenParentSession?.(parentSession.sessionId)}
@@ -519,7 +534,7 @@ function AgentRosterRow({
 	return (
 		<li>
 			<button
-				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/60"
+				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-hover"
 				onClick={onSelect}
 				title="Open this agent's session"
 				type="button"

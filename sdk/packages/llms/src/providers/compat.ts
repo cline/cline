@@ -546,10 +546,17 @@ function buildGatewayConfig(config: ProviderConfig) {
 	};
 }
 
-function toApiStreamChunk(id: string, event: AgentModelEvent): ApiStreamChunk {
+function toApiStreamChunk(
+	id: string,
+	event: AgentModelEvent,
+): ApiStreamChunk | undefined {
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
+		case "file":
+			// The legacy ApiStream contract has no file chunk type; generated
+			// files are only representable on the AgentModelEvent path.
+			return undefined;
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {
@@ -665,7 +672,10 @@ class GatewayApiHandler implements ApiHandler {
 		const id = `gw_${nanoid(10)}`;
 		const stream = (async function* () {
 			for await (const event of await gateway.stream(request)) {
-				yield toApiStreamChunk(id, event);
+				const chunk = toApiStreamChunk(id, event);
+				if (chunk) {
+					yield chunk;
+				}
 			}
 		})() as ApiStream;
 		stream.id = id;
@@ -721,7 +731,10 @@ export async function createGatewayApiHandlerAsync(
 			const id = `gw_${nanoid(10)}`;
 			const stream = (async function* () {
 				for await (const event of await gateway.stream(request)) {
-					yield toApiStreamChunk(id, event);
+					const chunk = toApiStreamChunk(id, event);
+					if (chunk) {
+						yield chunk;
+					}
 				}
 			})() as ApiStream;
 			stream.id = id;

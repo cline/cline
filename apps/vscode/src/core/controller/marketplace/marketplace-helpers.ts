@@ -1,11 +1,12 @@
 import { spawn } from "node:child_process"
 import { createHash } from "node:crypto"
-import { existsSync, readFileSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { homedir, platform } from "node:os"
-import { basename, dirname, extname, isAbsolute, join, relative, resolve } from "node:path"
+import { isAbsolute, join, relative, resolve } from "node:path"
 import {
 	disablePluginMcpServersInSettings,
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	installMcpServer,
 	installPlugin,
 	isMarketplaceSkillInstalled,
@@ -406,15 +407,6 @@ export async function uninstallMarketplaceEntryFromCatalog(
 	return toProtoMarketplaceInstallResult(result)
 }
 
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as { name?: unknown }
-		return typeof packageJson.name === "string" && packageJson.name.trim() ? packageJson.name.trim() : undefined
-	} catch {
-		return undefined
-	}
-}
-
 function isPathWithin(parentPath: string, childPath: string): boolean {
 	const relativePath = relative(resolve(parentPath), resolve(childPath))
 	return relativePath === "" || (!relativePath.startsWith("..") && !isAbsolute(relativePath))
@@ -423,23 +415,6 @@ function isPathWithin(parentPath: string, childPath: string): boolean {
 function isGlobalClinePath(filePath: string | undefined): boolean {
 	if (!filePath || filePath.startsWith("remote:")) return false
 	return [resolveClineHome(), join(homedir(), ".agents", "skills")].some((root) => isPathWithin(root, filePath))
-}
-
-function getPluginDisplayName(filePath: string, searchRoot: string): string {
-	let current = dirname(filePath)
-	const root = resolve(searchRoot)
-	while (isPathWithin(root, current)) {
-		const packageJsonPath = join(current, "package.json")
-		if (existsSync(packageJsonPath)) {
-			const packageName = readPackageName(packageJsonPath)
-			if (packageName) return packageName
-			break
-		}
-		const parent = resolve(current, "..")
-		if (parent === current) break
-		current = parent
-	}
-	return basename(filePath, extname(filePath))
 }
 
 async function listPluginLocalEntries(): Promise<MarketplaceLocalInstalledEntry[]> {

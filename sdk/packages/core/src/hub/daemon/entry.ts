@@ -1,5 +1,10 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
+import {
+	ConnectorSupervisor,
+	setActiveConnectorSupervisor,
+} from "../../services/connectors/connector-supervisor";
 import { reconnectDaemonConnectors } from "../../services/connectors/daemon-connector-reconnect";
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
@@ -69,6 +74,31 @@ function parseArgs(argv: string[]): {
 	return { cwd, host, port, pathname };
 }
 
+/**
+ * Abort-family rejections are expected daemon noise, not fatal faults: when a
+ * user cancels a turn, in-flight provider streams and fetches can reject on a
+ * floating promise after the run has already settled (DOMException
+ * "AbortError" from fetch/undici, Node ABORT_ERR, or the runtime's own
+ * AgentRuntimeAbortError). Exiting on those kills every resident session in
+ * the daemon — the next message from any connected client then lands on
+ * `session_not_found` and forces a rebuild from disk.
+ */
+export function isAbortRejection(reason: unknown): boolean {
+	if (reason instanceof AgentRuntimeAbortError) {
+		return true;
+	}
+	if (reason instanceof Error) {
+		if (reason.name === "AbortError") {
+			return true;
+		}
+		const code = (reason as { code?: unknown }).code;
+		if (code === "ABORT_ERR") {
+			return true;
+		}
+	}
+	return false;
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
@@ -104,7 +134,20 @@ async function main(): Promise<void> {
 		throw error;
 	}
 
+	// Owns connector processes for this hub's lifetime: one instance per
+	// (channel, instanceId), reaping and backoff restarts when they die.
+	const supervisor = new ConnectorSupervisor({
+		cleanupInstance: (channel, instanceId) =>
+			cleanupConnectorInstanceViaCli(channel, instanceId),
+	});
+	setActiveConnectorSupervisor(supervisor);
+
 	const shutdown = async (): Promise<void> => {
+		// Stop supervising but leave the connectors running: they are detached on
+		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
+		// hub adopts them from their state files.
+		supervisor.dispose();
+		setActiveConnectorSupervisor(undefined);
 		await server.close();
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
@@ -150,9 +193,11 @@ async function main(): Promise<void> {
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
-		if (reason instanceof AgentRuntimeAbortError) {
+		if (isAbortRejection(reason)) {
+			const message =
+				reason instanceof Error ? reason.message : String(reason);
 			process.stderr.write(
-				`[hub-daemon] ignored agent runtime abort rejection: ${reason.message}\n`,
+				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);
 			return;
 		}
@@ -161,6 +206,10 @@ async function main(): Promise<void> {
 
 	resolveHubDaemonReady();
 	try {
+		// Adopt first: connectors that outlived the previous hub have to be known
+		// before recovery runs, so they are restarted onto this hub's session
+		// instead of being started a second time alongside themselves.
+		supervisor.adoptRunningConnectors();
 		await reconnectDaemonConnectors();
 	} catch (error) {
 		const message =

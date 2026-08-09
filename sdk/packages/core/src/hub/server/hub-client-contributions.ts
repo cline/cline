@@ -40,6 +40,7 @@ import type {
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
+import { normalizeRuntimeCommandName } from "../../extensions/config/runtime-commands";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -366,13 +367,17 @@ function createUserInstructionServiceProxy(
 		resolveRuntimeSlashCommand: (input) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
-			const name = match?.[1];
-			if (!name) return input;
+			const rawName = match?.[1];
+			if (!rawName) return input;
+			const name = normalizeRuntimeCommandName(rawName);
+			// Normalize the snapshot side too: older clients serve snapshots
+			// with raw configured names (e.g. "Ship"), which would otherwise
+			// never match the normalized typed token.
 			const command = snapshot.runtimeCommands.find(
-				(item) => item.name === name,
+				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
 			return command
-				? `${command.instructions}${input.slice(name.length + 1)}`
+				? `${command.instructions}${input.slice(rawName.length + 1)}`
 				: input;
 		},
 		hasConfiguredSkills: (allowedSkillNames) =>
