@@ -287,28 +287,6 @@ function dispatchCoreLog(chunk: string): void {
 	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
 }
 
-// #region agent log
-// Debug logger: console forwarding to the Next.js terminal proved unreliable,
-// so every instrumentation line is also mirrored to the instrumented sidecar's
-// stdout via POST /p0dbg. seq + t give exact client-side ordering even if the
-// POSTs arrive out of order.
-let p0dbgSeq = 0;
-function p0dbg(line: string): void {
-	p0dbgSeq += 1;
-	const stamped = `[P0DBG] seq=${p0dbgSeq} t=${Date.now()} ${line}`;
-	console.log(stamped);
-	try {
-		void fetch("http://127.0.0.1:3126/p0dbg", {
-			method: "POST",
-			body: stamped,
-			keepalive: true,
-		}).catch(() => {});
-	} catch {
-		// Debug mirror is best-effort.
-	}
-}
-// #endregion
-
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -442,21 +420,6 @@ export function useChatSession() {
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
-
-	// #region agent log
-	const statusDebugRef = useRef<ChatSessionStatus>("idle");
-	useEffect(() => {
-		statusDebugRef.current = status;
-	}, [status]);
-	// Heartbeat so wedged/clean composer states are verifiable from the
-	// sidecar log without trusting UI observation.
-	useEffect(() => {
-		const timer = setInterval(() => {
-			p0dbg(`heartbeat sid=${activeSessionIdRef.current} status=${statusDebugRef.current} queueLen=${promptsInQueueRef.current.length}`);
-		}, 3000);
-		return () => clearInterval(timer);
-	}, []);
-	// #endregion
 
 	const setWorkspacePath = useCallback((workspacePath: string): void => {
 		workspaceSelectionRequestRef.current += 1;
@@ -614,26 +577,17 @@ export function useChatSession() {
 	const verifyQueueStillBusy = useCallback(
 		(sid: string) => {
 			const epoch = turnEpochRef.current;
-			// #region agent log
-			p0dbg(`verifyQueueStillBusy: call sid=${sid} epoch=${epoch} status=${statusDebugRef.current}`);
-			// #endregion
 			void postSession({ action: "pending_prompts", sessionId: sid })
 				.then((payload) => {
 					if (
 						activeSessionIdRef.current !== sid ||
 						turnEpochRef.current !== epoch
 					) {
-						// #region agent log
-						p0dbg(`verifyQueueStillBusy: BAIL sid=${sid} activeSid=${activeSessionIdRef.current} epochThen=${epoch} epochNow=${turnEpochRef.current}`);
-						// #endregion
 						return;
 					}
 					const items = Array.isArray(payload.promptsInQueue)
 						? payload.promptsInQueue
 						: [];
-					// #region agent log
-					p0dbg(`verifyQueueStillBusy: result sid=${sid} items=${JSON.stringify(items)} status=${statusDebugRef.current} willFlip=${items.length === 0}`);
-					// #endregion
 					setPromptsInQueue(items);
 					if (items.length === 0) {
 						turnSettledEpochRef.current = turnEpochRef.current;
@@ -643,9 +597,6 @@ export function useChatSession() {
 					}
 				})
 				.catch(() => {
-					// #region agent log
-					p0dbg(`verifyQueueStillBusy: FETCH-FAILED sid=${sid}`);
-					// #endregion
 					// Keep the last known state on transient transport failures.
 				});
 		},
@@ -674,9 +625,6 @@ export function useChatSession() {
 	);
 
 	const applyPromptsInQueue = useCallback((value: unknown) => {
-		// #region agent log
-		p0dbg(`applyPromptsInQueue: value=${JSON.stringify(value)} isArray=${Array.isArray(value)} epoch=${turnEpochRef.current} status=${statusDebugRef.current}`);
-		// #endregion
 		if (!Array.isArray(value)) {
 			return;
 		}
@@ -1056,9 +1004,6 @@ export function useChatSession() {
 				sessionId?: string;
 				items?: PromptInQueue[];
 			};
-			// #region agent log
-			p0dbg(`prompts_in_queue_state: sid=${record.sessionId} items=${JSON.stringify(record.items)} activeSid=${activeSessionIdRef.current} applied=${record.sessionId === activeSessionIdRef.current} status=${statusDebugRef.current}`);
-			// #endregion
 			if (record.sessionId !== activeSessionIdRef.current) return;
 			setPromptsInQueue(Array.isArray(record.items) ? record.items : []);
 		});
@@ -1069,29 +1014,13 @@ export function useChatSession() {
 	const handleIncomingChunk = useCallback(
 		(payload: AgentChunkEvent) => {
 			if (!RELEVANT_STREAMS.has(payload.stream)) return;
-			// #region agent log
-			const p0dbgIsDelta = payload.stream === "chat_text" || payload.stream === "chat_reasoning";
-			const p0dbgDesc = `stream=${payload.stream} sid=${payload.sessionId} index=${payload.index} ts=${payload.ts}${p0dbgIsDelta ? ` chunkLen=${payload.chunk?.length ?? 0}` : ` chunk=${JSON.stringify(payload.chunk)?.slice(0, 300)}`}`;
-			p0dbg(`chunk recv: ${p0dbgDesc} activeSid=${activeSessionIdRef.current} status=${statusDebugRef.current} epoch=${turnEpochRef.current} queueRefLen=${promptsInQueueRef.current.length}`);
-			// #endregion
-			if (!shouldApplyStreamChunk(payload)) {
-				// #region agent log
-				p0dbg(`chunk DROP(dedupe): ${p0dbgDesc} lastIndex=${lastStreamIndexBySessionRef.current[payload.sessionId]}`);
-				// #endregion
-				return;
-			}
+			if (!shouldApplyStreamChunk(payload)) return;
 
 			const listeningSessionId = activeSessionIdRef.current;
 			if (!listeningSessionId || payload.sessionId !== listeningSessionId) {
-				// #region agent log
-				p0dbg(`chunk DROP(session-mismatch): ${p0dbgDesc} activeSid=${listeningSessionId}`);
-				// #endregion
 				return;
 			}
 			if (abortedRef.current) {
-				// #region agent log
-				p0dbg(`chunk DROP(aborted): ${p0dbgDesc}`);
-				// #endregion
 				return;
 			}
 
@@ -1159,9 +1088,6 @@ export function useChatSession() {
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
 				turnEpochRef.current += 1;
-				// #region agent log
-				p0dbg(`queued_prompt_start: sid=${listeningSessionId} epochBumpedTo=${turnEpochRef.current} queueRef=${JSON.stringify(promptsInQueueRef.current)}`);
-				// #endregion
 				// A new turn starts now: an error remembered from an earlier turn
 				// must not be attributed to this one if it fails without detail.
 				delete lastCoreErrorBySessionRef.current[listeningSessionId];
@@ -1210,9 +1136,6 @@ export function useChatSession() {
 				// keeps the composer on "Agent is working..." forever.
 				setPromptsInQueue((prev) => {
 					if (prev.length === 0) {
-						// #region agent log
-						p0dbg(`queued_prompt_start dequeue: prev empty, promptId=${promptId}`);
-						// #endregion
 						return prev;
 					}
 					let index = promptId
@@ -1223,9 +1146,6 @@ export function useChatSession() {
 							(item) => item.prompt === userLabel || item.prompt === prompt,
 						);
 					}
-					// #region agent log
-					p0dbg(`queued_prompt_start dequeue: promptId=${promptId} matchIndex=${index} prev=${JSON.stringify(prev)}`);
-					// #endregion
 					if (index === -1) {
 						return prev;
 					}
@@ -1397,9 +1317,6 @@ export function useChatSession() {
 								promptsInQueueRef.current.length > 0
 								? "running"
 								: "completed";
-				// #region agent log
-				p0dbg(`chat_done: sid=${listeningSessionId} reason=${doneReason} queueRef=${JSON.stringify(promptsInQueueRef.current)} statusBefore=${statusDebugRef.current} nextStatus=${nextStatus} epoch=${turnEpochRef.current}`);
-				// #endregion
 				setStatus(nextStatus);
 				if (nextStatus === "running") {
 					verifyQueueStillBusy(listeningSessionId);
@@ -1526,9 +1443,6 @@ export function useChatSession() {
 					status?: string;
 				};
 				const targetSessionId = record.sessionId?.trim();
-				// #region agent log
-				p0dbg(`chat_session_status recv: sid=${targetSessionId} status=${record.status} activeSid=${activeSessionIdRef.current} applied=${Boolean(targetSessionId && targetSessionId === activeSessionIdRef.current && record.status?.trim())} statusBefore=${statusDebugRef.current} epoch=${turnEpochRef.current}`);
-				// #endregion
 				if (
 					!targetSessionId ||
 					targetSessionId !== activeSessionIdRef.current
@@ -1549,9 +1463,6 @@ export function useChatSession() {
 					nextStatus === "running" &&
 					turnEpochRef.current === turnSettledEpochRef.current
 				) {
-					// #region agent log
-					p0dbg(`chat_session_status: IGNORED stale running after settle; sid=${targetSessionId} settledEpoch=${turnSettledEpochRef.current} statusBefore=${statusDebugRef.current}`);
-					// #endregion
 					return;
 				}
 				setStatus(nextStatus as ChatSessionStatus);
@@ -1568,9 +1479,6 @@ export function useChatSession() {
 					reason?: string;
 				};
 				const targetSessionId = record.sessionId?.trim();
-				// #region agent log
-				p0dbg(`chat_session_ended recv: sid=${targetSessionId} reason=${record.reason} activeSid=${activeSessionIdRef.current} statusBefore=${statusDebugRef.current}`);
-				// #endregion
 				if (
 					!targetSessionId ||
 					targetSessionId !== activeSessionIdRef.current
@@ -1744,9 +1652,6 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
-			// #region agent log
-			p0dbg(`submitPrompt: dispatch shouldQueue=${shouldQueue} activeSessionId=${activeSessionId} status=${status} hasEarlierPromptSubmission=${hasEarlierPromptSubmission} pendingSessionStart=${Boolean(pendingSessionStart)} epoch=${turnEpochRef.current} prompt=${JSON.stringify(trimmed.slice(0, 60))}`);
-			// #endregion
 			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
 				? undefined
 				: { streamedCostUsd: 0 };
@@ -1896,9 +1801,6 @@ export function useChatSession() {
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
-				// #region agent log
-				p0dbg(`send RPC dispatch: sid=${activeSessionId} delivery=${shouldQueue ? "queue" : "undefined"} epoch=${turnEpochAtDispatch} status=${statusDebugRef.current} t=${Date.now()}`);
-				// #endregion
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -1916,9 +1818,6 @@ export function useChatSession() {
 			}
 			try {
 				const payload = await sendTask;
-				// #region agent log
-				p0dbg(`send RPC resolved: sid=${activeSessionId} ok=${payload.ok} queued=${payload.queued} promptsInQueue=${JSON.stringify(payload.promptsInQueue)} hasResult=${Boolean(payload.result)} statusNow=${statusDebugRef.current} epochNow=${turnEpochRef.current} aborted=${abortedRef.current} t=${Date.now()}`);
-				// #endregion
 				if (payload.ok && payload.queued) {
 					if (turnEpochRef.current !== turnEpochAtDispatch) {
 						// The runtime already started consuming a queued prompt
@@ -1930,14 +1829,8 @@ export function useChatSession() {
 						// back to "running" — wedging the composer forever. The
 						// stream (chat_queued_prompt_start/chat_done and
 						// prompts_in_queue_state) is authoritative from here on.
-						// #region agent log
-						p0dbg(`send RPC queued-branch: STALE, skipping; statusNow=${statusDebugRef.current} epochAtDispatch=${turnEpochAtDispatch} epochNow=${turnEpochRef.current}`);
-						// #endregion
 						return;
 					}
-					// #region agent log
-					p0dbg(`send RPC queued-branch: applying promptsInQueue + setStatus(${abortedRef.current ? "cancelled" : "running"}); statusBefore=${statusDebugRef.current} epoch=${turnEpochRef.current}`);
-					// #endregion
 					applyPromptsInQueue(payload.promptsInQueue);
 					if (abortedRef.current) {
 						turnSettledEpochRef.current = turnEpochRef.current;

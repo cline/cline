@@ -884,9 +884,6 @@ async function handleSend(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	// #region agent log
-	console.log(`[P0DBG] handleSend: ENTER sid=${sessionId} t=${Date.now()}`);
-	// #endregion
 	const prompt = request.prompt?.trim() ?? "";
 	const hasAttachments =
 		(request.attachments?.userImages?.length ?? 0) > 0 ||
@@ -920,25 +917,6 @@ async function handleSend(
 	if (!delivery && session?.busy) {
 		delivery = "queue";
 	}
-	// #region agent log
-	// Fault injection: P0DBG_STARTUP_BUSY_MS=<ms> treats a session younger
-	// than <ms> as still busy, deterministically forcing the fresh-session
-	// first send onto the coerced-queue path (the natural trigger only fires
-	// on cold/slow startups).
-	if (!delivery && session) {
-		const p0dbgStartupBusyMs = Number(process.env.P0DBG_STARTUP_BUSY_MS ?? "");
-		const p0dbgSessionAgeMs = Date.now() - session.startedAt;
-		if (
-			Number.isFinite(p0dbgStartupBusyMs) &&
-			p0dbgStartupBusyMs > 0 &&
-			p0dbgSessionAgeMs < p0dbgStartupBusyMs
-		) {
-			delivery = "queue";
-			console.log(`[P0DBG] handleSend: FAULT-INJECT startup-busy coercion sid=${sessionId} sessionAgeMs=${p0dbgSessionAgeMs} windowMs=${p0dbgStartupBusyMs}`);
-		}
-	}
-	console.log(`[P0DBG] handleSend: sid=${sessionId} requestedDelivery=${request.delivery ?? "undefined"} sessionBusy=${session?.busy ?? "no-session"} sessionStatus=${session?.status ?? "no-session"} coercedDelivery=${delivery ?? "undefined"} t=${Date.now()}`);
-	// #endregion
 	const nextConfig = request.config
 		? mergeSessionConfig(session?.config ?? {}, request.config)
 		: undefined;
@@ -999,9 +977,6 @@ async function handleSend(
 			if (session) {
 				session.prompt = prompt;
 			}
-			// #region agent log
-			console.log(`[P0DBG] handleSend queue-path: sid=${sessionId} before manager.send t=${Date.now()}`);
-			// #endregion
 			await manager.send({
 				sessionId,
 				prompt: runtimePrompt,
@@ -1009,29 +984,8 @@ async function handleSend(
 				userImages: request.attachments?.userImages,
 				userFiles,
 			});
-			// #region agent log
-			console.log(`[P0DBG] handleSend queue-path: sid=${sessionId} manager.send returned, listing pendingPrompts t=${Date.now()}`);
-			// #endregion
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
-			// #region agent log
-			// Fault injection: P0DBG_DELAY_QUEUED_RESPONSE_MS=<ms> holds the
-			// {queued:true} RPC response for <ms> after the prompt is enqueued
-			// (snapshot already taken), so the runtime drains and completes the
-			// turn while the response is still in flight — the suspected wedge
-			// ordering.
-			{
-				const p0dbgDelayMs = Number(
-					process.env.P0DBG_DELAY_QUEUED_RESPONSE_MS ?? "",
-				);
-				if (Number.isFinite(p0dbgDelayMs) && p0dbgDelayMs > 0) {
-					console.log(`[P0DBG] handleSend queue-path: FAULT-INJECT holding queued response for ${p0dbgDelayMs}ms sid=${sessionId} t=${Date.now()}`);
-					await new Promise((resolve) => setTimeout(resolve, p0dbgDelayMs));
-					console.log(`[P0DBG] handleSend queue-path: FAULT-INJECT delay elapsed, returning now sid=${sessionId} t=${Date.now()}`);
-				}
-			}
-			console.log(`[P0DBG] handleSend queue-path: sid=${sessionId} returning queued:true promptsInQueue=${JSON.stringify(prompts.map((p) => ({ id: p.id, prompt: String(p.prompt ?? "").slice(0, 60) })))} t=${Date.now()}`);
-			// #endregion
 			return {
 				sessionId,
 				ok: true,
@@ -1488,9 +1442,6 @@ async function handlePendingPrompts(
 	const prompts = await getSessionManager(ctx).pendingPrompts.list({
 		sessionId,
 	});
-	// #region agent log
-	console.log(`[P0DBG] handlePendingPrompts: sid=${sessionId} prompts=${JSON.stringify(prompts.map((p) => ({ id: p.id, prompt: String(p.prompt ?? "").slice(0, 60) })))} t=${Date.now()}`);
-	// #endregion
 	return {
 		sessionId,
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),

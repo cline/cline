@@ -193,20 +193,6 @@ export function createFetchHandler(
 			return new Response(null, { status: 204, headers: corsHeaders(req) });
 		}
 
-		// #region agent log
-		// Debug mirror: the webview POSTs its [P0DBG] instrumentation lines
-		// here so they land in the sidecar's stdout log with server-side
-		// receipt ordering (browser console forwarding proved unreliable).
-		if (url.pathname === "/p0dbg" && req.method === "POST") {
-			if (!isTrustedRequestOrigin(req)) {
-				return createJsonResponse(req, { ok: false }, 403);
-			}
-			const line = await req.text();
-			console.log(`[P0DBG] webview| ${line.slice(0, 2000)}`);
-			return createJsonResponse(req, { ok: true });
-		}
-		// #endregion
-
 		if (url.pathname === "/health") {
 			return new Response(
 				JSON.stringify({
