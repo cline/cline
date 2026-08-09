@@ -69,6 +69,17 @@ function hasGlmThinkingProviderRouting(
 	);
 }
 
+function hasProviderReasoningRouting(
+	input: ProviderOptionMatchInput,
+): boolean {
+	return (
+		input.context.provider.metadata?.routing?.reasoning != null ||
+		isClineProvider(input.request.providerId) ||
+		input.request.providerId === "openrouter" ||
+		input.request.providerId === "vercel"
+	);
+}
+
 function usesMiniMaxThinkingProviderRouting(
 	input: ProviderOptionMatchInput,
 ): boolean {
@@ -489,7 +500,8 @@ const routedGlmReasoningRule: ProviderOptionRule = {
 		"Routed GLM models use the generic reasoning include/exclude shape, not thinking.type.",
 	applies: (input) =>
 		!usesGlmThinkingProviderRouting(input) &&
-		isGlmModel(input.request, input.context),
+		isGlmModel(input.request, input.context) &&
+		hasProviderReasoningRouting(input),
 	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildRoutedGlmReasoningProviderOptionsPatch(
