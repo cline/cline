@@ -90,9 +90,17 @@ async function main(): Promise<void> {
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 
+	// Bound after `shutdown` is defined below. The daemon's lifetime is tied to
+	// its server, so an authorized HTTP `POST /shutdown` must end the process
+	// just like SIGTERM does — that route is how auto-update restarts and
+	// `cline hub stop` retire the hub, and neither sends a signal when the
+	// HTTP request succeeds.
+	let requestDaemonShutdown: () => void = () => {};
+
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
+			onShutdownRequested: () => requestDaemonShutdown(),
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -121,7 +129,14 @@ async function main(): Promise<void> {
 	});
 	setActiveConnectorSupervisor(supervisor);
 
+	let shutdownStarted = false;
 	const shutdown = async (): Promise<void> => {
+		// A retiring caller can request shutdown more than once (the HTTP
+		// /shutdown route followed by SIGTERM); run the teardown only once.
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
 		// server.close() can stall forever (Bun never resolves it once a WebSocket
 		// upgrade happened), and with signal handlers installed nothing else will
 		// end the process — so the exit must not depend on the graceful path.
@@ -142,6 +157,9 @@ async function main(): Promise<void> {
 		await server.close();
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
+	};
+	requestDaemonShutdown = () => {
+		void shutdown();
 	};
 
 	let fatalShutdownStarted = false;

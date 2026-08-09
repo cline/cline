@@ -48,6 +48,17 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Invoked when an authorized HTTP `POST /shutdown` is accepted, before the
+	 * server begins closing. The server always closes itself either way; this
+	 * exists so a process whose lifetime is bound to the server — the detached
+	 * hub daemon — can arm its shutdown watchdog and exit. Without it, only
+	 * signal-delivered shutdowns end the daemon process, and callers that stop
+	 * the hub over HTTP (auto-update restart, `cline hub stop`) leave the
+	 * process alive when `server.close()` stalls (Bun never resolves it once a
+	 * WebSocket upgrade happened).
+	 */
+	onShutdownRequested?: () => void;
 }
 
 export interface HubWebSocketServer {

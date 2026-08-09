@@ -420,6 +420,11 @@ export async function startHubWebSocketServer(
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify({ ok: true }));
 			queueMicrotask(() => {
+				// Notify before closing so a daemon can arm its exit watchdog
+				// ahead of a close() that may never resolve. closeServer() is
+				// idempotent, so the callback awaiting server.close() joins
+				// this same close rather than racing it.
+				options.onShutdownRequested?.();
 				void closeServer();
 			});
 			return;

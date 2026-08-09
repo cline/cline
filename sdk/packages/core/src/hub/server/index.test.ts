@@ -242,6 +242,53 @@ describe("hub server startup", () => {
 		throw new Error("Timed out waiting for hub shutdown");
 	});
 
+	it("notifies onShutdownRequested when an authorized shutdown is accepted", async () => {
+		const owner = createInMemoryHubOwnerContext(
+			"hub-server-test-shutdown-callback",
+		);
+		const onShutdownRequested = vi.fn();
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			onShutdownRequested,
+		});
+		const server = requireServer(result.server);
+		servers.add(server);
+
+		const shutdownUrl = new URL(toHubHealthUrl(result.url));
+		shutdownUrl.pathname = "/shutdown";
+		const discovery = await readHubDiscovery(owner.discoveryPath);
+		if (!discovery) {
+			throw new Error("Expected hub discovery to be written");
+		}
+
+		// An unauthorized request must not fire the callback: the daemon exits
+		// on this signal, so a tokenless caller must not be able to end it.
+		const unauthorized = await fetch(shutdownUrl, { method: "POST" });
+		expect(unauthorized.status).toBe(401);
+		expect(onShutdownRequested).not.toHaveBeenCalled();
+
+		const response = await fetch(shutdownUrl, {
+			method: "POST",
+			headers: { authorization: `Bearer ${discovery.authToken}` },
+		});
+		expect(response.status).toBe(202);
+
+		await vi.waitFor(() => {
+			expect(onShutdownRequested).toHaveBeenCalledTimes(1);
+		});
+
+		// The server still closes itself; the callback is a notification, not
+		// a replacement for the close.
+		await vi.waitFor(async () => {
+			expect(await readHubDiscovery(owner.discoveryPath)).toBeUndefined();
+		});
+		servers.delete(server);
+	});
+
 	it("rejects shutdown request with 401 when no auth token is provided", async () => {
 		const owner = createInMemoryHubOwnerContext(
 			"hub-server-test-shutdown-unauth",
