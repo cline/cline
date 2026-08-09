@@ -1,5 +1,62 @@
 # Cline Code Desktop Changelog
 
+## 0.0.11
+
+- Images can now be pasted straight from the clipboard into the composer.
+- Opening a folder that isn't a git repo no longer shows git jargon, and the welcome suggestions now adapt to what's actually in the folder instead of assuming a code project.
+- The folder picker now reports failures instead of doing nothing, and offers a manual path entry as a fallback.
+- Opening an existing session no longer overwrites the model you had selected.
+- The diff panel now resolves file paths against the session's working directory, so diffs open correctly for sessions rooted outside the app's own directory.
+- `/team` prompts now run through the core runtime.
+- Failed turns surface their error in the transcript instead of leaving the chat blank.
+- Plugins left behind as empty install directories are no longer listed as installed, and plugin settings and contributions are now managed centrally with atomic toggles.
+- Fixed a startup script-load error, and webview errors are now attributed to the source URL that caused them.
+- Signing out is handled as a normal state rather than surfacing as a command error.
+- Native-feel and performance polish: the browser context menu is suppressed on app chrome (kept for text fields and selections), UI chrome is no longer text-selectable while chat content still is, inner scrollers no longer rubber-band the window, Settings/Sessions/Onboarding/Diff load lazily, the composer no longer flickers the caret on every keystroke, slash commands are cached across menu opens, and Escape closes the provider/model picker.
+- Tool output no longer nests its own scrollbar.
+- Prompts queued during a turn now survive being interrupted — they're preserved across aborts, drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped. Queued turns that fail are reported as failures.
+- Session context stays durable across aborts and hub restarts.
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely.
+- Remote SSE MCP servers surface an OAuth authorization prompt on a 401 instead of failing outright.
+- LiteLLM requests route through Chat Completions instead of the Responses API.
+- Network interruptions mid-stream but before any model output are retried instead of failing the turn.
+- Checkpoints are picked up when git is initialized part-way through a session, and checkpoint diffs include files that were untracked when the snapshot was taken.
+- Scheduled run reports carry execution context — schedule metadata, durations, and lifecycle error details.
+
+## 0.0.10
+
+- Remote MCP servers can now authenticate with OAuth from Settings → MCP — authorize a server, see its auth status, and cancel or retry a pending authorization. Servers that require a pre-registered OAuth client (client ID/secret) instead of dynamic registration are now supported, and stored tokens are invalidated when a server's client configuration changes.
+- MCP errors are now shown on the individual server rather than as a page-level error, and a server with invalid configuration is surfaced with its error instead of silently disappearing from the list.
+- Failed turns no longer fail silently. Sending a message with no model credentials — or any queued turn that fails — now shows an error in the transcript, enriched with the underlying cause and a pointer to Settings → Models.
+- Fixed the first message of a chat (and some queued messages) rendering twice.
+- Fixed the composer getting stuck on "Agent is working…" after a turn already finished.
+- New "Connect a model" notice on the welcome screen when no provider has credentials, with one click to onboarding or model settings. It reacts live as you add credentials, and correctly recognizes Bedrock/Vertex and keyless local endpoints as already connected.
+- Added "Get an API key" links for popular providers in onboarding and Settings → Models, plus a link to the Cline dashboard from the Cline API key form.
+- The onboarding welcome step now explains what Cline is.
+- The stop button is now actually visible and clickable, Esc stops the current turn, and new shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for settings.
+- Reasoning controls now resolve consistently across AI SDK providers, including Ollama, so effort levels and thinking on/off are honored wherever the provider supports them.
+- Vertex AI: credential refreshes now use the configured fetch, fixing ADC authentication behind proxies and custom networking.
+- Refreshed the bundled provider and model catalog.
+
+## 0.0.9
+
+- Cline Code now ships as a single universal macOS download that runs natively on both Apple Silicon and Intel — no more picking the right architecture. Existing per-architecture installs migrate to it automatically on their next update.
+- Session history can now be filtered by where a session came from — Desktop, CLI, extension, or scheduled — from a new filter control in the sidebar.
+- The composer now shows a token usage ring for the active model's context window, with cumulative cost, and it changes color as you approach the limit.
+- Skills now appear in the slash command menu alongside workflows, and commands that share a name are disambiguated instead of shadowing each other.
+- Installed plugins now show their real package names instead of all appearing as "index".
+- The agent header can be dragged to move the window again, including on read-only titles.
+- Chat message actions (copy, fork, edit, restore) no longer collide with the descenders of the message's last line.
+- Application errors are now reported in diagnostics, and the packaged app's telemetry configuration is baked into the sidecar at build time — previously the packaged build shipped with it empty, so no diagnostics were ever sent.
+- Plan mode now hard-blocks file-editing shell commands rather than relying on prompting alone; read-only investigation still works.
+- Running out of context is now recovered from automatically — the run compacts and retries once instead of failing with a raw provider error.
+- Empty model responses are now retried on every provider, not just Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Claude 4.6+ and 5.x models are no longer rejected with "thinking.type.enabled is not supported".
+- Bedrock prompt caching works again — cache reads and writes were always 0 — and Bedrock foundation models now route through geo inference profiles.
+- Reasoning models on OpenAI-compatible endpoints now get the correct token parameter, and models without image support substitute image content instead of failing.
+- Refreshed the bundled provider and model catalog, adding Infomaniak and SCX.ai.
+- Upgraded the model layer to AI SDK 7 and switched Ollama to the native provider.
+
 ## 0.0.8
 
 - Edit any earlier message in a conversation — the app forks the session at that point, rewinds the workspace to that run's checkpoint, and re-runs from your edited prompt. Restores are transactional and workspace-atomic, so a failed restore won't leave you half-rewound.

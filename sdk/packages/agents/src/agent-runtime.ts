@@ -1849,7 +1849,11 @@ export class AgentRuntime {
 						error: event.error,
 						severity: "error",
 						handled: false,
-						context: metadata as TelemetryProperties,
+						context: {
+							...(metadata as TelemetryProperties),
+							providerId: this.getTelemetryProviderId(),
+							modelId: this.getTelemetryModelId(),
+						},
 					});
 				}
 				break;

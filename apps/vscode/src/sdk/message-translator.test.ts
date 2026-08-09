@@ -1239,6 +1239,66 @@ describe("translateSessionEvent — agent_event error", () => {
 		expect(result.turnComplete).toBe(true)
 	})
 
+	it("treats recoverable errors as in-run notices: no messages, no turn end, no error phase", () => {
+		// The MistakeTracker emits a recoverable error event for every recorded
+		// mistake (e.g. a plan-mode guard-blocked command as the turn's only
+		// tool call) while the run keeps going. It must not surface the error
+		// recovery UI or mark the turn errored/complete.
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error('1 tool call(s) failed: [run_commands] {"error":"Command not executed"}'),
+					recoverable: true,
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toHaveLength(0)
+		expect(result.turnComplete).toBe(false)
+		expect(state.wasErrorSeen()).toBe(false)
+	})
+
+	it("still retags the plan completion when a recoverable mistake happened mid-turn", () => {
+		// Regression: a plan-mode turn whose blocked run_commands call fed the
+		// MistakeTracker used to end in the error phase with the plan text left
+		// as a plain say, so the plan→act toggle never auto-continued.
+		const state = new MessageTranslatorState(undefined, undefined, () => "plan")
+		const agentEvent = (event: Partial<AgentEvent> & { type: string }): CoreSessionEvent =>
+			({
+				type: "agent_event",
+				payload: { sessionId: "session-1", event: event as AgentEvent },
+			}) as CoreSessionEvent
+
+		// Mid-turn recoverable mistake (blocked tool call was the only tool).
+		translateSessionEvent(
+			agentEvent({ type: "error", error: new Error("1 tool call(s) failed: [run_commands]"), recoverable: true }),
+			state,
+		)
+		// The model recovers and presents the plan, then the turn completes.
+		const textResult = translateSessionEvent(
+			agentEvent({ type: "content_end", contentType: "text", text: "Here is the plan." }),
+			state,
+		)
+		const doneResult = translateSessionEvent(
+			agentEvent({ type: "done", reason: "completed", text: "", iterations: 2 }),
+			state,
+		)
+
+		expect(state.wasErrorSeen()).toBe(false)
+		expect(doneResult.messages).toContainEqual({
+			ts: textResult.messages[0].ts,
+			type: "say",
+			say: "plan_completion_result",
+			text: "Here is the plan.",
+			partial: false,
+		})
+	})
+
 	it("records the error outcome when the turn terminates with done(reason:'error')", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {

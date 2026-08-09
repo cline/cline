@@ -1,5 +1,46 @@
 # Cline CLI Changelog
 
+## 3.0.52
+
+- Added `cline mcp uninstall` for removing an installed MCP server
+- Schedules now reuse your saved provider settings instead of needing provider configuration of their own
+- Queued messages are legible on light-theme terminals — they were previously rendered in a color that washed out against a light background
+- MCP tool results render as readable text in the TUI instead of escaped JSON, and binary payloads survive being expanded instead of being mangled
+- Malformed tool input/output payloads no longer break rendering — the formatters degrade gracefully instead of throwing
+- Prompts queued during a turn now survive being interrupted: they are preserved across aborts, drained after a turn aborts itself, and the stop is surfaced instead of leaving the queue silently dropped (from SDK v0.0.72)
+- Session context stays durable across aborts and hub restarts, so an interrupted session resumes with the state it had (from SDK v0.0.72)
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely (from SDK v0.0.72)
+- Remote SSE MCP servers surface an OAuth authorization prompt on a 401 instead of failing outright, and pre-registered OAuth clients are supported for setups without dynamic client registration (from SDK v0.0.72)
+- LiteLLM requests route through Chat Completions instead of the Responses API, fixing calls against LiteLLM proxies (from SDK v0.0.72)
+- Network interruptions that happen mid-stream but before any model output are retried instead of failing the turn (from SDK v0.0.72)
+- Vertex ADC token refreshes use the configured fetch, so they work behind proxies and custom transports (from SDK v0.0.72)
+- Checkpoint diffs include files that were untracked when the snapshot was taken, and checkpoints are picked up when git is initialized part-way through a session (from SDK v0.0.72)
+- Scheduled run reports carry execution context — readable headers, schedule metadata, durations, and lifecycle error details (from SDK v0.0.72)
+
+## 3.0.51
+
+- Reasoning effort now applies consistently across providers instead of going through per-provider thinking overrides, including Ollama, and asking for reasoning to be off is respected everywhere (from SDK v0.0.71)
+- `meta/muse-spark-1.2-contributor` is now selectable on the Cline provider, alongside a refreshed model catalog (from SDK v0.0.71)
+- Error telemetry now reports the model that was actually in use for the run (from SDK v0.0.71)
+
+## 3.0.50
+
+- Added user-selectable color themes to the interactive TUI. Pick one with `/theme`, the command palette, or the Theme row in `/settings` — the picker previews each theme live. Built-in themes are Auto (terminal-adaptive, the default), Cline Dark, Cline Light, Tokyo Night, Gruvbox Dark, Nord, Dracula, Catppuccin Mocha, One Dark, Solarized Dark, and Solarized Light. Named themes paint the background, foreground, accents, syntax highlighting, and diff colors, and `CLINE_THEME` overrides the persisted choice at startup
+- The git branch shown below the prompt now updates when you switch branches from another terminal or your editor, instead of showing whatever was checked out when the TUI started
+- Telegram slash commands such as `/clear` now reach the connector command host — the Telegram library was intercepting them and they were silently dropped
+- Racing connector launches no longer collide: an instance is claimed before it opens socket mode, the hub supervises connector processes, and `doctor`/`connect` skip connectors that are already starting. Connector tools are also enabled by default, and the Slack greeting is no longer replayed on reconnect
+- Auto-approval settings are now honored over ACP
+- Plan mode now hard-blocks file-editing shell commands instead of relying on prompting alone — `run_commands` stays available for read-only investigation, but file-manipulation commands, in-place editors (`sed -i`, `perl -i`), redirection to files, mutating git subcommands, package installs, and nested command strings (`sh -c`, `eval`, `sudo`) are rejected, on Windows and PowerShell too (from SDK v0.0.70)
+- A turn that ends with a completed plan is no longer rendered as a failed turn when a plan-blocked command was its only tool call
+- Running out of context is now recovered from instead of failing with a raw provider error: the run force-compacts and retries once, and the cases that genuinely cannot be recovered report why (from SDK v0.0.70)
+- Empty model responses are now retried on every provider, not just Ollama — OpenRouter, Cline, and OpenAI-compatible endpoints previously failed the task outright with "Model returned empty response" (from SDK v0.0.70)
+- Claude 4.6+ and 5.x models are no longer rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id (from SDK v0.0.70)
+- Bedrock prompt caching works again — the provider was sending a cache format Bedrock silently discards, so cache reads and writes were always 0 — and Bedrock foundation models are now routed through geo inference profiles (from SDK v0.0.70)
+- Reasoning models on OpenAI-compatible endpoints now receive `max_completion_tokens` instead of the rejected `max_tokens`, and requests to models without image support substitute the image content instead of failing (from SDK v0.0.70)
+- MiniMax now inherits its default model from models.dev, and the model catalog picked up two new providers, Infomaniak and SCX.ai (from SDK v0.0.70)
+- Upgraded the model layer to AI SDK 7 and switched Ollama to the native AI SDK provider (from SDK v0.0.70)
+- Error telemetry no longer reports the same provider failure twice, and repeated failures from unattended retry loops are rate-limited (from SDK v0.0.70)
+
 ## 3.0.49
 
 - `/undo` works again once the agent has used tools — the checkpoint picker counted tool results as user turns, so restore aborted with "Could not find user message for run N"
