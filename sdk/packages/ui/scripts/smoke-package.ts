@@ -24,6 +24,7 @@ import {
 	SessionStatus,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
+import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 
 for (const specifier of [
 	"@cline/ui/components.css",
@@ -38,6 +39,13 @@ for (const specifier of [
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
+const summary = buildToolSummary({
+	toolName: "read_files",
+	input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
+});
+if (summary.label !== "Read app.tsx (10–80)" || summary.kind !== "read") {
+	throw new Error("tool-summary subpath returned an unexpected summary");
+}
 if (
 	!AgentApprovalCard ||
 	!AgentAskQuestion ||

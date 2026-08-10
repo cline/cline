@@ -18,6 +18,11 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "../components/agent-chat";
+import {
+	buildToolSummary,
+	type ToolKind,
+	type ToolSummary,
+} from "../components/agent-chat/tool-summary";
 
 const meta: Meta<typeof Conversation> = {
 	title: "Agent chat/Primitives",
@@ -188,6 +193,117 @@ export const ToolStates = () => (
 				</ToolActivityContent>
 			</ToolActivity>
 		))}
+	</ChatFrame>
+);
+
+const SUMMARY_ICONS: Partial<Record<ToolKind, () => React.ReactNode>> = {
+	command: TerminalIcon,
+	edit: EditIcon,
+	read: SearchIcon,
+	search: SearchIcon,
+};
+
+function SummaryToolRow({ summary }: { summary: ToolSummary }) {
+	const Icon = SUMMARY_ICONS[summary.kind] ?? TerminalIcon;
+	const diffs = summary.items.filter(
+		(item) => item.type === "file" && item.diff,
+	);
+	const expandable =
+		summary.details.length > 0 ||
+		diffs.length > 0 ||
+		Boolean(summary.outputText) ||
+		Boolean(summary.errorText);
+	return (
+		<ToolActivity expandable={expandable}>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions || undefined}
+				deletions={summary.diff?.deletions || undefined}
+				icon={<Icon />}
+				label={summary.label}
+				status={summary.errorText ? "error" : "success"}
+			/>
+			<ToolActivityContent>
+				{summary.details.length > 0 ? (
+					<ToolActivityDetails>
+						{summary.details.map((detail, index) => (
+							// biome-ignore lint/suspicious/noArrayIndexKey: static fixtures
+							<div key={index}>{detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{diffs.map((item) =>
+					item.type === "file" && item.diff ? (
+						<ToolActivityCode key={item.path}>{item.diff}</ToolActivityCode>
+					) : null,
+				)}
+				{summary.outputText ? (
+					<ToolActivityCode>{summary.outputText}</ToolActivityCode>
+				) : null}
+				{summary.errorText ? (
+					<ToolActivityCode>{summary.errorText}</ToolActivityCode>
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
+	);
+}
+
+/**
+ * Rows driven end-to-end by `buildToolSummary` from
+ * `@cline/ui/components/agent-chat/tool-summary` — the same payloads the
+ * desktop app and cloud dashboard feed it.
+ */
+export const ToolSummaries = () => (
+	<ChatFrame>
+		<Message from="assistant">
+			{[
+				buildToolSummary({
+					toolName: "read_files",
+					input: {
+						files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }],
+					},
+				}),
+				buildToolSummary({
+					toolName: "read_files",
+					input: {
+						file_paths: [
+							"webview/components/views/chat/chat-messages.tsx",
+							"webview/lib/chat-schema.ts",
+							"webview/lib/session-diff.ts",
+						],
+					},
+				}),
+				buildToolSummary({
+					toolName: "run_commands",
+					input: { commands: ["bun run test"] },
+					result: "45 tests passed",
+				}),
+				buildToolSummary({
+					toolName: "editor",
+					input: {
+						path: "src/util.ts",
+						old_text: "const a = 1;\nconst b = 2;",
+						new_text: "const a = 1;\nconst b = 3;\nconst c = 4;",
+					},
+				}),
+				buildToolSummary({
+					toolName: "search_codebase",
+					input: { queries: ["ToolActivityTrigger"] },
+				}),
+				buildToolSummary({
+					toolName: "team_spawn_teammate",
+					result: { agentId: "researcher-1" },
+				}),
+				buildToolSummary({
+					toolName: "run_commands",
+					input: { commands: ["bun run deploy"] },
+					isError: true,
+					result: { error: "exit code 1: missing credentials" },
+				}),
+			].map((summary, index) => (
+				// biome-ignore lint/suspicious/noArrayIndexKey: static fixtures
+				<SummaryToolRow key={index} summary={summary} />
+			))}
+		</Message>
 	</ChatFrame>
 );
 

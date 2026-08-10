@@ -46,6 +46,16 @@ Each application continues to own:
 This boundary gives Cline products a shared visual and interaction language
 without turning `@cline/ui` into a second agent runtime.
 
+One deliberate exception: tool-call *presentation* is shared. The
+`@cline/ui/components/agent-chat/tool-summary` subpath exports pure,
+framework-free functions (`buildToolSummary`, `buildGroupedToolLabel`, and
+the underlying parsers) that turn a raw `{ toolName, input, result }` payload
+into the labels, per-item details, and diff counts every surface should show.
+It takes `unknown` in and data out — no React, no icons, no dependency on
+`@cline/core` or transport events — so consumers still own their message
+schemas, icon assets, and rendering. Use it instead of hand-rolling tool
+labels so read/edit/command rows stay consistent across products.
+
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and
@@ -456,7 +466,6 @@ Keep the following outside `@cline/ui`:
 - Application routes and information architecture
 - Session, workspace, provider, and sidecar behavior
 - Runtime event normalization and persistence
-- Tool-name classification and raw tool-payload parsing
 - Approval and question request orchestration
 - Product-specific actions and animation
 - Components that have not been proven reusable by multiple products
