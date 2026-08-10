@@ -8,6 +8,7 @@ import * as fs from "node:fs/promises"
 import * as path from "node:path"
 import {
 	type CompareCheckpointResult,
+	type CoreSessionEvent,
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
@@ -189,6 +190,11 @@ export class Controller {
 	// the "autoRetryFailedRequests" setting). Schedules retries through the
 	// normal send funnel; auth/balance errors are excluded by the caller.
 	private apiRetry!: SdkApiRetryCoordinator
+	// True between intercepting a non-recoverable error event (the SDK delivers
+	// connection-level failures like ETIMEDOUT as session events, not as send()
+	// rejections) and the retry actually firing. While pending, the follow-up
+	// done(reason:"error") event is suppressed and onSendComplete skips reset().
+	private autoRetryPending = false
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
 	private readonly providerConfigStore: ProviderConfigStore
@@ -371,6 +377,14 @@ export class Controller {
 			// host's process.cwd() (usually "/"); resolve them against the workspace instead.
 			readFileExecutor: createWorkspaceFileReadExecutor(() => this.getWorkspaceRoot()),
 			onSessionEvent: (event) => {
+				// The SDK resolves send() normally even for fatal API errors
+				// (ETIMEDOUT, provider outage, etc.) and delivers them as
+				// non-recoverable "error" agent events — NOT as promise
+				// rejections. So onSendError never fires for these connection-
+				// level failures; intercept them here for auto-retry.
+				if (this.maybeHandleAutoRetryForEvent(event)) {
+					return
+				}
 				this.sessionEvents.handleSessionEvent(event).catch((err) => {
 					Logger.error("[SdkController] Failed to handle session event:", err)
 				})
@@ -403,8 +417,12 @@ export class Controller {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
 				// A turn succeeded — clear any auto-retry streak so the next failure
-				// starts a fresh backoff from attempt 1.
-				this.apiRetry?.reset()
+				// starts a fresh backoff from attempt 1. Skip this when a retry is
+				// pending: the SDK resolved send() normally, but an error event was
+				// intercepted for auto-retry, so the turn did NOT actually succeed.
+				if (!this.autoRetryPending) {
+					this.apiRetry?.reset()
+				}
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
@@ -498,6 +516,8 @@ export class Controller {
 			isAutoRetryEnabled: () => !!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
 			isSessionActive: (sessionId) => this.sessions.getActiveSession()?.sessionId === sessionId,
 			sendTurn: () => {
+				// Clear the pending flag: the retry is about to start a new turn.
+				this.autoRetryPending = false
 				// Mirror the webview "Retry" button exactly: askResponse with no
 				// prompt re-sends the failed turn through the normal send funnel.
 				this.askResponse().catch((err) => {
@@ -643,6 +663,11 @@ export class Controller {
 			createHistoryItemFromSession,
 			clearTask: async () => {
 				this.pendingClineAuthRetryPrompt = undefined
+				// Starting a new task supersedes any pending connection-error
+				// retry. Without this, autoRetryPending would stay true and
+				// suppress done events for the new session.
+				this.autoRetryPending = false
+				this.apiRetry?.cancel()
 				await this.taskControl.clearTask()
 			},
 			setTask: (task) => {
@@ -1326,6 +1351,7 @@ export class Controller {
 
 	async cancelTask(): Promise<void> {
 		// Stop any pending auto-retry so a cancelled task doesn't resuscitate itself.
+		this.autoRetryPending = false
 		this.apiRetry?.cancel()
 		// Fence first: mark resumable before aborting so any straggler events from the aborted
 		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
@@ -1461,6 +1487,106 @@ export class Controller {
 			],
 			{ type: "status", payload: { sessionId, status: "running" } },
 		)
+	}
+
+	/**
+	 * Returns true if the event was consumed by auto-retry and the caller should
+	 * skip normal session-event processing.
+	 *
+	 * The SDK resolves send() normally even for fatal API errors (ETIMEDOUT,
+	 * provider outages) and delivers them as non-recoverable "error" agent
+	 * events — NOT as promise rejections. So the onSendError path never fires
+	 * for connection-level failures. This intercepts those error events and
+	 * feeds them to the auto-retry coordinator instead of showing the hard-
+	 * error UI.
+	 *
+	 * While a retry is pending, the follow-up done(reason:"error") event is also
+	 * swallowed — otherwise it would flip the turn phase to "error" and clobber
+	 * the "retrying" state.
+	 */
+	private maybeHandleAutoRetryForEvent(event: CoreSessionEvent): boolean {
+		// While a retry is pending, swallow the done event that follows the
+		// intercepted error so the turn stays in the "retrying" state.
+		if (this.autoRetryPending) {
+			const agentEvent = event.type === "agent_event" ? event.payload.event : null
+			if (agentEvent?.type === "done") {
+				Logger.debug("[SdkController] Suppressing done event during auto-retry")
+				return true
+			}
+		}
+
+		// Check for non-recoverable error events eligible for auto-retry.
+		if (event.type !== "agent_event") {
+			return false
+		}
+		const agentEvent = event.payload.event
+		if (agentEvent.type !== "error" || agentEvent.recoverable) {
+			return false
+		}
+		const sessionId = event.payload.sessionId
+		if (!this.shouldAutoRetryError(agentEvent.error, sessionId)) {
+			return false
+		}
+
+		const willRetry = this.apiRetry?.handleSendError(agentEvent.error, sessionId) ?? false
+		if (!willRetry) {
+			return false
+		}
+
+		this.autoRetryPending = true
+		// Capture provider-failure telemetry — the session coordinator's
+		// getAgentFailureTelemetry would normally do this, but we bypass
+		// handleSessionEvent by intercepting the event.
+		this.captureProviderFailure({
+			sessionId,
+			error: agentEvent.error,
+			errorType: PROVIDER_FAILURE_ERROR_TYPE.SDK_AGENT_ERROR,
+			failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
+		})
+		// Emit the error text so the user sees what failed; the coordinator's
+		// emitRetryScheduled callback (already fired inside handleSendError)
+		// shows the "retrying in Ns" message. Keep the turn active (streaming /
+		// Cancel) via the running status.
+		const errorMessage = agentEvent.error instanceof Error ? agentEvent.error.message : String(agentEvent.error)
+		this.messages.emitSessionEvents(
+			[
+				{
+					ts: Date.now(),
+					type: "say",
+					say: "error",
+					text: `Agent error: ${errorMessage}`,
+					partial: false,
+				},
+			],
+			{ type: "status", payload: { sessionId, status: "running" } },
+		)
+		return true
+	}
+
+	/**
+	 * Whether an error should be auto-retried: the setting must be on, and the
+	 * error must not be an auth or balance failure (those need user action and
+	 * would loop forever if retried). Mirrors the exclusion logic in onSendError.
+	 */
+	private shouldAutoRetryError(error: unknown, sessionId: string): boolean {
+		if (!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests")) {
+			return false
+		}
+		const errorMessage = error instanceof Error ? error.message : String(error)
+		const providerId = this.getSessionProviderId(sessionId) ?? this.getActiveProviderId()
+		if (isClineManagedProvider(providerId)) {
+			if (
+				errorMessage.includes(CLINE_ACCOUNT_AUTH_ERROR_MESSAGE) ||
+				errorMessage.toLowerCase().includes("missing api key") ||
+				errorMessage.toLowerCase().includes("unauthorized")
+			) {
+				return false
+			}
+			if (this.isClineBalanceError(errorMessage)) {
+				return false
+			}
+		}
+		return true
 	}
 
 	async editMessageAndRegenerate(input: {
