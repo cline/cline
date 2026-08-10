@@ -8,6 +8,17 @@ export default defineConfig({
 	resolve: {
 		alias: [
 			{
+				find: /^@cline\/hub$/,
+				replacement: resolve(rootDir, "../../sdk/packages/hub/src/index.ts"),
+			},
+			{
+				find: /^@cline\/hub-daemon$/,
+				replacement: resolve(
+					rootDir,
+					"../../sdk/packages/hub-daemon/src/index.ts",
+				),
+			},
+			{
 				find: /^@cline\/core\/telemetry$/,
 				replacement: resolve(
 					rootDir,

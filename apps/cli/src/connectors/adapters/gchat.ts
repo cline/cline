@@ -1,9 +1,7 @@
 import { createGoogleChatAdapter } from "@chat-adapter/gchat";
 import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type {
 	ConnectGoogleChatOptions,
 	GoogleChatConnectorState,

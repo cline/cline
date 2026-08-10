@@ -2,11 +2,11 @@
 
 import { isMainThread } from "node:worker_threads";
 import {
-	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
 	disposeAll,
 	initVcr,
 	setConnectorCliLaunchSpec,
+	setHubDaemonLaunchSpec,
 } from "@cline/shared";
 import { logCliProcessError } from "./logging/errors";
 import {
@@ -14,7 +14,10 @@ import {
 	cleanupActiveRuntime,
 	isAbortInProgress,
 } from "./runtime/active-runtime";
-import { resolveCliLaunchSpec } from "./utils/internal-launch";
+import {
+	resolveCliHubDaemonLaunchSpec,
+	resolveCliLaunchSpec,
+} from "./utils/internal-launch";
 import { writeErr } from "./utils/output";
 
 // Initialize VCR before any HTTP requests are made.
@@ -23,13 +26,9 @@ initVcr(process.env.CLINE_VCR);
 
 if (!isMainThread) {
 	// Worker imports of the bundled CLI entrypoint should not start the CLI.
-} else if (claimHubDaemonProcess()) {
-	// Claim rather than read: the sentinel is consumed here so the processes a
-	// daemon-hosted session spawns do not inherit it and try to become daemons.
-	// The hub daemon owns its process-level abort handling. Installing the CLI's
-	// fatal rejection handler first would make expected abort rejections exit it.
-	void import("@cline/core/hub/daemon-entry");
 } else {
+	const hubLaunchSpec = resolveCliHubDaemonLaunchSpec();
+	if (hubLaunchSpec) setHubDaemonLaunchSpec(hubLaunchSpec);
 	// Same reasoning as the daemon sentinel above: consume the supervised-connector
 	// marker so the processes an agent session spawns cannot inherit it and mistake
 	// themselves for the connector the hub is tracking.

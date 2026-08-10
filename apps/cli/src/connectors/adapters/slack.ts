@@ -1,9 +1,7 @@
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
 import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type { ConnectSlackOptions, SlackConnectorState } from "@cline/shared";
 import {
 	type Adapter,

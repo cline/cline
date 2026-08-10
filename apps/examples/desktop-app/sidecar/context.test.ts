@@ -24,6 +24,14 @@ vi.mock("@cline/core", async () => {
 		ClineCore: {
 			create: createCoreMock,
 		},
+	};
+});
+
+vi.mock("@cline/hub", async () => {
+	const actual =
+		await vi.importActual<typeof import("@cline/hub")>("@cline/hub");
+	return {
+		...actual,
 		ensureCompatibleLocalHubUrl: ensureCompatibleLocalHubUrlMock,
 		NodeHubClient: class {
 			constructor(options: unknown) {
@@ -243,7 +251,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),

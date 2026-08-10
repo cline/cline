@@ -178,7 +178,7 @@ jobs:
 
       # Pack with Bun so workspace/catalog protocols are resolved in the tarball,
       # then publish that tarball with npm so npm trusted publishing can use GitHub OIDC.
-      # Publish sequentially in dependency order: shared → llms → agents → core → sdk
+      # Publish sequentially in dependency order: shared → llms → agents → hub → core → hub-daemon → sdk
       - name: Publish @cline/shared
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -215,6 +215,18 @@ jobs:
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
+      - name: Publish @cline/hub
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Publishing @cline/hub@${VERSION} with tag '${CHANNEL}'..."
+          cd sdk/packages/hub
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+
       - name: Publish @cline/core
         if: steps.check_commits.outputs.skip != 'true'
         env:
@@ -224,6 +236,18 @@ jobs:
         run: |
           echo "Publishing @cline/core@${VERSION} with tag '${CHANNEL}'..."
           cd sdk/packages/core
+          TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
+          npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
+
+      - name: Publish @cline/hub-daemon
+        if: steps.check_commits.outputs.skip != 'true'
+        env:
+          NPM_CONFIG_PROVENANCE: "true"
+          CHANNEL: ${{ steps.channel.outputs.channel }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          echo "Publishing @cline/hub-daemon@${VERSION} with tag '${CHANNEL}'..."
+          cd sdk/packages/hub-daemon
           TARBALL=$(bun pm pack --destination "$RUNNER_TEMP/sdk-npm-packs" --quiet)
           npm publish "$RUNNER_TEMP/sdk-npm-packs/$(basename "$TARBALL")" --tag "$CHANNEL" --access public
 
@@ -247,7 +271,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-          for PKG in shared llms agents core sdk; do
+          for PKG in shared llms agents hub core hub-daemon sdk; do
             TAG="sdk/${PKG}/v${VERSION}"
             if git rev-parse -q --verify "refs/tags/${TAG}" >/dev/null; then
               echo "Tag already exists locally: ${TAG}"

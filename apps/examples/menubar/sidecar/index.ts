@@ -1,21 +1,17 @@
 import process from "node:process";
 import { createInterface } from "node:readline";
+import { Llms, ProviderSettingsManager } from "@cline/core";
 import {
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubSessionClient,
 	HubUIClient,
-	Llms,
-	ProviderSettingsManager,
 	stopLocalHubServerGracefully,
 	toHubStatusUrl,
-} from "@cline/core";
-import {
-	claimHubDaemonProcess,
-	type HubUINotifyPayload,
-	type SessionRecord,
-} from "@cline/shared";
+} from "@cline/hub";
+import type { HubUINotifyPayload, SessionRecord } from "@cline/shared";
 import { configureMenubarConnectorCliLaunch } from "./connector-cli-launch";
+import { configureMenubarHubDaemonLaunch } from "./hub-launch";
 
 interface TrackedClient {
 	clientId: string;
@@ -81,21 +77,6 @@ type ClientSummaryGroup = {
 	sessionCount: number;
 	firstConnectedAt: number;
 };
-
-function isBundledDaemonEntryInvocation(): boolean {
-	const entryArg = process.argv[1]?.trim() ?? "";
-	const isBunEmbeddedEntry =
-		entryArg.includes("/$bunfs/") &&
-		(entryArg.endsWith("/entry.js") || entryArg.endsWith("/entry.ts"));
-	return (
-		process.argv.includes("--cline-hub-daemon") ||
-		isBunEmbeddedEntry ||
-		entryArg.endsWith("/daemon-entry.js") ||
-		entryArg.endsWith("/daemon-entry.ts") ||
-		entryArg === "daemon-entry.js" ||
-		entryArg === "daemon-entry.ts"
-	);
-}
 
 interface LastSessionContext {
 	workspaceRoot: string;
@@ -944,19 +925,10 @@ async function main(): Promise<void> {
 	});
 }
 
-// Claim unconditionally, before the personality is decided: the spawn path sets
-// the sentinel on every daemon it launches, and this host selects the daemon by
-// argv. Leaving the variable in the environment would hand it to every process a
-// daemon-hosted session spawns — agent shell commands, MCP servers, hooks — each
-// of which would then try to become a hub daemon and die on EADDRINUSE.
-const claimedDaemonSentinel = claimHubDaemonProcess();
-if (claimedDaemonSentinel || isBundledDaemonEntryInvocation()) {
-	await import("@cline/core/hub/daemon-entry");
-} else {
-	main().catch((err) => {
-		const msg = err instanceof Error ? err.message : String(err);
-		emitNotification("Menubar sidecar fatal error", msg, "error");
-		process.stderr.write(`[menubar-sidecar] fatal: ${msg}\n`);
-		process.exit(1);
-	});
-}
+configureMenubarHubDaemonLaunch();
+main().catch((err) => {
+	const msg = err instanceof Error ? err.message : String(err);
+	emitNotification("Menubar sidecar fatal error", msg, "error");
+	process.stderr.write(`[menubar-sidecar] fatal: ${msg}\n`);
+	process.exit(1);
+});

@@ -4,10 +4,8 @@ import {
 } from "@chat-adapter/discord";
 // TODO: Remove the root Undici 6 override when discord.js no longer requires Undici ^6.27.0.
 import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type {
 	ConnectDiscordOptions,
 	DiscordConnectorState,

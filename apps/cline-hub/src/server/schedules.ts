@@ -2,7 +2,7 @@ import {
 	createLocalHubScheduleRuntimeHandlers,
 	HubScheduleCommandService,
 	HubScheduleService,
-} from "@cline/core";
+} from "@cline/hub-daemon";
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,

@@ -3,9 +3,9 @@ import type {
 	BasicLogger,
 	ClineCore,
 	ITelemetryService,
-	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { NodeHubClient } from "@cline/hub";
 
 export type JsonRecord = Record<string, unknown>;
 

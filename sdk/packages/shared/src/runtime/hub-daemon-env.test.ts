@@ -3,14 +3,17 @@ import {
 	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_CONNECTOR_SUPERVISED_ENV,
+	CLINE_HUB_DAEMON_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
 	isSupervisedConnectorProcess,
 	readConnectorCliLaunchSpec,
+	readHubDaemonLaunchSpec,
 	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
+	setHubDaemonLaunchSpec,
 	setStartingConnectorInstance,
 } from "./hub-daemon-env";
 
@@ -40,6 +43,42 @@ describe("hub daemon environment helpers", () => {
 
 		expect(readConnectorCliLaunchSpec(env)).toEqual(spec);
 		expect(env[CLINE_CONNECTOR_CLI_LAUNCH_ENV]).toBe(JSON.stringify(spec));
+	});
+
+	it("round-trips a standalone Hub daemon launch specification", () => {
+		const env: Record<string, string | undefined> = {};
+		const spec = {
+			launcher: "/Applications/Cline.app/Contents/MacOS/code-hub",
+			argsPrefix: ["--conditions=production"],
+			cwd: "/workspace",
+			version: "1.4.0",
+		};
+
+		setHubDaemonLaunchSpec(spec, env);
+
+		expect(readHubDaemonLaunchSpec(env)).toEqual(spec);
+		expect(env[CLINE_HUB_DAEMON_LAUNCH_ENV]).toBe(JSON.stringify(spec));
+	});
+
+	it("rejects malformed standalone Hub daemon launch specifications", () => {
+		expect(
+			readHubDaemonLaunchSpec({
+				[CLINE_HUB_DAEMON_LAUNCH_ENV]: JSON.stringify({
+					launcher: "/usr/local/bin/cline-hub",
+					argsPrefix: [42],
+					version: "1.4.0",
+				}),
+			}),
+		).toBeUndefined();
+		expect(
+			readHubDaemonLaunchSpec({
+				[CLINE_HUB_DAEMON_LAUNCH_ENV]: JSON.stringify({
+					launcher: "/usr/local/bin/cline-hub",
+					argsPrefix: [],
+					version: " ",
+				}),
+			}),
+		).toBeUndefined();
 	});
 
 	it("round-trips the connector instance that is starting", () => {

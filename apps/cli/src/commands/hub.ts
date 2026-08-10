@@ -6,7 +6,7 @@ import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
-} from "@cline/core";
+} from "@cline/hub";
 import { formatUptime, resolveClineBuildEnv } from "@cline/shared";
 import { Command } from "commander";
 import { version as cliVersion } from "../../package.json";

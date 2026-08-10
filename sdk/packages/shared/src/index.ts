@@ -1,5 +1,6 @@
 export * from "./agent";
 export * from "./agents";
+export type { CheckpointEntry, CheckpointMetadata } from "./checkpoints";
 export type {
 	ConnectorAuthorizationDecision,
 	ConnectorAuthorizationRequest,
@@ -455,19 +456,23 @@ export {
 export type {
 	ConnectorCliLaunchSpec,
 	ConnectorInstanceRef,
+	HubDaemonLaunchSpec,
 } from "./runtime/hub-daemon-env";
 export {
 	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
 	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
 	CLINE_CONNECTOR_SUPERVISED_ENV,
+	CLINE_HUB_DAEMON_LAUNCH_ENV,
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	claimHubDaemonProcess,
 	claimSupervisedConnectorProcess,
 	isHubDaemonProcess,
 	isSupervisedConnectorProcess,
 	readConnectorCliLaunchSpec,
+	readHubDaemonLaunchSpec,
 	readStartingConnectorInstance,
 	setConnectorCliLaunchSpec,
+	setHubDaemonLaunchSpec,
 	setStartingConnectorInstance,
 } from "./runtime/hub-daemon-env";
 export type {

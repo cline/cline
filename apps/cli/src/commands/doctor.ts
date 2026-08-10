@@ -2,16 +2,18 @@ import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
-	clearHubDiscovery,
 	ensureFileExists,
 	listActiveConnectors,
+	resolveClineDataDir,
+} from "@cline/core";
+import {
+	clearHubDiscovery,
 	probeHubServer,
 	readHubDiscovery,
-	resolveClineDataDir,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
-} from "@cline/core";
+} from "@cline/hub";
 import {
 	type ActiveConnectorRecord,
 	formatUptime,
@@ -244,8 +246,11 @@ function listStaleCliPids(): number[] {
 function listStaleHubPids(currentHubPids: number[]): number[] {
 	const current = new Set(currentHubPids.filter((pid) => pid > 0));
 	const patterns = [
-		"/sdk/packages/core/src/hub/daemon/entry.ts",
-		"/sdk/packages/core/dist/hub/daemon/entry.js",
+		"/sdk/packages/hub-daemon/src/entry.ts",
+		"/sdk/packages/hub-daemon/dist/entry.js",
+		"/cline-hub",
+		"/code-hub",
+		"/menubar-hub",
 		"--cline-hub-daemon",
 	];
 	const records = new Map<number, ProcessRecord>();

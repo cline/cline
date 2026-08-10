@@ -1,9 +1,9 @@
+import { sendHubCommand } from "@cline/hub";
 import {
 	createLocalHubScheduleRuntimeHandlers,
 	HubScheduleCommandService,
 	HubScheduleService,
-	sendHubCommand,
-} from "@cline/core";
+} from "@cline/hub-daemon";
 import {
 	ensureCliHubServer,
 	parseHubEndpointOverride,

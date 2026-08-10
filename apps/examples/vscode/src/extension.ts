@@ -6,20 +6,24 @@ import {
 	ClineCore,
 	captureExtensionActivated,
 	createConfiguredTelemetryService,
-	createLocalHubScheduleRuntimeHandlers,
-	ensureHubWebSocketServer,
 	type ITelemetryService,
 	Llms,
-	NodeHubClient,
 	type ProviderModel,
 	ProviderSettingsManager,
-	probeHubServer,
 	type RuntimeCapabilities,
+	type ToolPolicy,
+} from "@cline/core";
+import {
+	NodeHubClient,
+	probeHubServer,
 	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
 	resolveSharedHubOwnerContext,
-	type ToolPolicy,
-} from "@cline/core";
+} from "@cline/hub";
+import {
+	createLocalHubScheduleRuntimeHandlers,
+	ensureHubWebSocketServer,
+} from "@cline/hub-daemon";
 import {
 	type AgentTool,
 	buildClineSystemPrompt,

@@ -33,13 +33,20 @@ const resolveBunCompileTarget = (targetTriple: string): string | undefined => {
 	return undefined;
 };
 
-const sidecarOutfile = (targetTriple: string): string => {
+const binaryOutfile = (
+	name: "code-sidecar" | "code-hub",
+	targetTriple: string,
+): string => {
 	const extension = targetTriple.includes("windows") ? ".exe" : "";
-	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
+	return `./src-tauri/bin/${name}-${targetTriple}${extension}`;
 };
 
-const buildSidecar = async (targetTriple: string): Promise<string> => {
-	const outfile = sidecarOutfile(targetTriple);
+const buildCompiledBinary = async (
+	name: "code-sidecar" | "code-hub",
+	entrypoint: string,
+	targetTriple: string,
+): Promise<string> => {
+	const outfile = binaryOutfile(name, targetTriple);
 	const bunTarget = resolveBunCompileTarget(targetTriple);
 	// Telemetry config must be inlined into the compiled binary: a packaged
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
@@ -47,33 +54,51 @@ const buildSidecar = async (targetTriple: string): Promise<string> => {
 	// Verify with `<binary> --telemetry-selfcheck` after building.
 	const defines = telemetryDefineArgs();
 	if (bunTarget) {
-		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
+		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
 	} else {
-		await $`bun build ./sidecar/index.ts --compile ${defines} --outfile ${outfile}`;
+		await $`bun build ${entrypoint} --compile ${defines} --outfile ${outfile}`;
 	}
 	return outfile;
 };
 
+const buildTargetBinaries = async (
+	targetTriple: string,
+): Promise<{ sidecar: string; hub: string }> => ({
+	sidecar: await buildCompiledBinary(
+		"code-sidecar",
+		"./sidecar/index.ts",
+		targetTriple,
+	),
+	hub: await buildCompiledBinary(
+		"code-hub",
+		"../../../sdk/packages/hub-daemon/src/entry.ts",
+		targetTriple,
+	),
+});
+
 // Tauri's universal-apple-darwin pseudo-target lipos the Rust binary itself
 // but expects sidecars (externalBin) to already be fat binaries named
 // `<name>-universal-apple-darwin`, so build both slices and merge them here.
-const buildUniversalMacSidecar = async (): Promise<void> => {
-	const arm64 = await buildSidecar("aarch64-apple-darwin");
-	const x64 = await buildSidecar("x86_64-apple-darwin");
-	const outfile = sidecarOutfile("universal-apple-darwin");
-	await $`lipo -create -output ${outfile} ${arm64} ${x64}`;
-	await $`chmod +x ${outfile}`;
-	await $`lipo -info ${outfile}`;
+const buildUniversalMacBinaries = async (): Promise<void> => {
+	const arm64 = await buildTargetBinaries("aarch64-apple-darwin");
+	const x64 = await buildTargetBinaries("x86_64-apple-darwin");
+	for (const name of ["code-sidecar", "code-hub"] as const) {
+		const key = name === "code-sidecar" ? "sidecar" : "hub";
+		const outfile = binaryOutfile(name, "universal-apple-darwin");
+		await $`lipo -create -output ${outfile} ${arm64[key]} ${x64[key]}`;
+		await $`chmod +x ${outfile}`;
+		await $`lipo -info ${outfile}`;
+	}
 };
 
 const main = async () => {
 	const targetTriple = await resolveTargetTriple();
 	await $`mkdir -p src-tauri/bin`;
 	if (targetTriple === "universal-apple-darwin") {
-		await buildUniversalMacSidecar();
+		await buildUniversalMacBinaries();
 		return;
 	}
-	await buildSidecar(targetTriple);
+	await buildTargetBinaries(targetTriple);
 };
 
 main().catch((error: unknown) => {

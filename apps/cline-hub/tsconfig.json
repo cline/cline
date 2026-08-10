@@ -5,10 +5,15 @@
 		"types": ["bun", "node"],
 		"paths": {
 			"@cline/core": ["../../sdk/packages/core/src/index.ts"],
+			"@cline/core/hub-runtime": [
+				"../../sdk/packages/core/src/hub-runtime/index.ts"
+			],
 			"@cline/core/*": [
 				"../../sdk/packages/core/src/*",
 				"../../sdk/packages/core/src/*/index.ts"
 			],
+			"@cline/hub": ["../../sdk/packages/hub/src/index.ts"],
+			"@cline/hub-daemon": ["../../sdk/packages/hub-daemon/src/index.ts"],
 			"@cline/shared": ["../../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/*": [
 				"../../sdk/packages/shared/src/*",

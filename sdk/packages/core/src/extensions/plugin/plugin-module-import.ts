@@ -14,8 +14,7 @@ const HOST_PROVIDED_SDK_SPECIFIERS = [
 	"@cline/sdk",
 	"@cline/agents",
 	"@cline/core",
-	"@cline/core/hub",
-	"@cline/core/hub/daemon-entry",
+	"@cline/hub",
 	"@cline/core/telemetry",
 	"@cline/llms",
 	"@cline/llms/browser",
@@ -48,6 +47,7 @@ function collectWorkspaceAliases(root: string): Record<string, string> {
 		"@cline/sdk": resolve(root, "packages/sdk/src/index.ts"),
 		"@cline/agents": resolve(root, "packages/agents/src/index.ts"),
 		"@cline/core": resolve(root, "packages/core/src/index.ts"),
+		"@cline/hub": resolve(root, "packages/hub/src/index.ts"),
 		"@cline/llms": resolve(root, "packages/llms/src/index.ts"),
 		"@cline/shared": resolve(root, "packages/shared/src/index.ts"),
 		"@cline/shared/storage": resolve(
@@ -61,7 +61,7 @@ function collectWorkspaceAliases(root: string): Record<string, string> {
 			aliases[key] = value;
 		}
 	}
-	for (const packageName of ["agents", "core", "llms", "shared"]) {
+	for (const packageName of ["agents", "core", "hub", "llms", "shared"]) {
 		const packageRoot = resolve(root, "packages", packageName);
 		const packageJsonPath = resolve(packageRoot, "package.json");
 		if (!existsSync(packageJsonPath)) {

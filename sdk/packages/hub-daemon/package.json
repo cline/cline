@@ -1,0 +1,51 @@
+{
+	"name": "@cline/hub-daemon",
+	"description": "Standalone Cline Hub daemon and Core runtime composition",
+	"version": "0.0.72",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/hub-daemon"
+	},
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./entry": {
+			"types": "./dist/entry.d.ts",
+			"import": "./dist/entry.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config vitest.config.ts",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@cline/agents": "workspace:*",
+		"@cline/core": "workspace:*",
+		"@cline/hub": "workspace:*",
+		"@cline/llms": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"ws": "^8.20.0"
+	},
+	"devDependencies": {
+		"@types/ws": "^8.18.1"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"!dist/**/*.d.ts.map"
+	]
+}

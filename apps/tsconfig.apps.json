@@ -8,8 +8,8 @@
 			],
 			"@cline/cline-hub": ["./cline-hub/src/server.ts"],
 			"@cline/core": ["../sdk/packages/core/src/index.ts"],
-			"@cline/core/hub/daemon-entry": [
-				"../sdk/packages/core/src/hub/daemon/entry.ts"
+			"@cline/core/hub-runtime": [
+				"../sdk/packages/core/src/hub-runtime/index.ts"
 			],
 			"@cline/core/*": [
 				"../sdk/packages/core/src/*",
@@ -19,6 +19,9 @@
 				"../sdk/packages/core/src/services/telemetry/index.ts"
 			],
 			"@cline/llms": ["../sdk/packages/llms/src/index.ts"],
+			"@cline/hub": ["../sdk/packages/hub/src/index.ts"],
+			"@cline/hub-daemon": ["../sdk/packages/hub-daemon/src/index.ts"],
+			"@cline/hub-daemon/entry": ["../sdk/packages/hub-daemon/src/entry.ts"],
 			"@cline/shared": ["../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/storage": ["../sdk/packages/shared/src/storage/index.ts"],
 			"@cline/shared/db": ["../sdk/packages/shared/src/db/index.ts"],

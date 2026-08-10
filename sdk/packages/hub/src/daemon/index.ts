@@ -1,0 +1,562 @@
+import { spawn } from "node:child_process";
+import { closeSync, mkdirSync, openSync } from "node:fs";
+import { dirname, join } from "node:path";
+import {
+	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	isHubDaemonProcess,
+	isHubProtocolCompatible,
+	readHubDaemonLaunchSpec,
+	resolveClineBuildEnv,
+	withResolvedClineBuildEnv,
+} from "@cline/shared";
+import {
+	rememberRecoverableLocalHubUrl,
+	requestHubShutdown,
+	verifyHubConnection,
+} from "../client";
+import {
+	clearHubDiscovery,
+	createHubServerUrl,
+	type HubOwnerContext,
+	type HubServerDiscoveryRecord,
+	type HubServerProbeRecord,
+	probeHubServer,
+	readHubDiscovery,
+	resolveClineDataDir,
+	writeHubDiscovery,
+} from "../discovery";
+import {
+	type HubEndpointOverrides,
+	resolveHubEndpointOptions,
+} from "../discovery/defaults";
+import {
+	resolveProductionHubOwnerContext,
+	resolveSharedHubOwnerContext,
+} from "../discovery/workspace";
+
+const HUB_STARTUP_TIMEOUT_MS = 8_000;
+const HUB_STARTUP_POLL_MS = 200;
+const HUB_RETIRE_TIMEOUT_MS = 3_000;
+const HUB_RETIRE_POLL_MS = 100;
+const HUB_SPAWN_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
+
+function endpointArgs(endpoint: HubEndpointOverrides): string[] {
+	return [
+		...(endpoint.host ? ["--host", endpoint.host] : []),
+		...(typeof endpoint.port === "number"
+			? ["--port", String(endpoint.port)]
+			: []),
+		...(endpoint.pathname ? ["--pathname", endpoint.pathname] : []),
+	];
+}
+
+function openDetachedHubLogFile(): { fd: number; logPath: string } | undefined {
+	try {
+		const logPath = join(resolveClineDataDir(), "logs", "hub-daemon.log");
+		mkdirSync(dirname(logPath), { recursive: true });
+		return { fd: openSync(logPath, "a"), logPath };
+	} catch {
+		return undefined;
+	}
+}
+
+function resolveDefaultHubOwnerContext() {
+	return resolveClineBuildEnv() === "production"
+		? resolveProductionHubOwnerContext()
+		: resolveSharedHubOwnerContext();
+}
+
+function parseStableHubVersion(
+	value: string | undefined,
+): number[] | undefined {
+	const match = /^(\d+)\.(\d+)\.(\d+)$/.exec(value?.trim() ?? "");
+	return match ? match.slice(1).map(Number) : undefined;
+}
+
+/**
+ * A compatible newer daemon is always reusable. This is what prevents an
+ * older CLI and a newer desktop release from repeatedly replacing one shared
+ * production Hub. Development/non-semver identities remain exact-match only.
+ */
+export function isManagedHubVersionCompatible(
+	runningVersion: string | undefined,
+	bundledVersion: string,
+): boolean {
+	const running = parseStableHubVersion(runningVersion);
+	const bundled = parseStableHubVersion(bundledVersion);
+	if (!running || !bundled) {
+		return runningVersion?.trim() === bundledVersion.trim();
+	}
+	for (let index = 0; index < 3; index += 1) {
+		if (running[index] !== bundled[index]) {
+			return (running[index] ?? 0) > (bundled[index] ?? 0);
+		}
+	}
+	return true;
+}
+
+function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
+	if (!isHubProtocolCompatible(record).compatible) {
+		return false;
+	}
+	const bundledVersion = readHubDaemonLaunchSpec()?.version;
+	return bundledVersion
+		? isManagedHubVersionCompatible(record.buildId, bundledVersion)
+		: true;
+}
+
+function withMatchingDiscoveryRetirementMetadata(
+	probe: HubServerProbeRecord,
+	discovered: { url?: string; authToken?: string; pid?: number } | undefined,
+	expectedUrl: string,
+): HubServerProbeRecord {
+	if (!discovered || discovered.url !== expectedUrl) {
+		return probe;
+	}
+	return {
+		...probe,
+		authToken: probe.authToken ?? discovered.authToken,
+		pid: probe.pid ?? discovered.pid,
+	};
+}
+
+async function safeProbeHubServer(
+	url: string,
+	authToken?: string,
+): Promise<HubServerProbeRecord | undefined> {
+	try {
+		return await probeHubServer(url, { authToken });
+	} catch {
+		return undefined;
+	}
+}
+
+async function waitForHubToRetire(
+	url: string,
+	timeoutMs: number,
+): Promise<boolean> {
+	const deadline = Date.now() + timeoutMs;
+	while (Date.now() < deadline) {
+		const healthy = await safeProbeHubServer(url);
+		if (!healthy?.url) {
+			return true;
+		}
+		await new Promise((resolve) => setTimeout(resolve, HUB_RETIRE_POLL_MS));
+	}
+	return false;
+}
+
+async function retireDiscoveredHub(
+	record: { url: string; authToken?: string; pid?: number },
+	discoveryPath: string,
+): Promise<boolean> {
+	await requestHubShutdown(record.url, record.authToken).catch(() => false);
+	if (record.pid) {
+		try {
+			process.kill(record.pid, "SIGTERM");
+		} catch {
+			// Best-effort cleanup only. A compatible hub may still start on a fallback port.
+		}
+	}
+	const retired = await waitForHubToRetire(record.url, HUB_RETIRE_TIMEOUT_MS);
+	await clearHubDiscovery(discoveryPath).catch(() => undefined);
+	return retired;
+}
+
+async function retireIncompatibleHub(
+	record: HubServerProbeRecord,
+	discoveryPath: string,
+): Promise<boolean> {
+	if (isCompatibleHubRecord(record)) {
+		return true;
+	}
+	return retireDiscoveredHub(record, discoveryPath);
+}
+
+/**
+ * Pre-singleton production builds tracked the local hub under the shared
+ * owner discovery path and spawned daemons on random fallback ports. Those
+ * daemons are invisible to the production owner context, so nothing would
+ * ever reuse or stop them. Retire the recorded legacy hub (its record carries
+ * the auth token and pid needed for a graceful stop) and clear the legacy
+ * record so upgrades do not leave orphaned daemons running stale code.
+ */
+async function retireLegacySharedHub(owner: HubOwnerContext): Promise<void> {
+	if (resolveClineBuildEnv() !== "production") {
+		return;
+	}
+	const legacy = resolveSharedHubOwnerContext();
+	if (legacy.discoveryPath === owner.discoveryPath) {
+		return;
+	}
+	const record = await readHubDiscovery(legacy.discoveryPath);
+	if (record?.url) {
+		await retireDiscoveredHub(record, legacy.discoveryPath);
+	} else {
+		await clearHubDiscovery(legacy.discoveryPath).catch(() => undefined);
+	}
+}
+
+function resolveLaunchCommand(
+	workspaceRoot: string,
+	endpoint: HubEndpointOverrides,
+): {
+	launcher: string;
+	args: string[];
+	cwd: string;
+	env: NodeJS.ProcessEnv;
+} {
+	const spec = readHubDaemonLaunchSpec();
+	if (!spec) {
+		throw new Error(
+			"No standalone Hub daemon launch command is configured. The host must call setHubDaemonLaunchSpec() before using managed Hub mode.",
+		);
+	}
+	return {
+		launcher: spec.launcher,
+		args: [
+			...spec.argsPrefix,
+			"--cwd",
+			workspaceRoot,
+			...endpointArgs(endpoint),
+		],
+		cwd: spec.cwd ?? workspaceRoot,
+		env: {
+			...withResolvedClineBuildEnv(process.env),
+			CLINE_HUB_BUILD_ID: spec.version,
+			CLINE_NO_INTERACTIVE: "1",
+			[CLINE_RUN_AS_HUB_DAEMON_ENV]: "1",
+		},
+	};
+}
+
+function isTextFileBusyError(error: unknown): boolean {
+	if (!error || typeof error !== "object") {
+		return false;
+	}
+	const code = "code" in error ? error.code : undefined;
+	if (code === "ETXTBSY") {
+		return true;
+	}
+	const message = "message" in error ? error.message : undefined;
+	return typeof message === "string" && message.includes("ETXTBSY");
+}
+
+export function spawnDetachedHubServer(
+	workspaceRoot: string,
+	endpoint: HubEndpointOverrides = {},
+): void {
+	if (isHubDaemonProcess()) {
+		return;
+	}
+	const command = resolveLaunchCommand(workspaceRoot, endpoint);
+	const logFile = openDetachedHubLogFile();
+	try {
+		const child = spawn(command.launcher, command.args, {
+			detached: true,
+			stdio: logFile ? ["ignore", logFile.fd, logFile.fd] : "ignore",
+			env: command.env,
+			cwd: command.cwd,
+			// Prevent a console window from appearing on Windows; detached
+			// processes otherwise allocate a new visible console.
+			windowsHide: true,
+		});
+		child.unref();
+	} finally {
+		if (logFile) {
+			closeSync(logFile.fd);
+		}
+	}
+}
+
+export async function spawnDetachedHubServerWithRetry(
+	workspaceRoot: string,
+	endpoint: HubEndpointOverrides = {},
+): Promise<void> {
+	for (let attempt = 0; ; attempt++) {
+		try {
+			spawnDetachedHubServer(workspaceRoot, endpoint);
+			return;
+		} catch (error) {
+			const delay = HUB_SPAWN_RETRY_DELAYS_MS[attempt];
+			if (!isTextFileBusyError(error) || delay === undefined) {
+				throw error;
+			}
+			await new Promise((resolve) => setTimeout(resolve, delay));
+		}
+	}
+}
+
+export function prewarmDetachedHubServer(
+	workspaceRoot: string,
+	endpoint: HubEndpointOverrides & { allowPortFallback?: boolean } = {},
+): void {
+	if (isHubDaemonProcess()) {
+		return;
+	}
+	const owner = resolveDefaultHubOwnerContext();
+	const resolvedEndpoint = resolveHubEndpointOptions(endpoint);
+	const expectedUrl = createHubServerUrl(
+		resolvedEndpoint.host,
+		resolvedEndpoint.port,
+		resolvedEndpoint.pathname,
+	);
+	const shouldUseFallbackPort =
+		endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
+	void retireLegacySharedHub(owner)
+		.catch(() => undefined)
+		.then(() => readHubDiscovery(owner.discoveryPath))
+		.then(async (discovered) => {
+			let retiredUnusableDiscovery = false;
+			if (discovered?.url) {
+				if (!discovered.authToken) {
+					retiredUnusableDiscovery = true;
+					const retired = await retireDiscoveredHub(
+						discovered,
+						owner.discoveryPath,
+					);
+					if (!retired && !shouldUseFallbackPort) {
+						return;
+					}
+				} else {
+					const healthy = await safeProbeHubServer(
+						discovered.url,
+						discovered.authToken,
+					);
+					if (
+						healthy?.url &&
+						isCompatibleHubRecord(healthy) &&
+						(await verifyHubConnection(healthy.url, {
+							authToken: discovered.authToken,
+						}))
+					) {
+						return;
+					}
+					if (healthy?.url) {
+						await retireIncompatibleHub(
+							{ ...healthy, authToken: discovered.authToken },
+							owner.discoveryPath,
+						);
+					} else {
+						await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+					}
+				}
+			}
+			const expected = await safeProbeHubServer(expectedUrl);
+			if (expected?.url) {
+				if (isCompatibleHubRecord(expected)) {
+					if (!shouldUseFallbackPort || !retiredUnusableDiscovery) {
+						return;
+					}
+				} else {
+					const retiredExpected = await retireIncompatibleHub(
+						{ ...expected, authToken: undefined },
+						owner.discoveryPath,
+					);
+					if (!retiredExpected && !shouldUseFallbackPort) {
+						return;
+					}
+				}
+			}
+			const spawnEndpoint = shouldUseFallbackPort
+				? { ...resolvedEndpoint, port: 0 }
+				: resolvedEndpoint;
+			await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+		})
+		.catch(() => {
+			// best-effort prewarm only
+		});
+}
+
+export interface DetachedHubResolution {
+	url: string;
+	authToken: string;
+}
+
+export async function ensureDetachedHubServer(
+	workspaceRoot: string,
+	endpointOverrides: HubEndpointOverrides & {
+		allowPortFallback?: boolean;
+	} = {},
+): Promise<DetachedHubResolution> {
+	const owner = resolveDefaultHubOwnerContext();
+	const hasExplicitEndpoint =
+		endpointOverrides.host !== undefined ||
+		endpointOverrides.port !== undefined ||
+		endpointOverrides.pathname !== undefined ||
+		!!process.env.CLINE_HUB_PORT?.trim();
+	const endpoint = resolveHubEndpointOptions(endpointOverrides);
+	const expectedUrl = createHubServerUrl(
+		endpoint.host,
+		endpoint.port,
+		endpoint.pathname,
+	);
+	const rememberIfManaged = (
+		result: DetachedHubResolution,
+	): DetachedHubResolution => {
+		if (!hasExplicitEndpoint) {
+			rememberRecoverableLocalHubUrl(result.url, result.authToken);
+		}
+		return result;
+	};
+	await retireLegacySharedHub(owner).catch(() => undefined);
+	const discovered = await readHubDiscovery(owner.discoveryPath);
+	let retiredUnusableDiscovery = false;
+	if (discovered?.url) {
+		const discoveredAuthToken = discovered.authToken;
+		if (!discoveredAuthToken) {
+			retiredUnusableDiscovery = true;
+			await retireDiscoveredHub(discovered, owner.discoveryPath);
+		} else {
+			const healthy = await safeProbeHubServer(
+				discovered.url,
+				discoveredAuthToken,
+			);
+			if (
+				healthy?.url &&
+				isCompatibleHubRecord(healthy) &&
+				(await verifyHubConnection(healthy.url, {
+					authToken: discoveredAuthToken,
+				}))
+			) {
+				return rememberIfManaged({
+					url: healthy.url,
+					authToken: discoveredAuthToken,
+				});
+			}
+			if (healthy?.url) {
+				await retireIncompatibleHub(
+					{ ...healthy, authToken: discoveredAuthToken },
+					owner.discoveryPath,
+				);
+			} else {
+				await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
+			}
+		}
+	}
+	const expected = await safeProbeHubServer(expectedUrl);
+	if (expected?.url) {
+		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+			expected,
+			discovered,
+			expectedUrl,
+		);
+		if (isCompatibleHubRecord(expected)) {
+			// Live hub is healthy but discovery is missing/unreadable (or auth
+			// token was empty). Prefer attaching via any known auth token rather
+			// than spawning a second daemon that dies with EADDRINUSE.
+			const candidateTokens = [
+				expected.authToken,
+				discovered?.authToken,
+			].filter(
+				(token): token is string =>
+					typeof token === "string" && token.trim().length > 0,
+			);
+			for (const token of candidateTokens) {
+				if (
+					!(await verifyHubConnection(expected.url, {
+						authToken: token,
+					}))
+				) {
+					continue;
+				}
+				const repaired: HubServerDiscoveryRecord = {
+					hubId: expected.hubId ?? `repaired-${expected.port}`,
+					protocolVersion: expected.protocolVersion,
+					minClientProtocolVersion: expected.minClientProtocolVersion,
+					maxClientProtocolVersion: expected.maxClientProtocolVersion,
+					capabilities: expected.capabilities,
+					coreVersion: expected.coreVersion,
+					buildId: expected.buildId,
+					authToken: token,
+					host: expected.host,
+					port: expected.port,
+					url: expected.url,
+					pid: expected.pid ?? discovered?.pid,
+					startedAt: expected.startedAt ?? new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				};
+				try {
+					await writeHubDiscovery(owner.discoveryPath, repaired);
+				} catch {
+					// Best-effort repair; attaching still works with the token
+					// we just verified even if the discovery file is unwritable.
+				}
+				return rememberIfManaged({
+					url: expected.url,
+					authToken: token,
+				});
+			}
+			const upgradeHint = retiredUnusableDiscovery
+				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
+				: "";
+			throw new Error(
+				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+			);
+		}
+		const retiredExpected = await retireIncompatibleHub(
+			expectedForRetirement,
+			owner.discoveryPath,
+		);
+		if (
+			!retiredExpected &&
+			endpointOverrides.allowPortFallback !== true &&
+			endpoint.port !== 0
+		) {
+			throw new Error(
+				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+			);
+		}
+	}
+	const shouldUseFallbackPort =
+		endpointOverrides.allowPortFallback === true && endpoint.port !== 0;
+	const spawnEndpoint = shouldUseFallbackPort
+		? { ...endpoint, port: 0 }
+		: endpoint;
+	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
+	while (Date.now() < deadline) {
+		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
+		if (nextDiscovery?.url && nextDiscovery.authToken) {
+			const healthy = await safeProbeHubServer(
+				nextDiscovery.url,
+				nextDiscovery.authToken,
+			);
+			if (
+				healthy?.url &&
+				isCompatibleHubRecord(healthy) &&
+				(await verifyHubConnection(healthy.url, {
+					authToken: nextDiscovery.authToken,
+				}))
+			) {
+				return rememberIfManaged({
+					url: healthy.url,
+					authToken: nextDiscovery.authToken,
+				});
+			}
+		}
+		const nextExpected = await safeProbeHubServer(expectedUrl);
+		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+				nextExpected,
+				nextDiscovery,
+				expectedUrl,
+			);
+			const retiredExpected = await retireIncompatibleHub(
+				expectedForRetirement,
+				owner.discoveryPath,
+			);
+			if (
+				!retiredExpected &&
+				endpointOverrides.allowPortFallback !== true &&
+				endpoint.port !== 0
+			) {
+				throw new Error(
+					`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				);
+			}
+		}
+		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
+	}
+	throw new Error("Timed out waiting for detached hub startup.");
+}

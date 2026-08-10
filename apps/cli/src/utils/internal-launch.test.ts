@@ -1,8 +1,10 @@
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { HUB_VERSION } from "@cline/hub";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	buildCliSubcommandCommand,
+	resolveCliHubDaemonLaunchSpec,
 	resolveCliLaunchSpec,
 } from "./internal-launch";
 
@@ -48,6 +50,43 @@ describe("internal launch helpers", () => {
 		expect(command).toEqual({
 			launcher: "/tmp/cline",
 			childArgs: ["hub", "start"],
+		});
+	});
+
+	it("launches a sibling Hub executable from a compiled CLI", () => {
+		const spec = resolveCliHubDaemonLaunchSpec({
+			execPath: "/opt/cline/bin/cline",
+			argv: ["bun", "/$bunfs/root/cline"],
+			execArgv: [],
+			cwd: "/workspace",
+		});
+
+		expect(spec).toEqual({
+			launcher: "/opt/cline/bin/cline-hub",
+			argsPrefix: [],
+			cwd: "/workspace",
+			version: HUB_VERSION,
+		});
+	});
+
+	it("launches the standalone Hub source entry during development", () => {
+		const utilsDir = dirname(fileURLToPath(import.meta.url));
+		const repoRoot = resolve(utilsDir, "../../../../");
+		const spec = resolveCliHubDaemonLaunchSpec({
+			execPath: "/Users/test/.bun/bin/bun",
+			argv: ["bun", "./apps/cli/src/index.ts"],
+			execArgv: ["--conditions=development"],
+			cwd: repoRoot,
+		});
+
+		expect(spec).toEqual({
+			launcher: "/Users/test/.bun/bin/bun",
+			argsPrefix: [
+				"--conditions=development",
+				resolve(repoRoot, "sdk/packages/hub-daemon/src/entry.ts"),
+			],
+			cwd: repoRoot,
+			version: HUB_VERSION,
 		});
 	});
 

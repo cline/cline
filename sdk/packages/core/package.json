@@ -19,13 +19,9 @@
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
 		},
-		"./hub": {
-			"types": "./dist/hub/index.d.ts",
-			"import": "./dist/hub/index.js"
-		},
-		"./hub/daemon-entry": {
-			"types": "./dist/hub/daemon/entry.d.ts",
-			"import": "./dist/hub/daemon/entry.js"
+		"./hub-runtime": {
+			"types": "./dist/hub-runtime/index.d.ts",
+			"import": "./dist/hub-runtime/index.js"
 		},
 		"./telemetry": {
 			"types": "./dist/services/telemetry/index.d.ts",
@@ -50,6 +46,7 @@
 	},
 	"dependencies": {
 		"@cline/agents": "workspace:*",
+		"@cline/hub": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@modelcontextprotocol/sdk": "^1.29.0",

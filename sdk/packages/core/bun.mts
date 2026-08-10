@@ -1,5 +1,10 @@
 /// <reference types="@types/bun" />
-export {};
+import { rmSync } from "node:fs";
+
+// Removed entrypoints must not survive in packed releases. In particular, the
+// old dist/hub tree would otherwise keep shipping after Hub moved to its own
+// packages because Bun and tsc only overwrite current outputs.
+rmSync(new URL("./dist/", import.meta.url), { recursive: true, force: true });
 
 type PackageManifest = {
 	dependencies?: Record<string, string>;
@@ -38,13 +43,8 @@ const builds: Parameters<typeof Bun.build>[0][] = [
 		...buildConfig,
 	},
 	{
-		entrypoints: ["./src/hub/index.ts"],
-		outdir: "./dist/hub",
-		...buildConfig,
-	},
-	{
-		entrypoints: ["./src/hub/daemon/entry.ts"],
-		outdir: "./dist/hub/daemon",
+		entrypoints: ["./src/hub-runtime/index.ts"],
+		outdir: "./dist/hub-runtime",
 		...buildConfig,
 	},
 	{

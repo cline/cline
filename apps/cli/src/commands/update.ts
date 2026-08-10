@@ -1,14 +1,14 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
+import { isAutoUpdateEnabledGlobally } from "@cline/core";
 import {
 	clearHubDiscovery,
-	isAutoUpdateEnabledGlobally,
 	probeHubServer,
 	readHubDiscovery,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
-} from "@cline/core";
+} from "@cline/hub";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
 import { ensureCliHubServer } from "../utils/hub-runtime";

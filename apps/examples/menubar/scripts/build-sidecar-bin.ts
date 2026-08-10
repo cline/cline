@@ -20,10 +20,14 @@ const resolveTargetTriple = async (): Promise<string> => {
 const main = async () => {
 	const targetTriple = await resolveTargetTriple();
 	const extension = targetTriple.includes("windows") ? ".exe" : "";
-	const outfile = `./src-tauri/bin/menubar-sidecar-${targetTriple}${extension}`;
+	const sidecarOutfile = `./src-tauri/bin/menubar-sidecar-${targetTriple}${extension}`;
+	const hubOutfile = `./src-tauri/bin/menubar-hub-${targetTriple}${extension}`;
 
 	await $`mkdir -p src-tauri/bin`;
-	await $`bun build ./sidecar/index.ts --compile --outfile ${outfile}`;
+	await Promise.all([
+		$`bun build ./sidecar/index.ts --compile --outfile ${sidecarOutfile}`,
+		$`bun build ../../../sdk/packages/hub-daemon/src/entry.ts --compile --outfile ${hubOutfile}`,
+	]);
 };
 
 main().catch((error: unknown) => {

@@ -259,7 +259,7 @@ export interface ClineCoreOptions {
 	 *   - `startHubServer({ fetch })` / `ensureHubServer({ fetch })` from
 	 *     `@cline/hub`
 	 *   - `createLocalHubScheduleRuntimeHandlers({ fetch })` from
-	 *     `@cline/core/hub` for the scheduler
+	 *     `@cline/hub-daemon` for the scheduler
 	 */
 	fetch?: typeof fetch;
 	/**

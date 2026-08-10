@@ -10,6 +10,7 @@
 			"@cline/agents": ["../agents/src/index.ts"],
 			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
 			"@cline/llms": ["../llms/src/index.ts"],
+			"@cline/hub": ["../hub/src/index.ts"],
 			"@cline/shared": ["../shared/src/index.ts"],
 			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
 		}

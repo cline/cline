@@ -1,0 +1,19 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"rootDir": "..",
+		"paths": {
+			"@cline/agents": ["../agents/src/index.ts"],
+			"@cline/core": ["../core/src/index.ts"],
+			"@cline/core/hub-runtime": ["../core/src/hub-runtime/index.ts"],
+			"@cline/hub": ["../hub/src/index.ts"],
+			"@cline/llms": ["../llms/src/index.ts"],
+			"@cline/shared": ["../shared/src/index.ts"],
+			"@cline/shared/db": ["../shared/src/db/index.ts"],
+			"@cline/shared/storage": ["../shared/src/storage/index.ts"],
+			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+		}
+	},
+	"include": ["src/**/*.ts", "bun.mts", "vitest.config.ts"]
+}

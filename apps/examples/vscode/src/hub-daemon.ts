@@ -2,10 +2,12 @@ import * as os from "node:os";
 import {
 	type ConfiguredTelemetryHandle,
 	createConfiguredTelemetryHandle,
+} from "@cline/core";
+import { resolveSharedHubOwnerContext } from "@cline/hub";
+import {
 	createLocalHubScheduleRuntimeHandlers,
 	ensureHubWebSocketServer,
-	resolveSharedHubOwnerContext,
-} from "@cline/core/hub";
+} from "@cline/hub-daemon";
 import {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,

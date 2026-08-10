@@ -35,9 +35,7 @@
 			],
 			"@cline/cline-hub": ["./cline-hub/src/server.ts"],
 			"@cline/core": ["../packages/core/src/index.ts"],
-			"@cline/core/hub/daemon-entry": [
-				"../packages/core/src/hub/daemon/entry.ts"
-			],
+			"@cline/core/hub-runtime": ["../packages/core/src/hub-runtime/index.ts"],
 			"@cline/core/*": [
 				"../packages/core/src/*",
 				"../packages/core/src/*/index.ts"
@@ -46,6 +44,8 @@
 				"../packages/core/src/services/telemetry/index.ts"
 			],
 			"@cline/llms": ["../packages/llms/src/index.ts"],
+			"@cline/hub": ["../packages/hub/src/index.ts"],
+			"@cline/hub-daemon": ["../packages/hub-daemon/src/index.ts"],
 			"@cline/shared": ["../packages/shared/src/index.ts"],
 			"@cline/shared/storage": ["../packages/shared/src/storage/index.ts"],
 			"@cline/shared/db": ["../packages/shared/src/db/index.ts"],
