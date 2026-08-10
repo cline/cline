@@ -1,11 +1,11 @@
+import { ClineCore } from "@cline/core";
 import {
-	ClineCore,
 	ensureDetachedHubServer,
 	type HubServerDiscoveryRecord,
 	HubUIClient,
 	stopLocalHubServerGracefully,
 	toHubHealthUrl,
-} from "@cline/core";
+} from "@cline/hub";
 import type { HubUINotifyPayload } from "@cline/shared";
 import { handleSessionEvent } from "./agent-events";
 import {

@@ -13,7 +13,9 @@ This repo is a WIP framework for building and orchestrating AI agents. Full refa
 | `@cline/shared` | Contracts, schemas, path helpers, hook engine, extension registry |
 | `@cline/llms` | Provider settings, model catalogs, manifests, handler creation |
 | `@cline/agents` | Stateless agent loop, tool orchestration, hook/extension runtime |
-| `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, hub runtime services, hub discovery, detached daemon, and hub client adapters (`@cline/core/hub`, `@cline/core/hub/daemon-entry`) |
+| `@cline/hub` | Hub discovery, clients, and managed standalone-daemon lifecycle |
+| `@cline/core` | Stateful orchestration, session lifecycle, storage, config, telemetry, and Hub-backed runtime hosts |
+| `@cline/hub-daemon` | Standalone Hub server and Core runtime composition |
 
 ### Apps
 
@@ -91,7 +93,7 @@ Additional SDK flags: `--skip-tests`, `--skip-git-tags`.
 
 The script checks out `main` (and pulls latest) before starting. If the working tree is dirty it aborts.
 
-The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → core) → optional `sdk-v{VERSION}` tag creation.
+The SDK flow runs: tests → version bump → lockfile regeneration → tarball verification → publish (shared → llms → agents → hub → core → hub-daemon → sdk) → optional `sdk-v{VERSION}` tag creation.
 
 ### CLI Release
 
@@ -156,7 +158,7 @@ If you need fine-grained control over individual steps:
 5. `npm login` — ensure you're authenticated with the npm registry.
 6. Publish in dependency order:
    ```sh
-   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../core && bun publish && cd ../../
+   cd packages/shared && bun publish && cd ../llms && bun publish && cd ../agents && bun publish && cd ../hub && bun publish && cd ../core && bun publish && cd ../hub-daemon && bun publish && cd ../sdk && bun publish && cd ../../
    ```
 7. For tagged production releases, create and push a git tag: `git tag -a sdk-v{VERSION} -m "SDK v{VERSION}" && git push origin sdk-v{VERSION}`.
 
@@ -185,7 +187,7 @@ bun pm ls @cline/core @cline/agents @cline/llms
 
 ### CI
 
-The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → core). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
+The CI publish workflow (`.github/workflows/sdk-publish.yml`) follows the same order: build → version → check-publish → publish (shared → llms → agents → hub → core → hub-daemon → sdk). It supports `nightly` and `latest` channels and is triggered by manual dispatch or a daily cron.
 
 ### Root Automation Scope
 

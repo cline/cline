@@ -4,7 +4,7 @@ import {
 	readHubDiscovery,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
-} from "@cline/core";
+} from "@cline/hub";
 import {
 	type ConnectorStartResult,
 	resolveClineBuildEnv,

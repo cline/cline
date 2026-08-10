@@ -1,0 +1,39 @@
+{
+	"name": "@cline/hub",
+	"description": "Cline Hub discovery and client transport",
+	"version": "0.0.72",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/hub"
+	},
+	"type": "module",
+	"types": "./dist/index.d.ts",
+	"main": "./dist/index.js",
+	"private": false,
+	"publishConfig": {
+		"access": "public"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"scripts": {
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.json --noEmit",
+		"test": "vitest run --config vitest.config.ts",
+		"test:unit": "vitest run --config vitest.config.ts"
+	},
+	"dependencies": {
+		"@cline/shared": "workspace:*"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"files": [
+		"dist",
+		"!dist/**/*.d.ts.map"
+	]
+}

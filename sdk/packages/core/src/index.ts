@@ -416,9 +416,6 @@ export type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "./hooks/checkpoint-hooks";
-export * from "./hub";
-export { HubRuntimeHost } from "./hub/runtime-host/hub-runtime-host";
-export { RemoteRuntimeHost } from "./hub/runtime-host/remote-runtime-host";
 export {
 	hashSecret,
 	sdkDebug,
@@ -448,7 +445,9 @@ export {
 	createRuntimeHost as createSessionHost,
 	resolveSessionBackend,
 } from "./runtime/host/host";
+export { HubRuntimeHost } from "./runtime/host/hub-runtime-host";
 export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
+export { RemoteRuntimeHost } from "./runtime/host/remote-runtime-host";
 export type {
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,

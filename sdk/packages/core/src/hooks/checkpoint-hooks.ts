@@ -3,7 +3,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentHooks, BasicLogger } from "@cline/shared";
+import type {
+	AgentHooks,
+	BasicLogger,
+	CheckpointEntry,
+	CheckpointMetadata,
+} from "@cline/shared";
 import { countUserRunMessages } from "../session/user-run-messages";
 
 const execFile = promisify(execFileCallback);
@@ -13,17 +18,7 @@ export function isCheckpointStashMessage(message: string): boolean {
 	return message.includes(CHECKPOINT_STASH_MESSAGE_PREFIX);
 }
 
-export interface CheckpointEntry {
-	ref: string;
-	createdAt: number;
-	runCount: number;
-	kind?: "stash" | "commit";
-}
-
-export interface CheckpointMetadata {
-	latest: CheckpointEntry;
-	history: CheckpointEntry[];
-}
+export type { CheckpointEntry, CheckpointMetadata } from "@cline/shared";
 
 type CreateCheckpointHooksOptions = {
 	cwd: string;

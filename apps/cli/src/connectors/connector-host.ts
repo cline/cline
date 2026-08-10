@@ -3,10 +3,10 @@ import { basename } from "node:path";
 import type {
 	ChatRunTurnRequest,
 	ChatStartSessionRequest,
-	HubSessionClient,
 	UserInstructionConfigService,
 } from "@cline/core";
 import { isUnusableSessionError } from "@cline/core";
+import type { HubSessionClient } from "@cline/hub";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";

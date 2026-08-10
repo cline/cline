@@ -1,6 +1,6 @@
 {
 	"name": "@cline/sdk",
-	"description": "Cline SDK - user-facing alias for @cline/core",
+	"description": "Cline SDK - Core runtime and Hub client APIs",
 	"version": "0.0.72",
 	"repository": {
 		"type": "git",
@@ -25,7 +25,8 @@
 		"typecheck": "bun tsc -p tsconfig.json --noEmit"
 	},
 	"dependencies": {
-		"@cline/core": "workspace:*"
+		"@cline/core": "workspace:*",
+		"@cline/hub": "workspace:*"
 	},
 	"engines": {
 		"node": ">=22"

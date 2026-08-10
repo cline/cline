@@ -14,6 +14,8 @@
 	},
 	"dependencies": {
 		"@cline/core": "workspace:*",
+		"@cline/hub": "workspace:*",
+		"@cline/hub-daemon": "workspace:*",
 		"@cline/shared": "workspace:*"
 	},
 	"devDependencies": {

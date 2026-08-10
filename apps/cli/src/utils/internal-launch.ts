@@ -1,6 +1,12 @@
 import { existsSync } from "node:fs";
-import { isAbsolute, resolve as resolvePath } from "node:path";
-import { augmentNodeCommandForDebug, type ClineDebugRole } from "@cline/shared";
+import { dirname, isAbsolute, join, resolve as resolvePath } from "node:path";
+import { fileURLToPath } from "node:url";
+import { HUB_VERSION } from "@cline/hub";
+import {
+	augmentNodeCommandForDebug,
+	type ClineDebugRole,
+	type HubDaemonLaunchSpec,
+} from "@cline/shared";
 
 export interface ResolveCliLaunchSpecOptions {
 	execPath?: string;
@@ -16,6 +22,41 @@ export interface CliLaunchSpec {
 	childArgsPrefix: string[];
 	identityPath: string;
 	mode: "compiled" | "source";
+}
+
+export function resolveCliHubDaemonLaunchSpec(
+	options: ResolveCliLaunchSpecOptions = {},
+): HubDaemonLaunchSpec | undefined {
+	const cli = resolveCliLaunchSpec(options);
+	if (!cli) return undefined;
+	if (cli.mode === "compiled") {
+		const extension = process.platform === "win32" ? ".exe" : "";
+		return {
+			launcher: join(dirname(cli.identityPath), `cline-hub${extension}`),
+			argsPrefix: [],
+			cwd: options.cwd ?? process.cwd(),
+			version: HUB_VERSION,
+		};
+	}
+	const execPath = options.execPath?.trim() || process.execPath;
+	if (!execPath) return undefined;
+	const conditionsArg = (options.execArgv ?? process.execArgv).find((arg) =>
+		arg.startsWith("--conditions="),
+	);
+	return {
+		launcher: execPath,
+		argsPrefix: [
+			...(conditionsArg ? [conditionsArg] : ["--conditions=development"]),
+			fileURLToPath(
+				new URL(
+					"../../../../sdk/packages/hub-daemon/src/entry.ts",
+					import.meta.url,
+				),
+			),
+		],
+		cwd: options.cwd ?? process.cwd(),
+		version: HUB_VERSION,
+	};
 }
 
 function normalizeEntryArg(

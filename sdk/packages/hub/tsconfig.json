@@ -1,0 +1,13 @@
+{
+	"extends": "../tsconfig.base.json",
+	"compilerOptions": {
+		"noEmit": true,
+		"rootDir": "..",
+		"paths": {
+			"@cline/shared": ["../shared/src/index.ts"],
+			"@cline/shared/storage": ["../shared/src/storage/index.ts"],
+			"@cline/shared/*": ["../shared/src/*", "../shared/src/*/index.ts"]
+		}
+	},
+	"include": ["src/**/*.ts", "bun.mts", "vitest.config.ts"]
+}

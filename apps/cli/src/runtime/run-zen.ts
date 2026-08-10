@@ -1,5 +1,5 @@
 import type { UserInstructionConfigService } from "@cline/core";
-import { HubSessionClient } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type { ChatStartSessionRequest } from "@cline/shared";
 import { resolveCliSessionMetadata } from "../utils/enterprise";
 import { ensureCliHubServer } from "../utils/hub-runtime";

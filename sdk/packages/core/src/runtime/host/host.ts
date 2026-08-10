@@ -1,17 +1,17 @@
-import { captureSdkError } from "@cline/shared";
-import type { ClineCoreOptions } from "../../cline-core/types";
 import {
 	ensureCompatibleLocalHubUrl,
+	prewarmDetachedHubServer,
 	resolveCompatibleLocalHubUrl,
-} from "../../hub/client";
-import { prewarmDetachedHubServer } from "../../hub/daemon";
-import { HubRuntimeHost } from "../../hub/runtime-host/hub-runtime-host";
-import { RemoteRuntimeHost } from "../../hub/runtime-host/remote-runtime-host";
+} from "@cline/hub";
+import { captureSdkError } from "@cline/shared";
+import type { ClineCoreOptions } from "../../cline-core/types";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { resolveCoreDistinctId } from "../../services/telemetry/distinct-id";
 import { FileSessionService } from "../../session/services/file-session-service";
 import { CoreSessionService } from "../../session/services/session-service";
+import { HubRuntimeHost } from "./hub-runtime-host";
 import { LocalRuntimeHost } from "./local-runtime-host";
+import { RemoteRuntimeHost } from "./remote-runtime-host";
 import type { RuntimeHost, RuntimeHostMode } from "./runtime-host";
 
 function resolveConfiguredBackendMode(

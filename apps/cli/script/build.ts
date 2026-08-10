@@ -19,6 +19,10 @@ import {
 
 const cliDir = resolve(import.meta.dir, "..");
 const rootDir = resolve(cliDir, "../..");
+const hubDaemonEntrypoint = join(
+	rootDir,
+	"sdk/packages/hub-daemon/src/entry.ts",
+);
 process.chdir(cliDir);
 
 // Telemetry / OTEL environment variables that should be baked into the
@@ -47,6 +51,9 @@ function buildInlinedEnvDefines(): Record<string, string> {
 
 const pkg = JSON.parse(readFileSync(join(cliDir, "package.json"), "utf-8"));
 const version: string = pkg.version;
+const hubVersion: string = JSON.parse(
+	readFileSync(join(rootDir, "sdk/packages/hub/package.json"), "utf-8"),
+).version;
 const repository: unknown = pkg.repository;
 
 console.log(`Building @cline/cli v${version}`);
@@ -171,6 +178,7 @@ async function buildCompiledBinary(input: {
 	bunTarget: Bun.Build.CompileTarget;
 	dirName: string;
 	outfile: string;
+	hubOutfile: string;
 }): Promise<void> {
 	const parserWorker = findOpenTuiParserWorker();
 	const targetOs = input.bunTarget.includes("windows") ? "windows" : "posix";
@@ -187,6 +195,10 @@ async function buildCompiledBinary(input: {
 	const tmpOutfile = join(
 		tmpDir,
 		input.outfile.endsWith(".exe") ? "cline.exe" : "cline",
+	);
+	const tmpHubOutfile = join(
+		tmpDir,
+		input.hubOutfile.endsWith(".exe") ? "cline-hub.exe" : "cline-hub",
 	);
 	mkdirSync(tmpDir, { recursive: true });
 
@@ -218,7 +230,24 @@ async function buildCompiledBinary(input: {
 		process.exit(1);
 	}
 
+	const hubResult = await Bun.build({
+		entrypoints: [hubDaemonEntrypoint],
+		compile: {
+			target: input.bunTarget,
+			outfile: tmpHubOutfile,
+		},
+		minify: true,
+		define: buildInlinedEnvDefines(),
+		throw: false,
+	});
+	if (!hubResult.success) {
+		console.error(`Hub daemon build failed for ${input.dirName}:`);
+		for (const log of hubResult.logs) console.error(log);
+		process.exit(1);
+	}
+
 	await $`cp ${tmpOutfile} ${input.outfile} && chmod 755 ${input.outfile}`;
+	await $`cp ${tmpHubOutfile} ${input.hubOutfile} && chmod 755 ${input.hubOutfile}`;
 	await $`rm -rf ${tmpDir}`;
 }
 
@@ -235,8 +264,10 @@ for (const item of targets) {
 	mkdirSync(outDir, { recursive: true });
 
 	const outfile = join(outDir, binaryName);
+	const hubBinaryName = item.os === "win32" ? "cline-hub.exe" : "cline-hub";
+	const hubOutfile = join(outDir, hubBinaryName);
 
-	await buildCompiledBinary({ bunTarget, dirName, outfile });
+	await buildCompiledBinary({ bunTarget, dirName, outfile, hubOutfile });
 
 	// Smoke test: only run on current platform
 	if (item.os === process.platform && item.arch === process.arch) {
@@ -252,6 +283,21 @@ for (const item of targets) {
 			console.log(`  Passed: ${actualVersion}`);
 		} catch (e) {
 			console.error(`  Smoke test FAILED for ${name}:`, e);
+			process.exit(1);
+		}
+
+		console.log(`  Smoke test: ${hubOutfile} --version`);
+		try {
+			const output = await $`${hubOutfile} --version`.text();
+			const actualVersion = output.trim();
+			if (actualVersion !== hubVersion) {
+				throw new Error(
+					`Expected Hub --version to print ${hubVersion}, got ${actualVersion}`,
+				);
+			}
+			console.log(`  Passed: ${actualVersion}`);
+		} catch (e) {
+			console.error(`  Hub smoke test FAILED for ${name}:`, e);
 			process.exit(1);
 		}
 	}

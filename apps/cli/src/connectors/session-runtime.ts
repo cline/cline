@@ -1,11 +1,11 @@
 import type { ChatStartSessionRequest, RuntimeLoggerConfig } from "@cline/core";
 import {
 	CoreSessionService,
-	HubSessionClient,
 	Llms,
 	ProviderSettingsManager,
 	SqliteSessionStore,
 } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type { Thread } from "chat";
 import {
 	ensureOAuthProviderApiKey,
@@ -235,9 +235,7 @@ export async function getOrCreateSessionId<
 				transport: input.transport,
 				threadId: input.thread.id,
 				sessionId: existing,
-				...(existingSession?.status
-					? { status: existingSession.status }
-					: {}),
+				...(existingSession?.status ? { status: existingSession.status } : {}),
 			},
 		);
 	}

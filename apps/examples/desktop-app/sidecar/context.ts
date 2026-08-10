@@ -7,14 +7,13 @@ import {
 	type BasicLogger,
 	ClineCore,
 	type CoreSessionEvent,
-	ensureCompatibleLocalHubUrl,
 	type ITelemetryService,
-	NodeHubClient,
 	type RuntimeCapabilities,
 	setHomeDirIfUnset,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
+import { ensureCompatibleLocalHubUrl, NodeHubClient } from "@cline/hub";
 import type { AgentEvent } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,

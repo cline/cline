@@ -1,4 +1,5 @@
-import type { ChatRunTurnRequest, HubSessionClient } from "@cline/core";
+import type { ChatRunTurnRequest } from "@cline/core";
+import type { HubSessionClient } from "@cline/hub";
 import type { CliLoggerAdapter } from "../logging/adapter";
 
 export type PendingConnectorApproval = {

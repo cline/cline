@@ -1,9 +1,7 @@
 import { createTelegramAdapter } from "@chat-adapter/telegram";
 import type { ChatStartSessionRequest } from "@cline/core";
-import {
-	createUserInstructionConfigService,
-	HubSessionClient,
-} from "@cline/core";
+import { createUserInstructionConfigService } from "@cline/core";
+import { HubSessionClient } from "@cline/hub";
 import type {
 	ConnectTelegramOptions,
 	TelegramConnectorState,

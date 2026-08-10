@@ -8,6 +8,7 @@
 			"@cline/agents/*": ["../agents/src/*", "../agents/src/*/index.ts"],
 			"@cline/llms": ["../llms/src/index.ts"],
 			"@cline/llms/browser": ["../llms/src/index.browser.ts"],
+			"@cline/hub": ["../hub/src/index.ts"],
 			"@cline/shared": ["../shared/src/index.ts"],
 			"@cline/shared/automation": ["../shared/src/automation/index.ts"],
 			"@cline/shared/browser": ["../shared/src/index.browser.ts"],

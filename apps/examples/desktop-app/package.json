@@ -28,6 +28,8 @@
 	"dependencies": {
 		"@base-ui/react": "^1.2.0",
 		"@cline/core": "workspace:*",
+		"@cline/hub": "workspace:*",
+		"@cline/hub-daemon": "workspace:*",
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/ui": "workspace:*",

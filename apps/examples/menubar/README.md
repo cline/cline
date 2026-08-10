@@ -9,7 +9,7 @@ Any Client (CLI, VS Code, agents)
     │
     │  ws://  ui.notify / ui.show_window commands
     ▼
-Hub WebSocket Server (@cline/core/hub/server.ts)
+Standalone Hub WebSocket Server (@cline/hub-daemon)
     │
     │  broadcasts ui.notify / ui.show_window events to ALL subscribers
     ▼

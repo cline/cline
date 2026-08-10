@@ -21,7 +21,7 @@ bringing in session storage, hub transport, or host-specific default tools.
 
 - Default host tools like filesystem access, shell execution, or web fetching live in `@cline/core`
 - Session persistence and stateful orchestration live in `@cline/core`
-- Shared hub runtime/session transport lives in `@cline/core` (see `@cline/core/hub`)
+- Shared Hub discovery and client transport live in `@cline/hub`; stateful Hub runtime composition lives in `@cline/hub-daemon`
 - Sub-agent and team coordination primitives live in `@cline/core`
 
 That split keeps this package usable in Node, browser, and custom host

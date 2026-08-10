@@ -98,6 +98,8 @@
 	},
 	"devDependencies": {
 		"@cline/core": "workspace:*",
+		"@cline/hub": "workspace:*",
+		"@cline/hub-daemon": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@microsoft/tui-test": "^0.0.2",
 		"@types/bun": "^1.3.10",

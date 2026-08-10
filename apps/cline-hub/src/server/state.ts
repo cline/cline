@@ -1,8 +1,5 @@
-import {
-	type ClineCore,
-	CORE_BUILD_VERSION,
-	type HubUIClient,
-} from "@cline/core";
+import { type ClineCore, CORE_BUILD_VERSION } from "@cline/core";
+import type { HubUIClient } from "@cline/hub";
 import type { WebviewHubEvent } from "../webview-protocol";
 import type {
 	BrowserPeer,

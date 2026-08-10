@@ -1,4 +1,4 @@
-import type { HubSessionClient } from "@cline/core";
+import type { HubSessionClient } from "@cline/hub";
 import type { TeamProgressProjectionEvent } from "@cline/shared";
 import type { Chat, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";

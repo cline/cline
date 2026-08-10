@@ -237,7 +237,7 @@ async function main(): Promise<number> {
 					`  await import("${pkg.name}");`,
 					`  console.log("  OK ${pkg.name}");`,
 					`} catch (e: any) {`,
-					`  console.error("  FAIL ${pkg.name}:", e.message);`,
+					`  console.error("  FAIL ${pkg.name}:", e.stack ?? e.message);`,
 					`  if (e.code) console.error("       code:", e.code);`,
 					`  process.exitCode = 1;`,
 					`}`,

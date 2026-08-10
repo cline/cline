@@ -24,7 +24,7 @@ const {
 	mockStopLocalHubServerGracefully: vi.fn(),
 }));
 
-vi.mock("@cline/core", () => ({
+vi.mock("@cline/hub", () => ({
 	clearHubDiscovery: mockClearHubDiscovery,
 	ensureDetachedHubServer: mockEnsureDetachedHubServer,
 	probeHubServer: mockProbeHubServer,

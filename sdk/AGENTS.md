@@ -21,22 +21,26 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/shared`: shared contracts, schemas, path helpers, hook engine, extension registry, low-level utilities
 - `@cline/llms`: provider settings/config, model catalogs, provider manifests, gateway contracts, handler creation
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
-- `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
+- `@cline/hub`: Core-independent Hub discovery, client transports, and managed daemon lifecycle
+- `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry, and Hub-backed runtime hosts
+- `@cline/hub-daemon`: standalone Hub server and daemon composition over `@cline/core` and `@cline/hub`
 
 ### Dependency Direction
 
 ```mermaid
 flowchart TD
-  shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & core["@cline/core"]
+  shared["@cline/shared"] --> llms["@cline/llms"] & agents["@cline/agents"] & hub["@cline/hub"] & core["@cline/core"]
   llms --> agents & core
   agents --> core
-  core --> apps["CLI / VS Code / Code App"]
+  hub --> core & daemon["@cline/hub-daemon"]
+  core --> daemon & apps["CLI / VS Code / Code App"]
+  daemon --> apps
 ```
 
 Rules:
 - `shared` stays low-level and reusable
 - `agents` stays stateless — no session/storage/config concerns
-- `core` owns stateful orchestration, including the shared-hub daemon, server, and client adapters under `src/hub/`
+- `hub` must remain independent of `core`; `hub-daemon` is the only package that composes the Hub server with Core runtime services
 
 ## Change Routing
 
@@ -44,7 +48,9 @@ Route changes to the package that owns the concern:
 
 - model/provider schemas or handler behavior: `@cline/llms`
 - stateless loop, tool orchestration, streaming, hook/extension runtime: `@cline/agents`
-- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, hub runtime services, hub discovery, hub daemon spawn, and session-oriented client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@cline/core` (hub pieces live under `src/hub/`)
+- session lifecycle, storage, config watching, default tools, plugin loading, telemetry, and Hub-backed runtime hosts: `@cline/core`
+- Hub discovery, managed daemon launch, and client helpers (`HubSessionClient`, `HubUIClient`, `connectToHub`): `@cline/hub`
+- Hub WebSocket server, command handlers, and Core runtime composition: `@cline/hub-daemon`
 - remote-config schemas, managed instruction materialization, blob upload metadata, and OpenTelemetry config normalization: `@cline/shared/src/remote-config`
 - host-specific UX or shell behavior: app package
 

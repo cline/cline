@@ -12,8 +12,8 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { join } from "node:path";
-import type { HubSessionClient, HubSessionRow } from "@cline/core";
 import { ensureParentDir, resolveClineDataDir } from "@cline/core";
+import type { HubSessionClient, HubSessionRow } from "@cline/hub";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	withResolvedClineBuildEnv,

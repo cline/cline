@@ -37,7 +37,7 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
-		"externalBin": ["bin/code-sidecar"],
+		"externalBin": ["bin/code-sidecar", "bin/code-hub"],
 		"resources": ["icons/dock/*.png"],
 		"icon": [
 			"icons/32x32.png",

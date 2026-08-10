@@ -1,4 +1,5 @@
 export const CLINE_RUN_AS_HUB_DAEMON_ENV = "CLINE_RUN_AS_HUB_DAEMON";
+export const CLINE_HUB_DAEMON_LAUNCH_ENV = "CLINE_HUB_DAEMON_LAUNCH";
 export const CLINE_CONNECTOR_CLI_LAUNCH_ENV = "CLINE_CONNECTOR_CLI_LAUNCH";
 export const CLINE_CONNECTOR_STARTING_INSTANCE_ENV =
 	"CLINE_CONNECTOR_STARTING_INSTANCE";
@@ -8,6 +9,52 @@ export interface ConnectorCliLaunchSpec {
 	launcher: string;
 	connectArgsPrefix: string[];
 	cwd: string;
+}
+
+/** Command for launching the separately-built Hub daemon artifact. */
+export interface HubDaemonLaunchSpec {
+	launcher: string;
+	argsPrefix: string[];
+	cwd?: string;
+	/** Monotonic Hub release version bundled by the host. */
+	version: string;
+}
+
+export function setHubDaemonLaunchSpec(
+	spec: HubDaemonLaunchSpec,
+	env: Record<string, string | undefined> = process.env,
+): void {
+	env[CLINE_HUB_DAEMON_LAUNCH_ENV] = JSON.stringify(spec);
+}
+
+export function readHubDaemonLaunchSpec(
+	env: Record<string, string | undefined> = process.env,
+): HubDaemonLaunchSpec | undefined {
+	const raw = env[CLINE_HUB_DAEMON_LAUNCH_ENV];
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw) as Partial<HubDaemonLaunchSpec>;
+		if (
+			typeof parsed.launcher !== "string" ||
+			!parsed.launcher.trim() ||
+			!Array.isArray(parsed.argsPrefix) ||
+			!parsed.argsPrefix.every((arg) => typeof arg === "string") ||
+			(parsed.cwd !== undefined &&
+				(typeof parsed.cwd !== "string" || !parsed.cwd.trim())) ||
+			typeof parsed.version !== "string" ||
+			!parsed.version.trim()
+		) {
+			return undefined;
+		}
+		return {
+			launcher: parsed.launcher,
+			argsPrefix: parsed.argsPrefix,
+			cwd: parsed.cwd,
+			version: parsed.version,
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 /** Identifies one connector instance: an adapter channel plus its instance id. */

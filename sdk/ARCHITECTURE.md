@@ -100,18 +100,15 @@ Owns stateful orchestration:
 - plugin discovery/loading
 - default context compaction policy
 - telemetry integration
-- hub server and scheduled-runtime services under `src/hub/`
-- hub discovery, the detached hub daemon, and the `@cline/core/hub/daemon-entry` subpath
-- host-side hub client adapters (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) exported from `@cline/core/hub`
+- Hub-backed runtime hosts under `src/runtime/host/`
+- Core runtime services exposed to the standalone daemon through the narrow `@cline/core/hub-runtime` composition surface
 
 Design rules:
 
 - `core` is the app-facing orchestration layer over `agents`.
-- hub-related modules live under `packages/core/src/hub/`, grouped by service:
-  - `client/` contains host-facing hub clients and browser connection helpers
-  - `daemon/` contains detached daemon startup, entrypoint, and local runtime handler wiring
-  - `discovery/` contains endpoint defaults, discovery records, and workspace owner resolution
-  - `server/` contains WebSocket server startup, native/browser socket adapters, server transport, server helpers, and `handlers/` for hub command dispatch
+- `@cline/hub` owns Core-independent clients, discovery, and managed daemon lifecycle.
+- `@cline/hub-daemon` owns the WebSocket server, command handlers, and executable entrypoint. It depends on `@cline/core/hub-runtime` to compose stateful execution without making Core own or bundle the daemon.
+- Host builds ship a distinct Hub executable and configure it with `setHubDaemonLaunchSpec`; the desktop/CLI executable is never reused as the daemon executable.
 - settings mutations belong in core services and hub commands, not in host-specific file writes. Hosts should call the core settings facade or the `settings.*` hub command family and react to `settings.changed`.
 
 ## Runtime Flows
@@ -141,12 +138,12 @@ event payload and `source` field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. When no compatible local Hub is already discovered, `@cline/hub` launches the standalone daemon configured by the host and reconnects through discovery. A compatible newer daemon is reused; an older daemon is retired before replacement.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
-6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
+6. `@cline/hub-daemon` brokers sessions, events, approvals, schedules, and client-owned runtime capabilities using stateful services supplied by `@cline/core/hub-runtime`.
 7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
-8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
+8. Hub client adapters exported from `@cline/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
 Session history provenance keeps the client surface and initiation mode separate.
@@ -505,9 +502,9 @@ there is no separate schedules table, schedule store, or schedule runner.
 - Settings: `packages/core/src/settings/` — settings mutation and state
 
 **I want to understand the hub system:**
-- Start: `packages/core/src/hub/server/` — WebSocket server and hub command handlers
-- Clients: `packages/core/src/hub/client/` — host-side hub clients
-- Transport: `packages/core/src/hub/runtime-host/` — hub-backed runtime hosts
+- Start: `packages/hub-daemon/src/server/` — WebSocket server and Hub command handlers
+- Clients/discovery: `packages/hub/src/` — host-side clients and managed daemon lifecycle
+- Runtime hosts: `packages/core/src/runtime/host/` — Core local and Hub-backed execution abstractions
 
 **I want to add a new tool:**
 - Tools registry: `packages/core/src/extensions/tools/` — built-in tool definitions

@@ -4,7 +4,7 @@ import {
 	type HubEndpointOverrides,
 	resolveDefaultHubHost,
 	resolveDefaultHubPort,
-} from "@cline/core";
+} from "@cline/hub";
 
 /**
  * Build a `host:port` rpc address string that respects the current build
