@@ -285,7 +285,7 @@ const USER_SETTINGS_FIELDS = {
 	// indefinitely on an unbounded Fibonacci backoff (1s,1s,2s,3s,5s,8s,… capped
 	// at 5min) until it succeeds or the user cancels. Auth/balance errors are
 	// NOT retried (they require user action). Failed requests cost no tokens.
-	autoRetryFailedRequests: { default: false as boolean },
+	autoRetryFailedRequests: { default: true as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },
