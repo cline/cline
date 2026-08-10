@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearHubDiscovery,
+	getManagedHubCompatibility,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubOwnerContext,
@@ -11,18 +12,21 @@ import {
 
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
+	CLINE_HUB_BUILD_ID: string | undefined;
 	CLINE_HUB_DISCOVERY_PATH: string | undefined;
 };
 
 function captureEnv(): EnvSnapshot {
 	return {
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
+		CLINE_HUB_BUILD_ID: process.env.CLINE_HUB_BUILD_ID,
 		CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
 	};
 }
 
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
+	process.env.CLINE_HUB_BUILD_ID = snapshot.CLINE_HUB_BUILD_ID;
 	process.env.CLINE_HUB_DISCOVERY_PATH = snapshot.CLINE_HUB_DISCOVERY_PATH;
 }
 
@@ -56,6 +60,30 @@ describe("hub discovery", () => {
 		expect(resolveHubOwnerContext("shared").discoveryPath).toBe(
 			"/tmp/custom-hub-discovery.json",
 		);
+	});
+
+	it("requires both protocol and build compatibility for managed Hubs", () => {
+		expect(
+			getManagedHubCompatibility(
+				{ protocolVersion: "v1", buildId: "current-build" },
+				"current-build",
+			),
+		).toEqual({ compatible: true });
+		expect(
+			getManagedHubCompatibility(
+				{ protocolVersion: "v1", buildId: "old-build" },
+				"current-build",
+			),
+		).toEqual({ compatible: false, reason: "build_mismatch" });
+		expect(
+			getManagedHubCompatibility({ protocolVersion: "v1" }, "current-build"),
+		).toEqual({ compatible: false, reason: "missing_build" });
+		expect(
+			getManagedHubCompatibility(
+				{ protocolVersion: "v2", buildId: "current-build" },
+				"current-build",
+			),
+		).toEqual({ compatible: false, reason: "unsupported_protocol" });
 	});
 
 	it("writes and clears discovery records at the resolved location", async () => {

@@ -13,6 +13,10 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import {
+	armHubDaemonShutdownWatchdog,
+	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+} from "./shutdown-watchdog";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -110,10 +114,12 @@ async function main(): Promise<void> {
 	});
 
 	const daemonTelemetry = createHubDaemonTelemetry();
+	let requestDaemonShutdown: () => void = () => {};
 
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
+			onShutdownRequested: () => requestDaemonShutdown(),
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -142,7 +148,21 @@ async function main(): Promise<void> {
 	});
 	setActiveConnectorSupervisor(supervisor);
 
+	let shutdownStarted = false;
 	const shutdown = async (): Promise<void> => {
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 0,
+			onTimeout: () => {
+				process.stderr.write(
+					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
+				);
+			},
+		});
 		// Stop supervising but leave the connectors running: they are detached on
 		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
 		// hub adopts them from their state files.
@@ -152,6 +172,9 @@ async function main(): Promise<void> {
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
+	requestDaemonShutdown = () => {
+		void shutdown();
+	};
 
 	let fatalShutdownStarted = false;
 	const shutdownFatal = (label: string, error: unknown): void => {
@@ -159,6 +182,15 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 1,
+			onTimeout: () => {
+				process.stderr.write(
+					`[hub-daemon] shutdown after ${label} stalled; forcing exit\n`,
+				);
+			},
+		});
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
@@ -194,8 +226,7 @@ async function main(): Promise<void> {
 	});
 	process.on("unhandledRejection", (reason) => {
 		if (isAbortRejection(reason)) {
-			const message =
-				reason instanceof Error ? reason.message : String(reason);
+			const message = reason instanceof Error ? reason.message : String(reason);
 			process.stderr.write(
 				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);

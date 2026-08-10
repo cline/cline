@@ -2,6 +2,11 @@ import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
 import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
+import {
+	type HubCompatibilityResult,
+	type HubProtocolMetadata,
+	isHubProtocolCompatible,
+} from "@cline/shared";
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
 
@@ -109,6 +114,41 @@ async function removeStartupLock(lockDir: string): Promise<void> {
 
 export function resolveHubBuildId(): string {
 	return process.env[HUB_BUILD_ID_ENV]?.trim() || String(corePackage.version);
+}
+
+export type ManagedHubCompatibilityResult =
+	| { compatible: true }
+	| {
+			compatible: false;
+			reason:
+				| Exclude<HubCompatibilityResult, { compatible: true }>["reason"]
+				| "missing_build"
+				| "build_mismatch";
+	  };
+
+/**
+ * Compatibility for a managed local Hub discovered through Cline's owner
+ * record. Unlike explicit endpoints, a managed Hub is code that this client
+ * is responsible for keeping current, so wire compatibility alone is not
+ * enough: reusing a daemon from another build would keep executing stale
+ * runtime, scheduler, connector, and command-handler code after an upgrade.
+ */
+export function getManagedHubCompatibility(
+	record: HubProtocolMetadata & { buildId?: string },
+	expectedBuildId = resolveHubBuildId(),
+): ManagedHubCompatibilityResult {
+	const protocol = isHubProtocolCompatible(record);
+	if (!protocol.compatible) {
+		return protocol;
+	}
+	const buildId = record.buildId?.trim();
+	if (!buildId) {
+		return { compatible: false, reason: "missing_build" };
+	}
+	if (buildId !== expectedBuildId) {
+		return { compatible: false, reason: "build_mismatch" };
+	}
+	return { compatible: true };
 }
 
 export function resolveHubOwnerContext(
