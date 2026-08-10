@@ -252,7 +252,7 @@ message Settings {
   optional bool enable_checkpoints_setting = 135;
   optional int32 shell_integration_timeout = 136;
   optional string default_terminal_profile = 137;
-  optional bool yolo_mode_toggled = 142;
+  reserved 142; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
   optional bool use_auto_condense = 143;
   optional string preferred_language = 145;
   optional PlanActMode mode = 147;
@@ -414,7 +414,7 @@ message UpdateSettingsRequest {
   optional bool use_auto_condense = 18;
   optional BrowserSettingsUpdate browser_settings = 20;
   optional string default_terminal_profile = 21;
-  optional bool yolo_mode_toggled = 22;
+  reserved 22; // was yolo_mode_toggled (removed; migrated into auto_approval_settings)
   optional bool multi_root_enabled = 25;
   optional bool hooks_enabled = 26;
   optional string vscode_terminal_execution_mode = 27;
