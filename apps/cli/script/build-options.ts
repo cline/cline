@@ -1,5 +1,6 @@
 export interface BuildOptions {
 	single: boolean;
+	baseline: boolean;
 	skipInstall: boolean;
 	skipSdkBuild: boolean;
 	installNativeVariants: boolean;
@@ -8,6 +9,7 @@ export interface BuildOptions {
 export function parseBuildOptions(args: readonly string[]): BuildOptions {
 	return {
 		single: args.includes("--single"),
+		baseline: args.includes("--baseline"),
 		skipInstall: args.includes("--skip-install"),
 		skipSdkBuild: args.includes("--skip-sdk-build"),
 		installNativeVariants: args.includes("--install-native-variants"),

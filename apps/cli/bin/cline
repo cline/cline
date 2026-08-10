@@ -116,11 +116,17 @@ if (!arch) {
 	arch = os.arch();
 }
 
-const base = "@cline/cli-" + platform + "-" + arch;
 const binary = platform === "windows" ? "cline.exe" : "cline";
 
-// Build fallback chain of package names to try
-const names = [base];
+// Build fallback chain of package names to try. On x64 CPUs without AVX2
+// the default Bun build crashes with SIGILL, so prefer the baseline package.
+let names;
+try {
+	const baseline = require("./baseline.cjs");
+	names = baseline.resolvePlatformPackageNames(platform, arch);
+} catch {
+	names = ["@cline/cli-" + platform + "-" + arch];
+}
 
 function findBinary(startDir) {
 	let current = startDir;
