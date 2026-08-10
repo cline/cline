@@ -6,6 +6,7 @@ import {
 	getManagedHubCompatibility,
 	probeHubServer,
 	readHubDiscovery,
+	resolveHubBuildId,
 	resolveHubOwnerContext,
 	writeHubDiscovery,
 } from ".";
@@ -60,6 +61,15 @@ describe("hub discovery", () => {
 		expect(resolveHubOwnerContext("shared").discoveryPath).toBe(
 			"/tmp/custom-hub-discovery.json",
 		);
+	});
+
+	it("allows tests to override the unbundled source build identity", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_BUILD_ID;
+		expect(resolveHubBuildId()).toMatch(/^source-/);
+
+		process.env.CLINE_HUB_BUILD_ID = "e2e-build";
+		expect(resolveHubBuildId()).toBe("e2e-build");
 	});
 
 	it("requires both protocol and build compatibility for managed Hubs", () => {

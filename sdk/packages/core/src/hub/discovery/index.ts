@@ -10,6 +10,8 @@ import {
 import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
 
+declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
+
 const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
 const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
 const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
@@ -113,7 +115,15 @@ async function removeStartupLock(lockDir: string): Promise<void> {
 }
 
 export function resolveHubBuildId(): string {
-	return process.env[HUB_BUILD_ID_ENV]?.trim() || String(corePackage.version);
+	const configured = process.env[HUB_BUILD_ID_ENV]?.trim();
+	if (configured) {
+		return configured;
+	}
+	const embedded =
+		typeof __CLINE_CORE_RUNTIME_BUILD_ID__ === "string"
+			? __CLINE_CORE_RUNTIME_BUILD_ID__.trim()
+			: "";
+	return embedded || `source-${String(corePackage.version)}`;
 }
 
 export type ManagedHubCompatibilityResult =
