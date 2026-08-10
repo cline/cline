@@ -17,6 +17,10 @@ describe("@cline/ui theme integration", () => {
 
 		expect(result.css).toContain("--text-xs: 0.8rem");
 		expect(result.css).toContain("--font-weight-normal: 480");
+		expect(result.css).toContain("--font-weight-normal: 400");
+		expect(result.css).toContain("--font-weight-medium: 500");
+		expect(result.css).toContain("--font-weight-semibold: 600");
+		expect(result.css).toContain("--font-weight-bold: 600");
 		expect(result.css).toContain('--font-sans: "Inter Variable"');
 		expect(result.css).toContain("--primary-emphasis:");
 		expect(result.css).toContain(".bg-background");
