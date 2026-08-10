@@ -107,7 +107,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const summary = [...container.querySelectorAll("span")].find((element) =>
-			element.textContent?.includes("Explored"),
+			element.textContent?.includes("Searched"),
 		);
 		expect(summary).toBeDefined();
 		expect(summary?.closest("button")).toBeNull();
@@ -172,7 +172,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Explored 1 search"),
+			element.textContent?.includes("Searched workspace selector"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		const panelId = trigger?.getAttribute("aria-controls");
@@ -215,7 +215,7 @@ describe("ChatMessages tool disclosures", () => {
 
 		await renderMessages(tools);
 
-		expect(container.textContent).toContain("Read 2 files. Edited 4 files");
+		expect(container.textContent).toContain("Read 2 files · Edited 4 files");
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
 	});
 
@@ -382,7 +382,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		expect(container.textContent).toContain(
-			"Read 1 file. Edited 1 file. Read 1 file",
+			"Read 1 file · Edited 1 file · Read 1 file",
 		);
 	});
 
@@ -411,7 +411,8 @@ describe("ChatMessages tool disclosures", () => {
 			tool("second", 3),
 		]);
 
-		expect(container.textContent?.match(/Read 1 file/g)).toHaveLength(2);
+		expect(container.textContent).toContain("Read first.ts");
+		expect(container.textContent).toContain("Read second.ts");
 	});
 
 	it("normalizes payload-backed configured subagent names", async () => {
@@ -443,7 +444,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		expect(container.textContent).toContain(
-			"Ran 2 commands. spawn_agent. spawn_agent. spawn_agent",
+			"Ran 2 commands · Spawned 3 agents",
 		);
 		expect(container.textContent).not.toContain("subagent_subagent");
 	});
