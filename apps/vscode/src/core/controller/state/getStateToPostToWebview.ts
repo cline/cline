@@ -175,6 +175,7 @@ export async function getStateToPostToWebview(controller: {
 		backgroundEditEnabled: stateManager.getGlobalSettingsKey("backgroundEditEnabled"),
 		optOutOfRemoteConfig: stateManager.getGlobalSettingsKey("optOutOfRemoteConfig"),
 		showFeatureTips,
+		autoRetryFailedRequests: stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
 		banners,
 		welcomeBanners,
 		openAiCodexIsAuthenticated,

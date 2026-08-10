@@ -37,6 +37,19 @@ const agentFeatures: FeatureToggle[] = [
 		stateKey: "useAutoCondense",
 		settingKey: "useAutoCondense",
 	},
+	{
+		id: "auto-retry",
+		label: "Auto-Retry Failed Requests",
+		description: (
+			<>
+				Automatically retry failed API requests with increasing delays (1s, 1s, 2s, 3s, 5s, 8s…) until they succeed or you
+				cancel. Failed requests cost no tokens, so this can keep a task going through transient outages without
+				intervention.
+			</>
+		),
+		stateKey: "autoRetryFailedRequests",
+		settingKey: "autoRetryFailedRequests",
+	},
 ]
 
 const editorFeatures: FeatureToggle[] = [
@@ -147,6 +160,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		worktreesEnabled,
 		backgroundEditEnabled,
 		showFeatureTips,
+		autoRetryFailedRequests,
 	} = useExtensionState()
 
 	// State lookup for mapped features
@@ -158,6 +172,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		subagentsEnabled,
 		worktreesEnabled: worktreesEnabled?.user,
 		backgroundEditEnabled,
+		autoRetryFailedRequests,
 	}
 
 	// Visibility lookup for features with feature flags
@@ -223,7 +238,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							))}
 						</div>
 					</div>
-
 				</div>
 
 				{/* Advanced */}

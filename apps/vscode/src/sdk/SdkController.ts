@@ -66,6 +66,7 @@ import {
 	type ProviderFailureTelemetry,
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
+import { type RetryAttemptInfo, SdkApiRetryCoordinator } from "./sdk-api-retry-coordinator"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -184,6 +185,10 @@ export class Controller {
 	private compaction: SdkCompactionCoordinator
 	private sessionEvents: SdkSessionEventCoordinator
 	private sessionHistory: SdkSessionHistoryLoader
+	// Infinite Fibonacci-backoff auto-retry for failed agent turns (opt-in via
+	// the "autoRetryFailedRequests" setting). Schedules retries through the
+	// normal send funnel; auth/balance errors are excluded by the caller.
+	private apiRetry!: SdkApiRetryCoordinator
 	private readonly sdkTelemetry: VscodeSdkTelemetryHandle
 	private readonly providerFailureTelemetryTurnGate = new ProviderFailureTelemetryTurnGate()
 	private readonly providerConfigStore: ProviderConfigStore
@@ -397,6 +402,9 @@ export class Controller {
 			onSendComplete: async () => {
 				// Normal flows close their diff sessions inline; anything left here is orphaned.
 				void this.diffEdits.discardAllPreviews("turn complete")
+				// A turn succeeded — clear any auto-retry streak so the next failure
+				// starts a fresh backoff from attempt 1.
+				this.apiRetry?.reset()
 
 				this.postStateToWebview().catch((err) => {
 					Logger.error("[SdkController] Failed to post state after turn:", err)
@@ -440,21 +448,63 @@ export class Controller {
 						errorType: PROVIDER_FAILURE_ERROR_TYPE.SEND_ERROR,
 						failurePhase: PROVIDER_FAILURE_PHASE.STREAMING,
 					})
-					this.messages.emitSessionEvents(
-						[
-							{
-								ts: Date.now(),
-								type: "say",
-								say: "error",
-								text: `Agent error: ${errorMessage}`,
-								partial: false,
-							},
-						],
-						{ type: "status", payload: { sessionId, status: "error" } },
-					)
+					// Offer infinite Fibonacci-backoff auto-retry for generic send/stream
+					// errors. Auth & balance errors already short-circuited above.
+					// handleSendError returns false (and schedules nothing) when the
+					// setting is off or the session is no longer active.
+					const willAutoRetry = this.apiRetry?.handleSendError(error, sessionId) ?? false
+					if (willAutoRetry) {
+						// A retry is scheduled: keep the turn active (streaming shows the
+						// Cancel button) instead of flipping to hard-error recovery. The
+						// coordinator's emitRetryScheduled callback surfaces the
+						// "retrying in Ns" message; we still emit the error text so the
+						// user can see what failed.
+						this.turnStateTracker.set("streaming")
+						this.messages.emitSessionEvents(
+							[
+								{
+									ts: Date.now(),
+									type: "say",
+									say: "error",
+									text: `Agent error: ${errorMessage}`,
+									partial: false,
+								},
+							],
+							{ type: "status", payload: { sessionId, status: "running" } },
+						)
+					} else {
+						this.messages.emitSessionEvents(
+							[
+								{
+									ts: Date.now(),
+									type: "say",
+									say: "error",
+									text: `Agent error: ${errorMessage}`,
+									partial: false,
+								},
+							],
+							{ type: "status", payload: { sessionId, status: "error" } },
+						)
+					}
 				}
 				this.postStateToWebview().catch(() => {})
 			},
+		})
+		// Auto-retry scheduler for failed agent turns. Instantiated after
+		// `this.sessions` (it needs the active-session check) and before any send
+		// can occur. The onSendError/onSendComplete closures above resolve
+		// `this.apiRetry` lazily at send time, so the late assignment is safe.
+		this.apiRetry = new SdkApiRetryCoordinator({
+			isAutoRetryEnabled: () => !!this.stateManager.getGlobalSettingsKey("autoRetryFailedRequests"),
+			isSessionActive: (sessionId) => this.sessions.getActiveSession()?.sessionId === sessionId,
+			sendTurn: () => {
+				// Mirror the webview "Retry" button exactly: askResponse with no
+				// prompt re-sends the failed turn through the normal send funnel.
+				this.askResponse().catch((err) => {
+					Logger.error("[SdkController] Auto-retry send failed:", err)
+				})
+			},
+			emitRetryScheduled: (info) => this.emitAutoRetryScheduled(info),
 		})
 		this.sessionRebuilds = new SdkSessionRebuildScheduler({ sessions: this.sessions })
 		this.taskHistory = new SdkTaskHistory({
@@ -1275,6 +1325,8 @@ export class Controller {
 	}
 
 	async cancelTask(): Promise<void> {
+		// Stop any pending auto-retry so a cancelled task doesn't resuscitate itself.
+		this.apiRetry?.cancel()
 		// Fence first: mark resumable before aborting so any straggler events from the aborted
 		// turn land on the wrong side of the UI mode. (Full fence-before-abort epoch bump lands
 		// in S6; this sets the authoritative phase now.)
@@ -1335,6 +1387,8 @@ export class Controller {
 
 	async clearTask(): Promise<void> {
 		this.pendingClineAuthRetryPrompt = undefined
+		// Stop any pending auto-retry when the task is cleared.
+		this.apiRetry?.cancel()
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
@@ -1380,6 +1434,33 @@ export class Controller {
 			Logger.error("[SdkController] Failed to post state after askResponse phase change:", error)
 		})
 		await this.followups.askResponse(prompt, images, files, this.task?.taskState?.askResponse, turnStateBefore.phase)
+	}
+
+	/**
+	 * Surfaces a pending auto-retry as a chat message so the user knows a retry is
+	 * scheduled and can cancel it. Called by {@link SdkApiRetryCoordinator}.
+	 */
+	private emitAutoRetryScheduled(info: RetryAttemptInfo): void {
+		const sessionId = this.sessions.getActiveSession()?.sessionId
+		if (!sessionId) {
+			return
+		}
+		const delayText =
+			info.delaySeconds >= 60
+				? `${Math.floor(info.delaySeconds / 60)}m ${info.delaySeconds % 60}s`
+				: `${info.delaySeconds}s`
+		this.messages.emitSessionEvents(
+			[
+				{
+					ts: Date.now(),
+					type: "say",
+					say: "text",
+					text: `Auto-retrying in ${delayText} (attempt ${info.attempt})…`,
+					partial: false,
+				},
+			],
+			{ type: "status", payload: { sessionId, status: "running" } },
+		)
 	}
 
 	async editMessageAndRegenerate(input: {

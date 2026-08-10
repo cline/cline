@@ -231,6 +231,10 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			controller.stateManager.setGlobalState("backgroundEditEnabled", !!request.backgroundEditEnabled)
 		}
 
+		if (request.autoRetryFailedRequests !== undefined) {
+			controller.stateManager.setGlobalState("autoRetryFailedRequests", !!request.autoRetryFailedRequests)
+		}
+
 		if (request.multiRootEnabled !== undefined) {
 			controller.stateManager.setGlobalState("multiRootEnabled", !!request.multiRootEnabled)
 		}
