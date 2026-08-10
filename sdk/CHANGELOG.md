@@ -1,5 +1,25 @@
 # Cline SDK Changelog
 
+## 0.0.72
+
+- Prompts queued during a turn now survive being interrupted: they are preserved across user-initiated aborts, drained after a turn aborts itself, and edits made to the queue inside the abort window are applied rather than lost. Stopping a session now has consistent full-stop semantics across hosts
+- Session context stays durable across aborts and hub restarts, so an interrupted session resumes with the state it had rather than a reset one
+- Queued turns that fail are now reported as `run.failed` instead of completing silently
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely
+- Remote SSE MCP servers now surface an OAuth authorization prompt on a 401 instead of failing outright, and remote MCP supports pre-registered OAuth clients for setups where dynamic client registration isn't available
+- LiteLLM requests route through Chat Completions instead of the Responses API, fixing calls against LiteLLM proxies
+- Network interruptions that happen mid-stream but before any model output are retried instead of failing the turn
+- Vertex ADC token refreshes use the configured fetch, so they work behind proxies and custom transports
+- Checkpoint diffs now include files that were untracked when the snapshot was taken, and checkpoints are picked up when git is initialized part-way through a session
+- Plugin settings and contributions are centralized in the hub, with host-aware snapshots and atomic host plugin toggles; a source host no longer runs a foreign compiled plugin-sandbox bootstrap
+- Scheduled run reports carry execution context — readable headers, schedule metadata, durations, and lifecycle error details
+
+## 0.0.71
+
+- Reasoning settings now resolve portably across AI SDK providers — effort levels and enable/disable flags map to the AI SDK's native reasoning setting (including Ollama), replacing the per-provider thinking overrides, and an explicit request to disable reasoning now takes priority
+- `sdk.error` telemetry from agent runs is attributed to the model actually in use, and undefined values are stripped from the event properties
+- Refreshed the model catalog from models.dev, and surfaced `meta/muse-spark-1.2-contributor` for the Cline provider
+
 ## 0.0.70
 
 - Plan mode now hard-blocks file-editing shell commands instead of relying on prompting alone — `run_commands` stays available for read-only investigation, but file-manipulation commands, in-place editors (`sed -i`, `perl -i`), redirection to files, mutating git subcommands, package installs, and nested command strings (`sh -c`, `eval`, `sudo`, `xargs`) are rejected with a tool error, on Windows and PowerShell too

@@ -99,6 +99,28 @@ describe("SDK error telemetry", () => {
 			}),
 		});
 	});
+
+	it("drops undefined context values instead of exporting them", () => {
+		const telemetry = {
+			capture: vi.fn(),
+		};
+
+		captureSdkError(telemetry as never, {
+			component: "agents",
+			operation: "agent.run",
+			error: new Error("boom"),
+			context: {
+				sessionId: "s1",
+				providerId: undefined,
+				modelId: undefined,
+			},
+		});
+
+		const properties = telemetry.capture.mock.calls[0]?.[0]?.properties ?? {};
+		expect(properties).toMatchObject({ sessionId: "s1" });
+		expect("providerId" in properties).toBe(false);
+		expect("modelId" in properties).toBe(false);
+	});
 });
 
 describe("SDK error rate limiting", () => {
