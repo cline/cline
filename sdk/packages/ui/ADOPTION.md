@@ -107,7 +107,7 @@ only the prerequisites for the layer being adopted:
 bun add react@^19 react-dom@^19
 
 # Required for the documented Tailwind-backed theme and Cline fonts
-bun add @fontsource-variable/schibsted-grotesk @fontsource/azeret-mono
+bun add @fontsource-variable/inter @fontsource-variable/geist-mono
 bun add --dev tailwindcss
 ```
 
@@ -136,8 +136,8 @@ from the runtime SDK packages.
 Import fonts and Tailwind before the complete theme:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -160,8 +160,8 @@ Use this when the application wants the shared tokens and utilities but already
 owns document, Markdown, scrollbar, or cursor behavior:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/tokens.css";
 @import "@cline/ui/theme/theme.css";
