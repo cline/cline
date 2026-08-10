@@ -1,5 +1,5 @@
 import type { ChildProcess } from "node:child_process"
-import { mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
+import { existsSync, mkdtempSync, type PathLike, type RmOptions, readdirSync, rmSync } from "node:fs"
 import * as os from "node:os"
 import * as path from "node:path"
 import { type ElectronApplication, expect, type Frame, type Page, test } from "@playwright/test"
@@ -59,6 +59,37 @@ export class E2ETestHelper {
 		const projectSuffix = projectName && projectName !== "e2e tests" ? `_${E2ETestHelper.escapeToPath(projectName)}` : ""
 
 		return `${baseName}${projectSuffix}`
+	}
+
+	/**
+	 * Resolves the real VS Code executable for `_electron.launch()`.
+	 *
+	 * `@vscode/test-electron` hardcodes the macOS entry point as
+	 * `Visual Studio Code.app/Contents/MacOS/Electron`, but recent VS Code builds
+	 * ship that binary as `Code` instead, so launching fails with ENOENT.
+	 * See https://github.com/microsoft/vscode-test/issues/355.
+	 *
+	 * When the reported path is missing, fall back to the bundle's real executable
+	 * name(s) so E2E works on both the old and new layouts.
+	 */
+	public static resolveVSCodeExecutablePath(executablePath: string): string {
+		if (existsSync(executablePath)) {
+			return executablePath
+		}
+
+		if (process.platform !== "darwin") {
+			return executablePath
+		}
+
+		const macOSDir = path.dirname(executablePath)
+		for (const candidate of ["Code", "Code - Insiders"]) {
+			const candidatePath = path.join(macOSDir, candidate)
+			if (existsSync(candidatePath)) {
+				return candidatePath
+			}
+		}
+
+		return executablePath
 	}
 
 	public static async waitUntil(predicate: () => boolean | Promise<boolean>, maxDelay = 10000): Promise<void> {
@@ -373,7 +404,9 @@ export const e2e = test
 	})
 	.extend<{ openVSCode: (workspacePath: string) => Promise<ElectronApplication> }>({
 		openVSCode: async ({ userDataDir, channel }, use, testInfo) => {
-			const executablePath = await downloadAndUnzipVSCode(channel, undefined, new SilentReporter())
+			const executablePath = E2ETestHelper.resolveVSCodeExecutablePath(
+				await downloadAndUnzipVSCode(channel, undefined, new SilentReporter()),
+			)
 
 			await use(async (workspacePath: string) => {
 				// Create isolated Cline data directory for this test
