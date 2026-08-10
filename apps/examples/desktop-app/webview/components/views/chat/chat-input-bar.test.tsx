@@ -6,6 +6,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
+	MODEL_SELECTION_STORAGE_KEY,
+	parseModelSelectionStorage,
+} from "@/lib/model-selection";
+import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
 } from "./chat-input-bar";
@@ -478,6 +482,282 @@ describe("ChatInputBar", () => {
 		});
 
 		expect(onRemovePromptInQueue).toHaveBeenCalledWith("queued-prompt-1");
+	});
+
+	it("displays a queued team command as its slash form, not the runtime envelope", async () => {
+		const onEditPromptInQueue = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={onEditPromptInQueue}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[
+							{
+								id: "queued-team",
+								prompt:
+									'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+								steer: false,
+							},
+						]}
+						provider="cline"
+						reasoningEffort="low"
+						status="running"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const queueToggle = [
+			...container.querySelectorAll<HTMLButtonElement>(
+				"button[aria-controls][aria-expanded]",
+			),
+		].find((button) => button.textContent?.includes("prompt queued"));
+		await act(async () => queueToggle?.click());
+
+		const queuedPrompts = document.getElementById(
+			queueToggle?.getAttribute("aria-controls") ?? "",
+		);
+		expect(queuedPrompts?.textContent).toContain("/team inspect the app");
+		expect(queuedPrompts?.textContent).not.toContain("<user_command");
+
+		// Editing prefills the slash form; the sidecar re-resolves it on save.
+		await act(async () => {
+			container
+				.querySelector<HTMLButtonElement>('[aria-label="Edit queued prompt"]')
+				?.click();
+		});
+		const editor = container.querySelector<HTMLTextAreaElement>(
+			'[aria-label="Edit queued prompt"]',
+		);
+		expect(editor?.value).toBe("/team inspect the app");
+	});
+
+	it("does not overwrite the remembered model when rendering a session's provider/model", async () => {
+		// Opening an existing session drives the composer's provider/model
+		// props to that session's config. That passive change must not
+		// replace the user's explicitly picked default for new sessions.
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify({
+				lastProvider: "cline",
+				lastModelByProvider: { cline: "test-model" },
+			}),
+		);
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["openrouter"],
+			providerModels: {
+				openrouter: ["old-session-model", "user-picked-model"],
+			},
+			providerReasoningModels: { openrouter: [] },
+		});
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="old-session-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						onRemovePromptInQueue={vi.fn()}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="openrouter"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => {
+			expect(loadProviderModelsMock).toHaveBeenCalledWith("openrouter");
+		});
+		// The composer displays the session's model...
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		expect(modelTrigger?.textContent).toContain("old-session-model");
+		// ...but the remembered selection for new sessions stays intact.
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			),
+		).toEqual({
+			lastProvider: "cline",
+			lastModelByProvider: { cline: "test-model" },
+		});
+
+		// An explicit pick in the model dropdown DOES update the remembered
+		// selection.
+		await act(async () => modelTrigger?.click());
+		const panel = document.querySelector('[role="dialog"]');
+		const option = [
+			...(panel?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+		].find((entry) => entry.textContent?.includes("user-picked-model"));
+		expect(option).toBeTruthy();
+		await act(async () => option?.click());
+		expect(
+			parseModelSelectionStorage(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+			),
+		).toEqual({
+			lastProvider: "openrouter",
+			lastModelByProvider: {
+				cline: "test-model",
+				openrouter: "user-picked-model",
+			},
+		});
+
+		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+	});
+
+	it("attaches clipboard images on paste instead of inserting text", async () => {
+		const onAttachFiles = vi.fn();
+		const onPromptInputChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={onAttachFiles}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={onPromptInputChange}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput).not.toBeNull();
+
+		const pasteWithClipboard = async (items: unknown[]) => {
+			const event = new Event("paste", { bubbles: true, cancelable: true });
+			Object.defineProperty(event, "clipboardData", {
+				value: { items, getData: () => "" },
+			});
+			await act(async () => {
+				promptInput?.dispatchEvent(event);
+				await Promise.resolve();
+			});
+			return event;
+		};
+
+		const png = new File(["fake"], "image.png", { type: "image/png" });
+		const imagePaste = await pasteWithClipboard([
+			{ kind: "file", type: "image/png", getAsFile: () => png },
+		]);
+		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		const attached = onAttachFiles.mock.calls[0][0] as File[];
+		expect(attached).toHaveLength(1);
+		expect(attached[0].name).toMatch(/^pasted-image-.+\.png$/);
+		expect(imagePaste.defaultPrevented).toBe(true);
+
+		// Plain-text pastes stay untouched so normal text pasting keeps working.
+		const textPaste = await pasteWithClipboard([
+			{ kind: "string", type: "text/plain", getAsFile: () => null },
+		]);
+		expect(onAttachFiles).toHaveBeenCalledTimes(1);
+		expect(textPaste.defaultPrevented).toBe(false);
 	});
 });
 

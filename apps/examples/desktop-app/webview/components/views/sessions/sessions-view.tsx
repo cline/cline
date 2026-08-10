@@ -317,10 +317,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
 			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5">
 				<div className="min-w-0">
-					<h1 className="text-[32px] font-semibold leading-[1.15] tracking-normal">
-						Sessions
-					</h1>
-					<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+					<h1 className="text-3xl font-semibold">Sessions</h1>
+					<p className="mt-3 text-base leading-6 text-muted-foreground">
 						Recent sessions across clients and workspaces.
 					</p>
 				</div>
@@ -459,8 +457,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 										// never reflows as long values wrap or hydrate in.
 										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
 										activeSessionId === thread.id
-											? "bg-accent/50"
-											: "hover:bg-accent/30",
+											? "bg-surface-hover"
+											: "hover:bg-surface-hover-lighter",
 									)}
 									key={thread.id}
 								>
@@ -605,7 +603,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											<DropdownMenuTrigger asChild>
 												<button
 													aria-label={`Session actions for ${thread.title}`}
-													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 													disabled={Boolean(pendingKind)}
 													type="button"
 												>
