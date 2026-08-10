@@ -5,6 +5,7 @@ import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
+import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import {
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
@@ -79,16 +80,24 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
-	it("constrains cloud sessions to the Cline provider and hides local file controls", async () => {
+	it("allows cloud image and model selection without replacing local defaults", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["anthropic", "cline"],
 			providerModels: {
 				anthropic: ["claude-test"],
-				cline: ["cline-test"],
+				cline: ["cline-test", "cline-alt"],
 			},
 			providerReasoningModels: { anthropic: [], cline: [] },
 		});
+		const localSelection = {
+			lastProvider: "anthropic",
+			lastModelByProvider: { anthropic: "claude-test" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(localSelection),
+		);
 		const onProviderChange = vi.fn();
 		const onModelChange = vi.fn();
 		await act(async () => {
@@ -147,23 +156,46 @@ describe("ChatInputBar", () => {
 		await vi.waitFor(() => {
 			expect(onProviderChange).toHaveBeenCalledWith("cline");
 		});
-		// The locked session's model must never be silently "corrected" to a
-		// catalog id: that would push a real model change to the remote
-		// session on the next send, contradicting the locked-settings tooltip.
 		expect(onModelChange).not.toHaveBeenCalled();
-		expect(container.querySelector('[aria-label="Attach files"]')).toBeNull();
+		expect(
+			container.querySelector('[aria-label="Attach images"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLInputElement>('input[type="file"]')?.accept,
+		).toBe("image/*");
 		expect(container.querySelector("#git-branch-btn")).toBeNull();
 		expect(container.textContent).toContain("cline/cline / feature/cloud");
 		expect(
 			container.querySelector<HTMLButtonElement>(
 				'[aria-label="Model and provider"]',
 			)?.disabled,
-		).toBe(true);
+		).toBe(false);
 		expect(
 			container.querySelector<HTMLButtonElement>(
 				'[aria-label="Thinking level"]',
 			)?.disabled,
 		).toBe(true);
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		await act(async () => modelTrigger?.click());
+		const cloudModel = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model: cline-test"]',
+		);
+		await act(async () => cloudModel?.click());
+		const alternateModel = Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-search-combobox__option",
+			),
+		).find((button) => button.textContent?.includes("cline-alt"));
+		expect(alternateModel).not.toBeUndefined();
+		await act(async () => alternateModel?.click());
+		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
+			),
+		).toEqual(localSelection);
 	});
 
 	it("blocks a new cloud message until a GitHub repository is selected", async () => {

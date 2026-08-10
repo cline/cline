@@ -1549,6 +1549,53 @@ describe("CloudSessionManager", () => {
 		);
 	});
 
+	it("forwards cloud images and continues rejecting file attachments", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		ctx.cloudSessionManager = manager;
+		await manager.list();
+		await manager.attach("ses-outer");
+		const image = "data:image/png;base64,aGVsbG8=";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId: "ses-outer",
+			prompt: "Inspect this image",
+			attachments: { userImages: [image] },
+			config: {
+				executionTarget: "cloud",
+				model: "anthropic/claude-sonnet-5",
+			},
+		});
+
+		expect(hub.commands.at(-1)).toMatchObject({
+			command: "session.send_input",
+			payload: {
+				prompt: "Inspect this image",
+				delivery: undefined,
+				attachments: { userImages: [image] },
+			},
+			sessionId: "inner-1",
+		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: "ses-outer",
+				prompt: "Inspect this file",
+				attachments: {
+					userFiles: [{ name: "notes.txt", content: "hello" }],
+				},
+				config: { executionTarget: "cloud" },
+			}),
+		).rejects.toThrow("File attachments are not supported in cloud sessions");
+	});
+
 	it("keeps the confirmed model when the pod rejects an update", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();

@@ -1316,6 +1316,7 @@ export class CloudSessionManager {
 		prompt: string,
 		delivery?: "queue" | "steer",
 		modelId?: string,
+		userImages?: string[],
 	): Promise<{
 		sessionId: string;
 		ok: true;
@@ -1372,7 +1373,11 @@ export class CloudSessionManager {
 		try {
 			const reply = await connection.client.command(
 				"session.send_input",
-				{ prompt, delivery },
+				{
+					prompt,
+					delivery,
+					...(userImages?.length ? { attachments: { userImages } } : {}),
+				},
 				innerSessionId,
 				{ timeoutMs: null },
 			);

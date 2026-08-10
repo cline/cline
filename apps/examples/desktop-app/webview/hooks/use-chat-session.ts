@@ -1606,6 +1606,10 @@ export function useChatSession() {
 				if (!nextStatus) {
 					return;
 				}
+				if (nextStatus === "running" && abortedRef.current) {
+					abortedRef.current = false;
+					clearAbortFallbackTimeout();
+				}
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1629,7 +1633,11 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
-				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
+				const endReason = record.reason?.trim() || "idle";
+				if (endReason === "error" || endReason === "failed") {
+					appendTurnFailureMessage(targetSessionId, "");
+				}
+				setStatus(endReason as ChatSessionStatus);
 			},
 		);
 		const unsubscribeRehydrated = desktopClient.subscribe(
@@ -1701,7 +1709,12 @@ export function useChatSession() {
 			unsubscribeRehydrated();
 			unsubscribeSyncFailed();
 		};
-	}, [applyCloudSnapshotMessages, clearLiveToolRefs]);
+	}, [
+		appendTurnFailureMessage,
+		applyCloudSnapshotMessages,
+		clearAbortFallbackTimeout,
+		clearLiveToolRefs,
+	]);
 
 	// ---- Shared: start a new session via RPC ----
 

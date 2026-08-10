@@ -388,7 +388,10 @@ function ChatInputBarImpl({
 	const needsCloudRepository =
 		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
 	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
-	const canSend = hasDraft && !needsCloudRepository;
+	const canSend =
+		hasDraft &&
+		!needsCloudRepository &&
+		(executionTarget !== "cloud" || promptInput.trim().length > 0);
 	const cloudContextLabel = useMemo(
 		() =>
 			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
@@ -1012,30 +1015,28 @@ function ChatInputBarImpl({
 			{/* Composer settings */}
 			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
-					{executionTarget === "local" ? (
-						<button
-							aria-label="Attach files"
-							className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
-							onClick={() => fileInputRef.current?.click()}
-							type="button"
-						>
-							<Paperclip className="size-3" />
-						</button>
-					) : null}
-					{executionTarget === "local" ? (
-						<input
-							accept="*/*"
-							className="hidden"
-							multiple
-							onChange={(event) => {
-								const files = Array.from(event.target.files ?? []);
-								if (files.length > 0) onAttachFiles(files);
-								event.currentTarget.value = "";
-							}}
-							ref={fileInputRef}
-							type="file"
-						/>
-					) : null}
+					<button
+						aria-label={
+							executionTarget === "cloud" ? "Attach images" : "Attach files"
+						}
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
+						onClick={() => fileInputRef.current?.click()}
+						type="button"
+					>
+						<Paperclip className="size-3" />
+					</button>
+					<input
+						accept={executionTarget === "cloud" ? "image/*" : "*/*"}
+						className="hidden"
+						multiple
+						onChange={(event) => {
+							const files = Array.from(event.target.files ?? []);
+							if (files.length > 0) onAttachFiles(files);
+							event.currentTarget.value = "";
+						}}
+						ref={fileInputRef}
+						type="file"
+					/>
 					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
 						<button
 							aria-pressed={mode === "plan"}
@@ -1075,13 +1076,15 @@ function ChatInputBarImpl({
 									? CLINE_ONLY_PROVIDER_IDS
 									: undefined
 							}
-							isBusy={isBusy || cloudSettingsLocked}
+							autoCorrectModel={!cloudSettingsLocked}
+							isBusy={isBusy}
 							model={model}
 							onModelChange={onModelChange}
 							onModelSupportsReasoningChange={
 								handleModelSupportsReasoningChange
 							}
 							onProviderChange={onProviderChange}
+							persistSelection={executionTarget !== "cloud"}
 							provider={provider}
 						/>
 					</div>
@@ -1096,7 +1099,7 @@ function ChatInputBarImpl({
 							size="sm"
 							title={
 								cloudSettingsLocked
-									? "Model and thinking are fixed when a cloud session starts"
+									? "Thinking level is fixed when a cloud session starts"
 									: modelSupportsReasoning === false
 										? "The selected model does not report reasoning support"
 										: undefined
@@ -1169,6 +1172,8 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
 	allowedProviderIds,
+	autoCorrectModel = true,
+	persistSelection = true,
 	provider,
 	model,
 	isBusy,
@@ -1177,6 +1182,8 @@ const ModelSelector = memo(function ModelSelector({
 	onModelSupportsReasoningChange,
 }: {
 	allowedProviderIds?: string[];
+	autoCorrectModel?: boolean;
+	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
@@ -1337,6 +1344,9 @@ const ModelSelector = memo(function ModelSelector({
 	}, []);
 
 	useEffect(() => {
+		if (!persistSelection) {
+			return;
+		}
 		setLastSelection((prev) => {
 			if (!normalizedProvider || !model) {
 				return prev;
@@ -1355,7 +1365,7 @@ const ModelSelector = memo(function ModelSelector({
 				},
 			};
 		});
-	}, [model, normalizedProvider]);
+	}, [model, normalizedProvider, persistSelection]);
 
 	useEffect(() => {
 		try {
@@ -1379,10 +1389,11 @@ const ModelSelector = memo(function ModelSelector({
 		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
-		if (resolvedModel && resolvedModel !== model) {
+		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
 			onModelChange(resolvedModel);
 		}
 	}, [
+		autoCorrectModel,
 		isBusy,
 		model,
 		onModelChange,

@@ -1069,6 +1069,76 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("resumes rendering when a queued prompt runs after an abort", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: { text: "Done", finishReason: "completed" },
+						};
+					}
+					return { ok: true, prompts: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("First prompt"));
+		await act(async () => current.abort());
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const statusHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_status",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({ promptId: "straggler", prompt: "old turn" }),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		expect(
+			current.messages.some(
+				(message) => message.id === "queued_user_straggler",
+			),
+		).toBe(false);
+
+		await act(async () => {
+			statusHandler?.({ sessionId: current.sessionId, status: "running" });
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "drained-1",
+					prompt: "queued before abort",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		expect(current.status).toBe("running");
+		expect(
+			current.messages.find(
+				(message) => message.id === "queued_user_drained-1",
+			),
+		).toMatchObject({ content: "queued before abort" });
+	});
+
 	it("re-keys the optimistic bubble when the runtime queues the same prompt", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1802,6 +1872,50 @@ describe("useChatSession", () => {
 		);
 		expect(errorMessage?.content).toContain("Unauthorized: invalid API key");
 		expect(errorMessage?.content).toContain("Settings");
+	});
+
+	it("shows a failure relayed through chat_session_ended", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") return { ok: true };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Run in cloud"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const endedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_ended",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_core_log",
+				chunk: JSON.stringify({ level: "error", message: "Cloud run failed" }),
+				ts: Date.now(),
+				index: 1,
+			});
+			endedHandler?.({ sessionId: current.sessionId, reason: "error" });
+		});
+
+		expect(current.status).toBe("error");
+		expect(
+			current.messages.find((message) => message.role === "error")?.content,
+		).toContain("Cloud run failed");
 	});
 
 	it("never attributes an earlier turn's core error to a later detail-less failure", async () => {

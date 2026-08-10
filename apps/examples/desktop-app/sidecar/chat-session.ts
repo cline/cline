@@ -1605,12 +1605,9 @@ export async function handleChatSessionCommand(
 				if (!sessionId) throw new Error("sessionId is required");
 				const prompt = request.prompt?.trim();
 				if (!prompt) throw new Error("prompt is required");
-				if (
-					request.attachments?.userImages?.length ||
-					request.attachments?.userFiles?.length
-				) {
+				if (request.attachments?.userFiles?.length) {
 					throw new Error(
-						"Attachments are not supported in cloud sessions yet",
+						"File attachments are not supported in cloud sessions",
 					);
 				}
 				const live = ctx.liveSessions.get(sessionId);
@@ -1623,6 +1620,7 @@ export async function handleChatSessionCommand(
 					prompt,
 					delivery,
 					modelId || undefined,
+					request.attachments?.userImages,
 				);
 			}
 			case "stop":
