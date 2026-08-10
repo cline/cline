@@ -688,19 +688,22 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 /**
  * The summarizer output budget is a cap, not a target: reasoning models need
  * headroom beyond their thinking output or no summary text ever arrives and
- * compaction is skipped.
+ * compaction is skipped. An explicit configuration wins as-is; otherwise the
+ * default applies, with model metadata (`maxTokens` is reported capability,
+ * not a product default) only ever lowering it.
  */
 function resolveSummaryMaxOutputTokens(config: ProviderConfig): number {
 	if (isPositiveFiniteNumber(config.maxOutputTokens)) {
 		return Math.floor(config.maxOutputTokens);
 	}
-	const modelInfoMaxTokens = config.modelInfo?.maxTokens;
-	if (isPositiveFiniteNumber(modelInfoMaxTokens)) {
-		return Math.floor(modelInfoMaxTokens);
-	}
-	const knownModelMaxTokens = config.knownModels?.[config.modelId]?.maxTokens;
-	if (isPositiveFiniteNumber(knownModelMaxTokens)) {
-		return Math.floor(knownModelMaxTokens);
+	const modelMaxTokens =
+		config.modelInfo?.maxTokens ??
+		config.knownModels?.[config.modelId]?.maxTokens;
+	if (isPositiveFiniteNumber(modelMaxTokens)) {
+		return Math.min(
+			DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			Math.floor(modelMaxTokens),
+		);
 	}
 	return DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS;
 }

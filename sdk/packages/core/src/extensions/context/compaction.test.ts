@@ -1185,7 +1185,9 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(anthropicConfig.maxOutputTokens).toBe(4_096);
 	});
 
-	it("resolves the summarizer output budget from config before model info before the default", () => {
+	it("resolves the summarizer output budget from explicit config, else the default clamped by model metadata", () => {
+		// An explicit value is user/product intent and wins as-is (the gateway
+		// still clamps against model limits and remaining context per request).
 		const explicitWins = resolveSummarizerConfig({
 			activeProviderConfig: {
 				providerId: "openai",
@@ -1196,25 +1198,36 @@ describe("createContextCompactionPrepareTurn", () => {
 		});
 		expect(explicitWins.maxOutputTokens).toBe(16_000);
 
-		const fromModelInfo = resolveSummarizerConfig({
+		// Model metadata is reported capability, not a request default: it only
+		// ever lowers the default, never raises it.
+		const clampedByModelInfo = resolveSummarizerConfig({
 			activeProviderConfig: {
 				providerId: "openai",
 				modelId: "local-model",
-				modelInfo: { id: "local-model", maxTokens: 8_000 },
+				modelInfo: { id: "local-model", maxTokens: 2_000 },
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(fromModelInfo.maxOutputTokens).toBe(8_000);
+		expect(clampedByModelInfo.maxOutputTokens).toBe(2_000);
 
-		const fromKnownModels = resolveSummarizerConfig({
+		const notRaisedByModelInfo = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "openai",
+				modelId: "local-model",
+				modelInfo: { id: "local-model", maxTokens: 64_000 },
+			} as LlmsProviders.ProviderConfig,
+		});
+		expect(notRaisedByModelInfo.maxOutputTokens).toBe(4_096);
+
+		const clampedByKnownModels = resolveSummarizerConfig({
 			activeProviderConfig: {
 				providerId: "openai",
 				modelId: "local-model",
 				knownModels: {
-					"local-model": { id: "local-model", maxTokens: 12_000 },
+					"local-model": { id: "local-model", maxTokens: 3_000 },
 				},
 			} as LlmsProviders.ProviderConfig,
 		});
-		expect(fromKnownModels.maxOutputTokens).toBe(12_000);
+		expect(clampedByKnownModels.maxOutputTokens).toBe(3_000);
 
 		const fromDefault = resolveSummarizerConfig({
 			activeProviderConfig: {
@@ -1225,8 +1238,8 @@ describe("createContextCompactionPrepareTurn", () => {
 		expect(fromDefault.maxOutputTokens).toBe(4_096);
 	});
 
-	it("resolves an explicit summarizer's output budget from its own model info", () => {
-		const resolved = resolveSummarizerConfig({
+	it("clamps an explicit summarizer's default budget by its own model info but lets its explicit value win", () => {
+		const clamped = resolveSummarizerConfig({
 			activeProviderConfig: {
 				providerId: "anthropic",
 				modelId: "primary-model",
@@ -1237,8 +1250,21 @@ describe("createContextCompactionPrepareTurn", () => {
 				modelInfo: { id: "small-summary", maxTokens: 2_000 },
 			},
 		});
+		expect(clamped.maxOutputTokens).toBe(2_000);
 
-		expect(resolved.maxOutputTokens).toBe(2_000);
+		const explicitWins = resolveSummarizerConfig({
+			activeProviderConfig: {
+				providerId: "anthropic",
+				modelId: "primary-model",
+			} as LlmsProviders.ProviderConfig,
+			summarizer: {
+				providerId: "openai",
+				modelId: "small-summary",
+				modelInfo: { id: "small-summary", maxTokens: 2_000 },
+				maxOutputTokens: 6_000,
+			},
+		});
+		expect(explicitWins.maxOutputTokens).toBe(6_000);
 	});
 
 	it("skips with a diagnostic warning when the summarizer only produced reasoning output", async () => {
