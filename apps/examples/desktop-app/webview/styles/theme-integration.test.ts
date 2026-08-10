@@ -15,9 +15,9 @@ describe("@cline/ui theme integration", () => {
 			{ from },
 		);
 
-		expect(result.css).toContain("--text-xs: 12px");
+		expect(result.css).toContain("--text-xs: 0.8rem");
 		expect(result.css).toContain("--font-weight-normal: 480");
-		expect(result.css).toContain('--font-sans: "Schibsted Grotesk Variable"');
+		expect(result.css).toContain('--font-sans: "Inter Variable"');
 		expect(result.css).toContain("--primary-emphasis:");
 		expect(result.css).toContain(".bg-background");
 		expect(result.css).toContain(".bg-primary-emphasis");

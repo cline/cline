@@ -1,7 +1,8 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -42,9 +43,9 @@
 }
 
 @theme inline {
-	--font-sans: "Schibsted Grotesk Variable", sans-serif;
+	--font-sans: "Inter Variable", sans-serif;
 	--font-mono:
-		ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
 		monospace;
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
