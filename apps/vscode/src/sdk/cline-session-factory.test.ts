@@ -752,8 +752,23 @@ describe("buildSessionConfig", () => {
 		// the top level (manual compaction budgets).
 		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
+		expect((config.providerConfig as any).knownModels["custom-reasoner"].capabilities).toEqual([])
 		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
+	})
+
+	it("keeps sparse OpenAI Compatible capability metadata unknown", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "custom-model",
+			openAiApiKey: "openai-compatible-key",
+			actModeOpenAiModelInfo: { supportsPromptCache: false },
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["custom-model"]
+
+		expect(knownModel?.capabilities).toBeUndefined()
 	})
 
 	it("uses OpenAI Compatible overrides from models.json for runtime request settings", async () => {

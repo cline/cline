@@ -36,6 +36,11 @@ export type GatewayModelCapability =
 	| "audio"
 	| "structured-output";
 
+export type GatewayModelCapabilities = readonly [
+	"text",
+	...Exclude<GatewayModelCapability, "text">[],
+];
+
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
@@ -104,7 +109,7 @@ export interface GatewayModelDefinition {
 	contextWindow?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
-	capabilities?: readonly GatewayModelCapability[];
+	capabilities?: GatewayModelCapabilities;
 	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;
 }
