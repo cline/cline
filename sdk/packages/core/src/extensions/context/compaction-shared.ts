@@ -17,7 +17,7 @@ export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
 export const COMPACTION_TRIGGER_RATIO = 0.9;
 export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
-export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
+export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 4_096;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;
@@ -685,6 +685,26 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 	return parts.join("\n\n");
 }
 
+/**
+ * The summarizer output budget is a cap, not a target: reasoning models need
+ * headroom beyond their thinking output or no summary text ever arrives and
+ * compaction is skipped.
+ */
+function resolveSummaryMaxOutputTokens(config: ProviderConfig): number {
+	if (isPositiveFiniteNumber(config.maxOutputTokens)) {
+		return Math.floor(config.maxOutputTokens);
+	}
+	const modelInfoMaxTokens = config.modelInfo?.maxTokens;
+	if (isPositiveFiniteNumber(modelInfoMaxTokens)) {
+		return Math.floor(modelInfoMaxTokens);
+	}
+	const knownModelMaxTokens = config.knownModels?.[config.modelId]?.maxTokens;
+	if (isPositiveFiniteNumber(knownModelMaxTokens)) {
+		return Math.floor(knownModelMaxTokens);
+	}
+	return DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS;
+}
+
 export function resolveSummarizerConfig(options: {
 	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
@@ -700,8 +720,7 @@ export function resolveSummarizerConfig(options: {
 		}
 		return {
 			...config,
-			maxOutputTokens:
-				config.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			maxOutputTokens: resolveSummaryMaxOutputTokens(config),
 			thinking: false,
 		};
 	};
@@ -722,7 +741,7 @@ export function resolveSummarizerConfig(options: {
 		modelInfo: summarizer.modelInfo ?? baseProviderConfig?.modelInfo,
 		knownModels: summarizer.knownModels ?? baseProviderConfig?.knownModels,
 		maxOutputTokens:
-			summarizer.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			summarizer.maxOutputTokens ?? baseProviderConfig?.maxOutputTokens,
 	});
 }
 
