@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	type HubCompatibilityResult,
@@ -87,11 +87,11 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getStartupLockDir(discoveryPath: string): string {
-	return `${discoveryPath}.lock`;
+function getHubLockDir(lockBasis: string): string {
+	return `${lockBasis}.lock`;
 }
 
-async function readStartupLockRecord(
+async function readHubLockRecord(
 	lockDir: string,
 ): Promise<{ pid: number; acquiredAt: string } | undefined> {
 	try {
@@ -110,7 +110,7 @@ async function readStartupLockRecord(
 	}
 }
 
-async function removeStartupLock(lockDir: string): Promise<void> {
+async function removeHubLock(lockDir: string): Promise<void> {
 	await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
@@ -239,32 +239,108 @@ export async function writeHubDiscovery(
 	discoveryPath: string,
 	record: HubServerDiscoveryRecord,
 ): Promise<void> {
-	await mkdir(dirname(discoveryPath), { recursive: true });
-	// Remove any existing file first so writeFile creates it fresh with the
-	// correct mode. On Linux, the mode option is ignored for existing files.
-	await rm(discoveryPath, { force: true }).catch(() => undefined);
-	await writeFile(discoveryPath, `${JSON.stringify(record, null, 2)}\n`, {
-		encoding: "utf8",
-		mode: 0o600,
+	await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		const directory = dirname(discoveryPath);
+		await mkdir(directory, { recursive: true });
+		const temporaryPath = `${discoveryPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+		let temporaryFile: Awaited<ReturnType<typeof open>> | undefined;
+		try {
+			temporaryFile = await open(temporaryPath, "wx", 0o600);
+			await temporaryFile.writeFile(`${JSON.stringify(record, null, 2)}\n`, {
+				encoding: "utf8",
+			});
+			await temporaryFile.sync();
+			await temporaryFile.close();
+			temporaryFile = undefined;
+			// On local filesystems with atomic same-directory rename semantics, this
+			// prevents readers from observing the old remove/write gap and preserves
+			// the previous complete record if publication fails.
+			await rename(temporaryPath, discoveryPath);
+			// Persist the rename where directory fsync is supported. Windows and
+			// some virtual filesystems reject opening directories, so durability
+			// there remains best-effort while the replacement itself stays atomic.
+			let directoryHandle: Awaited<ReturnType<typeof open>> | undefined;
+			try {
+				directoryHandle = await open(directory, "r");
+				await directoryHandle.sync();
+			} catch {
+				// Best-effort durability only; the discovery record is already valid.
+			} finally {
+				await directoryHandle?.close().catch(() => undefined);
+			}
+		} catch (error) {
+			await temporaryFile?.close().catch(() => undefined);
+			await rm(temporaryPath, { force: true }).catch(() => undefined);
+			throw error;
+		}
 	});
-	await chmod(discoveryPath, 0o600);
 }
 
 export async function clearHubDiscovery(discoveryPath: string): Promise<void> {
-	await rm(discoveryPath, { force: true }).catch(() => undefined);
+	await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		await rm(discoveryPath, { force: true }).catch(() => undefined);
+	});
 }
 
-export async function withHubStartupLock<T>(
+export async function clearHubDiscoveryIfOwned(
 	discoveryPath: string,
+	hubId: string,
+): Promise<boolean> {
+	return await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		const current = await readHubDiscovery(discoveryPath);
+		if (current?.hubId !== hubId) {
+			return false;
+		}
+		await rm(discoveryPath, { force: true });
+		return true;
+	});
+}
+
+async function withHubLock<T>(
+	lockBasis: string,
+	label: string,
 	callback: () => Promise<T>,
 ): Promise<T> {
-	const lockDir = getStartupLockDir(discoveryPath);
+	const lockDir = getHubLockDir(lockBasis);
 	await mkdir(dirname(lockDir), { recursive: true });
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
 
 	while (true) {
 		try {
 			await mkdir(lockDir, { recursive: false });
+		} catch (error) {
+			const code =
+				error instanceof Error && "code" in error
+					? String((error as NodeJS.ErrnoException).code)
+					: "";
+			if (code !== "EEXIST") {
+				throw error;
+			}
+			const record = await readHubLockRecord(lockDir);
+			if (!record) {
+				// The winner creates the directory before it can publish owner.json.
+				// Do not steal that initialization window. A genuinely abandoned
+				// empty lock is reclaimed only after the bounded wait.
+				if (Date.now() >= deadline) {
+					await removeHubLock(lockDir);
+					continue;
+				}
+				await sleep(HUB_STARTUP_LOCK_POLL_MS);
+				continue;
+			}
+			const lockAge = Date.now() - Date.parse(record.acquiredAt);
+			if (!isPidAlive(record.pid) || lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS) {
+				await removeHubLock(lockDir);
+				continue;
+			}
+			if (Date.now() >= deadline) {
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
+			}
+			await sleep(HUB_STARTUP_LOCK_POLL_MS);
+			continue;
+		}
+
+		try {
 			await writeFile(
 				join(lockDir, "owner.json"),
 				`${JSON.stringify(
@@ -274,37 +350,29 @@ export async function withHubStartupLock<T>(
 				)}\n`,
 				"utf8",
 			);
-			try {
-				return await callback();
-			} finally {
-				await removeStartupLock(lockDir);
-			}
-		} catch (error) {
-			const code =
-				error instanceof Error && "code" in error
-					? String((error as NodeJS.ErrnoException).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
-			const record = await readStartupLockRecord(lockDir);
-			const lockAge = record
-				? Date.now() - Date.parse(record.acquiredAt)
-				: HUB_STARTUP_LOCK_MAX_AGE_MS + 1;
-			if (
-				!record ||
-				!isPidAlive(record.pid) ||
-				lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS
-			) {
-				await removeStartupLock(lockDir);
-				continue;
-			}
-			if (Date.now() >= deadline) {
-				throw new Error(`Timed out waiting for hub startup lock ${lockDir}`);
-			}
-			await sleep(HUB_STARTUP_LOCK_POLL_MS);
+			return await callback();
+		} finally {
+			await removeHubLock(lockDir);
 		}
 	}
+}
+
+function withHubDiscoveryMutationLock<T>(
+	discoveryPath: string,
+	callback: () => Promise<T>,
+): Promise<T> {
+	return withHubLock(
+		`${discoveryPath}.mutation`,
+		"discovery mutation",
+		callback,
+	);
+}
+
+export function withHubStartupLock<T>(
+	discoveryPath: string,
+	callback: () => Promise<T>,
+): Promise<T> {
+	return withHubLock(discoveryPath, "startup", callback);
 }
 
 export async function probeHubServer(

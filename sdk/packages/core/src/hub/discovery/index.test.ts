@@ -3,6 +3,7 @@ import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearHubDiscovery,
+	clearHubDiscoveryIfOwned,
 	getManagedHubCompatibility,
 	probeHubServer,
 	readHubDiscovery,
@@ -150,6 +151,49 @@ describe("hub discovery", () => {
 		);
 
 		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+	});
+
+	it("serializes generation cleanup with replacement publication", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+		const discoveryPath = resolveHubOwnerContext(
+			"generation-mutation-race",
+		).discoveryPath;
+		const baseRecord = {
+			protocolVersion: "v1",
+			authToken: "test-token",
+			host: "127.0.0.1",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		for (let index = 0; index < 10; index += 1) {
+			await writeHubDiscovery(discoveryPath, {
+				...baseRecord,
+				hubId: "old-generation",
+			});
+			const publishReplacement = () =>
+				writeHubDiscovery(discoveryPath, {
+					...baseRecord,
+					hubId: "replacement-generation",
+					updatedAt: new Date().toISOString(),
+				});
+			const clearOld = () =>
+				clearHubDiscoveryIfOwned(discoveryPath, "old-generation");
+			await Promise.all(
+				index % 2 === 0
+					? [publishReplacement(), clearOld()]
+					: [clearOld(), publishReplacement()],
+			);
+			expect((await readHubDiscovery(discoveryPath))?.hubId).toBe(
+				"replacement-generation",
+			);
+		}
+
+		await clearHubDiscovery(discoveryPath);
 	});
 
 	it("returns only public health fields for unauthenticated probes", async () => {

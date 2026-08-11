@@ -598,6 +598,7 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("does not reuse a healthy hub without protocol metadata", async () => {
+		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
 			readHubDiscovery
@@ -635,7 +636,9 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const result = await ensureDetachedHubServer("/workspace");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
 
 			expect(result).toEqual({
 				url: "ws://127.0.0.1:25463/hub",
@@ -654,6 +657,7 @@ describe("ensureDetachedHubServer", () => {
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();
+			vi.useRealTimers();
 		}
 	});
 });
