@@ -1474,6 +1474,15 @@ export class HubRuntimeHost implements RuntimeHost {
 		return this.events.subscribe(listener, options);
 	}
 
+	/**
+	 * Whether this host holds a live hub event subscription for the session
+	 * (created by start/restore/run-turn/pending-prompt commands) and is
+	 * therefore already relaying its agent events to `subscribe()` listeners.
+	 */
+	isRelayingSessionEvents(sessionId: string): boolean {
+		return this.sessionSubscriptions.has(sessionId.trim());
+	}
+
 	private ensureSessionSubscription(sessionId: string): void {
 		const target = sessionId.trim();
 		if (!target || this.sessionSubscriptions.has(target)) {

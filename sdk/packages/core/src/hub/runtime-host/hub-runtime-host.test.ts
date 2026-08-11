@@ -833,6 +833,41 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("reports whether a session's live events are being relayed", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(false);
+
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(true);
+		expect(host.isRelayingSessionEvents("other-session")).toBe(false);
+
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
+		await host.stopSession("sess-1");
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(false);
+	});
+
 	it("maps hub completion events back to agent and lifecycle events without duplicating done", async () => {
 		let onEvent:
 			| ((event: {
