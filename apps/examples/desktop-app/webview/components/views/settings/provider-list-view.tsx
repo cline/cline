@@ -164,7 +164,7 @@ export function ProviderListContent({
 					<div className="min-w-0">
 						<h1
 							className={cn(
-								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+								"truncate font-semibold leading-[1.15] text-foreground",
 								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
@@ -238,7 +238,7 @@ export function ProviderListContent({
 								type="button"
 							>
 								<div className="flex min-w-0 flex-1 items-baseline gap-2">
-									<p className="truncate text-[17px] font-semibold text-foreground">
+									<p className="truncate text-lg font-semibold text-foreground">
 										{prov.name}
 									</p>
 									<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
@@ -439,8 +439,8 @@ export function ProviderDetailContent({
 					<div className="flex min-w-0 items-baseline gap-2">
 						<h1
 							className={cn(
-								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
-								isPanel ? "text-[24px]" : "text-[32px]",
+								"truncate font-semibold leading-[1.15] text-foreground",
+								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
 							{provider.name}
@@ -465,7 +465,7 @@ export function ProviderDetailContent({
 										key={field.path}
 									>
 										<header>
-											<h3 className="text-[17px] font-semibold text-foreground">
+											<h3 className="text-lg font-semibold text-foreground">
 												{field.label}
 											</h3>
 											{field.description ? (
@@ -610,12 +610,12 @@ export function ProviderDetailContent({
 				<section
 					className={cn(
 						"overflow-hidden rounded-lg border",
-						isPanel ? "max-w-none" : "max-w-[46rem]",
+						isPanel ? "max-w-none" : "max-w-184",
 					)}
 				>
 					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
 						<div className="flex items-center gap-1">
-							<h2 className="mr-1 text-[17px] font-medium text-muted-foreground">
+							<h2 className="mr-1 text-lg font-medium text-muted-foreground">
 								Models
 							</h2>
 							<Button
