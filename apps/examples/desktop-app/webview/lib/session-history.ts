@@ -12,6 +12,13 @@ export type SessionMetadata = {
 	 * state so every client reading the session sees the same flag.
 	 */
 	pinned?: boolean;
+	/**
+	 * Set by the SDK runtime when the agent finishes a turn on its own and no
+	 * human has seen the result yet. Clients clear it (write `null`) when the
+	 * user opens the session, so "needs review" indicators stay consistent
+	 * across every client reading the session.
+	 */
+	needsAttention?: boolean;
 	git?: {
 		url?: string;
 		branch?: string;
@@ -20,6 +27,7 @@ export type SessionMetadata = {
 };
 
 export const PINNED_METADATA_KEY = "pinned";
+export const NEEDS_ATTENTION_METADATA_KEY = "needsAttention";
 
 export interface SessionHistoryItem {
 	sessionId: string;
@@ -101,6 +109,12 @@ export function getSessionMetadataTitle(metadata?: SessionMetadata): string {
 
 export function getSessionMetadataPinned(metadata?: SessionMetadata): boolean {
 	return metadata?.[PINNED_METADATA_KEY] === true;
+}
+
+export function getSessionMetadataNeedsAttention(
+	metadata?: SessionMetadata,
+): boolean {
+	return metadata?.[NEEDS_ATTENTION_METADATA_KEY] === true;
 }
 
 export function getSessionMetadataGitBranch(

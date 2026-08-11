@@ -580,7 +580,13 @@ export function AgentSidebar({
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
 			thread={thread}
-			unread={unreadSessionIds.has(thread.id)}
+			// The persisted needsAttention flag joins the in-memory unread set so
+			// "agent finished, needs review" survives restarts and other clients.
+			// The active thread is exempt: the user is already looking at it.
+			unread={
+				unreadSessionIds.has(thread.id) ||
+				(thread.needsAttention === true && activeThread !== thread.id)
+			}
 		/>
 	);
 

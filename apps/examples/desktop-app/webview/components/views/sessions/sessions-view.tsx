@@ -568,6 +568,15 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
+												{thread.needsAttention &&
+												activeSessionId !== thread.id ? (
+													<span
+														aria-label="Agent finished, needs review"
+														className="size-2 shrink-0 rounded-full bg-blue-500"
+														role="status"
+														title="Agent finished, needs review"
+													/>
+												) : null}
 												{thread.pinned ? (
 													<Star
 														aria-label="Favorited"
