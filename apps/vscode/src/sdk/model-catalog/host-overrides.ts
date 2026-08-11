@@ -1,8 +1,8 @@
 /**
  * Applies the `ModelInfo` fields the extension owns locally, on top of
  * an adapted SDK `ModelInfo`. Today this is Vertex's
- * `supportsGlobalEndpoint` allowlist (see `./vertex-global-endpoint.ts`)
- * and Ollama's effective context window.
+ * `supportsGlobalEndpoint` allowlist (see `./vertex-global-endpoint.ts`),
+ * Vertex's unknown-pricing cleanup, and Ollama's effective context window.
  *
  * Both the model-list resolution path (`resolveSdkModels`) and the
  * single-model lookup path (`resolveModelInfo`) pass adapted
@@ -52,8 +52,21 @@ function resolveOllamaContextWindow(): number {
 }
 
 export function applyHostModelInfoOverrides(providerId: ProviderId, modelId: string, modelInfo: ModelInfo): ModelInfo {
-	if (providerId === "vertex" && vertexModelSupportsGlobalEndpoint(providerId, modelId)) {
-		return { ...modelInfo, supportsGlobalEndpoint: true }
+	if (providerId === "vertex") {
+		let result = modelInfo
+		if (vertexModelSupportsGlobalEndpoint(providerId, modelId)) {
+			result = { ...result, supportsGlobalEndpoint: true }
+		}
+		// Vertex has no free models, so a $0/$0 price pair is always the shape
+		// adapter's safe default standing in for an SDK record that carries no
+		// pricing (e.g. models billed region-dependently, where a single
+		// universal price would be wrong). Drop the pair so the settings UI
+		// shows no price instead of a misleading "Free".
+		if (result.inputPrice === 0 && result.outputPrice === 0) {
+			const { inputPrice: _unknownInputPrice, outputPrice: _unknownOutputPrice, ...withoutPricing } = result
+			result = withoutPricing
+		}
+		return result
 	}
 	if (providerId === "ollama") {
 		return { ...modelInfo, contextWindow: resolveOllamaContextWindow() }

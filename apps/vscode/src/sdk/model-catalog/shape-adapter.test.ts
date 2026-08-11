@@ -107,18 +107,6 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.cacheReadsPrice).toBeUndefined()
 			expect(model.cacheWritesPrice).toBeUndefined()
 		})
-
-		it("leaves unknown pricing undefined instead of defaulting to 0 (which would display as Free)", () => {
-			// A record with no pricing (e.g. Vertex models billed
-			// region-dependently, whose catalog entry deliberately omits a
-			// universal price) must not be presented as a $0 model. Undefined
-			// hides the price display; an explicit 0 means genuinely free.
-			for (const input of [{ id: "m" }, { id: "m", pricing: {} }]) {
-				const model = adaptSdkModelInfo(input)
-				expect(model.inputPrice).toBeUndefined()
-				expect(model.outputPrice).toBeUndefined()
-			}
-		})
 	})
 
 	describe("safe defaults for sparse input", () => {
@@ -130,8 +118,8 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.supportsImages).toBe(openAiModelInfoSafeDefaults.supportsImages)
 			expect(model.supportsPromptCache).toBe(openAiModelInfoSafeDefaults.supportsPromptCache)
 			expect(model.supportsReasoning).toBeUndefined()
-			expect(model.inputPrice).toBeUndefined()
-			expect(model.outputPrice).toBeUndefined()
+			expect(model.inputPrice).toBe(openAiModelInfoSafeDefaults.inputPrice)
+			expect(model.outputPrice).toBe(openAiModelInfoSafeDefaults.outputPrice)
 			expect(model.cacheReadsPrice).toBeUndefined()
 			expect(model.cacheWritesPrice).toBeUndefined()
 			expect(model.description).toBeUndefined()
