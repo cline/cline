@@ -1646,6 +1646,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
+		await this.clearNeedsAttentionMetadata(session);
 		await this.markTurnRunning(session);
 
 		try {
@@ -1678,8 +1679,67 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
 		session.lastInteractiveTurnFinishReason = finishReason;
+		await this.persistTurnCompletionMetadata(session, finishReason);
 		await this.markTurnIdle(session);
 		session.aborting = false;
+	}
+
+	/**
+	 * Records the turn outcome in session metadata so clients can tell the
+	 * agent finished and is waiting on a human without inspecting the
+	 * transcript: interactive sessions stay `idle` between turns and only
+	 * reach a terminal status at stop/dispose, so the row status alone
+	 * cannot distinguish "agent done, needs review" from "idle mid
+	 * conversation". `needsAttention` is skipped for user aborts (someone
+	 * was present to stop the turn) and cleared when the next turn starts;
+	 * clients clear it when the user views the session.
+	 */
+	private async persistTurnCompletionMetadata(
+		session: ActiveSession,
+		finishReason: AgentResult["finishReason"],
+	): Promise<void> {
+		try {
+			await this.persistSessionMetadata(session.sessionId, (current) => ({
+				...(current ?? {}),
+				lastTurnCompletion: {
+					finishReason,
+					endedAt: new Date().toISOString(),
+				},
+				...(finishReason === "aborted" ? {} : { needsAttention: true }),
+			}));
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to persist turn completion metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
+	}
+
+	/**
+	 * Drops the `needsAttention` flag when a new turn starts: a fresh user
+	 * prompt means a human is engaged with the session, so any pending
+	 * "needs review" indicator is stale. Checked against the in-memory
+	 * manifest first so sessions without the flag don't pay a write.
+	 */
+	private async clearNeedsAttentionMetadata(
+		session: ActiveSession,
+	): Promise<void> {
+		const metadata = session.artifacts?.manifest.metadata as
+			| Record<string, unknown>
+			| undefined;
+		if (metadata?.needsAttention === undefined) return;
+		try {
+			await this.persistSessionMetadata(session.sessionId, (current) => {
+				if (!current || current.needsAttention === undefined) return current;
+				const { needsAttention: _needsAttention, ...rest } = current;
+				return rest;
+			});
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to clear session needsAttention metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
 	}
 
 	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
@@ -2105,6 +2165,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (hasPendingTeamRunWork(session)) return;
 		const isAborted = finishReason === "aborted" || session.aborting;
 		const isError = finishReason === "error";
+		await this.persistTurnCompletionMetadata(
+			session,
+			isAborted ? "aborted" : finishReason,
+		);
 		await this.shutdownSession(session, {
 			status: isAborted ? "cancelled" : isError ? "failed" : "completed",
 			exitCode: isError ? 1 : 0,
