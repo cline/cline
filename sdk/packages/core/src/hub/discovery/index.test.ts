@@ -5,8 +5,10 @@ import {
 	clearHubDiscovery,
 	clearHubDiscoveryIfOwned,
 	getManagedHubCompatibility,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
+	resolveHubBuildEpochMs,
 	resolveHubBuildId,
 	resolveHubOwnerContext,
 	writeHubDiscovery,
@@ -15,6 +17,7 @@ import {
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
 	CLINE_HUB_BUILD_ID: string | undefined;
+	CLINE_HUB_BUILD_EPOCH_MS: string | undefined;
 	CLINE_HUB_DISCOVERY_PATH: string | undefined;
 };
 
@@ -22,6 +25,7 @@ function captureEnv(): EnvSnapshot {
 	return {
 		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 		CLINE_HUB_BUILD_ID: process.env.CLINE_HUB_BUILD_ID,
+		CLINE_HUB_BUILD_EPOCH_MS: process.env.CLINE_HUB_BUILD_EPOCH_MS,
 		CLINE_HUB_DISCOVERY_PATH: process.env.CLINE_HUB_DISCOVERY_PATH,
 	};
 }
@@ -29,6 +33,7 @@ function captureEnv(): EnvSnapshot {
 function restoreEnv(snapshot: EnvSnapshot): void {
 	process.env.CLINE_DATA_DIR = snapshot.CLINE_DATA_DIR;
 	process.env.CLINE_HUB_BUILD_ID = snapshot.CLINE_HUB_BUILD_ID;
+	process.env.CLINE_HUB_BUILD_EPOCH_MS = snapshot.CLINE_HUB_BUILD_EPOCH_MS;
 	process.env.CLINE_HUB_DISCOVERY_PATH = snapshot.CLINE_HUB_DISCOVERY_PATH;
 }
 
@@ -95,6 +100,82 @@ describe("hub discovery", () => {
 				"current-build",
 			),
 		).toEqual({ compatible: false, reason: "unsupported_protocol" });
+	});
+
+	it("allows tests to override the build epoch and treats sources as unordered", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
+		expect(resolveHubBuildEpochMs()).toBeUndefined();
+
+		process.env.CLINE_HUB_BUILD_EPOCH_MS = "12345";
+		expect(resolveHubBuildEpochMs()).toBe(12345);
+	});
+
+	it("reuses managed Hubs only for the same build or a strictly newer one", () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
+		const reuseOptions = {
+			expectedBuildId: "current-build",
+			expectedBuildEpochMs: 1_000,
+		};
+		// Same build: reusable regardless of epoch.
+		expect(
+			isManagedHubReusable(
+				{ protocolVersion: "v1", buildId: "current-build" },
+				reuseOptions,
+			),
+		).toBe(true);
+		// Different build with a newer epoch: another install upgraded the Hub.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "other-build",
+					buildEpochMs: 2_000,
+				},
+				reuseOptions,
+			),
+		).toBe(true);
+		// Different build that is older: retire and replace.
+		expect(
+			isManagedHubReusable(
+				{ protocolVersion: "v1", buildId: "other-build", buildEpochMs: 500 },
+				reuseOptions,
+			),
+		).toBe(false);
+		// Different build with no ordering information: replace (safe default).
+		expect(
+			isManagedHubReusable(
+				{ protocolVersion: "v1", buildId: "other-build" },
+				reuseOptions,
+			),
+		).toBe(false);
+		// Own epoch unknown (unbundled sources): replace.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v1",
+					buildId: "other-build",
+					buildEpochMs: 2_000,
+				},
+				{ expectedBuildId: "current-build" },
+			),
+		).toBe(false);
+		// Legacy hub without build metadata: replace.
+		expect(isManagedHubReusable({ protocolVersion: "v1" }, reuseOptions)).toBe(
+			false,
+		);
+		// Protocol mismatch is never reusable, newer or not.
+		expect(
+			isManagedHubReusable(
+				{
+					protocolVersion: "v2",
+					buildId: "other-build",
+					buildEpochMs: 2_000,
+				},
+				reuseOptions,
+			),
+		).toBe(false);
 	});
 
 	it("writes and clears discovery records at the resolved location", async () => {

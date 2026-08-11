@@ -47,13 +47,15 @@ describe("checkManagedHubBuildMismatch", () => {
 		vi.resetModules();
 	});
 
-	it("reports a live hub running another build", async () => {
+	it("reports a live hub running a newer build", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
 		mockDiscovery({
 			record: liveRecord,
 			probe: {
 				protocolVersion: "v1",
-				buildId: "old-build",
-				coreVersion: "0.0.71",
+				buildId: "newer-build",
+				buildEpochMs: 2_000,
+				coreVersion: "0.0.73",
 				host: "127.0.0.1",
 				port: 59999,
 				url: "ws://127.0.0.1:59999/hub",
@@ -66,13 +68,33 @@ describe("checkManagedHubBuildMismatch", () => {
 		await expect(checkManagedHubBuildMismatch()).resolves.toEqual({
 			url: "ws://127.0.0.1:59999/hub",
 			reason: "build_mismatch",
-			hubBuildId: "old-build",
-			hubCoreVersion: "0.0.71",
+			hubBuildId: "newer-build",
+			hubCoreVersion: "0.0.73",
 			expectedBuildId: "current-build",
 		});
 	});
 
-	it("reports missing build metadata on a live hub", async () => {
+	it("does not prompt for an older or unordered hub build (it gets replaced instead)", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		mockDiscovery({
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v1",
+				buildId: "old-build",
+				buildEpochMs: 500,
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
+	it("does not prompt for a legacy hub without build metadata", async () => {
 		mockDiscovery({
 			record: liveRecord,
 			probe: {
@@ -86,8 +108,26 @@ describe("checkManagedHubBuildMismatch", () => {
 			"./managed-hub-build-watcher"
 		);
 
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
+	it("prompts when the hub protocol is not supported by this client", async () => {
+		mockDiscovery({
+			record: liveRecord,
+			probe: {
+				protocolVersion: "v99",
+				buildId: "future-build",
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			},
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
 		await expect(checkManagedHubBuildMismatch()).resolves.toMatchObject({
-			reason: "missing_build",
+			reason: "unsupported_protocol",
 		});
 	});
 
@@ -137,9 +177,11 @@ describe("watchManagedHubBuildMismatch", () => {
 
 	it("fires once per mismatched hub build and re-arms after recovery", async () => {
 		vi.useFakeTimers();
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
 		let probeResult: Record<string, unknown> | undefined = {
 			protocolVersion: "v1",
-			buildId: "old-build",
+			buildId: "newer-build",
+			buildEpochMs: 2_000,
 			host: "127.0.0.1",
 			port: 59999,
 			url: "ws://127.0.0.1:59999/hub",
@@ -177,7 +219,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			await vi.advanceTimersByTimeAsync(1_000);
 			expect(onMismatch).toHaveBeenCalledTimes(1);
 			expect(onMismatch).toHaveBeenLastCalledWith(
-				expect.objectContaining({ hubBuildId: "old-build" }),
+				expect.objectContaining({ hubBuildId: "newer-build" }),
 			);
 
 			// Same mismatched build: no repeat notifications.
@@ -197,7 +239,8 @@ describe("watchManagedHubBuildMismatch", () => {
 
 			probeResult = {
 				protocolVersion: "v1",
-				buildId: "newer-build",
+				buildId: "even-newer-build",
+				buildEpochMs: 3_000,
 				host: "127.0.0.1",
 				port: 59999,
 				url: "ws://127.0.0.1:59999/hub",
@@ -205,7 +248,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			await vi.advanceTimersByTimeAsync(1_000);
 			expect(onMismatch).toHaveBeenCalledTimes(2);
 			expect(onMismatch).toHaveBeenLastCalledWith(
-				expect.objectContaining({ hubBuildId: "newer-build" }),
+				expect.objectContaining({ hubBuildId: "even-newer-build" }),
 			);
 		} finally {
 			stop();

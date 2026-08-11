@@ -199,7 +199,15 @@ a protocol-compatible daemon from another build is retired before its
 replacement starts so upgrades cannot keep executing stale runtime code. SDK
 builds embed a deterministic fingerprint of the runtime sources, package
 manifests, build configuration, and dependency lock, so the identity changes
-with the executable Hub code even before package versions are bumped.
+with the executable Hub code even before package versions are bumped. Builds
+also embed a build epoch that orders them in time: when the fingerprints
+differ, a managed Hub produced *after* the client's own build is reused over
+the compatible wire protocol instead of being retired (replacing it would
+downgrade the daemon), and the client's build-mismatch watcher prompts the
+user to update and restart. Hubs that are older, unordered, or missing build
+metadata are retired and replaced as before, so two concurrently running
+installations converge on the newest build instead of repeatedly replacing
+each other's daemons.
 Explicit endpoints, including loopback URLs such as
 `ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
 reconnects may retry the same socket URL, but command recovery and

@@ -3,6 +3,7 @@ import { isHubDaemonProcess, resolveClineBuildEnv } from "@cline/shared";
 import {
 	getManagedHubCompatibility,
 	type HubOwnerContext,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
@@ -25,8 +26,9 @@ function resolveDefaultWatchIntervalMs(): number {
 export interface ManagedHubBuildMismatchEvent {
 	/** WebSocket URL of the live managed Hub that does not match this build. */
 	url: string;
-	/** Why the running Hub is not usable by this client build. */
-	reason: "unsupported_protocol" | "missing_build" | "build_mismatch";
+	/** Why this client should update: the running Hub is a newer build this
+	 * client stays attached to, or it speaks an unsupported protocol. */
+	reason: "unsupported_protocol" | "build_mismatch";
 	/** Build identity reported by the running Hub, when it reports one. */
 	hubBuildId?: string;
 	/** Core package version reported by the running Hub. */
@@ -84,16 +86,26 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (compatibility.compatible) {
 		return undefined;
 	}
+	// Prompt only for mismatches that persist and that updating this client
+	// resolves: a newer reusable Hub this client stays attached to, or a Hub
+	// whose protocol this client cannot speak at all. Older or unordered
+	// builds are retired and replaced automatically, so prompting would only
+	// flash a stale dialog.
 	if (
 		compatibility.reason !== "unsupported_protocol" &&
-		compatibility.reason !== "missing_build" &&
-		compatibility.reason !== "build_mismatch"
+		!(
+			compatibility.reason === "build_mismatch" &&
+			isManagedHubReusable(healthy, { expectedBuildId })
+		)
 	) {
 		return undefined;
 	}
 	return {
 		url: healthy.url,
-		reason: compatibility.reason,
+		reason:
+			compatibility.reason === "unsupported_protocol"
+				? "unsupported_protocol"
+				: "build_mismatch",
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
 		expectedBuildId,
