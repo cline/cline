@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.72",
+	"version": "0.0.73",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -37,7 +37,7 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json && bun run ./scripts/verify-runtime-build-id.ts",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit && bun run typecheck:smoke",
 		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",

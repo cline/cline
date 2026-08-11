@@ -1,5 +1,23 @@
 # Changelog
 
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
 ## [4.1.7]
 
 ### Added
