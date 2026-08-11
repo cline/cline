@@ -164,7 +164,7 @@ export function ProviderListContent({
 					<div className="min-w-0">
 						<h1
 							className={cn(
-								"truncate font-semibold leading-[1.15]  text-foreground",
+								"truncate font-semibold leading-[1.15] text-foreground",
 								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
