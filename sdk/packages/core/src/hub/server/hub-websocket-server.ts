@@ -5,7 +5,6 @@ import { URL } from "node:url";
 import {
 	CURRENT_HUB_PROTOCOL_VERSION,
 	HUB_CAPABILITIES,
-	isHubProtocolCompatible,
 	MAX_CLIENT_HUB_PROTOCOL_VERSION,
 	MIN_CLIENT_HUB_PROTOCOL_VERSION,
 } from "@cline/shared";
@@ -16,6 +15,7 @@ import {
 	clearHubDiscovery,
 	createHubAuthToken,
 	createHubServerUrl,
+	getManagedHubCompatibility,
 	type HubServerDiscoveryRecord,
 	probeHubServer,
 	readHubDiscovery,
@@ -364,6 +364,7 @@ export async function startHubWebSocketServer(
 				minClientProtocolVersion: versionPayload.minClientProtocolVersion,
 				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
 				coreVersion: versionPayload.coreVersion,
+				buildId: versionPayload.buildId,
 				host,
 				port,
 				url,
@@ -420,7 +421,11 @@ export async function startHubWebSocketServer(
 			res.setHeader("content-type", "application/json");
 			res.end(JSON.stringify({ ok: true }));
 			queueMicrotask(() => {
-				void closeServer();
+				try {
+					options.onShutdownRequested?.();
+				} finally {
+					void closeServer();
+				}
 			});
 			return;
 		}
@@ -604,7 +609,7 @@ export async function ensureHubWebSocketServer(
 			});
 			if (
 				healthy?.url &&
-				isHubProtocolCompatible(healthy).compatible &&
+				getManagedHubCompatibility(healthy, resolveHubBuildId()).compatible &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discovered.authToken,
 				}))
