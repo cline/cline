@@ -32,8 +32,8 @@
  * | supportsImages | capabilities includes `images` or `vision` | safe default: true when capabilities absent |
  * | supportsPromptCache | capabilities includes `prompt-cache` | safe default: false when capabilities absent |
  * | supportsReasoning | capabilities includes `reasoning` | omitted (undefined) |
- * | inputPrice | `sdk.pricing.input` if finite number | safe default: 0 |
- * | outputPrice | `sdk.pricing.output` if finite number | safe default: 0 |
+ * | inputPrice | `sdk.pricing.input` if finite number | omitted (undefined) |
+ * | outputPrice | `sdk.pricing.output` if finite number | omitted (undefined) |
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
@@ -201,8 +201,17 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		supportsPromptCache: capabilities
 			? capabilities.includes(PROMPT_CACHE_CAPABILITY)
 			: openAiModelInfoSafeDefaults.supportsPromptCache,
-		inputPrice: pricing?.input ?? openAiModelInfoSafeDefaults.inputPrice,
-		outputPrice: pricing?.output ?? openAiModelInfoSafeDefaults.outputPrice,
+	}
+
+	// Unknown pricing stays undefined rather than defaulting to 0: a zero
+	// price renders as "Free" in the webview (ModelInfoView), which misstates
+	// paid models whose catalog record simply carries no price (e.g. Vertex
+	// models billed region-dependently). Undefined hides the price row.
+	if (pricing?.input !== undefined) {
+		result.inputPrice = pricing.input
+	}
+	if (pricing?.output !== undefined) {
+		result.outputPrice = pricing.output
 	}
 
 	if (capabilities) {
