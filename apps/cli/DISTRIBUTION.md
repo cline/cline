@@ -175,9 +175,10 @@ User runs: cline
 bin/cline (Node.js resolver) executes:
   1. Check CLINE_BIN_PATH env var override
   2. Check cached binary at bin/.cline
-  3. Walk up node_modules for the platform package (same AVX2-aware
+  3. Walk up node_modules for the platform packages (same AVX2-aware
      preference order as postinstall)
-  4. Execute the compiled binary
+  4. Execute the compiled binary; if it fails to start (spawn error or
+     SIGILL at startup), fall through to the next candidate
 ```
 
 ## File Layout
@@ -247,9 +248,11 @@ A Node.js script that serves as the entry point when users run `cline`. It finds
 The shebang is `#!/usr/bin/env node` because Node.js is guaranteed to be available wherever npm is. The resolver uses only CommonJS (`require`) and Node.js APIs -- no `bun:` imports or Bun-specific APIs. It then spawns the compiled binary which has Bun embedded.
 
 Resolution chain:
-1. `CLINE_BIN_PATH` env var (for development or custom deployments)
+1. `CLINE_BIN_PATH` env var (for development or custom deployments; no fallback, fails loudly)
 2. `bin/.cline` cached hard link (created by postinstall for fast startup)
-3. Walk up `node_modules` from the script directory to find the platform package, trying package names in the AVX2-aware preference order from `bin/baseline.cjs`
+3. Walk up `node_modules` from the script directory to find the platform packages, trying package names in the AVX2-aware preference order from `bin/baseline.cjs`
+
+If a candidate fails to start (spawn error, or SIGILL from an AVX2 binary on a CPU without AVX2 -- Bun dies at startup before doing any work), the resolver falls through to the next candidate instead of giving up. This covers stale caches, e.g. a container image where `npm install` ran on an AVX2 build host but the image runs on a non-AVX2 host. Ordinary nonzero exits are propagated immediately and never retried, since the child runs the user's actual command.
 
 ## Postinstall (`script/postinstall.mjs`)
 

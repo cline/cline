@@ -1,4 +1,16 @@
+import { spawnSync } from "node:child_process";
+import {
+	chmodSync,
+	cpSync,
+	mkdirSync,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { createRequire } from "node:module";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 
 const require = createRequire(import.meta.url);
@@ -54,3 +66,104 @@ describe("baseline binary selection", () => {
 		expect(names).toEqual(baseline.platformPackageNames("linux", "x64", avx2));
 	});
 });
+
+describe.skipIf(process.platform === "win32")(
+	"bin/cline runtime fallback",
+	() => {
+		const cliRoot = fileURLToPath(new URL("../..", import.meta.url));
+
+		// Build a fake installed tree: node_modules/cline holds the resolver, and
+		// the platform package(s) hold stub "binaries" (shell scripts).
+		function setupTree(input: {
+			cachedScript?: string;
+			packageScripts: Record<string, string>;
+		}): { treeDir: string; resolver: string } {
+			const treeDir = mkdtempSync(join(tmpdir(), "cline-resolver-test-"));
+			const wrapperBin = join(treeDir, "node_modules", "cline", "bin");
+			mkdirSync(wrapperBin, { recursive: true });
+			cpSync(join(cliRoot, "bin", "cline"), join(wrapperBin, "cline"));
+			cpSync(
+				join(cliRoot, "bin", "baseline.cjs"),
+				join(wrapperBin, "baseline.cjs"),
+			);
+			if (input.cachedScript) {
+				const cachedPath = join(wrapperBin, ".cline");
+				writeFileSync(cachedPath, input.cachedScript);
+				chmodSync(cachedPath, 0o755);
+			}
+			for (const [name, script] of Object.entries(input.packageScripts)) {
+				const binDir = join(treeDir, "node_modules", name, "bin");
+				mkdirSync(binDir, { recursive: true });
+				const binPath = join(binDir, "cline");
+				writeFileSync(binPath, script);
+				chmodSync(binPath, 0o755);
+			}
+			return { treeDir, resolver: join(wrapperBin, "cline") };
+		}
+
+		function currentPlatformPackage(): string {
+			const platform =
+				process.platform === "win32" ? "windows" : process.platform;
+			return baseline.resolvePlatformPackageNames(platform, process.arch)[0];
+		}
+
+		it("falls back to the next candidate when a binary dies at startup", () => {
+			const { treeDir, resolver } = setupTree({
+				// Simulates an AVX2 binary cached on different hardware: dies
+				// with SIGILL before doing any work.
+				cachedScript: "#!/bin/sh\nkill -ILL $$\n",
+				packageScripts: {
+					[currentPlatformPackage()]: "#!/bin/sh\necho FALLBACK_OK\n",
+				},
+			});
+			try {
+				const result = spawnSync(process.execPath, [resolver], {
+					encoding: "utf8",
+				});
+				expect(result.stdout).toContain("FALLBACK_OK");
+				expect(result.stderr).toContain("failed to start");
+				expect(result.status).toBe(0);
+			} finally {
+				rmSync(treeDir, { recursive: true, force: true });
+			}
+		});
+
+		it("does not retry on an ordinary nonzero exit", () => {
+			const { treeDir, resolver } = setupTree({
+				// Runs the user's command and fails normally; the resolver must
+				// propagate the exit code without executing another binary.
+				cachedScript: "#!/bin/sh\necho RAN_ONCE\nexit 3\n",
+				packageScripts: {
+					[currentPlatformPackage()]: "#!/bin/sh\necho SHOULD_NOT_RUN\n",
+				},
+			});
+			try {
+				const result = spawnSync(process.execPath, [resolver], {
+					encoding: "utf8",
+				});
+				expect(result.stdout).toContain("RAN_ONCE");
+				expect(result.stdout).not.toContain("SHOULD_NOT_RUN");
+				expect(result.status).toBe(3);
+			} finally {
+				rmSync(treeDir, { recursive: true, force: true });
+			}
+		});
+
+		it("propagates the crash when no fallback candidate remains", () => {
+			const { treeDir, resolver } = setupTree({
+				packageScripts: {
+					[currentPlatformPackage()]: "#!/bin/sh\nkill -ILL $$\n",
+				},
+			});
+			try {
+				const result = spawnSync(process.execPath, [resolver], {
+					encoding: "utf8",
+				});
+				expect(result.status).not.toBe(0);
+				expect(result.stdout).not.toContain("FALLBACK_OK");
+			} finally {
+				rmSync(treeDir, { recursive: true, force: true });
+			}
+		});
+	},
+);
