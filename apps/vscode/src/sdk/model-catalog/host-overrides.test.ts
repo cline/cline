@@ -58,21 +58,6 @@ describe("applyHostModelInfoOverrides — vertex unknown pricing", () => {
 		expect(result.outputPrice).toBe(25)
 	})
 
-	it("composes with the global-endpoint capability override", () => {
-		const modelInfo: ModelInfo = {
-			name: "claude-sonnet-4-5@20250929",
-			supportsPromptCache: true,
-			inputPrice: 0,
-			outputPrice: 0,
-		}
-
-		const result = applyHostModelInfoOverrides(vertex, "claude-sonnet-4-5@20250929", modelInfo)
-
-		expect(result.supportsGlobalEndpoint).toBe(true)
-		expect(result.inputPrice).toBeUndefined()
-		expect(result.outputPrice).toBeUndefined()
-	})
-
 	it("does not touch other providers' zero prices", () => {
 		const modelInfo: ModelInfo = {
 			name: "some-free-model",

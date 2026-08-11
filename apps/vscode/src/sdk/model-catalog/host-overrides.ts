@@ -52,21 +52,17 @@ function resolveOllamaContextWindow(): number {
 }
 
 export function applyHostModelInfoOverrides(providerId: ProviderId, modelId: string, modelInfo: ModelInfo): ModelInfo {
-	if (providerId === "vertex") {
-		let result = modelInfo
-		if (vertexModelSupportsGlobalEndpoint(providerId, modelId)) {
-			result = { ...result, supportsGlobalEndpoint: true }
-		}
-		// Vertex has no free models, so a $0/$0 price pair is always the shape
-		// adapter's safe default standing in for an SDK record that carries no
-		// pricing (e.g. models billed region-dependently, where a single
-		// universal price would be wrong). Drop the pair so the settings UI
-		// shows no price instead of a misleading "Free".
-		if (result.inputPrice === 0 && result.outputPrice === 0) {
-			const { inputPrice: _unknownInputPrice, outputPrice: _unknownOutputPrice, ...withoutPricing } = result
-			result = withoutPricing
-		}
-		return result
+	if (providerId === "vertex" && vertexModelSupportsGlobalEndpoint(providerId, modelId)) {
+		return { ...modelInfo, supportsGlobalEndpoint: true }
+	}
+	// Vertex has no free models, so a $0/$0 price pair is always the shape
+	// adapter's safe default standing in for an SDK record that carries no
+	// pricing (e.g. models billed region-dependently, where a single
+	// universal price would be wrong). Drop the pair so the settings UI
+	// shows no price instead of a misleading "Free".
+	if (providerId === "vertex" && modelInfo.inputPrice === 0 && modelInfo.outputPrice === 0) {
+		const { inputPrice: _unknownInputPrice, outputPrice: _unknownOutputPrice, ...withoutPricing } = modelInfo
+		return withoutPricing
 	}
 	if (providerId === "ollama") {
 		return { ...modelInfo, contextWindow: resolveOllamaContextWindow() }
