@@ -188,7 +188,7 @@ export class AuthService {
 							Logger.error("Token is invalid or expired:", error)
 							this._clineAuthInfo = null
 							this._authenticated = false
-							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
 							authStatusChanged = true
 						} else if (error instanceof AuthNetworkError) {
 							Logger.error("Network error refreshing token", error)
@@ -322,6 +322,7 @@ export class AuthService {
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
+		const hadStoredSession = this.hasStoredSession()
 		try {
 			this._clineAuthInfo = await this.retrieveAuthInfo()
 			if (this._clineAuthInfo) {
@@ -331,14 +332,41 @@ export class AuthService {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+				if (!hadStoredSession) {
+					// Activated with nothing in storage (e.g. API-key users who never
+					// signed in). Not a logout — reported under a dedicated reason so it
+					// can never be mistaken for one, while still measuring the
+					// signed-out population.
+					telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.NO_STORED_SESSION)
+				} else if (!this.hasStoredSession()) {
+					// A session existed but the provider destroyed it during restore:
+					// the refresh token was rejected as invalid/expired, or the stored
+					// blob was unusable. A real involuntary logout.
+					telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
+				}
+				// else: a session is still stored and restore returned null
+				// transiently (refresh backoff, rollout stand-down). Credentials are
+				// intact and a later attempt may succeed — not a logout.
 			}
 		} catch (error) {
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
-			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
 			return
+		}
+	}
+
+	/**
+	 * Whether a Cline session blob currently exists in secret storage.
+	 * Used to tell "never signed in" apart from "session destroyed" when
+	 * restore comes back empty.
+	 */
+	private hasStoredSession(): boolean {
+		try {
+			return Boolean(this._controller.stateManager.getSecretKey("cline:clineAccountId"))
+		} catch {
+			return false
 		}
 	}
 
