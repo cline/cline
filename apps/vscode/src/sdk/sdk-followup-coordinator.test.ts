@@ -67,7 +67,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
-			undefined,
 		)
 	})
 
@@ -166,7 +165,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: next request",
 			undefined,
 			undefined,
-			undefined,
 		)
 	})
 
@@ -228,7 +226,6 @@ describe("SdkFollowupCoordinator", () => {
 			rebuiltSession.sdkHost,
 			"session-123",
 			"resolved: after rebuild",
-			undefined,
 			undefined,
 			undefined,
 		)

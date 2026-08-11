@@ -84,7 +84,7 @@ export class SdkFollowupCoordinator {
 		const task = this.options.getTask()
 		const submittedDuringActiveTurn = turnPhaseAtSubmit === "streaming" || turnPhaseAtSubmit === "awaiting_approval"
 		if (activeSession && (activeSession.isRunning || submittedDuringActiveTurn)) {
-			await this.sendToActiveSession(activeSession, true, prompt, images, files)
+			await this.queueToActiveSession(activeSession, prompt, images, files)
 			return
 		}
 
@@ -106,7 +106,7 @@ export class SdkFollowupCoordinator {
 
 			const currentSession = this.options.sessions.getActiveSession()
 			if (currentSession && (currentSession.isRunning || submittedDuringActiveTurn)) {
-				await this.sendToActiveSession(currentSession, true, prompt, images, files)
+				await this.queueToActiveSession(currentSession, prompt, images, files)
 				return
 			}
 
@@ -115,7 +115,7 @@ export class SdkFollowupCoordinator {
 			// the live session after an abort. Rebuilding from task history is
 			// reserved for tasks without a live session (opened from history,
 			// extension host reload).
-			if (task && currentSession && currentSession.sessionId === task.taskId) {
+			if (currentSession && (!task || currentSession.sessionId === task.taskId)) {
 				await this.continueIdleSession(currentSession, prompt, images, files)
 				return
 			}
@@ -126,49 +126,30 @@ export class SdkFollowupCoordinator {
 				return
 			}
 
-			if (!currentSession) {
-				Logger.error("[SdkController] askResponse: No active session")
-				await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
-				return
-			}
-
-			await this.sendToActiveSession(currentSession, false, prompt, images, files)
+			Logger.error("[SdkController] askResponse: No active session")
+			await this.abandonFollowUp("askResponse: No active session to receive the follow-up")
 		})
 	}
 
-	private async sendToActiveSession(
+	/** Queue a follow-up onto a session whose turn is still running. */
+	private async queueToActiveSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
-		shouldQueue: boolean,
 		prompt?: string,
 		images?: string[],
 		files?: string[],
 	): Promise<void> {
 		const { sdkHost, sessionId } = activeSession
-		if (shouldQueue) {
-			Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
-		}
+		Logger.log(`[SdkController] Session is running - queuing follow-up message for session: ${sessionId}`)
 
 		this.options.sessions.setRunning(true)
-		if (!shouldQueue) {
-			this.emitUserFeedback(sessionId, prompt, images, files)
-			this.options.resetMessageTranslator()
-		}
-
 		const resolvedPrompt = prompt ? await this.options.resolveContextMentions(prompt) : ""
-		this.options.sessions.fireAndForgetSend(
-			sdkHost,
-			sessionId,
-			resolvedPrompt,
-			images,
-			files,
-			shouldQueue ? "queue" : undefined,
-		)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
 	}
 
 	/**
-	 * Continue a surviving idle session in place instead of tearing it down
-	 * and rebuilding it from task history. A bare resume (no user content)
-	 * sends the synthetic resumption prompt without echoing a user bubble;
+	 * Continue a live idle session in place instead of tearing it down and
+	 * rebuilding it from task history. A bare resume (no user content) sends
+	 * the synthetic resumption prompt without echoing a user bubble;
 	 * user-provided content is echoed and sent as-is. If the session's abort
 	 * is still settling, the runtime auto-queues the send and drains it once
 	 * the abort completes.
