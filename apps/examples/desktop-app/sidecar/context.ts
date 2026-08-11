@@ -499,6 +499,7 @@ export function createSidecarContext(
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 

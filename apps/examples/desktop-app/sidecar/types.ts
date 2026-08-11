@@ -3,6 +3,7 @@ import type {
 	BasicLogger,
 	ClineCore,
 	ITelemetryService,
+	ManagedHubBuildMismatchEvent,
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
@@ -119,6 +120,11 @@ export type SidecarContext = {
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;
+	/**
+	 * Latest managed Hub build mismatch, broadcast as `hub_build_mismatch` and
+	 * replayed to webviews that connect after the event fired.
+	 */
+	hubBuildMismatch: ManagedHubBuildMismatchEvent | null;
 };
 export type BunRuntimeApi = {
 	serve: (options: unknown) => { port: number; stop?: () => void };

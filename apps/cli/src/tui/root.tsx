@@ -1,4 +1,9 @@
-import { getCurrentContextSize, summarizeUsageFromMessages } from "@cline/core";
+import {
+	getCurrentContextSize,
+	type ManagedHubBuildMismatchEvent,
+	summarizeUsageFromMessages,
+	watchManagedHubBuildMismatch,
+} from "@cline/core";
 import { formatDisplayUserInput } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
@@ -34,6 +39,7 @@ import {
 	buildCommandPaletteItems,
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
+import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -561,6 +567,41 @@ function App(props: TuiProps) {
 		}, 0);
 		return () => clearTimeout(timeout);
 	}, [appView, currentProviderId, dialog, notice, onInitialNoticeShown]);
+
+	const [hubBuildMismatch, setHubBuildMismatch] =
+		useState<ManagedHubBuildMismatchEvent | null>(null);
+	useEffect(() => {
+		return watchManagedHubBuildMismatch({
+			onMismatch: (mismatch) => setHubBuildMismatch(mismatch),
+		});
+	}, []);
+
+	const onHubUpdateRestart = props.onHubUpdateRestart;
+	useEffect(() => {
+		if (!hubBuildMismatch) return;
+		setHubBuildMismatch(null);
+		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		void dialog
+			.choice<boolean>({
+				content: (ctx: ChoiceContext<boolean>) => (
+					<HubUpdateRequiredContent {...ctx} hubCoreVersion={hubCoreVersion} />
+				),
+			})
+			.then((update) => {
+				if (update) {
+					(onHubUpdateRestart ?? exitCline)();
+					return;
+				}
+				showToast(
+					"Hub still differs from this CLI. Run 'cline update' and restart when convenient.",
+					"info",
+				);
+				refocusTextareaRef.current();
+			})
+			.catch(() => {
+				refocusTextareaRef.current();
+			});
+	}, [dialog, exitCline, hubBuildMismatch, onHubUpdateRestart, showToast]);
 
 	const {
 		appendEntry: appendSessionEntry,
