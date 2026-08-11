@@ -1,4 +1,5 @@
 import { isClineProvider } from "@cline/shared";
+import { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "../builtins";
 import {
 	getModelReasoningControls,
 	isDeepSeekFamily,
@@ -6,10 +7,7 @@ import {
 	isKimiK26Family as isKimiK26FamilyFact,
 	isMiniMaxM3Model,
 	isMoonshotKimiModelIdFallback,
-	modelReasoningDefaultsOn,
-	normalizeReasoningEffort,
 	providerReasoningRouteMatches,
-	resolveGeminiThinkingMode,
 } from "../model-facts";
 import { buildGatewayReasoningOptions } from "./anthropic-compatible";
 import { buildOpenAINativeProviderOptions } from "./generic-compatible";
@@ -50,19 +48,6 @@ function isDeepSeekModelOrProviderDefault(
 
 function isMiniMaxM3(input: ProviderOptionMatchInput): boolean {
 	return isMiniMaxM3Model(input.request, input.context);
-}
-
-function isOllamaReasoningDefaultOnDisable(
-	input: ProviderOptionMatchInput,
-): boolean {
-	return (
-		input.request.providerId === "ollama" &&
-		input.request.reasoning?.enabled === false &&
-		modelReasoningDefaultsOn({
-			request: input.request,
-			context: input.context,
-		})
-	);
 }
 
 function usesGlmThinkingProviderRouting(
@@ -122,55 +107,11 @@ function buildReasoningPatchForProvider(
 	});
 }
 
-function buildGeminiThinkingConfig(input: ProviderOptionBuildInput):
-	| {
-			thinkingLevel?: "minimal" | "low" | "medium" | "high";
-			thinkingBudget?: number;
-			includeThoughts: boolean;
-	  }
-	| undefined {
-	const reasoning = input.request.reasoning;
-	if (!reasoning) {
-		return undefined;
-	}
-
-	const thinkingMode = resolveGeminiThinkingMode(input);
-
-	if (thinkingMode === "level") {
-		if (reasoning.enabled === false) {
-			const lowestEffort =
-				getModelReasoningControls(input.context.model.reasoningOptions)
-					?.efforts[0] ?? "low";
-			return {
-				thinkingLevel:
-					lowestEffort === "xhigh" || lowestEffort === "max"
-						? "high"
-						: lowestEffort,
-				includeThoughts: false,
-			};
-		}
-		if (!reasoning.effort) {
-			return undefined;
-		}
+function buildGeminiThinkingConfig(input: ProviderOptionBuildInput) {
+	const budgetTokens = input.request.reasoning?.budgetTokens;
+	if (typeof budgetTokens === "number") {
 		return {
-			thinkingLevel:
-				reasoning.effort === "xhigh" || reasoning.effort === "max"
-					? "high"
-					: reasoning.effort,
-			includeThoughts: true,
-		};
-	}
-
-	if (thinkingMode === "budget" && reasoning.enabled === false) {
-		return {
-			thinkingBudget: 0,
-			includeThoughts: false,
-		};
-	}
-
-	if (thinkingMode === "budget" && typeof reasoning.budgetTokens === "number") {
-		return {
-			thinkingBudget: reasoning.budgetTokens,
+			thinkingBudget: budgetTokens,
 			includeThoughts: true,
 		};
 	}
@@ -191,7 +132,7 @@ const directGoogleProviderRule: ProviderOptionRule = {
 	id: "provider.google.direct",
 	phase: "provider",
 	description:
-		"Direct Google owns the google bucket through Gemini thinkingConfig.",
+		"Direct Google owns the google bucket used for exact reasoning budgets.",
 	applies: (input) => input.request.providerId === "google",
 	suppresses: { genericFanout: true },
 	build: () => undefined,
@@ -206,7 +147,9 @@ const openAiAdapterRule: ProviderOptionRule = {
 	build: (input) => ({
 		openai: {
 			strictJsonSchema: false,
-			...buildOpenAINativeProviderOptions(input.request),
+			...(["openai", "openai-native"].includes(input.request.providerId)
+				? buildOpenAINativeProviderOptions()
+				: {}),
 		},
 	}),
 };
@@ -219,18 +162,8 @@ const openAiCodexRule: ProviderOptionRule = {
 	applies: (input) => input.request.providerId === "openai-codex",
 	suppresses: { genericFanout: true },
 	build: (input) => {
-		const normalizedEffort =
-			input.request.reasoning?.enabled === false
-				? undefined
-				: input.request.reasoning?.effort;
 		const codexOptions = {
 			...input.compatibleOptions,
-			...(normalizedEffort
-				? {
-						effort: normalizedEffort,
-						reasoningEffort: normalizedEffort,
-					}
-				: {}),
 			instructions: input.request.systemPrompt,
 			store: false,
 			strictJsonSchema: false,
@@ -282,7 +215,7 @@ const openRouterReasoningRule: ProviderOptionRule = {
 	description:
 		"OpenRouter expects reasoning controls under its first-class reasoning object.",
 	applies: (input) => input.request.providerId === "openrouter",
-	suppresses: { genericThinking: true, genericEffort: true },
+	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildReasoningPatchForProvider(
 			input,
@@ -297,7 +230,7 @@ const clineMiniMaxM3GatewayReasoningRule: ProviderOptionRule = {
 		"Cline-routed MiniMax M3 keeps the gateway reasoning shape instead of leaking generic thinking.",
 	applies: (input) =>
 		isClineProvider(input.request.providerId) && isMiniMaxM3(input),
-	suppresses: { genericThinking: true, genericEffort: true },
+	suppresses: { genericThinking: true },
 	build: () => undefined,
 };
 
@@ -321,7 +254,7 @@ const vercelReasoningRule: ProviderOptionRule = {
 			isMiniMaxM3(input)
 		);
 	},
-	suppresses: { genericThinking: true, genericEffort: true },
+	suppresses: { genericThinking: true },
 	build: (input) => {
 		const reasoning = input.request.reasoning;
 		if (!reasoning) {
@@ -361,48 +294,26 @@ const directMoonshotReasoningRule: ProviderOptionRule = {
 };
 
 const fireworksReasoningRule: ProviderOptionRule = {
-	id: "provider.fireworks.reasoning-effort",
+	id: "provider.fireworks.reasoning-budget",
 	phase: "provider-reasoning",
 	description:
-		"Fireworks uses reasoning_effort for effort/toggle and thinking for token budgets.",
+		"Fireworks uses its native thinking object for exact token budgets.",
 	applies: (input) =>
 		input.request.providerId === "fireworks" &&
-		getModelReasoningControls(input.context.model.reasoningOptions) !==
-			undefined &&
-		input.request.reasoning !== undefined,
-	suppresses: { genericThinking: true, genericEffort: true },
+		typeof input.request.reasoning?.budgetTokens === "number",
+	suppresses: { genericThinking: true },
 	build: (input) => {
 		const reasoning = input.request.reasoning;
-		const controls = getModelReasoningControls(
-			input.context.model.reasoningOptions,
-		);
-		const bucketOptions =
-			typeof reasoning?.budgetTokens === "number"
-				? {
-						thinking: {
-							type: "enabled",
-							budget_tokens: reasoning.budgetTokens,
-						},
-					}
-				: reasoning?.enabled === false
-					? { reasoningEffort: "none" }
-					: reasoning?.effort
-						? { reasoningEffort: reasoning.effort }
-						: reasoning?.enabled === true && controls?.efforts.length
-							? {
-									reasoningEffort: normalizeReasoningEffort(
-										"medium",
-										controls.efforts,
-									),
-								}
-							: undefined;
-		return bucketOptions === undefined
-			? undefined
-			: buildProviderAndAliasPatch({
-					providerId: input.request.providerId,
-					providerOptionsKey: input.providerOptionsKey,
-					bucketOptions,
-				});
+		return buildProviderAndAliasPatch({
+			providerId: input.request.providerId,
+			providerOptionsKey: input.providerOptionsKey,
+			bucketOptions: {
+				thinking: {
+					type: "enabled",
+					budget_tokens: reasoning?.budgetTokens,
+				},
+			},
+		});
 	},
 };
 
@@ -425,16 +336,14 @@ const togetherReasoningToggleRule: ProviderOptionRule = {
 const geminiThinkingRule: ProviderOptionRule = {
 	id: "provider.google-gemini.thinking-config",
 	phase: "provider",
-	description: "Google/Gemini/Vertex maps reasoning to thinkingConfig.",
-	suppresses: { genericThinking: true, genericEffort: true },
+	description:
+		"Google/Gemini/Vertex uses thinkingConfig only for exact token budgets.",
+	suppresses: { genericThinking: true },
 	applies: (input) =>
 		(input.request.providerId === "google" ||
 			input.request.providerId === "gemini" ||
 			input.request.providerId === "vertex") &&
-		resolveGeminiThinkingMode(input) !== undefined &&
-		(!!input.request.reasoning?.effort ||
-			typeof input.request.reasoning?.budgetTokens === "number" ||
-			input.request.reasoning?.enabled === false),
+		typeof input.request.reasoning?.budgetTokens === "number",
 	build: (input) => {
 		const providerOptionsName =
 			input.request.providerId === "vertex" ? "vertex" : "google";
@@ -471,21 +380,18 @@ const clineReasoningDisabledThinkingRule: ProviderOptionRule = {
 const kimiK26ThinkingRule: ProviderOptionRule = {
 	id: "family.kimi-k2.6.thinking",
 	phase: "model-family",
-	description:
-		"Kimi K2.6 uses thinking.type and defaults to enabled when reasoning is unset.",
+	description: "Kimi K2.6 uses thinking.type only for explicit disable.",
 	applies: (input) =>
-		isKimiK26Family(input) && input.request.providerId !== "openrouter",
+		isKimiK26Family(input) &&
+		input.request.providerId !== "openrouter" &&
+		input.request.reasoning?.enabled === false,
 	suppresses: { genericThinking: true },
-	build: (input) => {
-		const thinkingType = resolveFamilyThinkingType(input, "enabled");
-		return thinkingType
-			? buildThinkingPatch({
-					providerId: input.request.providerId,
-					providerOptionsKey: input.providerOptionsKey,
-					thinkingType,
-				})
-			: undefined;
-	},
+	build: (input) =>
+		buildThinkingPatch({
+			providerId: input.request.providerId,
+			providerOptionsKey: input.providerOptionsKey,
+			thinkingType: "disabled",
+		}),
 };
 
 const deepSeekThinkingRule: ProviderOptionRule = {
@@ -496,7 +402,7 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	applies: (input) =>
 		input.request.providerId !== "openrouter" &&
 		isDeepSeekModelOrProviderDefault(input) &&
-		!isOllamaReasoningDefaultOnDisable(input),
+		input.target !== "ollama",
 	suppresses: { genericThinking: true },
 	build: (input) => {
 		const thinkingType = resolveFamilyThinkingType(input, undefined);
@@ -510,24 +416,29 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 	},
 };
 
-const ollamaReasoningDefaultOnDisableRule: ProviderOptionRule = {
-	id: "provider.ollama.reasoning-default-on.disable-none",
+const ollamaNativeOptionsRule: ProviderOptionRule = {
+	id: "provider.ollama.native-options",
 	phase: "provider-reasoning",
 	description:
-		"Ollama models whose reasoning defaults on need reasoningEffort=none when request reasoning is disabled.",
-	applies: isOllamaReasoningDefaultOnDisable,
+		"Ollama receives only its context window through native provider options; reasoning is top-level.",
+	applies: (input) => input.target === "ollama",
+	suppresses: { genericThinking: true },
 	build: (input) => {
+		const contextWindow =
+			input.context.model.contextWindow ??
+			input.context.model.maxInputTokens ??
+			OLLAMA_DEFAULT_CONTEXT_WINDOW;
+		const numCtx =
+			typeof contextWindow === "number" &&
+			Number.isFinite(contextWindow) &&
+			contextWindow > 0
+				? Math.floor(contextWindow)
+				: OLLAMA_DEFAULT_CONTEXT_WINDOW;
 		const bucketOptions = {
-			reasoningEffort: "none",
-			reasoning: { effort: "none" },
+			options: { num_ctx: numCtx },
 		};
 		return {
-			...buildProviderAndAliasPatch({
-				providerId: input.request.providerId,
-				providerOptionsKey: input.providerOptionsKey,
-				bucketOptions,
-			}),
-			openaiCompatible: bucketOptions,
+			ollama: bucketOptions,
 		};
 	},
 };
@@ -563,7 +474,7 @@ const miniMaxThinkingRule: ProviderOptionRule = {
 	phase: "model-overlay",
 	description: "Direct MiniMax M3 uses thinking.type adaptive/disabled.",
 	applies: usesMiniMaxThinkingProviderRouting,
-	suppresses: { genericThinking: true, genericEffort: true },
+	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildMiniMaxThinkingProviderOptionsPatch(
 			input.request,
@@ -613,7 +524,7 @@ export const PROVIDER_OPTION_RULES: ReadonlyArray<ProviderOptionRule> = [
 	clineReasoningDisabledThinkingRule,
 	kimiK26ThinkingRule,
 	deepSeekThinkingRule,
-	ollamaReasoningDefaultOnDisableRule,
+	ollamaNativeOptionsRule,
 	nonGlmProviderRoutingSuppressionRule,
 	nativeZaiGlmThinkingRule,
 	miniMaxThinkingRule,
@@ -644,8 +555,6 @@ export function resolveProviderOptionSuppressions(
 		return {
 			genericThinking:
 				result.genericThinking || rule.suppresses.genericThinking || undefined,
-			genericEffort:
-				result.genericEffort || rule.suppresses.genericEffort || undefined,
 			genericFanout:
 				result.genericFanout || rule.suppresses.genericFanout || undefined,
 		};

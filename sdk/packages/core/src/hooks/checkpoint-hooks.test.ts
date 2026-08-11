@@ -44,6 +44,13 @@ function userMessage(
 	};
 }
 
+const assistantMessage = (text: string): AgentMessage => ({
+	id: `assistant-${text}`,
+	role: "assistant",
+	content: [{ type: "text", text }],
+	createdAt: 1,
+});
+
 async function runCheckpointHooks(
 	hooks: ReturnType<typeof createCheckpointHooks>,
 	options: {
@@ -124,6 +131,163 @@ describe("createCheckpointHooks", () => {
 		}
 	});
 
+	it("captures untracked files as a third parent so restore can rewind them", async () => {
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_untracked",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			// An untracked file present at checkpoint time (no tracked changes).
+			await writeFile(join(cwd, "created.txt"), "snapshot-content\n", "utf8");
+			await runCheckpointHooks(hooks);
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.latest.kind).toBe("stash");
+			const ref = checkpoint.latest.ref;
+			// The snapshot carries a third parent whose tree holds the untracked
+			// file at its checkpoint-time content.
+			expect(await runGit(cwd, "cat-file", "-t", `${ref}^3`)).toBe("commit");
+			expect(await runGit(cwd, "show", `${ref}^3:created.txt`)).toBe(
+				"snapshot-content",
+			);
+			// Capturing must not disturb the user's worktree/index/stash list.
+			expect(await runGit(cwd, "status", "--porcelain")).toBe("?? created.txt");
+			expect(await runGit(cwd, "stash", "list")).toBe("");
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("creates a checkpoint when the host seeds the prompt before the run starts", async () => {
+		// Regression test for the VS Code host: it persists the run's prompt
+		// into session state before the run begins, so the prompt is already
+		// present when beforeRun fires. The previous beforeRun-length boundary
+		// treated the prompt as pre-existing and skipped every checkpoint.
+		const cwd = await createGitRepo();
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_preseeded",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			await writeFile(join(cwd, "note.txt"), "run-one\n", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request")],
+				// Prompt already present at beforeRun, as the VS Code host does.
+				messagesBeforeRun: [userMessage("first request")],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint?.history).toHaveLength(1);
+			expect(checkpoint.latest.runCount).toBe(1);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("does not overwrite a checkpoint when a reopened session resumes without a new user turn", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		let refCounter = 0;
+		const makeHooks = () =>
+			createCheckpointHooks({
+				cwd: "/tmp",
+				sessionId: "sess_reopen",
+				createCheckpoint: ({ runCount }) => ({
+					ref: `ref-${++refCounter}`,
+					createdAt: refCounter,
+					runCount,
+					kind: "commit" as const,
+				}),
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+		const transcript = [userMessage("first request")];
+		await runCheckpointHooks(makeHooks(), {
+			messages: transcript,
+			messagesBeforeRun: transcript,
+		});
+		expect((metadata?.checkpoint as CheckpointMetadata).latest.ref).toBe(
+			"ref-1",
+		);
+
+		const resumed = [
+			...transcript,
+			assistantMessage("did some edits"),
+			userMessage("[TASK RESUMPTION] Please continue where you left off."),
+		];
+		await runCheckpointHooks(makeHooks(), {
+			messages: resumed,
+			messagesBeforeRun: resumed,
+		});
+		expect((metadata?.checkpoint as CheckpointMetadata).latest.ref).toBe(
+			"ref-1",
+		);
+	});
+
+	it("creates a checkpoint for the first user turn after compaction shrinks the transcript", async () => {
+		let metadata: Record<string, unknown> | undefined;
+		const createCheckpoint = vi.fn(({ runCount }: { runCount: number }) => ({
+			ref: `ref-${runCount}`,
+			createdAt: runCount,
+			runCount,
+			kind: "commit" as const,
+		}));
+		const hooks = createCheckpointHooks({
+			cwd: "/tmp",
+			sessionId: "sess_compaction",
+			createCheckpoint,
+			readSessionMetadata: async () => metadata,
+			writeSessionMetadata: async (next) => {
+				metadata = next;
+			},
+		});
+
+		const longTranscript = [
+			userMessage("first request"),
+			assistantMessage("a1"),
+			assistantMessage("a2"),
+			userMessage("second request"),
+			assistantMessage("a3"),
+			assistantMessage("a4"),
+		];
+		await runCheckpointHooks(hooks, {
+			messages: longTranscript,
+			messagesBeforeRun: longTranscript,
+		});
+
+		const compacted = [
+			userMessage("Compacted context", {
+				kind: "compaction",
+				displayRole: "system",
+				userRunSpan: 2,
+			}),
+			userMessage("third request"),
+		];
+		await runCheckpointHooks(hooks, {
+			messages: compacted,
+			messagesBeforeRun: compacted,
+		});
+
+		expect(createCheckpoint).toHaveBeenLastCalledWith(
+			expect.objectContaining({ runCount: 3 }),
+		);
+	});
+
 	it("falls back to a commit checkpoint when the worktree is clean", async () => {
 		const cwd = await createGitRepo();
 		let metadata: Record<string, unknown> | undefined;
@@ -172,6 +336,47 @@ describe("createCheckpointHooks", () => {
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.history).toHaveLength(1);
 			expect(checkpoint.latest.runCount).toBe(1);
+		} finally {
+			await rm(cwd, { recursive: true, force: true });
+		}
+	});
+
+	it("starts checkpointing after the user runs git init mid-session", async () => {
+		const cwd = await mkdtemp(join(tmpdir(), "core-checkpoint-nogit-"));
+		let metadata: Record<string, unknown> | undefined;
+		try {
+			const hooks = createCheckpointHooks({
+				cwd,
+				sessionId: "sess_git_init_later",
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
+				},
+			});
+
+			// First turn: no git repo yet, so no checkpoint is written.
+			await writeFile(join(cwd, "note.txt"), "before-init\n", "utf8");
+			await runCheckpointHooks(hooks);
+			expect(metadata?.checkpoint).toBeUndefined();
+
+			// The user initializes git mid-session.
+			await runGit(cwd, "init");
+			await runGit(cwd, "config", "user.name", "Codex Test");
+			await runGit(cwd, "config", "user.email", "codex@example.com");
+			await runGit(cwd, "add", "note.txt");
+			await runGit(cwd, "commit", "-m", "initial");
+
+			// Next turn on the same hook instance picks up the new repo and
+			// checkpoints from here forward.
+			await writeFile(join(cwd, "note.txt"), "after-init\n", "utf8");
+			await runCheckpointHooks(hooks, {
+				messages: [userMessage("first request"), userMessage("second request")],
+			});
+
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
+			expect(checkpoint.history).toHaveLength(1);
+			expect(checkpoint.latest.runCount).toBe(2);
+			expect(checkpoint.latest.kind).toBe("stash");
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}

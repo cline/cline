@@ -149,6 +149,21 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Session history provenance keeps the client surface and initiation mode separate.
+`StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
+`core`, and so on), while top-level `StartSessionInput.mode` identifies how the
+session began (`user`, `automation`, `subagent`, or `team`). The persisted messages
+envelope records both values, along with client version and child-session
+lineage. Missing initiation mode defaults to `user`; automation runtime adapters
+must pass `mode: "automation"` explicitly.
+
+Root-session persistence is lazy. Starting a runtime allocates its session ID
+and keeps configuration or seeded history in memory, but does not create a
+database row, manifest, or messages artifact. The first accepted user turn
+persists that same ID and its artifacts. Closing a runtime before a user turn
+therefore leaves no empty history entry, and persistence code never allocates a
+replacement ID for an unknown session.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
@@ -178,9 +193,16 @@ public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
-through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
-including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
-targets: reconnects may retry the same socket URL, but command recovery and
+through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
+must match both the supported wire protocol and the current Hub build identity;
+a protocol-compatible daemon from another build is retired before its
+replacement starts so upgrades cannot keep executing stale runtime code. SDK
+builds embed a deterministic fingerprint of the runtime sources, package
+manifests, build configuration, and dependency lock, so the identity changes
+with the executable Hub code even before package versions are bumped.
+Explicit endpoints, including loopback URLs such as
+`ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
+reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
@@ -451,9 +473,11 @@ orchestrator used by core and hub layers.
    renews the run claim while execution is active, writes a markdown report
    per run, and transactionally updates status. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
-   `plugins`), session source, and a notes directory that is injected into
-   the system prompt. Event runs include the normalized trigger event context
-   in the prompt.
+   `plugins`), trigger source, and a notes directory that is injected into
+   the system prompt. The automation runtime adapters explicitly persist
+   `mode: "automation"` for every run and record the spec-defined trigger
+   source as `sessionHistoryOrigin.trigger` in session metadata. Event runs
+   include the normalized trigger event context in the prompt.
 8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
    `.cline/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,

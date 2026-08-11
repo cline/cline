@@ -68,6 +68,37 @@ describe("SearchCombobox", () => {
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 	});
 
+	it("closes on Escape and returns focus to the trigger", async () => {
+		const onValueChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<SearchCombobox
+					ariaLabel="Repository"
+					onValueChange={onValueChange}
+					options={options}
+					value="cline"
+				/>,
+			),
+		);
+
+		const trigger = container.querySelector("button");
+		await act(async () => trigger?.click());
+		const panel = container.querySelector('[role="dialog"]');
+		expect(panel).not.toBeNull();
+
+		const search = container.querySelector("input");
+		await act(async () => {
+			search?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+			);
+		});
+
+		expect(container.querySelector('[role="dialog"]')).toBeNull();
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(document.activeElement).toBe(trigger);
+		expect(onValueChange).not.toHaveBeenCalled();
+	});
+
 	it("renders loading and disabled states", async () => {
 		const onValueChange = vi.fn();
 		const render = (disabled = false, loading = false) =>

@@ -1,5 +1,122 @@
 # Changelog
 
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
+## [4.1.7]
+
+### Added
+
+- Restore the "View Changes" button on completion rows, backed by SDK checkpoints, so you can review everything a task touched from the completion card.
+- Bring back a copy button on turn-final response rows.
+- Support pre-registered OAuth clients for remote MCP servers, for setups where dynamic client registration isn't available.
+
+### Changed
+
+- Fade the "View Changes" button until changes since the last message are confirmed, and hide it entirely when there is nothing to show.
+- Centralize plugin settings and contributions, with host-aware snapshots and atomic plugin toggles.
+- Carry execution context in scheduled run reports — readable headers, schedule metadata, durations, and lifecycle error details.
+
+### Fixed
+
+- Preserve prompts queued during a turn when that turn is interrupted: they survive aborts, are drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped.
+- Keep session context durable across aborts and hub restarts, so an interrupted session resumes with the state it had.
+- Settle the turn phase when a mode switch aborts a running turn.
+- Report queued-turn failures as `run.failed` instead of letting them complete silently.
+- Keep a hung MCP server from taking down session creation, and give stdio servers that were never configured a 30-second initialize budget instead of blocking indefinitely.
+- Surface OAuth authorization for SSE MCP servers on a 401 instead of failing outright.
+- Route LiteLLM through Chat Completions instead of the Responses API, fixing requests against LiteLLM proxies.
+- Retry network interruptions that happen mid-stream but before any model output, instead of failing the turn.
+- Use the configured fetch for Vertex ADC token refreshes, so they work behind proxies and custom transports.
+- Include files that were untracked when a snapshot was taken in checkpoint diffs, and pick up checkpoints when git is initialized part-way through a session.
+- Fall back to the session cwd or Desktop for @-mention file search in empty windows.
+- Never run a foreign compiled plugin-sandbox bootstrap for a source host.
+
+## [4.1.6]
+
+### Added
+
+- Offer `meta/muse-spark-1.2-contributor` on the Cline provider, alongside a refreshed model catalog.
+
+### Fixed
+
+- Attribute error telemetry to the model actually in use for a run, so failures are no longer reported against the wrong model.
+
+## [4.1.5]
+
+### Added
+
+- Explain when a free model promotion ends. Requests to a retired free model now show a dedicated notice with a button to pick another model, instead of a generic error with nothing but a Retry prompt.
+
+### Changed
+
+- Map reasoning settings onto a shared path across AI SDK providers, so effort levels and enable/disable toggles behave consistently (including on Ollama) instead of relying on per-provider overrides.
+
+## [4.1.4]
+
+### Added
+
+- Recognize Chutes as a provider.
+- Show skills alongside workflows in the slash command menu, and disambiguate commands that share a name instead of letting one shadow the other.
+
+### Changed
+
+- Remove model-initiated plan-to-act switching. Switching out of plan mode is now driven by you, not by the model deciding mid-turn.
+- Hard-block file-editing shell commands in plan mode instead of relying on prompting alone. Read-only investigation still works, but file manipulation, in-place editors, redirection to files, mutating git subcommands, and package installs are refused.
+
+### Fixed
+
+- Stop treating a turn that completes with a plan as a failed turn when a plan-blocked command was its only tool call. The turn no longer ends in the error state with a Retry footer, and toggling to Act correctly re-runs the presented plan instead of appearing to do nothing.
+- Show tool paths relative to the workspace in the chat view instead of absolute paths.
+- Reset pending attachments when starting a new task, so images from the previous task no longer carry over.
+- Surface a clear error when the selected provider has no API key configured, instead of a generic failure.
+- Refresh MCP tool and resource lists when a server sends a `list_changed` notification, instead of only showing a toast.
+- Show installed plugins under their real package names instead of all appearing as "index".
+- Correct the Linux keybinding label in the Plan/Act mode tooltip.
+- Recover from running out of context instead of failing with a raw provider error — the run compacts and retries once, and the cases that genuinely cannot be recovered explain why.
+- Retry empty model responses on every provider rather than only Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Stop Claude 4.6+ and 5.x models being rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id.
+- Restore Bedrock prompt caching, which reported zero cache reads and writes because the provider sent a cache format Bedrock discards, and route Bedrock foundation models through geo inference profiles.
+- Send `max_completion_tokens` for reasoning models on OpenAI-compatible endpoints, and substitute image content for models without image support instead of failing the request.
+- Inherit the MiniMax default model from models.dev, and refresh the bundled catalog, which adds Infomaniak and SCX.ai.
+- Report the same provider failure once instead of twice in error telemetry, and rate-limit repeated failures from unattended retry loops.
+
+## [4.1.3]
+
+### Fixed
+
+- Stop the two bundles of the combined rollout package from invalidating each other's Cline account session. A still-open legacy window that refreshed its token after the machine was promoted to the new extension would consume the shared refresh token, producing spurious "Unauthorized" / re-authenticate prompts and unexpected sign-outs. Promoted legacy windows now keep working on their current session and offer a one-time Reload Window prompt instead.
+- Fall back to the default Cline model when migrating a setup that references a model id the new extension doesn't recognize, instead of leaving the provider unconfigured.
+- Restore reliable checkpoints: checkpoints are created consistently, and restoring one now rewinds the whole workspace rather than a subset of files.
+- Keep settings edits that are made before the provider config finishes loading — base URLs, API keys, and the Qwen/Moonshot API line are no longer silently discarded.
+- Stop losing keystrokes in custom base URL fields, and keep the custom URL checkbox state after a failed clear.
+- Use the AskSage custom API URL at inference time instead of ignoring it.
+- Settle a pending tool approval when an edited message replaces the session, so the task no longer hangs waiting on a prompt that is gone.
+- Drop attachments from messages that have been edited.
+- Complete terminal commands when the shell execution ends, so tasks no longer stall on commands that already finished.
+- Include untracked files when generating commit messages.
+- Run Windows Store PowerShell profiles correctly.
+- Surface the upstream provider error when a gateway-forwarded stream fails, instead of a generic failure.
+- Retry empty Ollama responses at the model boundary, and raise the response-start timeout to 5 minutes so cold model loads no longer error out.
+- Show proper display names for Cline free models and recommended models in the model picker.
+- Preserve video input capability for models that support it.
+- Keep the plan/act input border in sync with the actual textarea focus.
+
 ## [4.1.2]
 
 ### Added

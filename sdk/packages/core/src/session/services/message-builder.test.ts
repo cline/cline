@@ -1091,7 +1091,7 @@ describe("MessageBuilder with structured ToolOperationResult content", () => {
 		);
 		const serialized = JSON.stringify(aiSdkMessages);
 
-		expect(serialized).toContain('"type":"image-data"');
+		expect(serialized).toContain('"type":"file"');
 		expect(serialized).toContain(smallImage);
 		expect(serialized).not.toContain(
 			"[media omitted: invalid or exceeds size limit]",
@@ -1687,7 +1687,7 @@ describe("MessageBuilder default-on truncation", () => {
 				})) as unknown as AiSdkFormatterMessage[],
 			),
 		);
-		expect(formattedPayload).toContain('"type":"image-data"');
+		expect(formattedPayload).toContain('"type":"file"');
 		expect(formattedPayload).toContain(imageData);
 	});
 

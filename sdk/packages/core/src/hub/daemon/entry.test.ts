@@ -10,6 +10,8 @@ const {
 	mockResolveProductionHubOwnerContext,
 	mockResolveSharedHubOwnerContext,
 	mockReconnectDaemonConnectors,
+	mockArmHubDaemonShutdownWatchdog,
+	mockHubServerClose,
 	mockStartHubWebSocketServer,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
@@ -35,8 +37,10 @@ const {
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
 	mockReconnectDaemonConnectors: vi.fn(async () => []),
-	mockStartHubWebSocketServer: vi.fn(async () => ({
-		close: vi.fn(async () => undefined),
+	mockArmHubDaemonShutdownWatchdog: vi.fn(),
+	mockHubServerClose: vi.fn(async () => undefined),
+	mockStartHubWebSocketServer: vi.fn(async (_options?: unknown) => ({
+		close: mockHubServerClose,
 	})),
 }));
 
@@ -57,10 +61,14 @@ const {
 	};
 });
 
-vi.mock("@cline/shared", () => ({
-	initVcr: mockInitVcr,
-	resolveClineBuildEnv: () => "production",
-}));
+vi.mock("@cline/shared", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@cline/shared")>();
+	return {
+		...actual,
+		initVcr: mockInitVcr,
+		resolveClineBuildEnv: () => "production",
+	};
+});
 
 vi.mock("@cline/agents", () => ({
 	AgentRuntimeAbortError: class AgentRuntimeAbortError extends Error {},
@@ -92,6 +100,11 @@ vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
 
+vi.mock("./shutdown-watchdog", () => ({
+	armHubDaemonShutdownWatchdog: mockArmHubDaemonShutdownWatchdog,
+	HUB_DAEMON_SHUTDOWN_DEADLINE_MS: 2_000,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -109,6 +122,8 @@ describe("hub daemon entry", () => {
 		mockResolveProductionHubOwnerContext.mockClear();
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockReconnectDaemonConnectors.mockClear();
+		mockArmHubDaemonShutdownWatchdog.mockClear();
+		mockHubServerClose.mockClear();
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
@@ -181,6 +196,76 @@ describe("hub daemon entry", () => {
 		expect(ready).toBe(true);
 		await vi.waitFor(() => {
 			expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
+		});
+	});
+
+	it("exits the daemon when its HTTP shutdown route is accepted", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const serverOptions = mockStartHubWebSocketServer.mock.calls[0]?.[0] as
+			| { onShutdownRequested?: () => void }
+			| undefined;
+		expect(serverOptions?.onShutdownRequested).toBeTypeOf("function");
+
+		serverOptions?.onShutdownRequested?.();
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+		expect(mockHubServerClose).toHaveBeenCalledOnce();
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
+		expect(mockArmHubDaemonShutdownWatchdog).toHaveBeenCalledWith(
+			expect.objectContaining({ deadlineMs: 2_000, exitCode: 0 }),
+		);
+	});
+
+	it("ignores abort-family unhandled rejections instead of shutting down", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		const handlers = new Map<string, (reason: unknown) => void>();
+		vi.spyOn(process, "on").mockImplementation(((
+			event: string,
+			handler: (reason: unknown) => void,
+		) => {
+			handlers.set(event, handler);
+			return process;
+		}) as never);
+		vi.spyOn(process.stderr, "write").mockImplementation(() => true);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+
+		const { hubDaemonReady } = await import("./entry");
+		await hubDaemonReady;
+		const onUnhandledRejection = handlers.get("unhandledRejection");
+		expect(onUnhandledRejection).toBeDefined();
+
+		// Cancelling a turn can leave provider fetches rejecting on floating
+		// promises after the run settled. None of these may kill the daemon —
+		// it hosts every resident session.
+		const { AgentRuntimeAbortError } = await import("@cline/agents");
+		onUnhandledRejection?.(new AgentRuntimeAbortError("run aborted"));
+		const domAbort = new Error("This operation was aborted");
+		domAbort.name = "AbortError";
+		onUnhandledRejection?.(domAbort);
+		const nodeAbort = Object.assign(new Error("The operation was aborted"), {
+			code: "ABORT_ERR",
+		});
+		onUnhandledRejection?.(nodeAbort);
+		expect(exitSpy).not.toHaveBeenCalled();
+
+		// Anything else is still fatal.
+		onUnhandledRejection?.(new Error("boom"));
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(1);
 		});
 	});
 
