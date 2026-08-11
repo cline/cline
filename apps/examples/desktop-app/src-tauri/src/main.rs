@@ -24,22 +24,33 @@ const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
-const DESKTOP_MENU_ACTION_PENDING_EVENT: &str = "desktop-menu-action-pending";
+const DESKTOP_ACTION_PENDING_EVENT: &str = "desktop-action-pending";
 
-#[derive(Default)]
-struct DesktopMenuActionState {
-    pending: Mutex<VecDeque<String>>,
+#[derive(Debug, Clone, PartialEq, Eq, Serialize)]
+#[serde(tag = "type", rename_all = "kebab-case")]
+enum DesktopAction {
+    NewSession,
+    OpenSettings,
+    OpenSession {
+        #[serde(rename = "sessionId")]
+        session_id: String,
+    },
 }
 
-impl DesktopMenuActionState {
-    fn enqueue(&self, action: &str) {
+#[derive(Default)]
+struct DesktopActionState {
+    pending: Mutex<VecDeque<DesktopAction>>,
+}
+
+impl DesktopActionState {
+    fn enqueue(&self, action: DesktopAction) {
         self.pending
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
-            .push_back(action.to_string());
+            .push_back(action);
     }
 
-    fn drain(&self) -> Vec<String> {
+    fn drain(&self) -> Vec<DesktopAction> {
         self.pending
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
@@ -121,6 +132,25 @@ fn tray_status_text(update_status: &UpdateStatus, hub_healthy: bool) -> &'static
         _ if hub_healthy => "Status: Healthy",
         _ => "Status: Hub Disconnected",
     }
+}
+
+fn running_sessions_text(running_sessions: u32) -> String {
+    match running_sessions {
+        1 => "1 session running".to_string(),
+        count => format!("{count} sessions running"),
+    }
+}
+
+fn tray_tooltip_text(running_sessions: u32) -> String {
+    if running_sessions == 0 {
+        "Cline Code".to_string()
+    } else {
+        format!("Cline Code — {}", running_sessions_text(running_sessions))
+    }
+}
+
+fn tray_badge_text(running_sessions: u32) -> Option<String> {
+    (running_sessions > 0).then(|| running_sessions.to_string())
 }
 
 fn refresh_tray_status(app: &tauri::AppHandle, update_state: &UpdateState) {
@@ -776,19 +806,105 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
-fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
+fn queue_desktop_action(app: &tauri::AppHandle, action: DesktopAction) {
     show_main_window(app);
-    app.state::<DesktopMenuActionState>().enqueue(action);
-    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_MENU_ACTION_PENDING_EVENT, ()) {
+    app.state::<DesktopActionState>().enqueue(action);
+    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_ACTION_PENDING_EVENT, ()) {
         // The action remains queued and will be picked up by the webview's
         // initial drain after its event listener is registered.
-        eprintln!("[desktop-menu] failed to signal pending {action}: {error}");
+        eprintln!("[desktop] failed to signal pending action: {error}");
     }
+}
+
+fn notification_response_opens_session(response: &notify_rust::NotificationResponse) -> bool {
+    matches!(
+        response,
+        notify_rust::NotificationResponse::Default | notify_rust::NotificationResponse::Action(_)
+    )
+}
+
+#[tauri::command]
+fn show_session_notification(
+    app: tauri::AppHandle,
+    title: String,
+    body: String,
+    session_id: String,
+    sound: Option<String>,
+) -> Result<(), String> {
+    let title = title.trim();
+    let body = body.trim();
+    let session_id = session_id.trim();
+    if title.is_empty() || body.is_empty() || session_id.is_empty() {
+        return Err("notification title, body, and session ID are required".to_string());
+    }
+
+    let mut notification = notify_rust::Notification::new();
+    notification
+        .summary(title)
+        .body(body)
+        .auto_icon()
+        .action("open-session", "Open");
+    if let Some(sound) = sound
+        .as_deref()
+        .map(str::trim)
+        .filter(|sound| !sound.is_empty())
+    {
+        notification.sound_name(sound);
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        use std::path::MAIN_SEPARATOR as SEP;
+
+        let executable = tauri::utils::platform::current_exe()
+            .map_err(|error| format!("failed resolving the app executable: {error}"))?;
+        let executable_directory = executable
+            .parent()
+            .ok_or_else(|| "the app executable has no parent directory".to_string())?
+            .display()
+            .to_string();
+        if !(executable_directory.ends_with(format!("{SEP}target{SEP}debug").as_str())
+            || executable_directory.ends_with(format!("{SEP}target{SEP}release").as_str()))
+        {
+            notification.app_id(&app.config().identifier);
+        }
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        let _ = notify_rust::set_application(if tauri::is_dev() {
+            "com.apple.Terminal"
+        } else {
+            &app.config().identifier
+        });
+    }
+
+    // The Tauri plugin provides permission and platform registration, but its
+    // desktop send command drops the native response handle. Retain that handle
+    // here so activating the banner can deep-route to the originating session.
+    let handle = notification
+        .show()
+        .map_err(|error| format!("failed showing notification: {error}"))?;
+    let app_handle = app.clone();
+    let session_id = session_id.to_string();
+    thread::spawn(move || {
+        if let Err(error) =
+            handle.wait_for_response(move |response: &notify_rust::NotificationResponse| {
+                if notification_response_opens_session(response) {
+                    queue_desktop_action(&app_handle, DesktopAction::OpenSession { session_id });
+                }
+            })
+        {
+            eprintln!("[notification] failed waiting for a notification response: {error}");
+        }
+    });
+
+    Ok(())
 }
 
 fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let status = MenuItem::new(app, "Status: Healthy", false, None::<&str>)?;
-    let running_sessions = MenuItem::new(app, "0 sessions running", false, None::<&str>)?;
+    let running_sessions = MenuItem::new(app, running_sessions_text(0), false, None::<&str>)?;
     let menu = MenuBuilder::new(app)
         .text(
             TRAY_OPEN_MENU_ID,
@@ -818,14 +934,14 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let tray = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .icon(icon)
         .menu(&menu)
-        .tooltip("Cline Code");
+        .tooltip(tray_tooltip_text(0));
     #[cfg(target_os = "macos")]
     let tray = tray.icon_as_template(true);
 
     tray.on_menu_event(|app, event| match event.id().as_ref() {
         TRAY_OPEN_MENU_ID => show_main_window(app),
-        TRAY_NEW_SESSION_MENU_ID => queue_desktop_menu_action(app, "new-session"),
-        TRAY_SETTINGS_MENU_ID => queue_desktop_menu_action(app, "open-settings"),
+        TRAY_NEW_SESSION_MENU_ID => queue_desktop_action(app, DesktopAction::NewSession),
+        TRAY_SETTINGS_MENU_ID => queue_desktop_action(app, DesktopAction::OpenSettings),
         TRAY_QUIT_MENU_ID => app.exit(0),
         _ => {}
     })
@@ -839,12 +955,13 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
 }
 
 #[tauri::command]
-fn drain_desktop_menu_actions(action_state: State<'_, DesktopMenuActionState>) -> Vec<String> {
+fn drain_desktop_actions(action_state: State<'_, DesktopActionState>) -> Vec<DesktopAction> {
     action_state.drain()
 }
 
 #[tauri::command]
 fn set_tray_status(
+    app: tauri::AppHandle,
     tray_menu: State<'_, TrayMenuState>,
     update_state: State<'_, Arc<UpdateState>>,
     hub_healthy: bool,
@@ -859,11 +976,15 @@ fn set_tray_status(
         .map_err(|error| format!("failed updating tray status: {error}"))?;
     tray_menu
         .running_sessions
-        .set_text(match running_sessions {
-            1 => "1 session running".to_string(),
-            count => format!("{count} sessions running"),
-        })
-        .map_err(|error| format!("failed updating tray session count: {error}"))
+        .set_text(running_sessions_text(running_sessions))
+        .map_err(|error| format!("failed updating tray session count: {error}"))?;
+    if let Some(tray) = app.tray_by_id(TRAY_ICON_ID) {
+        tray.set_tooltip(Some(tray_tooltip_text(running_sessions)))
+            .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
+        tray.set_title(tray_badge_text(running_sessions))
+            .map_err(|error| format!("failed updating tray badge: {error}"))?;
+    }
+    Ok(())
 }
 
 fn main() {
@@ -878,11 +999,12 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
-        .manage(DesktopMenuActionState::default())
+        .manage(DesktopActionState::default())
         .setup(|app| {
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
@@ -925,7 +1047,8 @@ fn main() {
             get_update_status,
             restart_to_apply_update,
             set_app_icon,
-            drain_desktop_menu_actions,
+            show_session_notification,
+            drain_desktop_actions,
             set_tray_status
         ])
         .build(tauri::generate_context!())
@@ -952,13 +1075,51 @@ mod tests {
     use std::sync::atomic::{AtomicUsize, Ordering};
 
     #[test]
-    fn desktop_menu_actions_are_buffered_in_order_until_drained() {
-        let state = DesktopMenuActionState::default();
-        state.enqueue("new-session");
-        state.enqueue("open-settings");
+    fn desktop_actions_are_buffered_in_order_until_drained() {
+        let state = DesktopActionState::default();
+        state.enqueue(DesktopAction::NewSession);
+        state.enqueue(DesktopAction::OpenSession {
+            session_id: "session-1".to_string(),
+        });
 
-        assert_eq!(state.drain(), vec!["new-session", "open-settings"]);
+        assert_eq!(
+            state.drain(),
+            vec![
+                DesktopAction::NewSession,
+                DesktopAction::OpenSession {
+                    session_id: "session-1".to_string(),
+                },
+            ]
+        );
         assert!(state.drain().is_empty());
+    }
+
+    #[test]
+    fn desktop_session_actions_serialize_for_the_webview() {
+        let action = DesktopAction::OpenSession {
+            session_id: "session-1".to_string(),
+        };
+
+        assert_eq!(
+            serde_json::to_value(action).unwrap(),
+            serde_json::json!({
+                "type": "open-session",
+                "sessionId": "session-1",
+            })
+        );
+    }
+
+    #[test]
+    fn only_notification_activation_opens_a_session() {
+        assert!(notification_response_opens_session(
+            &notify_rust::NotificationResponse::Default
+        ));
+        assert!(notification_response_opens_session(
+            &notify_rust::NotificationResponse::Action("open-session".to_string())
+        ));
+        assert!(!notification_response_opens_session(
+            &notify_rust::NotificationResponse::Closed(notify_rust::CloseReason::Dismissed)
+        ));
     }
 
     #[test]
@@ -990,6 +1151,17 @@ mod tests {
             tray_status_text(&status("error"), false),
             "Status: Update Check Failed"
         );
+    }
+
+    #[test]
+    fn tray_session_count_updates_menu_tooltip_and_badge_copy() {
+        assert_eq!(running_sessions_text(0), "0 sessions running");
+        assert_eq!(running_sessions_text(1), "1 session running");
+        assert_eq!(running_sessions_text(3), "3 sessions running");
+        assert_eq!(tray_tooltip_text(0), "Cline Code");
+        assert_eq!(tray_tooltip_text(3), "Cline Code — 3 sessions running");
+        assert_eq!(tray_badge_text(0), None);
+        assert_eq!(tray_badge_text(3), Some("3".to_string()));
     }
 
     /// A stand-in sidecar that stays alive without ever publishing a ready

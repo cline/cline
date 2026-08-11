@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -312,6 +317,7 @@ describe("Code sidecar runtime capabilities", () => {
 			"Which branch?",
 			["Keep current", "Create new"],
 			{
+				sessionId: "session-1",
 				agentId: "agent-1",
 				conversationId: "conversation-1",
 				iteration: 3,
@@ -323,6 +329,7 @@ describe("Code sidecar runtime capabilities", () => {
 			(item) => item.event.name === "ask_question_requested",
 		);
 		expect(event?.event.payload).toMatchObject({
+			sessionId: "session-1",
 			question: "Which branch?",
 			options: ["Keep current", "Create new"],
 			context: {
@@ -349,6 +356,32 @@ describe("Code sidecar runtime capabilities", () => {
 				}),
 			}),
 		);
+	});
+
+	it("rejects askQuestion requests without an owning session", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+
+		const capabilities = createCoreMock.mock.calls[0][0]
+			.capabilities as RuntimeCapabilities;
+		const answer = capabilities.toolExecutors?.askQuestion?.(
+			"Which branch?",
+			["Keep current", "Create new"],
+			{ agentId: "agent-1", iteration: 3 },
+		);
+
+		await expect(answer).rejects.toThrow(
+			"ask_question requires an active session ID",
+		);
+		expect(
+			readEvents(ctx).some(
+				(message) => message.event.name === "ask_question_requested",
+			),
+		).toBe(false);
 	});
 
 	it("resolves approval through websocket state", async () => {

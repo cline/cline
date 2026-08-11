@@ -221,6 +221,7 @@ function serializeToolContext(
 ): Record<string, unknown> {
 	const metadata = context.metadata ? { ...context.metadata } : undefined;
 	return {
+		sessionId: context.sessionId,
 		agentId: context.agentId,
 		conversationId: context.conversationId,
 		iteration: context.iteration,

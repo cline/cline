@@ -925,8 +925,9 @@ export function useChatSession() {
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
+		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		if (!activeSessionId) {
-			setPendingToolApprovals([]);
 			return;
 		}
 
@@ -953,7 +954,12 @@ export function useChatSession() {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
-			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+			if (
+				item.sessionId !== activeSessionIdRef.current ||
+				!item.requestId ||
+				!item.question ||
+				!Array.isArray(item.options)
+			) {
 				return;
 			}
 			setPendingAskQuestions((prev) => {
