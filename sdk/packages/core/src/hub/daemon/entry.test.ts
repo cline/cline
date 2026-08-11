@@ -13,6 +13,7 @@ const {
 	mockArmHubDaemonShutdownWatchdog,
 	mockHubServerClose,
 	mockStartHubWebSocketServer,
+	mockCleanupStaleDetachedCommandLogs,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
 		startSession: vi.fn(),
@@ -42,6 +43,7 @@ const {
 	mockStartHubWebSocketServer: vi.fn(async (_options?: unknown) => ({
 		close: mockHubServerClose,
 	})),
+	mockCleanupStaleDetachedCommandLogs: vi.fn(async () => 0),
 }));
 
 const {
@@ -72,6 +74,10 @@ vi.mock("@cline/shared", async (importOriginal) => {
 
 vi.mock("@cline/agents", () => ({
 	AgentRuntimeAbortError: class AgentRuntimeAbortError extends Error {},
+}));
+
+vi.mock("../../extensions/tools/executors/bash", () => ({
+	cleanupStaleDetachedCommandLogs: mockCleanupStaleDetachedCommandLogs,
 }));
 
 vi.mock("../daemon/runtime-handlers", () => ({
@@ -127,6 +133,7 @@ describe("hub daemon entry", () => {
 		mockStartHubWebSocketServer.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
+		mockCleanupStaleDetachedCommandLogs.mockClear();
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
@@ -167,6 +174,7 @@ describe("hub daemon entry", () => {
 			telemetry: mockDaemonTelemetryService,
 		});
 		expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
+		expect(mockCleanupStaleDetachedCommandLogs).toHaveBeenCalledOnce();
 	});
 
 	it("does not signal readiness before the WebSocket server is listening", async () => {

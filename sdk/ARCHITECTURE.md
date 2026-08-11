@@ -169,8 +169,11 @@ call. The executor removes its abort and timeout ownership, resolves the tool
 call with the current bounded output and a temporary log path, and continues
 draining the process into that log. Detached logs are size-capped, retained for
 a bounded inspection window after the stream closes, and then their temporary
-directories are removed. A detached client connection alone never changes
-process ownership or command execution.
+directories are removed. The Hub also reaps logs whose last write is outside
+the retention window during startup and reschedules newer orphaned logs for the
+remainder of that window, so cleanup does not depend on timers from a previous
+daemon process. A detached client connection alone never changes process
+ownership or command execution.
 
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,

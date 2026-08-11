@@ -6,7 +6,8 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createWriteStream, mkdtempSync, rm } from "node:fs";
+import { createWriteStream, type Dirent, mkdtempSync } from "node:fs";
+import { readdir, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -25,6 +26,74 @@ import type { RunCommandExecutionController } from "./run-command-execution-cont
 
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
+const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
+const DETACHED_LOG_FILENAME = "output.log";
+
+export interface DetachedCommandLogCleanupOptions {
+	tempDirectory?: string;
+	retentionMs?: number;
+	nowMs?: number;
+}
+
+function resolveDetachedLogRetentionMs(value: number | undefined): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(0, value)
+		: DEFAULT_DETACHED_LOG_RETENTION_MS;
+}
+
+/**
+ * Reaps detached command logs whose last write is outside the retention
+ * window and schedules retained logs for their remaining lifetime. The Hub
+ * calls this at startup so cleanup survives daemon exits and restarts instead
+ * of depending only on timers created by the original process.
+ */
+export async function cleanupStaleDetachedCommandLogs(
+	options: DetachedCommandLogCleanupOptions = {},
+): Promise<number> {
+	const tempDirectory = options.tempDirectory ?? tmpdir();
+	const retentionMs = resolveDetachedLogRetentionMs(options.retentionMs);
+	const nowMs = options.nowMs ?? Date.now();
+	const cutoffMs = nowMs - retentionMs;
+	let entries: Dirent[];
+	try {
+		entries = await readdir(tempDirectory, { withFileTypes: true });
+	} catch {
+		return 0;
+	}
+
+	let removed = 0;
+	for (const entry of entries) {
+		if (
+			!entry.isDirectory() ||
+			!entry.name.startsWith(DETACHED_LOG_DIRECTORY_PREFIX)
+		) {
+			continue;
+		}
+		const directory = join(tempDirectory, entry.name);
+		try {
+			let modifiedAtMs: number;
+			try {
+				modifiedAtMs = (await stat(join(directory, DETACHED_LOG_FILENAME)))
+					.mtimeMs;
+			} catch {
+				modifiedAtMs = (await stat(directory)).mtimeMs;
+			}
+			if (modifiedAtMs > cutoffMs) {
+				scheduleDetachedLogCleanup(
+					directory,
+					Math.max(0, modifiedAtMs + retentionMs - nowMs),
+				);
+				continue;
+			}
+			await rm(directory, { recursive: true, force: true });
+			removed += 1;
+		} catch {
+			// Cleanup is best effort: one inaccessible or concurrently removed log
+			// must not prevent the Hub from starting or other logs from being reaped.
+		}
+	}
+	return removed;
+}
 
 export class CommandExitError extends Error {
 	constructor(
@@ -162,14 +231,14 @@ function scheduleDetachedLogCleanup(
 	retentionMs: number,
 ): void {
 	const cleanupTimer = setTimeout(() => {
-		rm(directory, { recursive: true, force: true }, () => {});
+		void rm(directory, { recursive: true, force: true }).catch(() => undefined);
 	}, retentionMs);
 	cleanupTimer.unref();
 }
 
 function createDetachedLog(retentionMs: number) {
-	const directory = mkdtempSync(join(tmpdir(), "cline-command-"));
-	const path = join(directory, "output.log");
+	const directory = mkdtempSync(join(tmpdir(), DETACHED_LOG_DIRECTORY_PREFIX));
+	const path = join(directory, DETACHED_LOG_FILENAME);
 	const stream = createWriteStream(path, { encoding: "utf8" });
 	let bytesWritten = 0;
 	let capped = false;
@@ -526,12 +595,9 @@ export function createShellExecutor(
 		combineOutput = true,
 		executionController,
 	} = options;
-	const configuredDetachedLogRetentionMs = options.detachedLogRetentionMs;
-	const detachedLogRetentionMs =
-		typeof configuredDetachedLogRetentionMs === "number" &&
-		Number.isFinite(configuredDetachedLogRetentionMs)
-			? Math.max(0, configuredDetachedLogRetentionMs)
-			: DEFAULT_DETACHED_LOG_RETENTION_MS;
+	const detachedLogRetentionMs = resolveDetachedLogRetentionMs(
+		options.detachedLogRetentionMs,
+	);
 	const maxOutputChars =
 		options.maxOutputChars ??
 		options.maxOutputBytes ??

@@ -1,10 +1,22 @@
 import { spawnSync } from "node:child_process";
-import { access, copyFile, mkdtemp, rm } from "node:fs/promises";
+import {
+	access,
+	copyFile,
+	mkdir,
+	mkdtemp,
+	rm,
+	utimes,
+	writeFile,
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
-import { CommandExitError, createShellExecutor } from "./bash";
+import {
+	CommandExitError,
+	cleanupStaleDetachedCommandLogs,
+	createShellExecutor,
+} from "./bash";
 import { RunCommandExecutionController } from "./run-command-execution-controller";
 
 const ctx: AgentToolContext = {
@@ -138,6 +150,47 @@ describe("createShellExecutor", () => {
 			await expect.poll(() => fileExists(dirname(logPath))).toBe(false);
 		} finally {
 			await rm(dirname(logPath), { recursive: true, force: true });
+		}
+	});
+
+	it("reaps stale detached logs left by a previous Hub process", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-cleanup-"),
+		);
+		const staleDirectory = join(tempDirectory, "cline-command-stale");
+		const freshDirectory = join(tempDirectory, "cline-command-fresh");
+		const unrelatedDirectory = join(tempDirectory, "other-command-log");
+		try {
+			const nowMs = Date.now();
+			await Promise.all(
+				[staleDirectory, freshDirectory, unrelatedDirectory].map((directory) =>
+					mkdir(directory),
+				),
+			);
+			const staleLog = join(staleDirectory, "output.log");
+			const freshLog = join(freshDirectory, "output.log");
+			await Promise.all([
+				writeFile(staleLog, "stale"),
+				writeFile(freshLog, "fresh"),
+			]);
+			await Promise.all([
+				utimes(staleLog, new Date(nowMs - 1_000), new Date(nowMs - 1_000)),
+				utimes(freshLog, new Date(nowMs - 50), new Date(nowMs - 50)),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					tempDirectory,
+					retentionMs: 250,
+					nowMs,
+				}),
+			).resolves.toBe(1);
+			expect(await fileExists(staleDirectory)).toBe(false);
+			expect(await fileExists(freshDirectory)).toBe(true);
+			expect(await fileExists(unrelatedDirectory)).toBe(true);
+			await expect.poll(() => fileExists(freshDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
 		}
 	});
 

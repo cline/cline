@@ -1,5 +1,6 @@
 import { AgentRuntimeAbortError } from "@cline/agents";
 import { initVcr, resolveClineBuildEnv } from "@cline/shared";
+import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executors/bash";
 import { cleanupConnectorInstanceViaCli } from "../../services/connectors/connector-cleanup";
 import {
 	ConnectorSupervisor,
@@ -236,6 +237,17 @@ async function main(): Promise<void> {
 	});
 
 	resolveHubDaemonReady();
+	try {
+		// Detached-log timers belong to the previous daemon process and cannot
+		// survive a restart. Reap expired logs after readiness so temp-directory
+		// scanning never delays clients from connecting to the new Hub.
+		await cleanupStaleDetachedCommandLogs();
+	} catch (error) {
+		const message = error instanceof Error ? error.message : String(error);
+		process.stderr.write(
+			`[hub-daemon] detached command log cleanup failed: ${message}\n`,
+		);
+	}
 	try {
 		// Adopt first: connectors that outlived the previous hub have to be known
 		// before recovery runs, so they are restarted onto this hub's session
