@@ -83,6 +83,63 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("top-aligns the textarea in the taller welcome composer", async () => {
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="welcome"
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput?.parentElement?.className).toContain("min-h-16");
+		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.className).toContain("self-start");
+	});
+
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
 		const render = async (status: ChatSessionStatus) => {
@@ -185,6 +242,7 @@ describe("ChatInputBar", () => {
 		expect(promptInput?.rows).toBe(2);
 		expect(promptInput?.className).toContain("field-sizing-content");
 		expect(promptInput?.className).toContain("overflow-y-auto");
+		expect(promptInput?.className).not.toContain("self-start");
 		expect(promptInput?.style.minHeight).toBe("2.5rem");
 		expect(promptInput?.style.maxHeight).toBe("6.25rem");
 

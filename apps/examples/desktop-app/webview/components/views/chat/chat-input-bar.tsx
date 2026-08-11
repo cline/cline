@@ -784,6 +784,7 @@ function ChatInputBarImpl({
 							aria-haspopup="listbox"
 							className={cn(
 								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
+								variant === "welcome" && "self-start",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -1457,7 +1458,7 @@ const ModelSelector = memo(function ModelSelector({
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]"/>
+				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
 		</div>
