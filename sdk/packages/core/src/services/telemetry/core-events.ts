@@ -100,6 +100,7 @@ export const CORE_TELEMETRY_EVENTS = {
 		ERROR: SDK_ERROR_TELEMETRY_EVENT,
 		TOOL_TIMEOUT: "sdk.tool_timeout",
 		PLAN_MODE_COMMAND_BLOCKED: "sdk.plan_mode_command_blocked",
+		PLAN_MODE_EDIT_TOOL_BLOCKED: "sdk.plan_mode_edit_tool_blocked",
 	},
 	FEATURE_FLAGS: {
 		FLAG_CALLED: "$feature_flag_called",
@@ -593,6 +594,30 @@ export function capturePlanModeCommandBlocked(
 	emit(
 		telemetry,
 		CORE_TELEMETRY_EVENTS.SDK.PLAN_MODE_COMMAND_BLOCKED,
+		stripUndefinedProperties(properties),
+	);
+}
+
+export interface PlanModeEditToolBlockedTelemetryProperties {
+	/**
+	 * Canonical name of the blocked edit tool (from the guard's fixed
+	 * blocklist, never raw model output).
+	 */
+	tool_name: string;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
+
+export function capturePlanModeEditToolBlocked(
+	telemetry: ITelemetryService | undefined,
+	properties: PlanModeEditToolBlockedTelemetryProperties,
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SDK.PLAN_MODE_EDIT_TOOL_BLOCKED,
 		stripUndefinedProperties(properties),
 	);
 }

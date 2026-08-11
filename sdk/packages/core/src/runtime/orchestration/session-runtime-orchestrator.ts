@@ -239,6 +239,13 @@ function mergeRuntimeHooks(
 			}
 			return aggregate;
 		},
+		onUnknownTool: async (ctx) => {
+			for (const hook of hooks) {
+				const result = await hook.onUnknownTool?.(ctx);
+				if (result?.reason) return result;
+			}
+			return undefined;
+		},
 		afterTool: async (ctx) => {
 			let result = ctx.result;
 			let aggregate:

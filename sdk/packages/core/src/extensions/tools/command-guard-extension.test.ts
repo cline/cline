@@ -2,6 +2,7 @@ import type {
 	AgentBeforeToolContext,
 	AgentRuntimeStateSnapshot,
 	AgentTool,
+	AgentUnknownToolContext,
 	ITelemetryService,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
@@ -64,6 +65,31 @@ async function runBeforeTool(
 	context: AgentBeforeToolContext,
 ) {
 	const hook = extension.hooks?.beforeTool;
+	expect(hook).toBeTypeOf("function");
+	return hook?.(context);
+}
+
+function makeUnknownToolContext(
+	toolName: string,
+	input: unknown = {},
+): AgentUnknownToolContext {
+	return {
+		snapshot: makeSnapshot(),
+		toolCall: {
+			type: "tool-call",
+			toolCallId: "tool-call-1",
+			toolName,
+			input,
+		},
+		input,
+	};
+}
+
+async function runOnUnknownTool(
+	extension: ReturnType<typeof createPlanModeCommandGuardExtension>,
+	context: AgentUnknownToolContext,
+) {
+	const hook = extension.hooks?.onUnknownTool;
 	expect(hook).toBeTypeOf("function");
 	return hook?.(context);
 }
@@ -186,5 +212,92 @@ describe("plan-mode command-guard extension", () => {
 		);
 
 		expect(telemetry.capture).not.toHaveBeenCalled();
+	});
+
+	describe("unknown edit-tool calls", () => {
+		it.each([
+			"editor",
+			"apply_patch",
+			"write_to_file",
+			"replace_in_file",
+			"edit_file",
+			"create_file",
+			"delete_file",
+			"str_replace_editor",
+			"str_replace_based_edit_tool",
+		])("replaces the unknown-tool error for %s", async (toolName) => {
+			const extension = createPlanModeCommandGuardExtension();
+			const result = await runOnUnknownTool(
+				extension,
+				makeUnknownToolContext(toolName, { path: "a.ts" }),
+			);
+
+			expect(result?.reason).toContain("PLAN MODE");
+			expect(result?.reason).toContain("blocked in plan mode");
+			expect(result?.reason).toContain("not an input formatting error");
+		});
+
+		it("matches edit-tool names case-insensitively", async () => {
+			const extension = createPlanModeCommandGuardExtension();
+			const result = await runOnUnknownTool(
+				extension,
+				makeUnknownToolContext("Write_To_File"),
+			);
+
+			expect(result?.reason).toContain("`write_to_file`");
+		});
+
+		it("leaves unrelated unknown tools to the default error", async () => {
+			const extension = createPlanModeCommandGuardExtension();
+			const result = await runOnUnknownTool(
+				extension,
+				makeUnknownToolContext("mystery_tool"),
+			);
+
+			expect(result).toBeUndefined();
+		});
+
+		it("captures block telemetry without raw input content", async () => {
+			const telemetry = makeTelemetryStub();
+			const extension = createPlanModeCommandGuardExtension({ telemetry });
+
+			await runOnUnknownTool(
+				extension,
+				makeUnknownToolContext("editor", {
+					path: "secret-project/config.json",
+					new_text: "top-secret-content",
+				}),
+			);
+
+			const captured = (
+				telemetry.capture as ReturnType<typeof vi.fn>
+			).mock.calls
+				.map((call) => call[0])
+				.filter((event) => event.event === "sdk.plan_mode_edit_tool_blocked");
+			expect(captured).toHaveLength(1);
+			expect(captured[0].properties).toMatchObject({
+				tool_name: "editor",
+				agent_id: "agent-1",
+				conversation_id: "conv-1",
+				run_id: "run-1",
+				iteration: 2,
+				tool_call_id: "tool-call-1",
+			});
+			expect(JSON.stringify(captured[0].properties)).not.toContain(
+				"secret-project",
+			);
+			expect(JSON.stringify(captured[0].properties)).not.toContain(
+				"top-secret-content",
+			);
+		});
+
+		it("does not capture telemetry for unrelated unknown tools", async () => {
+			const telemetry = makeTelemetryStub();
+			const extension = createPlanModeCommandGuardExtension({ telemetry });
+
+			await runOnUnknownTool(extension, makeUnknownToolContext("mystery_tool"));
+
+			expect(telemetry.capture).not.toHaveBeenCalled();
+		});
 	});
 });

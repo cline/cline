@@ -10,7 +10,8 @@ bringing in session storage, hub transport, or host-specific default tools.
   continuing tool-using agent conversations
 - `createAgent` / `createAgentRuntime` — factory-function equivalents
 - `AgentRuntimeHooks` for lifecycle interception (`beforeRun`, `afterRun`,
-  `beforeModel`, `afterModel`, `beforeTool`, `afterTool`, `onEvent`)
+  `beforeModel`, `afterModel`, `beforeTool`, `onUnknownTool`, `afterTool`,
+  `onEvent`)
 - Event streaming via `agent.subscribe(listener)` and the `hooks.onEvent`
   callback
 - Plugin setup callbacks for contributing tools and hooks at boot

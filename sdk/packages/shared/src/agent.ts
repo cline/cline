@@ -335,6 +335,26 @@ export interface AgentBeforeToolContext {
 	input: unknown;
 }
 
+/**
+ * Context for `onUnknownTool`: the model called a tool name that is not
+ * registered in the runtime. There is no `tool` — that is the point.
+ */
+export interface AgentUnknownToolContext {
+	snapshot: AgentRuntimeStateSnapshot;
+	toolCall: AgentToolCallPart;
+	input: unknown;
+}
+
+export interface AgentUnknownToolResult {
+	/**
+	 * Error text returned to the model as the tool result, replacing the
+	 * runtime's default `Unknown tool: <name>` message. Lets session policy
+	 * explain *why* a tool is absent (e.g. plan mode removes file editors)
+	 * instead of leaving the model to guess.
+	 */
+	reason?: string;
+}
+
 export interface AgentBeforeToolResult {
 	skip?: boolean;
 	stop?: boolean;
@@ -369,7 +389,7 @@ export interface AgentRunLifecycleContext {
 // =============================================================================
 
 /**
- * 7-callback hook bag consumed by `AgentRuntime`.
+ * 8-callback hook bag consumed by `AgentRuntime`.
  */
 export interface AgentRuntimeHooks {
 	beforeRun?: (
@@ -393,6 +413,19 @@ export interface AgentRuntimeHooks {
 		| AgentBeforeToolResult
 		| undefined
 		| Promise<AgentBeforeToolResult | undefined>;
+	/**
+	 * Invoked when the model calls a tool name that is not registered in the
+	 * runtime, before the default `Unknown tool: <name>` error is produced.
+	 * Returning a `reason` replaces that error text sent back to the model.
+	 * `beforeTool`/`afterTool` never fire for unknown tools, so this is the
+	 * only hook that observes them.
+	 */
+	onUnknownTool?: (
+		context: AgentUnknownToolContext,
+	) =>
+		| AgentUnknownToolResult
+		| undefined
+		| Promise<AgentUnknownToolResult | undefined>;
 	afterTool?: (
 		context: AgentAfterToolContext,
 	) =>

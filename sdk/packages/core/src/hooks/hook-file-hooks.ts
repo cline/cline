@@ -1004,6 +1004,7 @@ export function mergeAgentHooks(
 		beforeModel: mergeHookFunction(activeLayers, "beforeModel"),
 		afterModel: mergeHookFunction(activeLayers, "afterModel"),
 		beforeTool: mergeHookFunction(activeLayers, "beforeTool"),
+		onUnknownTool: mergeHookFunction(activeLayers, "onUnknownTool"),
 		afterTool: mergeHookFunction(activeLayers, "afterTool"),
 		onEvent: mergeHookFunction(activeLayers, "onEvent"),
 	};

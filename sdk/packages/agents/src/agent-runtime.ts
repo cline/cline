@@ -22,6 +22,7 @@ import type {
 	AgentToolCallPart,
 	AgentToolDefinition,
 	AgentToolResult,
+	AgentUnknownToolResult,
 	AgentUsage,
 	AgentRuntimeConfig as BaseAgentRuntimeConfig,
 	CaptureTaskLifecycleEventInput,
@@ -271,6 +272,7 @@ interface HookBag {
 	beforeModel: NonNullable<AgentRuntimeHooks["beforeModel"]>[];
 	afterModel: NonNullable<AgentRuntimeHooks["afterModel"]>[];
 	beforeTool: NonNullable<AgentRuntimeHooks["beforeTool"]>[];
+	onUnknownTool: NonNullable<AgentRuntimeHooks["onUnknownTool"]>[];
 	afterTool: NonNullable<AgentRuntimeHooks["afterTool"]>[];
 	onEvent: NonNullable<AgentRuntimeHooks["onEvent"]>[];
 }
@@ -444,6 +446,7 @@ export class AgentRuntime {
 		beforeModel: [],
 		afterModel: [],
 		beforeTool: [],
+		onUnknownTool: [],
 		afterTool: [],
 		onEvent: [],
 	};
@@ -602,6 +605,7 @@ export class AgentRuntime {
 		if (hooks.beforeModel) this.hooks.beforeModel.push(hooks.beforeModel);
 		if (hooks.afterModel) this.hooks.afterModel.push(hooks.afterModel);
 		if (hooks.beforeTool) this.hooks.beforeTool.push(hooks.beforeTool);
+		if (hooks.onUnknownTool) this.hooks.onUnknownTool.push(hooks.onUnknownTool);
 		if (hooks.afterTool) this.hooks.afterTool.push(hooks.afterTool);
 		if (hooks.onEvent) this.hooks.onEvent.push(hooks.onEvent);
 	}
@@ -1590,6 +1594,23 @@ export class AgentRuntime {
 				if (result?.skip) {
 					skipReason =
 						result.reason ?? `Tool ${tool.name} was blocked by a runtime hook`;
+					break;
+				}
+			}
+		}
+
+		// The tool name did not resolve: let hooks replace the default
+		// `Unknown tool` error so session policy can explain why the tool is
+		// absent (e.g. plan mode removes file editors). The first reason wins.
+		if (!tool && !skipReason) {
+			for (const hook of this.hooks.onUnknownTool) {
+				const result = (await hook({
+					snapshot: this.snapshot(),
+					toolCall: { ...toolCall, input },
+					input,
+				})) as AgentUnknownToolResult | undefined;
+				if (result?.reason) {
+					skipReason = result.reason;
 					break;
 				}
 			}

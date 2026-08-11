@@ -157,6 +157,7 @@ Hooks are typed, in-process callbacks on the same hook layer as `@cline/agents`.
 | `beforeModel` | before each model request |
 | `afterModel`  | after each model response, before tool execution |
 | `beforeTool`  | before each tool execution |
+| `onUnknownTool` | when the model calls a tool name that is not registered; a returned `reason` replaces the default `Unknown tool` error |
 | `afterTool`   | after each tool execution |
 | `onEvent`     | every `AgentRuntimeEvent` emitted by the runtime |
 

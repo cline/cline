@@ -224,6 +224,7 @@ Use the review guidance.`,
 		);
 		expect(planGuards).toHaveLength(1);
 		expect(planGuards[0]?.hooks?.beforeTool).toBeTypeOf("function");
+		expect(planGuards[0]?.hooks?.onUnknownTool).toBeTypeOf("function");
 		expect(
 			(actRuntime.extensions ?? []).map((extension) => extension.name),
 		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);

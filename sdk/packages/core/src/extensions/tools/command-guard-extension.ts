@@ -13,18 +13,31 @@
  * a blocked call is rejected up front: the user is never asked to approve a
  * command that would only fail, and the model receives the plan-mode error
  * as the tool result (`skip`, not `stop`, so the run continues).
+ *
+ * The extension also registers an `onUnknownTool` hook: plan mode removes the
+ * file-editing tools from the runtime, so a model that calls `editor` /
+ * `write_to_file` / etc. anyway produces an unknown tool call. The hook
+ * replaces the generic `Unknown tool` error with the explicit plan-mode
+ * contract so the model plans the edit instead of hunting for workarounds.
  */
 
 import type {
 	AgentBeforeToolContext,
 	AgentBeforeToolResult,
 	AgentExtension,
+	AgentUnknownToolContext,
+	AgentUnknownToolResult,
 	ITelemetryService,
 } from "@cline/shared";
-import { capturePlanModeCommandBlocked } from "../../services/telemetry/core-events";
 import {
+	capturePlanModeCommandBlocked,
+	capturePlanModeEditToolBlocked,
+} from "../../services/telemetry/core-events";
+import {
+	findBlockedEditToolName,
 	findFileEditingCommand,
 	formatPlanModeBlockedCommandError,
+	formatPlanModeBlockedEditToolError,
 } from "./command-guard";
 import { DefaultToolNames } from "./constants";
 import { normalizeRunCommandsInput } from "./helpers";
@@ -77,6 +90,32 @@ export function createPlanModeCommandGuardExtension(
 		return undefined;
 	};
 
+	// Plan mode removes the file-editing tools from the runtime entirely, so a
+	// model that tries to edit anyway (typically after an act -> plan switch
+	// left successful edits in the transcript) produces an *unknown* tool
+	// call. The default `Unknown tool: editor` error reads like a transient
+	// failure and sends models hunting for workarounds; replace it with the
+	// same explicit plan-mode contract the command blacklist uses.
+	const onUnknownTool = (
+		context: AgentUnknownToolContext,
+	): AgentUnknownToolResult | undefined => {
+		const blocked = findBlockedEditToolName(context.toolCall.toolName);
+		if (!blocked) {
+			return undefined;
+		}
+		capturePlanModeEditToolBlocked(options.telemetry, {
+			tool_name: blocked,
+			agent_id: context.snapshot.agentId,
+			conversation_id: context.snapshot.conversationId,
+			run_id: context.snapshot.runId,
+			iteration: context.snapshot.iteration,
+			tool_call_id: context.toolCall.toolCallId,
+		});
+		return {
+			reason: formatPlanModeBlockedEditToolError(blocked),
+		};
+	};
+
 	return {
 		name: PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME,
 		manifest: {
@@ -84,6 +123,7 @@ export function createPlanModeCommandGuardExtension(
 		},
 		hooks: {
 			beforeTool,
+			onUnknownTool,
 		},
 	};
 }

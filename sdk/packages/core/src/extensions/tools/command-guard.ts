@@ -519,3 +519,59 @@ export function formatPlanModeBlockedCommandError(reason: string): string {
 		"and if this change is part of the task, put it in your plan so it can run after the user approves switching to act mode."
 	);
 }
+
+/**
+ * File-editing tool names a model may call in plan mode even though no such
+ * tool is registered there: the SDK's own editors (removed by the plan
+ * preset), legacy Cline tool names, and common editor-tool names models carry
+ * over from other harnesses. Matched against *unresolved* tool calls only, so
+ * a host-registered tool with one of these names is never affected.
+ *
+ * Without this mapping, a plan-mode edit attempt gets the generic
+ * `Unknown tool: editor` error, which models routinely misread as an
+ * argument-formatting problem and answer by hunting for another way to write
+ * the file instead of putting the change in the plan.
+ */
+const PLAN_MODE_BLOCKED_EDIT_TOOL_NAMES = new Set([
+	// SDK built-ins removed by the plan preset
+	"editor",
+	"apply_patch",
+	// Legacy Cline tool names
+	"write_to_file",
+	"replace_in_file",
+	// Names models commonly carry over from other tool harnesses
+	"edit_file",
+	"create_file",
+	"delete_file",
+	"str_replace_editor",
+	"str_replace_based_edit_tool",
+]);
+
+/**
+ * Returns the canonical blocked name when an unresolved tool call looks like
+ * a file-editing tool, undefined otherwise. Case-insensitive: tool names are
+ * model output.
+ */
+export function findBlockedEditToolName(toolName: string): string | undefined {
+	const normalized = toolName.trim().toLowerCase();
+	return PLAN_MODE_BLOCKED_EDIT_TOOL_NAMES.has(normalized)
+		? normalized
+		: undefined;
+}
+
+/**
+ * Tool error returned when the model calls a file-editing tool in plan mode.
+ * Replaces the runtime's generic `Unknown tool` message, which models misread
+ * as a transient formatting failure. Explicitly rules out the two escalations
+ * observed in the wild: retrying with different arguments, and switching to
+ * other tools (e.g. MCP file writers) to make the edit anyway.
+ */
+export function formatPlanModeBlockedEditToolError(toolName: string): string {
+	return (
+		`Tool not executed: \`${toolName}\` modifies files, and file modifications are blocked in plan mode. ` +
+		"You are in PLAN MODE — explore, analyze, and present a plan; do not make changes. " +
+		"This is not an input formatting error, so do not retry the call with different arguments, " +
+		"and do not use other tools (including MCP tools) to modify files or state while planning. " +
+		"If this edit is part of the task, describe it in your plan so it can run after the user approves switching to act mode."
+	);
+}

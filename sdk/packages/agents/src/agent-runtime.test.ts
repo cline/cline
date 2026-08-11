@@ -1971,6 +1971,120 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("replaces the unknown-tool error through onUnknownTool hooks", async () => {
+		const onUnknownTool = vi.fn(() => ({
+			reason: "file edits are blocked in plan mode",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "edit_1",
+					toolName: "editor",
+					inputText: '{"path":"a.ts"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolResult = request.messages.at(-1)?.content[0];
+				expect(toolResult).toMatchObject({
+					type: "tool-result",
+					toolName: "editor",
+					isError: true,
+					output: { error: "file edits are blocked in plan mode" },
+				});
+				return [
+					{ type: "text-delta", text: "planned instead" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: { onUnknownTool },
+		});
+
+		const result = await runtime.run("Edit something");
+
+		expect(result.status).toBe("completed");
+		expect(onUnknownTool).toHaveBeenCalledTimes(1);
+		expect(onUnknownTool).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toolCall: expect.objectContaining({
+					toolCallId: "edit_1",
+					toolName: "editor",
+				}),
+				input: { path: "a.ts" },
+			}),
+		);
+	});
+
+	it("keeps the generic unknown-tool error when onUnknownTool hooks decline", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "mystery_1",
+					toolName: "mystery",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const toolResult = request.messages.at(-1)?.content[0];
+				expect(toolResult).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { error: "Unknown tool: mystery" },
+				});
+				return [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: { onUnknownTool: () => undefined },
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+	});
+
+	it("does not invoke onUnknownTool for registered tools", async () => {
+		const onUnknownTool = vi.fn();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "echo_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: { onUnknownTool },
+		});
+
+		const result = await runtime.run("Echo it");
+
+		expect(result.status).toBe("completed");
+		expect(onUnknownTool).not.toHaveBeenCalled();
+	});
+
 	it("treats invalid tool-call JSON as a tool error instead of failing the run", async () => {
 		const model = new ScriptedModel([
 			() => [
