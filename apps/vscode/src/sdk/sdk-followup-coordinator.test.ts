@@ -462,6 +462,30 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("does not re-send the original task as new instructions on an empty-prompt resume", async () => {
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Original task",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined, ["data:image/png;base64,abc"], [])
+
+		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
+		// Presenting the first message as the newest instruction makes the
+		// model revert to the original task and ignore later follow-ups
+		// (cline/cline#13135).
+		expect(sentPrompt).not.toContain("Original task")
+		expect(sentPrompt).not.toContain("New instructions from the user")
+		expect(sentPrompt).toMatch(/^resolved: \[TASK RESUMPTION\]/)
+	})
+
 	it("emits auth errors when resume fails because the cline provider is unauthenticated", async () => {
 		const task = makeTask("task-1")
 		const { coordinator, options } = makeCoordinator({ task })

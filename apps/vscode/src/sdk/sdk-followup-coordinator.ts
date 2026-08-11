@@ -224,11 +224,15 @@ export class SdkFollowupCoordinator {
 				}
 			}
 
+			// Never present the original task text as fresh input on an
+			// empty-prompt resume: models treat "New instructions from the
+			// user: <task>" as the newest instruction and revert to the first
+			// message, ignoring later follow-ups (cline/cline#13135). The
+			// [TASK RESUMPTION] prefix must stay — synthetic-prompt detection
+			// (isSyntheticUserPrompt / isSyntheticContinuationPrompt) keys on it.
 			const effectivePrompt =
 				prompt?.trim() ||
-				(historyItem
-					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-					: "[TASK RESUMPTION] Please continue where you left off.")
+				"[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. The user has not provided new instructions, so continue from the most recent messages in the conversation rather than restarting from the original task. If it is unclear how to proceed, ask the user."
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)
