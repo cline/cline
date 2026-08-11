@@ -9,7 +9,10 @@ function makeDeps(overrides: Partial<Record<string, unknown>> = {}) {
 		taskHistory: {
 			findHistoryItem: vi.fn().mockResolvedValue(undefined),
 			isLegacyTask: vi.fn().mockResolvedValue(false),
-			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallback?: unknown[]) => fallback),
+			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallback?: unknown[]) => ({
+				messages: fallback,
+				convertedFromLegacyTask: false,
+			})),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue({ modelId: "claude", sessionId: undefined as string | undefined }),
@@ -45,7 +48,10 @@ describe("prepareTaskResumeStartInput", () => {
 	it("converts a legacy task's transcript through the legacy resume path", async () => {
 		const { deps } = makeDeps()
 		deps.taskHistory.isLegacyTask.mockResolvedValueOnce(true)
-		deps.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([{ role: "user", content: "legacy" }])
+		deps.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce({
+			messages: [{ role: "user", content: "legacy" }],
+			convertedFromLegacyTask: false,
+		})
 
 		const result = await prepareTaskResumeStartInput(deps, "legacy-task")
 
@@ -53,6 +59,33 @@ describe("prepareTaskResumeStartInput", () => {
 			{ role: "user", content: "sdk" },
 		])
 		expect(result.initialMessages).toEqual([{ role: "user", content: "legacy" }])
+		expect(result.sessionMetadata).toBeUndefined()
+	})
+
+	it("marks the session as migrated when the transcript came from an unmigrated legacy task", async () => {
+		const { deps } = makeDeps()
+		deps.taskHistory.findHistoryItem.mockResolvedValueOnce({
+			id: "legacy-task",
+			ts: 1,
+			task: "legacy prompt",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			isLegacy: true,
+		})
+		deps.taskHistory.isLegacyTask.mockResolvedValueOnce(true)
+		deps.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce({
+			messages: [{ role: "user", content: "legacy" }],
+			convertedFromLegacyTask: true,
+		})
+
+		const result = await prepareTaskResumeStartInput(deps, "legacy-task")
+
+		expect(result.initialMessages).toEqual([{ role: "user", content: "legacy" }])
+		expect(result.sessionMetadata).toMatchObject({
+			legacyTask: true,
+			migratedFromLegacyTask: true,
+		})
 	})
 
 	it("disposes the reader host even when reading messages throws", async () => {

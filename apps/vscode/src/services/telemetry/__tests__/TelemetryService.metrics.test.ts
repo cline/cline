@@ -186,13 +186,73 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(backlogEvent?.properties?.pendingLegacyTaskCount, 4)
 	})
 
+	it("captureLegacyTaskMigrationBacklog emits the backlog event only on state transitions", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+		const backlogEvents = () =>
+			provider.logs.filter(
+				(entry) => entry.event === "task.legacy_task_migration" && entry.properties?.outcome === "backlog",
+			)
+
+		const snapshot = {
+			pendingLegacyTaskCount: 4,
+			migratedSdkTaskCount: 7,
+			visibleSdkTaskCount: 9,
+			visibleTaskCount: 13,
+		}
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		// Unrelated churn (new SDK tasks) must not re-report the same backlog.
+		service.captureLegacyTaskMigrationBacklog({ ...snapshot, visibleSdkTaskCount: 10, visibleTaskCount: 14 })
+		assert.strictEqual(backlogEvents().length, 1)
+
+		// A migrated legacy task is a state transition and is reported.
+		service.captureLegacyTaskMigrationBacklog({
+			pendingLegacyTaskCount: 3,
+			migratedSdkTaskCount: 8,
+			visibleSdkTaskCount: 10,
+			visibleTaskCount: 13,
+		})
+		assert.strictEqual(backlogEvents().length, 2)
+		assert.strictEqual(backlogEvents()[1].properties?.pendingLegacyTaskCount, 3)
+		assert.strictEqual(backlogEvents()[1].properties?.migratedSdkTaskCount, 8)
+
+		// The gauges are still recorded on every call.
+		const pendingSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT)
+		const [pendingEntry] = Array.from(pendingSeries?.values() ?? [])
+		assert.strictEqual(pendingEntry?.value, 3)
+	})
+
+	it("captureLegacyTaskMigrationBacklog stays silent when there is no legacy history", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider)
+
+		service.captureLegacyTaskMigrationBacklog({
+			pendingLegacyTaskCount: 0,
+			migratedSdkTaskCount: 0,
+			visibleSdkTaskCount: 9,
+			visibleTaskCount: 9,
+		})
+
+		assert.strictEqual(
+			provider.logs.some(
+				(entry) => entry.event === "task.legacy_task_migration" && entry.properties?.outcome === "backlog",
+			),
+			false,
+		)
+		// Gauges are still recorded so dashboards see an explicit zero.
+		const pendingSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT)
+		const [pendingEntry] = Array.from(pendingSeries?.values() ?? [])
+		assert.strictEqual(pendingEntry?.value, 0)
+	})
+
 	it("captureLegacyTaskMigration emits event and migration metrics", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
 
 		service.captureLegacyTaskMigration({
 			taskId: "legacy-task",
-			outcome: "success",
+			outcome: "completed",
 			reason: "migrated",
 			durationMs: 250,
 			legacyApiHistoryLength: 3,
@@ -206,7 +266,7 @@ describe("TelemetryService metrics", () => {
 		const event = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
 		assert.ok(event)
 		assert.strictEqual(event?.properties?.ulid, "legacy-task")
-		assert.strictEqual(event?.properties?.outcome, "success")
+		assert.strictEqual(event?.properties?.outcome, "completed")
 		assert.strictEqual(event?.properties?.legacyApiHistoryLength, 3)
 
 		assert.deepStrictEqual(

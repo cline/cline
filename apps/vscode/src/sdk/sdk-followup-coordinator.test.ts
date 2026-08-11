@@ -406,10 +406,13 @@ describe("SdkFollowupCoordinator", () => {
 			totalCost: 0,
 		}
 		const { coordinator, options } = makeCoordinator({ task, historyItem, isLegacyTask: true })
-		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([
-			{ role: "user", content: "hello" },
-			{ role: "user", content: "warning" },
-		])
+		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce({
+			messages: [
+				{ role: "user", content: "hello" },
+				{ role: "user", content: "warning" },
+			],
+			convertedFromLegacyTask: false,
+		})
 
 		await coordinator.askResponse("continue")
 
@@ -528,7 +531,10 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			updateTaskHistory: vi.fn().mockResolvedValue([]),
 			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
 			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
-			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallbackMessages?: unknown[]) => fallbackMessages),
+			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallbackMessages?: unknown[]) => ({
+				messages: fallbackMessages,
+				convertedFromLegacyTask: false,
+			})),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
