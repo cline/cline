@@ -426,6 +426,32 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
+	it("does not resubmit the original task text on a bare resume", async () => {
+		// Stop -> Resume with no typed text: the transcript already contains
+		// the completed work. Re-sending historyItem.task as "new instructions"
+		// made the model redo the completed commands (#12975).
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Run the five terminal commands",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
+		expect(sentPrompt).toBe("resolved: [TASK RESUMPTION] Please continue where you left off.")
+		expect(sentPrompt).not.toContain("Run the five terminal commands")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
 	it("echoes attachments on an attachment-only resume", async () => {
 		const task = makeTask("task-1")
 		const historyItem = {
