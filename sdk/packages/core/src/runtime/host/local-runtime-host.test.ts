@@ -1479,7 +1479,7 @@ describe("LocalRuntimeHost", () => {
 					.map((call) => call[0] as { metadata?: Record<string, unknown> })
 					.filter((input) => input.metadata !== undefined)
 					.map((input) => input.metadata as Record<string, unknown>);
-			return { manager, sessionService, agent, metadataCalls };
+			return { manager, sessionService, agent, manifest, metadataCalls };
 		}
 
 		it("records needsAttention metadata after a completed interactive turn", async () => {
@@ -1519,6 +1519,38 @@ describe("LocalRuntimeHost", () => {
 					interactive: true,
 				}),
 			);
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				lastTurnCompletion: { finishReason: "aborted" },
+			});
+			expect(outcome?.needsAttention).toBeUndefined();
+		});
+
+		it("drops a stale needsAttention flag when an aborted turn's clear write failed", async () => {
+			const sessionId = "sess-turn-metadata-aborted-stale";
+			const { manager, sessionService, manifest, metadataCalls } =
+				createTurnMetadataHarness(sessionId, {
+					run: vi
+						.fn()
+						.mockResolvedValue(createResult({ finishReason: "aborted" })),
+				});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// A prior turn left the flag set, and the best-effort clear at the
+			// next turn's start fails; the aborted turn's outcome write must
+			// still drop the stale flag rather than merging it forward.
+			manifest.metadata = { needsAttention: true };
+			sessionService.updateSession
+				.mockRejectedValueOnce(new Error("transient metadata write failure"))
+				.mockResolvedValue({ updated: true });
+
+			await manager.runTurn({ sessionId, prompt: "hello" });
 
 			const outcome = metadataCalls().at(-1);
 			expect(outcome).toMatchObject({

@@ -1699,14 +1699,20 @@ export class LocalRuntimeHost implements RuntimeHost {
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
 		try {
-			await this.persistSessionMetadata(session.sessionId, (current) => ({
-				...(current ?? {}),
-				lastTurnCompletion: {
-					finishReason,
-					endedAt: new Date().toISOString(),
-				},
-				...(finishReason === "aborted" ? {} : { needsAttention: true }),
-			}));
+			await this.persistSessionMetadata(session.sessionId, (current) => {
+				// The turn outcome owns the flag: rebuild it from scratch rather
+				// than merging over the previous value, so a stale flag left by a
+				// failed turn-start clear cannot survive an aborted turn.
+				const { needsAttention: _stale, ...rest } = current ?? {};
+				return {
+					...rest,
+					lastTurnCompletion: {
+						finishReason,
+						endedAt: new Date().toISOString(),
+					},
+					...(finishReason === "aborted" ? {} : { needsAttention: true }),
+				};
+			});
 		} catch (error) {
 			session.config.logger?.debug?.(
 				"Failed to persist turn completion metadata",
