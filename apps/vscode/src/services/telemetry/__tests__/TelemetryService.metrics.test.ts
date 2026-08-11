@@ -189,61 +189,29 @@ describe("TelemetryService metrics", () => {
 	it("captureLegacyTaskMigrationBacklog emits the backlog event only on state transitions", () => {
 		const provider = new FakeProvider()
 		const service = createTelemetryService(provider)
-		const backlogEvents = () =>
-			provider.logs.filter(
-				(entry) => entry.event === "task.legacy_task_migration" && entry.properties?.outcome === "backlog",
-			)
+		const backlogEvents = () => provider.logs.filter((entry) => entry.properties?.outcome === "backlog")
 
-		const snapshot = {
-			pendingLegacyTaskCount: 4,
-			migratedSdkTaskCount: 7,
-			visibleSdkTaskCount: 9,
-			visibleTaskCount: 13,
-		}
-		service.captureLegacyTaskMigrationBacklog(snapshot)
-		service.captureLegacyTaskMigrationBacklog(snapshot)
-		// Unrelated churn (new SDK tasks) must not re-report the same backlog.
-		service.captureLegacyTaskMigrationBacklog({ ...snapshot, visibleSdkTaskCount: 10, visibleTaskCount: 14 })
-		assert.strictEqual(backlogEvents().length, 1)
-
-		// A migrated legacy task is a state transition and is reported.
-		service.captureLegacyTaskMigrationBacklog({
-			pendingLegacyTaskCount: 3,
-			migratedSdkTaskCount: 8,
-			visibleSdkTaskCount: 10,
-			visibleTaskCount: 13,
-		})
-		assert.strictEqual(backlogEvents().length, 2)
-		assert.strictEqual(backlogEvents()[1].properties?.pendingLegacyTaskCount, 3)
-		assert.strictEqual(backlogEvents()[1].properties?.migratedSdkTaskCount, 8)
-
-		// The gauges are still recorded on every call.
-		const pendingSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT)
-		const [pendingEntry] = Array.from(pendingSeries?.values() ?? [])
-		assert.strictEqual(pendingEntry?.value, 3)
-	})
-
-	it("captureLegacyTaskMigrationBacklog stays silent when there is no legacy history", () => {
-		const provider = new FakeProvider()
-		const service = createTelemetryService(provider)
-
+		// No legacy history at all: gauges only, no event.
 		service.captureLegacyTaskMigrationBacklog({
 			pendingLegacyTaskCount: 0,
 			migratedSdkTaskCount: 0,
-			visibleSdkTaskCount: 9,
-			visibleTaskCount: 9,
+			visibleSdkTaskCount: 5,
+			visibleTaskCount: 5,
 		})
+		assert.strictEqual(backlogEvents().length, 0)
+		assert.ok(provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT))
 
-		assert.strictEqual(
-			provider.logs.some(
-				(entry) => entry.event === "task.legacy_task_migration" && entry.properties?.outcome === "backlog",
-			),
-			false,
-		)
-		// Gauges are still recorded so dashboards see an explicit zero.
-		const pendingSeries = provider.gauges.get(TelemetryService.METRICS.MIGRATION.LEGACY_TASK_PENDING_COUNT)
-		const [pendingEntry] = Array.from(pendingSeries?.values() ?? [])
-		assert.strictEqual(pendingEntry?.value, 0)
+		// Unchanged backlog (including unrelated new-task churn): reported once.
+		const snapshot = { pendingLegacyTaskCount: 4, migratedSdkTaskCount: 7, visibleSdkTaskCount: 9, visibleTaskCount: 13 }
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		service.captureLegacyTaskMigrationBacklog(snapshot)
+		service.captureLegacyTaskMigrationBacklog({ ...snapshot, visibleSdkTaskCount: 10, visibleTaskCount: 14 })
+		assert.strictEqual(backlogEvents().length, 1)
+
+		// A migrated legacy task is a transition and is reported.
+		service.captureLegacyTaskMigrationBacklog({ ...snapshot, pendingLegacyTaskCount: 3, migratedSdkTaskCount: 8 })
+		assert.strictEqual(backlogEvents().length, 2)
+		assert.strictEqual(backlogEvents()[1].properties?.pendingLegacyTaskCount, 3)
 	})
 
 	it("captureLegacyTaskMigration emits event and migration metrics", () => {

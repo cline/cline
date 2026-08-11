@@ -59,22 +59,13 @@ export async function prepareTaskResumeStartInput(
 	} finally {
 		await tempManager.dispose("readMessages")
 	}
-	const legacyResume = isLegacyTask
+	const initialMessages = isLegacyTask
 		? await deps.taskHistory.getLegacyResumeInitialMessages(taskId, persistedInitialMessages)
-		: undefined
-	const initialMessages = legacyResume ? legacyResume.messages : persistedInitialMessages
-
-	// A first-time legacy resume persists the converted transcript as the SDK
-	// session, completing the lazy legacy→SDK migration. Mark the session so
-	// history can tell migrated tasks from pending ones.
-	const sessionMetadata = historyItem ? historyItemToSessionMetadata(historyItem, config.modelId) : undefined
-	const sessionMetadataWithMigration = legacyResume?.convertedFromLegacyTask
-		? { ...(sessionMetadata ?? {}), migratedFromLegacyTask: true }
-		: sessionMetadata
+		: persistedInitialMessages
 
 	return {
 		config,
 		...(initialMessages ? { initialMessages: initialMessages as InitialMessages } : {}),
-		...(sessionMetadataWithMigration ? { sessionMetadata: sessionMetadataWithMigration } : {}),
+		...(historyItem ? { sessionMetadata: historyItemToSessionMetadata(historyItem, config.modelId) } : {}),
 	}
 }

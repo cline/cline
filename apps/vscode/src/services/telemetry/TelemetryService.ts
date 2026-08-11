@@ -155,11 +155,7 @@ export class TelemetryService {
 		member_id: string
 	} | null = null
 	private taskErrorCounts = new Map<string, number>()
-	/**
-	 * Last `pending:migrated` legacy-migration backlog state emitted as an
-	 * event. Used to restrict the "backlog" event to state transitions instead
-	 * of re-reporting on every task-history enumeration.
-	 */
+	/** Last `pending:migrated` backlog state emitted as an event, so the "backlog" event only reports transitions. */
 	private lastLegacyBacklogEventKey?: string
 	public static readonly METRICS = {
 		TASK: {
@@ -1800,10 +1796,12 @@ export class TelemetryService {
 	}
 
 	/**
-	 * Records the outcome of migrating one legacy pre-SDK task into SDK session
-	 * storage. Migration is lazy: it runs when the user resumes a legacy task,
-	 * so this fires once per migration attempt (a state transition), never as a
-	 * steady-state heartbeat.
+	 * Records the size of a gRPC response message for observability.
+	 *
+	 * @param sizeUtf8Bytes Size in UTF-8 bytes (use `Buffer.byteLength`, not `string.length`)
+	 * @param service The gRPC service name
+	 * @param method The gRPC method name
+	 * @param requestId Optional request ID for correlation
 	 */
 	public captureLegacyTaskMigration(args: {
 		taskId: string
@@ -1915,20 +1913,16 @@ export class TelemetryService {
 			attributes,
 			"SDK sessions marked as migrated from legacy VS Code task history",
 		)
-
-		// The caller (SdkTaskHistory.listHistory) runs on every webview state
-		// post, so an unconditional capture here re-reported the same backlog
-		// millions of times a day fleet-wide. Gauges above stay per-call (they
-		// are the steady-state channel); the event is only emitted when the
-		// migration state actually transitions within this process — at most
-		// once per activation plus once per migrated/deleted legacy task.
+		// The caller runs on every task-history enumeration (every webview state
+		// post), so capturing unconditionally re-reported the same backlog ~29
+		// times per machine per 12h fleet-wide. Gauges above stay per-call; the
+		// event fires only when the migration state transitions, and never for
+		// machines with no legacy history at all.
 		const backlogEventKey = `${args.pendingLegacyTaskCount}:${args.migratedSdkTaskCount}`
 		if (this.lastLegacyBacklogEventKey === backlogEventKey) {
 			return
 		}
 		this.lastLegacyBacklogEventKey = backlogEventKey
-		// Machines with no legacy history at all (the long-term majority) have
-		// nothing to report.
 		if (args.pendingLegacyTaskCount === 0 && args.migratedSdkTaskCount === 0) {
 			return
 		}
@@ -1945,14 +1939,6 @@ export class TelemetryService {
 		})
 	}
 
-	/**
-	 * Records the size of a gRPC response message for observability.
-	 *
-	 * @param sizeUtf8Bytes Size in UTF-8 bytes (use `Buffer.byteLength`, not `string.length`)
-	 * @param service The gRPC service name
-	 * @param method The gRPC method name
-	 * @param requestId Optional request ID for correlation
-	 */
 	public captureGrpcResponseSize(sizeUtf8Bytes: number, service: string, method: string, requestId?: string): void {
 		this.recordHistogram(
 			TelemetryService.METRICS.GRPC.RESPONSE_SIZE_BYTES,

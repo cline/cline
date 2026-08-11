@@ -49,21 +49,6 @@ type SdkTaskHistoryListOptions = ClineCoreListHistoryOptions & {
 	offset?: number
 }
 
-export interface LegacyResumeInitialMessages {
-	messages: unknown[] | undefined
-	/**
-	 * True when `messages` were converted from a legacy task that has no SDK
-	 * session yet. Starting a session seeded with them persists the transcript
-	 * under the task's id, i.e. it completes the lazy legacy→SDK migration, so
-	 * the caller should stamp `migratedFromLegacyTask` on the session metadata.
-	 */
-	convertedFromLegacyTask: boolean
-}
-
-function historyItemHasTokenUsage(item: HistoryItem): boolean {
-	return (item.tokensIn ?? 0) > 0 || (item.tokensOut ?? 0) > 0 || (item.cacheReads ?? 0) > 0 || (item.cacheWrites ?? 0) > 0
-}
-
 function metadataNumber(metadata: SessionHistoryRecord["metadata"] | undefined, key: string): number | undefined {
 	const value = metadata?.[key]
 	return typeof value === "number" && Number.isFinite(value) ? value : undefined
@@ -427,8 +412,12 @@ export class SdkTaskHistory {
 		const legacyHistory = this.readAllLegacyTaskHistory()
 			.filter(({ item }) => item.task && !sdkIds.has(item.id))
 			.map(({ item }) => historyItemToSessionHistoryRecord(item))
+		// An SDK record with legacy metadata is a legacy task that was resumed,
+		// i.e. migrated (historyItemToSessionMetadata stamps legacyTask on resume).
 		const migratedSdkTaskCount = visibleSdkHistory.filter(
-			(item) => metadataBoolean(item.metadata, "migratedFromLegacyTask") === true,
+			(item) =>
+				metadataBoolean(item.metadata, "migratedFromLegacyTask") === true ||
+				metadataBoolean(item.metadata, "legacyTask") === true,
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
@@ -543,86 +532,53 @@ export class SdkTaskHistory {
 		return this.findLegacyTask(taskId) !== undefined
 	}
 
-	async getLegacyResumeInitialMessages(taskId: string, fallbackMessages?: unknown[]): Promise<LegacyResumeInitialMessages> {
+	async getLegacyResumeInitialMessages(taskId: string, fallbackMessages?: unknown[]): Promise<unknown[] | undefined> {
 		const sdkRecord = await this.getSdkRecord(taskId)
 		const legacyTask = sdkRecord ? undefined : this.findLegacyTask(taskId)
 		if (legacyTask) {
-			const startedAt = Date.now()
 			const legacyApiHistory = readApiConversationHistory(taskId, legacyTask.dataDir)
 			if (legacyApiHistory.length > 0) {
-				let converted: unknown[]
+				// This conversion is the lazy legacy→SDK migration: starting a session
+				// seeded with these messages persists them under the task's id. Report
+				// the per-task outcome here — the only place migrations actually happen.
+				const startedAt = Date.now()
 				try {
-					converted = legacyApiHistoryToSdkMessages(legacyApiHistory, legacyTask.item)
+					const converted = legacyApiHistoryToSdkMessages(legacyApiHistory, legacyTask.item)
+					Logger.log(`[SdkTaskHistory] Migrating legacy task to SDK session on resume: ${taskId}`)
+					this.options.telemetry?.safeCapture(
+						() =>
+							this.options.telemetry?.captureLegacyTaskMigration({
+								taskId,
+								outcome: "completed",
+								reason: "converted_for_resume",
+								durationMs: Date.now() - startedAt,
+								legacyApiHistoryLength: legacyApiHistory.length,
+								convertedMessageCount: converted.length,
+							}),
+						"SdkTaskHistory.getLegacyResumeInitialMessages",
+					)
+					return converted
 				} catch (error) {
-					this.emitLegacyMigrationTelemetry({
-						taskId,
-						item: legacyTask.item,
-						outcome: "error",
-						reason: "conversion_failed",
-						startedAt,
-						legacyApiHistoryLength: legacyApiHistory.length,
-					})
+					this.options.telemetry?.safeCapture(
+						() =>
+							this.options.telemetry?.captureLegacyTaskMigration({
+								taskId,
+								outcome: "error",
+								reason: "conversion_failed",
+								durationMs: Date.now() - startedAt,
+								legacyApiHistoryLength: legacyApiHistory.length,
+							}),
+						"SdkTaskHistory.getLegacyResumeInitialMessages",
+					)
 					throw error
 				}
-				this.emitLegacyMigrationTelemetry({
-					taskId,
-					item: legacyTask.item,
-					outcome: converted.length > 0 ? "completed" : "skipped",
-					reason: converted.length > 0 ? "converted_for_resume" : "converted_messages_empty",
-					startedAt,
-					legacyApiHistoryLength: legacyApiHistory.length,
-					convertedMessageCount: converted.length,
-				})
-				// Starting a session seeded with these messages persists them under the
-				// legacy task's id (LocalRuntimeHost.startSession), completing the
-				// migration — signal that so the session gets marked as migrated.
-				return { messages: converted, convertedFromLegacyTask: converted.length > 0 }
 			}
-			this.emitLegacyMigrationTelemetry({
-				taskId,
-				item: legacyTask.item,
-				outcome: "skipped",
-				reason: "legacy_api_history_empty",
-				startedAt,
-				legacyApiHistoryLength: 0,
-			})
 		}
 
 		if (!fallbackMessages) {
-			return { messages: undefined, convertedFromLegacyTask: false }
+			return undefined
 		}
-		return {
-			messages: appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[]),
-			convertedFromLegacyTask: false,
-		}
-	}
-
-	private emitLegacyMigrationTelemetry(args: {
-		taskId: string
-		item: HistoryItem
-		outcome: "completed" | "skipped" | "error"
-		reason: string
-		startedAt: number
-		legacyApiHistoryLength?: number
-		convertedMessageCount?: number
-	}): void {
-		const payload = {
-			taskId: args.taskId,
-			outcome: args.outcome,
-			reason: args.reason,
-			durationMs: Date.now() - args.startedAt,
-			legacyApiHistoryLength: args.legacyApiHistoryLength,
-			convertedMessageCount: args.convertedMessageCount,
-			hasFavorite: args.item.isFavorited === true,
-			hasCost: (args.item.totalCost ?? 0) > 0,
-			hasTokenUsage: historyItemHasTokenUsage(args.item),
-			hasCwd: !!args.item.cwdOnTaskInitialization,
-		}
-		Logger.log(`[SdkTaskHistory] Legacy task migration: ${JSON.stringify(payload)}`)
-		this.options.telemetry?.safeCapture(
-			() => this.options.telemetry?.captureLegacyTaskMigration(payload),
-			"SdkTaskHistory.getLegacyResumeInitialMessages.legacyMigration",
-		)
+		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {

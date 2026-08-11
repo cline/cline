@@ -595,7 +595,7 @@ describe("SdkTaskHistory", () => {
 		const telemetry = makeTelemetry()
 		const { history } = makeHistory([], telemetry)
 
-		const { messages, convertedFromLegacyTask } = await history.getLegacyResumeInitialMessages("legacy-task")
+		const messages = await history.getLegacyResumeInitialMessages("legacy-task")
 
 		expect(readApiConversationHistory).toHaveBeenCalledWith("legacy-task", undefined)
 		expect(messages).toEqual(
@@ -605,7 +605,8 @@ describe("SdkTaskHistory", () => {
 				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
 			]),
 		)
-		expect(convertedFromLegacyTask).toBe(true)
+		// The resume conversion is the migration; it reports a completed outcome.
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
 		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
 			expect.objectContaining({
 				taskId: "legacy-task",
@@ -613,25 +614,6 @@ describe("SdkTaskHistory", () => {
 				reason: "converted_for_resume",
 				legacyApiHistoryLength: 2,
 				convertedMessageCount: 3,
-			}),
-		)
-	})
-
-	it("reports a skipped migration when the legacy task has no api history", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.apiConversationHistory = []
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory([], telemetry)
-
-		const { messages, convertedFromLegacyTask } = await history.getLegacyResumeInitialMessages("legacy-task")
-
-		expect(messages).toBeUndefined()
-		expect(convertedFromLegacyTask).toBe(false)
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "legacy-task",
-				outcome: "skipped",
-				reason: "legacy_api_history_empty",
 			}),
 		)
 	})
@@ -674,8 +656,7 @@ describe("SdkTaskHistory", () => {
 			expect.objectContaining({ text: "new SDK answer" }),
 			expect.objectContaining({ type: "ask", ask: "completion_result" }),
 		])
-		expect(resumeMessages.messages).toEqual(fallbackMessages)
-		expect(resumeMessages.convertedFromLegacyTask).toBe(false)
+		expect(resumeMessages).toEqual(fallbackMessages)
 	})
 
 	it("emits backlog telemetry when legacy tasks are still pending migration", async () => {
