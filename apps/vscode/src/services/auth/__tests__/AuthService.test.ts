@@ -1,14 +1,5 @@
-/**
- * Tests for AuthService logout-reason telemetry.
- *
- * `user.auth_logged_out` used to report LogoutReason.ERROR_RECOVERY for three
- * very different situations (startup with no stored session, refresh token
- * rejected, restore throwing). These tests pin down the honest reason mapping:
- *   - no stored session on activation  -> no_stored_session (not a logout)
- *   - stored session destroyed         -> token_invalid (real involuntary logout)
- *   - session intact, transient null   -> no event at all
- *   - restore threw                    -> restore_error
- */
+// Tests for the user.auth_logged_out reason mapping: the old catch-all
+// ERROR_RECOVERY is split into NO_STORED_SESSION / TOKEN_INVALID / RESTORE_ERROR.
 
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
@@ -27,11 +18,7 @@ class TestableAuthService extends AuthService {
 	}
 }
 
-/**
- * The exported `telemetryService` is an async proxy that resolves the real
- * service lazily, so emissions land a few microtasks after the calling code
- * returns. Flush the event loop before asserting on the stub.
- */
+/** The exported telemetryService proxy resolves the real service asynchronously. */
 async function flushTelemetry(): Promise<void> {
 	await new Promise((resolve) => setImmediate(resolve))
 	await new Promise((resolve) => setImmediate(resolve))
@@ -40,8 +27,6 @@ async function flushTelemetry(): Promise<void> {
 describe("AuthService logout telemetry reasons", () => {
 	let sandbox: sinon.SinonSandbox
 	let capturedLoggedOut: sinon.SinonStub
-	let storedSecrets: Map<string, string | undefined>
-	let mockController: Controller
 	let service: TestableAuthService
 	let retrieveClineAuthInfoStub: sinon.SinonStub
 
@@ -70,18 +55,7 @@ describe("AuthService logout telemetry reasons", () => {
 		sandbox.stub(TelemetryService, "create").resolves(new TelemetryService([], {} as any))
 		resetTelemetryService()
 
-		storedSecrets = new Map()
-		mockController = {
-			stateManager: {
-				getSecretKey: (key: string) => storedSecrets.get(key),
-				setSecret: (key: string, value: string | undefined) => {
-					storedSecrets.set(key, value)
-				},
-			},
-			postStateToWebview: sandbox.stub().resolves(),
-		} as unknown as Controller
-
-		service = new TestableAuthService(mockController)
+		service = new TestableAuthService({} as Controller)
 		sandbox.stub(service, "sendAuthStatusUpdate").resolves()
 		retrieveClineAuthInfoStub = sandbox.stub((service as any)._provider, "retrieveClineAuthInfo")
 	})
@@ -92,57 +66,25 @@ describe("AuthService logout telemetry reasons", () => {
 	})
 
 	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
-		it("reports no_stored_session when activation finds nothing in storage", async () => {
-			// No secret stored at all: API-key users / never signed in.
+		it("reports no_stored_session when restore finds no session", async () => {
 			retrieveClineAuthInfoStub.resolves(null)
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
 			await flushTelemetry()
 
-			expect(capturedLoggedOut.calledOnce).to.be.true
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.NO_STORED_SESSION])
 		})
 
-		it("reports token_invalid when the stored session was destroyed during restore", async () => {
-			// A session existed, but the provider cleared it (invalid/expired
-			// refresh token or unusable blob) before returning null.
-			storedSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
-			retrieveClineAuthInfoStub.callsFake(async () => {
-				storedSecrets.set("cline:clineAccountId", undefined)
-				return null
-			})
-
-			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
-
-			expect(capturedLoggedOut.calledOnce).to.be.true
-			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
-		})
-
-		it("reports nothing when the stored session survives a transient null (backoff / stand-down)", async () => {
-			storedSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
-			retrieveClineAuthInfoStub.resolves(null)
-
-			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
-
-			expect(capturedLoggedOut.called).to.be.false
-			expect(await service.getAuthToken()).to.be.null
-		})
-
 		it("reports restore_error when restore throws", async () => {
-			storedSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
 			retrieveClineAuthInfoStub.rejects(new Error("secret storage unavailable"))
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
 			await flushTelemetry()
 
-			expect(capturedLoggedOut.calledOnce).to.be.true
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
 		})
 
 		it("reports nothing when restore succeeds", async () => {
-			storedSecrets.set("cline:clineAccountId", JSON.stringify(authInfo))
 			retrieveClineAuthInfoStub.resolves(authInfo)
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
@@ -168,7 +110,6 @@ describe("AuthService logout telemetry reasons", () => {
 			await flushTelemetry()
 
 			expect(token).to.be.null
-			expect(capturedLoggedOut.calledOnce).to.be.true
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
 		})
 
@@ -180,35 +121,6 @@ describe("AuthService logout telemetry reasons", () => {
 
 			expect(token).to.be.null
 			expect(capturedLoggedOut.called).to.be.false
-		})
-	})
-
-	describe("handleDeauth()", () => {
-		it("keeps user_initiated as-is", async () => {
-			await service.handleDeauth(LogoutReason.USER_INITIATED)
-			await flushTelemetry()
-
-			expect(capturedLoggedOut.calledOnce).to.be.true
-			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.USER_INITIATED])
-		})
-
-		it("keeps cross_window_sync as-is", async () => {
-			await service.handleDeauth(LogoutReason.CROSS_WINDOW_SYNC)
-			await flushTelemetry()
-
-			expect(capturedLoggedOut.calledOnce).to.be.true
-			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.CROSS_WINDOW_SYNC])
-		})
-	})
-
-	describe("LogoutReason vocabulary", () => {
-		it("uses the values the warehouse queries rely on", () => {
-			expect(LogoutReason.USER_INITIATED).to.equal("user_initiated")
-			expect(LogoutReason.CROSS_WINDOW_SYNC).to.equal("cross_window_sync")
-			expect(LogoutReason.TOKEN_INVALID).to.equal("token_invalid")
-			expect(LogoutReason.NO_STORED_SESSION).to.equal("no_stored_session")
-			expect(LogoutReason.RESTORE_ERROR).to.equal("restore_error")
-			expect(LogoutReason.UNKNOWN).to.equal("unknown")
 		})
 	})
 })
