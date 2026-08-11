@@ -193,9 +193,16 @@ public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
-through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
-including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
-targets: reconnects may retry the same socket URL, but command recovery and
+through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
+must match both the supported wire protocol and the current Hub build identity;
+a protocol-compatible daemon from another build is retired before its
+replacement starts so upgrades cannot keep executing stale runtime code. SDK
+builds embed a deterministic fingerprint of the runtime sources, package
+manifests, build configuration, and dependency lock, so the identity changes
+with the executable Hub code even before package versions are bumped.
+Explicit endpoints, including loopback URLs such as
+`ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
+reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
