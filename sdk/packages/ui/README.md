@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Agent ask-question, approval-card, approval-group, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
@@ -45,6 +45,13 @@ for a host-specific status palette.
 
 `SearchCombobox` provides a searchable selector for repository and model lists.
 Its in-place panel requires ancestors that do not clip overflow.
+
+`AgentApprovalGroup` is the warning-toned section chrome that stacks approval
+cards (or other pending-decision rows) under a shared icon, title, and
+description. Its accent defaults to the shared warning role; hosts may override
+`--cline-ui-agent-approval-group-accent` and
+`--cline-ui-agent-approval-group-accent-border`. Decision orchestration stays
+in the consumer.
 
 Import `components.css` after Tailwind and either token entry point. It
 registers package-namespaced mappings and the packaged component sources so

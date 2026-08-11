@@ -6,6 +6,10 @@ export {
 	type AgentApprovalCardProps,
 } from "./agent-approval-card.js";
 export {
+	AgentApprovalGroup,
+	type AgentApprovalGroupProps,
+} from "./agent-approval-group.js";
+export {
 	AgentAskQuestion,
 	type AgentAskQuestionItem,
 	type AgentAskQuestionProps,

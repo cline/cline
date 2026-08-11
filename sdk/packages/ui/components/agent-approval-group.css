@@ -1,0 +1,10 @@
+.cline-ui-agent-approval-group {
+	/* Defaults follow the shared warning role; hosts may override. */
+	--cline-ui-agent-approval-group-accent: var(--warning-solid);
+	--cline-ui-agent-approval-group-accent-border: var(--warning-border);
+}
+
+.cline-ui-agent-approval-group {
+	box-sizing: border-box;
+	border-style: solid;
+}
