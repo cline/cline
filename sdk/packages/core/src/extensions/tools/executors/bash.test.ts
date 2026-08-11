@@ -96,6 +96,7 @@ describe("createShellExecutor", () => {
 		const shell = createShellExecutor({
 			timeoutMs: 2_000,
 			executionController: controller,
+			detachedLogRetentionMs: 250,
 		});
 		const execution = shell(
 			{
@@ -134,6 +135,7 @@ describe("createShellExecutor", () => {
 			expect(await fileExists(dirname(logPath))).toBe(true);
 			await new Promise((resolve) => setTimeout(resolve, 150));
 			expect(await fileExists(logPath)).toBe(true);
+			await expect.poll(() => fileExists(dirname(logPath))).toBe(false);
 		} finally {
 			await rm(dirname(logPath), { recursive: true, force: true });
 		}

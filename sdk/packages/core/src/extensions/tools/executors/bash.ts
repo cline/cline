@@ -6,7 +6,7 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createWriteStream, mkdtempSync } from "node:fs";
+import { createWriteStream, mkdtempSync, rm } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -24,6 +24,7 @@ import {
 import type { RunCommandExecutionController } from "./run-command-execution-controller";
 
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
+const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
 
 export class CommandExitError extends Error {
 	constructor(
@@ -83,6 +84,14 @@ export interface ShellExecutorOptions {
 	 * from its tool call while continuing to drain output to a bounded log.
 	 */
 	executionController?: RunCommandExecutionController;
+
+	/**
+	 * How long a completed detached command log remains available before its
+	 * temporary directory is removed.
+	 *
+	 * @default 24 hours
+	 */
+	detachedLogRetentionMs?: number;
 }
 
 interface SpawnConfig {
@@ -148,7 +157,17 @@ function createRollingCollector(maxChars: number) {
 	};
 }
 
-function createDetachedLog() {
+function scheduleDetachedLogCleanup(
+	directory: string,
+	retentionMs: number,
+): void {
+	const cleanupTimer = setTimeout(() => {
+		rm(directory, { recursive: true, force: true }, () => {});
+	}, retentionMs);
+	cleanupTimer.unref();
+}
+
+function createDetachedLog(retentionMs: number) {
 	const directory = mkdtempSync(join(tmpdir(), "cline-command-"));
 	const path = join(directory, "output.log");
 	const stream = createWriteStream(path, { encoding: "utf8" });
@@ -159,6 +178,9 @@ function createDetachedLog() {
 		// The detached command has already released its caller. A late log write
 		// failure must not become an unhandled stream error in the hub process.
 		closed = true;
+	});
+	stream.once("close", () => {
+		scheduleDetachedLogCleanup(directory, retentionMs);
 	});
 
 	return {
@@ -200,6 +222,7 @@ function spawnAndCollect(
 	timeoutMs: number,
 	maxOutputChars: number,
 	combineOutput: boolean,
+	detachedLogRetentionMs: number,
 	executionController?: RunCommandExecutionController,
 ): Promise<string> {
 	if (context.signal?.aborted) {
@@ -311,7 +334,7 @@ function spawnAndCollect(
 
 		const detach = (): boolean => {
 			if (!detachable || killed || settled) return false;
-			const log = createDetachedLog();
+			const log = createDetachedLog(detachedLogRetentionMs);
 			detached = true;
 			detachedLog = log;
 			const currentOut = stdout.current();
@@ -503,6 +526,12 @@ export function createShellExecutor(
 		combineOutput = true,
 		executionController,
 	} = options;
+	const configuredDetachedLogRetentionMs = options.detachedLogRetentionMs;
+	const detachedLogRetentionMs =
+		typeof configuredDetachedLogRetentionMs === "number" &&
+		Number.isFinite(configuredDetachedLogRetentionMs)
+			? Math.max(0, configuredDetachedLogRetentionMs)
+			: DEFAULT_DETACHED_LOG_RETENTION_MS;
 	const maxOutputChars =
 		options.maxOutputChars ??
 		options.maxOutputBytes ??
@@ -525,6 +554,7 @@ export function createShellExecutor(
 			timeoutMs,
 			maxOutputChars,
 			combineOutput,
+			detachedLogRetentionMs,
 			executionController,
 		);
 	};

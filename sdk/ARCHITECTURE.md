@@ -145,9 +145,32 @@ event payload and `source` field.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
-7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
+7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+Command progress follows the same runtime event boundary as other agent output.
+Shell executors emit structured stdout/stderr chunks through
+`AgentToolContext.emitUpdate`; the agent runtime projects them as tool
+`content_update` events, and the Hub publishes them as `tool.updated` with the
+session, tool-call, and tool identifiers intact. Hub clients reconstruct the
+tool update for their host-facing event stream. Client-contributed executors
+must forward capability progress through this same path rather than creating a
+host-specific side channel. Consumers should coalesce and cap high-frequency
+chunks before rendering them.
+
+Proceed-while-running is an explicit command lifecycle, separate from client
+or session detachment. A shell process advertises detachability only after it
+has spawned and registered with the host-scoped command execution controller.
+The client sends `run.proceed_while_running` with the owning `sessionId` and,
+when available, `toolCallId`; the Hub delegates to the authoritative
+`RuntimeHost`, which releases every matching registered process from the tool
+call. The executor removes its abort and timeout ownership, resolves the tool
+call with the current bounded output and a temporary log path, and continues
+draining the process into that log. Detached logs are size-capped, retained for
+a bounded inspection window after the stream closes, and then their temporary
+directories are removed. A detached client connection alone never changes
+process ownership or command execution.
 
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
