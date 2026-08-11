@@ -12,11 +12,9 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
-	getSessionMetadataNeedsAttention,
 	getSessionMetadataPinned,
 	getSessionMetadataTitle,
 	getSessionSource,
-	NEEDS_ATTENTION_METADATA_KEY,
 	PINNED_METADATA_KEY,
 } from "@/lib/session-history";
 
@@ -39,11 +37,6 @@ export interface SessionThread {
 	totalCostUsd?: number;
 	status: SessionHistoryStatus;
 	pinned?: boolean;
-	/**
-	 * The agent finished a turn and nobody has viewed the result yet
-	 * (persisted in session metadata, shared across clients).
-	 */
-	needsAttention?: boolean;
 }
 
 type SessionHookEvent = {
@@ -268,7 +261,6 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
-		needsAttention: getSessionMetadataNeedsAttention(session.metadata),
 	};
 }
 
@@ -407,8 +399,7 @@ function areThreadsEquivalent(
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
-			a.pinned !== b.pinned ||
-			a.needsAttention !== b.needsAttention
+			a.pinned !== b.pinned
 		) {
 			return false;
 		}
@@ -1111,56 +1102,6 @@ export function useSessionHistory({
 		[],
 	);
 
-	/**
-	 * Acknowledges a persisted "needs attention" flag: the user is viewing the
-	 * session, so drop the indicator locally and clear the shared metadata key
-	 * so every other client drops it too. Fire-and-forget: a failed write just
-	 * leaves the flag for the next refresh to surface again.
-	 */
-	const clearThreadNeedsAttention = useCallback((threadId: string) => {
-		const session = sessionsRef.current.find(
-			(item) => item.sessionId === threadId,
-		);
-		if (!getSessionMetadataNeedsAttention(session?.metadata)) {
-			return;
-		}
-		setThreads((current) =>
-			updateThreadById(current, threadId, (thread) =>
-				thread.needsAttention ? { ...thread, needsAttention: false } : thread,
-			),
-		);
-		setSessions((current) =>
-			updateSessionById(current, threadId, (item) => ({
-				...item,
-				metadata: {
-					...(item.metadata ?? {}),
-					[NEEDS_ATTENTION_METADATA_KEY]: undefined,
-				},
-			})),
-		);
-		void desktopClient
-			.invoke("update_chat_session_metadata", {
-				sessionId: threadId,
-				metadata: { [NEEDS_ATTENTION_METADATA_KEY]: null },
-			})
-			.catch(() => {
-				// Leave rollback to the next history refresh.
-			});
-	}, []);
-
-	// A turn that finishes while its session is already open needs no
-	// indicator — the user is watching. Acknowledge as soon as a refresh
-	// surfaces the flag on the active session.
-	useEffect(() => {
-		if (!activeSessionId) {
-			return;
-		}
-		const active = threads.find((thread) => thread.id === activeSessionId);
-		if (active?.needsAttention) {
-			clearThreadNeedsAttention(activeSessionId);
-		}
-	}, [activeSessionId, threads, clearThreadNeedsAttention]);
-
 	const openThread = useCallback(
 		(threadId: string) => {
 			const session = getSessionByThreadId(threadId);
@@ -1173,11 +1114,10 @@ export function useSessionHistory({
 					next.delete(threadId);
 					return next;
 				});
-				clearThreadNeedsAttention(threadId);
 				onOpenSession?.(session);
 			}
 		},
-		[clearThreadNeedsAttention, getSessionByThreadId, onOpenSession],
+		[getSessionByThreadId, onOpenSession],
 	);
 
 	const renameThread = useCallback(
@@ -1476,7 +1416,6 @@ export function useSessionHistory({
 		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
-		clearThreadNeedsAttention,
 		openThread,
 		pendingAction,
 		refreshSessions,
