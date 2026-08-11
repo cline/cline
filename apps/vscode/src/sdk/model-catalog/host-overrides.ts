@@ -1,8 +1,7 @@
 /**
  * Applies the `ModelInfo` fields the extension owns locally, on top of
- * an adapted SDK `ModelInfo`. Today this is Vertex's
- * `supportsGlobalEndpoint` allowlist (see `./vertex-global-endpoint.ts`),
- * Vertex's unknown-pricing cleanup, and Ollama's effective context window.
+ * an adapted SDK `ModelInfo`. Today this is Vertex's unknown-pricing
+ * cleanup and Ollama's effective context window.
  *
  * Both the model-list resolution path (`resolveSdkModels`) and the
  * single-model lookup path (`resolveModelInfo`) pass adapted
@@ -16,7 +15,6 @@ import type { ModelInfo } from "@shared/api"
 import { StateManager } from "@/core/storage/StateManager"
 import { getProviderSettingsManager } from "../provider-migration"
 import type { ProviderId } from "./contracts"
-import { vertexModelSupportsGlobalEndpoint } from "./vertex-global-endpoint"
 
 /**
  * The context window Ollama actually applies is the requested `num_ctx`,
@@ -51,10 +49,7 @@ function resolveOllamaContextWindow(): number {
 	return OLLAMA_DEFAULT_CONTEXT_WINDOW
 }
 
-export function applyHostModelInfoOverrides(providerId: ProviderId, modelId: string, modelInfo: ModelInfo): ModelInfo {
-	if (providerId === "vertex" && vertexModelSupportsGlobalEndpoint(providerId, modelId)) {
-		return { ...modelInfo, supportsGlobalEndpoint: true }
-	}
+export function applyHostModelInfoOverrides(providerId: ProviderId, _modelId: string, modelInfo: ModelInfo): ModelInfo {
 	// Vertex has no free models, so a $0/$0 price pair is always the shape
 	// adapter's safe default standing in for an SDK record that carries no
 	// pricing (e.g. models billed region-dependently, where a single
