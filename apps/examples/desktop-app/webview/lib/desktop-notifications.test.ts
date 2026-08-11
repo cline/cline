@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 type EventHandler = (payload: unknown) => void;
 
@@ -54,6 +54,11 @@ beforeEach(() => {
 	mocks.invoke.mockReset().mockResolvedValue(undefined);
 	mocks.isPermissionGranted.mockReset().mockResolvedValue(true);
 	mocks.requestPermission.mockReset().mockResolvedValue("granted");
+});
+
+afterEach(() => {
+	vi.restoreAllMocks();
+	vi.unstubAllGlobals();
 });
 
 describe("desktop notifications", () => {
@@ -125,6 +130,9 @@ describe("desktop notifications", () => {
 	});
 
 	it("routes questions to their session and applies the event sound setting", async () => {
+		vi.spyOn(window.navigator, "userAgent", "get").mockReturnValue(
+			"Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+		);
 		const {
 			DEFAULT_DESKTOP_NOTIFICATION_SETTINGS,
 			watchDesktopNotifications,
@@ -151,6 +159,14 @@ describe("desktop notifications", () => {
 			}),
 		);
 		stop();
+	});
+
+	it("reports the default permission state when native permission is undecided", async () => {
+		mocks.isPermissionGranted.mockResolvedValue(false);
+		vi.stubGlobal("Notification", undefined);
+		const { getDesktopNotificationPermission } = await importFresh();
+
+		await expect(getDesktopNotificationPermission()).resolves.toBe("default");
 	});
 
 	it("deduplicates session errors and includes their detail", async () => {

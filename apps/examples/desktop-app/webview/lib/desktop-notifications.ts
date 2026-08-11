@@ -157,7 +157,7 @@ export async function getDesktopNotificationPermission(): Promise<DesktopNotific
 			return "granted";
 		}
 		return typeof Notification === "undefined"
-			? "prompt"
+			? "default"
 			: Notification.permission;
 	} catch {
 		return "unsupported";

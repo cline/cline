@@ -340,6 +340,23 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 		const requestId = String(event?.event.payload.requestId ?? "");
 		expect(requestId.length).toBeGreaterThan(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([
+			expect.objectContaining({
+				requestId,
+				sessionId: "session-1",
+				question: "Which branch?",
+				options: ["Keep current", "Create new"],
+			}),
+		]);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "another-session",
+			}),
+		).toEqual([]);
 
 		await handleCommand(ctx, "respond_ask_question", {
 			requestId,
@@ -348,6 +365,11 @@ describe("Code sidecar runtime capabilities", () => {
 
 		await expect(answer).resolves.toBe("Create new");
 		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([]);
 		expect(readEvents(ctx)).toContainEqual(
 			expect.objectContaining({
 				event: expect.objectContaining({
