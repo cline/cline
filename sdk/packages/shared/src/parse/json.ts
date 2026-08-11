@@ -80,30 +80,25 @@ export function parseJsonStream(input: unknown): unknown {
 		// Not valid JSON — attempt repair below.
 	}
 
-	// bare-object repair wraps the value verbatim through JSON.stringify
-	// and cannot invent a string terminator; try it first.
-	const bare = repairBareObjectValue(text);
-	if (bare !== undefined) {
-		return bare;
-	}
-
 	// If the text has an unterminated string literal the content was almost
 	// certainly cut off mid-value (e.g. the model hit max_tokens while
 	// writing a file-contents argument). Repairing this with jsonrepair
 	// would close the string with a synthetic quote and produce a
-	// valid-looking but wrong value. Reject it instead so the error
-	// propagates naturally.
-	if (hasUnterminatedString(text)) {
-		return input;
+	// valid-looking but wrong value. Skip jsonrepair so the error
+	// propagates naturally. jsonrepair stays ahead of bare-object repair
+	// because both can handle bare non-string tokens (True, None) and only
+	// jsonrepair maps them to their typed JSON equivalents.
+	if (!hasUnterminatedString(text)) {
+		try {
+			return JSON.parse(jsonrepair(text));
+		} catch {
+			// jsonrepair failed — try bare-object repair below.
+		}
 	}
 
-	try {
-		return JSON.parse(jsonrepair(text));
-	} catch {
-		// jsonrepair failed — return original for the caller to handle.
-	}
-
-	return input;
+	// Last resort: wraps the value verbatim through JSON.stringify and
+	// cannot invent a string terminator, so it needs no truncation guard.
+	return repairBareObjectValue(text) ?? input;
 }
 
 export function safeJsonStringify(input: unknown): string {

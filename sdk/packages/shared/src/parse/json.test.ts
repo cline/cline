@@ -27,6 +27,11 @@ describe("parseJsonStream", () => {
 		expect(parseJsonStream(truncated)).toBe(truncated);
 	});
 
+	it("repairs Python-style literals into typed JSON values", () => {
+		expect(parseJsonStream('{"flag": True}')).toEqual({ flag: true });
+		expect(parseJsonStream('{"flag": None}')).toEqual({ flag: null });
+	});
+
 	it("repairs bare-object values with literal double quotes", () => {
 		expect(parseJsonStream('{"commands": echo \'it"s fine\'}')).toEqual({
 			commands: "echo 'it\"s fine'",
