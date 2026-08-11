@@ -47,18 +47,12 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}
 
 			// Intercept the built-in compaction commands when an active task exists.
-			// `/compact` (and its aliases `/smol` and `/newtask`) must run a real
-			// SDK manual compaction via the condense RPC — sending the literal
-			// text to the model would make it improvise a fake summary instead of
-			// compacting the context window (CLINE-2503). `/newtask` aliases
-			// compaction because condensing achieves its goal (continue working
-			// with a fresh, summarized context) without the legacy new_task tool.
-			// With no active task there is nothing to compact, so fall through to
-			// normal new-task handling.
-			if (
-				messages.length > 0 &&
-				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
-			) {
+			// `/compact` (and its alias `/smol`) must run a real SDK manual
+			// compaction via the condense RPC — sending the literal text to the
+			// model would make it improvise a fake summary instead of compacting
+			// the context window (CLINE-2503). With no active task there is
+			// nothing to compact, so fall through to normal new-task handling.
+			if (messages.length > 0 && (messageToSend === "/compact" || messageToSend === "/smol")) {
 				// Clear the input before awaiting the RPC — condense resolves only
 				// after compaction finishes, and the typed command lingering in the
 				// field the whole time reads as if the send didn't register.
@@ -67,6 +61,23 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
 					console.error("Failed to compact task:", err),
 				)
+				if ("disableAutoScrollRef" in chatState) {
+					;(chatState as any).disableAutoScrollRef.current = false
+				}
+				return
+			}
+
+			// `/newtask` is NOT an alias of `/compact`: it must start a fresh task
+			// context ("Condenses the current task and continues with a fresh
+			// context window"), not compact the current task in place. Route it
+			// through the same fresh-task path as the New Task button so the user
+			// lands on a clean context window (#13157).
+			if (messages.length > 0 && messageToSend === "/newtask") {
+				setInputValue("")
+				setActiveQuote(null)
+				setPendingUserMessage(undefined)
+				setPendingResponse(undefined)
+				await TaskServiceClient.clearTask(EmptyRequest.create({}))
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
