@@ -69,6 +69,24 @@ describe("Button", () => {
 		expect(link?.dataset.slot).toBe("button");
 		expect(container.querySelector("button")).toBeNull();
 	});
+
+	it("prevents activation when a composed link is disabled", async () => {
+		const onClick = vi.fn();
+		await render(
+			<Button asChild disabled onClick={onClick}>
+				<a href="/settings" onClick={onClick}>
+					Settings
+				</a>
+			</Button>,
+		);
+		const link = container.querySelector<HTMLAnchorElement>("a");
+		expect(link?.getAttribute("aria-disabled")).toBe("true");
+		expect(link?.getAttribute("data-disabled")).toBe("");
+		expect(link?.getAttribute("disabled")).toBeNull();
+		expect(link?.tabIndex).toBe(-1);
+		await act(async () => link?.click());
+		expect(onClick).not.toHaveBeenCalled();
+	});
 });
 
 describe("IconButton", () => {
@@ -87,6 +105,23 @@ describe("IconButton", () => {
 			</IconButton>,
 		);
 		await act(async () => container.querySelector("button")?.click());
+		expect(onClick).not.toHaveBeenCalled();
+	});
+
+	it("prevents activation when a composed link is disabled", async () => {
+		const onClick = vi.fn();
+		await render(
+			<IconButton aria-label="Remove item" asChild disabled onClick={onClick}>
+				<a href="/remove" onClick={onClick}>
+					−
+				</a>
+			</IconButton>,
+		);
+		const link = container.querySelector<HTMLAnchorElement>("a");
+		expect(link?.getAttribute("aria-disabled")).toBe("true");
+		expect(link?.getAttribute("disabled")).toBeNull();
+		expect(link?.tabIndex).toBe(-1);
+		await act(async () => link?.click());
 		expect(onClick).not.toHaveBeenCalled();
 	});
 });

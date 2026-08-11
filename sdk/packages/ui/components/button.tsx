@@ -2,13 +2,18 @@
 
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
-import { forwardRef, type ButtonHTMLAttributes, type ReactNode } from "react";
+import {
+	forwardRef,
+	type ButtonHTMLAttributes,
+	type MouseEventHandler,
+	type ReactNode,
+} from "react";
 
 import { clsx } from "clsx";
 
 const BASE =
 	"inline-flex items-center justify-center whitespace-nowrap rounded-cline-ui-md font-cline-ui-medium cursor-pointer " +
-	"disabled:pointer-events-none disabled:opacity-50 " +
+	"disabled:pointer-events-none disabled:opacity-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 " +
 	"[&_svg]:pointer-events-none [&_svg]:shrink-0 shrink-0 " +
 	"outline-none focus-visible:ring-2 focus-visible:ring-cline-ui-ring/60 transition-colors";
 
@@ -114,9 +119,25 @@ export interface ButtonProps
 	children?: ReactNode;
 }
 
+const preventDisabledActivation: MouseEventHandler<HTMLElement> = (event) => {
+	event.preventDefault();
+	event.stopPropagation();
+};
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 	(
-		{ asChild = false, className, size, tone, type, variant, ...props },
+		{
+			asChild = false,
+			className,
+			disabled,
+			onClick,
+			onClickCapture,
+			size,
+			tone,
+			type,
+			variant,
+			...props
+		},
 		ref,
 	) => {
 		const Comp = asChild ? Slot : "button";
@@ -125,7 +146,17 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 				className={clsx(buttonVariants({ size, tone, variant }), className)}
 				data-slot="button"
 				ref={ref}
-				{...(!asChild ? { type: type ?? "button" } : {})}
+				{...(asChild
+					? disabled
+						? {
+								"aria-disabled": true,
+								"data-disabled": "",
+								onClick: preventDisabledActivation,
+								onClickCapture: preventDisabledActivation,
+								tabIndex: -1,
+							}
+						: { onClick, onClickCapture }
+					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
 				{...props}
 			/>
 		);
@@ -228,7 +259,18 @@ export interface IconButtonProps
 
 export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 	(
-		{ asChild = false, className, size, tone, type, variant, ...props },
+		{
+			asChild = false,
+			className,
+			disabled,
+			onClick,
+			onClickCapture,
+			size,
+			tone,
+			type,
+			variant,
+			...props
+		},
 		ref,
 	) => {
 		const Comp = asChild ? Slot : "button";
@@ -237,7 +279,17 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 				className={clsx(iconButtonVariants({ size, tone, variant }), className)}
 				data-slot="icon-button"
 				ref={ref}
-				{...(!asChild ? { type: type ?? "button" } : {})}
+				{...(asChild
+					? disabled
+						? {
+								"aria-disabled": true,
+								"data-disabled": "",
+								onClick: preventDisabledActivation,
+								onClickCapture: preventDisabledActivation,
+								tabIndex: -1,
+							}
+						: { onClick, onClickCapture }
+					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
 				{...props}
 			/>
 		);
