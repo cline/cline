@@ -67,6 +67,11 @@ describe("@cline/ui agent approval group", () => {
 		expect(
 			container.querySelector('[data-testid="custom-icon"]'),
 		).not.toBeNull();
+		expect(
+			container.querySelector(
+				".cline-ui-agent-approval-group__heading [data-testid='custom-icon']",
+			),
+		).toBeNull();
 	});
 
 	it("renders the description only when provided and stacks children", async () => {

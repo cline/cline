@@ -4,9 +4,9 @@ import { type ReactNode, useId } from "react";
 
 export interface AgentApprovalGroupProps {
 	children: ReactNode;
-	description?: ReactNode;
+	description?: string;
 	icon?: ReactNode;
-	title: ReactNode;
+	title: string;
 }
 
 function ShieldIcon() {
@@ -36,13 +36,15 @@ export function AgentApprovalGroup({
 			aria-labelledby={headingId}
 			className="cline-ui-agent-approval-group rounded-cline-ui-xl border border-[color-mix(in_oklab,var(--cline-ui-agent-approval-group-accent-border)_40%,transparent)] bg-[color-mix(in_oklab,var(--cline-ui-agent-approval-group-accent)_5%,transparent)] p-3"
 		>
-			<h2
-				className="cline-ui-agent-approval-group__heading m-0 flex items-center gap-2 font-cline-ui-medium text-cline-ui-foreground text-cline-ui-sm"
-				id={headingId}
-			>
+			<div className="cline-ui-agent-approval-group__header flex items-center gap-2">
 				{icon ?? <ShieldIcon />}
-				{title}
-			</h2>
+				<h2
+					className="cline-ui-agent-approval-group__heading m-0 font-cline-ui-medium text-cline-ui-foreground text-cline-ui-sm"
+					id={headingId}
+				>
+					{title}
+				</h2>
+			</div>
 			{description ? (
 				<p className="cline-ui-agent-approval-group__intro m-0 mt-1 text-cline-ui-muted-foreground text-cline-ui-xs">
 					{description}

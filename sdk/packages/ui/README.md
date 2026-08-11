@@ -51,7 +51,9 @@ cards (or other pending-decision rows) under a shared icon, title, and
 description. Its accent defaults to the shared warning role; hosts may override
 `--cline-ui-agent-approval-group-accent` and
 `--cline-ui-agent-approval-group-accent-border`. Decision orchestration stays
-in the consumer.
+in the consumer. The title and description accept plain text so the component
+can preserve its heading and paragraph semantics; the icon slot accepts custom
+React content.
 
 Import `components.css` after Tailwind and either token entry point. It
 registers package-namespaced mappings and the packaged component sources so
