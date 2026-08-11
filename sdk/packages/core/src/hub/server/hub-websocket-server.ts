@@ -380,14 +380,6 @@ export async function startHubWebSocketServer(
 			clearInterval(heartbeatTimer);
 			heartbeatTimer = undefined;
 		}
-		for (const websocket of sockets) {
-			websocket.terminate?.();
-		}
-		sockets.clear();
-		for (const detach of cleanup) {
-			detach();
-		}
-		cleanup.clear();
 
 		const webSocketClosed = new Promise<void>((resolve, reject) => {
 			wss.close((error?: Error) => {
@@ -431,6 +423,23 @@ export async function startHubWebSocketServer(
 			}
 		});
 		closeHandle = { transportStopped, closed };
+
+		// Terminate sockets and detach handlers only after the memo handle is
+		// assigned. websocket.terminate() fires close events whose microtask
+		// continuations can re-enter beginClose() (e.g. the daemon coordinator's
+		// deferred cleanup reaching server.beginClose()); entering before the
+		// handle exists built a second set of close operations whose wss/listener
+		// closes rejected with "Server is not running", spuriously failing the
+		// close aggregate.
+		for (const websocket of sockets) {
+			websocket.terminate?.();
+		}
+		sockets.clear();
+		for (const detach of cleanup) {
+			detach();
+		}
+		cleanup.clear();
+
 		return closeHandle;
 	};
 	const closeServer = (): Promise<void> => beginClose().closed;
@@ -514,8 +523,11 @@ export async function startHubWebSocketServer(
 					// notification fails.
 				} finally {
 					// Closing is memoized, so the daemon coordinator and this
-					// safety path converge on the same teardown operation.
-					void closeServer();
+					// safety path converge on the same teardown operation. Close
+					// failures are observed and reported by the owner's own await
+					// on the same memoized promise; an unobserved rejection here
+					// must not take the daemon's unhandledRejection fatal path.
+					closeServer().catch(() => undefined);
 				}
 			});
 			return;
