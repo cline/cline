@@ -17,6 +17,16 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
+/**
+ * Sent when the user resumes an interrupted task without typing anything.
+ * Deliberately neutral: the preserved conversation history is the source of
+ * truth on resume, and presenting the original task text as new instructions
+ * makes the model redo already-completed work (#12975). Hidden from the
+ * transcript by isSyntheticUserPrompt via the [TASK RESUMPTION] prefix.
+ */
+const TASK_RESUMPTION_PROMPT =
+	"[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the preserved conversation history and continue from where you left off without repeating work that already completed successfully."
+
 export interface SdkFollowupCoordinatorOptions {
 	stateManager: StateManager
 	interactions: SdkInteractionCoordinator
@@ -100,6 +110,16 @@ export class SdkFollowupCoordinator {
 				return
 			}
 
+			// Stopping a turn keeps the session alive, so a matching idle
+			// session is continued in place — mirroring the CLI, which reuses
+			// the live session after an abort. Rebuilding from task history is
+			// reserved for tasks without a live session (opened from history,
+			// extension host reload).
+			if (task && currentSession && currentSession.sessionId === task.taskId) {
+				await this.continueIdleSession(currentSession, prompt, images, files)
+				return
+			}
+
 			if (task) {
 				Logger.log(`[SdkController] askResponse: Resuming task ${task.taskId} before follow-up`)
 				await this.tryResumeSessionFromTask(task, prompt, images, files)
@@ -143,6 +163,34 @@ export class SdkFollowupCoordinator {
 			files,
 			shouldQueue ? "queue" : undefined,
 		)
+	}
+
+	/**
+	 * Continue a surviving idle session in place instead of tearing it down
+	 * and rebuilding it from task history. A bare resume (no user content)
+	 * sends the synthetic resumption prompt without echoing a user bubble;
+	 * user-provided content is echoed and sent as-is. If the session's abort
+	 * is still settling, the runtime auto-queues the send and drains it once
+	 * the abort completes.
+	 */
+	private async continueIdleSession(
+		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
+		prompt?: string,
+		images?: string[],
+		files?: string[],
+	): Promise<void> {
+		const { sdkHost, sessionId } = activeSession
+		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
+
+		this.options.sessions.setRunning(true)
+		if (prompt?.trim() || images?.length || files?.length) {
+			this.emitUserFeedback(sessionId, prompt, images, files)
+		}
+		this.options.resetMessageTranslator()
+
+		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
+		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 
 	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {
@@ -224,13 +272,7 @@ export class SdkFollowupCoordinator {
 				}
 			}
 
-			// Never resubmit historyItem.task here: presenting the original
-			// request as new instructions makes the model redo already-completed
-			// work after a stop/resume (#12975). The preserved conversation
-			// history is the source of truth; only user-typed text is new.
-			const effectivePrompt =
-				prompt?.trim() ||
-				"[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the preserved conversation history and continue from where you left off without repeating work that already completed successfully."
+			const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)

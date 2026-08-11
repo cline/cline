@@ -426,11 +426,77 @@ describe("SdkFollowupCoordinator", () => {
 		)
 	})
 
-	it("does not resubmit the original task text on a bare resume", async () => {
-		// Queue -> Stop -> Resume: the session is idle, the user typed nothing,
-		// and the transcript already contains the completed work plus the queued
-		// follow-up. Re-sending historyItem.task as "new instructions" made the
-		// model redo the completed commands (#12975).
+	it("continues the surviving idle session on a bare resume instead of rebuilding", async () => {
+		// Stop -> Resume: cancelling a turn keeps the session alive, so a bare
+		// Resume must continue that session in place (like the CLI does after
+		// an abort) rather than tearing it down and rebuilding from history.
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const [sdkHost, sessionId, sentPrompt] = options.sessions.fireAndForgetSend.mock.calls[0]
+		expect(sdkHost).toBe(activeSession.sdkHost)
+		expect(sessionId).toBe("session-123")
+		expect(sentPrompt).toContain("[TASK RESUMPTION]")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
+	it("continues the surviving idle session for a typed follow-up instead of rebuilding", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("keep going", ["image.png"], undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "keep going",
+					images: ["image.png"],
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: keep going",
+			["image.png"],
+			undefined,
+		)
+	})
+
+	it("rebuilds from history when the idle session does not match the displayed task", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("continue")
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("does not resubmit the original task text when a bare resume must rebuild the session", async () => {
+		// No live session (task opened from history / extension reload): the
+		// rebuild path reconstructs the session from persisted messages. The
+		// resumption prompt must stay neutral; re-sending historyItem.task as
+		// "new instructions" made the model redo completed commands (#12975).
 		const task = makeTask("task-1")
 		const historyItem = {
 			id: "task-1",
@@ -445,6 +511,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse(undefined)
 
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
 		expect(sentPrompt).toContain("[TASK RESUMPTION]")
