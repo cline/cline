@@ -51,6 +51,23 @@ const MAX_TOKENS_INCOMPLETE_TURN_MESSAGE =
 	"Model reached the maximum output token limit before completing the turn";
 
 /**
+ * Runtime event types that must NOT be mirrored into `telemetry.capture`.
+ *
+ * These fire once per streamed token/chunk (`assistant-text-delta`,
+ * `assistant-reasoning-delta`) or per tool progress update (`tool-updated`),
+ * which in the field accounted for ~97% of all `agent.*` telemetry volume
+ * while carrying no analytical value — usage, turn, and run lifecycle signals
+ * all have dedicated events. They still flow to listeners and
+ * `hooks.onEvent` unchanged; only the telemetry mirror is gated.
+ */
+const TELEMETRY_EXCLUDED_EVENT_TYPES: ReadonlySet<AgentRuntimeEvent["type"]> =
+	new Set([
+		"assistant-text-delta",
+		"assistant-reasoning-delta",
+		"tool-updated",
+	]);
+
+/**
  * Terminal message when a context-window overflow cannot be recovered because
  * there is no conversation history to compact — the system prompt, tools, and
  * current input alone exceed the window.
@@ -1861,10 +1878,12 @@ export class AgentRuntime {
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
+		if (!TELEMETRY_EXCLUDED_EVENT_TYPES.has(event.type)) {
+			this.config.telemetry?.capture({
+				event: `agent.${event.type}`,
+				properties: metadata as TelemetryProperties,
+			});
+		}
 		for (const listener of this.listeners) {
 			listener(event);
 		}
