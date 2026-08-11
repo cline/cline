@@ -18,14 +18,13 @@ type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
 
 /**
- * Sent when the user resumes an interrupted task without typing anything.
- * Deliberately neutral: the preserved conversation history is the source of
- * truth on resume, and presenting the original task text as new instructions
- * makes the model redo already-completed work (#12975). Hidden from the
+ * Sent when the user resumes a task without typing anything: a turn cannot
+ * start without a prompt, so the Resume button needs a synthetic one. Never
+ * include the original task text here — the model treats it as new
+ * instructions and redoes already-completed work (#12975). Hidden from the
  * transcript by isSyntheticUserPrompt via the [TASK RESUMPTION] prefix.
  */
-const TASK_RESUMPTION_PROMPT =
-	"[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the preserved conversation history and continue from where you left off without repeating work that already completed successfully."
+const TASK_RESUMPTION_PROMPT = "[TASK RESUMPTION] Please continue where you left off."
 
 export interface SdkFollowupCoordinatorOptions {
 	stateManager: StateManager
