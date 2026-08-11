@@ -247,6 +247,68 @@ describe("ChatInputBar", () => {
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
 
+	it("puts the welcome min-height on the textarea, not the items-end wrapper", async () => {
+		// With the wrapper's `items-end`, a `min-h-16` wrapper taller than the
+		// textarea would bottom-pin the textarea and vertically center the
+		// caret; the minimum height must live on the textarea itself.
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="welcome"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput?.style.minHeight).toBe("4rem");
+		expect(promptInput?.style.maxHeight).toBe("6.25rem");
+		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).not.toContain("min-h-16");
+	});
+
 	it("selects High from the supported model thinking menu", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],

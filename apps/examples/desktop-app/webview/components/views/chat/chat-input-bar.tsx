@@ -145,6 +145,10 @@ const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
+// The welcome composer's minimum height lives on the textarea (not its flex
+// wrapper): with the wrapper's `items-end`, a taller wrapper would bottom-pin
+// the textarea and leave a dead zone above it, vertically centering the caret.
+const PROMPT_INPUT_WELCOME_MIN_HEIGHT_REM = 4;
 
 function resolveEffortIndex(
 	thinking: ChatSessionConfig["thinking"],
@@ -761,7 +765,7 @@ function ChatInputBarImpl({
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
-								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+								"rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
 					>
 						<textarea
@@ -896,7 +900,10 @@ function ChatInputBarImpl({
 							rows={promptInputRows}
 							style={{
 								maxHeight: `${PROMPT_INPUT_MAX_ROWS * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
-								minHeight: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
+								minHeight:
+									variant === "welcome"
+										? `${PROMPT_INPUT_WELCOME_MIN_HEIGHT_REM}rem`
+										: `${promptInputRows * PROMPT_INPUT_LINE_HEIGHT_REM}rem`,
 							}}
 							value={promptInput}
 						/>
