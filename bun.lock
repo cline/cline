@@ -77,7 +77,8 @@
       "dependencies": {
         "@base-ui/react": "^1.3.0",
         "@cline/shared": "workspace:*",
-        "@fontsource-variable/schibsted-grotesk": "^5.2.8",
+        "@fontsource-variable/geist-mono": "^5.2.8",
+        "@fontsource-variable/inter": "^5.2.8",
         "@radix-ui/react-use-controllable-state": "^1.2.2",
         "@rive-app/react-webgl2": "^4.27.2",
         "@shikijs/langs": "^4.2.0",
@@ -170,8 +171,8 @@
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
         "@cline/ui": "workspace:*",
-        "@fontsource-variable/schibsted-grotesk": "^5.2.8",
-        "@fontsource/azeret-mono": "^5.2.9",
+        "@fontsource-variable/geist-mono": "^5.2.8",
+        "@fontsource-variable/inter": "^5.2.8",
         "@hookform/resolvers": "^3.9.1",
         "@radix-ui/react-accordion": "1.2.12",
         "@radix-ui/react-alert-dialog": "1.1.15",
@@ -514,7 +515,7 @@
       "version": "0.3.0",
       "dependencies": {
         "@floating-ui/react": "^0.27.4",
-        "@fontsource/azeret-mono": "^5.2.9",
+        "@fontsource-variable/geist-mono": "^5.2.8",
         "@heroui/react": "^2.8.0-beta.2",
         "@heroui/theme": "2.4.26",
         "@paper-design/shaders-react": "^0.0.46",
@@ -734,8 +735,8 @@
       "name": "@cline/ui",
       "version": "0.2.0-next.2",
       "devDependencies": {
-        "@fontsource-variable/schibsted-grotesk": "^5.2.8",
-        "@fontsource/azeret-mono": "^5.2.9",
+        "@fontsource-variable/geist-mono": "^5.2.8",
+        "@fontsource-variable/inter": "^5.2.8",
         "@storybook/addon-a11y": "^9.1.17",
         "@storybook/addon-docs": "^9.1.17",
         "@storybook/react-vite": "^9.1.6",
@@ -1288,9 +1289,9 @@
 
     "@fontsource-variable/geist": ["@fontsource-variable/geist@5.3.0", "", {}, "sha512-j0m+vLQuG5XAYoHtGCVu0spvlGreR3EzpECUVzkFmI1mTVnAO38l/NEPDCFgZ177JxzYJCLSmTQibIiYPilGrA=="],
 
-    "@fontsource-variable/schibsted-grotesk": ["@fontsource-variable/schibsted-grotesk@5.3.0", "", {}, "sha512-ndS6H/KICWANchlHF3q4UdZD+xrZ3Ji0rUobIuXlgvDUzDfqZDsVuXPXZb636nJZMHE9zZ9Fmwgqazm8hMB50Q=="],
+    "@fontsource-variable/geist-mono": ["@fontsource-variable/geist-mono@5.3.0", "", {}, "sha512-vBbuwDEo9AkrqADMXOrlAR3DFcJi4/JxeuU43FoiQERnNwsfXNnvxvReZG02cQKmyk4DZkZdBZX3oTDvy2zBAw=="],
 
-    "@fontsource/azeret-mono": ["@fontsource/azeret-mono@5.3.0", "", {}, "sha512-Ag/+gN67fUry7i1yLlTnk16Rr1nnTQI2YefA/G7tYcCSr/+TC/ayMrE8Km7O0OKRgI/B5Mfel46Gq9IGY50Uaw=="],
+    "@fontsource-variable/inter": ["@fontsource-variable/inter@5.3.0", "", {}, "sha512-OupL48va4JNofb97w6NYeF9S7W/kHNKM0Er8Dem5nqi4jeOLrVJDoE8tZEpnMJmtkvNbB1EIPPwHcdkF6b1oUA=="],
 
     "@formatjs/ecma402-abstract": ["@formatjs/ecma402-abstract@2.3.6", "", { "dependencies": { "@formatjs/fast-memoize": "2.2.7", "@formatjs/intl-localematcher": "0.6.2", "decimal.js": "^10.4.3", "tslib": "^2.8.0" } }, "sha512-HJnTFeRM2kVFVr5gr5kH1XP6K0JcJtE7Lzvtr3FS/so5f1kpsqqqxy5JF+FRaO6H2qmcMfAUIox7AJteieRtVw=="],
 
