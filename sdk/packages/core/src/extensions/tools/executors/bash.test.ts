@@ -194,6 +194,45 @@ describe("createShellExecutor", () => {
 		}
 	});
 
+	it("protects live-owner logs and starts retention when adopting an orphan", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-owner-cleanup-"),
+		);
+		const liveDirectory = join(tempDirectory, "cline-command-live");
+		const orphanDirectory = join(tempDirectory, "cline-command-orphan");
+		try {
+			await Promise.all([mkdir(liveDirectory), mkdir(orphanDirectory)]);
+			await Promise.all([
+				writeFile(join(liveDirectory, "output.log"), "silent but running"),
+				writeFile(join(liveDirectory, "active-owner"), "101"),
+				writeFile(join(orphanDirectory, "output.log"), "orphaned"),
+				writeFile(join(orphanDirectory, "active-owner"), "202"),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					tempDirectory,
+					retentionMs: 250,
+					nowMs: Date.now(),
+					isProcessAlive: (pid) => pid === 101,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(liveDirectory)).toBe(true);
+			expect(await fileExists(join(liveDirectory, "active-owner"))).toBe(true);
+			expect(await fileExists(orphanDirectory)).toBe(true);
+			expect(await fileExists(join(orphanDirectory, "active-owner"))).toBe(
+				false,
+			);
+			expect(await fileExists(join(orphanDirectory, "completed-at"))).toBe(
+				true,
+			);
+			await expect.poll(() => fileExists(orphanDirectory)).toBe(false);
+			expect(await fileExists(liveDirectory)).toBe(true);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
 	it("rejects on non-zero exit code", async () => {
 		const shell = createShellExecutor();
 		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();

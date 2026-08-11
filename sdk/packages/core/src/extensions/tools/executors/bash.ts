@@ -6,8 +6,14 @@
 
 import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { createWriteStream, type Dirent, mkdtempSync } from "node:fs";
-import { readdir, rm, stat } from "node:fs/promises";
+import {
+	createWriteStream,
+	type Dirent,
+	mkdtempSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
+import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -28,11 +34,14 @@ const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
+const DETACHED_LOG_ACTIVE_FILENAME = "active-owner";
+const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
 
 export interface DetachedCommandLogCleanupOptions {
 	tempDirectory?: string;
 	retentionMs?: number;
 	nowMs?: number;
+	isProcessAlive?: (pid: number) => boolean;
 }
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
@@ -41,11 +50,25 @@ function resolveDetachedLogRetentionMs(value: number | undefined): number {
 		: DEFAULT_DETACHED_LOG_RETENTION_MS;
 }
 
+function isProcessAlive(pid: number): boolean {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return false;
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch (error) {
+		return (
+			error instanceof Error &&
+			"code" in error &&
+			(error as NodeJS.ErrnoException).code === "EPERM"
+		);
+	}
+}
+
 /**
- * Reaps detached command logs whose last write is outside the retention
- * window and schedules retained logs for their remaining lifetime. The Hub
- * calls this at startup so cleanup survives daemon exits and restarts instead
- * of depending only on timers created by the original process.
+ * Reaps completed detached command logs outside the retention window and
+ * schedules retained logs for their remaining lifetime. The Hub calls this at
+ * startup so cleanup survives daemon exits and restarts instead of depending
+ * only on timers created by the original process.
  */
 export async function cleanupStaleDetachedCommandLogs(
 	options: DetachedCommandLogCleanupOptions = {},
@@ -54,6 +77,7 @@ export async function cleanupStaleDetachedCommandLogs(
 	const retentionMs = resolveDetachedLogRetentionMs(options.retentionMs);
 	const nowMs = options.nowMs ?? Date.now();
 	const cutoffMs = nowMs - retentionMs;
+	const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
 	let entries: Dirent[];
 	try {
 		entries = await readdir(tempDirectory, { withFileTypes: true });
@@ -71,17 +95,48 @@ export async function cleanupStaleDetachedCommandLogs(
 		}
 		const directory = join(tempDirectory, entry.name);
 		try {
-			let modifiedAtMs: number;
-			try {
-				modifiedAtMs = (await stat(join(directory, DETACHED_LOG_FILENAME)))
-					.mtimeMs;
-			} catch {
-				modifiedAtMs = (await stat(directory)).mtimeMs;
+			const activeOwnerPath = join(directory, DETACHED_LOG_ACTIVE_FILENAME);
+			const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
+			const activeOwnerText = await readFile(activeOwnerPath, "utf8").catch(
+				() => undefined,
+			);
+			if (activeOwnerText !== undefined) {
+				const ownerPid = Number(activeOwnerText.trim());
+				if (checkProcessAlive(ownerPid)) {
+					// The executor process owns the log stream. A live owner can still
+					// append after an arbitrarily long silent period, so mtime is not a
+					// safe completion signal.
+					continue;
+				}
+				// The child never owns the log file descriptor; once its executor Hub
+				// is gone, future output cannot reach this file. Start the full
+				// retention window when the replacement Hub adopts the orphaned log.
+				await writeFile(completedAtPath, String(nowMs), "utf8");
+				await rm(activeOwnerPath, { force: true });
 			}
-			if (modifiedAtMs > cutoffMs) {
+
+			const completedAtText = await readFile(completedAtPath, "utf8").catch(
+				() => undefined,
+			);
+			const recordedCompletedAtMs = Number(completedAtText?.trim());
+			let retentionStartedAtMs = Number.isFinite(recordedCompletedAtMs)
+				? recordedCompletedAtMs
+				: undefined;
+			if (retentionStartedAtMs === undefined) {
+				// Legacy logs created before lifecycle markers use their last write as
+				// a best-effort fallback and are migrated by this cleanup pass.
+				try {
+					retentionStartedAtMs = (
+						await stat(join(directory, DETACHED_LOG_FILENAME))
+					).mtimeMs;
+				} catch {
+					retentionStartedAtMs = (await stat(directory)).mtimeMs;
+				}
+			}
+			if (retentionStartedAtMs > cutoffMs) {
 				scheduleDetachedLogCleanup(
 					directory,
-					Math.max(0, modifiedAtMs + retentionMs - nowMs),
+					Math.max(0, retentionStartedAtMs + retentionMs - nowMs),
 				);
 				continue;
 			}
@@ -239,6 +294,14 @@ function scheduleDetachedLogCleanup(
 function createDetachedLog(retentionMs: number) {
 	const directory = mkdtempSync(join(tmpdir(), DETACHED_LOG_DIRECTORY_PREFIX));
 	const path = join(directory, DETACHED_LOG_FILENAME);
+	const activeOwnerPath = join(directory, DETACHED_LOG_ACTIVE_FILENAME);
+	const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
+	try {
+		writeFileSync(activeOwnerPath, String(process.pid), "utf8");
+	} catch (error) {
+		rmSync(directory, { recursive: true, force: true });
+		throw error;
+	}
 	const stream = createWriteStream(path, { encoding: "utf8" });
 	let bytesWritten = 0;
 	let capped = false;
@@ -249,6 +312,17 @@ function createDetachedLog(retentionMs: number) {
 		closed = true;
 	});
 	stream.once("close", () => {
+		try {
+			writeFileSync(completedAtPath, String(Date.now()), "utf8");
+		} catch {
+			// The startup reaper can fall back to the output timestamp if the
+			// completion marker cannot be persisted.
+		}
+		try {
+			rmSync(activeOwnerPath, { force: true });
+		} catch {
+			// Cleanup remains best effort and must not surface from a stream event.
+		}
 		scheduleDetachedLogCleanup(directory, retentionMs);
 	});
 
