@@ -11,6 +11,7 @@ const {
 	mockResolveSharedHubOwnerContext,
 	mockReconnectDaemonConnectors,
 	mockStartHubWebSocketServer,
+	mockArmHubDaemonShutdownWatchdog,
 } = vi.hoisted(() => ({
 	mockCreateLocalHubScheduleRuntimeHandlers: vi.fn(() => ({
 		startSession: vi.fn(),
@@ -35,9 +36,12 @@ const {
 		discoveryPath: "/tmp/cline-data/locks/hub/owners/shared.json",
 	})),
 	mockReconnectDaemonConnectors: vi.fn(async () => []),
-	mockStartHubWebSocketServer: vi.fn(async () => ({
-		close: vi.fn(async () => undefined),
-	})),
+	mockStartHubWebSocketServer: vi.fn(
+		async (_options?: { onShutdownRequested?: () => void }) => ({
+			close: vi.fn(async () => undefined),
+		}),
+	),
+	mockArmHubDaemonShutdownWatchdog: vi.fn(),
 }));
 
 const {
@@ -96,6 +100,11 @@ vi.mock("./telemetry", () => ({
 	createHubDaemonTelemetry: mockCreateHubDaemonTelemetry,
 }));
 
+vi.mock("./shutdown-watchdog", () => ({
+	HUB_DAEMON_SHUTDOWN_DEADLINE_MS: 2_000,
+	armHubDaemonShutdownWatchdog: mockArmHubDaemonShutdownWatchdog,
+}));
+
 const originalArgv = [...process.argv];
 const originalCwd = process.cwd();
 
@@ -114,6 +123,7 @@ describe("hub daemon entry", () => {
 		mockResolveSharedHubOwnerContext.mockClear();
 		mockReconnectDaemonConnectors.mockClear();
 		mockStartHubWebSocketServer.mockClear();
+		mockArmHubDaemonShutdownWatchdog.mockClear();
 		mockCreateHubDaemonTelemetry.mockClear();
 		mockDaemonTelemetryDispose.mockClear();
 		for (const dir of tempDirs.splice(0)) {
@@ -186,6 +196,38 @@ describe("hub daemon entry", () => {
 		await vi.waitFor(() => {
 			expect(mockReconnectDaemonConnectors).toHaveBeenCalledOnce();
 		});
+	});
+
+	it("ends the daemon when an authorized shutdown arrives before startup completes", async () => {
+		const cwd = mkdtempSync(join(tmpdir(), "cline-hub-entry-test-"));
+		tempDirs.push(cwd);
+		process.argv = ["node", "entry.js", "--cwd", cwd];
+		vi.spyOn(process, "on").mockImplementation(() => process);
+		const exitSpy = vi
+			.spyOn(process, "exit")
+			.mockImplementation(() => undefined as never);
+
+		const close = vi.fn(async () => undefined);
+		mockStartHubWebSocketServer.mockImplementationOnce(async (options) => {
+			// A retiring caller can read the freshly written discovery record
+			// and POST /shutdown before startHubWebSocketServer resolves; a
+			// duplicate delivery (HTTP followed by SIGTERM) shares one gate.
+			options?.onShutdownRequested?.();
+			options?.onShutdownRequested?.();
+			// The watchdog must be armed by the request itself, not deferred
+			// until the daemon finishes starting up.
+			expect(mockArmHubDaemonShutdownWatchdog).toHaveBeenCalledTimes(1);
+			expect(exitSpy).not.toHaveBeenCalled();
+			return { close };
+		});
+
+		await import("./entry");
+		await vi.waitFor(() => {
+			expect(exitSpy).toHaveBeenCalledWith(0);
+		});
+		expect(close).toHaveBeenCalledTimes(1);
+		expect(mockArmHubDaemonShutdownWatchdog).toHaveBeenCalledTimes(1);
+		expect(mockDaemonTelemetryDispose).toHaveBeenCalled();
 	});
 
 	it("disposes telemetry and exits when server startup fails", async () => {

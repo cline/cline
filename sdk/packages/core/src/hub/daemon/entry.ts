@@ -90,17 +90,43 @@ async function main(): Promise<void> {
 
 	const daemonTelemetry = createHubDaemonTelemetry();
 
-	// Bound after `shutdown` is defined below. The daemon's lifetime is tied to
-	// its server, so an authorized HTTP `POST /shutdown` must end the process
-	// just like SIGTERM does — that route is how auto-update restarts and
-	// `cline hub stop` retire the hub, and neither sends a signal when the
-	// HTTP request succeeds.
-	let requestDaemonShutdown: () => void = () => {};
+	// The daemon's lifetime is tied to its server, so an authorized HTTP
+	// `POST /shutdown` must end the process just like SIGTERM does — that
+	// route is how auto-update restarts and `cline hub stop` retire the hub,
+	// and neither sends a signal when the HTTP request succeeds. The route is
+	// reachable with an authorized request the moment the discovery record is
+	// written, which happens before startHubWebSocketServer() resolves, so
+	// the exit path must exist before the server starts: an early request
+	// arms the exit watchdog immediately, and the rest of the teardown runs
+	// once the server handle is available. HTTP- and signal-delivered
+	// requests share this gate, so a caller that sends both (as
+	// retireDiscoveredHub does) runs a single teardown.
+	let shutdownStarted = false;
+	let completeShutdown: (() => void) | undefined;
+	const requestDaemonShutdown = (): void => {
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
+		// server.close() can stall forever (Bun never resolves it once a WebSocket
+		// upgrade happened), and with signal handlers installed nothing else will
+		// end the process — so the exit must not depend on the graceful path.
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 0,
+			onTimeout: () => {
+				process.stderr.write(
+					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
+				);
+			},
+		});
+		completeShutdown?.();
+	};
 
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
-			onShutdownRequested: () => requestDaemonShutdown(),
+			onShutdownRequested: requestDaemonShutdown,
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -129,38 +155,23 @@ async function main(): Promise<void> {
 	});
 	setActiveConnectorSupervisor(supervisor);
 
-	let shutdownStarted = false;
-	const shutdown = async (): Promise<void> => {
-		// A retiring caller can request shutdown more than once (the HTTP
-		// /shutdown route followed by SIGTERM); run the teardown only once.
-		if (shutdownStarted) {
-			return;
-		}
-		shutdownStarted = true;
-		// server.close() can stall forever (Bun never resolves it once a WebSocket
-		// upgrade happened), and with signal handlers installed nothing else will
-		// end the process — so the exit must not depend on the graceful path.
-		armHubDaemonShutdownWatchdog({
-			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-			exitCode: 0,
-			onTimeout: () => {
-				process.stderr.write(
-					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
-				);
-			},
-		});
-		// Stop supervising but leave the connectors running: they are detached on
-		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
-		// hub adopts them from their state files.
-		supervisor.dispose();
-		setActiveConnectorSupervisor(undefined);
-		await server.close();
-		await daemonTelemetry.dispose().catch(() => undefined);
-		process.exit(0);
+	completeShutdown = () => {
+		void (async () => {
+			// Stop supervising but leave the connectors running: they are detached on
+			// purpose so a hub restart does not disconnect Slack/Telegram, and the next
+			// hub adopts them from their state files.
+			supervisor.dispose();
+			setActiveConnectorSupervisor(undefined);
+			await server.close();
+			await daemonTelemetry.dispose().catch(() => undefined);
+			process.exit(0);
+		})();
 	};
-	requestDaemonShutdown = () => {
-		void shutdown();
-	};
+	if (shutdownStarted) {
+		// An authorized /shutdown landed while the server was still starting.
+		// The watchdog is already armed; finish the teardown now.
+		completeShutdown();
+	}
 
 	let fatalShutdownStarted = false;
 	const shutdownFatal = (label: string, error: unknown): void => {
@@ -202,10 +213,10 @@ async function main(): Promise<void> {
 	};
 
 	process.on("SIGINT", () => {
-		void shutdown();
+		requestDaemonShutdown();
 	});
 	process.on("SIGTERM", () => {
-		void shutdown();
+		requestDaemonShutdown();
 	});
 	process.on("uncaughtException", (error) => {
 		shutdownFatal("uncaughtException", error);
