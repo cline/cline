@@ -1,15 +1,11 @@
 "use client";
 
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
-import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
-	ArrowUp,
-	Brain,
-	CircleStop,
-	Cpu,
-	Paperclip,
-	X,
-} from "lucide-react";
+	CLINE_DEFAULT_MODEL_ID,
+	formatDisplayUserInput,
+} from "@cline/shared/browser";
+import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
+import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,6 +24,7 @@ import { useWorkspace } from "@/contexts/workspace-context";
 import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
+import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -80,6 +77,11 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+// Last known user commands, kept across composer instances so reopening the
+// slash menu paints instantly (stale-while-revalidate); the fetch that
+// follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
 
 export function buildUserInstructionSlashCommands(
 	response: UserInstructionConfigResponse,
@@ -250,7 +252,8 @@ type ChatInputBarProps = {
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
-	gitBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -282,7 +285,7 @@ type ChatInputBarProps = {
 	};
 };
 
-export function ChatInputBar({
+function ChatInputBarImpl({
 	variant = "conversation",
 	status,
 	provider,
@@ -409,7 +412,7 @@ export function ChatInputBar({
 		: null;
 	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
@@ -453,18 +456,22 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	// Focus the composer on mount/variant change and when text is injected
+	// from outside (quick actions, queue undo). Deliberately NOT on every
+	// keystroke: refocusing an already-focused textarea per keypress causes
+	// caret flicker and forced layout while typing.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input) return;
+		if (!input || document.activeElement === input) return;
+		// The textarea is controlled, so its live value mirrors promptInput;
+		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
 			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
+			(variant === "welcome" && input.value.trim().length > 0)
 		) {
 			input.focus();
 		}
-	}, [promptInput, variant]);
+	}, [variant]);
 
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
@@ -573,15 +580,18 @@ export function ChatInputBar({
 			return;
 		}
 		let cancelled = false;
-		setSlashLoading(true);
+		// Only show the loading row when there is nothing cached to show.
+		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
 			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
 			.then((response) => {
 				if (cancelled) return;
-				setSlashCommands([
+				const next = [
 					...BUILTIN_SLASH_COMMANDS,
 					...buildUserInstructionSlashCommands(response),
-				]);
+				];
+				cachedSlashCommands = next;
+				setSlashCommands(next);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -631,6 +641,19 @@ export function ChatInputBar({
 		[activeSlash, promptInput, setPromptInput],
 	);
 
+	// Queued prompts are stored in their runtime form (a /team command is
+	// persisted as its <user_command> envelope), so fold them back to the
+	// slash form for display and editing. Saving an edit re-resolves the
+	// slash form through the sidecar, so the round trip is lossless.
+	const displayPromptsInQueue = useMemo(
+		() =>
+			promptsInQueue.map((item) => ({
+				...item,
+				prompt: formatDisplayUserInput(item.prompt),
+			})),
+		[promptsInQueue],
+	);
+
 	return (
 		<div
 			className={cn(
@@ -643,7 +666,7 @@ export function ChatInputBar({
 			{/* Input area */}
 			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
 				<AgentPromptQueue
-					items={promptsInQueue}
+					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
@@ -736,7 +759,7 @@ export function ChatInputBar({
 					)}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
@@ -775,6 +798,15 @@ export function ChatInputBar({
 							}
 							onBlur={() => setPromptInputFocused(false)}
 							onFocus={() => setPromptInputFocused(true)}
+							onPaste={(e) => {
+								const images = imageFilesFromClipboard(e.clipboardData);
+								if (images.length > 0) {
+									// Attach the image instead of pasting its fallback
+									// text representation (e.g. a file path or URL).
+									e.preventDefault();
+									onAttachFiles(images);
+								}
+							}}
 							onKeyDown={(e) => {
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
@@ -1055,6 +1087,11 @@ export function ChatInputBar({
 	);
 }
 
+// Memoized: the chat pane re-renders on every stream flush (message deltas,
+// status, usage); the composer only cares about the props it receives, which
+// the pane keeps referentially stable.
+export const ChatInputBar = memo(ChatInputBarImpl);
+
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
@@ -1221,26 +1258,38 @@ const ModelSelector = memo(function ModelSelector({
 		});
 	}, []);
 
-	useEffect(() => {
-		setLastSelection((prev) => {
-			if (!normalizedProvider || !model) {
-				return prev;
+	// The remembered selection (what new sessions default to) is only written
+	// from the explicit picker handlers below. Mirroring every provider/model
+	// prop change here would also capture passive changes — most notably
+	// opening an existing session, whose config drives these props — silently
+	// replacing the user's chosen default with whatever model that session
+	// happened to use.
+	const rememberSelection = useCallback(
+		(providerId: string, modelId: string | undefined) => {
+			const normalizedId = normalizeProviderId(providerId);
+			if (!normalizedId) {
+				return;
 			}
-			if (
-				prev.lastProvider === normalizedProvider &&
-				prev.lastModelByProvider[normalizedProvider] === model
-			) {
-				return prev;
-			}
-			return {
-				lastProvider: normalizedProvider,
-				lastModelByProvider: {
-					...prev.lastModelByProvider,
-					[normalizedProvider]: model,
-				},
-			};
-		});
-	}, [model, normalizedProvider]);
+			setLastSelection((prev) => {
+				if (
+					prev.lastProvider === normalizedId &&
+					(!modelId || prev.lastModelByProvider[normalizedId] === modelId)
+				) {
+					return prev;
+				}
+				return {
+					lastProvider: normalizedId,
+					lastModelByProvider: modelId
+						? {
+								...prev.lastModelByProvider,
+								[normalizedId]: modelId,
+							}
+						: prev.lastModelByProvider,
+				};
+			});
+		},
+		[],
+	);
 
 	useEffect(() => {
 		try {
@@ -1301,17 +1350,13 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
-			if (
-				rememberedModel &&
-				providerModelIds.includes(rememberedModel) &&
-				rememberedModel !== model
-			) {
-				onModelChange(rememberedModel);
-				return;
-			}
-			const firstModel = providerModelIds[0];
-			if (firstModel && firstModel !== model) {
-				onModelChange(firstModel);
+			const nextModel =
+				rememberedModel && providerModelIds.includes(rememberedModel)
+					? rememberedModel
+					: providerModelIds[0];
+			rememberSelection(value, nextModel);
+			if (nextModel && nextModel !== model) {
+				onModelChange(nextModel);
 			}
 		},
 		[
@@ -1319,8 +1364,16 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			rememberSelection,
 			visibleProviderModels,
 		],
+	);
+	const handleModelSelect = useCallback(
+		(value: string) => {
+			rememberSelection(resolvedProvider, value);
+			onModelChange(value);
+		},
+		[onModelChange, rememberSelection, resolvedProvider],
 	);
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
@@ -1346,7 +1399,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || modelsForProvider.length === 0}
 			emptyText="No models found."
 			onValueChange={(value) => {
-				onModelChange(value);
+				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
 			options={modelsForProvider.map((value) => ({ label: value, value }))}
