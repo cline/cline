@@ -1,5 +1,12 @@
 # Cline SDK Changelog
 
+## 0.0.73
+
+- Fixed hosts reconnecting to stale managed Hub daemons: daemons now carry a runtime build fingerprint, so upgrading retires and respawns a daemon still running older code instead of attaching to it
+- Fixed compaction being silently skipped on reasoning models. The summarizer no longer hardcodes a 1024-token output cap — it honors an explicit max-output-tokens setting, defaults to 4096 (lowered when the model reports less), and logs a diagnostic when a summary comes back empty
+- Added Fable 5 (`claude-fable-5`) to the Vertex model catalog. Pricing is intentionally omitted because Vertex bills region-dependently, so cost shows as unknown rather than wrong
+- Custom Vertex model IDs are now passed through unchanged, routing Claude-style IDs to the Anthropic-on-Vertex path
+
 ## 0.0.72
 
 - Prompts queued during a turn now survive being interrupted: they are preserved across user-initiated aborts, drained after a turn aborts itself, and edits made to the queue inside the abort window are applied rather than lost. Stopping a session now has consistent full-stop semantics across hosts

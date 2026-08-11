@@ -99,8 +99,8 @@
 		}
 	},
 	"devDependencies": {
-		"@fontsource-variable/schibsted-grotesk": "^5.2.8",
-		"@fontsource/azeret-mono": "^5.2.9",
+		"@fontsource-variable/geist-mono": "^5.2.8",
+		"@fontsource-variable/inter": "^5.2.8",
 		"@storybook/addon-a11y": "^9.1.17",
 		"@storybook/addon-docs": "^9.1.17",
 		"@storybook/react-vite": "^9.1.6",

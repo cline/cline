@@ -5,7 +5,6 @@ import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
-	isHubProtocolCompatible,
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
@@ -17,12 +16,15 @@ import {
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
+	getManagedHubCompatibility,
 	type HubOwnerContext,
 	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubBuildId,
+	withHubStartupLock,
 	writeHubDiscovery,
 } from "../discovery";
 import {
@@ -68,7 +70,7 @@ function resolveDefaultHubOwnerContext() {
 }
 
 function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
-	return isHubProtocolCompatible(record).compatible;
+	return getManagedHubCompatibility(record, resolveHubBuildId()).compatible;
 }
 
 function withMatchingDiscoveryRetirementMetadata(
@@ -268,78 +270,9 @@ export function prewarmDetachedHubServer(
 	if (isHubDaemonProcess()) {
 		return;
 	}
-	const owner = resolveDefaultHubOwnerContext();
-	const resolvedEndpoint = resolveHubEndpointOptions(endpoint);
-	const expectedUrl = createHubServerUrl(
-		resolvedEndpoint.host,
-		resolvedEndpoint.port,
-		resolvedEndpoint.pathname,
-	);
-	const shouldUseFallbackPort =
-		endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
-	void retireLegacySharedHub(owner)
-		.catch(() => undefined)
-		.then(() => readHubDiscovery(owner.discoveryPath))
-		.then(async (discovered) => {
-			let retiredUnusableDiscovery = false;
-			if (discovered?.url) {
-				if (!discovered.authToken) {
-					retiredUnusableDiscovery = true;
-					const retired = await retireDiscoveredHub(
-						discovered,
-						owner.discoveryPath,
-					);
-					if (!retired && !shouldUseFallbackPort) {
-						return;
-					}
-				} else {
-					const healthy = await safeProbeHubServer(
-						discovered.url,
-						discovered.authToken,
-					);
-					if (
-						healthy?.url &&
-						isCompatibleHubRecord(healthy) &&
-						(await verifyHubConnection(healthy.url, {
-							authToken: discovered.authToken,
-						}))
-					) {
-						return;
-					}
-					if (healthy?.url) {
-						await retireIncompatibleHub(
-							{ ...healthy, authToken: discovered.authToken },
-							owner.discoveryPath,
-						);
-					} else {
-						await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
-					}
-				}
-			}
-			const expected = await safeProbeHubServer(expectedUrl);
-			if (expected?.url) {
-				if (isCompatibleHubRecord(expected)) {
-					if (!shouldUseFallbackPort || !retiredUnusableDiscovery) {
-						return;
-					}
-				} else {
-					const retiredExpected = await retireIncompatibleHub(
-						{ ...expected, authToken: undefined },
-						owner.discoveryPath,
-					);
-					if (!retiredExpected && !shouldUseFallbackPort) {
-						return;
-					}
-				}
-			}
-			const spawnEndpoint = shouldUseFallbackPort
-				? { ...resolvedEndpoint, port: 0 }
-				: resolvedEndpoint;
-			await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
-		})
-		.catch(() => {
-			// best-effort prewarm only
-		});
+	void ensureDetachedHubServer(workspaceRoot, endpoint).catch(() => {
+		// best-effort prewarm only
+	});
 }
 
 export interface DetachedHubResolution {
@@ -347,13 +280,13 @@ export interface DetachedHubResolution {
 	authToken: string;
 }
 
-export async function ensureDetachedHubServer(
+async function ensureDetachedHubServerLocked(
+	owner: HubOwnerContext,
 	workspaceRoot: string,
 	endpointOverrides: HubEndpointOverrides & {
 		allowPortFallback?: boolean;
 	} = {},
 ): Promise<DetachedHubResolution> {
-	const owner = resolveDefaultHubOwnerContext();
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
 		endpointOverrides.port !== undefined ||
@@ -533,4 +466,16 @@ export async function ensureDetachedHubServer(
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
 	throw new Error("Timed out waiting for detached hub startup.");
+}
+
+export async function ensureDetachedHubServer(
+	workspaceRoot: string,
+	endpointOverrides: HubEndpointOverrides & {
+		allowPortFallback?: boolean;
+	} = {},
+): Promise<DetachedHubResolution> {
+	const owner = resolveDefaultHubOwnerContext();
+	return await withHubStartupLock(owner.discoveryPath, async () =>
+		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
+	);
 }
