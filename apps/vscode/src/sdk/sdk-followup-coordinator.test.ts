@@ -511,9 +511,8 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
-		expect(sentPrompt).toContain("[TASK RESUMPTION]")
+		expect(sentPrompt).toBe("resolved: [TASK RESUMPTION] Please continue where you left off.")
 		expect(sentPrompt).not.toContain("Run the five terminal commands")
-		expect(sentPrompt).not.toContain("New instructions from the user")
 		// A bare resumption prompt is synthetic and must not render a user bubble.
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
