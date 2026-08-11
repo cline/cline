@@ -204,7 +204,7 @@ describe("hub server startup", () => {
 		expect(secondServer).not.toBe(firstServer);
 	});
 
-	it("does not reuse a server while its runtime teardown is pending", async () => {
+	it("waits for complete server close before starting a replacement", async () => {
 		const owner = createInMemoryHubOwnerContext(
 			"hub-server-test-closing-cache",
 		);
@@ -228,7 +228,18 @@ describe("hub server startup", () => {
 			} as never,
 		});
 		const firstServer = requireServer(first.server);
-		const closing = firstServer.close();
+		const closing = firstServer.beginClose();
+		let releaseCompleteClose!: () => void;
+		const completeCloseGate = new Promise<void>((resolve) => {
+			releaseCompleteClose = resolve;
+		});
+		const completeClose = Promise.all([closing.closed, completeCloseGate]).then(
+			() => undefined,
+		);
+		vi.spyOn(firstServer, "beginClose").mockReturnValue({
+			transportStopped: closing.transportStopped,
+			closed: completeClose,
+		});
 		await vi.waitFor(() => {
 			expect(dispose).toHaveBeenCalledOnce();
 		});
@@ -249,6 +260,11 @@ describe("hub server startup", () => {
 		expect(secondSubscribe).not.toHaveBeenCalled();
 
 		releaseDispose();
+		await closing.closed;
+		await Promise.resolve();
+		expect(secondSubscribe).not.toHaveBeenCalled();
+
+		releaseCompleteClose();
 		const second = await secondPromise;
 		const secondServer = requireServer(second.server);
 		servers.add(secondServer);
@@ -256,7 +272,6 @@ describe("hub server startup", () => {
 		expect(second.action).toBe("started");
 		expect(secondServer).not.toBe(firstServer);
 		expect(secondSubscribe).toHaveBeenCalledOnce();
-		await closing;
 	});
 
 	it("does not clear a replacement generation's discovery record", async () => {

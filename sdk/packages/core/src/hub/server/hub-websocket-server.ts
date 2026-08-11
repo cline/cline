@@ -411,19 +411,6 @@ export async function startHubWebSocketServer(
 		const discoveryRetired = transportStopped.then(async () => {
 			await clearHubDiscoveryIfOwned(owner.discoveryPath, hubId);
 		});
-		void transportStopped.then(
-			() => {
-				const shared = SHARED_SERVERS.get(owner.discoveryPath);
-				if (
-					shared &&
-					shared.server === exposedServer &&
-					shared.state === "closing"
-				) {
-					SHARED_SERVERS.delete(owner.discoveryPath);
-				}
-			},
-			() => undefined,
-		);
 		const closed = (async () => {
 			const closeResults = await Promise.allSettled([
 				webSocketClosed,
@@ -724,7 +711,10 @@ export async function ensureHubWebSocketServer(
 	if (existing) {
 		const server = await existing.promise;
 		if (existing.state === "closing") {
-			await server.beginClose().transportStopped;
+			// Runtime teardown alone does not release the HTTP endpoint. Keep the
+			// closing generation authoritative until its listener is also closed so
+			// a same-port replacement cannot race into EADDRINUSE or fallback.
+			await server.beginClose().closed;
 			if (SHARED_SERVERS.get(sharedKey) === existing) {
 				SHARED_SERVERS.delete(sharedKey);
 			}
