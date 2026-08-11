@@ -1003,6 +1003,14 @@ fn main() {
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
         .setup(|app| {
+            if tauri::is_dev() {
+                if let (Some(window), Some(product_name)) = (
+                    app.get_webview_window(MAIN_WINDOW_LABEL),
+                    app.config().product_name.as_deref(),
+                ) {
+                    window.set_title(product_name)?;
+                }
+            }
             #[cfg(target_os = "macos")]
             if let Err(error) = macos_notification::configure(app.handle()) {
                 eprintln!("[notification] setup failed: {error}");

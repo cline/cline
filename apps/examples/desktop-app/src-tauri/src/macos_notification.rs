@@ -5,9 +5,8 @@ use std::process::Command;
 use std::sync::OnceLock;
 use tauri::AppHandle;
 
-const DEV_BUNDLE_IDENTIFIER: &str = "bot.cline.app.dev";
-const DEV_APP_NAME: &str = "Cline Code";
 const DEV_APP_DIRECTORY: &str = "notification-identity";
+const DEV_BUNDLE_NAME: &str = "Cline Code.app";
 const LAUNCH_SERVICES_REGISTER: &str = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
 static CONFIGURATION: OnceLock<Result<(), String>> = OnceLock::new();
@@ -15,12 +14,10 @@ static CONFIGURATION: OnceLock<Result<(), String>> = OnceLock::new();
 pub fn configure(app: &AppHandle) -> Result<(), String> {
     CONFIGURATION
         .get_or_init(|| {
-            let identifier = if tauri::is_dev() {
-                register_dev_application()?;
-                DEV_BUNDLE_IDENTIFIER
-            } else {
-                app.config().identifier.as_str()
-            };
+            let identifier = app.config().identifier.as_str();
+            if tauri::is_dev() {
+                register_dev_application(app)?;
+            }
 
             notify_rust::set_application(identifier).map_err(|error| {
                 format!("failed configuring macOS notification application {identifier}: {error}")
@@ -29,11 +26,17 @@ pub fn configure(app: &AppHandle) -> Result<(), String> {
         .clone()
 }
 
-fn register_dev_application() -> Result<PathBuf, String> {
+fn register_dev_application(app: &AppHandle) -> Result<PathBuf, String> {
     let executable = tauri::utils::platform::current_exe()
         .map_err(|error| format!("failed resolving the app executable: {error}"))?;
     let icon = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("icons/icon.icns");
-    let bundle = create_dev_application_bundle(&executable, &icon)?;
+    let app_name = app
+        .config()
+        .product_name
+        .as_deref()
+        .ok_or_else(|| "the development app has no product name".to_string())?;
+    let bundle =
+        create_dev_application_bundle(&executable, &icon, &app.config().identifier, app_name)?;
     let output = Command::new(LAUNCH_SERVICES_REGISTER)
         .arg("-lint")
         .arg("-f")
@@ -54,13 +57,18 @@ fn register_dev_application() -> Result<PathBuf, String> {
     Ok(bundle)
 }
 
-fn create_dev_application_bundle(executable: &Path, icon: &Path) -> Result<PathBuf, String> {
+fn create_dev_application_bundle(
+    executable: &Path,
+    icon: &Path,
+    identifier: &str,
+    app_name: &str,
+) -> Result<PathBuf, String> {
     let executable_directory = executable
         .parent()
         .ok_or_else(|| "the app executable has no parent directory".to_string())?;
     let bundle = executable_directory
         .join(DEV_APP_DIRECTORY)
-        .join(format!("{DEV_APP_NAME}.app"));
+        .join(DEV_BUNDLE_NAME);
     let contents = bundle.join("Contents");
     let macos = contents.join("MacOS");
     let resources = contents.join("Resources");
@@ -103,13 +111,18 @@ fn create_dev_application_bundle(executable: &Path, icon: &Path) -> Result<PathB
 
     fs::copy(icon, resources.join("icon.icns"))
         .map_err(|error| format!("failed copying the development app icon: {error}"))?;
-    fs::write(contents.join("Info.plist"), dev_info_plist())
-        .map_err(|error| format!("failed writing the development app bundle metadata: {error}"))?;
+    fs::write(
+        contents.join("Info.plist"),
+        dev_info_plist(identifier, app_name),
+    )
+    .map_err(|error| format!("failed writing the development app bundle metadata: {error}"))?;
 
     Ok(bundle)
 }
 
-fn dev_info_plist() -> String {
+fn dev_info_plist(identifier: &str, app_name: &str) -> String {
+    let identifier = escape_plist_string(identifier);
+    let app_name = escape_plist_string(app_name);
     format!(
         r#"<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -118,17 +131,17 @@ fn dev_info_plist() -> String {
   <key>CFBundleDevelopmentRegion</key>
   <string>en</string>
   <key>CFBundleDisplayName</key>
-  <string>{DEV_APP_NAME}</string>
+  <string>{app_name}</string>
   <key>CFBundleExecutable</key>
   <string>cline-app</string>
   <key>CFBundleIconFile</key>
   <string>icon.icns</string>
   <key>CFBundleIdentifier</key>
-  <string>{DEV_BUNDLE_IDENTIFIER}</string>
+  <string>{identifier}</string>
   <key>CFBundleInfoDictionaryVersion</key>
   <string>6.0</string>
   <key>CFBundleName</key>
-  <string>{DEV_APP_NAME}</string>
+  <string>{app_name}</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
   <key>CFBundleShortVersionString</key>
@@ -141,6 +154,13 @@ fn dev_info_plist() -> String {
 </plist>
 "#
     )
+}
+
+fn escape_plist_string(value: &str) -> String {
+    value
+        .replace('&', "&amp;")
+        .replace('<', "&lt;")
+        .replace('>', "&gt;")
 }
 
 #[cfg(test)]
@@ -180,11 +200,17 @@ mod tests {
         fs::write(&executable, b"test executable").unwrap();
         fs::write(&icon, b"test icon").unwrap();
 
-        let bundle = create_dev_application_bundle(&executable, &icon).unwrap();
+        let bundle = create_dev_application_bundle(
+            &executable,
+            &icon,
+            "bot.cline.app.dev",
+            "Cline Code Dev",
+        )
+        .unwrap();
         let plist = fs::read_to_string(bundle.join("Contents/Info.plist")).unwrap();
 
         assert!(plist.contains("<string>bot.cline.app.dev</string>"));
-        assert!(plist.contains("<string>Cline Code</string>"));
+        assert!(plist.contains("<string>Cline Code Dev</string>"));
         assert_eq!(
             fs::read_link(bundle.join("Contents/MacOS/cline-app")).unwrap(),
             executable
