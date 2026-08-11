@@ -70,37 +70,15 @@ export interface ClineAccountOrganization {
 	roles: string[]
 }
 
-/**
- * Logout reason for telemetry (`user.auth_logged_out`).
- *
- * The reason vocabulary is shared with the legacy bundle so the same warehouse
- * query measures involuntary logouts across rollout variants.
- */
+/** Logout reason for telemetry (vocabulary shared with the legacy bundle) */
 export enum LogoutReason {
-	/** User explicitly clicked logout in the UI */
 	USER_INITIATED = "user_initiated",
-	/** Auth tokens were cleared in another VSCode window (cross-window sync) */
 	CROSS_WINDOW_SYNC = "cross_window_sync",
-	/**
-	 * @deprecated Never emitted by this bundle. The legacy bundle used it as a
-	 * catch-all that conflated startup-with-no-session with real involuntary
-	 * logouts. Kept so historical warehouse data stays interpretable.
-	 */
 	ERROR_RECOVERY = "error_recovery",
-	/**
-	 * Stored credentials were destroyed because the refresh token was rejected
-	 * (invalid grant — re-auth required). A real involuntary logout.
-	 */
+	/** Refresh token rejected as invalid/expired — a real involuntary logout */
 	TOKEN_INVALID = "token_invalid",
-	/**
-	 * Emitted only by the legacy bundle: activation with no stored Cline
-	 * session (not a logout). This bundle deliberately emits nothing on empty
-	 * startup; the value is listed here to document the shared vocabulary.
-	 */
-	NO_STORED_SESSION = "no_stored_session",
-	/** Restoring the stored session on activation threw an unexpected error */
+	/** Restoring the stored session on activation threw an error */
 	RESTORE_ERROR = "restore_error",
-	/** Unknown or unspecified reason */
 	UNKNOWN = "unknown",
 }
 
@@ -437,8 +415,7 @@ export class AuthService {
 				}
 				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
 				if (!newCredentials) {
-					// A null here means the refresh token was rejected (invalid grant);
-					// transient failures throw instead. This is a real involuntary logout.
+					// null means the refresh token was rejected (transient failures throw)
 					sdkDebug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
 					telemetryService.captureAuthLoggedOut("cline", LogoutReason.TOKEN_INVALID)
 					this._clineAuthInfo = null
@@ -997,9 +974,7 @@ export class AuthService {
 
 			const validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
 			if (!validCredentials) {
-				// A stored session existed but its refresh token was rejected
-				// (invalid grant); transient failures throw instead. A real
-				// involuntary logout.
+				// null means the stored refresh token was rejected (transient failures throw)
 				telemetryService.captureAuthLoggedOut("cline", LogoutReason.TOKEN_INVALID)
 				this._authenticated = false
 				this._clineAuthInfo = null
@@ -1049,9 +1024,6 @@ export class AuthService {
 				Logger.error("[SdkAuthService] Banner update failed after restore", error)
 			})
 		} catch (error) {
-			// Stored credentials are left intact (a later window may restore
-			// fine), but this window starts signed out — report it so restore
-			// failures are visible alongside the legacy bundle's restore_error.
 			Logger.error("[SdkAuthService] Error restoring auth token:", error)
 			telemetryService.captureAuthLoggedOut("cline", LogoutReason.RESTORE_ERROR)
 			this._authenticated = false

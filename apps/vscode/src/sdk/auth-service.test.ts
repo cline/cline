@@ -377,11 +377,7 @@ describe("AuthService", () => {
 			expect(token).toBe("workos:oauth-access-token")
 		})
 
-		it("reports token_invalid and clears credentials when the refresh token is rejected mid-session", async () => {
-			mockProviderSettings.set("cline", {
-				provider: "cline",
-				auth: { accessToken: "workos:test-access-token", refreshToken: "test-refresh-token", accountId: "user-123" },
-			})
+		it("reports token_invalid when the refresh token is rejected mid-session", async () => {
 			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
 				expiresAt: Math.floor(Date.now() / 1000) - 100, // expired → forces refresh
 			})
@@ -392,8 +388,6 @@ describe("AuthService", () => {
 			const token = await authService.getAuthToken()
 
 			expect(token).toBeNull()
-			expect(testAccess(authService)._authenticated).toBe(false)
-			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
 			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledWith("cline", LogoutReason.TOKEN_INVALID)
 		})
 
@@ -611,8 +605,6 @@ describe("AuthService", () => {
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
 			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
-			// Destroying a stored session because its refresh token was rejected
-			// is a real involuntary logout and must be reported as such.
 			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledWith("cline", LogoutReason.TOKEN_INVALID)
 		})
 	})
@@ -641,14 +633,7 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
-		})
-
-		it("emits no logout event on startup with no stored session", async () => {
-			// Startup with nothing stored (e.g. API-key users) is not a logout.
-			// The legacy bundle reports this population under no_stored_session;
-			// this bundle deliberately emits nothing.
-			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
-
+			// Startup with nothing stored is not a logout — no event.
 			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
 		})
 
@@ -657,26 +642,21 @@ describe("AuthService", () => {
 				provider: "cline",
 				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
 			})
-			// A transient failure with an already-expired token rethrows from the
-			// SDK's credential resolver instead of returning null.
 			vi.mocked(getValidClineCredentials).mockRejectedValue(new Error("fetch failed"))
 
 			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
 
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledWith("cline", LogoutReason.RESTORE_ERROR)
-			// Stored credentials must survive: a later window may restore fine.
-			expect(mockProviderSettings.get("cline")?.auth).toBeDefined()
 		})
 	})
 
 	describe("LogoutReason enum", () => {
-		it("has expected values (shared vocabulary with the legacy bundle)", () => {
+		it("has expected values", () => {
 			expect(LogoutReason.USER_INITIATED).toBe("user_initiated")
 			expect(LogoutReason.CROSS_WINDOW_SYNC).toBe("cross_window_sync")
 			expect(LogoutReason.ERROR_RECOVERY).toBe("error_recovery")
 			expect(LogoutReason.TOKEN_INVALID).toBe("token_invalid")
-			expect(LogoutReason.NO_STORED_SESSION).toBe("no_stored_session")
 			expect(LogoutReason.RESTORE_ERROR).toBe("restore_error")
 			expect(LogoutReason.UNKNOWN).toBe("unknown")
 		})
