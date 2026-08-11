@@ -177,11 +177,7 @@ export class StreamableHttpReconnectHandler {
 			// client/transport/authProvider for when the user authenticates,
 			// and displacing it would orphan that session.
 			const existing = this.callbacks.findConnection()
-			if (
-				existing &&
-				existing !== connection &&
-				(existing.server.status !== "disconnected" || existing.server.oauthRequired)
-			) {
+			if (existing && existing !== connection && (existing.server.status !== "disconnected" || existing.server.oauthRequired)) {
 				Logger.log(
 					`StreamableHTTP reconnect aborted for "${this.serverName}": ` +
 						`another path installed a replacement connection (status: ${existing.server.status})`,
