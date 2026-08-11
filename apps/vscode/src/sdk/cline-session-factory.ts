@@ -916,6 +916,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
+	const enableXmlToolCalling = stateManager.getGlobalSettingsKey("enableXmlToolCalling") ?? false
 
 	// Core resolves providers against the SDK registry, which uses the SDK's
 	// own provider id spelling (e.g. "openai-compatible" rather than the
@@ -996,6 +997,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 				}
 			: {}),
 		disableMcpSettingsTools: true,
+		...(enableXmlToolCalling ? { toolCallingMode: "xml" as const } : {}),
 		mode: mode === "plan" ? "plan" : "act",
 		...reasoningConfig,
 		...(maxTokensPerTurn !== undefined ? { maxTokensPerTurn } : {}),

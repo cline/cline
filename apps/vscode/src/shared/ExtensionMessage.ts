@@ -117,6 +117,7 @@ export interface ExtensionState {
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
 	useAutoCondense?: boolean
+	enableXmlToolCalling?: boolean
 	compactionStrategy?: string
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting

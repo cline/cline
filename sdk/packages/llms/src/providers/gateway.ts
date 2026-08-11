@@ -45,6 +45,12 @@ function normalizeReasoningBudgetTokens(value: unknown): number | undefined {
 		: undefined;
 }
 
+function normalizeToolCallingMode(
+	value: unknown,
+): GatewayStreamRequest["toolCallingMode"] {
+	return value === "native" || value === "xml" ? value : undefined;
+}
+
 function normalizeRequestedReasoning(
 	value: unknown,
 ): GatewayStreamRequest["reasoning"] {
@@ -161,6 +167,9 @@ class GatewayModelAdapter implements AgentModel {
 			maxTokens:
 				(request.options?.maxTokens as number | undefined) ??
 				this.defaults?.maxTokens,
+			toolCallingMode:
+				normalizeToolCallingMode(request.options?.toolCallingMode) ??
+				this.defaults?.toolCallingMode,
 			metadata: mergeRequestMetadata(
 				this.defaults?.metadata,
 				request.options?.metadata as Record<string, unknown> | undefined,

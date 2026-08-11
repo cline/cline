@@ -42,6 +42,7 @@ export async function getStateToPostToWebview(controller: {
 	const preferredLanguage = stateManager.getGlobalSettingsKey("preferredLanguage")
 	const mode = stateManager.getGlobalSettingsKey("mode")
 	const useAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense")
+	const enableXmlToolCalling = stateManager.getGlobalSettingsKey("enableXmlToolCalling")
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const subagentsEnabled = stateManager.getGlobalSettingsKey("subagentsEnabled")
 	const userInfo = stateManager.getGlobalStateKey("userInfo")
@@ -119,6 +120,7 @@ export async function getStateToPostToWebview(controller: {
 		preferredLanguage,
 		mode,
 		useAutoCondense,
+		enableXmlToolCalling,
 		compactionStrategy,
 		subagentsEnabled,
 		userInfo,

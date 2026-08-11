@@ -298,6 +298,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		useAutoCondense: true,
+		enableXmlToolCalling: false,
 		compactionStrategy: "basic",
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },

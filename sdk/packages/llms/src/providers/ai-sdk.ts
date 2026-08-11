@@ -59,6 +59,7 @@ import type {
 	AiSdkStreamUsage,
 	ProviderFactoryResult,
 } from "./vendors/types";
+import { applyToolCallingMode } from "./xml-tool-calling";
 
 interface GatewayNormalizedUsage {
 	inputTokens: number;
@@ -1325,8 +1326,15 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					},
 				});
 				stream = streamText({
+					// XML tool calling wraps the model with a parsing middleware;
+					// native mode passes the provider's model through untouched.
+					// Empty-response retry stays outermost so each retry re-runs
+					// the full pipeline, including the XML translation.
 					model: withEmptyResponseRetry(
-						provider.model(context.model.id),
+						applyToolCallingMode(
+							provider.model(context.model.id),
+							request.toolCallingMode,
+						),
 						provider.retryEmptyResponses,
 						context.logger,
 					) as never,

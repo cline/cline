@@ -13,6 +13,7 @@ import {
 	type AgentModelEvent,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type GatewayStreamRequest,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
@@ -441,6 +442,110 @@ describe("sdk-gateway", () => {
 				messages: baseMessages,
 			}),
 		);
+	});
+
+	it("passes toolCallingMode through to the provider untouched", async () => {
+		// XML tool calling is implemented as an AI SDK model middleware inside
+		// the shared ai-sdk provider path (see providers/xml-tool-calling.ts);
+		// the gateway's job is only to deliver the mode on the request.
+		let providerRequest: GatewayStreamRequest | undefined;
+		const createProvider = vi.fn(() => ({
+			async *stream(request: GatewayStreamRequest) {
+				providerRequest = request;
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom",
+						name: "Custom",
+						defaultModelId: "alpha",
+						models: [{ id: "alpha", name: "Alpha", providerId: "custom" }],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		const model = gateway.createAgentModel({
+			providerId: "custom",
+			modelId: "alpha",
+		});
+		const tools = [
+			{
+				name: "read_file",
+				description: "Read a file.",
+				inputSchema: {
+					type: "object",
+					properties: { path: { type: "string" } },
+					required: ["path"],
+				},
+			},
+		];
+		await collect(
+			await model.stream({
+				systemPrompt: "You are Cline.",
+				messages: baseMessages,
+				tools,
+				options: { toolCallingMode: "xml" },
+			}),
+		);
+
+		expect(providerRequest?.toolCallingMode).toBe("xml");
+		// The gateway no longer rewrites the request; tool schemas and the
+		// system prompt reach the provider intact and the middleware inside
+		// the provider's model does the translation.
+		expect(providerRequest?.tools).toEqual(tools);
+		expect(providerRequest?.systemPrompt).toBe("You are Cline.");
+	});
+
+	it("leaves native tool-calling requests untranslated", async () => {
+		let providerRequest: GatewayStreamRequest | undefined;
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom",
+						name: "Custom",
+						defaultModelId: "alpha",
+						models: [{ id: "alpha", name: "Alpha", providerId: "custom" }],
+					},
+					createProvider: () => ({
+						async *stream(request: GatewayStreamRequest) {
+							providerRequest = request;
+							yield {
+								type: "finish",
+								reason: "stop",
+							} satisfies AgentModelEvent;
+						},
+					}),
+				},
+			],
+		});
+
+		const tools = [
+			{
+				name: "read_file",
+				description: "Read a file.",
+				inputSchema: { type: "object" },
+			},
+		];
+		await collect(
+			await gateway.stream({
+				providerId: "custom",
+				modelId: "alpha",
+				systemPrompt: "You are Cline.",
+				messages: baseMessages,
+				tools,
+			}),
+		);
+
+		expect(providerRequest?.tools).toEqual(tools);
+		expect(providerRequest?.systemPrompt).toBe("You are Cline.");
 	});
 
 	it("keeps custom provider loading lazy until first use", async () => {

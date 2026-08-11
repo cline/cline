@@ -389,6 +389,19 @@ function reasoningWasRequestedOff(request: AgentModelRequest): boolean {
 	return request.options?.thinking === false;
 }
 
+/**
+ * Max consecutive corrective reminders sent when XML tool calling produces a
+ * turn with no runnable call, so a model that never complies can't loop.
+ */
+const MAX_XML_TOOL_CORRECTIONS = 2;
+
+/**
+ * Corrective reminder for XML tool calling when the model referenced a tool
+ * but no runnable call could be parsed from its reply.
+ */
+const XML_TOOL_CORRECTION_REMINDER =
+	"[SYSTEM] Your reply did not include a runnable tool call. If you intended to use a tool, reply again with the tool call written exactly in the documented XML format: the tool's tag wrapping its parameter tags, not inside a code fence, with nothing after it. If the task is fully complete instead, reply with only your final answer.";
+
 function textFromMessage(message: AgentMessage | undefined): string {
 	if (!message) {
 		return "";
@@ -458,6 +471,8 @@ export class AgentRuntime {
 		pendingToolCalls: [] as string[],
 		usage: cloneUsage(DEFAULT_USAGE),
 		lastError: undefined as string | undefined,
+		/** Consecutive XML-mode corrections sent (reset when a tool runs). */
+		xmlToolCorrectionCount: 0,
 		lastErrorClass: undefined as ProviderErrorClass | undefined,
 		/**
 		 * Whether the model layer already recorded `sdk.error` telemetry for
@@ -633,6 +648,39 @@ export class AgentRuntime {
 		].filter((message): message is string => Boolean(message));
 	}
 
+	/**
+	 * XML tool calling only (`modelOptions.toolCallingMode === "xml"`): when a
+	 * turn produced no runnable tool call but the assistant text references one
+	 * of the registered tools — the typical shape of a weak model narrating an
+	 * action or writing a malformed call the parser could not recover — return
+	 * a corrective reminder instead of letting the run silently end. Capped by
+	 * `MAX_XML_TOOL_CORRECTIONS` (reset whenever a tool actually runs) so a
+	 * model that never complies cannot loop; plain replies that don't mention
+	 * any tool complete the run exactly like native mode.
+	 */
+	private getXmlToolCorrectionReminder(
+		assistantMessage: AgentMessage,
+	): string | undefined {
+		if (this.config.modelOptions?.toolCallingMode !== "xml") {
+			return undefined;
+		}
+		if (this.state.xmlToolCorrectionCount >= MAX_XML_TOOL_CORRECTIONS) {
+			return undefined;
+		}
+		const text = textFromMessage(assistantMessage);
+		if (!text) {
+			return undefined;
+		}
+		const mentionsTool = [...this.tools.keys()].some((name) =>
+			text.includes(name),
+		);
+		if (!mentionsTool) {
+			return undefined;
+		}
+		this.state.xmlToolCorrectionCount += 1;
+		return XML_TOOL_CORRECTION_REMINDER;
+	}
+
 	private async addUserReminderMessage(text: string): Promise<AgentMessage> {
 		const reminderMessage = createMessage("user", [{ type: "text", text }], {
 			userRunSpan: 0,
@@ -658,6 +706,7 @@ export class AgentRuntime {
 		this.state.iteration = 0;
 		this.state.pendingToolCalls = [];
 		this.state.lastError = undefined;
+		this.state.xmlToolCorrectionCount = 0;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
@@ -743,6 +792,11 @@ export class AgentRuntime {
 						iteration: this.state.iteration,
 						toolCallCount: 0,
 					});
+					const xmlCorrection = this.getXmlToolCorrectionReminder(message);
+					if (xmlCorrection) {
+						await this.addUserReminderMessage(xmlCorrection);
+						continue;
+					}
 					const completionReminderMessages =
 						this.getCompletionReminderMessages();
 					if (completionReminderMessages.length > 0) {
@@ -761,6 +815,7 @@ export class AgentRuntime {
 					return result;
 				}
 
+				this.state.xmlToolCorrectionCount = 0;
 				const toolMessages = await this.executeToolCalls(toolCalls);
 				this.state.pendingToolCalls = [];
 				for (const toolMessage of toolMessages) {
