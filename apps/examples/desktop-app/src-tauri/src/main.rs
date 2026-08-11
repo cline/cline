@@ -1,5 +1,8 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+#[cfg(target_os = "macos")]
+mod macos_notification;
+
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
@@ -871,13 +874,7 @@ fn show_session_notification(
     }
 
     #[cfg(target_os = "macos")]
-    {
-        let _ = notify_rust::set_application(if tauri::is_dev() {
-            "com.apple.Terminal"
-        } else {
-            &app.config().identifier
-        });
-    }
+    macos_notification::configure(&app)?;
 
     // The Tauri plugin provides permission and platform registration, but its
     // desktop send command drops the native response handle. Retain that handle
@@ -1006,6 +1003,10 @@ fn main() {
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopActionState::default())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            if let Err(error) = macos_notification::configure(app.handle()) {
+                eprintln!("[notification] setup failed: {error}");
+            }
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
