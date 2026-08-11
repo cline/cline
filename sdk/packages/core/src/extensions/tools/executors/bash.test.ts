@@ -1,10 +1,11 @@
 import { spawnSync } from "node:child_process";
 import { access, copyFile, mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { AgentToolContext } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { CommandExitError, createShellExecutor } from "./bash";
+import { RunCommandExecutionController } from "./run-command-execution-controller";
 
 const ctx: AgentToolContext = {
 	agentId: "agent-1",
@@ -31,6 +32,111 @@ describe("createShellExecutor", () => {
 		const shell = createShellExecutor();
 		const output = await shell("echo hello", process.cwd(), ctx);
 		expect(output.trim()).toBe("hello");
+	});
+
+	it("streams stdout and stderr with ANSI escapes before completion", async () => {
+		const updates: Array<Record<string, unknown>> = [];
+		let resolveBothStreams: (() => void) | undefined;
+		const bothStreams = new Promise<void>((resolve) => {
+			resolveBothStreams = resolve;
+		});
+		let completed = false;
+		const shell = createShellExecutor({ timeoutMs: 2_000 });
+		const execution = shell(
+			{
+				command: process.execPath,
+				args: [
+					"-e",
+					"process.stdout.write('\\u001b[31mred\\u001b[0m'); process.stderr.write('\\u001b[33mwarn\\u001b[0m'); setTimeout(() => {}, 150)",
+				],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				emitUpdate: (update) => {
+					updates.push(update as Record<string, unknown>);
+					const chunks = updates.filter(
+						(item) => typeof item.chunk === "string" && item.chunk.length > 0,
+					);
+					if (
+						chunks.some((item) => item.stream === "stdout") &&
+						chunks.some((item) => item.stream === "stderr")
+					) {
+						resolveBothStreams?.();
+					}
+				},
+			},
+		).finally(() => {
+			completed = true;
+		});
+
+		await bothStreams;
+		expect(completed).toBe(false);
+		expect(updates).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					stream: "stdout",
+					chunk: "\u001b[31mred\u001b[0m",
+				}),
+				expect.objectContaining({
+					stream: "stderr",
+					chunk: "\u001b[33mwarn\u001b[0m",
+				}),
+			]),
+		);
+		await execution;
+	});
+
+	it("releases a detachable command while it continues in the background", async () => {
+		const controller = new RunCommandExecutionController();
+		let resolveStarted: (() => void) | undefined;
+		const started = new Promise<void>((resolve) => {
+			resolveStarted = resolve;
+		});
+		const shell = createShellExecutor({
+			timeoutMs: 2_000,
+			executionController: controller,
+		});
+		const execution = shell(
+			{
+				command: process.execPath,
+				args: [
+					"-e",
+					"process.stdout.write('started\\n'); setTimeout(() => process.stdout.write('finished\\n'), 100)",
+				],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				sessionId: "session-detach",
+				toolCallId: "call-detach",
+				emitUpdate: (update) => {
+					const payload = update as Record<string, unknown>;
+					if (payload.chunk === "started\n") resolveStarted?.();
+				},
+			},
+		);
+
+		await started;
+		expect(controller.proceedWhileRunning("session-detach", "other-call")).toBe(
+			0,
+		);
+		expect(
+			controller.proceedWhileRunning("session-detach", "call-detach"),
+		).toBe(1);
+		const result = await execution;
+		expect(result).toContain("Command is still running");
+		expect(result).toContain("started");
+		expect(result).toMatch(/cline-command-.*output\.log/);
+		const logPath = result.match(/Output will continue in (.+)]/)?.[1];
+		if (!logPath) throw new Error("Expected detached command log path");
+		try {
+			expect(await fileExists(dirname(logPath))).toBe(true);
+			await new Promise((resolve) => setTimeout(resolve, 150));
+			expect(await fileExists(logPath)).toBe(true);
+		} finally {
+			await rm(dirname(logPath), { recursive: true, force: true });
+		}
 	});
 
 	it("rejects on non-zero exit code", async () => {

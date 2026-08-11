@@ -20,7 +20,10 @@ import {
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
-import { DefaultToolNames } from "../../extensions/tools";
+import {
+	DefaultToolNames,
+	RunCommandExecutionController,
+} from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -249,6 +252,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
+	private readonly runCommandExecutionController =
+		new RunCommandExecutionController();
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -569,9 +574,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build(
-			bootstrap.runtimeBuilderInput,
-		);
+		const runtime = await this.runtimeBuilder.build({
+			...bootstrap.runtimeBuilderInput,
+			runCommandExecutionController: this.runCommandExecutionController,
+		});
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -1089,6 +1095,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.pendingPromptsController.discardQueue(session);
 		}
 		session.agent.abort(reason);
+	}
+
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		return this.runCommandExecutionController.proceedWhileRunning(
+			sessionId,
+			toolCallId,
+		);
 	}
 
 	async stopSession(sessionId: string): Promise<void> {

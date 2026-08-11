@@ -61,6 +61,26 @@ export function formatToolValue(value: unknown): string {
 	}
 }
 
+export function extractRunCommandOutput(value: unknown): string {
+	const normalized = normalizeDisplayValue(value);
+	if (typeof normalized === "string") return normalized;
+	const records = Array.isArray(normalized)
+		? normalized.map(asRecord).filter((record) => record !== null)
+		: [asRecord(normalized)].filter((record) => record !== null);
+	const includeCommand = records.length > 1;
+	return records
+		.map((record) => {
+			const result = recordString(record, "result");
+			const error = recordString(record, "error");
+			const output = result || error;
+			if (!output) return "";
+			const query = recordString(record, "query");
+			return includeCommand && query ? `$ ${query}\n${output}` : output;
+		})
+		.filter(Boolean)
+		.join("\n\n");
+}
+
 export function parseToolPayload(raw: string): ToolPayload | null {
 	try {
 		return JSON.parse(raw) as ToolPayload;

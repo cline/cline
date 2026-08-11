@@ -5,6 +5,10 @@
  */
 
 import { spawn } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { createWriteStream, mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 import {
 	type AgentToolContext,
@@ -17,6 +21,9 @@ import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	truncateCommandOutput,
 } from "./output-limits";
+import type { RunCommandExecutionController } from "./run-command-execution-controller";
+
+const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 
 export class CommandExitError extends Error {
 	constructor(
@@ -70,6 +77,12 @@ export interface ShellExecutorOptions {
 	 * @default true
 	 */
 	combineOutput?: boolean;
+
+	/**
+	 * Optional host-scoped controller that can release an in-flight command
+	 * from its tool call while continuing to drain output to a bounded log.
+	 */
+	executionController?: RunCommandExecutionController;
 }
 
 interface SpawnConfig {
@@ -107,19 +120,76 @@ function createRollingCollector(maxChars: number) {
 	};
 
 	return {
-		append(data: Buffer): void {
-			appendText(decoder.write(data));
+		append(data: Buffer): string {
+			const text = decoder.write(data);
+			appendText(text);
+			return text;
 		},
-		snapshot() {
-			// Flush bytes the decoder buffered for an incomplete multibyte
-			// sequence at end-of-stream; otherwise the final characters of
-			// non-ASCII output are silently dropped.
-			appendText(decoder.end());
+		current() {
 			return {
 				text: head + tail,
 				totalChars,
 				dropped: totalChars > head.length + tail.length,
 			};
+		},
+		snapshot() {
+			// Flush bytes the decoder buffered for an incomplete multibyte
+			// sequence at end-of-stream; otherwise the final characters of
+			// non-ASCII output are silently dropped.
+			const finalChunk = decoder.end();
+			appendText(finalChunk);
+			return {
+				text: head + tail,
+				totalChars,
+				dropped: totalChars > head.length + tail.length,
+				finalChunk,
+			};
+		},
+	};
+}
+
+function createDetachedLog() {
+	const directory = mkdtempSync(join(tmpdir(), "cline-command-"));
+	const path = join(directory, "output.log");
+	const stream = createWriteStream(path, { encoding: "utf8" });
+	let bytesWritten = 0;
+	let capped = false;
+	let closed = false;
+	stream.on("error", () => {
+		// The detached command has already released its caller. A late log write
+		// failure must not become an unhandled stream error in the hub process.
+		closed = true;
+	});
+
+	return {
+		path,
+		write(text: string): void {
+			if (!text || capped || closed) return;
+			const remaining = MAX_DETACHED_LOG_BYTES - bytesWritten;
+			if (remaining <= 0) {
+				capped = true;
+				closed = true;
+				stream.end();
+				return;
+			}
+			const data = Buffer.from(text, "utf8");
+			const accepted =
+				data.length <= remaining ? data : data.subarray(0, remaining);
+			stream.write(accepted);
+			bytesWritten += accepted.length;
+			if (
+				accepted.length < data.length ||
+				bytesWritten >= MAX_DETACHED_LOG_BYTES
+			) {
+				capped = true;
+				closed = true;
+				stream.end();
+			}
+		},
+		close(): void {
+			if (closed) return;
+			closed = true;
+			stream.end();
 		},
 	};
 }
@@ -130,6 +200,7 @@ function spawnAndCollect(
 	timeoutMs: number,
 	maxOutputChars: number,
 	combineOutput: boolean,
+	executionController?: RunCommandExecutionController,
 ): Promise<string> {
 	if (context.signal?.aborted) {
 		return Promise.reject(new Error("Command was aborted"));
@@ -151,8 +222,13 @@ function spawnAndCollect(
 
 		const stdout = createRollingCollector(maxOutputChars);
 		const stderr = createRollingCollector(maxOutputChars);
+		const executionId = randomUUID();
+		const detachable = Boolean(executionController && context.sessionId);
 		let killed = false;
 		let settled = false;
+		let detached = false;
+		let detachedLog: ReturnType<typeof createDetachedLog> | undefined;
+		let unregisterExecution = () => {};
 
 		const settle = (fn: () => void) => {
 			if (settled) return;
@@ -211,6 +287,7 @@ function spawnAndCollect(
 		const cleanup = () => {
 			clearTimeout(timeout);
 			context.signal?.removeEventListener("abort", abortHandler);
+			unregisterExecution();
 		};
 		const killAndReject = (error: Error) => {
 			if (killed || settled) return;
@@ -232,20 +309,115 @@ function spawnAndCollect(
 			if (context.signal.aborted) abortHandler();
 		}
 
+		const detach = (): boolean => {
+			if (!detachable || killed || settled) return false;
+			const log = createDetachedLog();
+			detached = true;
+			detachedLog = log;
+			const currentOut = stdout.current();
+			const currentErr = stderr.current();
+			detachedLog.write(currentOut.text);
+			if (currentErr.text) {
+				detachedLog.write(`\n[stderr]\n${currentErr.text}`);
+			}
+			cleanup();
+			child.unref();
+			(
+				child.stdout as (typeof child.stdout & { unref?: () => void }) | null
+			)?.unref?.();
+			(
+				child.stderr as (typeof child.stderr & { unref?: () => void }) | null
+			)?.unref?.();
+			const notice = [
+				`[Command is still running. Output will continue in ${detachedLog.path}]`,
+				combineOutput
+					? currentOut.text +
+						(currentErr.text ? `\n[stderr]\n${currentErr.text}` : "")
+					: currentOut.text,
+			]
+				.filter(Boolean)
+				.join("\n");
+			settle(() => resolve(notice));
+			return true;
+		};
+
+		child.once("spawn", () => {
+			if (killed) return;
+			if (detachable && context.sessionId && executionController) {
+				unregisterExecution = executionController.register({
+					executionId,
+					sessionId: context.sessionId,
+					toolCallId: context.toolCallId,
+					detach,
+				});
+			}
+			context.emitUpdate?.({
+				stream: "stdout",
+				chunk: "",
+				executionId,
+				detachable,
+			});
+		});
+
 		child.stdout?.on("data", (data: Buffer) => {
-			stdout.append(data);
+			const chunk = stdout.append(data);
+			if (!chunk) return;
+			if (detached) {
+				detachedLog?.write(chunk);
+				return;
+			}
+			context.emitUpdate?.({
+				stream: "stdout",
+				chunk,
+				executionId,
+				detachable,
+			});
 		});
 
 		child.stderr?.on("data", (data: Buffer) => {
-			stderr.append(data);
+			const chunk = stderr.append(data);
+			if (!chunk) return;
+			if (detached) {
+				detachedLog?.write(chunk);
+				return;
+			}
+			context.emitUpdate?.({
+				stream: "stderr",
+				chunk,
+				executionId,
+				detachable,
+			});
 		});
 
 		child.on("close", (code) => {
-			cleanup();
 			if (killed) return;
 
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
+			if (detached) {
+				detachedLog?.write(out.finalChunk);
+				detachedLog?.write(err.finalChunk);
+				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
+				detachedLog?.close();
+				return;
+			}
+			cleanup();
+			if (out.finalChunk) {
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: out.finalChunk,
+					executionId,
+					detachable,
+				});
+			}
+			if (err.finalChunk) {
+				context.emitUpdate?.({
+					stream: "stderr",
+					chunk: err.finalChunk,
+					executionId,
+					detachable,
+				});
+			}
 
 			if (code !== 0) {
 				const exitCode = code ?? 1;
@@ -286,8 +458,13 @@ function spawnAndCollect(
 		});
 
 		child.on("error", (error) => {
-			cleanup();
 			if (killed) return;
+			if (detached) {
+				detachedLog?.write(`\n[Command failed: ${error.message}]\n`);
+				detachedLog?.close();
+				return;
+			}
+			cleanup();
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),
 			);
@@ -324,6 +501,7 @@ export function createShellExecutor(
 		timeoutMs = 30000,
 		env = {},
 		combineOutput = true,
+		executionController,
 	} = options;
 	const maxOutputChars =
 		options.maxOutputChars ??
@@ -347,6 +525,7 @@ export function createShellExecutor(
 			timeoutMs,
 			maxOutputChars,
 			combineOutput,
+			executionController,
 		);
 	};
 }
