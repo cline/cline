@@ -112,7 +112,7 @@ export function createPlanModeCommandGuardExtension(
 			tool_call_id: context.toolCall.toolCallId,
 		});
 		return {
-			reason: formatPlanModeBlockedEditToolError(blocked),
+			reason: formatPlanModeBlockedEditToolError(),
 		};
 	};
 

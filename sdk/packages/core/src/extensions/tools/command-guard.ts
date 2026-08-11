@@ -565,10 +565,14 @@ export function findBlockedEditToolName(toolName: string): string | undefined {
  * as a transient formatting failure. Explicitly rules out the two escalations
  * observed in the wild: retrying with different arguments, and switching to
  * other tools (e.g. MCP file writers) to make the edit anyway.
+ *
+ * Deliberately does not name the attempted tool: some blocked names never
+ * exist in any mode (they come from other harnesses), and echoing them back
+ * as tools that "modify files" would confirm a tool that isn't real.
  */
-export function formatPlanModeBlockedEditToolError(toolName: string): string {
+export function formatPlanModeBlockedEditToolError(): string {
 	return (
-		`Tool not executed: \`${toolName}\` modifies files, and file modifications are blocked in plan mode. ` +
+		"Tool not executed: file modifications are blocked in plan mode. " +
 		"You are in PLAN MODE — explore, analyze, and present a plan; do not make changes. " +
 		"This is not an input formatting error, so do not retry the call with different arguments, " +
 		"and do not use other tools (including MCP tools) to modify files or state while planning. " +

@@ -235,6 +235,9 @@ describe("plan-mode command-guard extension", () => {
 			expect(result?.reason).toContain("PLAN MODE");
 			expect(result?.reason).toContain("blocked in plan mode");
 			expect(result?.reason).toContain("not an input formatting error");
+			// Never echo the attempted name back as a real file-editing tool:
+			// some blocked names do not exist in any mode.
+			expect(result?.reason).not.toContain(toolName);
 		});
 
 		it("matches edit-tool names case-insensitively", async () => {
@@ -244,7 +247,7 @@ describe("plan-mode command-guard extension", () => {
 				makeUnknownToolContext("Write_To_File"),
 			);
 
-			expect(result?.reason).toContain("`write_to_file`");
+			expect(result?.reason).toContain("blocked in plan mode");
 		});
 
 		it("leaves unrelated unknown tools to the default error", async () => {
