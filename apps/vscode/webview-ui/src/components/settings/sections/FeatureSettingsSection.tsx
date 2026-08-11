@@ -43,7 +43,8 @@ const agentFeatures: FeatureToggle[] = [
 	{
 		id: "native-tool-call",
 		label: "Native Tool Call",
-		description: "Use native function calling when available",
+		description:
+			"Use native function calling when available. Turning this off can make GPT-5 and other frontier models refuse to use tools.",
 		stateKey: "nativeToolCallSetting",
 		settingKey: "nativeToolCallEnabled",
 	},

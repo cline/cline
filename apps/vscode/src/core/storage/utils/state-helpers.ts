@@ -19,6 +19,43 @@ import { StateManager } from "../StateManager"
 
 // ─── File-backed storage readers (used by StateManager) ────────────────────
 
+// The native tool call setting shipped default-off behind a feature flag, and the default was
+// later flipped to on. A `false` persisted during the default-off era keeps users on text-based
+// tool calling forever, which GPT-5-class models intermittently refuse to run with
+// (https://github.com/cline/cline/issues/13138).
+const NATIVE_TOOL_CALL_DEFAULT_MIGRATION_KEY = "nativeToolCallEnabledDefaultMigrated"
+
+/**
+ * One-time reset of a persisted `nativeToolCallEnabled: false` back to the default (true).
+ * The migration marker ensures a deliberate opt-out made after this runs is left intact.
+ *
+ * Users on the OpenAI-Compatible provider are skipped (without setting the marker): their
+ * endpoints are arbitrary gateways where native tool calling can genuinely fail, so a
+ * persisted `false` may be a deliberate, still-needed opt-out. If they later switch to a
+ * provider served by our own request paths, the migration applies on the next startup.
+ */
+export async function migrateStaleNativeToolCallSetting(store: ClineMemento): Promise<void> {
+	try {
+		if (store.get(NATIVE_TOOL_CALL_DEFAULT_MIGRATION_KEY) === true) {
+			return
+		}
+		if (store.get("nativeToolCallEnabled") !== false) {
+			// Nothing to reset — mark done so any later opt-out is treated as deliberate.
+			await store.update(NATIVE_TOOL_CALL_DEFAULT_MIGRATION_KEY, true)
+			return
+		}
+		const providers = [store.get("planModeApiProvider"), store.get("actModeApiProvider")]
+		if (providers.includes("openai")) {
+			return
+		}
+		await store.update("nativeToolCallEnabled", true)
+		await store.update(NATIVE_TOOL_CALL_DEFAULT_MIGRATION_KEY, true)
+		Logger.log("[Storage Migration] Reset stale nativeToolCallEnabled=false to the default (true)")
+	} catch (error) {
+		Logger.error("[Storage Migration] Failed to migrate nativeToolCallEnabled:", error)
+	}
+}
+
 /**
  * Read secrets from a ClineFileStorage instance.
  */

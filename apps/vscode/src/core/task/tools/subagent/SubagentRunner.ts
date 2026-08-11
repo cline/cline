@@ -20,9 +20,8 @@ import { checkContextWindowExceededError } from "@/core/context/context-manageme
 import { getContextWindowInfo } from "@/core/context/context-management/context-window-utils";
 import { HostRegistryInfo } from "@/registry";
 import { ClineError, ClineErrorType } from "@/services/error";
-import { ApiFormat } from "@/shared/proto/cline/models";
 import { calculateApiCostAnthropic } from "@/utils/cost";
-import { isNextGenModelFamily } from "@/utils/model-utils";
+import { isNextGenModelFamily, modelRequiresNativeToolCalls } from "@/utils/model-utils";
 import { TaskState } from "../../TaskState";
 import { ToolExecutorCoordinator } from "../ToolExecutorCoordinator";
 import { ToolValidator } from "../ToolValidator";
@@ -377,7 +376,7 @@ export class SubagentRunner {
 			};
 			stats.contextWindow = providerInfo.model.info.contextWindow || 0;
 			const nativeToolCallsRequested =
-				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				modelRequiresNativeToolCalls(providerInfo.model.info) ||
 				!!this.baseConfig.services.stateManager.getGlobalStateKey(
 					"nativeToolCallEnabled",
 				);

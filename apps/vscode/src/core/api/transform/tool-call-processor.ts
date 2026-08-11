@@ -1,8 +1,4 @@
-import type {
-	ChatCompletionChunk,
-	ChatCompletionToolChoiceOption,
-	ChatCompletionTool as OpenAITool,
-} from "openai/resources/chat/completions"
+import type { ChatCompletionChunk, ChatCompletionTool as OpenAITool } from "openai/resources/chat/completions"
 import { Logger } from "@/shared/services/Logger"
 import type { ApiStreamToolCallsChunk } from "./stream"
 
@@ -96,9 +92,11 @@ export function getOpenAIToolParams(tools?: OpenAITool[], enableParallelToolCall
 		}
 	}
 
+	// tool_choice is deliberately omitted: "auto" is already the API default, and some
+	// OpenAI-compatible gateways mistranslate an explicit tool_choice when bridging to the
+	// Responses API (https://github.com/cline/cline/issues/13138). The SDK arch omits it too.
 	return {
 		tools,
-		tool_choice: "auto" as ChatCompletionToolChoiceOption,
 		parallel_tool_calls: enableParallelToolCalls,
 	}
 }

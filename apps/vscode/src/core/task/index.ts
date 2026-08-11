@@ -95,6 +95,7 @@ import {
 	isLocalModel,
 	isNextGenModelFamily,
 	isParallelToolCallingEnabled,
+	modelRequiresNativeToolCalls,
 } from "@utils/model-utils";
 import { arePathsEqual, getDesktopDir } from "@utils/path";
 import { filterExistingFiles } from "@utils/tabFiltering";
@@ -128,7 +129,6 @@ import type {
 	ClineToolResponseContent,
 	ClineUserContent,
 } from "@/shared/messages";
-import { ApiFormat } from "@/shared/proto/cline/models";
 import { ShowMessageType } from "@/shared/proto/index.host";
 import { Logger } from "@/shared/services/Logger";
 import { Session } from "@/shared/services/Session";
@@ -2329,7 +2329,7 @@ export class Task {
 			isSubagentRun: false,
 			isCliEnvironment,
 			enableNativeToolCalls:
-				providerInfo.model.info.apiFormat === ApiFormat.OPENAI_RESPONSES ||
+				modelRequiresNativeToolCalls(providerInfo.model.info) ||
 				this.stateManager.getGlobalStateKey("nativeToolCallEnabled"),
 			enableParallelToolCalling: this.isParallelToolCallingEnabled(),
 			terminalExecutionMode: this.terminalExecutionMode,
@@ -4062,10 +4062,10 @@ export class Task {
 		const ulid = this.ulid;
 		const focusChainSettings =
 			this.stateManager.getGlobalSettingsKey("focusChainSettings");
-		const useNativeToolCalls = this.stateManager.getGlobalStateKey(
-			"nativeToolCallEnabled",
-		);
 		const providerInfo = this.getCurrentProviderInfo();
+		const useNativeToolCalls =
+			modelRequiresNativeToolCalls(providerInfo.model.info) ||
+			this.stateManager.getGlobalStateKey("nativeToolCallEnabled");
 		const cwd = this.cwd;
 		const { localWorkflowToggles, globalWorkflowToggles } =
 			await refreshWorkflowToggles(this.controller, cwd);

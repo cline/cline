@@ -1,5 +1,6 @@
 import { ApiHandlerModel, ApiProviderInfo } from "@core/api"
-import { AnthropicModelId, anthropicModels } from "@/shared/api"
+import { AnthropicModelId, anthropicModels, ModelInfo } from "@/shared/api"
+import { ApiFormat } from "@/shared/proto/cline/models"
 
 export { supportsReasoningEffortForModel } from "@shared/utils/reasoning-support"
 
@@ -234,6 +235,14 @@ export function parsePrice(priceString: string | undefined): number {
 	}
 	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
 	return parsed * 1_000_000
+}
+
+/**
+ * Responses-API models only support native tool calling, so the user-level
+ * "Native Tool Call" toggle must not switch them to text-based tools.
+ */
+export function modelRequiresNativeToolCalls(modelInfo: ModelInfo): boolean {
+	return modelInfo.apiFormat === ApiFormat.OPENAI_RESPONSES || modelInfo.apiFormat === ApiFormat.OPENAI_RESPONSES_WEBSOCKET_MODE
 }
 
 /**

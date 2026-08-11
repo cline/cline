@@ -29,7 +29,12 @@ import {
 } from "./disk"
 import { STATE_MANAGER_NOT_INITIALIZED } from "./error-messages"
 import { filterAllowedRemoteConfigFields } from "./remote-config/utils"
-import { readGlobalStateFromStorage, readSecretsFromStorage, readWorkspaceStateFromStorage } from "./utils/state-helpers"
+import {
+	migrateStaleNativeToolCallSetting,
+	readGlobalStateFromStorage,
+	readSecretsFromStorage,
+	readWorkspaceStateFromStorage,
+} from "./utils/state-helpers"
 export interface PersistenceErrorEvent {
 	error: Error
 }
@@ -136,6 +141,10 @@ export class StateManager {
 
 		try {
 			await initializeDistinctId(storage)
+
+			// One-time reset of a stale default-off nativeToolCallEnabled value; must run
+			// before the cache is populated so the corrected value is what gets loaded.
+			await migrateStaleNativeToolCallSetting(storage.globalState)
 
 			// Load all extension state from file-backed stores
 			const globalState = await readGlobalStateFromStorage(storage.globalState)
