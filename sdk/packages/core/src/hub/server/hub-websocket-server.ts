@@ -713,8 +713,10 @@ export async function ensureHubWebSocketServer(
 		if (existing.state === "closing") {
 			// Runtime teardown alone does not release the HTTP endpoint. Keep the
 			// closing generation authoritative until its listener is also closed so
-			// a same-port replacement cannot race into EADDRINUSE or fallback.
-			await server.beginClose().closed;
+			// a same-port replacement cannot race into EADDRINUSE or fallback. The
+			// aggregate rejects only after every close operation has settled, so a
+			// cleanup error is reported to close callers without blocking recovery.
+			await server.beginClose().closed.catch(() => undefined);
 			if (SHARED_SERVERS.get(sharedKey) === existing) {
 				SHARED_SERVERS.delete(sharedKey);
 			}

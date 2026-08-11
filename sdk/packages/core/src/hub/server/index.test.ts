@@ -204,7 +204,7 @@ describe("hub server startup", () => {
 		expect(secondServer).not.toBe(firstServer);
 	});
 
-	it("waits for complete server close before starting a replacement", async () => {
+	it("waits for complete close but tolerates cleanup errors during replacement", async () => {
 		const owner = createInMemoryHubOwnerContext(
 			"hub-server-test-closing-cache",
 		);
@@ -234,7 +234,9 @@ describe("hub server startup", () => {
 			releaseCompleteClose = resolve;
 		});
 		const completeClose = Promise.all([closing.closed, completeCloseGate]).then(
-			() => undefined,
+			() => {
+				throw new Error("cleanup failed after endpoint release");
+			},
 		);
 		vi.spyOn(firstServer, "beginClose").mockReturnValue({
 			transportStopped: closing.transportStopped,
