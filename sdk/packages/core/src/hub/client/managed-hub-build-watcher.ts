@@ -91,25 +91,25 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	// whose protocol this client cannot speak at all. Older or unordered
 	// builds are retired and replaced automatically, so prompting would only
 	// flash a stale dialog.
-	if (
-		compatibility.reason !== "unsupported_protocol" &&
-		!(
-			compatibility.reason === "build_mismatch" &&
-			isManagedHubReusable(healthy, { expectedBuildId })
-		)
-	) {
-		return undefined;
-	}
-	return {
+	const report = (
+		reason: ManagedHubBuildMismatchEvent["reason"],
+	): ManagedHubBuildMismatchEvent => ({
 		url: healthy.url,
-		reason:
-			compatibility.reason === "unsupported_protocol"
-				? "unsupported_protocol"
-				: "build_mismatch",
+		reason,
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
 		expectedBuildId,
-	};
+	});
+	if (compatibility.reason === "unsupported_protocol") {
+		return report("unsupported_protocol");
+	}
+	if (
+		compatibility.reason === "build_mismatch" &&
+		isManagedHubReusable(healthy, { expectedBuildId })
+	) {
+		return report("build_mismatch");
+	}
+	return undefined;
 }
 
 export interface WatchManagedHubBuildOptions {

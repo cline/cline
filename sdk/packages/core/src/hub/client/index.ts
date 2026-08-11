@@ -869,15 +869,16 @@ async function probeCompatibleHubUrl(
 		// build (another installation upgraded it - attach and let the
 		// build-mismatch watcher prompt the user instead of downgrading it).
 		const expectedBuildId = resolveHubBuildId();
-		if (!isManagedHubReusable(record, { expectedBuildId })) {
-			const compatibility = getManagedHubCompatibility(record, expectedBuildId);
+		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
+		if (
+			!compatibility.compatible &&
+			!isManagedHubReusable(record, { expectedBuildId })
+		) {
 			return {
 				status:
-					!compatibility.compatible &&
-					(compatibility.reason === "build_mismatch" ||
-						compatibility.reason === "missing_build")
-						? "build_mismatch"
-						: "protocol_mismatch",
+					compatibility.reason === "unsupported_protocol"
+						? "protocol_mismatch"
+						: "build_mismatch",
 				url: normalized,
 			};
 		}
