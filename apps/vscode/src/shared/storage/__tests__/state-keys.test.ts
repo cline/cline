@@ -130,6 +130,10 @@ describe("State Keys Type Safety", () => {
 			}
 		})
 
+		it("defaults terminal execution to the VS Code terminal", () => {
+			expect(getDefaultValue("vscodeTerminalExecutionMode")).to.equal("vscodeTerminal")
+		})
+
 		it("should have Settings defaults with correct runtime types", () => {
 			const defaults = SETTINGS_DEFAULTS as Record<string, unknown>
 
@@ -290,8 +294,7 @@ describe("State Keys Type Safety", () => {
 				{ key: "browserSettings", expectedType: "object" },
 				{ key: "shellIntegrationTimeout", expectedType: "number" },
 				{ key: "preferredLanguage", expectedType: "string" },
-				{ key: "yoloModeToggled", expectedType: "boolean" },
-				{ key: "autoApproveAllToggled", expectedType: "boolean" },
+				{ key: "hooksEnabled", expectedType: "boolean" },
 			]
 
 			for (const { key, expectedType } of testCases) {

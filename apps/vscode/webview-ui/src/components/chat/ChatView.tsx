@@ -1,7 +1,6 @@
 import { combineApiRequests } from "@shared/combineApiRequests"
 import { combineCommandSequences } from "@shared/combineCommandSequences"
 import { combineHookSequences } from "@shared/combineHookSequences"
-import type { ClineMessage } from "@shared/ExtensionMessage"
 import { getApiMetrics, getLastApiReqTotalTokens } from "@shared/getApiMetrics"
 import { BooleanRequest, StringRequest } from "@shared/proto/cline/common"
 import { useCallback, useEffect, useMemo, useRef } from "react"
@@ -30,6 +29,11 @@ import {
 	useScrollBehavior,
 	WelcomeSection,
 } from "./chat-view"
+import {
+	hasPendingMessageConfirmation,
+	isPendingResponseUnconfirmed,
+	withPendingUserMessage,
+} from "./chat-view/utils/pendingResponse"
 
 interface ChatViewProps {
 	isHidden: boolean
@@ -41,25 +45,6 @@ interface ChatViewProps {
 // Use constants from the imported module
 const MAX_IMAGES_AND_FILES_PER_MESSAGE = CHAT_CONSTANTS.MAX_IMAGES_AND_FILES_PER_MESSAGE
 const QUICK_WINS_HISTORY_THRESHOLD = 3
-
-const sameUserMessage = (left: ClineMessage, right: ClineMessage) => {
-	const leftImages = left.images ?? []
-	const rightImages = right.images ?? []
-	const leftFiles = left.files ?? []
-	const rightFiles = right.files ?? []
-
-	return (
-		left.type === "say" &&
-		left.say === "user_feedback" &&
-		right.type === "say" &&
-		right.say === "user_feedback" &&
-		left.text === right.text &&
-		leftImages.length === rightImages.length &&
-		leftImages.every((image, index) => image === rightImages[index]) &&
-		leftFiles.length === rightFiles.length &&
-		leftFiles.every((file, index) => file === rightFiles[index])
-	)
-}
 
 const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryView }: ChatViewProps) => {
 	const showNavbar = useShowNavbar()
@@ -73,6 +58,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		hooksEnabled,
 		checkpointRestoreInput,
 		queuedPrompts,
+		turnState,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
 	const shouldShowQuickWins = isProdHostedApp && (!taskHistory || taskHistory.length < QUICK_WINS_HISTORY_THRESHOLD)
@@ -91,34 +77,28 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		setExpandedRows,
 		pendingUserMessage,
 		setPendingUserMessage,
+		pendingResponse,
+		setPendingResponse,
 		textAreaRef,
 	} = chatState
 
-	const displayMessages = useMemo(() => {
-		if (
-			!pendingUserMessage ||
-			messages.some(
-				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
-			)
-		) {
-			return messages
-		}
-		return [...messages, pendingUserMessage.message]
-	}, [messages, pendingUserMessage])
+	const displayMessages = useMemo(() => withPendingUserMessage(messages, pendingUserMessage), [messages, pendingUserMessage])
 
 	useEffect(() => {
-		if (
-			pendingUserMessage &&
-			messages.some(
-				(message) => message.ts > pendingUserMessage.afterTs && sameUserMessage(message, pendingUserMessage.message),
-			)
-		) {
-			setPendingUserMessage(undefined)
+		if (pendingUserMessage && hasPendingMessageConfirmation(messages, pendingUserMessage)) {
+			setPendingUserMessage((current) => (current === pendingUserMessage ? undefined : current))
 		}
 	}, [messages, pendingUserMessage, setPendingUserMessage])
 
+	useEffect(() => {
+		if (!pendingResponse || isPendingResponseUnconfirmed(pendingResponse, turnState, messages.length)) {
+			return
+		}
+		setPendingResponse((current) => (current?.id === pendingResponse.id ? undefined : current))
+	}, [messages.length, pendingResponse, setPendingResponse, turnState])
+
 	//const task = messages.length > 0 ? (messages[0].say === "task" ? messages[0] : undefined) : undefined) : undefined
-	const task = useMemo(() => messages.at(0), [messages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
+	const task = useMemo(() => displayMessages.at(0), [displayMessages]) // leaving this less safe version here since if the first message is not a task, then the extension is in a bad state and needs to be debugged (see Cline.abort)
 	const modifiedMessages = useMemo(() => {
 		const slicedMessages = displayMessages.slice(1)
 		// Only combine hook sequences if hooks are enabled
@@ -359,6 +339,36 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 
 	// Use scroll behavior hook
 	const scrollBehavior = useScrollBehavior(displayMessages, visibleMessages, groupedMessages, expandedRows, setExpandedRows)
+	const { scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef } = scrollBehavior
+
+	// When a prompt gets queued, the queue banner mounts (or grows) in the footer, which
+	// shrinks the messages area and visually covers the bottom of the conversation. No new
+	// chat row is added, so the list-length-based auto-scroll never fires — re-pin to the
+	// bottom here so the latest content stays visible.
+	const queuedPromptCount = queuedPrompts?.length ?? 0
+	const taskTs = task?.ts
+	const prevQueuedPromptCountRef = useRef(queuedPromptCount)
+	const prevQueuedPromptTaskTsRef = useRef(taskTs)
+	useEffect(() => {
+		const previousCount = prevQueuedPromptCountRef.current
+		const previousTaskTs = prevQueuedPromptTaskTsRef.current
+		prevQueuedPromptCountRef.current = queuedPromptCount
+		prevQueuedPromptTaskTsRef.current = taskTs
+		// A task switch can grow the count without a send from this webview (the newly
+		// displayed task may already have queued prompts) — don't hijack its scroll position.
+		if (taskTs !== previousTaskTs || queuedPromptCount <= previousCount) {
+			return
+		}
+		// Queueing is a deliberate send, so re-engage bottom pinning like handleSendMessage does.
+		disableAutoScrollRef.current = false
+		scrollToBottomSmooth()
+		// Settle with an instant scroll once the footer's layout change has landed.
+		setTimeout(() => {
+			if (!disableAutoScrollRef.current) {
+				scrollToBottomAuto()
+			}
+		}, 50)
+	}, [queuedPromptCount, taskTs, scrollToBottomSmooth, scrollToBottomAuto, disableAutoScrollRef])
 
 	const placeholderText = useMemo(() => {
 		const text = task ? "Type a message..." : "Type your task here..."

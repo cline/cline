@@ -10,7 +10,6 @@ import {
 	saveLocalProviderSettings,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
-import open from "open";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	getCliSubscriptionUrl,
@@ -21,6 +20,7 @@ import {
 	checkCodexCliInstalled,
 	isOpenAICodexCliProvider,
 } from "../../../utils/codex-cli";
+import open from "../../../utils/open";
 import { getPersistedProviderApiKey } from "../../../utils/provider-auth";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { getCliTelemetryService } from "../../../utils/telemetry";
@@ -37,7 +37,7 @@ import {
 	type SearchableItem,
 	useSearchableList,
 } from "../../components/searchable-list";
-import { palette } from "../../palette";
+import { useTheme } from "../../hooks/use-theme";
 import {
 	getDefaultAwsRegion,
 	type ProviderConfigValues,
@@ -82,6 +82,7 @@ export interface OnboardingControllerProps {
 
 export function useOnboardingController(props: OnboardingControllerProps) {
 	const { onComplete } = props;
+	const theme = useTheme();
 	const providerSettingsManager = useMemo(
 		() => props.providerSettingsManager ?? new ProviderSettingsManager(),
 		[props.providerSettingsManager],
@@ -147,9 +148,9 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 						: undefined,
 				searchText: `${p.name} ${p.id}`,
 				rightLabel: p.hasAuth ? "\u25cf" : undefined,
-				rightLabelColor: palette.success,
+				rightLabelColor: theme.accents.success,
 			})),
-		[providers],
+		[providers, theme.accents.success],
 	);
 
 	const providerList = useSearchableList(providerItems);
@@ -219,13 +220,11 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	const [clineModelReasoningIds, setClineModelReasoningIds] = useState<
 		Set<string>
 	>(new Set());
-	const [clineKnownModels, setClineKnownModels] = useState<
-		Record<string, unknown> | undefined
-	>(undefined);
 
 	useEffect(() => {
-		// The featured picker serves both cline and cline-pass, so pool reasoning
-		// support and display names from both catalogs
+		// The featured picker serves both cline and cline-pass, so pool
+		// reasoning support from both catalogs. Display names need no catalog
+		// here: fetchClineRecommendedModels resolves them.
 		void Promise.allSettled(
 			["cline", "cline-pass"].map((providerId) =>
 				getLocalProviderModels(providerId),
@@ -239,21 +238,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 				}
 			}
 			setClineModelReasoningIds(ids);
-		});
-		void Promise.allSettled(
-			["cline", "cline-pass"].map((providerId) =>
-				resolveProviderConfig(providerId),
-			),
-		).then((results) => {
-			const merged: Record<string, unknown> = {};
-			for (const result of results) {
-				if (result.status === "fulfilled" && result.value?.knownModels) {
-					Object.assign(merged, result.value.knownModels);
-				}
-			}
-			if (Object.keys(merged).length > 0) {
-				setClineKnownModels(merged);
-			}
 		});
 	}, []);
 
@@ -838,7 +822,6 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		codexCliChecking,
 		codexCliStatus,
 		clineEntries,
-		clineKnownModels,
 		clineModelSelected,
 		clinePassCurrentPlanName,
 		clinePassPlanFeatures,

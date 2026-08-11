@@ -1,6 +1,14 @@
 export const IMAGE_OMITTED_PLACEHOLDER =
 	"[media omitted: invalid or exceeds size limit]";
 
+/**
+ * Substituted for image content at request-build time when the target model
+ * does not advertise image input. The stored conversation history keeps the
+ * real image, so switching to an image-capable model restores it.
+ */
+export const IMAGE_UNSUPPORTED_PLACEHOLDER =
+	"[Image attached — this model cannot view images]";
+
 export const SUPPORTED_IMAGE_MEDIA_TYPES = [
 	"image/png",
 	"image/jpeg",

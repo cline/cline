@@ -1,83 +1,122 @@
 "use client";
 
-import { ArrowRight } from "lucide-react";
+import { isChatWorkspacePath } from "@cline/shared/browser";
+import {
+	AgentAurora,
+	AgentHeroHeading,
+	type AgentQuickAction,
+	AgentQuickActions,
+} from "@cline/ui";
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
+import { useEffect, useMemo } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
-interface QuickAction {
-	id: string;
-	label: string;
-	description: string;
-	prompt: string;
-}
-
-const HERO_VERBS = ["build", "create", "fix", "know"] as const;
-const HERO_CYCLE_MS = 2600;
-
-const DEFAULT_QUICK_ACTIONS: QuickAction[] = [
+/** Code-centric starters, shown only when the folder is a git repository. */
+const DEVELOPER_QUICK_ACTIONS: AgentQuickAction[] = [
 	{
 		id: "review-changes",
 		label: "Review changes",
 		description: "Review the current changes and call out anything risky.",
-		prompt: "Review the current changes and call out anything risky.",
+		value: "Review the current changes and call out anything risky.",
 	},
 	{
 		id: "check-build",
 		label: "Check for build errors",
 		description: "Run the relevant checks and help me fix any failures.",
-		prompt: "Check this project for build errors and help me fix any failures.",
+		value: "Check this project for build errors and help me fix any failures.",
 	},
 ];
 
-function HeroHeading() {
-	const [verbIndex, setVerbIndex] = useState(0);
+/**
+ * General-purpose starters for a plain (non-git) folder — phrased around the
+ * files the agent can see, with no developer vocabulary.
+ */
+const FOLDER_QUICK_ACTIONS: AgentQuickAction[] = [
+	{
+		id: "summarize-folder",
+		label: "Summarize this folder",
+		description: "Get a plain-language overview of the files here.",
+		value:
+			"Look through the files in this folder and give me a plain-language summary of what's here.",
+	},
+	{
+		id: "organize-files",
+		label: "Organize these files",
+		description: "Tidy up names and structure, with your approval.",
+		value:
+			"Help me organize this folder: suggest a tidy structure and clearer file names, and check with me before moving anything.",
+	},
+	{
+		id: "draft-document",
+		label: "Draft a document",
+		description: "Start a new doc with a first draft you can edit.",
+		value:
+			"Help me draft a new document in this folder. Ask me a few questions about what it should cover, then write a first draft.",
+	},
+];
 
-	useEffect(() => {
-		const media = window.matchMedia("(prefers-reduced-motion: reduce)");
-		if (media.matches) return;
-		const interval = setInterval(() => {
-			setVerbIndex((prev) => (prev + 1) % HERO_VERBS.length);
-		}, HERO_CYCLE_MS);
-		return () => clearInterval(interval);
-	}, []);
+/** Starters for chat with no folder selected at all. */
+const CHAT_QUICK_ACTIONS: AgentQuickAction[] = [
+	{
+		id: "draft-document",
+		label: "Draft a document",
+		description: "Start a new doc with a first draft you can edit.",
+		value:
+			"Help me draft a document. Ask me a few questions about what it should cover, then write a first draft.",
+	},
+	{
+		id: "research-topic",
+		label: "Research a topic",
+		description: "Gather the key facts and sum them up.",
+		value:
+			"Research a topic for me: ask me what I want to learn about, then summarize the key points in plain language.",
+	},
+	{
+		id: "plan-something",
+		label: "Plan something",
+		description: "Break a goal into clear, doable steps.",
+		value:
+			"Help me plan something. Ask me what I'm trying to get done, then break it into clear steps.",
+	},
+];
 
-	const verb = HERO_VERBS[verbIndex];
-
-	return (
-		<h1
-			id="hero-header"
-			className="text-balance text-left text-[clamp(2rem,3vw,2.6rem)] font-semibold leading-[1.12] tracking-tight text-foreground"
-		>
-			<span className="sr-only">What would you like to build?</span>
-			<span aria-hidden="true">
-				What would you like to{" "}
-				{/* key remounts the word each cycle so the chars re-trigger their entrance */}
-				<span key={verb}>
-					{verb.split("").map((char, index) => (
-						<span
-							className="hero-word-char"
-							// biome-ignore lint/suspicious/noArrayIndexKey: the word remounts via the parent key each cycle, so char position is a stable, non-reordering identity
-							key={`${verb}-${index}`}
-							style={{ animationDelay: `${index * 45}ms` }}
-						>
-							{char}
-						</span>
-					))}
-				</span>
-				?
-			</span>
-		</h1>
-	);
+/**
+ * Picks starter suggestions that match what the user actually opened: code
+ * cards only make sense inside a git repo; a plain folder gets file-oriented
+ * cards; no folder at all gets folderless general-purpose cards.
+ *
+ * `gitBranch` is `null` while branch discovery for the selected folder is
+ * still pending; no cards are suggested until the folder is classified so a
+ * git repo never flashes the plain-folder set (or vice versa).
+ */
+export function defaultQuickActionsForContext({
+	workspaceRoot,
+	gitBranch,
+}: {
+	workspaceRoot: string;
+	gitBranch: string | null;
+}): AgentQuickAction[] {
+	const isChatWorkspace =
+		!workspaceRoot.trim() || isChatWorkspacePath(workspaceRoot);
+	if (isChatWorkspace) {
+		return CHAT_QUICK_ACTIONS;
+	}
+	if (gitBranch === null) {
+		return [];
+	}
+	if (gitBranch !== "no-git") {
+		return DEVELOPER_QUICK_ACTIONS;
+	}
+	return FOLDER_QUICK_ACTIONS;
 }
 
 export function WelcomeScreen({
 	active,
 	body,
 	composer,
+	notice,
 	onStartChat,
 	quickActions,
 	gitBranch,
@@ -87,9 +126,12 @@ export function WelcomeScreen({
 	active: boolean;
 	body: ReactNode;
 	composer: ReactNode;
+	/** Rendered above the composer on the welcome state (e.g. setup notice). */
+	notice?: ReactNode;
 	onStartChat: (prompt: string) => void;
-	quickActions: QuickAction[];
-	gitBranch: string;
+	quickActions: AgentQuickAction[];
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 }) {
@@ -101,8 +143,11 @@ export function WelcomeScreen({
 		pickWorkspaceDirectory,
 		selectChat,
 	} = useWorkspace();
-	const actions =
-		quickActions.length > 0 ? quickActions : DEFAULT_QUICK_ACTIONS;
+	const defaultActions = useMemo(
+		() => defaultQuickActionsForContext({ workspaceRoot, gitBranch }),
+		[workspaceRoot, gitBranch],
+	);
+	const actions = quickActions.length > 0 ? quickActions : defaultActions;
 
 	useEffect(() => {
 		if (active) void refreshWorkspaces();
@@ -116,7 +161,7 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AuroraBackground /> : null}
+			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active
@@ -132,8 +177,8 @@ export function WelcomeScreen({
 					)}
 				>
 					{active ? (
-						<>
-							<HeroHeading />
+						<div className="cline-view-enter">
+							<AgentHeroHeading />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
@@ -148,15 +193,21 @@ export function WelcomeScreen({
 									workspaces={workspaces}
 								/>
 							</div>
-						</>
+						</div>
 					) : null}
 
 					<div
-						className={active ? "hidden" : "h-full min-h-0 overflow-hidden"}
+						className={
+							active
+								? "hidden"
+								: "cline-view-enter h-full min-h-0 overflow-hidden"
+						}
 						key="conversation-body"
 					>
 						{body}
 					</div>
+
+					{active && notice ? notice : null}
 
 					<div
 						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
@@ -166,28 +217,11 @@ export function WelcomeScreen({
 					</div>
 
 					{active ? (
-						<div className="mt-11 w-full divide-y divide-border/80 overflow-hidden rounded-xl border border-border/60 bg-background/95 px-2 shadow-sm">
-							{actions.map((action) => (
-								<button
-									className="group flex w-full items-center justify-between gap-5 px-3 py-3 text-left transition-colors hover:bg-background/55 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-									key={action.id}
-									onClick={() => onStartChat(action.prompt)}
-									type="button"
-								>
-									<span className="min-w-0">
-										<span className="block text-[15px] font-medium text-foreground">
-											{action.label}
-										</span>
-										<span className="mt-0.5 block truncate text-sm text-muted-foreground">
-											{action.description}
-										</span>
-									</span>
-									<span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary transition-colors group-hover:bg-primary group-hover:text-primary-foreground">
-										<ArrowRight className="size-3" />
-									</span>
-								</button>
-							))}
-						</div>
+						<AgentQuickActions
+							actions={actions}
+							className="cline-view-enter mt-11"
+							onSelect={(action) => onStartChat(action.value)}
+						/>
 					) : null}
 				</div>
 			</div>

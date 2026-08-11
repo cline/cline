@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
@@ -59,6 +59,11 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 	}
 }
 
+// Session log appends are chained per session so writes stay ordered, but
+// they run asynchronously: a synchronous write per streamed token would stall
+// the sidecar event loop (and therefore every pending UI command) under load.
+const sessionLogWriteTails = new Map<string, Promise<void>>();
+
 function appendSessionChunk(
 	sessionId: string,
 	stream: string,
@@ -66,9 +71,21 @@ function appendSessionChunk(
 	ts: number,
 ): void {
 	const path = sessionLogPath(sessionId);
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify({ ts, stream, chunk })}\n`, {
-		flag: "a",
+	const line = `${JSON.stringify({ ts, stream, chunk })}\n`;
+	const tail = sessionLogWriteTails.get(sessionId) ?? Promise.resolve();
+	const next = tail
+		.then(async () => {
+			await mkdir(dirname(path), { recursive: true });
+			await appendFile(path, line);
+		})
+		.catch(() => {
+			// Session logs are best-effort diagnostics; never fail the stream.
+		});
+	sessionLogWriteTails.set(sessionId, next);
+	void next.finally(() => {
+		if (sessionLogWriteTails.get(sessionId) === next) {
+			sessionLogWriteTails.delete(sessionId);
+		}
 	});
 }
 
@@ -308,6 +325,35 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
+// The runtime's queue drain emits a pending_prompts snapshot (head removed)
+// and a pending_prompt_submitted event for the same prompt back-to-back, and
+// both are translated here into chat_queued_prompt_start — dedupe by prompt
+// id or the UI renders the user message twice.
+function emitQueuedPromptStart(
+	ctx: SidecarContext,
+	sessionId: string,
+	session: LiveSession | undefined,
+	input: {
+		promptId: string;
+		prompt: string;
+		attachmentCount: number;
+		userImages?: string[];
+	},
+): void {
+	if (session) {
+		if (session.lastQueuedPromptStartId === input.promptId) {
+			return;
+		}
+		session.lastQueuedPromptStartId = input.promptId;
+	}
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_queued_prompt_start",
+		serializeQueuedPromptStart(input),
+	);
+}
+
 function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -350,17 +396,12 @@ function handleCoreSessionEvent(
 					previous[0] &&
 					previous[0].id !== mapped[0]?.id
 				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						serializeQueuedPromptStart({
-							promptId: previous[0].id,
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-							userImages: previous[0].userImages,
-						}),
-					);
+					emitQueuedPromptStart(ctx, sessionId, session, {
+						promptId: previous[0].id,
+						prompt: previous[0].prompt,
+						attachmentCount: previous[0].attachmentCount ?? 0,
+						userImages: previous[0].userImages,
+					});
 				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
@@ -369,18 +410,26 @@ function handleCoreSessionEvent(
 		case "pending_prompt_submitted": {
 			const { sessionId, id, prompt, attachmentCount, userImages } =
 				event.payload;
-			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_queued_prompt_start",
-				serializeQueuedPromptStart({
-					promptId: id,
-					prompt,
-					attachmentCount: attachmentCount ?? 0,
-					userImages,
-				}),
-			);
+			const session = ctx.liveSessions.get(sessionId);
+			markQueuedAttachmentsSubmitted(session, id);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId: id,
+				prompt,
+				attachmentCount: attachmentCount ?? 0,
+				userImages,
+			});
+			// The prompt left the queue; without a fresh snapshot the webview
+			// keeps a stale busy queue and the composer never returns to idle
+			// after the turn completes.
+			if (session) {
+				const remaining = session.promptsInQueue.filter(
+					(item) => item.id !== id,
+				);
+				if (remaining.length !== session.promptsInQueue.length) {
+					session.promptsInQueue = remaining;
+					sendPromptsInQueueSnapshot(ctx, sessionId);
+				}
+			}
 			break;
 		}
 		case "ended": {
@@ -439,6 +488,7 @@ export function createSidecarContext(
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),

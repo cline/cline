@@ -1,8 +1,12 @@
 "use client";
 
+import { SessionStatus } from "@cline/ui";
 import {
 	ArrowUpDown,
 	Check,
+	ChevronLeft,
+	ChevronRight,
+	ChevronsLeft,
 	Filter,
 	Folder,
 	GitFork,
@@ -10,10 +14,11 @@ import {
 	MoreHorizontal,
 	Pencil,
 	Search,
+	Star,
 	Trash2,
 	X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -40,11 +45,12 @@ import {
 	basenamePath,
 	formatCostUsd,
 	formatRelativeTime,
-	parseTimestamp,
 	type SessionThread,
+	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import type { SessionHistoryItem } from "@/lib/session-history";
+import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 
 type SessionsViewProps = {
@@ -52,13 +58,7 @@ type SessionsViewProps = {
 	history: UseSessionHistoryResult;
 };
 
-function statusTone(status?: string): string {
-	if (status === "running") return "bg-green-500";
-	if (status === "completed") return "bg-emerald-400";
-	if (status === "failed") return "bg-destructive";
-	if (status === "cancelled") return "bg-yellow-500";
-	return "bg-muted-foreground";
-}
+const PAGE_SIZE = 10;
 
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
@@ -67,11 +67,61 @@ function modelLabel(thread: SessionThread): string {
 	return thread.model || thread.provider || "No model";
 }
 
+export function formatCompactTokens(value: number): string {
+	if (!Number.isFinite(value) || value < 0) {
+		return "0";
+	}
+	if (value >= 1_000_000) {
+		return `${(value / 1_000_000).toFixed(1)}m`;
+	}
+	if (value >= 1_000) {
+		return `${(value / 1_000).toFixed(1)}k`;
+	}
+	return `${value}`;
+}
+
+const MAX_PAGE_BUTTONS = 7;
+
+/**
+ * Page buttons for a 1-indexed pager: every page while the list is short, and
+ * first/last plus a window around the current page once it grows.
+ */
+export function paginationItems(
+	currentPage: number,
+	pageCount: number,
+): Array<number | "gap-start" | "gap-end"> {
+	if (pageCount <= MAX_PAGE_BUTTONS) {
+		return Array.from({ length: pageCount }, (_, index) => index + 1);
+	}
+	const windowStart = Math.max(
+		2,
+		Math.min(currentPage - 1, pageCount - MAX_PAGE_BUTTONS + 3),
+	);
+	const windowEnd = Math.min(
+		pageCount - 1,
+		Math.max(currentPage + 1, MAX_PAGE_BUTTONS - 2),
+	);
+	const items: Array<number | "gap-start" | "gap-end"> = [1];
+	if (windowStart > 2) {
+		items.push("gap-start");
+	}
+	for (let page = windowStart; page <= windowEnd; page += 1) {
+		items.push(page);
+	}
+	if (windowEnd < pageCount - 1) {
+		items.push("gap-end");
+	}
+	items.push(pageCount);
+	return items;
+}
+
 function tokensLabel(thread: SessionThread): string {
 	if (thread.inputTokens == null && thread.outputTokens == null) {
 		return "-";
 	}
-	return `${thread.inputTokens ?? 0}/${thread.outputTokens ?? 0}`;
+	const input = formatCompactTokens(thread.inputTokens ?? 0);
+	const output = formatCompactTokens(thread.outputTokens ?? 0);
+	return `${input}/${output}`;
 }
 
 function sessionFilterDetails(
@@ -81,6 +131,7 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
+		thread.pinned ? "favorite:yes" : undefined,
 		workspace ? `workspace:${workspace}` : undefined,
 		thread.status ? `status:${thread.status}` : undefined,
 		thread.provider ? `provider:${thread.provider}` : undefined,
@@ -89,7 +140,10 @@ function sessionFilterDetails(
 }
 
 function sortTimestamp(session?: SessionHistoryItem) {
-	const timestamp = parseTimestamp(session?.endedAt || session?.startedAt);
+	if (!session) {
+		return 0;
+	}
+	const timestamp = sessionActivityTimestamp(session);
 	return Number.isFinite(timestamp) ? timestamp : 0;
 }
 
@@ -104,6 +158,22 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const [deleteCandidate, setDeleteCandidate] = useState<SessionThread | null>(
 		null,
 	);
+	const [page, setPage] = useState(0);
+	const requiresCompleteHistory =
+		query.trim().length > 0 ||
+		sessionFilters.length > 0 ||
+		sortDirection === "oldest";
+
+	useEffect(() => {
+		if (!requiresCompleteHistory || !history.mayHaveMoreSessions) {
+			return;
+		}
+		void history.loadAllSessions();
+	}, [
+		history.loadAllSessions,
+		history.mayHaveMoreSessions,
+		requiresCompleteHistory,
+	]);
 
 	const filterOptions = useMemo(
 		() =>
@@ -157,6 +227,45 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		sortDirection,
 	]);
 
+	const pageCount = Math.max(1, Math.ceil(filteredThreads.length / PAGE_SIZE));
+	const currentPage = Math.min(page, pageCount - 1);
+	const pageStart = currentPage * PAGE_SIZE;
+	const visibleThreads = useMemo(
+		() => filteredThreads.slice(pageStart, pageStart + PAGE_SIZE),
+		[filteredThreads, pageStart],
+	);
+	const canGoNext =
+		currentPage + 1 < pageCount ||
+		(history.mayHaveMoreSessions && !requiresCompleteHistory);
+
+	// Snap back when a page disappears (filters changed, or "next" asked the
+	// backend for older sessions and there were none left).
+	useEffect(() => {
+		setPage((current) => Math.min(current, pageCount - 1));
+	}, [pageCount]);
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: restart paging whenever the result set changes
+	useEffect(() => {
+		setPage(0);
+	}, [query, sessionFilters, sortDirection]);
+
+	const goToNextPage = async () => {
+		const nextPage = currentPage + 1;
+		if (
+			nextPage >= pageCount &&
+			history.mayHaveMoreSessions &&
+			!requiresCompleteHistory
+		) {
+			// Only page boundaries hit the backend; the mount fetch stays small.
+			// Stay put when the fetch fails so the user keeps the page they can
+			// see and the same click retries.
+			if (!(await history.loadOlderSessions())) {
+				return;
+			}
+		}
+		setPage(nextPage);
+	};
+
 	const toggleFilter = (detail: string, checked: boolean) => {
 		setSessionFilters((current) => {
 			if (checked) {
@@ -164,6 +273,17 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 			}
 			return current.filter((item) => item !== detail);
 		});
+	};
+
+	const openRow = (thread: SessionThread) => {
+		if (history.pendingAction?.sessionId === thread.id) {
+			return;
+		}
+		// Don't open the session when the click only finished a text selection.
+		if (window.getSelection()?.toString()) {
+			return;
+		}
+		history.openThread(thread.id);
 	};
 
 	const startRename = (thread: SessionThread) => {
@@ -197,10 +317,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		<div className="flex h-full min-h-0 flex-col overflow-hidden bg-background text-foreground">
 			<header className="flex shrink-0 items-end justify-between gap-6 px-18 pb-7 pt-10 max-[1200px]:px-8 max-md:pl-12 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:pr-4 max-[720px]:pt-5">
 				<div className="min-w-0">
-					<h1 className="text-[32px] font-semibold leading-[1.15] tracking-normal">
-						Sessions
-					</h1>
-					<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+					<h1 className="text-3xl font-semibold">Sessions</h1>
+					<p className="mt-3 text-base leading-6 text-muted-foreground">
 						Recent sessions across clients and workspaces.
 					</p>
 				</div>
@@ -237,7 +355,17 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<DropdownMenu>
+					<DropdownMenu
+						onOpenChange={(open) => {
+							// Filter choices are derived from the loaded rows, so
+							// complete the history as soon as the user opens this
+							// menu. This keeps both the options and their results
+							// global rather than limited to the newest batch.
+							if (open && history.mayHaveMoreSessions) {
+								void history.loadAllSessions();
+							}
+						}}
+					>
 						<DropdownMenuTrigger asChild>
 							<Button
 								aria-label="Filter sessions"
@@ -288,13 +416,13 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 
 			<section className="min-h-0 flex-1 overflow-auto px-18 pb-10 max-[1200px]:px-8 max-[720px]:px-4">
 				<div className="min-w-240 overflow-hidden rounded-lg border bg-card">
-					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_2.5rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
-						<span>Session</span>
+					<div className="grid grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] gap-x-4 bg-muted/40 px-4 py-3 text-sm font-medium text-muted-foreground">
+						<span>Title</span>
 						<span>Workspace</span>
 						<span>Model</span>
 						<span>Tokens</span>
 						<span>Cost</span>
-						<span>Updated</span>
+						<span>Time</span>
 						<span className="sr-only">Actions</span>
 					</div>
 					<div>
@@ -311,7 +439,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 									: "No sessions match the current filters."}
 							</div>
 						) : null}
-						{filteredThreads.map((thread) => {
+						{visibleThreads.map((thread) => {
 							const session = history.sessionById.get(thread.id);
 							const isEditing = editingSessionId === thread.id;
 							const isPending = history.pendingAction?.sessionId === thread.id;
@@ -325,10 +453,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 							return (
 								<div
 									className={cn(
-										"grid min-h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_2.5rem] items-center gap-x-4 border-t px-4 py-3 text-sm transition-colors",
+										// Fixed height: every row is the same size so the table
+										// never reflows as long values wrap or hydrate in.
+										"grid h-14 grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem_1.75rem] items-center gap-x-4 border-t px-4 text-sm transition-colors",
 										activeSessionId === thread.id
-											? "bg-accent/50"
-											: "hover:bg-accent/30",
+											? "bg-surface-hover"
+											: "hover:bg-surface-hover-lighter",
 									)}
 									key={thread.id}
 								>
@@ -384,7 +514,10 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													<X className="size-4" />
 												</Button>
 											</div>
-											<span className="truncate text-muted-foreground">
+											<span
+												className="truncate text-muted-foreground"
+												title={modelLabel(thread)}
+											>
 												{modelLabel(thread)}
 											</span>
 											<span className="text-muted-foreground">
@@ -398,32 +531,49 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 											</span>
 										</form>
 									) : (
-										<button
-											className="col-span-6 grid cursor-pointer select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 border-0 bg-transparent p-0 text-left font-inherit text-inherit focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-default"
-											disabled={Boolean(pendingKind)}
-											onClick={() => {
-												if (pendingKind) {
+										// A native <button> suppresses drag-to-select, so the row is a
+										// plain container with button semantics: the cells stay
+										// selectable and a click that ends a selection does not open
+										// the session.
+										// biome-ignore lint/a11y/useSemanticElements: buttons are not text-selectable
+										<div
+											aria-disabled={Boolean(pendingKind)}
+											className={cn(
+												"col-span-6 grid select-text grid-cols-[minmax(14rem,1.35fr)_minmax(9rem,0.8fr)_minmax(12rem,1fr)_7rem_5rem_6rem] items-center gap-x-4 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2",
+												pendingKind ? "cursor-default" : "cursor-pointer",
+											)}
+											onClick={() => openRow(thread)}
+											onKeyDown={(event) => {
+												if (event.key !== "Enter" && event.key !== " ") {
 													return;
 												}
-												// Don't open the session when the user is selecting text.
-												if (window.getSelection()?.toString()) {
-													return;
-												}
-												history.openThread(thread.id);
+												event.preventDefault();
+												openRow(thread);
 											}}
-											type="button"
+											role="button"
+											tabIndex={pendingKind ? -1 : 0}
 										>
 											<span className="flex min-w-0 items-center gap-3 font-semibold">
 												<span className="sr-only">Open session: </span>
-												<span
-													className={cn(
-														"size-1.5 shrink-0 rounded-full",
-														statusTone(thread.status),
-													)}
-													aria-hidden="true"
+												<SessionStatus
+													className="shrink-0"
+													label={`Session status: ${thread.status}`}
+													showLabel={false}
+													style={
+														{
+															"--cline-ui-session-status-color":
+																sessionStatusColor(thread.status),
+														} as CSSProperties
+													}
+													tone={sessionStatusTone(thread.status)}
 												/>
-												<span className="sr-only">{thread.status}: </span>
 												<span className="truncate">{thread.title}</span>
+												{thread.pinned ? (
+													<Star
+														aria-label="Favorited"
+														className="size-3.5 shrink-0 fill-current text-muted-foreground"
+													/>
+												) : null}
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
 												<Folder className="size-3.5 shrink-0" />
@@ -431,26 +581,29 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													{workspace ? basenamePath(workspace) : "No workspace"}
 												</span>
 											</span>
-											<span className="truncate text-muted-foreground">
+											<span
+												className="truncate text-muted-foreground"
+												title={modelLabel(thread)}
+											>
 												{modelLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{tokensLabel(thread)}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{formatCostUsd(thread.totalCostUsd) ?? "-"}
 											</span>
-											<span className="text-muted-foreground">
+											<span className="truncate text-muted-foreground">
 												{updated || thread.time}
 											</span>
-										</button>
+										</div>
 									)}
 									<div>
 										<DropdownMenu>
 											<DropdownMenuTrigger asChild>
 												<button
 													aria-label={`Session actions for ${thread.title}`}
-													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+													className="grid size-7 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
 													disabled={Boolean(pendingKind)}
 													type="button"
 												>
@@ -462,6 +615,22 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" sideOffset={6}>
+												<DropdownMenuItem
+													onClick={() =>
+														void history.setThreadPinned(
+															thread.id,
+															!thread.pinned,
+														)
+													}
+												>
+													<Star
+														className={cn(
+															"size-4",
+															thread.pinned && "fill-current",
+														)}
+													/>
+													{thread.pinned ? "Unfavorite" : "Favorite"}
+												</DropdownMenuItem>
 												<DropdownMenuItem onClick={() => startRename(thread)}>
 													<Pencil className="size-4" />
 													Rename
@@ -486,22 +655,81 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								</div>
 							);
 						})}
-						{history.mayHaveMoreSessions ? (
-							<div className="border-t px-4 py-3">
-								<Button
-									className="h-8 rounded-md px-3 text-xs"
-									disabled={history.isLoadingMore}
-									onClick={() =>
-										void history.loadMoreSessions(history.threads.length + 100)
-									}
-									type="button"
-									variant="outline"
-								>
-									{history.isLoadingMore ? (
-										<Loader2 className="size-3.5 animate-spin" />
-									) : null}
-									Load more
-								</Button>
+						{filteredThreads.length > 0 ? (
+							<div className="flex items-center justify-between gap-4 border-t px-4 py-3 text-xs text-muted-foreground">
+								<span>
+									{`${pageStart + 1}-${pageStart + visibleThreads.length} of ${filteredThreads.length}`}
+									{history.mayHaveMoreSessions ? "+" : ""}
+								</span>
+								<div className="flex items-center gap-1">
+									<Button
+										aria-label="First page"
+										className="h-8 rounded-md px-2.5"
+										disabled={currentPage === 0 || history.isLoadingMore}
+										onClick={() => setPage(0)}
+										size="sm"
+										title="First page"
+										type="button"
+										variant="outline"
+									>
+										<ChevronsLeft className="size-4" />
+									</Button>
+									<Button
+										aria-label="Previous page"
+										className="h-8 rounded-md px-2.5"
+										disabled={currentPage === 0 || history.isLoadingMore}
+										onClick={() => setPage(currentPage - 1)}
+										size="sm"
+										title="Previous page"
+										type="button"
+										variant="outline"
+									>
+										<ChevronLeft className="size-4" />
+									</Button>
+									{paginationItems(currentPage + 1, pageCount).map((item) =>
+										typeof item === "number" ? (
+											<Button
+												aria-current={
+													item === currentPage + 1 ? "page" : undefined
+												}
+												aria-label={`Page ${item}`}
+												className="h-8 min-w-8 rounded-md px-2 tabular-nums"
+												disabled={history.isLoadingMore}
+												key={item}
+												onClick={() => setPage(item - 1)}
+												size="sm"
+												type="button"
+												variant={item === currentPage + 1 ? "default" : "ghost"}
+											>
+												{item}
+											</Button>
+										) : (
+											<span
+												aria-hidden="true"
+												className="px-1 text-muted-foreground"
+												key={item}
+											>
+												...
+											</span>
+										),
+									)}
+									<Button
+										aria-label="Next page"
+										className="h-8 rounded-md px-2.5"
+										disabled={!canGoNext || history.isLoadingMore}
+										onClick={() => void goToNextPage()}
+										size="sm"
+										title="Next page"
+										type="button"
+										variant="outline"
+									>
+										{history.isLoadingMore ? (
+											<Loader2 className="size-4 animate-spin" />
+										) : (
+											<ChevronRight className="size-4" />
+										)}
+									</Button>
+								</div>
 							</div>
 						) : null}
 					</div>

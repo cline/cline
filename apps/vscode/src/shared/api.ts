@@ -50,6 +50,7 @@ export type ApiProvider =
 	| "wandb"
 	| "xiaomi"
 	| "tencent-tokenhub"
+	| "chutes"
 
 export const DEFAULT_API_PROVIDER = "openrouter" as ApiProvider
 
@@ -99,7 +100,6 @@ export interface ModelInfo {
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {
 	temperature?: number
-	isR1FormatRequired?: boolean
 	systemRole?: "developer" | "system"
 	supportsReasoningEffort?: boolean
 	supportsTools?: boolean
@@ -130,7 +130,10 @@ export type BedrockModelId = string
 export const openRouterDefaultModelId = "anthropic/claude-sonnet-4.5" // will always exist in openRouterModels
 export const openRouterDefaultModelInfo: ModelInfo = {
 	maxTokens: 64_000,
-	contextWindow: 200_000,
+	// OpenRouter reports the full 1m extended context window for this model and we pass it
+	// through unchanged (the legacy 200k restriction was dropped). Keep in sync with the SDK
+	// model catalog and refreshOpenRouterModels.ts.
+	contextWindow: 1_000_000,
 	supportsImages: true,
 	supportsPromptCache: true,
 	inputPrice: 3.0,
@@ -178,7 +181,6 @@ export const openAiModelInfoSafeDefaults: OpenAiCompatibleModelInfo = {
 	contextWindow: 128_000,
 	supportsImages: true,
 	supportsPromptCache: false,
-	isR1FormatRequired: false,
 	inputPrice: 0,
 	outputPrice: 0,
 	temperature: 0,

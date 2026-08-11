@@ -16,13 +16,15 @@ import {
 	hasMcpSettingsFile,
 	listMcpServerOAuthStatuses,
 	loadMcpSettingsFile,
+	McpSettingsMutatorPurityError,
+	parseMcpServerRegistration,
 	registerMcpServersFromSettingsFile,
+	resolveMcpServerRegistration,
 	resolveMcpServerRegistrations,
 	setMcpServerDisabled,
 	updateMcpServerOAuthState,
 	updateMcpSettingsFile,
 	updateMcpSettingsFileSync,
-	McpSettingsMutatorPurityError,
 } from "./config-loader";
 
 describe("mcp config loader", () => {
@@ -99,6 +101,94 @@ describe("mcp config loader", () => {
 		]);
 	});
 
+	it("parses per-server timeout (seconds) in nested and legacy formats", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					nested: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 120,
+					},
+					legacy: {
+						type: "stdio",
+						command: "npx",
+						timeout: 45,
+					},
+					unset: {
+						transport: { type: "stdio", command: "npx" },
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		const byName = new Map(registrations.map((r) => [r.name, r]));
+		expect(byName.get("nested")?.timeoutSeconds).toBe(120);
+		expect(byName.get("legacy")?.timeoutSeconds).toBe(45);
+		expect(byName.get("unset")?.timeoutSeconds).toBeUndefined();
+	});
+
+	it("clamps out-of-range timeout values instead of failing the file", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					// A milliseconds/seconds mix-up clamps to the max.
+					milliseconds: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 60000,
+					},
+					tooSmall: {
+						transport: { type: "stdio", command: "npx" },
+						timeout: 0,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		const byName = new Map(registrations.map((r) => [r.name, r]));
+		expect(byName.get("milliseconds")?.timeoutSeconds).toBe(3600);
+		expect(byName.get("tooSmall")?.timeoutSeconds).toBe(1);
+	});
+
+	it("preserves malformed timeout values as unconfigured without rejecting valid sibling servers", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					malformed: {
+						transport: { type: "stdio", command: "node" },
+						timeout: "120",
+					},
+					valid: {
+						command: "node",
+						timeout: null,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		const registrations = resolveMcpServerRegistrations({ filePath });
+		expect(registrations).toHaveLength(2);
+		expect(
+			registrations.map((registration) => registration.timeoutSeconds),
+		).toEqual([undefined, undefined]);
+	});
+
 	it("registers loaded servers with an mcp manager", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -172,6 +262,41 @@ describe("mcp config loader", () => {
 		);
 	});
 
+	it("resolves a valid server without requiring malformed siblings to parse", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						transport: {
+							type: "streamableHttp",
+							url: "https://mcp.linear.app/mcp",
+						},
+					},
+					broken: {},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(resolveMcpServerRegistration("linear", { filePath })).toMatchObject({
+			name: "linear",
+			transport: {
+				type: "streamableHttp",
+				url: "https://mcp.linear.app/mcp",
+			},
+		});
+		expect(() => parseMcpServerRegistration("broken", {})).toThrow(
+			'Invalid MCP server "broken"',
+		);
+		expect(() => resolveMcpServerRegistrations({ filePath })).toThrow(
+			"Invalid MCP settings",
+		);
+	});
+
 	it("accepts legacy flat stdio format", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
 		tempRoots.push(tempRoot);
@@ -207,6 +332,53 @@ describe("mcp config loader", () => {
 				oauth: undefined,
 			},
 		]);
+	});
+
+	it("uses the native HTTP transport for an mcp-remote proxy entry", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-mcp-config-loader-"));
+		tempRoots.push(tempRoot);
+		const filePath = join(tempRoot, "cline_mcp_settings.json");
+		await writeFile(
+			filePath,
+			JSON.stringify({
+				mcpServers: {
+					linear: {
+						command: "npx",
+						args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+						disabled: true,
+					},
+				},
+			}),
+			"utf8",
+		);
+
+		expect(resolveMcpServerRegistrations({ filePath })).toEqual([
+			{
+				name: "linear",
+				transport: {
+					type: "streamableHttp",
+					url: "https://mcp.linear.app/mcp",
+				},
+				disabled: true,
+				metadata: undefined,
+				oauth: undefined,
+			},
+		]);
+	});
+
+	it("keeps mcp-remote on stdio when proxy environment is configured", async () => {
+		const registration = parseMcpServerRegistration("linear", {
+			command: "npx",
+			args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			env: { HTTP_PROXY: "http://127.0.0.1:8080" },
+		});
+
+		expect(registration.transport).toEqual({
+			type: "stdio",
+			command: "npx",
+			args: ["-y", "mcp-remote", "https://mcp.linear.app/mcp"],
+			env: { HTTP_PROXY: "http://127.0.0.1:8080" },
+		});
 	});
 
 	it("accepts legacy flat url format and preserves explicit transportType", async () => {
@@ -339,6 +511,7 @@ describe("mcp config loader", () => {
 				serverName: "linear",
 				oauthSupported: true,
 				oauthConfigured: true,
+				authorizationRequired: false,
 				lastError: undefined,
 				lastAuthenticatedAt: 123,
 			},

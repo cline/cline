@@ -152,9 +152,24 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		await initializeSessionManager(ctx);
+		const session = {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		} satisfies LiveSession;
+		ctx.liveSessions.set("running-session", session);
+		ctx.liveSessions.set("idle-session", {
+			...session,
+			busy: false,
+			status: "idle",
+		});
 
 		await expect(handleCommand(ctx, "get_process_context")).resolves.toEqual(
 			expect.objectContaining({
+				runningSessionCount: 1,
 				hub: {
 					status: "connected",
 					url: "ws://127.0.0.1:25463/hub",
@@ -205,6 +220,79 @@ describe("Code sidecar runtime capabilities", () => {
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
 		});
+	});
+
+	it("announces a queued prompt start once when drain emits both queue events", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		const session = {
+			config: {},
+			messages: [],
+			promptsInQueue: [
+				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+			],
+			busy: false,
+			startedAt: Date.now(),
+			status: "running",
+		} satisfies LiveSession;
+		ctx.liveSessions.set("session-1", session);
+
+		// PendingPromptService.drain() emits both events for the same prompt:
+		// a queue snapshot with the head removed, then the submitted event.
+		onEvent?.({
+			type: "pending_prompts",
+			payload: { sessionId: "session-1", prompts: [] },
+		});
+		onEvent?.({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "prompt-1",
+				prompt: "hi there",
+				attachmentCount: 0,
+			},
+		});
+
+		const starts = readEvents(ctx).filter(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_queued_prompt_start",
+		);
+		expect(starts).toHaveLength(1);
+
+		// A different prompt id must still be announced.
+		onEvent?.({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "prompt-2",
+				prompt: "second",
+				attachmentCount: 0,
+			},
+		});
+		expect(
+			readEvents(ctx).filter(
+				(message) =>
+					message.event.name === "chat_event" &&
+					(message.event.payload as { stream?: string }).stream ===
+						"chat_queued_prompt_start",
+			),
+		).toHaveLength(2);
 	});
 
 	it("resolves askQuestion through the websocket request/response protocol", async () => {

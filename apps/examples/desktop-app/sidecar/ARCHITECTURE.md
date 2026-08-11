@@ -151,11 +151,13 @@ Supported commands:
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession` |
 | `list_mcp_servers` | Direct file I/O |
+| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
+| `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
-| `get_git_branch` | `execFileSync("git", ...)` |
-| `list_git_branches` | `execFileSync("git", ...)` |
-| `checkout_git_branch` | `execFileSync("git", ...)` |
+| `get_git_branch` | async `execFile("git", ...)` |
+| `list_git_branches` | async `execFile("git", ...)` |
+| `checkout_git_branch` | async `execFile("git", ...)` |
 | `search_workspace_files` | `getFileIndex` |
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |

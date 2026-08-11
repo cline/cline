@@ -149,6 +149,21 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+Session history provenance keeps the client surface and initiation mode separate.
+`StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
+`core`, and so on), while top-level `StartSessionInput.mode` identifies how the
+session began (`user`, `automation`, `subagent`, or `team`). The persisted messages
+envelope records both values, along with client version and child-session
+lineage. Missing initiation mode defaults to `user`; automation runtime adapters
+must pass `mode: "automation"` explicitly.
+
+Root-session persistence is lazy. Starting a runtime allocates its session ID
+and keeps configuration or seeded history in memory, but does not create a
+database row, manifest, or messages artifact. The first accepted user turn
+persists that same ID and its artifacts. Closing a runtime before a user turn
+therefore leaves no empty history entry, and persistence code never allocates a
+replacement ID for an unknown session.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat
@@ -178,9 +193,16 @@ public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
-through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
-including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
-targets: reconnects may retry the same socket URL, but command recovery and
+through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
+must match both the supported wire protocol and the current Hub build identity;
+a protocol-compatible daemon from another build is retired before its
+replacement starts so upgrades cannot keep executing stale runtime code. SDK
+builds embed a deterministic fingerprint of the runtime sources, package
+manifests, build configuration, and dependency lock, so the identity changes
+with the executable Hub code even before package versions are bumped.
+Explicit endpoints, including loopback URLs such as
+`ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
+reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
@@ -192,6 +214,15 @@ different process.
 3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
+
+### Connector Persistence and Recovery
+
+1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
+2. Dashboard configuration and CLI connection state are recorded separately. Configuration edits replace only dashboard-owned connector and security flags in stored reconnect arguments, preserving CLI-only runtime options, and refresh arguments only for connectors that have previously started successfully.
+3. `@cline/core` owns connector autostart persistence and reconnect orchestration. The detached hub daemon is the sole startup reconnect owner, preventing dashboard startup from racing it and launching duplicate processes.
+4. Detached connector starts are persisted only after a child process is created. Internal detached children preserve that state when they exit, while a clean user-interactive exit disables autostart.
+5. CLI and dashboard hosts pass their connector CLI launch specification through the detached process environment. The package-owned daemon entrypoint uses that specification to start connector reconnect wrappers without importing application code.
+6. The detached hub entrypoint exposes `hubDaemonReady`, which resolves only after the WebSocket server is listening. It begins reconnect attempts after signaling readiness, and reconnect failures remain best-effort rather than taking down the hub.
 
 ### Remote-Config Managed Runtime
 
@@ -442,9 +473,11 @@ orchestrator used by core and hub layers.
    renews the run claim while execution is active, writes a markdown report
    per run, and transactionally updates status. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
-   `plugins`), session source, and a notes directory that is injected into
-   the system prompt. Event runs include the normalized trigger event context
-   in the prompt.
+   `plugins`), trigger source, and a notes directory that is injected into
+   the system prompt. The automation runtime adapters explicitly persist
+   `mode: "automation"` for every run and record the spec-defined trigger
+   source as `sessionHistoryOrigin.trigger` in session metadata. Event runs
+   include the normalized trigger event context in the prompt.
 8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
    `.cline/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,

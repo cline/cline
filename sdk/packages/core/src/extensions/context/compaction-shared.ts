@@ -17,7 +17,7 @@ export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
 export const COMPACTION_TRIGGER_RATIO = 0.9;
 export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
-export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
+export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 4_096;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;
@@ -29,6 +29,8 @@ export interface FileOperationSummary {
 
 export interface CompactionSummaryMetadata {
 	kind: "compaction_summary";
+	displayRole: "system";
+	userRunSpan: number;
 	summary: string;
 	details: FileOperationSummary;
 	tokensBefore: number;
@@ -216,6 +218,13 @@ export function getCompactionSummaryMetadata(
 	const details = metadata.details as Record<string, unknown> | undefined;
 	return {
 		kind: "compaction_summary",
+		displayRole: "system",
+		userRunSpan:
+			typeof metadata.userRunSpan === "number" &&
+			Number.isInteger(metadata.userRunSpan) &&
+			metadata.userRunSpan >= 0
+				? metadata.userRunSpan
+				: 1,
 		summary: String(metadata.summary ?? ""),
 		details: {
 			readFiles: Array.isArray(details?.readFiles)
@@ -676,6 +685,29 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 	return parts.join("\n\n");
 }
 
+/**
+ * The summarizer output budget is a cap, not a target: reasoning models need
+ * headroom beyond their thinking output or no summary text ever arrives and
+ * compaction is skipped. An explicit configuration wins as-is; otherwise the
+ * default applies, with model metadata (`maxTokens` is reported capability,
+ * not a product default) only ever lowering it.
+ */
+function resolveSummaryMaxOutputTokens(config: ProviderConfig): number {
+	if (isPositiveFiniteNumber(config.maxOutputTokens)) {
+		return Math.floor(config.maxOutputTokens);
+	}
+	const modelMaxTokens =
+		config.modelInfo?.maxTokens ??
+		config.knownModels?.[config.modelId]?.maxTokens;
+	if (isPositiveFiniteNumber(modelMaxTokens)) {
+		return Math.min(
+			DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			Math.floor(modelMaxTokens),
+		);
+	}
+	return DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS;
+}
+
 export function resolveSummarizerConfig(options: {
 	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
@@ -691,8 +723,7 @@ export function resolveSummarizerConfig(options: {
 		}
 		return {
 			...config,
-			maxOutputTokens:
-				config.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			maxOutputTokens: resolveSummaryMaxOutputTokens(config),
 			thinking: false,
 		};
 	};
@@ -713,7 +744,7 @@ export function resolveSummarizerConfig(options: {
 		modelInfo: summarizer.modelInfo ?? baseProviderConfig?.modelInfo,
 		knownModels: summarizer.knownModels ?? baseProviderConfig?.knownModels,
 		maxOutputTokens:
-			summarizer.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			summarizer.maxOutputTokens ?? baseProviderConfig?.maxOutputTokens,
 	});
 }
 
@@ -721,6 +752,7 @@ export function buildSummaryMessage(options: {
 	summary: string;
 	fileOps: FileOperationSummary;
 	tokensBefore: number;
+	userRunSpan: number;
 }): MessageWithMetadata {
 	return {
 		role: "user",
@@ -732,6 +764,8 @@ export function buildSummaryMessage(options: {
 		],
 		metadata: {
 			kind: "compaction_summary",
+			displayRole: "system",
+			userRunSpan: options.userRunSpan,
 			summary: options.summary,
 			details: options.fileOps,
 			tokensBefore: options.tokensBefore,

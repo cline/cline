@@ -1,5 +1,6 @@
 "use client";
 
+import { AgentAurora } from "@cline/ui";
 import {
 	ArrowLeft,
 	CheckCircle2,
@@ -9,7 +10,6 @@ import {
 	LogIn,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AuroraBackground } from "@/components/ui/aurora-bg";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -22,12 +22,21 @@ import {
 } from "@/components/ui/select";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
-import type { Provider, ProviderCatalogResponse } from "@/lib/provider-schema";
+import {
+	CLINE_DASHBOARD_URL,
+	getProviderApiKeyUrl,
+} from "@/lib/provider-key-urls";
+import {
+	fetchProviderCatalog,
+	invalidateProviderCatalogCache,
+} from "@/lib/provider-model-catalog";
+import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -149,11 +158,16 @@ function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 				<h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
 					Cline
 				</h1>
-				<p className="mt-2 text-[15px] text-muted-foreground">
+				<p className="mt-2 text-base text-muted-foreground">
 					Build software your way
 				</p>
+				<p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+					Cline is an AI coding agent. It reads your code, edits files, runs
+					commands, and works through tasks with you — in any project on your
+					machine.
+				</p>
 				<Button
-					className="mt-9 h-11 w-full rounded-full text-[15px]"
+					className="mt-9 h-11 w-full rounded-full text-base"
 					onClick={onContinue}
 					type="button"
 				>
@@ -198,9 +212,7 @@ function ConnectStep({
 		let cancelled = false;
 		async function loadProviders() {
 			try {
-				const payload = await desktopClient.invoke<ProviderCatalogResponse>(
-					"list_provider_catalog",
-				);
+				const payload = await fetchProviderCatalog();
 				if (cancelled) {
 					return;
 				}
@@ -256,6 +268,9 @@ function ConnectStep({
 			}
 			setSignInError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// The login may have persisted credentials; drop the short-lived
+			// catalog cache so the app reloads them instead of a pre-save copy.
+			invalidateProviderCatalogCache();
 			if (signInAttemptRef.current === attempt) {
 				setSigningIn(false);
 			}
@@ -302,10 +317,15 @@ function ConnectStep({
 			// account context swallows errors, so an invalid key would
 			// otherwise onboard the user into a broken signed-in state.
 			try {
-				await desktopClient.invoke("cline_account", {
+				const verified = await desktopClient.invoke("cline_account", {
 					action: "clineAccount",
 					operation: "fetchMe",
 				});
+				// A typed not-authenticated result means the sidecar found no
+				// usable credential after the save — the key did not stick.
+				if (isClineAccountNotAuthenticatedResult(verified)) {
+					throw new Error("no Cline account credentials were found");
+				}
 			} catch (verifyError) {
 				// Roll back the persisted key so an unusable credential does
 				// not linger in provider settings.
@@ -327,12 +347,18 @@ function ConnectStep({
 		} catch (error) {
 			setClineKeyError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// Credentials may have been saved (or rolled back); drop the
+			// short-lived catalog cache so consumers reload the persisted state.
+			invalidateProviderCatalogCache();
 			setClineKeySaving(false);
 		}
 	}, [clineApiKey, onConnected, refreshAccount]);
 
 	const selectedProvider =
 		providers.find((provider) => provider.id === selectedProviderId) ?? null;
+	const selectedProviderKeyUrl = selectedProvider
+		? getProviderApiKeyUrl(selectedProvider)
+		: null;
 
 	const connectProvider = useCallback(async () => {
 		if (!selectedProvider || !apiKey.trim()) {
@@ -354,6 +380,10 @@ function ConnectStep({
 		} catch (error) {
 			setSaveError(error instanceof Error ? error.message : String(error));
 		} finally {
+			// Onboarding completion remounts the chat pane to reload provider
+			// credentials; drop the short-lived catalog cache so that reload
+			// sees the just-saved key rather than a pre-save copy.
+			invalidateProviderCatalogCache();
 			setSaving(false);
 		}
 	}, [apiKey, onConnected, selectedProvider]);
@@ -383,7 +413,7 @@ function ConnectStep({
 				{/* Cline account */}
 				<div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
 					<div className="flex items-center gap-2">
-						<p className="text-[15px] font-semibold text-foreground">
+						<p className="text-base font-semibold text-foreground">
 							Sign in with Cline
 						</p>
 						<Badge className="bg-primary/15 text-primary" variant="secondary">
@@ -500,9 +530,14 @@ function ConnectStep({
 											{clineKeySaving ? "Connecting..." : "Connect"}
 										</Button>
 									</div>
-									<p className="text-xs text-muted-foreground">
-										Find your key in the Cline dashboard under Account.
-									</p>
+									<button
+										className="inline-flex items-center gap-1 self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+										onClick={() => void openExternalUrl(CLINE_DASHBOARD_URL)}
+										type="button"
+									>
+										Find your key in the Cline dashboard under Account
+										<ExternalLink className="size-3" />
+									</button>
 									{clineKeyError ? (
 										<p className="text-xs text-destructive" role="alert">
 											Failed to save API key: {clineKeyError}
@@ -526,7 +561,7 @@ function ConnectStep({
 							<KeyRound className="size-4" />
 						</span>
 						<span className="min-w-0">
-							<span className="block text-[15px] font-semibold text-foreground">
+							<span className="block text-base font-semibold text-foreground">
 								Use your own API key
 							</span>
 							<span className="mt-0.5 block text-sm text-muted-foreground">
@@ -586,15 +621,14 @@ function ConnectStep({
 								value={apiKey}
 							/>
 							<div className="flex flex-wrap items-center justify-between gap-2">
-								{selectedProvider?.docUrl ? (
+								{selectedProviderKeyUrl ? (
 									<button
 										className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-										onClick={() =>
-											void openExternalUrl(selectedProvider.docUrl ?? "")
-										}
+										onClick={() => void openExternalUrl(selectedProviderKeyUrl)}
 										type="button"
 									>
-										{selectedProvider.docLabel || "Get an API key"}
+										{selectedProvider?.docLabel ||
+											`Get ${selectedProvider ? `a ${selectedProvider.name}` : "an"} API key`}
 										<ExternalLink className="size-3.5" />
 									</button>
 								) : (
@@ -653,7 +687,7 @@ function DoneStep({
 						: "Your Cline account is connected. Pick a project and start your first session."}
 				</p>
 				<Button
-					className="mt-8 h-11 w-full rounded-full text-[15px]"
+					className="mt-8 h-11 w-full rounded-full text-base"
 					onClick={onFinish}
 					type="button"
 				>
@@ -684,7 +718,7 @@ export function OnboardingView({
 
 	return (
 		<div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-background p-6">
-			<AuroraBackground />
+			<AgentAurora />
 			{step === "welcome" ? (
 				<WelcomeStep onContinue={() => setStep("connect")} />
 			) : step === "connect" ? (

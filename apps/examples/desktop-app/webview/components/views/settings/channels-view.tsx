@@ -657,8 +657,8 @@ export function ChannelsContent() {
 							className={cn(
 								"rounded-lg border transition-colors",
 								isExpanded
-									? "border-border bg-accent/20"
-									: "border-border hover:bg-accent/10",
+									? "border-border bg-surface-hover-lighter"
+									: "border-border hover:bg-surface-hover-lighter",
 							)}
 							key={channel.id}
 						>
@@ -853,7 +853,7 @@ export function ChannelsContent() {
 													"rounded-lg border px-3.5 py-2 text-sm font-medium transition-colors",
 													isConnected
 														? "border-destructive/40 text-destructive hover:bg-destructive/10"
-														: "border-border text-muted-foreground hover:bg-accent hover:text-foreground",
+														: "border-border text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 												)}
 												onClick={() => {
 													if (isConnected) {

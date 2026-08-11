@@ -396,7 +396,7 @@ function MarketplaceEntryCard({
 		<Button
 			disabled={!installedStatusReady || busy}
 			onClick={handleActionClick}
-			size="sm"
+			size="xs"
 			type="button"
 			variant={installed ? "destructive" : "default"}
 		>
@@ -462,7 +462,7 @@ function MarketplaceEntryCard({
 
 	if (!hasExpandableDetails) {
 		return (
-			<div className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20">
+			<div className="relative grid min-w-0 gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-surface-hover-lighter">
 				{content}
 			</div>
 		);
@@ -473,7 +473,7 @@ function MarketplaceEntryCard({
 		<div
 			aria-expanded={expanded}
 			aria-label={`${expanded ? "Collapse" : "Expand"} ${entry.name}`}
-			className="relative grid min-w-0 cursor-pointer gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-accent/20 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
+			className="relative grid min-w-0 cursor-pointer gap-2 rounded-lg border bg-card p-4 text-left transition-colors hover:bg-surface-hover-lighter focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none"
 			onClick={(event) => {
 				if (
 					event.target instanceof HTMLElement &&

@@ -32,6 +32,7 @@ export type ChatSessionCommandRequest = {
 	prompt?: string;
 	promptId?: string;
 	checkpointRunCount?: number;
+	forkBeforeRunCount?: number;
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
@@ -59,6 +60,8 @@ export type LiveSession = {
 	attachedViaHub?: boolean;
 	/** Materialized attachment files for prompts still waiting in the queue. */
 	queuedAttachmentFiles?: Map<string, string[]>;
+	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
+	lastQueuedPromptStartId?: string;
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
 };
@@ -105,6 +108,7 @@ export type SidecarWebSocketClient = {
 
 export type SidecarContext = {
 	liveSessions: Map<string, LiveSession>;
+	restoringWorkspacePaths: Set<string>;
 	streamIndices: Map<string, number>;
 	wsClients: Set<SidecarWebSocketClient>;
 	pendingApprovals: Map<string, PendingToolApproval>;
