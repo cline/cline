@@ -22,7 +22,7 @@
 		"pretypecheck": "bun run build:ui",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"pretest:chat-ui": "bun run build:ui",
-		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx --config vitest.config.ts",
+		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/messages --config vitest.config.ts",
 		"clean": "rm -rf webview/.next webview/out node_modules dist && (cd src-tauri && rm -rf target node_modules dist)"
 	},
 	"dependencies": {
