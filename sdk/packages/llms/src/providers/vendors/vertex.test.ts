@@ -161,6 +161,21 @@ describe("createVertexProviderModule", () => {
 			}),
 		);
 	});
+
+	it.each([
+		["my-private-claude-model", "vertex-anthropic"],
+		["my-private-gemini-model", "vertex"],
+	] as const)("passes the custom model id %s unchanged", async (modelId, expectedProvider) => {
+		const result = await createVertexProviderModule(
+			config({}),
+			context(modelId),
+		);
+
+		expect(result.model(modelId)).toEqual({
+			provider: expectedProvider,
+			modelId,
+		});
+	});
 });
 
 function config(

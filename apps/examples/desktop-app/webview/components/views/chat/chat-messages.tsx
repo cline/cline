@@ -20,37 +20,18 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
-import {
-	buildGroupedToolLabel,
-	buildToolSummary,
-	classifyTool,
-	normalizeToolName,
-	type ToolKind,
-	type ToolSummary,
-} from "@cline/ui/components/agent-chat/tool-summary";
+import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
-	BlocksIcon,
-	BoxIcon,
 	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
-	FilesIcon,
-	LibraryIcon,
 	Loader2,
-	type LucideIcon,
-	MessageCircleQuestionMarkIcon,
-	PanelsTopLeftIcon,
 	PencilIcon,
-	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
-	SquareArrowRightIcon,
-	TerminalIcon,
 	UndoIcon,
-	UserIcon,
-	UsersIcon,
 	WrenchIcon,
 	X,
 } from "lucide-react";
@@ -75,6 +56,23 @@ import type {
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
 import { formatChatMessageContent } from "./message-content";
+import {
+	EXPANDED_PANEL_RAIL_CLASS,
+	IS_DEBUG,
+	STREAMING_TITLE_CLASS,
+} from "./messages/constants";
+import {
+	buildPreviousTimestampMap,
+	buildUserRunCountMap,
+	formatThoughtLabel,
+	getThoughtDurationMilliseconds,
+	groupChatMessages,
+} from "./messages/group-messages";
+import { getToolNameIcon } from "./messages/tool-icons";
+import {
+	buildToolPresentation,
+	formatToolValue,
+} from "./messages/tool-summaries";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -128,173 +126,6 @@ type AskQuestionRequestItem = {
 		iteration?: number;
 	};
 };
-
-type ChatRenderItem =
-	| {
-			type: "message";
-			agentRole: AgentMessageRole;
-			message: ChatMessage;
-			reasoningMessages: ChatMessage[];
-	  }
-	| { type: "tools"; messages: ChatMessage[] };
-
-function hasMessageReasoning(message: ChatMessage): boolean {
-	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
-}
-
-function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
-	return (
-		message.role === "assistant" &&
-		hasMessageReasoning(message) &&
-		!message.content.trim() &&
-		!message.images?.length
-	);
-}
-
-function buildPreviousTimestampMap(
-	messages: ChatMessage[],
-): Map<ChatMessage, number | undefined> {
-	const previousTimestampByMessage = new Map<ChatMessage, number | undefined>();
-	let previousTimestamp: number | undefined;
-
-	for (const message of messages) {
-		previousTimestampByMessage.set(message, previousTimestamp);
-		if (Number.isFinite(message.createdAt)) {
-			previousTimestamp = message.createdAt;
-		}
-	}
-
-	return previousTimestampByMessage;
-}
-
-function buildUserRunCountMap(
-	messages: ChatMessage[],
-): Map<ChatMessage, number> {
-	const runCountByMessage = new Map<ChatMessage, number>();
-	let lastRunCount = 0;
-
-	for (const message of messages) {
-		const userRunSpan =
-			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
-		const storedRunCount =
-			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
-		if (storedRunCount !== undefined) {
-			lastRunCount = Math.max(lastRunCount, storedRunCount);
-			if (message.role === "user" && userRunSpan === 1) {
-				runCountByMessage.set(message, storedRunCount);
-			}
-			continue;
-		}
-		lastRunCount += userRunSpan;
-		if (message.role === "user" && userRunSpan === 1) {
-			runCountByMessage.set(message, lastRunCount);
-		}
-	}
-
-	return runCountByMessage;
-}
-
-function getThoughtDurationMilliseconds(
-	previousTimestamp: number | undefined,
-	thinkingTimestamp: number,
-): number | undefined {
-	if (
-		previousTimestamp === undefined ||
-		!Number.isFinite(previousTimestamp) ||
-		!Number.isFinite(thinkingTimestamp) ||
-		thinkingTimestamp < previousTimestamp
-	) {
-		return undefined;
-	}
-
-	return thinkingTimestamp - previousTimestamp;
-}
-
-function formatThoughtLabel(durationMilliseconds?: number): string {
-	if (durationMilliseconds === undefined) {
-		return "Thinking";
-	}
-
-	const seconds =
-		durationMilliseconds === 0
-			? 0
-			: Math.max(1, Math.round(durationMilliseconds / 1000));
-
-	return `Thought for ${seconds}s`;
-}
-
-function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
-	const items: ChatRenderItem[] = [];
-	let pendingReasoningMessages: ChatMessage[] = [];
-
-	const pushMessage = (
-		message: ChatMessage,
-		agentRole: AgentMessageRole,
-		reasoningMessages = hasMessageReasoning(message) ? [message] : [],
-	) => {
-		items.push({
-			type: "message",
-			agentRole,
-			message,
-			reasoningMessages,
-		});
-	};
-
-	const flushPendingReasoning = () => {
-		const message = pendingReasoningMessages.at(-1);
-		if (!message) {
-			return;
-		}
-		pushMessage(message, "assistant", pendingReasoningMessages);
-		pendingReasoningMessages = [];
-	};
-
-	for (const message of messages) {
-		if (isReasoningOnlyAssistantMessage(message)) {
-			pendingReasoningMessages.push(message);
-			continue;
-		}
-
-		if (message.role === "assistant" && pendingReasoningMessages.length > 0) {
-			const reasoningMessages = hasMessageReasoning(message)
-				? [...pendingReasoningMessages, message]
-				: pendingReasoningMessages;
-			pushMessage(message, "assistant", reasoningMessages);
-			pendingReasoningMessages = [];
-			continue;
-		}
-
-		flushPendingReasoning();
-		const previous = items.at(-1);
-		if (message.role === "tool") {
-			if (previous?.type === "tools") {
-				previous.messages.push(message);
-			} else {
-				items.push({ type: "tools", messages: [message] });
-			}
-			continue;
-		}
-		pushMessage(message, message.role);
-	}
-	flushPendingReasoning();
-	return items;
-}
-
-const IS_DEBUG = process.env.NODE_ENV === "test";
-const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
-
-/**
- * Expanded reasoning and tool panels hang off a shared left rail: the border
- * sits 8px in, centered under the 16px trigger icon, and the content is padded
- * 16px so panel text lines up with the trigger label above it. Both panels must
- * use this verbatim, and it overrides the panel chrome (border box, radius,
- * background, inset) that `agent-chat.css` gives each of them by default.
- *
- * Reasoning stays capped and scrollable, while tool output grows into the
- * conversation scroller and wraps to avoid a nested scrolling region.
- */
-const EXPANDED_PANEL_RAIL_CLASS =
-	"ml-1 mt-0 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
 
 function ChatMessagesImpl({
 	sessionId,
@@ -1370,13 +1201,6 @@ function ReasoningBlock({
 	);
 }
 
-type ToolPayload = {
-	toolName?: string;
-	input?: unknown;
-	result?: unknown;
-	isError?: boolean;
-};
-
 function pruneRequestMap<T extends string>(
 	prev: Record<string, T>,
 	activeRequestIds: Set<string>,
@@ -1391,110 +1215,6 @@ function pruneRequestMap<T extends string>(
 		hasRemoved = true;
 	}
 	return hasRemoved ? next : prev;
-}
-
-function parseJsonString(value: string): unknown {
-	try {
-		return JSON.parse(value) as unknown;
-	} catch {
-		return value;
-	}
-}
-
-function normalizeDisplayValue(value: unknown): unknown {
-	if (typeof value !== "string") {
-		return value;
-	}
-	const trimmed = value.trim();
-	if (
-		(trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-		(trimmed.startsWith("[") && trimmed.endsWith("]"))
-	) {
-		return parseJsonString(trimmed);
-	}
-	return value;
-}
-
-function formatToolValue(value: unknown): string {
-	const normalized = normalizeDisplayValue(value);
-	if (normalized == null) {
-		return "";
-	}
-	if (typeof normalized === "string") {
-		return normalized;
-	}
-	if (
-		typeof normalized === "object" &&
-		"error" in normalized &&
-		typeof normalized.error === "string"
-	) {
-		return normalized.error;
-	}
-	try {
-		return JSON.stringify(normalized, null, 2);
-	} catch {
-		return String(normalized);
-	}
-}
-
-function parseToolPayload(raw: string): ToolPayload | null {
-	try {
-		return JSON.parse(raw) as ToolPayload;
-	} catch {
-		return null;
-	}
-}
-
-const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
-	plugins: BlocksIcon,
-	submit_and_exit: SquareArrowRightIcon,
-};
-
-const TOOL_KIND_ICONS: Record<ToolKind, LucideIcon> = {
-	command: TerminalIcon,
-	edit: PencilIcon,
-	mcp: BoxIcon,
-	other: WrenchIcon,
-	question: MessageCircleQuestionMarkIcon,
-	read: FilesIcon,
-	search: SearchCodeIcon,
-	skill: LibraryIcon,
-	spawn: UserIcon,
-	team: UsersIcon,
-	web: PanelsTopLeftIcon,
-};
-
-function getToolNameIcon(toolName: string): LucideIcon {
-	const normalized = normalizeToolName(toolName);
-	return (
-		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
-	);
-}
-
-type ToolPresentation = {
-	message: ChatMessage;
-	payload: ToolPayload | null;
-	toolName: string;
-	inProgress: boolean;
-	summary: ToolSummary;
-};
-
-function buildToolPresentation(message: ChatMessage): ToolPresentation {
-	const payload = parseToolPayload(message.content);
-	const toolName = message.meta?.toolName || payload?.toolName || "tool";
-	const hookEventName = message.meta?.hookEventName;
-	const inProgress =
-		hookEventName === "tool_call_start" ||
-		hookEventName === "history_tool_use" ||
-		(Boolean(payload) && payload?.result == null && !payload?.isError);
-	const summary = buildToolSummary({
-		toolName,
-		input: payload?.input,
-		result: payload?.result,
-		isError: Boolean(payload?.isError),
-		inProgress,
-	});
-	return { message, payload, toolName, inProgress, summary };
 }
 
 // Memoized with element-wise comparison: the grouping pass wraps the same

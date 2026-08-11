@@ -353,9 +353,9 @@
 	--brand-cyan: oklch(0.87 0.07 210);
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
-	--font-sans: "Schibsted Grotesk Variable", sans-serif;
+	--font-sans: "Inter Variable", sans-serif;
 	--font-mono:
-		"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
 		"Liberation Mono", monospace;
 	--font-weight-normal: 480;
 	--font-weight-medium: 560;
@@ -399,6 +399,10 @@
 	--brand-magenta: oklch(0.64 0.17 330);
 	--brand-periwinkle: oklch(0.63 0.16 275);
 	--brand-cyan: oklch(0.72 0.09 210);
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+	--font-weight-bold: 600;
 }
 
 .cline-ui-theme,
