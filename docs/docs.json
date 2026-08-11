@@ -124,6 +124,7 @@
 									}
 								]
 							},
+							"usage/acp",
 							{
 								"group": "Kanban",
 								"pages": [
@@ -632,7 +633,7 @@
 		},
 		{
 			"source": "/features/customization/opening-cline-in-sidebar",
-			"destination": "/getting-started/installing-cline"
+			"destination": "/usage/ide#move-cline-to-the-right-sidebar"
 		},
 		{
 			"source": "/prompting/prompt-engineering-guide/clineignore-file-guide",
@@ -768,7 +769,7 @@
 		},
 		{
 			"source": "/cline-cli/acp-editor-integrations",
-			"destination": "/cli/cli-reference"
+			"destination": "/usage/acp"
 		},
 		{
 			"source": "/cline-cli/samples/github-issue-rca",

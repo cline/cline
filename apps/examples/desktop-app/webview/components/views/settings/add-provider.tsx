@@ -8,13 +8,13 @@ import {
 	EyeOff,
 	Plus,
 	Trash2,
-	X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
+import { ModelIdInput } from "./model-id-input";
 
 const CAPABILITY_OPTIONS = [
 	"streaming",
@@ -73,7 +73,6 @@ export function AddProviderContent({
 		timeoutMs: "",
 		capabilities: ["streaming", "tools"],
 	});
-	const [modelInput, setModelInput] = useState("");
 	const [showApiKey, setShowApiKey] = useState(false);
 	const [showAdvanced, setShowAdvanced] = useState(false);
 	const [saving, setSaving] = useState(false);
@@ -95,36 +94,14 @@ export function AddProviderContent({
 		(hasManualModels || hasModelsSource) &&
 		!duplicateProviderId;
 
-	const handleAddModel = (e: React.KeyboardEvent<HTMLInputElement>) => {
-		if ((e.key === "Enter" || e.key === ",") && modelInput.trim()) {
-			e.preventDefault();
-			const value = modelInput.trim().replace(/,/g, "");
-			if (value && !form.models.includes(value)) {
-				setForm((prev) => ({
-					...prev,
-					models: [...prev.models, value],
-					defaultModel: prev.defaultModel || value,
-				}));
-			}
-			setModelInput("");
-		} else if (e.key === "Backspace" && !modelInput && form.models.length > 0) {
-			setForm((prev) => ({
-				...prev,
-				models: prev.models.slice(0, -1),
-			}));
-		}
-	};
-
-	const removeModel = (model: string) => {
+	const updateModels = (nextModels: string[]) => {
 		setForm((prev) => {
-			const nextModels = prev.models.filter((m) => m !== model);
 			return {
 				...prev,
 				models: nextModels,
-				defaultModel:
-					prev.defaultModel === model
-						? (nextModels[0] ?? "")
-						: prev.defaultModel,
+				defaultModel: !nextModels.includes(prev.defaultModel)
+					? (nextModels[0] ?? "")
+					: prev.defaultModel || nextModels[0] || "",
 			};
 		});
 	};
@@ -212,7 +189,7 @@ export function AddProviderContent({
 					<Button
 						onClick={onBack}
 						variant="secondary"
-						className="rounded-md p-1.5 transition-colors"
+						className="rounded-md p-1.5"
 						aria-label="Back to providers"
 					>
 						<ArrowLeft className="h-4 w-4" />
@@ -307,33 +284,7 @@ export function AddProviderContent({
 					<Label className="mb-2 block text-xs font-medium text-muted-foreground">
 						Models
 					</Label>
-					<div className="flex min-h-11 flex-wrap content-start gap-1.5 rounded-lg border border-border bg-input px-3 py-2 focus-within:ring-1 focus-within:ring-ring">
-						{form.models.map((model) => (
-							<span
-								key={model}
-								className="inline-flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 text-xs font-medium text-primary"
-							>
-								<span className="font-mono">{model}</span>
-								<Button
-									onClick={() => removeModel(model)}
-									className="text-primary/60 hover:text-primary transition-colors"
-									aria-label={`Remove ${model}`}
-								>
-									<X className="h-3 w-3" />
-								</Button>
-							</span>
-						))}
-						<input
-							type="text"
-							value={modelInput}
-							onChange={(e) => setModelInput(e.target.value)}
-							onKeyDown={handleAddModel}
-							placeholder={
-								form.models.length === 0 ? "Type model ID and press Enter" : ""
-							}
-							className="min-w-35 flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground/50 outline-none"
-						/>
-					</div>
+					<ModelIdInput models={form.models} onChange={updateModels} />
 					<p className="mt-1.5 text-xs text-muted-foreground">
 						Add at least one model or set a Model Source URL.
 					</p>
@@ -490,7 +441,7 @@ export function AddProviderContent({
 									))}
 									<Button
 										onClick={addHeader}
-										className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors w-fit"
+										className="flex items-center gap-1.5 rounded-md px-2 py-1.5 text-xs font-medium hover:text-foreground transition-colors w-fit"
 									>
 										<Plus className="h-3 w-3" />
 										Add Header
@@ -506,7 +457,7 @@ export function AddProviderContent({
 				<div className="flex items-center justify-end gap-3 pt-2">
 					<Button
 						onClick={onBack}
-						className="rounded-lg border border-border px-4 py-2 text-sm font-medium text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className="rounded-lg border border-border px-4 py-2 text-sm font-medium hover:bg-surface-hover hover:text-foreground"
 					>
 						Cancel
 					</Button>
@@ -514,10 +465,10 @@ export function AddProviderContent({
 						onClick={() => void handleSave()}
 						disabled={!canSave || saving}
 						className={cn(
-							"rounded-lg px-4 py-2 text-sm font-medium transition-colors",
+							"rounded-lg px-4 py-2 text-sm font-medium",
 							canSave && !saving
-								? "bg-primary text-primary-foreground hover:bg-primary/90"
-								: "bg-muted text-muted-foreground cursor-not-allowed",
+								? "bg-primary hover:bg-primary/90"
+								: "bg-muted cursor-not-allowed text-foreground",
 						)}
 					>
 						{saving ? "Saving..." : "Add Provider"}

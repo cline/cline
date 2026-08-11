@@ -631,6 +631,7 @@ export function resolveBaseUrl(providerId: string, config: ApiConfiguration): st
 		gemini: "geminiBaseUrl",
 		requesty: "requestyBaseUrl",
 		litellm: "liteLlmBaseUrl",
+		asksage: "asksageApiUrl",
 		oca: "ocaBaseUrl",
 		aihubmix: "aihubmixBaseUrl",
 		dify: "difyBaseUrl",
@@ -884,6 +885,11 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 			mode: mode === "plan" ? "plan" : "act",
 			providerId,
 			platform: process.platform,
+			// The extension never exposes switch_to_act_mode (unlike the CLI):
+			// matching the legacy extension, the user must flip the Plan/Act
+			// toggle themselves, so the plan contract must not tell the model to
+			// call a tool it does not have.
+			planModeSwitchTool: false,
 		})
 		Logger.log(`[SessionFactory] Built system prompt: ${systemPrompt.length} chars`)
 	} catch (error) {
@@ -904,7 +910,9 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 	}
 
 	const stateManager = StateManager.get()
-	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? false
+	// Auto compact is on by default; keep this fallback aligned with the
+	// `useAutoCondense` default in shared/storage/state-keys.ts.
+	const globalUseAutoCondense = stateManager.getGlobalSettingsKey("useAutoCondense") ?? true
 	const compactionStrategy = readCompactionStrategyGlobally()
 	const enableCheckpoints = stateManager.getGlobalSettingsKey("enableCheckpointsSetting") ?? true
 	const useAutoCondense = input.taskSettings?.useAutoCondense ?? globalUseAutoCondense
@@ -953,6 +961,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
+		// Mirror the user's Max Output Tokens for consumers that build handlers
+		// straight from providerConfig — notably the compaction summarizer, which
+		// otherwise falls back to a small default output cap (CLINE-2911).
+		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
 		fetch,
 	}
 
@@ -1022,12 +1034,12 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 /**
  * Build the StartSessionInput for a new task.
  *
- * IMPORTANT: We pass `interactive: true` but NO `prompt`. This creates the
- * session and returns immediately — the runtime host only executes a turn when
- * a prompt is sent. The caller should then call `core.send({ sessionId, prompt })`
- * to run the first turn. This cleanly separates session creation from
- * inference, preventing the gRPC handler from blocking until the first
- * agent turn completes.
+ * IMPORTANT: We pass `interactive: true` but NO `prompt`. This allocates the
+ * session in memory and returns immediately; no persisted session row or
+ * artifacts are created yet. The caller then uses
+ * `core.send({ sessionId, prompt })` for the first user turn, which persists
+ * that same session ID before inference. This keeps initialization responsive
+ * without leaving empty history entries when the user never sends a message.
  */
 export function buildStartSessionInput(config: CoreSessionConfig, input: SessionConfigInput): ClineCoreStartInput {
 	return {

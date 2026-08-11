@@ -11,6 +11,7 @@ export type DesktopThread = {
 	id: string;
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
+	initialPromptDraft?: string;
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -29,7 +30,12 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| { type: "back" }
 	| { type: "forward" }
 	| { type: "new-thread"; threadId: string }
-	| { type: "open-session"; session: SessionHistoryItem }
+	| {
+			type: "open-session";
+			session: SessionHistoryItem;
+			initialPromptDraft?: string;
+	  }
+	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
 			type: "delete-session";
 			deletedSessionId: string;
@@ -115,6 +121,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 										...thread,
 										hasStarted: true,
 										historySession: action.session,
+										initialPromptDraft: action.initialPromptDraft,
 									}
 								: thread,
 						)
@@ -124,6 +131,7 @@ export function desktopAppReducer<SettingsSection extends string>(
 								id: threadId,
 								hasStarted: true,
 								historySession: action.session,
+								initialPromptDraft: action.initialPromptDraft,
 							},
 						];
 			return {
@@ -138,6 +146,16 @@ export function desktopAppReducer<SettingsSection extends string>(
 				}),
 			};
 		}
+		case "consume-initial-prompt-draft":
+			return {
+				...state,
+				threads: state.threads.map((thread) =>
+					thread.id === action.threadId &&
+					thread.initialPromptDraft !== undefined
+						? { ...thread, initialPromptDraft: undefined }
+						: thread,
+				),
+			};
 		case "delete-session": {
 			const historyThreadId = `session_${action.deletedSessionId}`;
 			const deletedThreadIds = new Set(

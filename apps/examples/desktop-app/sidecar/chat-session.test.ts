@@ -1,7 +1,14 @@
-import { existsSync, readFileSync, rmSync } from "node:fs";
+import {
+	existsSync,
+	mkdirSync,
+	mkdtempSync,
+	readFileSync,
+	rmSync,
+	writeFileSync,
+} from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	buildSessionConnectionUpdate,
@@ -10,10 +17,51 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
+
+describe("rewriteDesktopTeamPrompt", () => {
+	it("rewrites /team for the core runtime", () => {
+		expect(
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(),
+			}),
+		).toBe(
+			'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		);
+	});
+
+	it("rejects /team when the Teams tool is disabled", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				disabledTools: new Set(["teams"]),
+			}),
+		).toThrow("Agent teams are disabled");
+	});
+
+	it("rejects /team when the mode's tool preset has no team tools", () => {
+		expect(() =>
+			rewriteDesktopTeamPrompt("/team inspect the app", {
+				mode: "yolo",
+				disabledTools: new Set(),
+			}),
+		).toThrow("Agent teams are not available in yolo mode");
+	});
+
+	it("accepts /team in act and plan modes", () => {
+		for (const mode of ["act", "plan", undefined]) {
+			expect(
+				rewriteDesktopTeamPrompt("/team inspect the app", {
+					mode,
+					disabledTools: new Set(),
+				}),
+			).toContain('<user_command slash="team">');
+		}
+	});
+});
 
 describe("buildSessionConnectionUpdate", () => {
 	it("does not clear reasoning settings when config omits reasoning fields", () => {
@@ -134,6 +182,8 @@ describe("pathless session starts", () => {
 		const start = vi.fn(async (input: { config: Record<string, unknown> }) => {
 			expect(input.config).not.toHaveProperty("cwd");
 			expect(input.config).not.toHaveProperty("workspaceRoot");
+			expect(input.config).not.toHaveProperty("enableSpawnAgent");
+			expect(input.config).not.toHaveProperty("enableAgentTeams");
 			return {
 				sessionId: "session-pathless",
 				manifest: {
@@ -146,6 +196,7 @@ describe("pathless session starts", () => {
 		});
 		const ctx = {
 			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
 			sessionManager: { start },
 		} as unknown as SidecarContext;
 
@@ -155,6 +206,10 @@ describe("pathless session starts", () => {
 				provider: "cline",
 				model: "anthropic/claude-sonnet-4.6",
 				enableTools: true,
+				// Legacy desktop capability flags must not override the SDK's
+				// current tool preset or global tool customizations.
+				enableSpawn: false,
+				enableTeams: false,
 			},
 		})) as {
 			sessionId: string;
@@ -171,6 +226,439 @@ describe("pathless session starts", () => {
 			cwd: "/home/host/.cline/data/workspaces/chat",
 			workspaceRoot: "/home/host/.cline/data/workspaces/chat",
 		});
+	});
+});
+
+describe("session forks", () => {
+	it("restores the selected workspace checkpoint before forking for message editing", async () => {
+		const sourceSessionId = `source-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+			{ role: "user" as const, content: "prompt to edit" },
+			{ role: "assistant" as const, content: "response to replace" },
+		];
+		const expectedMessages = sourceMessages.slice(0, 2);
+		const start = vi.fn(async () => ({ sessionId: "edited-fork" }));
+		const restore = vi.fn(async () => ({
+			sessionId: "edited-fork",
+			messages: sourceMessages.slice(0, 3),
+			checkpoint: {
+				ref: "second",
+				createdAt: 2,
+				runCount: 2,
+			},
+		}));
+		const readMessages = vi.fn(async () => expectedMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						checkpoint: {
+							latest: { ref: "second", createdAt: 2, runCount: 2 },
+							history: [
+								{ ref: "first", createdAt: 1, runCount: 1 },
+								{ ref: "second", createdAt: 2, runCount: 2 },
+							],
+						},
+					},
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 2,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		})) as { sessionId: string; messages: unknown[] };
+
+		expect(restore).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId: sourceSessionId,
+				checkpointRunCount: 2,
+				cwd: "/workspace/project",
+				restore: {
+					messages: true,
+					workspace: true,
+					omitCheckpointMessageFromSession: true,
+				},
+				start: expect.objectContaining({
+					sessionMetadata: expect.objectContaining({
+						fork: expect.objectContaining({
+							forkedFromSessionId: sourceSessionId,
+							beforeRunCount: 2,
+						}),
+					}),
+				}),
+			}),
+		);
+		expect(start).not.toHaveBeenCalled();
+		expect(readMessages).toHaveBeenCalledWith("edited-fork");
+		expect(result).toEqual({
+			sessionId: "edited-fork",
+			forkedFromSessionId: sourceSessionId,
+			messages: expectedMessages,
+		});
+		expect(ctx.liveSessions.get("edited-fork")?.messages).toEqual(
+			expectedMessages,
+		);
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("holds the workspace lock for the full edit restore", async () => {
+		const sourceSessionId = `locking-source-${Date.now()}`;
+		const siblingSessionId = `locking-sibling-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+		];
+		let releaseRestore = () => {};
+		const restoreGate = new Promise<void>((resolve) => {
+			releaseRestore = resolve;
+		});
+		let markRestoreStarted = () => {};
+		const restoreStarted = new Promise<void>((resolve) => {
+			markRestoreStarted = resolve;
+		});
+		const send = vi.fn();
+		const restore = vi.fn(async () => {
+			markRestoreStarted();
+			await restoreGate;
+			return {
+				sessionId: "locked-edited-fork",
+				messages: sourceMessages,
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			};
+		});
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+							cwd: "/workspace/project",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+				[
+					siblingSessionId,
+					{
+						config: { workspaceRoot: "/workspace/project/." },
+						messages: [],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+					metadata: {
+						checkpoint: {
+							latest: { ref: "first", createdAt: 1, runCount: 1 },
+							history: [{ ref: "first", createdAt: 1, runCount: 1 }],
+						},
+					},
+				})),
+				readMessages: vi.fn(async () => sourceMessages),
+				restore,
+				send,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		const fork = handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			forkBeforeRunCount: 1,
+		});
+		await restoreStarted;
+		try {
+			expect(ctx.restoringWorkspacePaths).toEqual(
+				new Set(["/workspace/project"]),
+			);
+			await expect(
+				handleChatSessionCommand(ctx, {
+					action: "send",
+					sessionId: siblingSessionId,
+					prompt: "race",
+				}),
+			).rejects.toThrow(
+				"Cannot send a prompt while the session workspace is being restored",
+			);
+			expect(send).not.toHaveBeenCalled();
+		} finally {
+			releaseRestore();
+		}
+
+		await expect(fork).resolves.toMatchObject({
+			sessionId: "locked-edited-fork",
+		});
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("keeps a full-history fork on the current workspace without restoring", async () => {
+		const sourceSessionId = `source-full-fork-${Date.now()}`;
+		const sourceMessages = [
+			{ role: "user" as const, content: "first prompt" },
+			{ role: "assistant" as const, content: "first response" },
+		];
+		const start = vi.fn(async () => ({ sessionId: "full-fork" }));
+		const restore = vi.fn();
+		const readMessages = vi.fn(async () => sourceMessages);
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages: sourceMessages,
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "completed",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					source: "desktop",
+					status: "completed",
+					provider: "cline",
+					model: "anthropic/claude-sonnet-4.6",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+				})),
+				readMessages,
+				restore,
+				start,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await handleChatSessionCommand(ctx, {
+			action: "fork",
+			sessionId: sourceSessionId,
+			config: {
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		expect(restore).not.toHaveBeenCalled();
+		expect(start).toHaveBeenCalledWith(
+			expect.objectContaining({ initialMessages: sourceMessages }),
+		);
+	});
+
+	it("rejects an edit fork while the source session is running", async () => {
+		const restore = vi.fn();
+		const sourceSessionId = "busy-source-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {},
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: true,
+						startedAt: Date.now(),
+						status: "running",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: { restore },
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("rejects an edit fork when the persisted session is still active", async () => {
+		const restore = vi.fn();
+		const sourceSessionId = "persisted-running-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: {},
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "running",
+				})),
+				restore,
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
+		expect(restore).not.toHaveBeenCalled();
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("rejects an edit fork while a sibling session in the workspace is running", async () => {
+		const sourceSessionId = "idle-source-session";
+		const siblingSessionId = "busy-sibling-session";
+		const restore = vi.fn();
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { cwd: "/workspace/project" },
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+				[
+					siblingSessionId,
+					{
+						config: { workspaceRoot: "/workspace/project/." },
+						messages: [],
+						promptsInQueue: [],
+						busy: true,
+						startedAt: Date.now(),
+						status: "running",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: sourceSessionId,
+					status: "completed",
+					cwd: "/workspace/project",
+					workspaceRoot: "/workspace/project",
+				})),
+				restore,
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+				forkBeforeRunCount: 1,
+			}),
+		).rejects.toThrow("Wait for all turns in this workspace to finish");
+		expect(restore).not.toHaveBeenCalled();
+		expect(ctx.restoringWorkspacePaths.size).toBe(0);
+	});
+
+	it("blocks sends from sibling sessions while their workspace is restored", async () => {
+		const send = vi.fn();
+		const sessionId = "workspace-sibling-session";
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: { workspaceRoot: "/workspace/project/." },
+						messages: [{ role: "user", content: "prompt" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(["/workspace/project"]),
+			sessionManager: { send },
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "race",
+			}),
+		).rejects.toThrow(
+			"Cannot send a prompt while the session workspace is being restored",
+		);
+		expect(send).not.toHaveBeenCalled();
 	});
 });
 
@@ -215,6 +703,7 @@ describe("first-send connection updates", () => {
 					},
 				],
 			]),
+			restoringWorkspacePaths: new Set(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
@@ -873,5 +1362,150 @@ describe("workspace metadata prewarming", () => {
 			),
 		).resolves.toBe("current metadata");
 		expect(load).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("runtime slash command expansion on send", () => {
+	const tempRoots: string[] = [];
+
+	afterEach(() => {
+		for (const dir of tempRoots) {
+			rmSync(dir, { recursive: true, force: true });
+		}
+		tempRoots.length = 0;
+	});
+
+	function createWorkspaceWithSkill(): string {
+		const workspace = mkdtempSync(join(tmpdir(), "desktop-slash-send-"));
+		tempRoots.push(workspace);
+		const skillDir = join(workspace, ".cline", "skills", "desktop-send-skill");
+		mkdirSync(skillDir, { recursive: true });
+		writeFileSync(
+			join(skillDir, "SKILL.md"),
+			`---
+name: desktop-send-skill
+---
+Follow the desktop send skill instructions.`,
+		);
+		return workspace;
+	}
+
+	function createContext(workspace: string) {
+		const sessionId = "slash-expansion-session";
+		const send = vi.fn(async (_input?: unknown) => ({
+			text: "done",
+			finishReason: "completed",
+			messages: [],
+		}));
+		const session = {
+			config: { provider: "cline", model: "test-model", cwd: workspace },
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "idle",
+			prompt: undefined as string | undefined,
+		};
+		const updatePendingPrompt = vi.fn(
+			async (input: { promptId: string; prompt?: string }) => ({
+				updated: true,
+				prompt: { id: input.promptId, prompt: input.prompt },
+				prompts: [],
+			}),
+		);
+		const ctx = {
+			workspaceRoot: workspace,
+			liveSessions: new Map([[sessionId, session]]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				send,
+				pendingPrompts: {
+					list: vi.fn(async () => []),
+					update: updatePendingPrompt,
+				},
+			},
+		} as unknown as SidecarContext;
+		return { ctx, send, session, sessionId, updatePendingPrompt };
+	}
+
+	it("expands a leading skill command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send skill instructions. write the docs",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-1",
+			prompt: "/desktop-send-skill later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-1",
+			prompt: "Follow the desktop send skill instructions. later please",
+		});
+	});
+
+	it("rewrites a team command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-team",
+			prompt: "/team inspect the app",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-team",
+			prompt:
+				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
+		});
+	});
+
+	it("leaves built-in and unknown slash commands untouched", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/fork",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/fork" }),
+		);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/not-a-real-command hello",
+		});
+		expect(send).toHaveBeenLastCalledWith(
+			expect.objectContaining({ prompt: "/not-a-real-command hello" }),
+		);
 	});
 });

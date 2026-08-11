@@ -1,4 +1,3 @@
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import type { Command } from "commander";
 import { ensureSchedulerHub } from "./client";
 import {
@@ -19,6 +18,7 @@ import {
 	registerScheduleImportCommand,
 	registerScheduleUpdateCommand,
 } from "./import-export";
+import { resolveScheduleModelSelection } from "./model-selection";
 import type { CommandIo, ScheduleActionWrapper } from "./types";
 
 export function registerScheduleCommands(
@@ -66,8 +66,8 @@ export function registerScheduleCommands(
 		.option("--max-parallel <n>", "Max parallel executions", "1")
 		.option("--metadata-json <json>", "Metadata as JSON object")
 		.option("--mode <act|plan|yolo>", "Execution mode", "yolo")
-		.option("--model <model>", "Model to use", CLINE_DEFAULT_MODEL_ID)
-		.option("--provider <id>", "Provider ID", "cline")
+		.option("--model <model>", "Model to use")
+		.option("--provider <id>", "Provider ID")
 		.option("--system-prompt <text>", "System prompt override")
 		.option("--tags <list>", "Comma-separated tags")
 		.option("--timeout <seconds>", "Timeout in seconds");
@@ -92,12 +92,16 @@ export function registerScheduleCommands(
 					parseJsonObjectFlag(opts.metadataJson),
 					opts,
 				);
+				const modelSelection = resolveScheduleModelSelection({
+					provider: opts.provider,
+					model: opts.model,
+				});
 				const created = await client.createSchedule({
 					name,
 					cronPattern: opts.cron,
 					prompt: opts.prompt,
-					provider: opts.provider,
-					model: opts.model,
+					provider: modelSelection.provider,
+					model: modelSelection.model,
 					mode: parseMode(opts.mode) ?? "yolo",
 					workspaceRoot: opts.workspace,
 					cwd: opts.cwd,

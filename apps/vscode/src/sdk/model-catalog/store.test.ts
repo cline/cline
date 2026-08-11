@@ -183,6 +183,26 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
+	// Changing the regional API line in the settings UI goes through
+	// store.write. It must land in providers.json (the CLI and desktop app
+	// bake the regional base URL from its stored apiLine) AND mirror to the
+	// legacy state key (the VS Code session factory's resolveApiLine reads
+	// legacy state first).
+	it.each([
+		["qwen", "qwenApiLine"],
+		["moonshot", "moonshotApiLine"],
+	] as const)("mirrors %s apiLine writes to both providers.json and the legacy state key", async (provider, legacyKey) => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId(provider)
+
+		store.write(providerId, { apiLine: "china" })
+
+		expect(mocks.getSavedProviderSettings(provider)).toMatchObject({ provider, apiLine: "china" })
+		expect(mocks.getApiConfiguration()[legacyKey]).toBe("china")
+		expect(store.read(providerId).apiLine).toBe("china")
+	})
+
 	it("round-trips commitSelection then readSelection for provider-specific model info", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()

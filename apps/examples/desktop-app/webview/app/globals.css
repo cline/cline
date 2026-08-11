@@ -14,10 +14,41 @@
 		height: 100%;
 		min-height: 100vh;
 		overflow: hidden;
+		/* Keep scroll momentum inside the app: without this, hitting the end
+		 * of an inner scroller rubber-bands the whole window like a web page. */
+		overscroll-behavior: none;
 	}
 
 	#__next {
 		height: 100%;
+	}
+
+	/*
+	 * Native-app chrome: labels, buttons, and panel text must not highlight
+	 * when the user drags across them. Content the user genuinely reads and
+	 * copies — chat messages, code, diffs, form fields — opts back in below.
+	 */
+	body {
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+
+	/* Selectable content surfaces: chat message bodies (incl. markdown and
+	 * code blocks), reasoning/tool panels, and diff text. */
+	.cline-chat-message-content,
+	.cline-markdown,
+	.cline-chat-selectable,
+	pre,
+	code {
+		-webkit-user-select: text;
+		user-select: text;
 	}
 }
 
@@ -77,6 +108,74 @@
 .cline-markdown [data-streamdown="inline-code"] {
 	padding: 0.1em 0.35em;
 	font-size: 0.8125rem;
+}
+
+/* Running reasoning/tool titles use their inherited text color as the bright
+ * band, so the same shimmer fits muted thinking text and primary tool text. */
+.cline-chat-streaming-title {
+	display: inline-block;
+	background-image: linear-gradient(
+		90deg,
+		color-mix(in oklab, currentcolor 55%, transparent) 0%,
+		currentcolor 50%,
+		color-mix(in oklab, currentcolor 55%, transparent) 100%
+	);
+	background-position: 200% 0;
+	background-size: 200% 100%;
+	-webkit-background-clip: text;
+	background-clip: text;
+	-webkit-text-fill-color: transparent;
+	animation: cline-chat-title-shimmer 2.25s linear infinite;
+}
+
+@keyframes cline-chat-title-shimmer {
+	to {
+		background-position: -200% 0;
+	}
+}
+
+/* Softens the welcome <-> conversation swap: the hero and the message grid
+ * replace each other in a single commit, which otherwise reads as a hard
+ * white flash. Plays whenever the element (re)becomes visible — display:none
+ * resets animations, so toggling Tailwind's `hidden` re-triggers it. */
+@keyframes cline-view-enter {
+	from {
+		opacity: 0;
+		transform: translateY(4px);
+	}
+	to {
+		opacity: 1;
+		transform: none;
+	}
+}
+
+.cline-view-enter {
+	animation: cline-view-enter 180ms ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.cline-chat-streaming-title {
+		background: none;
+		-webkit-text-fill-color: currentcolor;
+		animation: none;
+	}
+
+	.cline-view-enter {
+		animation: none;
+	}
+}
+
+/* The shared reveal rule is `.cline-chat-message:hover`, so hovering anywhere in
+ * the message pops the action row — including the reasoning disclosure nested in
+ * the message content. The actions act on the message body, so suppress the
+ * reveal while the pointer is inside the thinking panel. `[data-visible]` still
+ * wins, keeping the pending/error states pinned open. */
+.cline-chat-message:has(
+	> .cline-chat-message-content .cline-chat-reasoning:hover
+)
+> .cline-chat-message-actions:not([data-visible="true"]) {
+	pointer-events: none;
+	opacity: 0;
 }
 
 /*

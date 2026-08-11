@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 // gRPC clients: record which RPC the send path chose.
 const newTask = vi.fn().mockResolvedValue(undefined)
 const askResponse = vi.fn().mockResolvedValue(undefined)
+const clearTask = vi.fn().mockResolvedValue(undefined)
 const condense = vi.fn().mockResolvedValue(undefined)
 const trackIntent = vi.fn().mockResolvedValue(undefined)
 
@@ -13,7 +14,7 @@ vi.mock("@/services/grpc-client", () => ({
 	TaskServiceClient: {
 		newTask: (req: unknown) => newTask(req),
 		askResponse: (req: unknown) => askResponse(req),
-		clearTask: vi.fn().mockResolvedValue(undefined),
+		clearTask: (req: unknown) => clearTask(req),
 	},
 	SlashServiceClient: {
 		condense: (req: unknown) => condense(req),
@@ -100,6 +101,8 @@ describe("useMessageHandlers — send routing", () => {
 		newTask.mockResolvedValue(undefined)
 		askResponse.mockReset()
 		askResponse.mockResolvedValue(undefined)
+		clearTask.mockReset()
+		clearTask.mockResolvedValue(undefined)
 		condense.mockReset()
 		condense.mockResolvedValue(undefined)
 		trackIntent.mockReset()
@@ -349,6 +352,83 @@ describe("useMessageHandlers — send routing", () => {
 		expect(rollbackResponse(newerResponse)).toBe(newerResponse)
 	})
 
+	it("shows a pending chat bubble immediately when sending a message to a task resumed from history", async () => {
+		mockTurnState = { phase: "resumable", seq: 5 }
+		const historyConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "text", text: "partial work" },
+			{ ts: 3, type: "ask", ask: "resume_task" },
+		]
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				historyConversation,
+				makeChatState(historyConversation, { setPendingUserMessage, setPendingResponse }),
+			),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("keep going", ["image.png"], ["a.ts"])
+		})
+
+		expect(newTask).not.toHaveBeenCalled()
+		expect(askResponse).toHaveBeenCalledTimes(1)
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({
+				responseType: "yesButtonClicked",
+				text: "keep going",
+				images: ["image.png"],
+				files: ["a.ts"],
+			}),
+		)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				afterTs: 3,
+				message: expect.objectContaining({
+					type: "say",
+					say: "user_feedback",
+					text: "keep going",
+					images: ["image.png"],
+					files: ["a.ts"],
+					partial: false,
+				}),
+			}),
+		)
+		expect(setPendingResponse).toHaveBeenCalledWith({
+			id: 1,
+			turnStateSeq: 5,
+			messageCount: historyConversation.length,
+		})
+	})
+
+	it("shows a pending chat bubble when resuming a completed task from history", async () => {
+		mockTurnState = { phase: "completed", seq: 4 }
+		const historyConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task" },
+			{ ts: 2, type: "say", say: "completion_result", text: "all done" },
+			{ ts: 3, type: "ask", ask: "resume_completed_task" },
+		]
+		const setPendingUserMessage = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(historyConversation, makeChatState(historyConversation, { setPendingUserMessage })),
+		)
+
+		await act(async () => {
+			await result.current.handleSendMessage("one more thing", [], [])
+		})
+
+		expect(askResponse).toHaveBeenCalledWith(
+			expect.objectContaining({ responseType: "yesButtonClicked", text: "one more thing" }),
+		)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(
+			expect.objectContaining({
+				afterTs: 3,
+				message: expect.objectContaining({ say: "user_feedback", text: "one more thing" }),
+			}),
+		)
+	})
+
 	it("does not show a pending chat bubble for a streaming follow-up that will be queued", async () => {
 		mockTurnState = { phase: "streaming", seq: 9 }
 		const streamingConversation: ClineMessage[] = [
@@ -549,6 +629,30 @@ describe("useMessageHandlers — send routing", () => {
 		const pendingResponse = setPendingResponse.mock.calls[0][0]
 		const rollbackResponse = setPendingResponse.mock.calls.at(-1)?.[0]
 		expect(rollbackResponse(pendingResponse)).toBeUndefined()
+	})
+
+	it("startNewTask drops any unconfirmed optimistic message so it cannot be re-injected after clearTask", async () => {
+		mockTurnState = { phase: "streaming", seq: 2 }
+		const streamingConversation: ClineMessage[] = [
+			{ ts: 1, type: "say", say: "task", text: "task with attachment" },
+			{ ts: 2, type: "say", say: "text", text: "working", partial: true },
+		]
+		const setPendingUserMessage = vi.fn()
+		const setPendingResponse = vi.fn()
+		const { result } = renderHook(() =>
+			useMessageHandlers(
+				streamingConversation,
+				makeChatState(streamingConversation, { setPendingUserMessage, setPendingResponse }),
+			),
+		)
+
+		await act(async () => {
+			await result.current.startNewTask()
+		})
+
+		expect(clearTask).toHaveBeenCalledTimes(1)
+		expect(setPendingUserMessage).toHaveBeenCalledWith(undefined)
+		expect(setPendingResponse).toHaveBeenCalledWith(undefined)
 	})
 
 	// The webview does not gate sends on provider usability: submission always

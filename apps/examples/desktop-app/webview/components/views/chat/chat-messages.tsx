@@ -1,6 +1,6 @@
 "use client";
 
-import { AgentApprovalCard } from "@cline/ui";
+import { AgentApprovalCard, AgentAskQuestion } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -33,7 +33,6 @@ import {
 	Loader2,
 	type LucideIcon,
 	MessageCircleQuestionMarkIcon,
-	MessagesSquare,
 	PanelsTopLeftIcon,
 	PencilIcon,
 	SearchCodeIcon,
@@ -48,6 +47,16 @@ import {
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
@@ -81,6 +90,11 @@ type ChatMessagesProps = {
 		answer: string,
 	) => void | Promise<void>;
 	onRestoreCheckpoint?: (runCount: number) => void | Promise<void>;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
 };
 
@@ -144,6 +158,33 @@ function buildPreviousTimestampMap(
 	}
 
 	return previousTimestampByMessage;
+}
+
+function buildUserRunCountMap(
+	messages: ChatMessage[],
+): Map<ChatMessage, number> {
+	const runCountByMessage = new Map<ChatMessage, number>();
+	let lastRunCount = 0;
+
+	for (const message of messages) {
+		const userRunSpan =
+			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
+		const storedRunCount =
+			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
+		if (storedRunCount !== undefined) {
+			lastRunCount = Math.max(lastRunCount, storedRunCount);
+			if (message.role === "user" && userRunSpan === 1) {
+				runCountByMessage.set(message, storedRunCount);
+			}
+			continue;
+		}
+		lastRunCount += userRunSpan;
+		if (message.role === "user" && userRunSpan === 1) {
+			runCountByMessage.set(message, lastRunCount);
+		}
+	}
+
+	return runCountByMessage;
 }
 
 function getThoughtDurationMilliseconds(
@@ -233,6 +274,20 @@ function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
 }
 
 const IS_DEBUG = process.env.NODE_ENV === "test";
+const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
+
+/**
+ * Expanded reasoning and tool panels hang off a shared left rail: the border
+ * sits 8px in, centered under the 16px trigger icon, and the content is padded
+ * 16px so panel text lines up with the trigger label above it. Both panels must
+ * use this verbatim, and it overrides the panel chrome (border box, radius,
+ * background, inset) that `agent-chat.css` gives each of them by default.
+ *
+ * Reasoning stays capped and scrollable, while tool output grows into the
+ * conversation scroller and wraps to avoid a nested scrolling region.
+ */
+const EXPANDED_PANEL_RAIL_CLASS =
+	"ml-1 mt-0 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
 
 function ChatMessagesImpl({
 	sessionId,
@@ -248,20 +303,38 @@ function ChatMessagesImpl({
 	onRejectToolApproval,
 	onAnswerAskQuestion,
 	onRestoreCheckpoint,
+	onEditMessage,
 	onForkSession,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
-	const lastErrorMessage = [...messages]
-		.reverse()
-		.find((message) => message.role === "error");
+	// Scanned from the tail without copying: this component re-renders on
+	// every stream flush, so a reversed array clone per render would churn
+	// with transcript length.
+	const { lastConversationMessage, lastErrorMessage } = useMemo(() => {
+		let conversationMessage: ChatMessage | undefined;
+		let errorMessage: ChatMessage | undefined;
+		for (let index = messages.length - 1; index >= 0; index--) {
+			const message = messages[index];
+			if (!conversationMessage && message.role !== "status") {
+				conversationMessage = message;
+			}
+			if (!errorMessage && message.role === "error") {
+				errorMessage = message;
+			}
+			if (conversationMessage && errorMessage) {
+				break;
+			}
+		}
+		return {
+			lastConversationMessage: conversationMessage,
+			lastErrorMessage: errorMessage,
+		};
+	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
 	// Core reports "running" as soon as the turn is dispatched, well before the
 	// first streamed chunk arrives, so keep the thinking indicator up until the
 	// model produces output (or something else needs the user's attention).
-	const lastConversationMessage = [...messages]
-		.reverse()
-		.find((message) => message.role !== "status");
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
@@ -287,22 +360,72 @@ function ChatMessagesImpl({
 	const [checkpointErrors, setCheckpointErrors] = useState<
 		Record<string, string>
 	>({});
+	const [checkpointConfirmation, setCheckpointConfirmation] = useState<{
+		messageId: string;
+		runCount: number;
+	} | null>(null);
+	const [editConfirmation, setEditConfirmation] = useState<{
+		messageId: string;
+		content: string;
+		runCount: number;
+	} | null>(null);
 	const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+	const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+	const [editErrors, setEditErrors] = useState<Record<string, string>>({});
 	const [forkingMessageId, setForkingMessageId] = useState<string | null>(null);
 	const [forkErrors, setForkErrors] = useState<Record<string, string>>({});
 	const [expandedImage, setExpandedImage] = useState<{
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const sessionVersioningPending =
+		editingMessageId !== null ||
+		forkingMessageId !== null ||
+		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
+	// Built once per pendingAskQuestions change instead of per render: the
+	// list re-renders on every stream flush and these rows carry JSX.
+	const askQuestionItems = useMemo(
+		() =>
+			pendingAskQuestions.map((item) => ({
+				description: (
+					<>
+						Request {item.requestId}
+						{item.context?.iteration != null
+							? ` · Iteration ${item.context.iteration}`
+							: ""}
+					</>
+				),
+				id: item.requestId,
+				meta: (
+					<>
+						<Clock3 className="h-3 w-3" />
+						{formatApprovalTimestamp(item.createdAt)}
+					</>
+				),
+				options: item.options,
+				question: item.question,
+			})),
+		[pendingAskQuestions],
+	);
 	const previousTimestampByMessage = useMemo(
 		() => buildPreviousTimestampMap(messages),
 		[messages],
 	);
+	const userRunCountByMessage = useMemo(
+		() => buildUserRunCountMap(messages),
+		[messages],
+	);
+
+	useEffect(() => {
+		void sessionId;
+		setCheckpointConfirmation(null);
+		setEditConfirmation(null);
+	}, [sessionId]);
 
 	useEffect(() => {
 		if (!visibleExpandedImage) {
@@ -463,6 +586,51 @@ function ChatMessagesImpl({
 		[onRestoreCheckpoint],
 	);
 
+	const handleEditMessage = useCallback(
+		async (messageId: string, content: string, runCount: number) => {
+			if (!onEditMessage) {
+				return;
+			}
+			setEditingMessageId(messageId);
+			setEditErrors((prev) => {
+				if (!prev[messageId]) {
+					return prev;
+				}
+				const next = { ...prev };
+				delete next[messageId];
+				return next;
+			});
+			try {
+				await Promise.resolve(onEditMessage(messageId, content, runCount));
+			} catch (err) {
+				const message =
+					err instanceof Error
+						? err.message
+						: "Could not restart from this message.";
+				setEditErrors((prev) => ({ ...prev, [messageId]: message }));
+			} finally {
+				setEditingMessageId((current) =>
+					current === messageId ? null : current,
+				);
+			}
+		},
+		[onEditMessage],
+	);
+	const requestEditMessage = useCallback(
+		(messageId: string, content: string, runCount: number) => {
+			setEditConfirmation({ messageId, content, runCount });
+		},
+		[],
+	);
+	// Stable identity so memoized MessageBubbles skip re-rendering on stream
+	// flushes; an inline lambda here would invalidate every bubble per flush.
+	const requestRestoreCheckpoint = useCallback(
+		(messageId: string, runCount: number) => {
+			setCheckpointConfirmation({ messageId, runCount });
+		},
+		[],
+	);
+
 	const handleExpandImage = useCallback(
 		(image: ChatMessageImage) => {
 			setExpandedImage({ sessionId, image });
@@ -537,14 +705,12 @@ function ChatMessagesImpl({
 									requestErrors={toolApprovalErrors}
 								/>
 							) : null}
-							{pendingAskQuestions.length > 0 ? (
-								<AskQuestionPanel
-									items={pendingAskQuestions}
-									onAnswer={(requestId, answer) =>
-										handleAskQuestionAnswer(requestId, answer)
-									}
-									pendingActions={askQuestionActions}
-									requestErrors={askQuestionErrors}
+							{askQuestionItems.length > 0 ? (
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={askQuestionItems}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
 								/>
 							) : null}
 							{renderItems.map((item) => {
@@ -573,23 +739,45 @@ function ChatMessagesImpl({
 										isStreaming={streamingMessageId === message.id}
 										key={message.id}
 										message={message}
+										runCount={userRunCountByMessage.get(message)}
 										onExpandImage={handleExpandImage}
 										onCopyMessage={handleCopyMessage}
+										onEditMessage={
+											onEditMessage ? requestEditMessage : undefined
+										}
+										editDisabled={
+											!onEditMessage ||
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
+										}
+										editError={editErrors[message.id]}
+										editPending={editingMessageId === message.id}
 										onRestoreCheckpoint={
-											onRestoreCheckpoint ? handleRestoreCheckpoint : undefined
+											onRestoreCheckpoint ? requestRestoreCheckpoint : undefined
 										}
 										restoreDisabled={
 											!onRestoreCheckpoint ||
 											status === "starting" ||
 											status === "running" ||
 											status === "stopping" ||
-											isSessionSwitching
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										restoreError={checkpointErrors[message.id]}
 										restorePending={checkpointActions[message.id] === "undoing"}
 										wasCopied={copiedMessageId === message.id}
 										onForkSession={
 											onForkSession ? handleForkSession : undefined
+										}
+										forkDisabled={
+											status === "starting" ||
+											status === "running" ||
+											status === "stopping" ||
+											isSessionSwitching ||
+											sessionVersioningPending
 										}
 										forkPending={forkingMessageId === message.id}
 										forkError={forkErrors[message.id]}
@@ -639,7 +827,7 @@ function ChatMessagesImpl({
 					!isSessionSwitching ? (
 						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
 							<Loader2 className="h-4 w-4 animate-spin" />
-							Thinking...
+							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
 					) : null}
 					{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
@@ -653,7 +841,7 @@ function ChatMessagesImpl({
 						</div>
 					) : null}
 					{shouldShowErrorBanner ? (
-						<div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+						<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
 							{error}
 						</div>
 					) : null}
@@ -693,6 +881,80 @@ function ChatMessagesImpl({
 					</div>
 				</div>
 			) : null}
+			<AlertDialog
+				open={checkpointConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setCheckpointConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Revert to this checkpoint?</AlertDialogTitle>
+						<AlertDialogDescription>
+							Workspace files and conversation history after this point will be
+							discarded. This cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = checkpointConfirmation;
+								setCheckpointConfirmation(null);
+								if (confirmation) {
+									void handleRestoreCheckpoint(
+										confirmation.messageId,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Revert
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+			<AlertDialog
+				open={editConfirmation !== null}
+				onOpenChange={(open) => {
+					if (!open) {
+						setEditConfirmation(null);
+					}
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Edit and restart from here?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This creates a new session and restores the workspace to its
+							checkpoint before placing this message in the composer. Workspace
+							and conversation changes after this point will be discarded.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+							onClick={() => {
+								const confirmation = editConfirmation;
+								setEditConfirmation(null);
+								if (confirmation) {
+									void handleEditMessage(
+										confirmation.messageId,
+										confirmation.content,
+										confirmation.runCount,
+									);
+								}
+							}}
+						>
+							Continue
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 		</Conversation>
 	);
 }
@@ -784,98 +1046,27 @@ function ToolApprovalPanel({
 	);
 }
 
-function AskQuestionPanel({
-	items,
-	pendingActions,
-	requestErrors,
-	onAnswer,
-}: {
-	items: AskQuestionRequestItem[];
-	pendingActions: Record<string, string>;
-	requestErrors: Record<string, string>;
-	onAnswer: (requestId: string, answer: string) => void;
-}) {
-	return (
-		<section className="rounded-xl border border-blue-400/40 bg-blue-500/5 p-3">
-			<div className="flex items-center gap-2 text-sm font-medium text-foreground">
-				<MessagesSquare className="h-4 w-4 text-blue-500" />
-				Follow-up question
-			</div>
-			<p className="mt-1 text-xs text-muted-foreground">
-				Choose one option to continue the current agent turn.
-			</p>
-			<div className="mt-3 flex flex-col gap-2">
-				{items.map((item) => {
-					const pendingAnswer = pendingActions[item.requestId];
-					const isPending = Boolean(pendingAnswer);
-					const error = requestErrors[item.requestId];
-					return (
-						<div
-							className="rounded-lg border border-border/80 bg-background/70 p-3"
-							key={item.requestId}
-						>
-							<div className="flex items-center justify-between gap-2">
-								<div className="text-sm font-medium text-foreground">
-									{item.question}
-								</div>
-								<div className="inline-flex items-center gap-1 text-[11px] text-muted-foreground">
-									<Clock3 className="h-3 w-3" />
-									{formatApprovalTimestamp(item.createdAt)}
-								</div>
-							</div>
-							<div className="mt-1 text-[11px] text-muted-foreground">
-								Request {item.requestId}
-								{item.context?.iteration != null
-									? ` · Iteration ${item.context.iteration}`
-									: ""}
-							</div>
-							{error ? (
-								<div className="mt-2 text-xs text-destructive">{error}</div>
-							) : null}
-							<div className="mt-3 flex flex-wrap items-center gap-2">
-								{item.options.map((option) => (
-									<Button
-										disabled={isPending}
-										key={option}
-										onClick={() => onAnswer(item.requestId, option)}
-										size="sm"
-										type="button"
-										variant="outline"
-									>
-										{pendingAnswer === option ? (
-											<>
-												<Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
-												Sending...
-											</>
-										) : (
-											option
-										)}
-									</Button>
-								))}
-							</div>
-						</div>
-					);
-				})}
-			</div>
-		</section>
-	);
-}
-
 // Memoized with id-parameterized callbacks: during streaming only the message
 // object that received a delta changes identity, so all other bubbles skip
 // re-rendering (and re-running their Markdown pipeline) per flush.
 const MessageBubble = memo(function MessageBubble({
 	agentRole,
 	message,
+	runCount,
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onEditMessage,
+	editDisabled = false,
+	editPending = false,
+	editError,
 	onRestoreCheckpoint,
 	restoreDisabled = false,
 	restorePending = false,
 	restoreError,
 	wasCopied = false,
 	onForkSession,
+	forkDisabled = false,
 	forkPending = false,
 	forkError,
 	isLastAssistantMessage = false,
@@ -885,9 +1076,18 @@ const MessageBubble = memo(function MessageBubble({
 }: {
 	agentRole: AgentMessageRole;
 	message: ChatMessage;
+	runCount?: number;
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onEditMessage?: (
+		messageId: string,
+		content: string,
+		runCount: number,
+	) => void | Promise<void>;
+	editDisabled?: boolean;
+	editPending?: boolean;
+	editError?: string;
 	onRestoreCheckpoint?: (
 		messageId: string,
 		runCount: number,
@@ -897,6 +1097,7 @@ const MessageBubble = memo(function MessageBubble({
 	restoreError?: string;
 	wasCopied?: boolean;
 	onForkSession?: (messageId: string) => void | Promise<void>;
+	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
 	isLastAssistantMessage?: boolean;
@@ -918,8 +1119,17 @@ const MessageBubble = memo(function MessageBubble({
 		Boolean(displayContent.trim()) &&
 		Boolean(onCopyMessage || onForkSession);
 	const shouldRenderUserActions =
-		isUser && Boolean(onCopyMessage || checkpoint);
-	const keepUserActionsVisible = restorePending || Boolean(restoreError);
+		isUser &&
+		Boolean(
+			onCopyMessage ||
+				checkpoint ||
+				(onEditMessage && runCount && displayContent.trim()),
+		);
+	const keepUserActionsVisible =
+		restorePending ||
+		editPending ||
+		Boolean(restoreError) ||
+		Boolean(editError);
 	const keepAssistantActionsVisible =
 		isLastAssistantMessage || forkPending || Boolean(forkError);
 
@@ -941,9 +1151,11 @@ const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
+	// Spacing between blocks comes solely from the conversation list's `gap-2`
+	// and this content column's `gap-2`; blocks must not add their own margins.
 	return (
-		<AgentMessage className="relative" from={agentRole}>
-			<MessageContent className="space-y-2 wrap-break-word">
+		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
 						content={reasoningContent}
@@ -975,7 +1187,7 @@ const MessageBubble = memo(function MessageBubble({
 				) : null}
 
 				{displayContent ? (
-					<div className="my-1 min-w-0 max-w-full wrap-break-word">
+					<div className="min-w-0 max-w-full wrap-break-word">
 						<MemoizedMarkdown
 							content={displayContent}
 							streaming={isStreaming && message.role === "assistant"}
@@ -987,7 +1199,7 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10 -translate-y-2"
+						className="absolute right-0 top-full z-10 -translate-y-1"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
@@ -1001,6 +1213,23 @@ const MessageBubble = memo(function MessageBubble({
 									<Check className="h-3.5 w-3.5" />
 								) : (
 									<Copy className="h-3.5 w-3.5" />
+								)}
+							</MessageAction>
+						) : null}
+						{onEditMessage && runCount && displayContent.trim() ? (
+							<MessageAction
+								className="min-w-0 p-0"
+								disabled={editDisabled || editPending}
+								label="Edit user message"
+								onClick={() =>
+									void onEditMessage(message.id, displayContent, runCount)
+								}
+								title="Edit message and restart from this point"
+							>
+								{editPending ? (
+									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								) : (
+									<PencilIcon className="h-3.5 w-3.5" />
 								)}
 							</MessageAction>
 						) : null}
@@ -1028,12 +1257,17 @@ const MessageBubble = memo(function MessageBubble({
 							{restoreError}
 						</div>
 					) : null}
+					{editError ? (
+						<div className="text-right text-xs text-destructive">
+							{editError}
+						</div>
+					) : null}
 				</>
 			) : null}
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10 -translate-y-2"
+					className="absolute left-0 top-full z-10 -translate-y-1"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
@@ -1057,7 +1291,7 @@ const MessageBubble = memo(function MessageBubble({
 					{onForkSession ? (
 						<MessageAction
 							className="min-w-0 p-0"
-							disabled={forkPending}
+							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
@@ -1065,7 +1299,7 @@ const MessageBubble = memo(function MessageBubble({
 							{forkPending ? (
 								<Loader2 className="h-3 w-3 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3" />
+								<SplitIcon className="h-3 w-3 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
@@ -1105,10 +1339,25 @@ function ReasoningBlock({
 				className="gap-2 py-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
 			>
 				<BrainIcon aria-hidden="true" className="h-4 w-4 shrink-0" />
-				<span className="font-medium">{label}</span>
+				<span className={cn("font-medium", streaming && STREAMING_TITLE_CLASS)}>
+					{label}
+				</span>
 			</ReasoningTrigger>
-			<ReasoningContent className="ml-2 mt-2 max-h-48 overflow-y-auto rounded-none border-0 border-l border-border bg-transparent p-0 py-1 pl-4 text-sm leading-relaxed text-muted-foreground">
-				<MemoizedMarkdown content={displayContent} streaming={streaming} />
+			<ReasoningContent
+				className={cn(
+					EXPANDED_PANEL_RAIL_CLASS,
+					// Prose reflows, so the X axis is pinned shut: `overflow-y-auto`
+					// alone would compute overflow-x to `auto` and let a long
+					// unbreakable token add a horizontal scrollbar.
+					"max-h-48 overflow-x-hidden overflow-y-auto",
+					"text-sm leading-relaxed text-muted-foreground",
+				)}
+			>
+				<MemoizedMarkdown
+					classNames="text-sm font-thin"
+					content={displayContent}
+					streaming={streaming}
+				/>
 			</ReasoningContent>
 		</Reasoning>
 	);
@@ -1128,6 +1377,7 @@ type ToolSummary = {
 		key: string;
 		count: number;
 		noun: string;
+		pluralNoun?: string;
 		completedVerb: string;
 		progressVerb: string;
 	};
@@ -1379,14 +1629,390 @@ function pluralize(
 	return `${count} ${count === 1 ? singular : plural}`;
 }
 
+function resultRecords(result: unknown): Record<string, unknown>[] {
+	const normalized = normalizeDisplayValue(result);
+	if (Array.isArray(normalized)) {
+		return normalized.map(asRecord).filter((item) => item !== null);
+	}
+	const record = asRecord(normalized);
+	return record ? [record] : [];
+}
+
+function recordString(
+	record: Record<string, unknown> | null | undefined,
+	key: string,
+	fallback = "",
+): string {
+	const value = record?.[key];
+	return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
+function teamSummary(
+	toolName: string,
+	input: unknown,
+	result: unknown,
+	inProgress: boolean,
+	isError: boolean,
+): ToolSummary | null {
+	if (!toolName.startsWith("team_")) return null;
+	if (isError) {
+		const failureLabels: Record<string, string> = {
+			team_attach_outcome_fragment: "Failed to attach outcome fragment",
+			team_await_runs: "Failed while waiting for teammates",
+			team_broadcast: "Failed to broadcast message to teammates",
+			team_cancel_run: "Failed to cancel teammate run",
+			team_cleanup: "Failed to clean up team",
+			team_create_outcome: "Failed to create team outcome",
+			team_finalize_outcome: "Failed to finalize team outcome",
+			team_list_outcomes: "Failed to list team outcomes",
+			team_list_runs: "Failed to list teammate runs",
+			team_mission_log: "Failed to update mission log",
+			team_read_mailbox: "Failed to read team mailbox",
+			team_review_outcome_fragment: "Failed to review outcome fragment",
+			team_run_task: "Failed to assign team task",
+			team_send_message: "Failed to send message",
+			team_shutdown_teammate: "Failed to stop teammate",
+			team_spawn_teammate: "Failed to spawn teammate",
+			team_status: "Failed to check team status",
+			team_task: "Failed to update team task",
+		};
+		return {
+			label: failureLabels[toolName] ?? `Failed ${toolName}`,
+			details: [],
+		};
+	}
+	const inputRecord = asRecord(input);
+	const records = resultRecords(result);
+	const resultRecord = records[0];
+	const aggregate = (
+		key: string,
+		noun: string,
+		completedVerb: string,
+		progressVerb: string,
+		details: string[],
+		pluralNoun?: string,
+		count = 1,
+	): ToolSummary => ({
+		label: `${inProgress ? progressVerb : completedVerb} ${pluralize(
+			count,
+			noun,
+			pluralNoun,
+		)}`,
+		aggregate: {
+			key,
+			count,
+			noun,
+			pluralNoun,
+			completedVerb,
+			progressVerb,
+		},
+		details,
+	});
+	const agentId = recordString(
+		resultRecord,
+		"agentId",
+		recordString(inputRecord, "agentId"),
+	);
+
+	switch (toolName) {
+		case "team_spawn_teammate":
+			return aggregate(
+				"team-spawn",
+				"teammate",
+				"Spawned",
+				"Spawning",
+				agentId ? [agentId] : [],
+			);
+		case "team_run_task": {
+			const mode = recordString(
+				resultRecord,
+				"mode",
+				recordString(inputRecord, "runMode", "sync"),
+			);
+			const status = inProgress
+				? "assigning"
+				: recordString(resultRecord, "status", "assigned");
+			return aggregate(
+				"team-run-task",
+				"team task",
+				"Assigned",
+				"Assigning",
+				[mode, agentId, status].filter(Boolean).join(" ")
+					? [[mode, agentId, status].filter(Boolean).join(" ")]
+					: [],
+				"team tasks",
+			);
+		}
+		case "team_await_runs": {
+			const details = records.map((run) =>
+				[
+					recordString(run, "agentId", recordString(run, "id")),
+					recordString(run, "status"),
+				]
+					.filter(Boolean)
+					.join(" "),
+			);
+			return {
+				label: inProgress ? "Waiting for teammates" : "Waited for teammates",
+				details,
+			};
+		}
+		case "team_shutdown_teammate":
+			return aggregate(
+				"team-shutdown",
+				"teammate",
+				"Stopped",
+				"Stopping",
+				agentId ? [agentId] : [],
+			);
+		case "team_status": {
+			const members = Array.isArray(resultRecord?.members)
+				? resultRecord.members.map(asRecord).filter((item) => item !== null)
+				: [];
+			return {
+				label: inProgress ? "Checking team status" : "Checked team status",
+				details: members.map((member) =>
+					[recordString(member, "agentId"), recordString(member, "status")]
+						.filter(Boolean)
+						.join(" "),
+				),
+			};
+		}
+		case "team_task": {
+			const action = recordString(
+				inputRecord,
+				"action",
+				recordString(resultRecord, "action", "update"),
+			);
+			const verbs: Record<string, [string, string]> = {
+				create: ["Created", "Creating"],
+				list: ["Listed", "Listing"],
+				claim: ["Claimed", "Claiming"],
+				complete: ["Completed", "Completing"],
+				block: ["Blocked", "Blocking"],
+			};
+			const [completedVerb, progressVerb] = verbs[action] ?? [
+				"Updated",
+				"Updating",
+			];
+			const tasks = Array.isArray(resultRecord?.tasks)
+				? resultRecord.tasks.map(asRecord).filter((item) => item !== null)
+				: records;
+			const details = tasks.map((task) =>
+				[
+					recordString(
+						task,
+						"taskId",
+						recordString(task, "id", recordString(inputRecord, "taskId")),
+					),
+					recordString(task, "title", recordString(inputRecord, "title")),
+					recordString(task, "status"),
+				]
+					.filter(Boolean)
+					.join(" "),
+			);
+			return aggregate(
+				`team-task-${action}`,
+				"team task",
+				completedVerb,
+				progressVerb,
+				details,
+				undefined,
+				action === "list" ? tasks.length : 1,
+			);
+		}
+		case "team_list_runs":
+			return {
+				label: inProgress
+					? "Listing teammate runs"
+					: `Listed ${pluralize(records.length, "teammate run")}`,
+				details: records.map((run) =>
+					[recordString(run, "agentId"), recordString(run, "status")]
+						.filter(Boolean)
+						.join(" "),
+				),
+			};
+		case "team_cancel_run":
+			return {
+				label: inProgress
+					? "Cancelling teammate run"
+					: "Cancelled teammate run",
+				details: [
+					[
+						recordString(
+							resultRecord,
+							"runId",
+							recordString(inputRecord, "runId"),
+						),
+						recordString(resultRecord, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_send_message": {
+			const recipient = recordString(
+				resultRecord,
+				"toAgentId",
+				recordString(inputRecord, "toAgentId"),
+			);
+			return aggregate(
+				"team-send-message",
+				"message",
+				"Sent",
+				"Sending",
+				[recipient, recordString(inputRecord, "subject")].filter(Boolean).length
+					? [
+							[recipient, recordString(inputRecord, "subject")]
+								.filter(Boolean)
+								.join(" "),
+						]
+					: [],
+			);
+		}
+		case "team_broadcast": {
+			const delivered = resultRecord?.delivered;
+			return {
+				label: inProgress
+					? "Broadcasting message to teammates"
+					: `Broadcast message to ${pluralize(typeof delivered === "number" ? delivered : 0, "teammate")}`,
+				details: recordString(inputRecord, "subject")
+					? [recordString(inputRecord, "subject")]
+					: [],
+			};
+		}
+		case "team_read_mailbox":
+			return {
+				label: inProgress
+					? "Reading team mailbox"
+					: `Read ${pluralize(records.length, "team message")}`,
+				details: records.map((message) =>
+					[
+						recordString(message, "fromAgentId"),
+						recordString(message, "subject"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				),
+			};
+		case "team_mission_log":
+			return {
+				label: inProgress ? "Updating mission log" : "Updated mission log",
+				details: [
+					[
+						recordString(inputRecord, "kind"),
+						recordString(inputRecord, "summary"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_cleanup":
+			return {
+				label: inProgress ? "Cleaning up team" : "Cleaned up team",
+				details: recordString(resultRecord, "status")
+					? [recordString(resultRecord, "status")]
+					: [],
+			};
+		case "team_create_outcome":
+			return {
+				label: inProgress ? "Creating team outcome" : "Created team outcome",
+				details: [
+					[
+						recordString(resultRecord, "outcomeId"),
+						recordString(inputRecord, "title"),
+						recordString(resultRecord, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_attach_outcome_fragment":
+			return {
+				label: inProgress
+					? "Attaching outcome fragment"
+					: "Attached outcome fragment",
+				details: [
+					[
+						recordString(inputRecord, "section"),
+						recordString(resultRecord, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_review_outcome_fragment":
+			return {
+				label: inProgress
+					? "Reviewing outcome fragment"
+					: "Reviewed outcome fragment",
+				details: [
+					[
+						recordString(inputRecord, "fragmentId"),
+						typeof inputRecord?.approved === "boolean"
+							? inputRecord.approved
+								? "approved"
+								: "rejected"
+							: recordString(resultRecord, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_finalize_outcome":
+			return {
+				label: inProgress
+					? "Finalizing team outcome"
+					: "Finalized team outcome",
+				details: [
+					[
+						recordString(
+							resultRecord,
+							"outcomeId",
+							recordString(inputRecord, "outcomeId"),
+						),
+						recordString(resultRecord, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				].filter(Boolean),
+			};
+		case "team_list_outcomes":
+			return {
+				label: inProgress
+					? "Listing team outcomes"
+					: `Listed ${pluralize(records.length, "team outcome")}`,
+				details: records.map((outcome) =>
+					[
+						recordString(outcome, "title", recordString(outcome, "id")),
+						recordString(outcome, "status"),
+					]
+						.filter(Boolean)
+						.join(" "),
+				),
+			};
+		default:
+			return null;
+	}
+}
+
 function buildToolSummary(
 	toolName: string,
 	input: unknown,
 	result: unknown,
 	inProgress: boolean,
+	isError = false,
 ): ToolSummary {
 	const normalized = normalizeToolName(toolName);
 	const inputObject = asRecord(input);
+	const teamToolSummary = teamSummary(
+		normalized,
+		input,
+		result,
+		inProgress,
+		isError,
+	);
+	if (teamToolSummary) return teamToolSummary;
 
 	if (normalized === "read_files") {
 		const files = extractReadFilePaths(input);
@@ -1609,7 +2235,13 @@ function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
 	const kind = classifyTool(toolName);
 	const summary = payload
-		? buildToolSummary(toolName, payload.input, payload.result, inProgress)
+		? buildToolSummary(
+				toolName,
+				payload.input,
+				payload.result,
+				inProgress,
+				Boolean(payload.isError),
+			)
 		: buildToolSummaryFromMeta(toolName, kind, inProgress);
 	return { message, payload, toolName, kind, inProgress, summary };
 }
@@ -1664,7 +2296,11 @@ function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
 			const verb = aggregate.inProgress
 				? aggregate.progressVerb
 				: aggregate.completedVerb;
-			return `${verb} ${pluralize(aggregate.count, aggregate.noun)}`;
+			return `${verb} ${pluralize(
+				aggregate.count,
+				aggregate.noun,
+				aggregate.pluralNoun,
+			)}`;
 		})
 		.join(". ");
 }
@@ -1678,6 +2314,7 @@ const ToolMessageBlock = memo(
 		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
+		const label = buildGroupedToolLabel(presentations);
 		const icons = presentations.map(({ toolName }) =>
 			getToolNameIcon(toolName),
 		);
@@ -1731,12 +2368,17 @@ const ToolMessageBlock = memo(
 							<Icon className="size-4" />
 						)
 					}
-					label={buildGroupedToolLabel(presentations)}
+					label={
+						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+							{label}
+						</span>
+					}
+					showDisclosureIcon={false}
 					status={hasError ? "error" : isRunning ? "running" : "success"}
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
 					{details.length > 0 ? (
-						<ToolActivityDetails>
+						<ToolActivityDetails className="whitespace-pre-wrap">
 							{details.map(({ detail, key }) => (
 								<div key={key}>{detail}</div>
 							))}
@@ -1756,7 +2398,7 @@ const ToolMessageBlock = memo(
 					))}
 					{resultPreviews.map((preview) => (
 						<div
-							className="mt-1 text-destructive"
+							className="mt-1 break-words text-destructive"
 							key={`result_${preview.key}`}
 						>
 							{presentations.length > 1 ? `${preview.toolName}: ` : null}

@@ -39,7 +39,9 @@ export type GatewayModelCapability =
 export type GatewayPromptCacheStrategy = "anthropic-automatic";
 export const USAGE_COST_DISPLAYS = ["show", "hide", "subscription"] as const;
 export type GatewayUsageCostDisplay = (typeof USAGE_COST_DISPLAYS)[number];
-export type GatewayPromptCacheFormat = "anthropic-cache-control";
+export type GatewayPromptCacheFormat =
+	| "anthropic-cache-control"
+	| "bedrock-cache-point";
 export type GatewayReasoningFormat =
 	| "anthropic-thinking"
 	| "glm-thinking"

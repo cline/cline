@@ -40,6 +40,7 @@ import type {
 	UserInstructionConfigService,
 	UserInstructionConfigType,
 } from "../../extensions/config";
+import { normalizeRuntimeCommandName } from "../../extensions/config/runtime-commands";
 import type { ToolExecutors } from "../../extensions/tools";
 import {
 	createSkillsTool,
@@ -51,7 +52,6 @@ import type {
 	RuntimeSessionConfig,
 } from "../../runtime/host/runtime-host";
 import { formatRulesForSystemPrompt } from "../../runtime/safety/rules";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
 import type { CoreSessionConfig } from "../../types/config";
 
 type RequestCapability = (
@@ -220,9 +220,6 @@ function serializeToolContext(
 	context: AgentToolContext,
 ): Record<string, unknown> {
 	const metadata = context.metadata ? { ...context.metadata } : undefined;
-	if (metadata) {
-		delete metadata[CLINE_INTERNAL_TELEMETRY_METADATA_KEY];
-	}
 	return {
 		agentId: context.agentId,
 		conversationId: context.conversationId,
@@ -370,13 +367,17 @@ function createUserInstructionServiceProxy(
 		resolveRuntimeSlashCommand: (input) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
-			const name = match?.[1];
-			if (!name) return input;
+			const rawName = match?.[1];
+			if (!rawName) return input;
+			const name = normalizeRuntimeCommandName(rawName);
+			// Normalize the snapshot side too: older clients serve snapshots
+			// with raw configured names (e.g. "Ship"), which would otherwise
+			// never match the normalized typed token.
 			const command = snapshot.runtimeCommands.find(
-				(item) => item.name === name,
+				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
 			return command
-				? `${command.instructions}${input.slice(name.length + 1)}`
+				? `${command.instructions}${input.slice(rawName.length + 1)}`
 				: input;
 		},
 		hasConfiguredSkills: (allowedSkillNames) =>

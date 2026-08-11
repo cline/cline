@@ -59,11 +59,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 				messages.length > 0 &&
 				(messageToSend === "/compact" || messageToSend === "/smol" || messageToSend === "/newtask")
 			) {
+				// Clear the input before awaiting the RPC — condense resolves only
+				// after compaction finishes, and the typed command lingering in the
+				// field the whole time reads as if the send didn't register.
+				setInputValue("")
+				setActiveQuote(null)
 				await SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
 					console.error("Failed to compact task:", err),
 				)
-				setInputValue("")
-				setActiveQuote(null)
 				if ("disableAutoScrollRef" in chatState) {
 					;(chatState as any).disableAutoScrollRef.current = false
 				}
@@ -201,6 +204,10 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 					// For resume_task and resume_completed_task, use yesButtonClicked to match Resume button behavior
 					// This ensures Enter key and Resume button work identically
 					if (clineAsk === "resume_task" || clineAsk === "resume_completed_task") {
+						// Resuming a task opened from history rebuilds the SDK session before the
+						// extension echoes say:user_feedback, so without an optimistic bubble the
+						// user's message would not appear until the (slow) resume finishes — the
+						// chat would show only the Thinking loader in the meantime.
 						await sendAskResponseWithPendingState(
 							AskResponseRequest.create({
 								responseType: "yesButtonClicked",
@@ -208,6 +215,7 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 								images,
 								files,
 							}),
+							{ showPendingMessage: turnState?.phase !== "streaming" },
 						)
 						messageSent = true
 					} else {
@@ -327,8 +335,14 @@ export function useMessageHandlers(messages: ClineMessage[], chatState: ChatStat
 			}),
 		).catch((error) => console.error("Failed to track new task click:", error))
 		setActiveQuote(null)
+		// Drop any unconfirmed optimistic message: if it lingered past an explicit
+		// New Task, withPendingUserMessage would re-inject the old task (and its
+		// attachments) into the freshly cleared transcript, leaving the chat stuck
+		// on the previous task (#12924).
+		setPendingUserMessage(undefined)
+		setPendingResponse(undefined)
 		await TaskServiceClient.clearTask(EmptyRequest.create({}))
-	}, [messages.length, setActiveQuote])
+	}, [messages.length, setActiveQuote, setPendingUserMessage, setPendingResponse])
 
 	// Clear input state helper
 	const clearInputState = useCallback(() => {

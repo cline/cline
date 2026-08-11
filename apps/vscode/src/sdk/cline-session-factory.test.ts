@@ -264,6 +264,13 @@ describe("normalizeSdkBaseUrl", () => {
 	it("preserves explicit user paths", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
+
+	it("inherits the AskSage default /server path when the custom URL has no path", () => {
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
+			"https://asksage.internal.example/custom",
+		)
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -452,6 +459,52 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).toMatchObject({
 			providerId: "openai-compatible",
 			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("resolves the AskSage base URL from the legacy asksageApiUrl state field", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+			asksageApiKey: "asksage-key",
+			asksageApiUrl: "https://asksage.internal.example/server",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("asksage")
+		// Without this mapping the custom URL saved in legacy state was
+		// silently ignored and requests went to the builtin default
+		// (https://api.asksage.ai/server).
+		expect(config.baseUrl).toBe("https://asksage.internal.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.internal.example/server",
+		})
+	})
+
+	it("falls back to the providers.json AskSage base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "asksage") {
+				return undefined
+			}
+			return {
+				provider: "asksage",
+				apiKey: "asksage-key",
+				baseUrl: "https://asksage.migrated.example/server",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("https://asksage.migrated.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.migrated.example/server",
 		})
 	})
 
@@ -699,7 +752,8 @@ describe("buildSessionConfig", () => {
 		// the top level (manual compaction budgets).
 		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
-		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
+		// Mirrored onto providerConfig for the compaction summarizer (CLINE-2911).
+		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
 	})
 
@@ -773,6 +827,7 @@ describe("buildSessionConfig", () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect((config as any).maxTokensPerTurn).toBeUndefined()
+		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).temperature).toBeUndefined()
 		const knownModel = (config.providerConfig as any).knownModels["custom-reasoner"]
 		expect(knownModel).not.toHaveProperty("maxTokens")
@@ -1073,7 +1128,11 @@ describe("buildSessionConfig", () => {
 		expect(planConfig.systemPrompt).toContain(
 			"run_commands tool remains available in plan mode strictly for read-only inspection",
 		)
-		expect(planConfig.systemPrompt).toContain("switch_to_act_mode")
+		// Unlike the CLI, the extension never exposes switch_to_act_mode: the
+		// plan contract must direct the model to the manual Plan/Act toggle
+		// instead of a tool it does not have.
+		expect(planConfig.systemPrompt).not.toContain("switch_to_act_mode")
+		expect(planConfig.systemPrompt).toContain("Plan/Act toggle")
 	})
 })
 
