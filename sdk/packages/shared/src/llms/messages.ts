@@ -151,6 +151,24 @@ export interface MessageWithMetadata extends Message {
 		cacheWriteTokens?: number;
 		cost?: number;
 	};
+	/**
+	 * Outcome of the agent turn this message terminated. Stamped by the
+	 * persistence layer on the final assistant message of each finished
+	 * turn, so stored transcripts carry per-turn completion markers
+	 * (a completed turn and one interrupted mid-stream otherwise both end
+	 * in plain assistant text). The union mirrors `AgentFinishReason`,
+	 * inlined here because agent types import this module.
+	 */
+	turnCompletion?: {
+		finishReason:
+			| "completed"
+			| "max_iterations"
+			| "aborted"
+			| "mistake_limit"
+			| "error";
+		/** Epoch ms of when the turn ended. */
+		endedAt: number;
+	};
 	/** Timestamp of when the message was created */
 	ts?: number;
 }

@@ -437,4 +437,72 @@ describe("withLatestAssistantTurnMetadata", () => {
 			totalCost: 3,
 		});
 	});
+
+	it("stamps a turn completion marker on the terminal assistant message only", () => {
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "user", content: "do something" },
+				{
+					role: "assistant",
+					content: [{ type: "tool_use", id: "1", name: "bash", input: {} }],
+				},
+				{
+					role: "user",
+					content: [
+						{
+							type: "tool_result",
+							tool_use_id: "1",
+							name: "bash",
+							content: "done",
+						},
+					],
+				},
+				{ role: "assistant", content: [{ type: "text", text: "All done." }] },
+			],
+			createResult(),
+			[],
+		);
+
+		expect(persisted[1]).not.toHaveProperty("turnCompletion");
+		expect(persisted[3]).toMatchObject({
+			turnCompletion: {
+				finishReason: "completed",
+				endedAt: new Date("2026-01-01T00:00:01.000Z").getTime(),
+			},
+		});
+	});
+
+	it("keeps prior turns' completion markers when persisting a later turn", () => {
+		const previousMessages = [
+			{ role: "user", content: "first" },
+			{
+				role: "assistant",
+				content: "first answer",
+				turnCompletion: { finishReason: "completed", endedAt: 1111 },
+			},
+		] as MessageWithMetadata[];
+
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "user", content: "first" },
+				{ role: "assistant", content: "first answer" },
+				{ role: "user", content: "second" },
+				{ role: "assistant", content: "second answer" },
+			],
+			createResult({ finishReason: "error" }),
+			previousMessages,
+		);
+
+		// The first turn's marker survives the previous-message merge.
+		expect(persisted[1]).toMatchObject({
+			turnCompletion: { finishReason: "completed", endedAt: 1111 },
+		});
+		// The new turn's terminal message records how this turn actually ended.
+		expect(persisted[3]).toMatchObject({
+			turnCompletion: {
+				finishReason: "error",
+				endedAt: new Date("2026-01-01T00:00:01.000Z").getTime(),
+			},
+		});
+	});
 });

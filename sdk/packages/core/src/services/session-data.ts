@@ -186,6 +186,18 @@ export function withLatestAssistantTurnMetadata(
 				family: result.model.info?.family,
 			}),
 			...(metrics ? { metrics } : {}),
+			// The run's terminal assistant message gets a per-turn completion
+			// marker so stored transcripts distinguish a finished turn from one
+			// interrupted mid-stream. Earlier turns keep their own markers via
+			// the previous-message merge above.
+			...(targetIndex === lastAssistantIndex
+				? {
+						turnCompletion: {
+							finishReason: result.finishReason,
+							endedAt: result.endedAt.getTime(),
+						},
+					}
+				: {}),
 			ts: target.ts ?? result.endedAt.getTime(),
 		};
 	}
