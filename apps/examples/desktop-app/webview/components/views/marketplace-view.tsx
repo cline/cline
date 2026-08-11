@@ -66,7 +66,7 @@ type InstalledStatusState = "loading" | "ready";
 const INSTALL_TIMEOUT_MS = 300_000;
 const CODE_FONT_STYLE: CSSProperties = {
 	fontFamily:
-		'"Azeret Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
+		'"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 };
 
 const primitivePageDetails = {
