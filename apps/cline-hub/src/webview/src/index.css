@@ -7,6 +7,10 @@
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	--font-weight-normal: 480;
+	--font-weight-medium: 560;
+	--font-weight-semibold: 640;
+	--font-weight-bold: 640;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.18 0.008 255);
 	--card: oklch(1 0 0);
@@ -45,12 +49,8 @@
 @theme inline {
 	--font-sans: "Inter Variable", sans-serif;
 	--font-mono:
-		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
-		monospace;
-	--font-weight-normal: 480;
-	--font-weight-medium: 560;
-	--font-weight-semibold: 640;
-	--font-weight-bold: 640;
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
