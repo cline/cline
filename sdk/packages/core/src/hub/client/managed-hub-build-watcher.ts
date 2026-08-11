@@ -13,6 +13,14 @@ import {
 } from "../discovery/workspace";
 
 const DEFAULT_WATCH_INTERVAL_MS = 10_000;
+const WATCH_INTERVAL_ENV = "CLINE_HUB_BUILD_WATCH_INTERVAL_MS";
+
+function resolveDefaultWatchIntervalMs(): number {
+	const configured = Number(process.env[WATCH_INTERVAL_ENV]);
+	return Number.isFinite(configured) && configured > 0
+		? configured
+		: DEFAULT_WATCH_INTERVAL_MS;
+}
 
 export interface ManagedHubBuildMismatchEvent {
 	/** WebSocket URL of the live managed Hub that does not match this build. */
@@ -118,7 +126,7 @@ export function watchManagedHubBuildMismatch(
 	if (isHubDaemonProcess() || process.env.CLINE_HUB_PORT?.trim()) {
 		return () => {};
 	}
-	const intervalMs = options.intervalMs ?? DEFAULT_WATCH_INTERVAL_MS;
+	const intervalMs = options.intervalMs ?? resolveDefaultWatchIntervalMs();
 	let notifiedKey: string | undefined;
 	let checking = false;
 	const timer = setInterval(() => {
