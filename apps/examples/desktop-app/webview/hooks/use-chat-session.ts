@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+	buildUserPromptDisplayLabel,
+	buildUserPromptDisplayLabelFromCount,
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
@@ -14,6 +16,10 @@ import {
 	normalizeRuntimeConfig,
 	resolveCredentialError,
 } from "@/hooks/chat-session/helpers";
+import {
+	type SentTurnPayload,
+	TurnPayloadTracker,
+} from "@/hooks/chat-session/turn-payloads";
 import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
@@ -346,13 +352,30 @@ export function useChatSession() {
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
+	// ---- Failed-turn retry tracking ----
+	// Turn payloads are tracked by server prompt id across the turn lifecycle
+	// (dispatch / queued start / failure), so Retry always re-sends exactly
+	// the inputs of the turn that failed — see TurnPayloadTracker.
+	const turnPayloadsRef = useRef<TurnPayloadTracker | null>(null);
+	turnPayloadsRef.current ??= new TurnPayloadTracker();
+	const turnPayloads = turnPayloadsRef.current;
+	// Error bubble already appended for the current turn: repeated failure
+	// signals for the same turn refresh it in place instead of stacking, while
+	// a new turn always gets its own bubble.
+	const turnErrorMessageIdRef = useRef<string | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
 	// Bumped whenever a new turn begins; lets async queue checks detect that
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
 	// Last error-level core log per session, used to explain failed turns.
-	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
+	// Latest core-log error per session, stamped with the turn epoch it was
+	// received in so it can only ever explain a failure of that same turn —
+	// never a later turn whose lifecycle events happened to be dropped by a
+	// transport interruption.
+	const lastCoreErrorBySessionRef = useRef<
+		Record<string, { message: string; epoch: number }>
+	>({});
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
@@ -482,8 +505,19 @@ export function useChatSession() {
 	// visible so the RPC path and the chat_done stream never double-report.
 	const appendTurnFailureMessage = useCallback(
 		(sid: string, detail: string) => {
+			// A cached core error may only explain a detail-less failure of the
+			// turn it was received in: an entry from an older epoch means the
+			// clearing lifecycle events were dropped, and attributing it to this
+			// turn would be wrong. Consume the entry either way so it cannot be
+			// read twice.
+			const cachedCoreError = lastCoreErrorBySessionRef.current[sid];
+			delete lastCoreErrorBySessionRef.current[sid];
 			const description =
-				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+				detail.trim() ||
+				(cachedCoreError && cachedCoreError.epoch === turnEpochRef.current
+					? cachedCoreError.message.trim()
+					: "") ||
+				"";
 			// Deliberately avoids matching a bare "token": provider failures like
 			// "maximum context tokens exceeded" or rate-limit messages are not
 			// credential problems and must not point users at Settings → Models.
@@ -502,6 +536,28 @@ export function useChatSession() {
 			]
 				.filter(Boolean)
 				.join(" ");
+			// The current turn's bubble is tracked by id so failure signals for
+			// the SAME turn (the RPC result racing the chat_done stream) refresh
+			// it in place when they carry more specific detail — never stacking a
+			// second bubble — while a later turn's failure (which resets the id
+			// at turn start) always gets its own bubble.
+			const existingErrorId = turnErrorMessageIdRef.current;
+			if (existingErrorId) {
+				if (description) {
+					setMessages((prev) =>
+						updateMessageById(prev, existingErrorId, (msg) =>
+							msg.content === content ? msg : { ...msg, content },
+						),
+					);
+					setError(content);
+				}
+				return;
+			}
+			const failureMessage = makeErrorChatMessage(sid, content);
+			// Recorded synchronously (not inside the updater) so a failure signal
+			// racing in before React processes the append still sees this turn's
+			// bubble id and refreshes it instead of stacking a second one.
+			turnErrorMessageIdRef.current = failureMessage.id;
 			setMessages((prev) => {
 				const sessionMessages = prev.filter(
 					(message) => message.sessionId === sid,
@@ -510,7 +566,7 @@ export function useChatSession() {
 				if (last?.role === "error") {
 					return prev;
 				}
-				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
+				return sliceMessages([...prev, failureMessage]);
 			});
 			setError(content);
 		},
@@ -1115,14 +1171,19 @@ export function useChatSession() {
 					0,
 					attachmentCount - userImages.length,
 				);
-				const userLabel =
-					attachedFileCount > 0
-						? `${prompt}${prompt.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-						: prompt;
+				const userLabel = buildUserPromptDisplayLabelFromCount(
+					prompt,
+					attachedFileCount,
+				);
 				const promptId = parsed.promptId?.trim();
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				// Pair this turn with the payload of the submission it consumes,
+				// by server prompt id (with the event prompt recognizing a direct
+				// dispatch the runtime re-routed through its queue).
+				turnPayloads.startTurn(promptId, prompt, turnEpochRef.current);
+				turnErrorMessageIdRef.current = null;
 				setStatus("running");
 				// The prompt just left the queue: drop it from the local snapshot
 				// immediately. Waiting for the next server snapshot leaves a
@@ -1221,8 +1282,10 @@ export function useChatSession() {
 						parsed.level?.trim().toLowerCase() === "error" &&
 						parsed.message?.trim()
 					) {
-						lastCoreErrorBySessionRef.current[payload.sessionId] =
-							parsed.message.trim();
+						lastCoreErrorBySessionRef.current[payload.sessionId] = {
+							message: parsed.message.trim(),
+							epoch: turnEpochRef.current,
+						};
 					}
 				} catch {
 					// Unstructured logs carry no level; nothing to remember.
@@ -1292,6 +1355,8 @@ export function useChatSession() {
 					// Missing reason still means the turn ended.
 				}
 				if (doneReason === "error") {
+					// The failed turn's payload is what the Retry action re-sends.
+					turnPayloads.failActiveTurn(turnEpochRef.current);
 					appendTurnFailureMessage(listeningSessionId, doneText);
 				}
 				// The remembered core error belongs to the turn that just ended.
@@ -1396,6 +1461,7 @@ export function useChatSession() {
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
+			turnPayloads,
 			verifyQueueStillBusy,
 		],
 	);
@@ -1619,13 +1685,17 @@ export function useChatSession() {
 				(attachments) => ({ ok: true as const, attachments }),
 				(error: unknown) => ({ ok: false as const, error }),
 			);
-			const attachedFileCount = attachedFiles.filter(
-				(file) => !file.type.startsWith("image/"),
-			).length;
-			const userLabel =
-				attachedFileCount > 0
-					? `${trimmed}${trimmed.length > 0 ? "\n\n" : ""}[attached ${attachedFileCount} file${attachedFileCount === 1 ? "" : "s"}]`
-					: trimmed;
+			const userLabel = buildUserPromptDisplayLabel(trimmed, attachedFiles);
+			const sentTurnPayload: SentTurnPayload = {
+				prompt: trimmed,
+				attachedFiles: [...attachedFiles],
+			};
+			// A failure anywhere in this submission makes it the retry target;
+			// a submission that never dispatches also stops being eligible for
+			// queued-turn pairing.
+			const recordTurnFailure = () => {
+				turnPayloads.markFailed(sentTurnPayload);
+			};
 			const shouldQueue =
 				Boolean(activeSessionId) &&
 				(hasEarlierPromptSubmission ||
@@ -1657,6 +1727,8 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				turnPayloads.beginDirectTurn(sentTurnPayload);
+				turnErrorMessageIdRef.current = null;
 				setStatus("starting");
 			} else if (optimisticQueuedPromptId) {
 				// Invalidate any in-flight server queue double-check: its snapshot
@@ -1671,6 +1743,7 @@ export function useChatSession() {
 						steer: false,
 					},
 				]);
+				turnPayloads.enqueue(sentTurnPayload);
 			}
 
 			let sendTask: ReturnType<typeof postSession> | null = null;
@@ -1684,6 +1757,7 @@ export function useChatSession() {
 								prev.filter((item) => item.id !== optimisticQueuedPromptId),
 							);
 						}
+						recordTurnFailure();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1703,6 +1777,7 @@ export function useChatSession() {
 					try {
 						activeSessionId = await startPromise;
 					} catch (err) {
+						recordTurnFailure();
 						setErrorState(errorMessage(err), activeSessionId);
 						finishPromptSubmission();
 						return;
@@ -1728,6 +1803,7 @@ export function useChatSession() {
 						if (activeSessionIdRef.current === plannedSessionId) {
 							activeSessionIdRef.current = null;
 						}
+						recordTurnFailure();
 						setErrorState(errorMessage(err));
 						finishPromptSubmission();
 						return;
@@ -1739,6 +1815,7 @@ export function useChatSession() {
 				}
 				const serializedAttachmentsResult = await serializedAttachmentsTask;
 				if (!serializedAttachmentsResult.ok) {
+					recordTurnFailure();
 					setErrorState(
 						errorMessage(serializedAttachmentsResult.error),
 						activeSessionId,
@@ -1791,6 +1868,23 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					// Bind this submission to its server queue entry so the
+					// eventual chat_queued_prompt_start (and a failed-turn Retry)
+					// can find the exact payload by id.
+					const queuedPromptId =
+						typeof payload.queuedPromptId === "string"
+							? payload.queuedPromptId.trim()
+							: "";
+					if (queuedPromptId) {
+						turnPayloads.resolveQueuedPromptId(
+							sentTurnPayload,
+							queuedPromptId,
+							turnEpochRef.current,
+						);
+					} else {
+						// Without a server id the payload can never be paired.
+						turnPayloads.discardQueued(sentTurnPayload);
+					}
 					applyPromptsInQueue(payload.promptsInQueue);
 					setStatus("running");
 					return;
@@ -1978,6 +2072,7 @@ export function useChatSession() {
 				if (abortedRef.current) {
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
+					recordTurnFailure();
 					// On a failed run result.text is the runtime's error string
 					// (never assistant content — see isErrorResult above), so it
 					// is the best failure detail available. The reporter dedupes
@@ -2009,6 +2104,7 @@ export function useChatSession() {
 						prev.filter((item) => item.id !== optimisticQueuedPromptId),
 					);
 				}
+				recordTurnFailure();
 				setErrorState(errorMessage(err), activeSessionId);
 			} finally {
 				clearAbortFallbackTimeout();
@@ -2036,7 +2132,29 @@ export function useChatSession() {
 			startSession,
 			status,
 			postSession,
+			turnPayloads,
 		],
+	);
+
+	// Re-send the failed turn's original payload — exact prompt text plus
+	// attachments — in the same session. Falls back to the caller-provided
+	// transcript text when no payload was captured (e.g. a failure that
+	// predates any send from this hook instance); that path cannot recover
+	// attachments.
+	const retryFailedTurn = useCallback(
+		async (fallbackPrompt?: string) => {
+			const payload = turnPayloads.failedPayload;
+			if (payload) {
+				await sendPrompt(payload.prompt, [...payload.attachedFiles]);
+				return;
+			}
+			const prompt = fallbackPrompt?.trim();
+			if (!prompt) {
+				return;
+			}
+			await sendPrompt(prompt);
+		},
+		[sendPrompt, turnPayloads],
 	);
 
 	const respondToolApproval = useCallback(
@@ -2208,6 +2326,8 @@ export function useChatSession() {
 		setPendingAskQuestions([]);
 		setPromptsInQueue([]);
 		clearLiveToolRefs();
+		turnPayloads.reset();
+		turnErrorMessageIdRef.current = null;
 		if (activeSessionId) {
 			try {
 				await postSession({ action: "reset", sessionId: activeSessionId });
@@ -2222,6 +2342,7 @@ export function useChatSession() {
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
+		turnPayloads,
 	]);
 
 	const hydrateSession = useCallback(
@@ -2252,6 +2373,8 @@ export function useChatSession() {
 			setPendingAskQuestions([]);
 			setPromptsInQueue([]);
 			clearLiveToolRefs();
+			turnPayloads.reset();
+			turnErrorMessageIdRef.current = null;
 			discardPendingStream();
 
 			const applyHydratedMessages = (
@@ -2377,6 +2500,7 @@ export function useChatSession() {
 			refreshSessionDiffSummary,
 			resetStreamDedupe,
 			resetCounters,
+			turnPayloads,
 		],
 	);
 
@@ -2458,8 +2582,11 @@ export function useChatSession() {
 			setPromptsInQueue(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
+			// Keep the submission's retained retry payload on the edited text
+			// (its original attachments stay with it).
+			turnPayloads.updateQueuedPrompt(promptId, prompt.trim());
 		},
-		[postSession],
+		[postSession, turnPayloads],
 	);
 
 	const removePromptInQueue = useCallback(
@@ -2476,9 +2603,12 @@ export function useChatSession() {
 			setPromptsInQueue(
 				Array.isArray(payload.promptsInQueue) ? payload.promptsInQueue : [],
 			);
+			// A removed submission can never run, so its retained payload must
+			// not survive to pair with a later turn.
+			turnPayloads.removeQueuedPrompt(promptId);
 			return payload.prompt;
 		},
-		[postSession],
+		[postSession, turnPayloads],
 	);
 
 	const summary = useMemo(
@@ -2523,6 +2653,7 @@ export function useChatSession() {
 		start,
 		hydrateSession,
 		sendPrompt,
+		retryFailedTurn,
 		steerPromptInQueue,
 		updatePromptInQueue,
 		removePromptInQueue,

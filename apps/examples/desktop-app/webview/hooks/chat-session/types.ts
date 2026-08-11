@@ -105,6 +105,8 @@ export type ChatSessionCommandResponse = {
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	/** Server id of the queue entry created (or merged into) by this send. */
+	queuedPromptId?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;

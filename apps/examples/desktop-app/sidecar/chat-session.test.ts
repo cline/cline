@@ -1509,3 +1509,95 @@ Follow the desktop send skill instructions.`,
 		);
 	});
 });
+
+describe("queued prompt id in the send response", () => {
+	function createContext(options?: {
+		queueAfterSend?: Array<{ id: string; prompt: string }>;
+		lastQueuedPromptStart?: { id: string; prompt: string };
+	}) {
+		const sessionId = "queued-id-session";
+		const send = vi.fn(async (_input?: unknown) => undefined);
+		const list = vi.fn(async () =>
+			(options?.queueAfterSend ?? []).map((entry) => ({
+				...entry,
+				delivery: "queue" as const,
+				attachmentCount: 0,
+			})),
+		);
+		const session = {
+			config: { provider: "cline", model: "test-model" },
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			lastQueuedPromptStart: options?.lastQueuedPromptStart,
+		};
+		const ctx = {
+			liveSessions: new Map([[sessionId, session]]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				send,
+				pendingPrompts: { list },
+			},
+		} as unknown as SidecarContext;
+		return { ctx, sessionId };
+	}
+
+	it("returns the id of the queue entry holding the sent prompt", async () => {
+		const { ctx, sessionId } = createContext({
+			queueAfterSend: [
+				{ id: "pending_a", prompt: "earlier prompt" },
+				{ id: "pending_b", prompt: "queued prompt" },
+			],
+		});
+
+		const response = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "queued prompt",
+			delivery: "queue",
+		})) as { queued?: boolean; queuedPromptId?: string };
+
+		expect(response.queued).toBe(true);
+		expect(response.queuedPromptId).toBe("pending_b");
+	});
+
+	it("falls back to the announced start when the prompt was already consumed", async () => {
+		// An idle session drains the queue on a microtask, so the prompt can
+		// leave the queue (announcing its start) before the handler lists it.
+		const { ctx, sessionId } = createContext({
+			queueAfterSend: [],
+			lastQueuedPromptStart: { id: "pending_c", prompt: "instant prompt" },
+		});
+
+		const response = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "instant prompt",
+			delivery: "queue",
+		})) as { queued?: boolean; queuedPromptId?: string };
+
+		expect(response.queued).toBe(true);
+		expect(response.queuedPromptId).toBe("pending_c");
+	});
+
+	it("omits the id when no queue entry matches the sent prompt", async () => {
+		const { ctx, sessionId } = createContext({
+			queueAfterSend: [{ id: "pending_a", prompt: "different prompt" }],
+			lastQueuedPromptStart: { id: "pending_b", prompt: "another prompt" },
+		});
+
+		const response = (await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "queued prompt",
+			delivery: "queue",
+		})) as { queued?: boolean; queuedPromptId?: string };
+
+		expect(response.queued).toBe(true);
+		expect(response.queuedPromptId).toBeUndefined();
+	});
+});

@@ -31,12 +31,14 @@ import {
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import { formatChatMessageContent } from "@/components/views/chat/message-content";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import { stripAttachedFilesSuffix } from "@/hooks/chat-session/attachments";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
@@ -547,6 +549,7 @@ function ChatThreadPane({
 		setConfig,
 		setWorkspacePath,
 		sendPrompt,
+		retryFailedTurn,
 		steerPromptInQueue,
 		updatePromptInQueue,
 		removePromptInQueue,
@@ -1033,6 +1036,31 @@ function ChatThreadPane({
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
+
+	// Failed turns are retried in the same session by re-sending the failed
+	// turn's original payload — no fork, no draft round-trip through the
+	// composer. The session hook tracks that payload by turn lifecycle; the
+	// transcript-derived text below is only its fallback. Retry is offered
+	// whenever the failed turn has a user message at all — including
+	// image-only prompts, whose transcript label is empty.
+	const lastUserMessage = useMemo(
+		() => [...messages].reverse().find((message) => message.role === "user"),
+		[messages],
+	);
+
+	const handleRetryFailedTurn = useMemo(() => {
+		if (!lastUserMessage) {
+			return null;
+		}
+		// The transcript label carries a display-only "[attached N files]"
+		// suffix; the fallback must not re-send it as prompt text.
+		const lastUserPrompt = stripAttachedFilesSuffix(
+			formatChatMessageContent("user", lastUserMessage.content),
+		);
+		return async () => {
+			await retryFailedTurn(lastUserPrompt);
+		};
+	}, [lastUserMessage, retryFailedTurn]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -1593,6 +1621,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onRetryFailedTurn={handleRetryFailedTurn}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
