@@ -224,11 +224,13 @@ export class SdkFollowupCoordinator {
 				}
 			}
 
+			// Never resubmit historyItem.task here: presenting the original
+			// request as new instructions makes the model redo already-completed
+			// work after a stop/resume (#12975). The preserved conversation
+			// history is the source of truth; only user-typed text is new.
 			const effectivePrompt =
 				prompt?.trim() ||
-				(historyItem
-					? `[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the task context. The conversation history has been preserved. New instructions from the user: ${historyItem.task}`
-					: "[TASK RESUMPTION] Please continue where you left off.")
+				"[TASK RESUMPTION] This task was interrupted. It may or may not be complete, so please reassess the preserved conversation history and continue from where you left off without repeating work that already completed successfully."
 			const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
 			if (this.options.getTask()?.taskId !== taskId) {
 				await this.endStartedResume(sdkHost, startResult.sessionId)
