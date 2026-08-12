@@ -9,12 +9,18 @@ export interface CheckpointPickerItem {
 	text: string;
 	fullText: string;
 	createdAt: number;
+	/**
+	 * Untracked files the snapshot excluded over the size cap. They exist only
+	 * on disk, so a workspace restore leaves them at their current content.
+	 */
+	skippedUntracked?: string[];
 }
 
 export interface CheckpointPickerResult {
 	runCount: number;
 	messagePreview: string;
 	fullText: string;
+	skippedUntracked?: string[];
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -66,6 +72,7 @@ export function CheckpointPickerContent(
 					runCount: item.runCount,
 					messagePreview: item.text,
 					fullText: item.fullText,
+					skippedUntracked: item.skippedUntracked,
 				});
 			}
 			return;
@@ -138,6 +145,14 @@ export function CheckpointPickerContent(
 							<text fg={isSel ? palette.textOnSelection : undefined}>
 								{item.text}
 							</text>
+							{(item.skippedUntracked?.length ?? 0) > 0 && (
+								<text
+									fg={isSel ? palette.textOnSelection : "yellow"}
+									flexShrink={0}
+								>
+									◆ partial
+								</text>
+							)}
 							<text
 								fg={isSel ? palette.textOnSelection : "gray"}
 								flexShrink={0}

@@ -33,7 +33,10 @@ import {
 } from "lucide-react"
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
-import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
+import {
+	canRestoreWorkspaceFromMessage,
+	checkpointSkippedUntrackedForMessage,
+} from "@/components/chat/chat-view/utils/messageUtils"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import McpResponseDisplay from "@/components/mcp/chat-display/McpResponseDisplay"
@@ -153,6 +156,7 @@ export const ChatRowContent = memo(
 			clineMessages,
 			showFeatureTips,
 			enableCheckpointsSetting,
+			checkpointSkippedUntrackedByRun,
 		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -901,6 +905,11 @@ export const ChatRowContent = memo(
 								images={message.images}
 								messageTs={message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
+								skippedUntracked={checkpointSkippedUntrackedForMessage(
+									clineMessages,
+									message.ts,
+									checkpointSkippedUntrackedByRun,
+								)}
 								text={message.text}
 							/>
 						)

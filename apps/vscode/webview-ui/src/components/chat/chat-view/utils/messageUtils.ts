@@ -111,6 +111,44 @@ export function canRestoreWorkspaceFromMessage(messages: ClineMessage[], message
 }
 
 /**
+ * Untracked files that a workspace restore from this message would NOT rewind,
+ * because the checkpoint's snapshot skipped them over its size cap.
+ *
+ * The message's run number is its ordinal among restore-eligible user messages
+ * (the same predicates `canRestoreWorkspaceFromMessage` uses, mirroring the
+ * host's sdk-checkpoints.ts numbering), and the restore resolves to the
+ * nearest checkpoint at or before that run — so the lookup does too.
+ */
+export function checkpointSkippedUntrackedForMessage(
+	messages: ClineMessage[],
+	messageTs: number | undefined,
+	skippedByRun: Record<number, string[]> | undefined,
+): string[] | undefined {
+	if (messageTs === undefined || !skippedByRun) {
+		return undefined
+	}
+	const index = messages.findIndex((message) => message.ts === messageTs)
+	if (index === -1 || !isVisibleCheckpointUserMessage(messages[index]) || isCheckpointAnswerMessage(messages, index)) {
+		return undefined
+	}
+	let runCount = 0
+	for (let cursor = 0; cursor <= index; cursor += 1) {
+		if (isVisibleCheckpointUserMessage(messages[cursor]) && !isCheckpointAnswerMessage(messages, cursor)) {
+			runCount += 1
+		}
+	}
+	let nearestRun: number | undefined
+	for (const key of Object.keys(skippedByRun)) {
+		const run = Number(key)
+		if (Number.isInteger(run) && run <= runCount && (nearestRun === undefined || run > nearestRun)) {
+			nearestRun = run
+		}
+	}
+	const skipped = nearestRun === undefined ? undefined : skippedByRun[nearestRun]
+	return skipped && skipped.length > 0 ? skipped : undefined
+}
+
+/**
  * Filter messages that should be visible in the chat
  */
 export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] {

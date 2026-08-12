@@ -53,6 +53,14 @@ export interface ExtensionState {
 		sessionId: string
 	}
 	/**
+	 * Checkpoint run count → untracked paths that run's snapshot skipped over
+	 * the size cap. Lets the restore UI warn that those files stay at their
+	 * current content when the workspace is reset. Includes runs with no
+	 * skips (empty array) so the webview can resolve "nearest checkpoint at
+	 * or before run N" without a gap-filled key set. SDK sessions only.
+	 */
+	checkpointSkippedUntrackedByRun?: Record<number, string[]>
+	/**
 	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
 	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
 	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).

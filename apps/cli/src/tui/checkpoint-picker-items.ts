@@ -84,6 +84,9 @@ export function buildCheckpointPickerItems(
 			text: preview,
 			fullText: text,
 			createdAt: checkpoint.createdAt,
+			...(checkpoint.skippedUntracked?.length
+				? { skippedUntracked: checkpoint.skippedUntracked }
+				: {}),
 		});
 	}
 	return items;

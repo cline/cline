@@ -13,9 +13,22 @@ interface UserMessageProps {
 	messageTs?: number
 	sendMessageFromChatRow?: (text: string, images: string[], files: string[]) => void
 	canRestoreWorkspace?: boolean
+	/**
+	 * Untracked files the checkpoint's snapshot skipped over its size cap —
+	 * "Reset Code" leaves them at their current content, so the edit panel
+	 * says so before the user commits to the restore.
+	 */
+	skippedUntracked?: string[]
 }
 
-const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageTs, canRestoreWorkspace = true }) => {
+const UserMessage: React.FC<UserMessageProps> = ({
+	text,
+	images,
+	files,
+	messageTs,
+	canRestoreWorkspace = true,
+	skippedUntracked,
+}) => {
 	const [isEditing, setIsEditing] = useState(false)
 	const [editedText, setEditedText] = useState(text ?? "")
 	const [editedImages, setEditedImages] = useState(images ?? [])
@@ -133,6 +146,15 @@ const UserMessage: React.FC<UserMessageProps> = ({ text, images, files, messageT
 						/>
 					)}
 					{errorMessage && <div className="text-xs text-(--vscode-errorForeground)">{errorMessage}</div>}
+					{canRestoreWorkspace && (skippedUntracked?.length ?? 0) > 0 && (
+						<div className="text-xs text-(--vscode-editorWarning-foreground)">
+							{skippedUntracked?.length === 1
+								? `1 large file was not captured by this checkpoint — Reset Code leaves it at its current content: ${skippedUntracked[0]}`
+								: `${skippedUntracked?.length} large files were not captured by this checkpoint — Reset Code leaves them at their current content: ${skippedUntracked
+										?.slice(0, 3)
+										.join(", ")}${(skippedUntracked?.length ?? 0) > 3 ? ", …" : ""}`}
+						</div>
+					)}
 					<div className="flex items-center justify-between gap-1.5">
 						<button
 							className="shrink-0 whitespace-nowrap px-1 py-1 rounded-xs border-0 bg-transparent text-badge-foreground/80 hover:text-badge-foreground cursor-pointer text-xs"

@@ -1624,6 +1624,34 @@ export class Controller {
 	}
 
 	/**
+	 * Checkpoint run count → untracked paths that run's snapshot skipped over
+	 * the size cap, so the restore UI can warn that those files stay at their
+	 * current content when the workspace is reset. Runs without skips are
+	 * included (empty array) so the webview can resolve "nearest checkpoint at
+	 * or before run N" against a complete key set. Undefined when no entry
+	 * skipped anything (the common case) or no live session exists — after a
+	 * window reload the warning is simply absent rather than blocking restore.
+	 */
+	private async getCheckpointSkippedUntrackedByRun(): Promise<Record<number, string[]> | undefined> {
+		try {
+			const activeSession = this.sessions.getActiveSession()
+			const sessionId = activeSession?.sessionId
+			const sessionHost = activeSession?.sdkHost
+			if (!sessionId || !sessionHost) {
+				return undefined
+			}
+			const sessionRecord = await sessionHost.get(sessionId)
+			const history = readSessionCheckpointHistory(sessionRecord)
+			if (!history.some((entry) => entry.skippedUntracked?.length)) {
+				return undefined
+			}
+			return Object.fromEntries(history.map((entry) => [entry.runCount, entry.skippedUntracked ?? []]))
+		} catch {
+			return undefined
+		}
+	}
+
+	/**
 	 * Diffs the latest checkpoint — snapshotted when the user's last message
 	 * started a run — against the current working tree. Returns undefined when
 	 * no checkpoint exists (e.g. the workspace is not a git repository).
@@ -2094,6 +2122,7 @@ export class Controller {
 				// badge and anything else keyed on workspaceRoots depend on it.
 				workspaceManager: await this.ensureWorkspaceManager(),
 			})
+			state.checkpointSkippedUntrackedByRun = await this.getCheckpointSkippedUntrackedByRun()
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
