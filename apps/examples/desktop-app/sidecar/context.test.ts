@@ -300,7 +300,7 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
-	it("leaves attached-session assistant image projection to the Core event stream", async () => {
+	it("relays validated assistant images for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
 		);
@@ -314,6 +314,50 @@ describe("Code sidecar runtime capabilities", () => {
 			startedAt: Date.now(),
 			status: "running",
 			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.image",
+			sessionId: "session-image",
+			payload: {
+				image: {
+					data: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			expect.objectContaining({
+				event: {
+					name: "chat_event",
+					payload: expect.objectContaining({
+						sessionId: "session-image",
+						stream: "chat_image",
+						chunk: JSON.stringify({
+							data: "aGVsbG8=",
+							mediaType: "image/png",
+						}),
+					}),
+				},
+			}),
+		]);
+	});
+
+	it("ignores raw assistant images for locally-owned sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: false,
 		});
 
 		handleHubLiveEvent(ctx, {

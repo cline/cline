@@ -15,7 +15,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import type { AgentEvent } from "@cline/shared";
+import { type AgentEvent, validateImageMedia } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -705,9 +705,27 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "assistant.image": {
-			// HubRuntimeHost projects this raw Hub event into Core's canonical
-			// content_end(image) event, which handleAgentEvent relays. Emitting it
-			// here too briefly renders the same image twice until history reloads.
+			const image =
+				event.payload?.image &&
+				typeof event.payload.image === "object" &&
+				!Array.isArray(event.payload.image)
+					? (event.payload.image as Record<string, unknown>)
+					: undefined;
+			const data = typeof image?.data === "string" ? image.data : "";
+			const mediaType =
+				typeof image?.mediaType === "string" ? image.mediaType : undefined;
+			const validation = validateImageMedia(mediaType, data);
+			if (validation.ok) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_image",
+					JSON.stringify({
+						data: validation.base64,
+						mediaType: validation.mediaType,
+					}),
+				);
+			}
 			return;
 		}
 		case "reasoning.delta": {
