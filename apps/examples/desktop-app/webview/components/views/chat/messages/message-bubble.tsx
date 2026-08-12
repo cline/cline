@@ -18,9 +18,14 @@ import {
 	UndoIcon,
 } from "lucide-react";
 import { memo, useEffect, useState } from "react";
-import type { ChatMessage, ChatMessageImage } from "@/lib/chat-schema";
+import type {
+	ChatMessage,
+	ChatMessageImage,
+	ChatMessageVideo,
+} from "@/lib/chat-schema";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
+import { MessageVideos } from "./message-videos";
 import { ReasoningBlock } from "./reasoning-block";
 
 function AssistantImageCarousel({
@@ -62,9 +67,7 @@ function AssistantImageCarousel({
 						aria-label="Previous generated image"
 						className="absolute left-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
 						disabled={safeIndex === 0}
-						onClick={() =>
-							setActiveIndex((index) => Math.max(0, index - 1))
-						}
+						onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}
 						type="button"
 					>
 						<ChevronLeft className="size-4" />
@@ -136,6 +139,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onExpandVideo,
 	onEditMessage,
 	editDisabled = false,
 	editPending = false,
@@ -160,6 +164,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandVideo?: (video: ChatMessageVideo) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -250,6 +255,14 @@ export const MessageBubble = memo(function MessageBubble({
 						images={message.images}
 						isUser={isUser}
 						onExpandImage={onExpandImage}
+					/>
+				) : null}
+
+				{message.videos?.length && message.sessionId ? (
+					<MessageVideos
+						onExpandVideo={onExpandVideo}
+						sessionId={message.sessionId}
+						videos={message.videos}
 					/>
 				) : null}
 
