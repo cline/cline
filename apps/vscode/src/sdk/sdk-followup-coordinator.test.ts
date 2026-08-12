@@ -424,6 +424,21 @@ describe("SdkFollowupCoordinator", () => {
 				],
 			}),
 		)
+		// The seeded session start persisted the conversion: the migration settles.
+		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("legacy-task", "persisted")
+	})
+
+	it("settles a legacy migration as failed when the resumed session start rejects", async () => {
+		const task = makeTask("legacy-task")
+		const { coordinator, options } = makeCoordinator({ task, isLegacyTask: true })
+		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([{ role: "user", content: "hello" }])
+		options.sessions.startNewSession.mockRejectedValueOnce(new Error("start failed"))
+
+		await coordinator.askResponse("continue")
+
+		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("legacy-task", "failed")
+		expect(options.taskHistory.settleLegacyMigration).not.toHaveBeenCalledWith("legacy-task", "persisted")
+		expect(options.onResumeFailed).toHaveBeenCalledOnce()
 	})
 
 	it("echoes attachments on an attachment-only resume", async () => {
@@ -529,6 +544,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			updateTaskHistoryItem: vi.fn().mockResolvedValue(undefined),
 			isLegacyTask: vi.fn().mockResolvedValue(input.isLegacyTask ?? false),
 			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallbackMessages?: unknown[]) => fallbackMessages),
+			settleLegacyMigration: vi.fn(),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -569,6 +585,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			updateTaskHistoryItem: ReturnType<typeof vi.fn>
 			isLegacyTask: ReturnType<typeof vi.fn>
 			getLegacyResumeInitialMessages: ReturnType<typeof vi.fn>
+			settleLegacyMigration: ReturnType<typeof vi.fn>
 		}
 		sessionConfigBuilder: SdkFollowupCoordinatorOptions["sessionConfigBuilder"] & { build: ReturnType<typeof vi.fn> }
 		getTask: ReturnType<typeof vi.fn>

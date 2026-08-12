@@ -605,7 +605,12 @@ describe("SdkTaskHistory", () => {
 				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
 			]),
 		)
-		// The resume conversion is the migration; it reports a completed outcome.
+		// The conversion alone is not a durable migration; the completed outcome
+		// waits until the seeded session start persists it.
+		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
+
+		history.settleLegacyMigration("legacy-task", "persisted")
+
 		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
 		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -616,6 +621,40 @@ describe("SdkTaskHistory", () => {
 				convertedMessageCount: 3,
 			}),
 		)
+
+		// The pending conversion settles exactly once.
+		history.settleLegacyMigration("legacy-task", "persisted")
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
+	})
+
+	it("reports a migration error when the seeded session start fails after conversion", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "legacy prompt" }]
+		const telemetry = makeTelemetry()
+		const { history } = makeHistory([], telemetry)
+
+		await history.getLegacyResumeInitialMessages("legacy-task")
+		history.settleLegacyMigration("legacy-task", "failed")
+
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "legacy-task",
+				outcome: "error",
+				reason: "session_start_failed",
+				legacyApiHistoryLength: 1,
+			}),
+		)
+	})
+
+	it("ignores migration settlement for tasks with no pending conversion", async () => {
+		const telemetry = makeTelemetry()
+		const { history } = makeHistory([makeSessionRecord("sdk-task")], telemetry)
+
+		history.settleLegacyMigration("sdk-task", "persisted")
+		history.settleLegacyMigration("sdk-task", "failed")
+
+		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
 	})
 
 	it("uses pretty legacy UI messages plus resumed SDK messages when both stores exist", async () => {

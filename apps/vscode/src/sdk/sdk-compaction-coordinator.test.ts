@@ -426,6 +426,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: vi.fn().mockResolvedValue(undefined),
 			isLegacyTask: vi.fn().mockResolvedValue(false),
 			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallback?: unknown[]) => fallback),
+			settleLegacyMigration: vi.fn(),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
