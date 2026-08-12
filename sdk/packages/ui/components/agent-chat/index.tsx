@@ -18,6 +18,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { IconButton } from "../button.js";
 
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 const SCROLL_BUTTON_THRESHOLD_PX = 120;
@@ -398,17 +399,20 @@ export const MessageContent = ({
 );
 
 export type MessageActionsProps = HTMLAttributes<HTMLDivElement> & {
+	side?: "start" | "end";
 	visible?: boolean;
 };
 
 export const MessageActions = ({
 	className,
+	side,
 	visible = false,
 	...props
 }: MessageActionsProps) => (
 	<div
 		{...props}
 		className={classNames("cline-chat-message-actions", className)}
+		data-side={side}
 		data-visible={visible || undefined}
 	/>
 );
@@ -426,11 +430,13 @@ export const MessageAction = ({
 	label,
 	...props
 }: MessageActionProps) => (
-	<button
+	<IconButton
 		{...props}
 		aria-label={ariaLabel ?? label}
 		className={classNames("cline-chat-message-action", className)}
-		type="button"
+		variant="ghost"
+		tone="neutral"
+		size="xs"
 	/>
 );
 
