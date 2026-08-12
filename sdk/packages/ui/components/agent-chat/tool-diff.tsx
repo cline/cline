@@ -51,8 +51,10 @@ const BASE_OPTIONS: DiffOptions = {
 
 // Tool payloads carry code fragments that rarely end in a newline, which
 // would otherwise litter every diff with "No newline at end of file"
-// markers — meaningless noise for chat rows.
+// markers — meaningless noise for chat rows. Empty text stays empty so an
+// empty side diffs as zero lines rather than one blank line.
 function ensureTrailingNewline(text: string): string {
+	if (!text) return "";
 	return text.endsWith("\n") ? text : `${text}\n`;
 }
 

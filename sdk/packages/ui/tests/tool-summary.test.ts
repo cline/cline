@@ -48,6 +48,10 @@ describe("read_files summaries", () => {
 			input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
 		});
 		expect(summary.label).toBe("Read app.tsx (10–80)");
+		expect(summary.labelParts).toEqual([
+			{ text: "Read " },
+			{ text: "app.tsx (10–80)", code: true },
+		]);
 		expect(summary.kind).toBe("read");
 		expect(summary.details).toEqual(["src/app.tsx:10-80"]);
 		expect(summary.items).toEqual([
@@ -109,25 +113,52 @@ describe("read_files summaries", () => {
 });
 
 describe("run_commands summaries", () => {
-	it("puts a single command inline in the label", () => {
+	it("renders a single command as a terminal prompt", () => {
 		const summary = buildToolSummary({
 			toolName: "run_commands",
 			input: { commands: ["bun run test"] },
 		});
-		expect(summary.label).toBe("Ran bun run test");
+		expect(summary.label).toBe("$ bun run test");
+		expect(summary.labelParts).toEqual([
+			{ text: "$ ", code: true },
+			{ text: "bun run test", code: true },
+		]);
 		expect(summary.items).toEqual([
 			{ type: "command", command: "bun run test" },
 		]);
+		// The untruncated command already sits in the label; no duplicate detail.
+		expect(summary.details).toEqual([]);
 	});
 
-	it("truncates long single commands", () => {
+	it("truncates long single commands and keeps the full text in details", () => {
 		const summary = buildToolSummary({
 			toolName: "run_commands",
 			input: { commands: [`echo ${"x".repeat(100)}`] },
 		});
-		expect(summary.label.length).toBeLessThanOrEqual("Ran ".length + 60);
+		expect(summary.label.length).toBeLessThanOrEqual("$ ".length + 60);
 		expect(summary.label.endsWith("…")).toBe(true);
 		expect(summary.details[0]).toBe(`echo ${"x".repeat(100)}`);
+	});
+
+	it("accepts every run_commands union shape", () => {
+		const cases: Array<[unknown, string[]]> = [
+			[{ commands: "ls -la" }, ["ls -la"]],
+			[{ commands: { command: "git", args: ["status"] } }, ["git status"]],
+			[[{ command: "bun", args: ["test"] }], ["bun test"]],
+			[{ command: "bun", args: ["run", "lint"] }, ["bun run lint"]],
+			[{ cmd: "pwd" }, ["pwd"]],
+			[
+				["ls", "pwd"],
+				["ls", "pwd"],
+			],
+			["whoami", ["whoami"]],
+		];
+		for (const [input, expected] of cases) {
+			const summary = buildToolSummary({ toolName: "run_commands", input });
+			expect(summary.items).toEqual(
+				expected.map((command) => ({ type: "command", command })),
+			);
+		}
 	});
 
 	it("aggregates multiple commands and joins structured entries", () => {
@@ -239,6 +270,19 @@ describe("editor summaries", () => {
 		expect(summary.diff).toEqual({ additions: 2, deletions: 0 });
 	});
 
+	it("does not report phantom lines for empty texts", () => {
+		const emptied = buildToolSummary({
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "line", new_text: "" },
+		});
+		expect(emptied.diff).toEqual({ additions: 0, deletions: 1 });
+		const emptyCreate = buildToolSummary({
+			toolName: "editor",
+			input: { path: "b.ts", new_text: "" },
+		});
+		expect(emptyCreate.diff).toEqual({ additions: 0, deletions: 0 });
+	});
+
 	it("uses in-progress verbs", () => {
 		const summary = buildToolSummary({
 			toolName: "editor",
@@ -290,15 +334,79 @@ describe("apply_patch summaries", () => {
 		expect(info?.files[1].diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
 		// Reconstructed texts for rich diff renderers.
 		expect(info?.files[0]).toMatchObject({
-			wholeFile: false,
-			oldText: "old line",
-			newText: "new line\nextra line",
+			action: "update",
+			hunks: [{ oldText: "old line", newText: "new line\nextra line" }],
 		});
 		expect(info?.files[1]).toMatchObject({
-			wholeFile: true,
-			oldText: "",
-			newText: "created",
+			action: "add",
+			hunks: [{ oldText: "", newText: "created" }],
 		});
+	});
+
+	it("preserves hunk boundaries instead of re-diffing across them", () => {
+		const multiHunk = [
+			"*** Begin Patch",
+			"*** Update File: src/multi.ts",
+			"@@ first",
+			"-a",
+			"+b",
+			"@@ second",
+			"-b",
+			"+c",
+			"*** End Patch",
+		].join("\n");
+		const info = parseApplyPatchInput(multiHunk);
+		// Concatenated-and-re-diffed would collapse the -b/+b pair into
+		// context; separate hunks keep both changes intact.
+		expect(info?.files[0].hunks).toEqual([
+			{ oldText: "a", newText: "b" },
+			{ oldText: "b", newText: "c" },
+		]);
+		expect(info?.files[0]).toMatchObject({ additions: 2, deletions: 2 });
+		const summary = buildToolSummary({
+			toolName: "apply_patch",
+			input: multiHunk,
+		});
+		const item = summary.items[0];
+		if (item.type === "file") {
+			expect(item.hunks).toHaveLength(2);
+			expect(item.oldText).toBeUndefined();
+		} else {
+			expect.unreachable("expected a file item");
+		}
+	});
+
+	it("labels deleted and renamed files from their section metadata", () => {
+		const patch = [
+			"*** Begin Patch",
+			"*** Delete File: src/gone.ts",
+			"*** End Patch",
+		].join("\n");
+		const summary = buildToolSummary({ toolName: "apply_patch", input: patch });
+		expect(summary.label).toBe("Deleted gone.ts");
+		expect(summary.details).toEqual(["Deleted src/gone.ts"]);
+		const item = summary.items[0];
+		if (item.type === "file") {
+			expect(item.newText).toBeUndefined();
+			expect(item.hunks).toBeUndefined();
+		}
+
+		const rename = [
+			"*** Begin Patch",
+			"*** Update File: src/old-name.ts",
+			"*** Move to: src/new-name.ts",
+			"-a",
+			"+b",
+			"*** End Patch",
+		].join("\n");
+		const renamed = buildToolSummary({
+			toolName: "apply_patch",
+			input: rename,
+		});
+		expect(renamed.label).toBe("Edited old-name.ts → new-name.ts");
+		expect(renamed.details).toEqual([
+			"src/old-name.ts → src/new-name.ts +1 -1",
+		]);
 	});
 
 	it("labels multi-file patches with counts and per-file details", () => {

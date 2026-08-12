@@ -107,18 +107,34 @@ export type ToolSummaryItem =
 			 * complete contents — renderers should hide absolute line numbers.
 			 */
 			fragment?: boolean;
+			/**
+			 * Per-hunk before/after texts when the change has more than one
+			 * hunk (apply_patch). Render one diff per hunk — re-diffing
+			 * concatenated hunks pairs deletions with unrelated additions.
+			 * When present, prefer it over oldText/newText.
+			 */
+			hunks?: Array<{ oldText: string; newText: string }>;
 	  }
 	| { type: "command"; command: string }
 	| { type: "query"; query: string }
 	| { type: "url"; url: string }
 	| { type: "text"; text: string };
 
+/**
+ * One styled segment of a row label. Segments with `code: true` carry code
+ * (file names, commands, queries, URLs) and should render in a monospace
+ * face; plain segments are prose.
+ */
+export type ToolLabelPart = { text: string; code?: boolean };
+
 export type ToolSummary = {
 	/** Normalized tool name (aliases applied). */
 	toolName: string;
 	kind: ToolKind;
-	/** Row label, e.g. `Read app.tsx (10–80)` or `Ran 3 commands`. */
+	/** Row label, e.g. `Read app.tsx (10–80)` or `$ bun test`. */
 	label: string;
+	/** The label broken into styled segments; joins to `label`. */
+	labelParts: ToolLabelPart[];
 	/** Present when this call can merge into grouped-row counts. */
 	aggregate?: ToolAggregate;
 	/** Structured per-item detail for custom rendering. */
@@ -334,6 +350,13 @@ function aggregateLabel(
 	return `${verb} ${pluralize(count, aggregate.noun, aggregate.pluralNoun)}`;
 }
 
+/** Derive the plain-text label and its styled segments together. */
+function labeled(
+	parts: ToolLabelPart[],
+): Pick<ToolSummary, "label" | "labelParts"> {
+	return { label: parts.map((part) => part.text).join(""), labelParts: parts };
+}
+
 // Fallback summaries (unparsable or absent input) still carry an aggregate
 // so consecutive calls merge into grouped counts ("Spawned 3 agents") rather
 // than repeating the generic label.
@@ -370,7 +393,7 @@ export function buildToolSummary(
 	const base: ToolSummary = {
 		toolName,
 		kind,
-		label: fallbackLabel(kind, toolName, inProgress),
+		...labeled([{ text: fallbackLabel(kind, toolName, inProgress) }]),
 		aggregate: fallbackAggregate
 			? { ...fallbackAggregate, count: 1 }
 			: undefined,
@@ -392,7 +415,7 @@ export function buildToolSummary(
 		if (team) {
 			return {
 				...base,
-				label: team.label,
+				...labeled([{ text: team.label }]),
 				aggregate: team.aggregate,
 				details: team.details,
 				items: team.details.map((text) => ({ type: "text", text })),
@@ -414,9 +437,25 @@ export function buildToolSummary(
 			const single = info.files.length === 1 ? info.files[0] : null;
 			return {
 				...base,
-				label: single
-					? `${inProgress ? "Reading" : "Read"} ${displayFileName(single.path)}${lineRangeLabelSuffix(single.startLine, single.endLine)}`
-					: aggregateLabel(READ_AGGREGATE, info.files.length, inProgress),
+				...labeled(
+					single
+						? [
+								{ text: `${inProgress ? "Reading" : "Read"} ` },
+								{
+									text: `${displayFileName(single.path)}${lineRangeLabelSuffix(single.startLine, single.endLine)}`,
+									code: true,
+								},
+							]
+						: [
+								{
+									text: aggregateLabel(
+										READ_AGGREGATE,
+										info.files.length,
+										inProgress,
+									),
+								},
+							],
+				),
 				aggregate: { ...READ_AGGREGATE, count: info.files.length },
 				items,
 				details: info.files.map(
@@ -431,15 +470,34 @@ export function buildToolSummary(
 		const info = parseRunCommandsInput(input);
 		if (info) {
 			const commands = info.commands.map((command) => command.trim());
+			const singleInline =
+				commands.length === 1
+					? truncate(commands[0], opts.maxInlineChars)
+					: null;
 			return {
 				...base,
-				label:
-					commands.length === 1
-						? `${inProgress ? "Running" : "Ran"} ${truncate(commands[0], opts.maxInlineChars)}`
-						: aggregateLabel(COMMAND_AGGREGATE, commands.length, inProgress),
+				// Single commands read like a terminal prompt: `$ bun test`.
+				...labeled(
+					singleInline !== null
+						? [
+								{ text: "$ ", code: true },
+								{ text: singleInline, code: true },
+							]
+						: [
+								{
+									text: aggregateLabel(
+										COMMAND_AGGREGATE,
+										commands.length,
+										inProgress,
+									),
+								},
+							],
+				),
 				aggregate: { ...COMMAND_AGGREGATE, count: commands.length },
 				items: commands.map((command) => ({ type: "command", command })),
-				details: commands,
+				// A single untruncated command already sits in the label; the
+				// detail line would just repeat it.
+				details: singleInline === commands[0] ? [] : commands,
 				outputText: isError
 					? undefined
 					: capText(extractOutputText(payload.result), opts.maxOutputChars),
@@ -452,10 +510,25 @@ export function buildToolSummary(
 		if (info) {
 			return {
 				...base,
-				label:
+				...labeled(
 					info.queries.length === 1
-						? `${inProgress ? "Searching" : "Searched"} ${truncate(info.queries[0], opts.maxInlineChars)}`
-						: aggregateLabel(SEARCH_AGGREGATE, info.queries.length, inProgress),
+						? [
+								{ text: `${inProgress ? "Searching" : "Searched"} ` },
+								{
+									text: truncate(info.queries[0], opts.maxInlineChars),
+									code: true,
+								},
+							]
+						: [
+								{
+									text: aggregateLabel(
+										SEARCH_AGGREGATE,
+										info.queries.length,
+										inProgress,
+									),
+								},
+							],
+				),
 				aggregate: { ...SEARCH_AGGREGATE, count: info.queries.length },
 				items: info.queries.map((query) => ({ type: "query", query })),
 				details: info.queries,
@@ -468,10 +541,25 @@ export function buildToolSummary(
 		if (info) {
 			return {
 				...base,
-				label:
+				...labeled(
 					info.urls.length === 1
-						? `${inProgress ? "Fetching" : "Fetched"} ${truncate(info.urls[0], opts.maxInlineChars)}`
-						: aggregateLabel(WEB_AGGREGATE, info.urls.length, inProgress),
+						? [
+								{ text: `${inProgress ? "Fetching" : "Fetched"} ` },
+								{
+									text: truncate(info.urls[0], opts.maxInlineChars),
+									code: true,
+								},
+							]
+						: [
+								{
+									text: aggregateLabel(
+										WEB_AGGREGATE,
+										info.urls.length,
+										inProgress,
+									),
+								},
+							],
+				),
 				aggregate: { ...WEB_AGGREGATE, count: info.urls.length },
 				items: info.urls.map((url) => ({ type: "url", url })),
 				details: info.urls,
@@ -483,34 +571,83 @@ export function buildToolSummary(
 		const info = parseApplyPatchInput(input);
 		if (info) {
 			const single = info.files.length === 1 ? info.files[0] : null;
+			const actionVerb = (action: "add" | "update" | "delete") =>
+				action === "add"
+					? inProgress
+						? "Creating"
+						: "Created"
+					: action === "delete"
+						? inProgress
+							? "Deleting"
+							: "Deleted"
+						: inProgress
+							? "Editing"
+							: "Edited";
+			// Renames display as `old → new`.
+			const fileLabel = (file: (typeof info.files)[number]) =>
+				file.movedTo
+					? `${displayFileName(file.path)} → ${displayFileName(file.movedTo)}`
+					: displayFileName(file.path);
+			const filePathDetail = (file: (typeof info.files)[number]) =>
+				file.movedTo
+					? `${formatPath(file.path, opts.pathStyle)} → ${formatPath(file.movedTo, opts.pathStyle)}`
+					: formatPath(file.path, opts.pathStyle);
 			return {
 				...base,
-				label: single
-					? `${inProgress ? "Editing" : "Edited"} ${displayFileName(single.path)}`
-					: aggregateLabel(EDIT_AGGREGATE, info.files.length, inProgress),
+				...labeled(
+					single
+						? [
+								{ text: `${actionVerb(single.action)} ` },
+								{ text: fileLabel(single), code: true },
+							]
+						: [
+								{
+									text: aggregateLabel(
+										EDIT_AGGREGATE,
+										info.files.length,
+										inProgress,
+									),
+								},
+							],
+				),
 				aggregate: { ...EDIT_AGGREGATE, count: info.files.length },
 				diff: { additions: info.additions, deletions: info.deletions },
 				items: info.files.map((file) => ({
 					type: "file",
-					path: file.path,
-					displayPath: formatPath(file.path, opts.pathStyle),
-					language: detectLanguage(file.path),
+					path: file.movedTo ?? file.path,
+					displayPath: formatPath(file.movedTo ?? file.path, opts.pathStyle),
+					language: detectLanguage(file.movedTo ?? file.path),
 					additions: file.additions,
 					deletions: file.deletions,
 					diff: file.diff,
-					oldText: file.wholeFile ? undefined : file.oldText,
-					newText: file.newText,
-					fragment: !file.wholeFile,
+					// Deletions have no meaningful rich diff; single-hunk changes
+					// expose plain texts, multi-hunk changes must render per hunk.
+					oldText:
+						file.action !== "delete" && file.hunks.length === 1
+							? file.action === "add"
+								? undefined
+								: file.hunks[0].oldText
+							: undefined,
+					newText:
+						file.action !== "delete" && file.hunks.length === 1
+							? file.hunks[0].newText
+							: undefined,
+					hunks:
+						file.action !== "delete" && file.hunks.length > 1
+							? file.hunks
+							: undefined,
+					fragment: file.action !== "add",
 				})),
-				details: info.files.map(
-					(file) =>
-						`${formatPath(file.path, opts.pathStyle)} +${file.additions} -${file.deletions}`,
+				details: info.files.map((file) =>
+					file.action === "delete"
+						? `Deleted ${filePathDetail(file)}`
+						: `${filePathDetail(file)} +${file.additions} -${file.deletions}`,
 				),
 			};
 		}
 		return {
 			...base,
-			label: inProgress ? "Applying patch" : "Applied patch",
+			...labeled([{ text: inProgress ? "Applying patch" : "Applied patch" }]),
 			aggregate: { ...EDIT_AGGREGATE, count: 1 },
 		};
 	}
@@ -566,7 +703,10 @@ export function buildToolSummary(
 		if (path) {
 			return {
 				...base,
-				label: `${verb} ${displayFileName(path)}`,
+				...labeled([
+					{ text: `${verb} ` },
+					{ text: displayFileName(path), code: true },
+				]),
 				aggregate: { ...EDIT_AGGREGATE, count: 1 },
 				diff,
 				items: [
@@ -594,7 +734,10 @@ export function buildToolSummary(
 		if (info) {
 			return {
 				...base,
-				label: `${inProgress ? "Spawning" : "Spawned"} agent: ${truncate(info.task, opts.maxInlineChars)}`,
+				...labeled([
+					{ text: `${inProgress ? "Spawning" : "Spawned"} agent: ` },
+					{ text: truncate(info.task, opts.maxInlineChars) },
+				]),
 				aggregate: { ...SPAWN_AGGREGATE, count: 1 },
 				items: [{ type: "text", text: info.task }],
 				details: [info.task],
@@ -610,7 +753,10 @@ export function buildToolSummary(
 			const detail = args ? `${skill} ${args}` : skill;
 			return {
 				...base,
-				label: `${inProgress ? "Using" : "Used"} skill ${truncate(skill, opts.maxInlineChars)}`,
+				...labeled([
+					{ text: `${inProgress ? "Using" : "Used"} skill ` },
+					{ text: truncate(skill, opts.maxInlineChars), code: true },
+				]),
 				items: [{ type: "text", text: detail }],
 				details: [detail],
 			};
@@ -622,7 +768,11 @@ export function buildToolSummary(
 		if (info) {
 			return {
 				...base,
-				label: `${inProgress ? "Asking" : "Asked"} "${truncate(info.question, opts.maxInlineChars)}"`,
+				...labeled([
+					{
+						text: `${inProgress ? "Asking" : "Asked"} "${truncate(info.question, opts.maxInlineChars)}"`,
+					},
+				]),
 				items: [
 					{ type: "text", text: info.question },
 					...info.options.map((option): ToolSummaryItem => {
@@ -638,17 +788,16 @@ export function buildToolSummary(
 	}
 
 	// Unknown/MCP tools: humanized name, plus whatever text the result holds.
-	const resultRecord = isRecord(normalizeValue(payload.result))
-		? (normalizeValue(payload.result) as Record<string, unknown>)
-		: null;
+	const normalizedResult = normalizeValue(payload.result);
+	const resultRecord = isRecord(normalizedResult) ? normalizedResult : null;
 	const query =
 		typeof resultRecord?.query === "string" ? resultRecord.query : "";
 	return {
 		...base,
-		label: query ? truncate(query, opts.maxInlineChars) : base.label,
+		...(query ? labeled([{ text: truncate(query, opts.maxInlineChars) }]) : {}),
 		outputText: isError
 			? undefined
-			: capText(extractOutputText(payload.result), opts.maxOutputChars),
+			: capText(extractOutputText(normalizedResult), opts.maxOutputChars),
 	};
 }
 
