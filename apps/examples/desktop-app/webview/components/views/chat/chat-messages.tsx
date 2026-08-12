@@ -995,7 +995,7 @@ const MessageBubble = memo(function MessageBubble({
 		: null;
 	const messageTimestamp = messageTime ? (
 		<time
-			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			className="shrink-0 whitespace-nowrap text-sm leading-none text-muted-foreground/70"
 			dateTime={messageDate.toISOString()}
 			title={messageDate.toLocaleString()}
 		>
@@ -1056,21 +1056,21 @@ const MessageBubble = memo(function MessageBubble({
 					>
 						{onCopyMessage ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
-									<Check className="h-3.5 w-3.5" />
+									<Check className="size-4" />
 								) : (
-									<Copy className="h-3.5 w-3.5" />
+									<Copy className="size-4" />
 								)}
 							</MessageAction>
 						) : null}
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
@@ -1081,13 +1081,13 @@ const MessageBubble = memo(function MessageBubble({
 								{editPending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
 								) : (
-									<PencilIcon className="h-3.5 w-3.5" />
+									<PencilIcon className="size-4" />
 								)}
 							</MessageAction>
 						) : null}
 						{checkpoint ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -1098,7 +1098,7 @@ const MessageBubble = memo(function MessageBubble({
 								{restorePending ? (
 									<Loader2 className="h-3.5 w-3.5 animate-spin" />
 								) : (
-									<UndoIcon className="h-3.5 w-3.5" />
+									<UndoIcon className="size-4" />
 								)}
 							</MessageAction>
 						) : null}
@@ -1124,7 +1124,7 @@ const MessageBubble = memo(function MessageBubble({
 				>
 					{onCopyMessage ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -1134,24 +1134,24 @@ const MessageBubble = memo(function MessageBubble({
 							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
-								<Check className="h-3 w-3" />
+								<Check className="size-4" />
 							) : (
-								<Copy className="h-3 w-3" />
+								<Copy className="size-4" />
 							)}
 						</MessageAction>
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
-								<Loader2 className="h-3 w-3 animate-spin" />
+								<Loader2 className="size-4 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3 rotate-90" />
+								<SplitIcon className="size-4 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
