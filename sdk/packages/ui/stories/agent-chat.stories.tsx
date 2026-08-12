@@ -18,6 +18,7 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "../components/agent-chat";
+import { ToolFileDiff } from "../components/agent-chat/tool-diff";
 import {
 	buildToolSummary,
 	type ToolKind,
@@ -206,7 +207,7 @@ const SUMMARY_ICONS: Partial<Record<ToolKind, () => React.ReactNode>> = {
 function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 	const Icon = SUMMARY_ICONS[summary.kind] ?? TerminalIcon;
 	const diffs = summary.items.filter(
-		(item) => item.type === "file" && item.diff,
+		(item) => item.type === "file" && (item.newText !== undefined || item.diff),
 	);
 	const expandable =
 		summary.details.length > 0 ||
@@ -214,7 +215,7 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 		Boolean(summary.outputText) ||
 		Boolean(summary.errorText);
 	return (
-		<ToolActivity expandable={expandable}>
+		<ToolActivity defaultOpen={diffs.length > 0} expandable={expandable}>
 			<ToolActivityTrigger
 				additions={summary.diff?.additions || undefined}
 				deletions={summary.diff?.deletions || undefined}
@@ -232,9 +233,17 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 					</ToolActivityDetails>
 				) : null}
 				{diffs.map((item) =>
-					item.type === "file" && item.diff ? (
+					item.type !== "file" ? null : item.newText !== undefined ? (
+						<ToolFileDiff
+							fragment={item.fragment}
+							key={item.path}
+							newText={item.newText}
+							oldText={item.oldText}
+							path={item.path}
+						/>
+					) : (
 						<ToolActivityCode key={item.path}>{item.diff}</ToolActivityCode>
-					) : null,
+					),
 				)}
 				{summary.outputText ? (
 					<ToolActivityCode>{summary.outputText}</ToolActivityCode>
@@ -284,6 +293,24 @@ export const ToolSummaries = () => (
 						old_text: "const a = 1;\nconst b = 2;",
 						new_text: "const a = 1;\nconst b = 3;\nconst c = 4;",
 					},
+				}),
+				buildToolSummary({
+					toolName: "apply_patch",
+					input: [
+						"*** Begin Patch",
+						"*** Update File: webview/components/views/chat/chat-messages.tsx",
+						" const label = buildGroupedToolLabel(presentations);",
+						"-const icons = presentations.map(getIcon);",
+						"+const icons = presentations.map(({ toolName }) =>",
+						"+\tgetToolNameIcon(toolName),",
+						"+);",
+						"*** Add File: webview/lib/tool-colors.ts",
+						"+export const TOOL_COLORS = {",
+						'+\tedit: "var(--accent)",',
+						'+\tread: "var(--muted)",',
+						"+};",
+						"*** End Patch",
+					].join("\n"),
 				}),
 				buildToolSummary({
 					toolName: "search_codebase",
