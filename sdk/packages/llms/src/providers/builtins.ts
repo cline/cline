@@ -1051,7 +1051,13 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Claude Code",
 		description: "Use Claude Code SDK with Claude Pro/Max subscription",
 		family: "claude-code",
-		capabilities: ["reasoning"],
+		// provider-tools: the Claude Code CLI executes its own native tools
+		// (Read/Write/Bash/...) inside the spawned agent session and cannot
+		// bridge externally-executed AI SDK tools. Without this capability the
+		// gateway sends Cline's tool definitions (which the provider drops)
+		// while the CLI's own tools stay enabled with no approval plumbing —
+		// every write is refused and no prompt can appear (#13146).
+		capabilities: ["reasoning", "provider-tools"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
 		defaults: { baseUrl: "" },

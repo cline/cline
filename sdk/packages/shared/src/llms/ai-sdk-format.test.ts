@@ -79,6 +79,53 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("replaces messages whose parts are all empty text with explicit error text", () => {
+		const messages = formatMessagesForAiSdk(undefined, [
+			{ role: "user", content: [{ type: "text", text: "" }] },
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "   \n\t  " },
+					{ type: "text", text: "" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: EMPTY_CONTENT_TEXT }],
+			},
+		]);
+	});
+
+	it("keeps messages that pair empty text with other content", () => {
+		const image = imageData(16);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "image", image, mediaType: "image/png" },
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "" },
+					{ type: "file", data: image, mediaType: "image/png" },
+				],
+			},
+		]);
+	});
+
 	it("preserves providerOptions on text parts", () => {
 		const messages = formatMessagesForAiSdk(undefined, [
 			{

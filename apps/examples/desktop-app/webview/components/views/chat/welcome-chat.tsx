@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
+import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Prompt suggestions (including "Review changes") are temporarily disabled
@@ -212,10 +213,10 @@ export function WelcomeScreen({
 					{active && notice ? notice : null}
 
 					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
 						key="persistent-composer"
 					>
-						{composer}
+						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
 
 					{/* Prompt suggestions are disabled for now; see the note above.

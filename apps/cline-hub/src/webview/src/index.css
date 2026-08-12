@@ -1,11 +1,16 @@
 @import "tailwindcss";
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
-@import "@fontsource-variable/schibsted-grotesk";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 
 @custom-variant dark (&:is(.dark *));
 
 :root {
+	--font-weight-normal: 480;
+	--font-weight-medium: 560;
+	--font-weight-semibold: 640;
+	--font-weight-bold: 640;
 	--background: oklch(1 0 0);
 	--foreground: oklch(0.18 0.008 255);
 	--card: oklch(1 0 0);
@@ -42,10 +47,10 @@
 }
 
 @theme inline {
-	--font-sans: "Schibsted Grotesk Variable", sans-serif;
+	--font-sans: "Inter Variable", sans-serif;
 	--font-mono:
-		ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono",
-		monospace;
+		"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas,
+		"Liberation Mono", monospace;
 	--color-background: var(--background);
 	--color-foreground: var(--foreground);
 	--color-card: var(--card);
@@ -197,6 +202,10 @@
 }
 
 .dark {
+	--font-weight-normal: 400;
+	--font-weight-medium: 500;
+	--font-weight-semibold: 600;
+	--font-weight-bold: 600;
 	--background: oklch(0.145 0 0);
 	--foreground: oklch(0.985 0 0);
 	--card: oklch(0.205 0 0);

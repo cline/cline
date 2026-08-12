@@ -18,6 +18,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { IconButton } from "../button.js";
 
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 const SCROLL_BUTTON_THRESHOLD_PX = 120;
@@ -67,6 +68,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 		const shouldStickToBottom = useRef(true);
 		const isProgrammaticScroll = useRef(false);
 		const lastProgrammaticScrollTop = useRef(0);
+		const lastObservedScrollTop = useRef(0);
 		const programmaticScrollTimer = useRef<number | null>(null);
 
 		const clearProgrammaticScroll = useCallback(() => {
@@ -80,6 +82,8 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			if (!viewport) return;
 			const distance =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+			const scrolledUp = viewport.scrollTop < lastObservedScrollTop.current - 1;
+			lastObservedScrollTop.current = viewport.scrollTop;
 			if (isProgrammaticScroll.current) {
 				if (viewport.scrollTop + 1 < lastProgrammaticScrollTop.current) {
 					isProgrammaticScroll.current = false;
@@ -95,7 +99,16 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					return;
 				}
 			}
-			shouldStickToBottom.current = distance <= STICK_TO_BOTTOM_THRESHOLD_PX;
+			// Sticking is an intent, not a position: content growing under a
+			// pinned viewport briefly widens `distance` before the resize
+			// observer re-pins, and a scroll event landing in that window must
+			// not read as the user leaving the bottom. Only an actual upward
+			// scroll releases the pin; reaching the bottom always restores it.
+			if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
+				shouldStickToBottom.current = true;
+			} else if (scrolledUp) {
+				shouldStickToBottom.current = false;
+			}
 			setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
 		}, [clearProgrammaticScroll, viewport]);
 
@@ -116,6 +129,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					top: viewport.scrollHeight,
 					behavior: effectiveBehavior,
 				});
+				lastObservedScrollTop.current = viewport.scrollTop;
 				setShowScrollButton(false);
 				if (!isSmooth) return;
 				programmaticScrollTimer.current = window.setTimeout(() => {
@@ -384,17 +398,20 @@ export const MessageContent = ({
 );
 
 export type MessageActionsProps = HTMLAttributes<HTMLDivElement> & {
+	side?: "start" | "end";
 	visible?: boolean;
 };
 
 export const MessageActions = ({
 	className,
+	side,
 	visible = false,
 	...props
 }: MessageActionsProps) => (
 	<div
 		{...props}
 		className={classNames("cline-chat-message-actions", className)}
+		data-side={side}
 		data-visible={visible || undefined}
 	/>
 );
@@ -412,11 +429,13 @@ export const MessageAction = ({
 	label,
 	...props
 }: MessageActionProps) => (
-	<button
+	<IconButton
 		{...props}
 		aria-label={ariaLabel ?? label}
 		className={classNames("cline-chat-message-action", className)}
-		type="button"
+		variant="ghost"
+		tone="neutral"
+		size="xs"
 	/>
 );
 
@@ -636,9 +655,16 @@ export const ToolActivityTrigger = ({
 	...props
 }: ToolActivityTriggerProps) => {
 	const { expandable, isOpen, panelId, setIsOpen } = useToolActivity();
+	// While the tool is still working, the spinner takes the icon's slot so the
+	// row reads as one glyph + label instead of sprouting chrome on the right.
+	const inFlight = status === "running" || status === "pending";
 	const content = children ?? (
 		<>
-			{icon ? <span className="cline-chat-tool-icon">{icon}</span> : null}
+			{inFlight ? (
+				<output aria-label={status} className="cline-chat-tool-progress" />
+			) : icon ? (
+				<span className="cline-chat-tool-icon">{icon}</span>
+			) : null}
 			<span className="cline-chat-tool-label">{label}</span>
 			{additions !== undefined || deletions !== undefined ? (
 				<span className="cline-chat-tool-diff">
@@ -649,9 +675,6 @@ export const ToolActivityTrigger = ({
 						<span data-diff="deletions">-{deletions}</span>
 					) : null}
 				</span>
-			) : null}
-			{status === "running" || status === "pending" ? (
-				<output aria-label={status} className="cline-chat-tool-progress" />
 			) : null}
 			{expandable && showDisclosureIcon ? (
 				<ChevronDownIcon className="cline-chat-disclosure-icon" />
