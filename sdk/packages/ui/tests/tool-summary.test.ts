@@ -206,6 +206,27 @@ describe("editor summaries", () => {
 			expect(item.diff).toContain("--- a/src/util.ts");
 			expect(item.diff).toContain("+const c = 4;");
 			expect(item.language).toBe("typescript");
+			// str_replace texts are file fragments: the hunk header must not
+			// fabricate line positions.
+			expect(item.diff).toContain("@@ … @@");
+			expect(item.diff).not.toMatch(/@@ -\d/);
+			// Raw texts feed rich diff renderers (@pierre/diffs).
+			expect(item.oldText).toBe("const a = 1;\nconst b = 2;");
+			expect(item.newText).toBe("const a = 1;\nconst b = 3;\nconst c = 4;");
+			expect(item.fragment).toBe(true);
+		}
+	});
+
+	it("keeps real hunk positions when creating a whole file", () => {
+		const summary = buildToolSummary({
+			toolName: "editor",
+			input: { path: "new.ts", new_text: "line 1\nline 2" },
+		});
+		const item = summary.items[0];
+		if (item.type === "file") {
+			expect(item.diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+		} else {
+			expect.unreachable("expected a file item");
 		}
 	});
 
@@ -262,6 +283,22 @@ describe("apply_patch summaries", () => {
 		expect(info?.deletions).toBe(1);
 		expect(info?.files[0].diff).toContain("--- a/src/one.ts");
 		expect(info?.files[0].diff).toContain("+new line");
+		// Update File sections are fragments (no real positions); Add File
+		// sections carry whole contents and keep numeric hunk headers.
+		expect(info?.files[0].diff).toContain("@@ … @@");
+		expect(info?.files[0].diff).not.toMatch(/@@ -\d/);
+		expect(info?.files[1].diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+		// Reconstructed texts for rich diff renderers.
+		expect(info?.files[0]).toMatchObject({
+			wholeFile: false,
+			oldText: "old line",
+			newText: "new line\nextra line",
+		});
+		expect(info?.files[1]).toMatchObject({
+			wholeFile: true,
+			oldText: "",
+			newText: "created",
+		});
 	});
 
 	it("labels multi-file patches with counts and per-file details", () => {

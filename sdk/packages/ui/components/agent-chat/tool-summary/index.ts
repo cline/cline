@@ -30,7 +30,12 @@ import {
 import { detectLanguage, displayFileName, shortenPath } from "./paths.js";
 import { pluralize, type ToolAggregate, teamSummary } from "./team.js";
 
-export { countDiffLines, makeUnifiedDiff } from "./diff.js";
+export {
+	countDiffLines,
+	FRAGMENT_HUNK_HEADER,
+	type MakeUnifiedDiffOptions,
+	makeUnifiedDiff,
+} from "./diff.js";
 export {
 	type ApplyPatchFile,
 	type ApplyPatchInfo,
@@ -91,6 +96,17 @@ export type ToolSummaryItem =
 			deletions?: number;
 			/** Unified diff text for this file, when reconstructable. */
 			diff?: string;
+			/**
+			 * Raw before/after texts for rich diff renderers (e.g.
+			 * @pierre/diffs). `oldText` is absent for created files.
+			 */
+			oldText?: string;
+			newText?: string;
+			/**
+			 * True when oldText/newText are fragments of the file rather than
+			 * complete contents — renderers should hide absolute line numbers.
+			 */
+			fragment?: boolean;
 	  }
 	| { type: "command"; command: string }
 	| { type: "query"; query: string }
@@ -482,6 +498,9 @@ export function buildToolSummary(
 					additions: file.additions,
 					deletions: file.deletions,
 					diff: file.diff,
+					oldText: file.wholeFile ? undefined : file.oldText,
+					newText: file.newText,
+					fragment: !file.wholeFile,
 				})),
 				details: info.files.map(
 					(file) =>
@@ -528,7 +547,17 @@ export function buildToolSummary(
 		let diff: ToolSummary["diff"];
 		let diffText: string | undefined;
 		if (info && (info.oldText !== undefined || command === "create")) {
-			diffText = makeUnifiedDiff(info.oldText ?? "", info.newText, info.path);
+			// str_replace texts are fragments of the file, not whole contents;
+			// fragment mode keeps the hunk header from claiming line positions.
+			diffText = makeUnifiedDiff(
+				info.oldText ?? "",
+				info.newText,
+				info.path,
+				3,
+				{
+					fragment: command !== "create",
+				},
+			);
 			diff = countDiffLines(diffText);
 		} else {
 			diff = parseEditorResultDiffCounts(payload.result) ?? undefined;
@@ -549,6 +578,9 @@ export function buildToolSummary(
 						additions: diff?.additions,
 						deletions: diff?.deletions,
 						diff: diffText,
+						oldText: info?.oldText,
+						newText: info?.newText,
+						fragment: command !== "create",
 					},
 				],
 				// The label already carries the file; the diff renders from items.

@@ -39,11 +39,25 @@ function diffLines(
 	return result;
 }
 
+/** Honest hunk separator for diffs built from file fragments. */
+export const FRAGMENT_HUNK_HEADER = "@@ … @@";
+
+export type MakeUnifiedDiffOptions = {
+	/**
+	 * Set when oldText/newText are fragments of a larger file (e.g. editor
+	 * str_replace payloads) rather than complete file contents. Hunk headers
+	 * then render as `@@ … @@` instead of fabricating line-1-relative
+	 * positions that would mislocate the change.
+	 */
+	fragment?: boolean;
+};
+
 export function makeUnifiedDiff(
 	oldText: string,
 	newText: string,
 	filePath: string,
 	ctx = 3,
+	options?: MakeUnifiedDiffOptions,
 ): string {
 	const oldArr = oldText ? oldText.split("\n") : [];
 	const newArr = newText.split("\n");
@@ -91,7 +105,11 @@ export function makeUnifiedDiff(
 			if (ops[k].type !== "-") newStart++;
 		}
 
-		output.push(`@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`);
+		output.push(
+			options?.fragment
+				? FRAGMENT_HUNK_HEADER
+				: `@@ -${oldStart},${oldCount} +${newStart},${newCount} @@`,
+		);
 		for (let k = hunkStart; k < hunkEnd; k++) {
 			const prefix = ops[k].type === " " ? " " : ops[k].type;
 			output.push(`${prefix}${ops[k].line}`);

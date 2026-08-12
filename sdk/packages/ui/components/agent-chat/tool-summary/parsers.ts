@@ -1,4 +1,4 @@
-import { hunkHeader } from "./diff.js";
+import { FRAGMENT_HUNK_HEADER, hunkHeader } from "./diff.js";
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
 	return !!value && typeof value === "object" && !Array.isArray(value);
@@ -199,6 +199,12 @@ export interface ApplyPatchFile {
 	additions: number;
 	deletions: number;
 	diff: string;
+	/** True for `Add File` sections, whose body is the complete file. */
+	wholeFile: boolean;
+	/** Before/after texts reconstructed from the patch body (fragments for
+	 * Update/Delete sections, complete contents for Add sections). */
+	oldText: string;
+	newText: string;
 }
 
 export interface ApplyPatchInfo {
@@ -208,7 +214,7 @@ export interface ApplyPatchInfo {
 	diff: string;
 }
 
-const FILE_ACTION_RE = /^\*\*\* (?:Add|Update|Delete) File: (.+)/;
+const FILE_ACTION_RE = /^\*\*\* (Add|Update|Delete) File: (.+)/;
 const SKIP_LINES =
 	/^(?:\*\*\* (?:Begin|End) Patch|%%bash|```|EOF|apply_patch\b|@@|\*\*\* (?:Move to:|End of File))/;
 
@@ -231,15 +237,23 @@ export function parseApplyPatchInput(
 	const files: ApplyPatchFile[] = [];
 	let current: {
 		path: string;
+		wholeFile: boolean;
 		lines: string[];
 		hunk: string[];
+		oldLines: string[];
+		newLines: string[];
 		additions: number;
 		deletions: number;
 	} | null = null;
 
 	const flushHunk = () => {
 		if (!current || current.hunk.length === 0) return;
-		current.lines.push(hunkHeader(current.hunk), ...current.hunk);
+		// Update/Delete sections are file fragments; only Add File sections
+		// carry complete contents, so only they get real hunk positions.
+		current.lines.push(
+			current.wholeFile ? hunkHeader(current.hunk) : FRAGMENT_HUNK_HEADER,
+			...current.hunk,
+		);
 		current.hunk = [];
 	};
 	const flushFile = () => {
@@ -250,6 +264,9 @@ export function parseApplyPatchInput(
 			additions: current.additions,
 			deletions: current.deletions,
 			diff: current.lines.join("\n"),
+			wholeFile: current.wholeFile,
+			oldText: current.oldLines.join("\n"),
+			newText: current.newLines.join("\n"),
 		});
 		current = null;
 	};
@@ -258,11 +275,14 @@ export function parseApplyPatchInput(
 		const fileMatch = FILE_ACTION_RE.exec(line);
 		if (fileMatch) {
 			flushFile();
-			const path = fileMatch[1].trim();
+			const path = fileMatch[2].trim();
 			current = {
 				path,
+				wholeFile: fileMatch[1] === "Add",
 				lines: [`--- a/${path}`, `+++ b/${path}`],
 				hunk: [],
+				oldLines: [],
+				newLines: [],
 				additions: 0,
 				deletions: 0,
 			};
@@ -271,8 +291,17 @@ export function parseApplyPatchInput(
 		if (SKIP_LINES.test(line.trim())) continue;
 		if (!current) continue;
 
-		if (line.startsWith("+")) current.additions++;
-		else if (line.startsWith("-")) current.deletions++;
+		if (line.startsWith("+")) {
+			current.additions++;
+			current.newLines.push(line.slice(1));
+		} else if (line.startsWith("-")) {
+			current.deletions++;
+			current.oldLines.push(line.slice(1));
+		} else {
+			const context = line.startsWith(" ") ? line.slice(1) : line;
+			current.oldLines.push(context);
+			current.newLines.push(context);
+		}
 
 		if (line.startsWith("+") || line.startsWith("-") || line.startsWith(" ")) {
 			current.hunk.push(line);
