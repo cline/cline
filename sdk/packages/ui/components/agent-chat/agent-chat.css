@@ -286,9 +286,13 @@
 		place-items: center;
 	}
 
+	/* Row labels stay on one line, take the full available width, and
+	 * ellipsize at the container edge — the data layer never truncates. */
 	.cline-chat-tool-label {
 		min-width: 0;
-		overflow-wrap: anywhere;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.cline-chat-tool-diff {

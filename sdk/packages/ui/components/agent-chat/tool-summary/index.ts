@@ -155,9 +155,10 @@ export type ToolSummaryOptions = {
 	/** Cap on extracted output/error text. Default: 64 KiB. */
 	maxOutputChars?: number;
 	/**
-	 * Safety cap on inline label text (commands, tasks, questions). High by
-	 * default — rows should show the real command and let layout handle
-	 * overflow; this only guards against pathological payloads. Default: 200.
+	 * Optional cap on inline label text (commands, tasks, questions).
+	 * Unlimited by default: labels carry the full text (whitespace collapsed
+	 * to one line) and the consumer's layout ellipsizes at the container
+	 * edge. Set a number only for width-constrained surfaces like TUIs.
 	 */
 	maxInlineChars?: number;
 };
@@ -165,7 +166,7 @@ export type ToolSummaryOptions = {
 const DEFAULT_OPTIONS: Required<ToolSummaryOptions> = {
 	pathStyle: "shortened",
 	maxOutputChars: 64 * 1024,
-	maxInlineChars: 200,
+	maxInlineChars: Number.POSITIVE_INFINITY,
 };
 
 export const TOOL_NAME_ALIASES: Record<string, string> = {
@@ -499,9 +500,9 @@ export function buildToolSummary(
 				),
 				aggregate: { ...COMMAND_AGGREGATE, count: commands.length },
 				items: commands.map((command) => ({ type: "command", command })),
-				// A single untruncated command already sits in the label; the
-				// detail line would just repeat it.
-				details: singleInline === commands[0] ? [] : commands,
+				// The label may be ellipsized by the consumer's layout, so the
+				// expanded panel always carries the full command text.
+				details: commands,
 				outputText: isError
 					? undefined
 					: capText(extractOutputText(payload.result), opts.maxOutputChars),

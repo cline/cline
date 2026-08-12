@@ -126,27 +126,30 @@ describe("run_commands summaries", () => {
 		expect(summary.items).toEqual([
 			{ type: "command", command: "bun run test" },
 		]);
-		// The untruncated command already sits in the label; no duplicate detail.
-		expect(summary.details).toEqual([]);
+		// The layer above may ellipsize the label, so the expanded panel
+		// always carries the full command.
+		expect(summary.details).toEqual(["bun run test"]);
 	});
 
-	it("keeps realistic commands untruncated in the label", () => {
-		const command = `bun run test --filter @cline/ui --reporter verbose ${"x".repeat(60)}`;
+	it("never truncates labels by default — layout owns overflow", () => {
+		const command = `echo ${"x".repeat(400)}`;
 		const summary = buildToolSummary({
 			toolName: "run_commands",
 			input: { commands: [command] },
 		});
 		expect(summary.label).toBe(`Ran command ${command}`);
-		expect(summary.details).toEqual([]);
 	});
 
-	it("truncates only pathological commands and keeps the full text in details", () => {
-		const summary = buildToolSummary({
-			toolName: "run_commands",
-			input: { commands: [`echo ${"x".repeat(400)}`] },
-		});
+	it("applies maxInlineChars only when a consumer opts in", () => {
+		const summary = buildToolSummary(
+			{
+				toolName: "run_commands",
+				input: { commands: [`echo ${"x".repeat(400)}`] },
+			},
+			{ maxInlineChars: 60 },
+		);
 		expect(summary.label.length).toBeLessThanOrEqual(
-			"Ran command ".length + 200,
+			"Ran command ".length + 60,
 		);
 		expect(summary.label.endsWith("…")).toBe(true);
 		expect(summary.details[0]).toBe(`echo ${"x".repeat(400)}`);
