@@ -9,6 +9,7 @@ export default defineConfig({
 		include: [
 			"src/sdk/**/*.test.ts",
 			"src/shared/vsCodeSelectorUtils.test.ts",
+			"src/shared/content-limits.test.ts",
 			"src/shared/proto-conversions/models/**/*.test.ts",
 			"src/core/storage/remote-config/**/*.test.ts",
 			"src/core/controller/state/**/*.test.ts",
