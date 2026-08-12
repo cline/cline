@@ -101,6 +101,38 @@ describe("@cline/ui agent chat primitives", () => {
 		expect(summary?.closest("button")).toBeNull();
 	});
 
+	it("swaps the icon for the spinner while the tool is in flight", async () => {
+		await render(
+			<ToolActivity expandable={false}>
+				<ToolActivityTrigger
+					icon={<svg data-testid="tool-icon" />}
+					label="Editing file app.tsx"
+					status="running"
+				/>
+			</ToolActivity>,
+		);
+
+		expect(
+			container.querySelector(".cline-chat-tool-progress"),
+		).not.toBeNull();
+		expect(container.querySelector("[data-testid='tool-icon']")).toBeNull();
+
+		await render(
+			<ToolActivity expandable={false}>
+				<ToolActivityTrigger
+					icon={<svg data-testid="tool-icon" />}
+					label="Edited file app.tsx"
+					status="success"
+				/>
+			</ToolActivity>,
+		);
+
+		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
+		expect(
+			container.querySelector("[data-testid='tool-icon']"),
+		).not.toBeNull();
+	});
+
 	it("toggles expandable tool details", async () => {
 		await render(
 			<ToolActivity>
@@ -127,7 +159,10 @@ describe("@cline/ui agent chat primitives", () => {
 	it("hides the disclosure chevron on request while keeping the row clickable", async () => {
 		await render(
 			<ToolActivity>
-				<ToolActivityTrigger label="Edited 2 files" showDisclosureIcon={false} />
+				<ToolActivityTrigger
+					label="Edited 2 files"
+					showDisclosureIcon={false}
+				/>
 				<ToolActivityContent>theme.css</ToolActivityContent>
 			</ToolActivity>,
 		);
