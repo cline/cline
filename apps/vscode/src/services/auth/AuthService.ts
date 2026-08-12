@@ -181,7 +181,7 @@ export class AuthService {
 							this._authenticated = true
 							clineAccountAuthToken = updatedAuthInfo.idToken
 							authStatusChanged = true
-						} else if (provider.lastRetrieveFailedWithInvalidToken) {
+						} else if (provider.lastRetrieveFailure === LogoutReason.TOKEN_INVALID) {
 							// Telemetry only: the refresh token was rejected, so the
 							// user has effectively lost their session even though the
 							// provider's null-on-error contract keeps state unchanged.
@@ -337,16 +337,16 @@ export class AuthService {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
-				// The provider returns null both when there is no stored session
-				// (fires on every window open for API-key users — not a logout)
-				// and when the stored refresh token was rejected (a real
-				// involuntary logout). Its telemetry breadcrumb distinguishes
-				// the two; control flow is identical either way.
+				// The provider returns null when there is no stored session
+				// (fires on every window open for API-key users — not a
+				// logout), when the stored refresh token was rejected (a real
+				// involuntary logout), and when restoring a stored session
+				// failed on malformed data or an unexpected error. Its
+				// telemetry breadcrumb distinguishes these; control flow is
+				// identical either way.
 				telemetryService.captureAuthLoggedOut(
 					this._provider.name,
-					this._provider.lastRetrieveFailedWithInvalidToken
-						? LogoutReason.TOKEN_INVALID
-						: LogoutReason.NO_STORED_SESSION,
+					this._provider.lastRetrieveFailure ?? LogoutReason.NO_STORED_SESSION,
 				)
 			}
 		} catch (error) {

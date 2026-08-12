@@ -11,6 +11,7 @@ import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
+import { LogoutReason } from "../types"
 import { notifyRolloutStanddown, shouldStandDownAuth } from "../rollout-standdown"
 
 interface ClineAuthApiUser {
@@ -66,13 +67,15 @@ export class ClineAuthProvider {
 	readonly name = "cline"
 	private refreshRetryCount = 0
 	/**
-	 * Telemetry-only breadcrumb: true when the most recent
-	 * retrieveClineAuthInfo() returned null because the stored refresh token
-	 * was rejected (AuthInvalidTokenError), as opposed to there being no
-	 * stored session. Read by AuthService to pick the logout-reason label;
-	 * never drives behavior.
+	 * Telemetry-only breadcrumb: records WHY the most recent
+	 * retrieveClineAuthInfo() returned null despite a stored session —
+	 * TOKEN_INVALID when the stored refresh token was rejected,
+	 * RESTORE_ERROR when the stored data was malformed or restoration threw
+	 * unexpectedly, and null when there was simply no stored session (or the
+	 * retrieve succeeded). Read by AuthService to pick the logout-reason
+	 * label; never drives behavior.
 	 */
-	public lastRetrieveFailedWithInvalidToken = false
+	public lastRetrieveFailure: LogoutReason.TOKEN_INVALID | LogoutReason.RESTORE_ERROR | null = null
 	private lastRefreshAttempt = 0
 	private readonly MAX_REFRESH_RETRIES = 3
 	private readonly RETRY_DELAY_MS = 30000 // 30 seconds
@@ -171,7 +174,7 @@ export class ClineAuthProvider {
 	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
 	 */
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
-		this.lastRetrieveFailedWithInvalidToken = false
+		this.lastRetrieveFailure = null
 		try {
 			// Get the stored auth data from secure storage
 			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
@@ -190,10 +193,12 @@ export class ClineAuthProvider {
 				storedAuthData = JSON.parse(storedAuthDataString)
 			} catch (e) {
 				Logger.error("Failed to parse stored auth data:", e)
+				this.lastRetrieveFailure = LogoutReason.RESTORE_ERROR
 				return this.clearSession(controller, "Failed to parse stored auth data")
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
+				this.lastRetrieveFailure = LogoutReason.RESTORE_ERROR
 				return this.clearSession(controller, "No refresh token or ID token found in store", storedAuthData)
 			}
 
@@ -303,13 +308,15 @@ export class ClineAuthProvider {
 			return storedAuthData
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
-			// Telemetry-only breadcrumb: a rejected refresh token is a real
-			// involuntary logout, but this method's null-on-error contract is
-			// load-bearing (callers keep their existing control flow). Record
-			// WHY the retrieve failed so telemetry call sites can bin the
-			// event as token_invalid instead of no_stored_session, without
-			// changing any behavior.
-			this.lastRetrieveFailedWithInvalidToken = error instanceof AuthInvalidTokenError
+			// Telemetry-only breadcrumb: this method's null-on-error contract
+			// is load-bearing (callers keep their existing control flow), so
+			// record WHY the retrieve failed instead of rethrowing. Telemetry
+			// call sites use it to bin the event as token_invalid (a real
+			// involuntary logout) or restore_error (unexpected restore
+			// failure) instead of no_stored_session, without changing any
+			// behavior.
+			this.lastRetrieveFailure =
+				error instanceof AuthInvalidTokenError ? LogoutReason.TOKEN_INVALID : LogoutReason.RESTORE_ERROR
 			// Reset retry count on unexpected errors
 			if (!(error instanceof AuthInvalidTokenError)) {
 				this.refreshRetryCount = 0

@@ -10,6 +10,7 @@ import { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
 import { AuthInvalidTokenError, AuthNetworkError } from "../../error/ClineError"
 import { AuthService, ClineAuthInfo } from "../AuthService"
+import { ClineAuthProvider } from "../providers/ClineAuthProvider"
 import { LogoutReason } from "../types"
 
 class TestableAuthService extends AuthService {
@@ -89,12 +90,26 @@ describe("AuthService logout telemetry reasons", () => {
 			// but records WHY via the telemetry breadcrumb; without it these
 			// users were binned as no_stored_session.
 			retrieveClineAuthInfoStub.resolves(null)
-			;(service as any)._provider.lastRetrieveFailedWithInvalidToken = true
+			;(service as any)._provider.lastRetrieveFailure = LogoutReason.TOKEN_INVALID
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
 			await flushTelemetry()
 
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
+			expect((service as any)._authenticated).to.be.false
+		})
+
+		it("reports restore_error when the provider swallows a restore failure into null", async () => {
+			// Malformed stored data / unexpected restore errors are converted
+			// to null inside the provider; the breadcrumb keeps them from
+			// being binned as no_stored_session.
+			retrieveClineAuthInfoStub.resolves(null)
+			;(service as any)._provider.lastRetrieveFailure = LogoutReason.RESTORE_ERROR
+
+			await service.restoreRefreshTokenAndRetrieveAuthInfo()
+			await flushTelemetry()
+
+			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
 			expect((service as any)._authenticated).to.be.false
 		})
 
@@ -142,7 +157,7 @@ describe("AuthService logout telemetry reasons", () => {
 			// with the breadcrumb set. Telemetry fires; behavior is unchanged
 			// (state keeps the stale session exactly as before this change).
 			retrieveClineAuthInfoStub.resolves(null)
-			;(service as any)._provider.lastRetrieveFailedWithInvalidToken = true
+			;(service as any)._provider.lastRetrieveFailure = LogoutReason.TOKEN_INVALID
 
 			const token = await service.getAuthToken()
 			await flushTelemetry()
@@ -151,6 +166,43 @@ describe("AuthService logout telemetry reasons", () => {
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
 			expect((service as any)._authenticated).to.be.true
 			expect((service as any)._clineAuthInfo).to.not.be.null
+		})
+	})
+
+	describe("ClineAuthProvider retrieve-failure breadcrumb", () => {
+		const makeController = (storedAuthData: string | undefined): Controller =>
+			({
+				stateManager: {
+					getSecretKey: () => storedAuthData,
+					setSecret: () => {},
+				},
+			}) as unknown as Controller
+
+		it("stays unset when there is no stored session", async () => {
+			const provider = new ClineAuthProvider()
+
+			const result = await provider.retrieveClineAuthInfo(makeController(undefined))
+
+			expect(result).to.be.null
+			expect(provider.lastRetrieveFailure).to.be.null
+		})
+
+		it("records restore_error for malformed stored auth data", async () => {
+			const provider = new ClineAuthProvider()
+
+			const result = await provider.retrieveClineAuthInfo(makeController("not-json{"))
+
+			expect(result).to.be.null
+			expect(provider.lastRetrieveFailure).to.equal(LogoutReason.RESTORE_ERROR)
+		})
+
+		it("records restore_error when stored auth data is missing tokens", async () => {
+			const provider = new ClineAuthProvider()
+
+			const result = await provider.retrieveClineAuthInfo(makeController(JSON.stringify({ userInfo: {} })))
+
+			expect(result).to.be.null
+			expect(provider.lastRetrieveFailure).to.equal(LogoutReason.RESTORE_ERROR)
 		})
 	})
 })
