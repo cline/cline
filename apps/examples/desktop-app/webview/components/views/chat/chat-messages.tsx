@@ -673,8 +673,11 @@ function ChatMessagesImpl({
 					!isSessionSwitching ? (
 						// Mirrors the tool-row trigger metrics (min-h-7, py-1, gap-2,
 						// 16px icon, font-medium) so text does not shift when this
-						// swaps with an arriving tool row.
-						<div className="mt-2 flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+						// swaps with an arriving tool row. No margin of its own: the
+						// conversation column's gap already matches the spacing a tool
+						// row would get, so any extra margin makes this render lower
+						// than its replacement.
+						<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
 							<Loader2 className="size-4 animate-spin" />
 							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
