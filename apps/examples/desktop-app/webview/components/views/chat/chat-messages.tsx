@@ -532,35 +532,6 @@ function ChatMessagesImpl({
 				>
 					{showIdleDetails ? null : (
 						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
-							{pendingToolApprovals.length > 0 ? (
-								<ToolApprovalPanel
-									items={pendingToolApprovals}
-									onApprove={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"approving",
-											onApproveToolApproval,
-										)
-									}
-									onReject={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"rejecting",
-											onRejectToolApproval,
-										)
-									}
-									pendingActions={toolApprovalActions}
-									requestErrors={toolApprovalErrors}
-								/>
-							) : null}
-							{askQuestionItems.length > 0 ? (
-								<AgentAskQuestion
-									errors={askQuestionErrors}
-									items={askQuestionItems}
-									onAnswer={handleAskQuestionAnswer}
-									pendingAnswers={askQuestionActions}
-								/>
-							) : null}
 							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
@@ -647,6 +618,38 @@ function ChatMessagesImpl({
 									/>
 								);
 							})}
+							{/* Pending interactions render inline at the end of the
+							    transcript — they are the newest thing that happened,
+							    not a banner pinned to the top. */}
+							{pendingToolApprovals.length > 0 ? (
+								<ToolApprovalPanel
+									items={pendingToolApprovals}
+									onApprove={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"approving",
+											onApproveToolApproval,
+										)
+									}
+									onReject={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"rejecting",
+											onRejectToolApproval,
+										)
+									}
+									pendingActions={toolApprovalActions}
+									requestErrors={toolApprovalErrors}
+								/>
+							) : null}
+							{askQuestionItems.length > 0 ? (
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={askQuestionItems}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
+								/>
+							) : null}
 						</div>
 					)}
 					{showSwitchTransition ? (
