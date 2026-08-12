@@ -160,6 +160,34 @@ function remainingMs(budget: SnapshotBudget): number {
 	return remaining;
 }
 
+/**
+ * Bounds non-git async work (e.g. the untracked `lstat` scan) with the same
+ * snapshot budget the git subprocesses use — a stalled filesystem must not be
+ * able to block the turn through a syscall any more than through git. The
+ * underlying work is not cancellable and may settle later; the caller just
+ * stops waiting for it.
+ */
+async function raceBudget<T>(
+	budget: SnapshotBudget,
+	work: Promise<T>,
+): Promise<T> {
+	const remaining = remainingMs(budget);
+	let timer: ReturnType<typeof setTimeout> | undefined;
+	try {
+		return await Promise.race([
+			work,
+			new Promise<never>((_, reject) => {
+				timer = setTimeout(
+					() => reject(new Error("checkpoint stat scan exceeded time budget")),
+					remaining,
+				);
+			}),
+		]);
+	} finally {
+		clearTimeout(timer);
+	}
+}
+
 type SnapshotOptions = {
 	cwd: string;
 	scratchDir: string;
@@ -194,20 +222,23 @@ async function createUntrackedParentCommit(
 	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
 	const skipped: string[] = [];
 	const eligible: string[] = [];
-	await Promise.all(
-		untrackedFiles.map(async (path) => {
-			try {
-				const stats = await lstat(join(cwd, path));
-				if (stats.isFile() && stats.size > maxUntrackedFileBytes) {
-					skipped.push(path);
+	await raceBudget(
+		budget,
+		Promise.all(
+			untrackedFiles.map(async (path) => {
+				try {
+					const stats = await lstat(join(cwd, path));
+					if (stats.isFile() && stats.size > maxUntrackedFileBytes) {
+						skipped.push(path);
+						return;
+					}
+				} catch {
+					// Vanished between listing and stat — nothing to snapshot.
 					return;
 				}
-			} catch {
-				// Vanished between listing and stat — nothing to snapshot.
-				return;
-			}
-			eligible.push(path);
-		}),
+				eligible.push(path);
+			}),
+		),
 	);
 	skipped.sort();
 	eligible.sort();
