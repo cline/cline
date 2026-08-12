@@ -96,7 +96,7 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "skills", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured

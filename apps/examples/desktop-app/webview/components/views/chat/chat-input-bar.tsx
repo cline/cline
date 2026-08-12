@@ -25,7 +25,7 @@ import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -59,11 +59,13 @@ type SlashCommand = {
 	description?: string;
 };
 
-type UserInstructionCommand = {
+export type UserInstructionCommand = {
 	id: string;
 	name: string;
 	description?: string;
 	kind?: "skill" | "workflow";
+	/** Grouping folder path for skills organized under nested folders. */
+	folder?: string;
 };
 
 type UserInstructionConfigResponse = {
@@ -75,36 +77,116 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
+	{ name: "skills", description: "Browse skills and workflows" },
 	{ name: "team", description: "Start the task with an agent team" },
 ];
 
-// Last known user commands, kept across composer instances so reopening the
-// slash menu paints instantly (stale-while-revalidate); the fetch that
-// follows still picks up newly installed skills and workflows.
-let cachedSlashCommands: SlashCommand[] | null = null;
+export const SKILLS_MARKETPLACE_URL = "https://skills.sh/";
 
-export function buildUserInstructionSlashCommands(
+// Last known user commands, kept across composer instances so reopening the
+// slash menu and skills browser paint instantly (stale-while-revalidate); the
+// fetch that follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
+let cachedUserInstructionCommands: UserInstructionCommand[] | null = null;
+
+/**
+ * Runtime commands from the sidecar, minus entries whose name collides with a
+ * built-in slash command (built-ins keep their literal token).
+ */
+export function normalizeUserInstructionCommands(
 	response: UserInstructionConfigResponse,
-): SlashCommand[] {
+): UserInstructionCommand[] {
 	const commands = Array.isArray(response.runtimeCommands)
 		? response.runtimeCommands
 		: [];
 	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
-	return commands.flatMap((command) => {
-		const name = command.name;
-		if (!name || seen.has(name)) {
-			return [];
+	const normalized: UserInstructionCommand[] = [];
+	for (const command of commands) {
+		if (!command.name || seen.has(command.name)) {
+			continue;
 		}
-		seen.add(name);
-		return [
-			{
-				name,
-				description:
-					command.description?.trim() ||
-					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
-			},
-		];
+		seen.add(command.name);
+		normalized.push(command);
+	}
+	return normalized;
+}
+
+export function buildUserInstructionSlashCommands(
+	response: UserInstructionConfigResponse,
+): SlashCommand[] {
+	return normalizeUserInstructionCommands(response).map((command) => {
+		const description =
+			command.description?.trim() ||
+			`${command.kind === "skill" ? "Skill" : "Workflow"} command`;
+		return {
+			name: command.name,
+			// Show the grouping folder so skills organized under folders keep
+			// their context in the flat autocomplete list.
+			description: command.folder
+				? `${command.folder} · ${description}`
+				: description,
+		};
 	});
+}
+
+export type SkillsBrowserGroup = {
+	label: string;
+	commands: UserInstructionCommand[];
+};
+
+/**
+ * Group skills/workflows for the skills browser: top-level entries first
+ * under a "Skills" section, then one section per grouping folder so skills
+ * organized under folders stay visible — the same layout the CLI's /skills
+ * picker uses.
+ */
+export function buildSkillsBrowserGroups(
+	commands: UserInstructionCommand[],
+	query: string,
+): SkillsBrowserGroup[] {
+	const normalizedQuery = query.trim().toLowerCase();
+	const matches = commands.filter((command) => {
+		if (!normalizedQuery) return true;
+		return (
+			command.name.toLowerCase().includes(normalizedQuery) ||
+			(command.description?.toLowerCase().includes(normalizedQuery) ??
+				false) ||
+			(command.folder?.toLowerCase().includes(normalizedQuery) ?? false)
+		);
+	});
+
+	const topLevel: UserInstructionCommand[] = [];
+	const byFolder = new Map<string, UserInstructionCommand[]>();
+	for (const command of matches) {
+		const folder = command.folder?.trim();
+		if (!folder) {
+			topLevel.push(command);
+			continue;
+		}
+		const group = byFolder.get(folder);
+		if (group) {
+			group.push(command);
+		} else {
+			byFolder.set(folder, [command]);
+		}
+	}
+
+	const byName = (a: UserInstructionCommand, b: UserInstructionCommand) =>
+		a.name.localeCompare(b.name);
+
+	const groups: SkillsBrowserGroup[] = [];
+	if (topLevel.length > 0) {
+		groups.push({ label: "Skills", commands: [...topLevel].sort(byName) });
+	}
+	for (const folder of [...byFolder.keys()].sort((a, b) =>
+		a.localeCompare(b),
+	)) {
+		groups.push({
+			label: folder,
+			commands: [...(byFolder.get(folder) ?? [])].sort(byName),
+		});
+	}
+	return groups;
 }
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
@@ -370,12 +452,39 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
+	// ---- Skills browser state ----
+	// Opened via the /skills command; anchor is where the picked skill's
+	// /name token gets inserted (the position of the removed /skills token).
+	const [skillsBrowser, setSkillsBrowser] = useState<{
+		anchor: number;
+	} | null>(null);
+	const [skillsQuery, setSkillsQuery] = useState("");
+	const [skillsCommands, setSkillsCommands] = useState<
+		UserInstructionCommand[]
+	>(() => cachedUserInstructionCommands ?? []);
+	const [skillsLoading, setSkillsLoading] = useState(false);
+	const [skillsSelectedIndex, setSkillsSelectedIndex] = useState(0);
+	const skillsSearchInputRef = useRef<HTMLInputElement | null>(null);
+
+	const openSkillsBrowser = useCallback((anchor: number) => {
+		setSkillsQuery("");
+		setSkillsSelectedIndex(0);
+		setSkillsBrowser({ anchor });
+	}, []);
+
 	const canSend = hasDraft;
 	const handleSend = useCallback(() => {
 		const prompt = promptInput.trim();
+		if (prompt === "/skills") {
+			// Match the CLI: submitting /skills browses skills instead of
+			// sending the literal token to the agent.
+			setPromptInput("");
+			openSkillsBrowser(0);
+			return;
+		}
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput]);
+	}, [onSend, openSkillsBrowser, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
@@ -589,6 +698,9 @@ function ChatInputBarImpl({
 				];
 				cachedSlashCommands = next;
 				setSlashCommands(next);
+				const userCommands = normalizeUserInstructionCommands(response);
+				cachedUserInstructionCommands = userCommands;
+				setSkillsCommands(userCommands);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -623,6 +735,13 @@ function ChatInputBarImpl({
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {
 			if (!activeSlash) return;
+			if (commandName === "skills") {
+				// /skills opens the skills browser instead of inserting a
+				// token; the picked skill is inserted where /skills was typed.
+				setPromptInput(promptInput.slice(0, activeSlash.slashIndex));
+				openSkillsBrowser(activeSlash.slashIndex);
+				return;
+			}
 			const nextValue = `${promptInput.slice(0, activeSlash.slashIndex)}/${commandName} `;
 			// Closes via derivation: the trailing space ends the slash command.
 			setPromptInput(nextValue);
@@ -635,7 +754,108 @@ function ChatInputBarImpl({
 				setCursorIndex(nextCursor);
 			});
 		},
-		[activeSlash, promptInput, setPromptInput],
+		[activeSlash, openSkillsBrowser, promptInput, setPromptInput],
+	);
+
+	// ---- Skills browser effects and handlers ----
+
+	// Refresh the skills list whenever the browser opens so newly installed
+	// skills are reflected; the cached list paints instantly meanwhile.
+	useEffect(() => {
+		if (!skillsBrowser) {
+			return;
+		}
+		let cancelled = false;
+		setSkillsLoading(cachedUserInstructionCommands === null);
+		desktopClient
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
+			.then((response) => {
+				if (cancelled) return;
+				const userCommands = normalizeUserInstructionCommands(response);
+				cachedUserInstructionCommands = userCommands;
+				setSkillsCommands(userCommands);
+			})
+			.catch(() => {
+				// Keep the cached list on error.
+			})
+			.finally(() => {
+				if (!cancelled) setSkillsLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [skillsBrowser]);
+
+	// Move focus into the browser's search field when it opens.
+	useEffect(() => {
+		if (skillsBrowser) {
+			skillsSearchInputRef.current?.focus();
+		}
+	}, [skillsBrowser]);
+
+	const skillsGroups = useMemo(
+		() =>
+			skillsBrowser ? buildSkillsBrowserGroups(skillsCommands, skillsQuery) : [],
+		[skillsBrowser, skillsCommands, skillsQuery],
+	);
+	const flatSkillsCommands = useMemo(
+		() => skillsGroups.flatMap((group) => group.commands),
+		[skillsGroups],
+	);
+	const showSkillsMarketplaceRow = skillsQuery.trim().length === 0;
+	const skillsSelectableCount =
+		flatSkillsCommands.length + (showSkillsMarketplaceRow ? 1 : 0);
+	const safeSkillsSelectedIndex = Math.min(
+		skillsSelectedIndex,
+		Math.max(0, skillsSelectableCount - 1),
+	);
+	const skillsMarketplaceIndex = flatSkillsCommands.length;
+
+	const dismissSkillsBrowser = useCallback(() => {
+		setSkillsBrowser(null);
+		requestAnimationFrame(() => {
+			promptInputRef.current?.focus();
+		});
+	}, []);
+
+	const insertSkillFromBrowser = useCallback(
+		(commandName: string) => {
+			const anchor = Math.min(
+				skillsBrowser?.anchor ?? promptInput.length,
+				promptInput.length,
+			);
+			const nextValue = `${promptInput.slice(0, anchor)}/${commandName} `;
+			setPromptInput(nextValue);
+			setSkillsBrowser(null);
+			const nextCursor = nextValue.length;
+			requestAnimationFrame(() => {
+				const input = promptInputRef.current;
+				if (!input) return;
+				input.focus();
+				input.setSelectionRange(nextCursor, nextCursor);
+				setCursorIndex(nextCursor);
+			});
+		},
+		[promptInput, setPromptInput, skillsBrowser],
+	);
+
+	const activateSkillsBrowserItem = useCallback(
+		(index: number) => {
+			if (showSkillsMarketplaceRow && index === skillsMarketplaceIndex) {
+				void openExternalUrl(SKILLS_MARKETPLACE_URL);
+				return;
+			}
+			const command = flatSkillsCommands[index];
+			if (command) {
+				insertSkillFromBrowser(command.name);
+			}
+		},
+		[
+			flatSkillsCommands,
+			insertSkillFromBrowser,
+			showSkillsMarketplaceRow,
+			skillsMarketplaceIndex,
+		],
 	);
 
 	// Queued prompts are stored in their runtime form (a /team command is
@@ -669,6 +889,147 @@ function ChatInputBarImpl({
 					onSteer={onSteerPromptInQueue}
 				/>
 				<div className="relative">
+					{skillsBrowser && (
+						<>
+							<button
+								aria-label="Close skills browser"
+								className="fixed inset-0 z-40 cursor-default opacity-0"
+								onClick={dismissSkillsBrowser}
+								type="button"
+							/>
+							<div
+								aria-label="Skills"
+								className="absolute inset-x-0 bottom-full z-50 mb-1 rounded-lg border border-border bg-popover shadow-xl"
+								id="skills-browser"
+								role="dialog"
+							>
+								<div className="border-b border-border p-2">
+									<input
+										aria-controls="skills-browser-list"
+										className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/50"
+										onChange={(e) => {
+											setSkillsQuery(e.target.value);
+											setSkillsSelectedIndex(0);
+										}}
+										onKeyDown={(e) => {
+											if (e.key === "Escape") {
+												e.preventDefault();
+												dismissSkillsBrowser();
+												return;
+											}
+											if (skillsSelectableCount === 0) {
+												return;
+											}
+											if (e.key === "ArrowDown") {
+												e.preventDefault();
+												setSkillsSelectedIndex(
+													(prev) => (prev + 1) % skillsSelectableCount,
+												);
+												return;
+											}
+											if (e.key === "ArrowUp") {
+												e.preventDefault();
+												setSkillsSelectedIndex(
+													(prev) =>
+														(prev - 1 + skillsSelectableCount) %
+														skillsSelectableCount,
+												);
+												return;
+											}
+											if (e.key === "Enter" || e.key === "Tab") {
+												e.preventDefault();
+												activateSkillsBrowserItem(safeSkillsSelectedIndex);
+											}
+										}}
+										placeholder="Search skills..."
+										ref={skillsSearchInputRef}
+										value={skillsQuery}
+									/>
+								</div>
+								<div
+									className="max-h-64 overflow-y-auto p-1"
+									id="skills-browser-list"
+									role="listbox"
+								>
+									{flatSkillsCommands.length === 0 ? (
+										<div className="px-3 py-2 text-sm text-muted-foreground">
+											{skillsLoading
+												? "Loading skills..."
+												: skillsQuery.trim()
+													? "No matching skills found."
+													: "No skills installed. Install skills with: npx skills add owner/repo"}
+										</div>
+									) : (
+										skillsGroups.map((group) => {
+											const groupStartIndex = flatSkillsCommands.indexOf(
+												group.commands[0],
+											);
+											return (
+												<div key={group.label}>
+													<div className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+														{group.label}
+													</div>
+													{group.commands.map((command, indexInGroup) => {
+														const index = groupStartIndex + indexInGroup;
+														const isSelected =
+															index === safeSkillsSelectedIndex;
+														return (
+															<button
+																aria-selected={isSelected}
+																className={cn(
+																	"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm",
+																	isSelected
+																		? "bg-surface-hover text-foreground"
+																		: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+																)}
+																id={`skills-browser-option-${index}`}
+																key={`${group.label}/${command.name}`}
+																onClick={() =>
+																	insertSkillFromBrowser(command.name)
+																}
+																role="option"
+																type="button"
+															>
+																<span className="font-medium">
+																	/{command.name}
+																</span>
+																{command.description && (
+																	<span className="text-[10px] opacity-70">
+																		{command.description}
+																	</span>
+																)}
+															</button>
+														);
+													})}
+												</div>
+											);
+										})
+									)}
+									{showSkillsMarketplaceRow && (
+										<button
+											aria-selected={
+												safeSkillsSelectedIndex === skillsMarketplaceIndex
+											}
+											className={cn(
+												"flex w-full rounded-md px-3 py-2 text-left text-sm",
+												safeSkillsSelectedIndex === skillsMarketplaceIndex
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
+											)}
+											id={`skills-browser-option-${skillsMarketplaceIndex}`}
+											onClick={() =>
+												void openExternalUrl(SKILLS_MARKETPLACE_URL)
+											}
+											role="option"
+											type="button"
+										>
+											Browse more skills at skills.sh
+										</button>
+									)}
+								</div>
+							</div>
+						</>
+					)}
 					{slashOpen && (
 						<div
 							className="absolute inset-x-0 bottom-full z-50 mb-1 max-h-56 overflow-y-auto rounded-lg border border-border bg-popover p-1 shadow-xl"

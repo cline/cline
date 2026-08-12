@@ -10,24 +10,35 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import {
+	buildSkillsBrowserGroups,
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	normalizeUserInstructionCommands,
 } from "./chat-input-bar";
 
 const {
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	subscribeToProviderModelsMock,
+	desktopInvokeMock,
+	openExternalUrlMock,
 } = vi.hoisted(() => ({
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	subscribeToProviderModelsMock: vi.fn(() => vi.fn()),
+	desktopInvokeMock: vi.fn(),
+	openExternalUrlMock: vi.fn(),
 }));
 
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
 	subscribeToProviderModels: subscribeToProviderModelsMock,
+}));
+
+vi.mock("@/lib/desktop-client", () => ({
+	desktopClient: { invoke: desktopInvokeMock },
+	openExternalUrl: openExternalUrlMock,
 }));
 
 let container: HTMLDivElement;
@@ -43,6 +54,8 @@ beforeEach(() => {
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
 	subscribeToProviderModelsMock.mockReset().mockReturnValue(vi.fn());
+	desktopInvokeMock.mockReset().mockResolvedValue({ runtimeCommands: [] });
+	openExternalUrlMock.mockReset().mockResolvedValue(undefined);
 	HTMLElement.prototype.scrollIntoView = vi.fn();
 	HTMLElement.prototype.hasPointerCapture = vi.fn(() => false);
 	HTMLElement.prototype.setPointerCapture = vi.fn();
@@ -74,13 +87,234 @@ describe("ChatInputBar", () => {
 						name: "publish-ui-skill",
 						kind: "skill",
 					},
+					{
+						id: "skill:react-review",
+						name: "react-review",
+						description: "Review React code",
+						kind: "skill",
+						folder: "frontend",
+					},
 					{ id: "skill:fork", name: "fork", kind: "skill" },
 				],
 			}),
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
+			{ name: "react-review", description: "frontend · Review React code" },
 		]);
+	});
+
+	it("keeps runtime command metadata (kind, folder) when normalizing", () => {
+		expect(
+			normalizeUserInstructionCommands({
+				runtimeCommands: [
+					{
+						id: "skill:react-review",
+						name: "react-review",
+						description: "Review React code",
+						kind: "skill",
+						folder: "frontend",
+					},
+					{ id: "skill:skills", name: "skills", kind: "skill" },
+					{ id: "skill:", name: "", kind: "skill" },
+				],
+			}),
+		).toEqual([
+			{
+				id: "skill:react-review",
+				name: "react-review",
+				description: "Review React code",
+				kind: "skill",
+				folder: "frontend",
+			},
+		]);
+	});
+
+	it("groups skills by folder for the skills browser", () => {
+		const commands = [
+			{ id: "1", name: "zeta", kind: "skill" as const },
+			{
+				id: "2",
+				name: "react-review",
+				kind: "skill" as const,
+				folder: "frontend",
+			},
+			{ id: "3", name: "alpha", kind: "skill" as const },
+			{
+				id: "4",
+				name: "css-audit",
+				kind: "skill" as const,
+				folder: "frontend",
+			},
+			{
+				id: "5",
+				name: "api-audit",
+				kind: "skill" as const,
+				folder: "backend",
+			},
+		];
+
+		expect(buildSkillsBrowserGroups(commands, "")).toEqual([
+			{
+				label: "Skills",
+				commands: [
+					expect.objectContaining({ name: "alpha" }),
+					expect.objectContaining({ name: "zeta" }),
+				],
+			},
+			{
+				label: "backend",
+				commands: [expect.objectContaining({ name: "api-audit" })],
+			},
+			{
+				label: "frontend",
+				commands: [
+					expect.objectContaining({ name: "css-audit" }),
+					expect.objectContaining({ name: "react-review" }),
+				],
+			},
+		]);
+
+		// Query matches on name, description, and folder path.
+		expect(buildSkillsBrowserGroups(commands, "frontend")).toEqual([
+			{
+				label: "frontend",
+				commands: [
+					expect.objectContaining({ name: "css-audit" }),
+					expect.objectContaining({ name: "react-review" }),
+				],
+			},
+		]);
+		expect(buildSkillsBrowserGroups(commands, "zeta")).toEqual([
+			{ label: "Skills", commands: [expect.objectContaining({ name: "zeta" })] },
+		]);
+	});
+
+	it("opens the skills browser from /skills and inserts the picked skill", async () => {
+		desktopInvokeMock.mockResolvedValue({
+			runtimeCommands: [
+				{
+					id: "skill:top-level",
+					name: "top-level",
+					description: "A top-level skill",
+					kind: "skill",
+				},
+				{
+					id: "skill:react-review",
+					name: "react-review",
+					description: "Review React code",
+					kind: "skill",
+					folder: "frontend",
+				},
+			],
+		});
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "/workspace/cline",
+						workspaces: ["/workspace/cline"],
+						listWorkspaces: vi.fn(async () => ["/workspace/cline"]),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="test-model"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+					/>
+				</WorkspaceProvider>,
+			);
+		});
+
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(promptInput).not.toBeNull();
+		if (!promptInput) throw new Error("missing prompt textarea");
+
+		// Type "/" to open the slash menu.
+		await act(async () => {
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLTextAreaElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(promptInput, "/");
+			promptInput.setSelectionRange(1, 1);
+			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		const skillsOption = await vi.waitFor(() => {
+			const options = [
+				...container.querySelectorAll<HTMLButtonElement>(
+					'#slash-command-suggestions [role="option"]',
+				),
+			];
+			const option = options.find((entry) =>
+				entry.textContent?.includes("/skills"),
+			);
+			expect(option).toBeDefined();
+			return option as HTMLButtonElement;
+		});
+
+		await act(async () => {
+			skillsOption.click();
+			await Promise.resolve();
+		});
+
+		// The /skills token is consumed and the browser opens with skills
+		// grouped by folder.
+		expect(promptInput.value).toBe("");
+		const browser = await vi.waitFor(() => {
+			const element = container.querySelector("#skills-browser");
+			expect(element).not.toBeNull();
+			return element as HTMLElement;
+		});
+		await vi.waitFor(() => {
+			expect(browser.textContent).toContain("Skills");
+			expect(browser.textContent).toContain("frontend");
+			expect(browser.textContent).toContain("/top-level");
+			expect(browser.textContent).toContain("/react-review");
+			expect(browser.textContent).toContain("Browse more skills");
+		});
+
+		const nestedSkill = [
+			...browser.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+		].find((entry) => entry.textContent?.includes("/react-review"));
+		await act(async () => {
+			nestedSkill?.click();
+		});
+
+		expect(container.querySelector("#skills-browser")).toBeNull();
+		expect(promptInput.value).toBe("/react-review ");
 	});
 
 	it("top-aligns the textarea in the taller welcome composer", async () => {
