@@ -173,7 +173,7 @@ describe("auth/cline getValidClineCredentials", () => {
 			expect.objectContaining({
 				event: "user.auth_logged_out",
 				properties: expect.objectContaining({
-					reason: "invalid_grant",
+					reason: "token_invalid",
 					status: 401,
 					errorCode: "invalid_grant",
 					request_id: "req-invalid-grant",
