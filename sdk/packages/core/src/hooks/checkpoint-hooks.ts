@@ -1,5 +1,5 @@
 import { execFile as execFileCallback } from "node:child_process";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
@@ -8,9 +8,24 @@ import { countUserRunMessages } from "../session/user-run-messages";
 
 const execFile = promisify(execFileCallback);
 const CHECKPOINT_STASH_MESSAGE_PREFIX = "cline checkpoint session=";
+const DEFAULT_MAX_UNTRACKED_FILE_BYTES = 100 * 1024 * 1024;
+const DEFAULT_GIT_TIMEOUT_MS = 60_000;
+const LS_FILES_MAX_BUFFER = 1024 * 1024 * 64;
 
 export function isCheckpointStashMessage(message: string): boolean {
 	return message.includes(CHECKPOINT_STASH_MESSAGE_PREFIX);
+}
+
+/**
+ * Per-session scratch directory holding the persistent `GIT_INDEX_FILE` used
+ * to snapshot untracked files. Persisting the index across turns lets git's
+ * stat cache skip re-reading (and re-hashing) untracked files that have not
+ * changed since the previous checkpoint — without it, every turn re-hashes
+ * every untracked byte in the workspace. Removed by `deleteCheckpointRefs`.
+ */
+export function checkpointScratchDir(sessionId: string): string {
+	const safeId = sessionId.replace(/[^A-Za-z0-9._-]/g, "_");
+	return join(tmpdir(), `cline-checkpoint-${safeId}`);
 }
 
 export interface CheckpointEntry {
@@ -18,6 +33,13 @@ export interface CheckpointEntry {
 	createdAt: number;
 	runCount: number;
 	kind?: "stash" | "commit";
+	/**
+	 * Repo-relative paths of untracked files that were excluded from the
+	 * snapshot because they exceeded the size cap. They exist only on disk, so
+	 * the restore path must exempt them from its `git clean` — deleting them
+	 * would be unrecoverable data loss.
+	 */
+	skippedUntracked?: string[];
 }
 
 export interface CheckpointMetadata {
@@ -43,6 +65,17 @@ type CreateCheckpointHooksOptions = {
 		sessionId: string;
 		runCount: number;
 	}) => Promise<CheckpointEntry | undefined> | CheckpointEntry | undefined;
+	/**
+	 * Untracked files larger than this many bytes are left out of the snapshot
+	 * (and recorded on the entry as `skippedUntracked`). Defaults to 100 MiB.
+	 */
+	maxUntrackedFileBytes?: number;
+	/**
+	 * Overall time budget for the git snapshot on each turn. When exceeded the
+	 * checkpoint degrades to a HEAD-commit entry (or is skipped for that turn)
+	 * instead of blocking the request path. Defaults to 60s.
+	 */
+	gitTimeoutMs?: number;
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
@@ -85,9 +118,11 @@ function readCheckpointMetadata(
 async function runGit(
 	cwd: string,
 	args: string[],
+	timeoutMs?: number,
 ): Promise<{ stdout: string; stderr: string }> {
 	const result = await execFile("git", ["-C", cwd, ...args], {
 		windowsHide: true,
+		...(timeoutMs !== undefined ? { timeout: Math.max(1, timeoutMs) } : {}),
 	});
 	return {
 		stdout: result.stdout.trim(),
@@ -99,61 +134,161 @@ async function runGitWithIndex(
 	cwd: string,
 	indexFile: string,
 	args: string[],
+	timeoutMs?: number,
 ): Promise<string> {
 	const result = await execFile("git", ["-C", cwd, ...args], {
 		windowsHide: true,
+		maxBuffer: LS_FILES_MAX_BUFFER,
 		env: { ...process.env, GIT_INDEX_FILE: indexFile },
+		...(timeoutMs !== undefined ? { timeout: Math.max(1, timeoutMs) } : {}),
 	});
 	return result.stdout.trim();
 }
+
+/**
+ * Shared time budget for all git calls of one snapshot attempt: each call gets
+ * only what is left, so the total can never exceed the configured timeout no
+ * matter how many git invocations the snapshot needs.
+ */
+type SnapshotBudget = { timeoutAt: number };
+
+function remainingMs(budget: SnapshotBudget): number {
+	const remaining = budget.timeoutAt - Date.now();
+	if (remaining <= 0) {
+		throw new Error("checkpoint git time budget exhausted");
+	}
+	return remaining;
+}
+
+type SnapshotOptions = {
+	cwd: string;
+	scratchDir: string;
+	maxUntrackedFileBytes: number;
+	budget: SnapshotBudget;
+};
 
 /**
  * Builds a commit whose tree contains only the current untracked (but not
  * git-ignored) files, without touching the working tree or the real index.
  * This mirrors the third parent that `git stash create --include-untracked`
  * records, which the plain `git stash create` used elsewhere omits. Returns
- * `undefined` when there are no untracked files to capture.
+ * an `undefined` commit when there are no untracked files to capture.
+ *
+ * Untracked files above the size cap are excluded and reported via `skipped`
+ * so the checkpoint entry (and later the restore path) knows they were never
+ * part of the snapshot.
  */
 async function createUntrackedParentCommit(
-	cwd: string,
-): Promise<string | undefined> {
+	options: SnapshotOptions,
+): Promise<{ commit?: string; skipped: string[] }> {
+	const { cwd, scratchDir, maxUntrackedFileBytes, budget } = options;
 	const listing = await execFile(
 		"git",
 		["-C", cwd, "ls-files", "--others", "--exclude-standard", "-z"],
-		{ windowsHide: true, maxBuffer: 1024 * 1024 * 64 },
+		{
+			windowsHide: true,
+			maxBuffer: LS_FILES_MAX_BUFFER,
+			timeout: remainingMs(budget),
+		},
 	);
 	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
-	if (untrackedFiles.length === 0) {
-		return undefined;
+	const skipped: string[] = [];
+	const eligible: string[] = [];
+	await Promise.all(
+		untrackedFiles.map(async (path) => {
+			try {
+				const stats = await lstat(join(cwd, path));
+				if (stats.isFile() && stats.size > maxUntrackedFileBytes) {
+					skipped.push(path);
+					return;
+				}
+			} catch {
+				// Vanished between listing and stat — nothing to snapshot.
+				return;
+			}
+			eligible.push(path);
+		}),
+	);
+	skipped.sort();
+	eligible.sort();
+	if (eligible.length === 0) {
+		return { commit: undefined, skipped };
 	}
-	const tempDir = await mkdtemp(join(tmpdir(), "cline-checkpoint-"));
-	const indexFile = join(tempDir, "index");
-	const pathspecFile = join(tempDir, "pathspec");
+	await mkdir(scratchDir, { recursive: true });
+	const indexFile = join(scratchDir, "index");
+	const pathspecFile = join(scratchDir, "pathspec");
+	// Feed paths via a NUL-delimited pathspec file so large untracked sets
+	// cannot overflow the command-line argument limit.
+	await writeFile(pathspecFile, `${eligible.join("\0")}\0`);
+	const addArgs = [
+		"add",
+		"--force",
+		"--pathspec-from-file",
+		pathspecFile,
+		"--pathspec-file-nul",
+	];
 	try {
-		// Feed paths via a NUL-delimited pathspec file so large untracked sets
-		// cannot overflow the command-line argument limit.
-		await writeFile(pathspecFile, `${untrackedFiles.join("\0")}\0`);
-		await runGitWithIndex(cwd, indexFile, [
-			"add",
-			"--force",
-			"--pathspec-from-file",
-			pathspecFile,
-			"--pathspec-file-nul",
-		]);
-		const tree = await runGitWithIndex(cwd, indexFile, ["write-tree"]);
-		if (!tree) {
-			return undefined;
-		}
-		const commit = await runGitWithIndex(cwd, indexFile, [
-			"commit-tree",
-			tree,
-			"-m",
-			"untracked files on cline checkpoint",
-		]);
-		return commit || undefined;
-	} finally {
-		await rm(tempDir, { recursive: true, force: true });
+		await runGitWithIndex(cwd, indexFile, addArgs, remainingMs(budget));
+	} catch {
+		// A corrupt index (crash mid-write, git version change) would otherwise
+		// fail every turn from here on; rebuild it from scratch once. The retry
+		// pays a full re-hash, so anything else propagates to the caller.
+		await rm(indexFile, { force: true });
+		await runGitWithIndex(cwd, indexFile, addArgs, remainingMs(budget));
 	}
+	// Drop index entries that fell out of the eligible set (file deleted,
+	// became tracked, or grew past the cap) so they don't ghost into the
+	// snapshot tree — `git add` with a pathspec never removes entries.
+	const indexedListing = await execFile("git", ["-C", cwd, "ls-files", "-z"], {
+		windowsHide: true,
+		maxBuffer: LS_FILES_MAX_BUFFER,
+		env: { ...process.env, GIT_INDEX_FILE: indexFile },
+		timeout: remainingMs(budget),
+	});
+	const eligibleSet = new Set(eligible);
+	const stale = indexedListing.stdout
+		.split("\0")
+		.filter(Boolean)
+		.filter((path) => !eligibleSet.has(path));
+	// `update-index` has no --pathspec-from-file, so pass paths as arguments in
+	// length-bounded batches to stay under Windows' ~32k command-line limit.
+	let batch: string[] = [];
+	let batchLength = 0;
+	const flushBatch = async () => {
+		if (batch.length === 0) return;
+		await runGitWithIndex(
+			cwd,
+			indexFile,
+			["update-index", "--force-remove", "--", ...batch],
+			remainingMs(budget),
+		);
+		batch = [];
+		batchLength = 0;
+	};
+	for (const path of stale) {
+		if (batch.length > 0 && batchLength + path.length > 8000) {
+			await flushBatch();
+		}
+		batch.push(path);
+		batchLength += path.length + 1;
+	}
+	await flushBatch();
+	const tree = await runGitWithIndex(
+		cwd,
+		indexFile,
+		["write-tree"],
+		remainingMs(budget),
+	);
+	if (!tree) {
+		return { commit: undefined, skipped };
+	}
+	const commit = await runGitWithIndex(
+		cwd,
+		indexFile,
+		["commit-tree", tree, "-m", "untracked files on cline checkpoint"],
+		remainingMs(budget),
+	);
+	return { commit: commit || undefined, skipped };
 }
 
 /**
@@ -166,84 +301,109 @@ async function createUntrackedParentCommit(
  * untracked files), letting the caller fall back to a HEAD commit checkpoint.
  */
 async function createWorktreeStashCommit(
-	cwd: string,
+	options: SnapshotOptions,
 	message: string,
-): Promise<string | undefined> {
-	const stashRef = (await runGit(cwd, ["stash", "create", message])).stdout;
-	const untrackedParent = await createUntrackedParentCommit(cwd);
+): Promise<{ ref?: string; skipped: string[] }> {
+	const { cwd, budget } = options;
+	const stashRef = (
+		await runGit(cwd, ["stash", "create", message], remainingMs(budget))
+	).stdout;
+	const untracked = await createUntrackedParentCommit(options);
+	const untrackedParent = untracked.commit;
+	const skipped = untracked.skipped;
 
 	if (stashRef) {
 		if (!untrackedParent) {
 			// Tracked changes only — the plain stash already captures them.
-			return stashRef;
+			return { ref: stashRef, skipped };
 		}
-		const tree = (await runGit(cwd, ["rev-parse", `${stashRef}^{tree}`]))
-			.stdout;
-		const base = (await runGit(cwd, ["rev-parse", `${stashRef}^1`])).stdout;
-		const indexParent = (await runGit(cwd, ["rev-parse", `${stashRef}^2`]))
-			.stdout;
+		const tree = (
+			await runGit(
+				cwd,
+				["rev-parse", `${stashRef}^{tree}`],
+				remainingMs(budget),
+			)
+		).stdout;
+		const base = (
+			await runGit(cwd, ["rev-parse", `${stashRef}^1`], remainingMs(budget))
+		).stdout;
+		const indexParent = (
+			await runGit(cwd, ["rev-parse", `${stashRef}^2`], remainingMs(budget))
+		).stdout;
 		if (!tree || !base || !indexParent) {
-			return stashRef;
+			return { ref: stashRef, skipped };
 		}
-		return (
-			(
-				await runGit(cwd, [
-					"commit-tree",
-					tree,
-					"-p",
-					base,
-					"-p",
-					indexParent,
-					"-p",
-					untrackedParent,
-					"-m",
-					message,
-				])
-			).stdout || stashRef
-		);
+		return {
+			ref:
+				(
+					await runGit(
+						cwd,
+						[
+							"commit-tree",
+							tree,
+							"-p",
+							base,
+							"-p",
+							indexParent,
+							"-p",
+							untrackedParent,
+							"-m",
+							message,
+						],
+						remainingMs(budget),
+					)
+				).stdout || stashRef,
+			skipped,
+		};
 	}
 
 	// Tracked worktree is clean. Only synthesize a stash when there are
 	// untracked files to preserve; otherwise the caller uses a HEAD checkpoint.
 	if (!untrackedParent) {
-		return undefined;
+		return { ref: undefined, skipped };
 	}
-	const head = (await runGit(cwd, ["rev-parse", "HEAD"])).stdout;
-	const headTree = (await runGit(cwd, ["rev-parse", "HEAD^{tree}"])).stdout;
+	const head = (await runGit(cwd, ["rev-parse", "HEAD"], remainingMs(budget)))
+		.stdout;
+	const headTree = (
+		await runGit(cwd, ["rev-parse", "HEAD^{tree}"], remainingMs(budget))
+	).stdout;
 	if (!head || !headTree) {
-		return undefined;
+		return { ref: undefined, skipped };
 	}
 	// The index parent mirrors the (unchanged) HEAD tree so the synthesized
 	// commit has the two/three-parent shape `git stash apply` expects.
 	const indexParent = (
-		await runGit(cwd, [
-			"commit-tree",
-			headTree,
-			"-p",
-			head,
-			"-m",
-			"index on cline checkpoint",
-		])
+		await runGit(
+			cwd,
+			["commit-tree", headTree, "-p", head, "-m", "index on cline checkpoint"],
+			remainingMs(budget),
+		)
 	).stdout;
 	if (!indexParent) {
-		return undefined;
+		return { ref: undefined, skipped };
 	}
-	return (
-		(
-			await runGit(cwd, [
-				"commit-tree",
-				headTree,
-				"-p",
-				head,
-				"-p",
-				indexParent,
-				"-p",
-				untrackedParent,
-				"-m",
-				message,
-			])
-		).stdout || undefined
-	);
+	return {
+		ref:
+			(
+				await runGit(
+					cwd,
+					[
+						"commit-tree",
+						headTree,
+						"-p",
+						head,
+						"-p",
+						indexParent,
+						"-p",
+						untrackedParent,
+						"-m",
+						message,
+					],
+					remainingMs(budget),
+				)
+			).stdout || undefined,
+		skipped,
+	};
 }
 
 /**
@@ -256,6 +416,12 @@ export async function deleteCheckpointRefs(
 	cwd: string | null | undefined,
 	sessionId: string,
 ): Promise<void> {
+	// The scratch dir (persistent untracked index) is keyed by session id
+	// alone, so clean it up even when no cwd is known.
+	await rm(checkpointScratchDir(sessionId), {
+		recursive: true,
+		force: true,
+	}).catch(() => undefined);
 	if (!cwd) return;
 	const prefix = `refs/cline/checkpoints/${sessionId}/`;
 	try {
@@ -319,6 +485,12 @@ export function createCheckpointHooks(
 	// to undefined — so the durable persisted checkpoint history is what
 	// actually prevents duplicate/overwriting checkpoints.
 	let rootRunMessageStart: number | undefined;
+	const maxUntrackedFileBytes =
+		options.maxUntrackedFileBytes ?? DEFAULT_MAX_UNTRACKED_FILE_BYTES;
+	const gitTimeoutMs = options.gitTimeoutMs ?? DEFAULT_GIT_TIMEOUT_MS;
+	// Paths already warn-logged as skipped, so a file that stays over the cap
+	// for the whole session produces one warning, not one per turn.
+	const warnedSkipped = new Set<string>();
 
 	const ensureGitRepository = async (): Promise<boolean> => {
 		// Only cache the positive answer: a cwd that is not a git repo can
@@ -329,10 +501,11 @@ export function createCheckpointHooks(
 			return true;
 		}
 		try {
-			const result = await runGit(options.cwd, [
-				"rev-parse",
-				"--is-inside-work-tree",
-			]);
+			const result = await runGit(
+				options.cwd,
+				["rev-parse", "--is-inside-work-tree"],
+				gitTimeoutMs,
+			);
 			repoSupported = result.stdout === "true";
 		} catch {
 			repoSupported = false;
@@ -359,7 +532,13 @@ export function createCheckpointHooks(
 			warnPrefix: string,
 		): Promise<CheckpointEntry | undefined> => {
 			try {
-				const result = await runGit(options.cwd, ["rev-parse", "HEAD"]);
+				// Deliberately a fresh timeout rather than the snapshot budget: the
+				// fallback must still work when the budget is what just expired.
+				const result = await runGit(
+					options.cwd,
+					["rev-parse", "HEAD"],
+					gitTimeoutMs,
+				);
 				const ref = result.stdout.trim();
 				if (!ref) {
 					return undefined;
@@ -380,16 +559,38 @@ export function createCheckpointHooks(
 		};
 
 		const message = `${CHECKPOINT_STASH_MESSAGE_PREFIX}${options.sessionId} run=${runCount}`;
-		let ref = "";
+		const startedAt = Date.now();
+		let snapshot: { ref?: string; skipped: string[] };
 		try {
-			ref = (await createWorktreeStashCommit(options.cwd, message)) ?? "";
+			snapshot = await createWorktreeStashCommit(
+				{
+					cwd: options.cwd,
+					scratchDir: checkpointScratchDir(options.sessionId),
+					maxUntrackedFileBytes,
+					budget: { timeoutAt: startedAt + gitTimeoutMs },
+				},
+				message,
+			);
 		} catch (error) {
 			warn(
 				options.logger,
-				`Checkpoint snapshot failed: ${error instanceof Error ? error.message : String(error)}`,
+				`Checkpoint snapshot failed after ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
 			);
 			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
 		}
+		const newSkipped = snapshot.skipped.filter(
+			(path) => !warnedSkipped.has(path),
+		);
+		if (newSkipped.length > 0) {
+			for (const path of newSkipped) {
+				warnedSkipped.add(path);
+			}
+			warn(
+				options.logger,
+				`Checkpoint skipped ${newSkipped.length} untracked file(s) over ${maxUntrackedFileBytes} bytes (they will not be restorable): ${newSkipped.slice(0, 10).join(", ")}${newSkipped.length > 10 ? ", …" : ""}`,
+			);
+		}
+		const ref = snapshot.ref ?? "";
 		if (!ref) {
 			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
 		}
@@ -402,7 +603,7 @@ export function createCheckpointHooks(
 		// on the restore path, so no restore-side changes are needed.
 		const privateRef = `refs/cline/checkpoints/${options.sessionId}/${runCount}`;
 		try {
-			await runGit(options.cwd, ["update-ref", privateRef, ref]);
+			await runGit(options.cwd, ["update-ref", privateRef, ref], gitTimeoutMs);
 		} catch (error) {
 			warn(
 				options.logger,
@@ -416,6 +617,9 @@ export function createCheckpointHooks(
 			createdAt: Date.now(),
 			runCount,
 			kind: "stash",
+			...(snapshot.skipped.length > 0
+				? { skippedUntracked: snapshot.skipped }
+				: {}),
 		};
 	};
 

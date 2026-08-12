@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	type CheckpointEntry,
+	checkpointScratchDir,
 	createCheckpointHooks,
 } from "../hooks/checkpoint-hooks";
 import {
@@ -38,11 +39,13 @@ function git(cwd: string, args: string[]): string {
 async function snapshotCurrentWorktree(
 	cwd: string,
 	sessionId = "snap",
+	options: { maxUntrackedFileBytes?: number } = {},
 ): Promise<CheckpointEntry> {
 	let metadata: Record<string, unknown> | undefined;
 	const hooks = createCheckpointHooks({
 		cwd,
 		sessionId,
+		...options,
 		readSessionMetadata: async () => metadata,
 		writeSessionMetadata: async (next) => {
 			metadata = next;
@@ -75,6 +78,9 @@ async function snapshotCurrentWorktree(
 	const checkpoint = (
 		metadata?.checkpoint as { latest?: CheckpointEntry } | undefined
 	)?.latest;
+	// Each call acts as a one-shot session, so drop the persistent untracked
+	// index instead of leaking it into the runner's tmpdir.
+	rmSync(checkpointScratchDir(sessionId), { recursive: true, force: true });
 	if (!checkpoint) {
 		throw new Error("failed to record a checkpoint for the current worktree");
 	}
@@ -308,6 +314,61 @@ describe("applyCheckpointToWorktree", () => {
 				"refs/cline/restore-transactions",
 			]),
 		).toBe("");
+	});
+
+	it("leaves size-capped untracked files on disk when rewinding a snapshot", async () => {
+		// A file over the snapshot's size cap was never captured in ^3, so the
+		// pre-apply `git clean` must spare it — deleting it would be
+		// unrecoverable data loss (the reporter's case is a 4.8 GB data file).
+		const bigContent = "B".repeat(64);
+		writeFileSync(join(dir, "big.bin"), bigContent, "utf8");
+		writeFileSync(join(dir, "small.txt"), "keep me\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-skip", {
+			maxUntrackedFileBytes: 16,
+		});
+		expect(checkpoint.skippedUntracked).toEqual(["big.bin"]);
+
+		// Post-checkpoint changes that the restore is expected to rewind.
+		writeFileSync(join(dir, "small.txt"), "changed after checkpoint\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe(bigContent);
+		expect(readFileSync(join(dir, "small.txt"), "utf8")).toBe("keep me\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+	});
+
+	it("preserves skippedUntracked when reading checkpoint history from session metadata", () => {
+		const metadata = createRestoredCheckpointMetadata(
+			{
+				metadata: {
+					checkpoint: {
+						latest: {
+							ref: "aaaa",
+							createdAt: 1,
+							runCount: 1,
+							kind: "stash",
+							skippedUntracked: ["big.bin", 7, ""],
+						},
+						history: [
+							{
+								ref: "aaaa",
+								createdAt: 1,
+								runCount: 1,
+								kind: "stash",
+								skippedUntracked: ["big.bin", 7, ""],
+							},
+						],
+					},
+				},
+			},
+			1,
+		);
+
+		// Non-string and empty entries are dropped; real paths survive the
+		// round-trip so the restore-side clean can exempt them.
+		expect(metadata?.latest.skippedUntracked).toEqual(["big.bin"]);
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {

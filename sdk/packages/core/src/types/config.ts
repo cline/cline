@@ -234,6 +234,21 @@ export interface CoreCheckpointConfig {
 				kind?: "stash" | "commit";
 		  }
 		| undefined;
+	/**
+	 * Untracked files larger than this many bytes are excluded from the
+	 * built-in git snapshot (and from checkpoint restore, which leaves them
+	 * untouched on disk). Snapshotting has to re-read changed untracked files
+	 * on every user turn, so very large ones would stall each message.
+	 * Defaults to 100 MiB.
+	 */
+	maxUntrackedFileBytes?: number;
+	/**
+	 * Overall time budget in milliseconds for the git work of one checkpoint.
+	 * When exceeded, the turn degrades to a HEAD-commit checkpoint (or skips
+	 * the checkpoint) instead of blocking the message indefinitely on a slow
+	 * filesystem. Defaults to 60 000.
+	 */
+	gitTimeoutMs?: number;
 }
 
 export interface CoreSessionConfig

@@ -184,7 +184,21 @@ export function readSessionCheckpointHistory(
 				entry.kind === "stash" || entry.kind === "commit"
 					? entry.kind
 					: undefined;
-			return [{ ref, createdAt, runCount, ...(kind ? { kind } : {}) }];
+			const skippedUntracked = Array.isArray(entry.skippedUntracked)
+				? entry.skippedUntracked.filter(
+						(path): path is string =>
+							typeof path === "string" && path.length > 0,
+					)
+				: [];
+			return [
+				{
+					ref,
+					createdAt,
+					runCount,
+					...(kind ? { kind } : {}),
+					...(skippedUntracked.length > 0 ? { skippedUntracked } : {}),
+				},
+			];
 		});
 }
 
@@ -354,6 +368,15 @@ async function checkpointCapturedUntracked(
 	}
 }
 
+/**
+ * Anchored gitignore-style pattern matching exactly one repo-relative path,
+ * for `git clean -e`. Glob metacharacters in the filename are escaped so a
+ * literal `data[1].bin` cannot match (or fail to match) as a character class.
+ */
+function toCleanExcludePattern(path: string): string {
+	return `/${path.replace(/([\\*?[\]])/g, "\\$1")}`;
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -401,8 +424,16 @@ export async function applyCheckpointToWorktree(
 	// avoids "already exists" apply conflicts. For 2-parent stashes and
 	// HEAD-commit fallbacks (no ^3) untracked files can't be reconstructed, so
 	// they are left untouched — deleting them would be unrecoverable data loss.
+	// The same reasoning exempts files the snapshot skipped over its size cap:
+	// they exist only on disk, so they must survive the clean.
 	if (capturedUntracked) {
-		await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
+		const excludeArgs = (checkpoint.skippedUntracked ?? []).flatMap((path) => [
+			"-e",
+			toCleanExcludePattern(path),
+		]);
+		await execFile("git", ["-C", cwd, "clean", "-fd", ...excludeArgs], {
+			windowsHide: true,
+		});
 	}
 	if (checkpointKind === "commit") {
 		return;
