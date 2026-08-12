@@ -245,31 +245,15 @@
 		margin: 0.5rem 0;
 	}
 
-	/* Active tool rows carry the brand accent; finished rows settle into the
-	 * muted gray of older transcript chrome (the base trigger color above).
-	 * Hover brightens without shifting hue. */
-	.cline-chat-tool-trigger[data-status="running"] {
-		color: var(--brand-violet, var(--primary));
-	}
-
+	/* Running rows share the thinking indicator's muted gray (the base trigger
+	 * color above) — the spinner alone signals activity. Errors go red; hover
+	 * brightens without shifting hue. */
 	.cline-chat-tool-trigger[data-status="error"] {
 		color: var(--error-text);
 	}
 
-	.cline-chat-tool-trigger[data-status="pending"] {
-		color: var(--muted-foreground);
-	}
-
 	button.cline-chat-tool-trigger:hover {
 		color: var(--foreground);
-	}
-
-	button.cline-chat-tool-trigger[data-status="running"]:hover {
-		color: color-mix(
-			in oklab,
-			var(--brand-violet, var(--primary)) 80%,
-			var(--foreground)
-		);
 	}
 
 	button.cline-chat-tool-trigger[data-status="error"]:hover {
@@ -307,15 +291,15 @@
 
 	/* The spinner stands in for the tool icon while the call is in flight, so
 	 * it fills the same 1rem box the icons render at and the label never
-	 * shifts when they swap. */
+	 * shifts when they swap. It draws in currentColor to match whatever the
+	 * row text renders as (muted gray normally, red on error). */
 	.cline-chat-tool-progress {
 		width: 1rem;
 		height: 1rem;
 		flex: 0 0 auto;
 		box-sizing: border-box;
-		border: 2px solid
-			color-mix(in oklab, var(--brand-violet, var(--primary)) 25%, transparent);
-		border-top-color: var(--brand-violet, var(--primary));
+		border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+		border-top-color: currentColor;
 		border-radius: 9999px;
 		animation: cline-chat-spin 800ms linear infinite;
 	}
