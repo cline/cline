@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -497,6 +502,36 @@ describe("handleHubLiveEvent stream relay dedupe", () => {
 		const chunks = chatEvents(ctx, "chat_text");
 		expect(chunks).toHaveLength(1);
 		expect(chunks[0]?.event.payload.chunk).toBe("Hello");
+	});
+
+	it("forwards redacted-only reasoning through the core relay path", async () => {
+		// When the observer relay is suppressed, the core-path mapper is the
+		// only source of chat_reasoning events. Redacted reasoning arrives with
+		// no text and must still reach the webview as a redacted marker.
+		const { createSidecarContext, handleCoreSessionEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "reasoning",
+					redacted: true,
+				},
+			},
+		} as never);
+
+		const chunks = chatEvents(ctx, "chat_reasoning");
+		expect(chunks).toHaveLength(1);
+		expect(JSON.parse(String(chunks[0]?.event.payload.chunk))).toEqual({
+			text: "",
+			redacted: true,
+		});
 	});
 
 	it("skips observer stream relays when the core already relays the session", async () => {
