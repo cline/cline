@@ -38,7 +38,10 @@ type MockSpeechInputProps = {
 	onStartStreaming?: () => Promise<unknown>;
 	onStreamingEnd?: () => void;
 	onStreamingStart?: () => void;
-	onTranscriptionChange?: (transcript: string) => void;
+	onTranscriptionChange?: (
+		transcript: string,
+		source?: "speech-recognition" | "media-recorder",
+	) => void;
 	recordingMode?: "auto" | "media-recorder" | "streaming";
 };
 
@@ -453,6 +456,45 @@ describe("ChatInputBar", () => {
 		expect(textarea?.value).toBe("alpha hello world omega");
 	});
 
+	it("adds browser speech-recognition chunks while recording remains active", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue(
+			providerCatalog({
+				providerId: "openai-native",
+				providerName: "OpenAI",
+				modelId: "gpt-4o-mini-transcribe",
+				modelName: "GPT-4o mini Transcribe",
+				supportsStreaming: false,
+			}),
+		);
+		await renderVoiceComposer({ prompt: "alpha omega" });
+
+		await vi.waitFor(() =>
+			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
+		);
+		const textarea = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		textarea?.setSelectionRange(6, 6);
+		await act(async () => {
+			speechInputMockState.current?.onActiveChange?.(true);
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"hello",
+				"speech-recognition",
+			);
+		});
+
+		expect(textarea?.readOnly).toBe(true);
+		expect(textarea?.value).toBe("alpha hello omega");
+
+		await act(async () => {
+			speechInputMockState.current?.onTranscriptionChange?.(
+				"world",
+				"speech-recognition",
+			);
+		});
+		expect(textarea?.value).toBe("alpha hello world omega");
+	});
+
 	it("discards a batch transcript after the draft lifecycle is replaced", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue(
 			providerCatalog({
@@ -474,7 +516,7 @@ describe("ChatInputBar", () => {
 				container
 					.querySelector("[data-initial-recording-mode]")
 					?.getAttribute("data-initial-recording-mode"),
-			).toBe("media-recorder");
+			).toBe("auto");
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -513,9 +555,7 @@ describe("ChatInputBar", () => {
 		await renderVoiceComposer({ prompt: "alpha omega" });
 
 		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe(
-				"media-recorder",
-			);
+			expect(speechInputMockState.current?.recordingMode).toBe("auto");
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -546,9 +586,7 @@ describe("ChatInputBar", () => {
 		await renderVoiceComposer({ prompt: "alpha omega" });
 
 		await vi.waitFor(() => {
-			expect(speechInputMockState.current?.recordingMode).toBe(
-				"media-recorder",
-			);
+			expect(speechInputMockState.current?.recordingMode).toBe("auto");
 		});
 		const textarea = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
@@ -686,9 +724,7 @@ describe("ChatInputBar", () => {
 			);
 		});
 		await vi.waitFor(() =>
-			expect(speechInputMockState.current?.recordingMode).toBe(
-				"media-recorder",
-			),
+			expect(speechInputMockState.current?.recordingMode).toBe("auto"),
 		);
 		await act(async () => oldSessionTranscript?.("late replacement"));
 

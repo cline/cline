@@ -44,18 +44,26 @@ declare global {
 	}
 }
 
-type SpeechInputMode =
+export type SpeechInputMode =
 	| "speech-recognition"
 	| "media-recorder"
 	| "streaming"
 	| "none";
+
+export type SpeechTranscriptionSource = Extract<
+	SpeechInputMode,
+	"speech-recognition" | "media-recorder"
+>;
 
 export type SpeechInputProps = Omit<
 	ComponentProps<typeof Button>,
 	"onError"
 > & {
 	allowUnavailableClick?: boolean;
-	onTranscriptionChange?: (text: string) => void;
+	onTranscriptionChange?: (
+		text: string,
+		source: SpeechTranscriptionSource,
+	) => void;
 	onAudioRecorded?: (audioBlob: Blob) => Promise<string>;
 	onStartStreaming?: () => Promise<StreamingSpeechSession>;
 	onStreamingStart?: () => void;
@@ -178,7 +186,7 @@ export function SpeechInput({
 				}
 			}
 			if (transcript.trim()) {
-				onTranscriptionChangeRef.current?.(transcript);
+				onTranscriptionChangeRef.current?.(transcript, "speech-recognition");
 			}
 		};
 		const handleError = (event: Event) => {
@@ -320,7 +328,7 @@ export function SpeechInput({
 						return;
 					}
 					if (transcript.trim()) {
-						onTranscriptionChangeRef.current?.(transcript);
+						onTranscriptionChangeRef.current?.(transcript, "media-recorder");
 					}
 				} catch (error) {
 					if (mountedRef.current && operationId === operationIdRef.current) {

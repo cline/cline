@@ -7,7 +7,10 @@ import {
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SpeechInput } from "@/components/ai-elements/speech-input";
+import {
+	SpeechInput,
+	type SpeechTranscriptionSource,
+} from "@/components/ai-elements/speech-input";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -361,6 +364,13 @@ function ChatInputBarImpl({
 		draftVersion: number;
 		generation: number;
 	} | null>(null);
+	const speechRecognitionSessionRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -385,6 +395,7 @@ function ChatInputBarImpl({
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
 		batchTranscriptSessionRef.current = null;
+		speechRecognitionSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -434,7 +445,7 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
 				: "unconfigured";
 			transcriptionTargetStreamsRef.current =
 				target?.supportsStreaming ?? false;
@@ -442,6 +453,7 @@ function ChatInputBarImpl({
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
 				batchTranscriptSessionRef.current = null;
+				speechRecognitionSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -518,12 +530,28 @@ function ChatInputBarImpl({
 	}, [updateTranscriptionTarget]);
 
 	const handleTranscriptionChange = useCallback(
-		(transcript: string) => {
+		(
+			transcript: string,
+			source: SpeechTranscriptionSource = "media-recorder",
+		) => {
 			const text = transcript.trim();
-			const session = batchTranscriptSessionRef.current;
-			// A batch result belongs to exactly one recording session. Consume the
-			// snapshot even when the result is stale so it cannot be replayed later.
-			batchTranscriptSessionRef.current = null;
+			const session =
+				source === "speech-recognition"
+					? speechRecognitionSessionRef.current
+					: batchTranscriptSessionRef.current;
+
+			if (source === "speech-recognition") {
+				// Browser speech recognition yields final chunks while the microphone
+				// remains open. Keep its insertion cursor alive across those chunks.
+				batchTranscriptSessionRef.current = null;
+			} else {
+				// A completed recording produces one batch result.
+				speechRecognitionSessionRef.current = null;
+				batchTranscriptSessionRef.current = null;
+			}
+			// Each result must belong to the draft captured when recording began.
+			// Batch snapshots are consumed once; browser recognition advances its
+			// cursor after each final chunk.
 			if (!text || !session) return;
 
 			const current = promptInputValueRef.current;
@@ -543,6 +571,15 @@ function ChatInputBarImpl({
 			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
 			const next = `${before}${insertedText}${after}`;
 			const nextCursor = before.length + insertedText.length;
+			if (source === "speech-recognition") {
+				speechRecognitionSessionRef.current = {
+					start: nextCursor,
+					end: nextCursor,
+					expectedValue: next,
+					draftVersion: session.draftVersion,
+					generation: session.generation,
+				};
+			}
 			setPromptInput(next);
 			requestAnimationFrame(() => {
 				const textarea = promptInputRef.current;
@@ -562,6 +599,7 @@ function ChatInputBarImpl({
 
 		if (!active) {
 			batchTranscriptSessionRef.current = null;
+			speechRecognitionSessionRef.current = null;
 			return;
 		}
 		if (wasActive || transcriptionTargetStreamsRef.current) return;
@@ -570,13 +608,18 @@ function ChatInputBarImpl({
 		const input = promptInputRef.current;
 		const start = input?.selectionStart ?? current.length;
 		const end = input?.selectionEnd ?? start;
-		batchTranscriptSessionRef.current = {
+		const session = {
 			start,
 			end,
 			expectedValue: current,
 			draftVersion: latestDraftVersionRef.current,
 			generation: transcriptionGenerationRef.current,
 		};
+		// `auto` chooses browser speech recognition when available and falls back
+		// to MediaRecorder. Capture both session shapes until the result tells us
+		// which transport was selected.
+		batchTranscriptSessionRef.current = session;
+		speechRecognitionSessionRef.current = session;
 	}, []);
 
 	const handleStreamingTranscriptionStart = useCallback(() => {
@@ -1249,7 +1292,7 @@ function ChatInputBarImpl({
 								allowUnavailableClick={!transcriptionTarget}
 								key={
 									transcriptionTarget
-										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`
+										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
 										: "unconfigured"
 								}
 								onActiveChange={handleSpeechInputActiveChange}
@@ -1275,9 +1318,7 @@ function ChatInputBarImpl({
 										: handleTranscriptionChange
 								}
 								recordingMode={
-									transcriptionTarget?.supportsStreaming
-										? "streaming"
-										: "media-recorder"
+									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
 								}
 								title={
 									transcriptionTarget

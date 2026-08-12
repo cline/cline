@@ -55,12 +55,41 @@ class FakeMediaRecorder extends EventTarget {
 }
 
 class FakeSpeechRecognition extends EventTarget {
+	static instances: FakeSpeechRecognition[] = [];
+
 	continuous = false;
 	interimResults = false;
 	lang = "";
 
-	start(): void {}
-	stop(): void {}
+	constructor() {
+		super();
+		FakeSpeechRecognition.instances.push(this);
+	}
+
+	start(): void {
+		this.dispatchEvent(new Event("start"));
+	}
+
+	stop(): void {
+		this.dispatchEvent(new Event("end"));
+	}
+
+	emitFinal(transcript: string): void {
+		const event = new Event("result");
+		Object.defineProperties(event, {
+			resultIndex: { value: 0 },
+			results: {
+				value: [
+					{
+						0: { confidence: 1, transcript },
+						isFinal: true,
+						length: 1,
+					},
+				],
+			},
+		});
+		this.dispatchEvent(event);
+	}
 }
 
 let container: HTMLDivElement;
@@ -75,6 +104,7 @@ beforeEach(() => {
 	FakeMediaRecorder.recordedAudio = new Blob(["recorded audio"], {
 		type: "audio/webm",
 	});
+	FakeSpeechRecognition.instances = [];
 	stopTrack = vi.fn();
 	Object.defineProperty(window, "MediaRecorder", {
 		configurable: true,
@@ -118,6 +148,38 @@ afterEach(async () => {
 });
 
 describe("SpeechInput", () => {
+	it("emits browser speech-recognition text before recording stops", async () => {
+		const onAudioRecorded = vi.fn(async () => "batch transcript");
+		const onTranscriptionChange = vi.fn();
+
+		await act(async () => {
+			root.render(
+				<SpeechInput
+					onAudioRecorded={onAudioRecorded}
+					onTranscriptionChange={onTranscriptionChange}
+					recordingMode="auto"
+				/>,
+			);
+		});
+
+		const button = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		await act(async () => button?.click());
+		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
+
+		await act(async () => {
+			FakeSpeechRecognition.instances[0]?.emitFinal("live transcript");
+		});
+
+		expect(onTranscriptionChange).toHaveBeenCalledWith(
+			"live transcript",
+			"speech-recognition",
+		);
+		expect(onAudioRecorded).not.toHaveBeenCalled();
+		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
+	});
+
 	it("records audio and forwards the provider transcript", async () => {
 		FakeMediaRecorder.deferStopEvents = true;
 		let resolveTranscript: (transcript: string) => void = () => {};
@@ -196,7 +258,10 @@ describe("SpeechInput", () => {
 			await transcript;
 		});
 
-		expect(onTranscriptionChange).toHaveBeenCalledWith("transcribed prompt");
+		expect(onTranscriptionChange).toHaveBeenCalledWith(
+			"transcribed prompt",
+			"media-recorder",
+		);
 		expect(onProcessingChange).toHaveBeenLastCalledWith(false);
 		expect(onActiveChange).toHaveBeenLastCalledWith(false);
 		expect(stopTrack).toHaveBeenCalledOnce();
