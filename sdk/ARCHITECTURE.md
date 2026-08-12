@@ -169,18 +169,18 @@ when available, `toolCallId`; the Hub delegates to the authoritative
 call. The executor removes its abort and timeout ownership, resolves the tool
 call with the current bounded output and a temporary log path, and continues
 draining the process into that log. Detached logs are size-capped, retained for
-a bounded inspection window after the stream closes, and then their temporary
+a bounded inspection window after the command exits, and then their temporary
 directories are removed. Every process that constructs a `LocalRuntimeHost`
 starts one detached-log reconciliation: it reaps completed logs outside the
-retention window and reschedules newer orphaned logs for the remainder of that
-window, so cleanup does not depend on timers from a previous process. Hub
-daemons and direct embedders therefore share the same detachment and restart
-lifecycle instead of relying on a daemon-specific entrypoint. Explicit owner
-and completion markers distinguish a live,
-possibly silent log writer from a completed log: active logs owned by a live
-host process are never reaped, while a dead owner's orphan begins a fresh
-retention window when the replacement host adopts it. A detached client
-connection alone never changes process ownership or command execution.
+retention window, reschedules retained logs, and follows active detached-command
+PIDs until they exit, so cleanup does not depend on timers from the process that
+launched the command. Hub daemons and direct embedders therefore share the same
+detachment and restart lifecycle instead of relying on a daemon-specific
+entrypoint. Explicit command-PID and completion markers distinguish a live,
+possibly silent command from a completed log. A host exit alone never starts
+the retention window for a surviving command; the replacement host continues
+polling its PID and begins retention only after the command ends. A detached
+client connection alone never changes process ownership or command execution.
 
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,

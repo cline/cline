@@ -32,9 +32,10 @@ import type { RunCommandExecutionController } from "./run-command-execution-cont
 
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
+const DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS = 60_000;
 const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
-const DETACHED_LOG_ACTIVE_FILENAME = "active-owner";
+const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command-pid";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
 const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
 
@@ -45,12 +46,19 @@ export interface DetachedCommandLogCleanupOptions {
 	retentionMs?: number;
 	nowMs?: number;
 	isProcessAlive?: (pid: number) => boolean;
+	activeCommandPollIntervalMs?: number;
 }
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
 	return typeof value === "number" && Number.isFinite(value)
 		? Math.max(0, value)
 		: DEFAULT_DETACHED_LOG_RETENTION_MS;
+}
+
+function resolveActiveCommandPollIntervalMs(value: number | undefined): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(1, value)
+		: DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS;
 }
 
 function isProcessAlive(pid: number): boolean {
@@ -67,11 +75,98 @@ function isProcessAlive(pid: number): boolean {
 	}
 }
 
+type ResolvedDetachedCommandLogCleanupOptions = {
+	retentionMs: number;
+	nowMs: number;
+	checkProcessAlive: (pid: number) => boolean;
+	activeCommandPollIntervalMs: number;
+};
+
+async function readOptionalTextFile(path: string): Promise<string | undefined> {
+	try {
+		return await readFile(path, "utf8");
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			"code" in error &&
+			(error as NodeJS.ErrnoException).code === "ENOENT"
+		) {
+			return undefined;
+		}
+		throw error;
+	}
+}
+
+async function reconcileDetachedCommandLogDirectory(
+	directory: string,
+	options: ResolvedDetachedCommandLogCleanupOptions,
+): Promise<boolean> {
+	const activeCommandPath = join(
+		directory,
+		DETACHED_LOG_ACTIVE_COMMAND_FILENAME,
+	);
+	const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
+	const activeCommandText = await readOptionalTextFile(activeCommandPath);
+	if (activeCommandText !== undefined) {
+		const commandPid = Number(activeCommandText.trim());
+		if (options.checkProcessAlive(commandPid)) {
+			// The detached command, rather than the host that launched it, owns the
+			// active lifecycle. It can outlive a Hub restart and remain silent for
+			// longer than the retention window without losing its advertised log.
+			scheduleActiveCommandLogReconciliation(directory, options);
+			return false;
+		}
+		await writeFile(completedAtPath, String(options.nowMs), "utf8");
+		await rm(activeCommandPath, { force: true });
+	}
+
+	const completedAtText = await readOptionalTextFile(completedAtPath);
+	const recordedCompletedAtMs = Number(completedAtText?.trim());
+	let retentionStartedAtMs = Number.isFinite(recordedCompletedAtMs)
+		? recordedCompletedAtMs
+		: undefined;
+	if (retentionStartedAtMs === undefined) {
+		// Logs without lifecycle markers use their last write as a best-effort
+		// fallback so malformed or interrupted state cannot accumulate forever.
+		try {
+			retentionStartedAtMs = (
+				await stat(join(directory, DETACHED_LOG_FILENAME))
+			).mtimeMs;
+		} catch {
+			retentionStartedAtMs = (await stat(directory)).mtimeMs;
+		}
+	}
+	const cutoffMs = options.nowMs - options.retentionMs;
+	if (retentionStartedAtMs > cutoffMs) {
+		scheduleDetachedLogCleanup(
+			directory,
+			Math.max(0, retentionStartedAtMs + options.retentionMs - options.nowMs),
+		);
+		return false;
+	}
+	await rm(directory, { recursive: true, force: true });
+	return true;
+}
+
+function scheduleActiveCommandLogReconciliation(
+	directory: string,
+	options: ResolvedDetachedCommandLogCleanupOptions,
+): void {
+	const timer = setTimeout(() => {
+		void reconcileDetachedCommandLogDirectory(directory, {
+			...options,
+			nowMs: Date.now(),
+		}).catch(() => undefined);
+	}, options.activeCommandPollIntervalMs);
+	timer.unref();
+}
+
 /**
- * Reaps completed detached command logs outside the retention window and
- * schedules retained logs for their remaining lifetime. The Hub calls this at
- * startup so cleanup survives daemon exits and restarts instead of depending
- * only on timers created by the original process.
+ * Reaps completed detached command logs outside the retention window,
+ * schedules retained logs for their remaining lifetime, and follows active
+ * command PIDs until they exit. Local runtime hosts call this at startup so
+ * cleanup survives host exits and restarts instead of depending only on the
+ * process that launched the command.
  */
 export async function cleanupStaleDetachedCommandLogs(
 	options: DetachedCommandLogCleanupOptions = {},
@@ -79,8 +174,10 @@ export async function cleanupStaleDetachedCommandLogs(
 	const tempDirectory = options.tempDirectory ?? tmpdir();
 	const retentionMs = resolveDetachedLogRetentionMs(options.retentionMs);
 	const nowMs = options.nowMs ?? Date.now();
-	const cutoffMs = nowMs - retentionMs;
 	const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
+	const activeCommandPollIntervalMs = resolveActiveCommandPollIntervalMs(
+		options.activeCommandPollIntervalMs,
+	);
 	let entries: Dirent[];
 	try {
 		entries = await readdir(tempDirectory, { withFileTypes: true });
@@ -98,53 +195,16 @@ export async function cleanupStaleDetachedCommandLogs(
 		}
 		const directory = join(tempDirectory, entry.name);
 		try {
-			const activeOwnerPath = join(directory, DETACHED_LOG_ACTIVE_FILENAME);
-			const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
-			const activeOwnerText = await readFile(activeOwnerPath, "utf8").catch(
-				() => undefined,
-			);
-			if (activeOwnerText !== undefined) {
-				const ownerPid = Number(activeOwnerText.trim());
-				if (checkProcessAlive(ownerPid)) {
-					// The executor process owns the log stream. A live owner can still
-					// append after an arbitrarily long silent period, so mtime is not a
-					// safe completion signal.
-					continue;
-				}
-				// The child never owns the log file descriptor; once its executor Hub
-				// is gone, future output cannot reach this file. Start the full
-				// retention window when the replacement Hub adopts the orphaned log.
-				await writeFile(completedAtPath, String(nowMs), "utf8");
-				await rm(activeOwnerPath, { force: true });
+			if (
+				await reconcileDetachedCommandLogDirectory(directory, {
+					retentionMs,
+					nowMs,
+					checkProcessAlive,
+					activeCommandPollIntervalMs,
+				})
+			) {
+				removed += 1;
 			}
-
-			const completedAtText = await readFile(completedAtPath, "utf8").catch(
-				() => undefined,
-			);
-			const recordedCompletedAtMs = Number(completedAtText?.trim());
-			let retentionStartedAtMs = Number.isFinite(recordedCompletedAtMs)
-				? recordedCompletedAtMs
-				: undefined;
-			if (retentionStartedAtMs === undefined) {
-				// Legacy logs created before lifecycle markers use their last write as
-				// a best-effort fallback and are migrated by this cleanup pass.
-				try {
-					retentionStartedAtMs = (
-						await stat(join(directory, DETACHED_LOG_FILENAME))
-					).mtimeMs;
-				} catch {
-					retentionStartedAtMs = (await stat(directory)).mtimeMs;
-				}
-			}
-			if (retentionStartedAtMs > cutoffMs) {
-				scheduleDetachedLogCleanup(
-					directory,
-					Math.max(0, retentionStartedAtMs + retentionMs - nowMs),
-				);
-				continue;
-			}
-			await rm(directory, { recursive: true, force: true });
-			removed += 1;
 		} catch {
 			// Cleanup is best effort: one inaccessible or concurrently removed log
 			// must not prevent the Hub from starting or other logs from being reaped.
@@ -405,13 +465,16 @@ function scheduleDetachedLogCleanup(
 	cleanupTimer.unref();
 }
 
-function createDetachedLog(retentionMs: number) {
+function createDetachedLog(retentionMs: number, commandPid: number) {
 	const directory = mkdtempSync(join(tmpdir(), DETACHED_LOG_DIRECTORY_PREFIX));
 	const path = join(directory, DETACHED_LOG_FILENAME);
-	const activeOwnerPath = join(directory, DETACHED_LOG_ACTIVE_FILENAME);
+	const activeCommandPath = join(
+		directory,
+		DETACHED_LOG_ACTIVE_COMMAND_FILENAME,
+	);
 	const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
 	try {
-		writeFileSync(activeOwnerPath, String(process.pid), "utf8");
+		writeFileSync(activeCommandPath, String(commandPid), "utf8");
 	} catch (error) {
 		rmSync(directory, { recursive: true, force: true });
 		throw error;
@@ -419,13 +482,29 @@ function createDetachedLog(retentionMs: number) {
 	const stream = createWriteStream(path, { encoding: "utf8" });
 	let bytesWritten = 0;
 	let capped = false;
-	let closed = false;
+	let writable = true;
+	let streamClosed = false;
+	let completed = false;
+	let cleanupScheduled = false;
+	const scheduleCleanup = () => {
+		if (cleanupScheduled) return;
+		cleanupScheduled = true;
+		scheduleDetachedLogCleanup(directory, retentionMs);
+	};
 	stream.on("error", () => {
 		// The detached command has already released its caller. A late log write
 		// failure must not become an unhandled stream error in the hub process.
-		closed = true;
+		writable = false;
 	});
 	stream.once("close", () => {
+		writable = false;
+		streamClosed = true;
+		if (completed) scheduleCleanup();
+	});
+
+	const complete = () => {
+		if (completed) return;
+		completed = true;
 		try {
 			writeFileSync(completedAtPath, String(Date.now()), "utf8");
 		} catch {
@@ -433,21 +512,26 @@ function createDetachedLog(retentionMs: number) {
 			// completion marker cannot be persisted.
 		}
 		try {
-			rmSync(activeOwnerPath, { force: true });
+			rmSync(activeCommandPath, { force: true });
 		} catch {
 			// Cleanup remains best effort and must not surface from a stream event.
 		}
-		scheduleDetachedLogCleanup(directory, retentionMs);
-	});
+		if (streamClosed) {
+			scheduleCleanup();
+			return;
+		}
+		writable = false;
+		stream.end();
+	};
 
 	return {
 		path,
 		write(text: string): void {
-			if (!text || capped || closed) return;
+			if (!text || capped || !writable) return;
 			const remaining = MAX_DETACHED_LOG_BYTES - bytesWritten;
 			if (remaining <= 0) {
 				capped = true;
-				closed = true;
+				writable = false;
 				stream.end();
 				return;
 			}
@@ -461,15 +545,11 @@ function createDetachedLog(retentionMs: number) {
 				bytesWritten >= MAX_DETACHED_LOG_BYTES
 			) {
 				capped = true;
-				closed = true;
+				writable = false;
 				stream.end();
 			}
 		},
-		close(): void {
-			if (closed) return;
-			closed = true;
-			stream.end();
-		},
+		complete,
 	};
 }
 
@@ -597,8 +677,8 @@ function spawnAndCollect(
 		}
 
 		const detach = (): boolean => {
-			if (!detachable || killed || settled) return false;
-			const log = createDetachedLog(detachedLogRetentionMs);
+			if (!detachable || killed || settled || !childPid) return false;
+			const log = createDetachedLog(detachedLogRetentionMs, childPid);
 			progress.stop({ flush: true });
 			detached = true;
 			detachedLog = log;
@@ -676,7 +756,7 @@ function spawnAndCollect(
 				detachedLog?.write(out.finalChunk);
 				detachedLog?.write(err.finalChunk);
 				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
-				detachedLog?.close();
+				detachedLog?.complete();
 				return;
 			}
 			if (out.finalChunk) {
@@ -730,7 +810,7 @@ function spawnAndCollect(
 			if (killed) return;
 			if (detached) {
 				detachedLog?.write(`\n[Command failed: ${error.message}]\n`);
-				detachedLog?.close();
+				detachedLog?.complete();
 				return;
 			}
 			progress.stop({ flush: true });

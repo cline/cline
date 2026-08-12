@@ -4,6 +4,7 @@ import {
 	copyFile,
 	mkdir,
 	mkdtemp,
+	readFile,
 	rm,
 	utimes,
 	writeFile,
@@ -149,7 +150,7 @@ describe("createShellExecutor", () => {
 				command: process.execPath,
 				args: [
 					"-e",
-					"process.stdout.write('started\\n'); setTimeout(() => process.stdout.write('finished\\n'), 100)",
+					"process.stdout.write(`started:${process.pid}\\n`); setTimeout(() => process.stdout.write('finished\\n'), 300)",
 				],
 			},
 			process.cwd(),
@@ -159,7 +160,12 @@ describe("createShellExecutor", () => {
 				toolCallId: "call-detach",
 				emitUpdate: (update) => {
 					const payload = update as Record<string, unknown>;
-					if (payload.chunk === "started\n") resolveStarted?.();
+					if (
+						typeof payload.chunk === "string" &&
+						payload.chunk.startsWith("started:")
+					) {
+						resolveStarted?.();
+					}
 				},
 			},
 		);
@@ -177,9 +183,14 @@ describe("createShellExecutor", () => {
 		expect(result).toMatch(/cline-command-.*output\.log/);
 		const logPath = result.match(/Output will continue in (.+)]/)?.[1];
 		if (!logPath) throw new Error("Expected detached command log path");
+		const commandPid = result.match(/started:(\d+)/)?.[1];
+		if (!commandPid) throw new Error("Expected detached command pid");
 		try {
 			expect(await fileExists(dirname(logPath))).toBe(true);
-			await new Promise((resolve) => setTimeout(resolve, 150));
+			expect(
+				await readFile(join(dirname(logPath), "active-command-pid"), "utf8"),
+			).toBe(commandPid);
+			await new Promise((resolve) => setTimeout(resolve, 350));
 			expect(await fileExists(logPath)).toBe(true);
 			await expect.poll(() => fileExists(dirname(logPath))).toBe(false);
 		} finally {
@@ -228,40 +239,51 @@ describe("createShellExecutor", () => {
 		}
 	});
 
-	it("protects live-owner logs and starts retention when adopting an orphan", async () => {
+	it("tracks the detached command across host restarts until it exits", async () => {
 		const tempDirectory = await mkdtemp(
-			join(tmpdir(), "detached-log-owner-cleanup-"),
+			join(tmpdir(), "detached-log-command-cleanup-"),
 		);
 		const liveDirectory = join(tempDirectory, "cline-command-live");
-		const orphanDirectory = join(tempDirectory, "cline-command-orphan");
+		const completedDirectory = join(tempDirectory, "cline-command-completed");
+		let liveCommandRunning = true;
 		try {
-			await Promise.all([mkdir(liveDirectory), mkdir(orphanDirectory)]);
+			await Promise.all([mkdir(liveDirectory), mkdir(completedDirectory)]);
 			await Promise.all([
 				writeFile(join(liveDirectory, "output.log"), "silent but running"),
-				writeFile(join(liveDirectory, "active-owner"), "101"),
-				writeFile(join(orphanDirectory, "output.log"), "orphaned"),
-				writeFile(join(orphanDirectory, "active-owner"), "202"),
+				writeFile(join(liveDirectory, "active-command-pid"), "101"),
+				writeFile(join(completedDirectory, "output.log"), "completed"),
+				writeFile(join(completedDirectory, "active-command-pid"), "202"),
 			]);
 
 			await expect(
 				cleanupStaleDetachedCommandLogs({
+					activeCommandPollIntervalMs: 20,
 					tempDirectory,
 					retentionMs: 250,
 					nowMs: Date.now(),
-					isProcessAlive: (pid) => pid === 101,
+					isProcessAlive: (pid) => pid === 101 && liveCommandRunning,
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(liveDirectory)).toBe(true);
-			expect(await fileExists(join(liveDirectory, "active-owner"))).toBe(true);
-			expect(await fileExists(orphanDirectory)).toBe(true);
-			expect(await fileExists(join(orphanDirectory, "active-owner"))).toBe(
-				false,
-			);
-			expect(await fileExists(join(orphanDirectory, "completed-at"))).toBe(
+			expect(await fileExists(join(liveDirectory, "active-command-pid"))).toBe(
 				true,
 			);
-			await expect.poll(() => fileExists(orphanDirectory)).toBe(false);
+			expect(await fileExists(completedDirectory)).toBe(true);
+			expect(
+				await fileExists(join(completedDirectory, "active-command-pid")),
+			).toBe(false);
+			expect(await fileExists(join(completedDirectory, "completed-at"))).toBe(
+				true,
+			);
+			await expect.poll(() => fileExists(completedDirectory)).toBe(false);
 			expect(await fileExists(liveDirectory)).toBe(true);
+
+			liveCommandRunning = false;
+			await expect
+				.poll(() => fileExists(join(liveDirectory, "active-command-pid")))
+				.toBe(false);
+			expect(await fileExists(join(liveDirectory, "completed-at"))).toBe(true);
+			await expect.poll(() => fileExists(liveDirectory)).toBe(false);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}
