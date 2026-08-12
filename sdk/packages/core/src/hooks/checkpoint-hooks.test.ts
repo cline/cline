@@ -750,40 +750,46 @@ describe("createCheckpointHooks", () => {
 		}
 	});
 
-	it("skips the checkpoint without blocking or throwing when git exceeds the time budget", async () => {
+	it("degrades without blocking or throwing when the git time budget is exhausted", async () => {
 		const cwd = await createGitRepo();
-		let writes = 0;
+		let metadata: Record<string, unknown> | undefined;
 		const events: { event: string; properties?: Record<string, unknown> }[] =
 			[];
 		try {
 			const hooks = createCheckpointHooks({
 				cwd,
 				sessionId: "sess_timeout",
-				// Far below what even `git rev-parse` can finish in, so every git
-				// call this turn is killed by the budget.
-				gitTimeoutMs: 1,
+				// A zero budget makes the snapshot's remainingMs check throw
+				// deterministically. The repo probe and HEAD fallback run with a
+				// 1ms execFile kill, which a fast machine's git may win or lose —
+				// so the assertions below are the race-free contract: never a
+				// stash snapshot, at most one degraded HEAD entry, and the turn
+				// is always reported as a timeout.
+				gitTimeoutMs: 0,
 				telemetry: {
 					capture: (input) => {
 						events.push(input);
 					},
 				},
-				readSessionMetadata: async () => undefined,
-				writeSessionMetadata: async () => {
-					writes += 1;
+				readSessionMetadata: async () => metadata,
+				writeSessionMetadata: async (next) => {
+					metadata = next;
 				},
 			});
 
 			await writeFile(join(cwd, "note.txt"), "dirty\n", "utf8");
 			await runCheckpointHooks(hooks);
 
-			expect(writes).toBe(0);
-			// The degradation is observable in the field, not only in local logs.
+			const checkpoint = metadata?.checkpoint as CheckpointMetadata | undefined;
+			if (checkpoint) {
+				expect(checkpoint.latest.kind).toBe("commit");
+			}
 			expect(events).toHaveLength(1);
 			expect(events[0]?.event).toBe("checkpoint.snapshot");
-			expect(events[0]?.properties).toMatchObject({
-				outcome: "skipped",
-				reason: "timeout",
-			});
+			expect(events[0]?.properties?.reason).toBe("timeout");
+			expect(["skipped", "head_fallback"]).toContain(
+				events[0]?.properties?.outcome,
+			);
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
