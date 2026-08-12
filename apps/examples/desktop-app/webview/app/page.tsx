@@ -1618,9 +1618,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
-					quickActions={[]}
 				/>
 			</div>
 			<AlertDialog
