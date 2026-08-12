@@ -45,6 +45,11 @@ const codexExecSpy = vi.fn((modelId: string) => ({
 	modelId,
 	family: "openai-codex",
 }));
+const claudeCodeFactorySpy = vi.fn();
+const claudeCodeSpy = vi.fn((modelId: string) => ({
+	modelId,
+	family: "claude-code",
+}));
 
 function createFetchMock() {
 	const fetchMock = vi.fn(
@@ -100,6 +105,13 @@ vi.mock("ai-sdk-provider-codex-cli", () => ({
 	createCodexExec: (config: unknown) => {
 		codexExecFactorySpy(config);
 		return (modelId: string) => codexExecSpy(modelId);
+	},
+}));
+
+vi.mock("ai-sdk-provider-claude-code", () => ({
+	createClaudeCode: (config: unknown) => {
+		claudeCodeFactorySpy(config);
+		return (modelId: string) => claudeCodeSpy(modelId);
 	},
 }));
 
@@ -2636,6 +2648,151 @@ describe("sdk-gateway", () => {
 
 		const streamTextOptions = streamTextSpy.mock.calls.at(-1)?.[0];
 		expect(streamTextOptions).not.toHaveProperty("tools");
+	});
+
+	it("does not pass extra tools to the Claude Code provider", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "claude-code" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "claude-code",
+				modelId: "sonnet",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "run_commands",
+						description: "Runs shell commands",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		const streamTextOptions = streamTextSpy.mock.calls.at(-1)?.[0];
+		expect(streamTextOptions).not.toHaveProperty("tools");
+	});
+
+	it("anchors the Claude Code session on workspace cwd, user settings, and auto-accepted edits", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		claudeCodeFactorySpy.mockClear();
+
+		const workspaceDir = mkdtempSync(join(tmpdir(), "claude-code-cwd-"));
+		const gateway = createGateway({
+			providerConfigs: [
+				{ providerId: "claude-code", options: { cwd: workspaceDir } },
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "claude-code",
+				modelId: "sonnet",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(claudeCodeFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultSettings: expect.objectContaining({
+					cwd: workspaceDir,
+					settingSources: ["user", "project"],
+					permissionMode: "acceptEdits",
+				}),
+			}),
+		);
+		// The host-forwarded top-level cwd is lifted into defaultSettings, not
+		// leaked as a provider option.
+		expect(claudeCodeFactorySpy.mock.calls.at(-1)?.[0]).not.toHaveProperty(
+			"cwd",
+		);
+	});
+
+	it("preserves explicit Claude Code session settings over the gateway defaults", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		claudeCodeFactorySpy.mockClear();
+
+		const workspaceDir = mkdtempSync(join(tmpdir(), "claude-code-cwd-"));
+		const explicitDir = mkdtempSync(join(tmpdir(), "claude-code-explicit-"));
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "claude-code",
+					options: {
+						cwd: workspaceDir,
+						defaultSettings: {
+							cwd: explicitDir,
+							settingSources: [],
+							permissionMode: "default",
+						},
+					},
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "claude-code",
+				modelId: "sonnet",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(claudeCodeFactorySpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				defaultSettings: expect.objectContaining({
+					cwd: explicitDir,
+					settingSources: [],
+					permissionMode: "default",
+				}),
+			}),
+		);
+	});
+
+	it("drops a non-existent workspace cwd instead of failing Claude Code settings validation", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		claudeCodeFactorySpy.mockClear();
+
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "claude-code",
+					options: { cwd: "/nonexistent/workspace/path" },
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "claude-code",
+				modelId: "sonnet",
+				messages: baseMessages,
+			}),
+		);
+
+		const factoryOptions = claudeCodeFactorySpy.mock.calls.at(-1)?.[0] as {
+			defaultSettings?: Record<string, unknown>;
+		};
+		expect(factoryOptions.defaultSettings).not.toHaveProperty("cwd");
 	});
 
 	it("tags tool call events with provider metadata for providers that disable external tool execution", async () => {

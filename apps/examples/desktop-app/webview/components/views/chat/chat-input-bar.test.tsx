@@ -863,10 +863,11 @@ describe("ChatInputBar", () => {
 		const stopTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Stop agent"]',
 		);
-		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("items-start");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(speechTrigger)).toBe(true);
+		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
 		expect(rightControls?.contains(speechTrigger ?? null)).toBe(false);
 		expect(speechTrigger?.parentElement?.nextElementSibling).toBe(sendTrigger);

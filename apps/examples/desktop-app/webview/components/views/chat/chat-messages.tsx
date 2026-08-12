@@ -42,6 +42,7 @@ import {
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -476,173 +477,186 @@ function ChatMessagesImpl({
 			>
 				<ConversationContent
 					className={cn(
-						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
-						showIdleDetails ? "p-0" : "px-6 pt-6 pb-14",
+						"min-h-full w-full min-w-0",
+						showIdleDetails ? "p-0" : "px-6",
 					)}
 				>
-					{showIdleDetails ? null : (
-						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
-							{renderItems.map((item) => {
-								if (item.type === "tools") {
+					<SessionContent
+						className={cn(
+							"relative min-h-full",
+							showIdleDetails ? "p-0" : "pt-6 pb-20",
+						)}
+					>
+						{showIdleDetails ? null : (
+							<div className="flex min-h-full w-full min-w-0 flex-col gap-8">
+								{renderItems.map((item) => {
+									if (item.type === "tools") {
+										return (
+											<ToolMessageBlock
+												key={`tools_${item.messages[0]?.id ?? "empty"}`}
+												messages={item.messages}
+											/>
+										);
+									}
+									const { agentRole, message, reasoningMessages } = item;
+									const firstReasoningMessage = reasoningMessages[0];
+									const lastReasoningMessage = reasoningMessages.at(-1);
+									const reasoningContent = reasoningMessages
+										.map((reasoningMessage) =>
+											reasoningMessage.reasoning?.trim(),
+										)
+										.filter((content): content is string => Boolean(content))
+										.join("\n\n");
 									return (
-										<ToolMessageBlock
-											key={`tools_${item.messages[0]?.id ?? "empty"}`}
-											messages={item.messages}
+										<MessageBubble
+											agentRole={agentRole}
+											isLastAssistantMessage={
+												message.role === "assistant" &&
+												lastConversationMessage === message
+											}
+											isStreaming={streamingMessageId === message.id}
+											key={message.id}
+											message={message}
+											runCount={userRunCountByMessage.get(message)}
+											onExpandImage={handleExpandImage}
+											onCopyMessage={handleCopyMessage}
+											onEditMessage={
+												onEditMessage ? requestEditMessage : undefined
+											}
+											editDisabled={
+												!onEditMessage ||
+												status === "starting" ||
+												status === "running" ||
+												status === "stopping" ||
+												isSessionSwitching ||
+												sessionVersioningPending
+											}
+											editError={editErrors[message.id]}
+											editPending={editingMessageId === message.id}
+											onRestoreCheckpoint={
+												onRestoreCheckpoint
+													? requestRestoreCheckpoint
+													: undefined
+											}
+											restoreDisabled={
+												!onRestoreCheckpoint ||
+												status === "starting" ||
+												status === "running" ||
+												status === "stopping" ||
+												isSessionSwitching ||
+												sessionVersioningPending
+											}
+											restoreError={checkpointErrors[message.id]}
+											restorePending={
+												checkpointActions[message.id] === "undoing"
+											}
+											wasCopied={copiedMessageId === message.id}
+											onForkSession={
+												onForkSession ? handleForkSession : undefined
+											}
+											forkDisabled={
+												status === "starting" ||
+												status === "running" ||
+												status === "stopping" ||
+												isSessionSwitching ||
+												sessionVersioningPending
+											}
+											forkPending={forkingMessageId === message.id}
+											forkError={forkErrors[message.id]}
+											reasoningContent={reasoningContent}
+											reasoningRedacted={reasoningMessages.some(
+												(reasoningMessage) =>
+													reasoningMessage.reasoningRedacted === true,
+											)}
+											thoughtDurationMilliseconds={
+												firstReasoningMessage && lastReasoningMessage
+													? getThoughtDurationMilliseconds(
+															previousTimestampByMessage.get(
+																firstReasoningMessage,
+															),
+															lastReasoningMessage.createdAt,
+														)
+													: undefined
+											}
 										/>
 									);
-								}
-								const { agentRole, message, reasoningMessages } = item;
-								const firstReasoningMessage = reasoningMessages[0];
-								const lastReasoningMessage = reasoningMessages.at(-1);
-								const reasoningContent = reasoningMessages
-									.map((reasoningMessage) => reasoningMessage.reasoning?.trim())
-									.filter((content): content is string => Boolean(content))
-									.join("\n\n");
-								return (
-									<MessageBubble
-										agentRole={agentRole}
-										isLastAssistantMessage={
-											message.role === "assistant" &&
-											lastConversationMessage === message
+								})}
+								{pendingToolApprovals.length > 0 ? (
+									<ToolApprovalPanel
+										items={pendingToolApprovals}
+										onApprove={(requestId) =>
+											handleToolApprovalDecision(
+												requestId,
+												"approving",
+												onApproveToolApproval,
+											)
 										}
-										isStreaming={streamingMessageId === message.id}
-										key={message.id}
-										message={message}
-										runCount={userRunCountByMessage.get(message)}
-										onExpandImage={handleExpandImage}
-										onCopyMessage={handleCopyMessage}
-										onEditMessage={
-											onEditMessage ? requestEditMessage : undefined
+										onReject={(requestId) =>
+											handleToolApprovalDecision(
+												requestId,
+												"rejecting",
+												onRejectToolApproval,
+											)
 										}
-										editDisabled={
-											!onEditMessage ||
-											status === "starting" ||
-											status === "running" ||
-											status === "stopping" ||
-											isSessionSwitching ||
-											sessionVersioningPending
-										}
-										editError={editErrors[message.id]}
-										editPending={editingMessageId === message.id}
-										onRestoreCheckpoint={
-											onRestoreCheckpoint ? requestRestoreCheckpoint : undefined
-										}
-										restoreDisabled={
-											!onRestoreCheckpoint ||
-											status === "starting" ||
-											status === "running" ||
-											status === "stopping" ||
-											isSessionSwitching ||
-											sessionVersioningPending
-										}
-										restoreError={checkpointErrors[message.id]}
-										restorePending={checkpointActions[message.id] === "undoing"}
-										wasCopied={copiedMessageId === message.id}
-										onForkSession={
-											onForkSession ? handleForkSession : undefined
-										}
-										forkDisabled={
-											status === "starting" ||
-											status === "running" ||
-											status === "stopping" ||
-											isSessionSwitching ||
-											sessionVersioningPending
-										}
-										forkPending={forkingMessageId === message.id}
-										forkError={forkErrors[message.id]}
-										reasoningContent={reasoningContent}
-										reasoningRedacted={reasoningMessages.some(
-											(reasoningMessage) =>
-												reasoningMessage.reasoningRedacted === true,
-										)}
-										thoughtDurationMilliseconds={
-											firstReasoningMessage && lastReasoningMessage
-												? getThoughtDurationMilliseconds(
-														previousTimestampByMessage.get(
-															firstReasoningMessage,
-														),
-														lastReasoningMessage.createdAt,
-													)
-												: undefined
-										}
+										pendingActions={toolApprovalActions}
+										requestErrors={toolApprovalErrors}
 									/>
-								);
-							})}
-							{pendingToolApprovals.length > 0 ? (
-								<ToolApprovalPanel
-									items={pendingToolApprovals}
-									onApprove={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"approving",
-											onApproveToolApproval,
-										)
-									}
-									onReject={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"rejecting",
-											onRejectToolApproval,
-										)
-									}
-									pendingActions={toolApprovalActions}
-									requestErrors={toolApprovalErrors}
-								/>
-							) : null}
-							{askQuestionItems.length > 0 ? (
-								<AgentAskQuestion
-									errors={askQuestionErrors}
-									items={askQuestionItems}
-									onAnswer={handleAskQuestionAnswer}
-									pendingAnswers={askQuestionActions}
-								/>
-							) : null}
-						</div>
-					)}
-					{showSwitchTransition ? (
-						hasMessages ? (
-							<div className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
-								<div className="flex items-center gap-1.5">
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
-									Switching session...
-								</div>
+								) : null}
+								{askQuestionItems.length > 0 ? (
+									<AgentAskQuestion
+										errors={askQuestionErrors}
+										items={askQuestionItems}
+										onAnswer={handleAskQuestionAnswer}
+										pendingAnswers={askQuestionActions}
+									/>
+								) : null}
 							</div>
-						) : (
-							<div className="rounded-xl border border-border/70 bg-card p-4">
-								<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
-									<Loader2 className="h-4 w-4 animate-spin" />
-									Loading session...
+						)}
+						{showSwitchTransition ? (
+							hasMessages ? (
+								<div className="pointer-events-none absolute right-6 top-6 z-20 rounded-full border border-border/70 bg-background/90 px-3 py-1.5 text-xs text-muted-foreground shadow-sm backdrop-blur-[1px]">
+									<div className="flex items-center gap-1.5">
+										<Loader2 className="h-3.5 w-3.5 animate-spin" />
+										Switching session...
+									</div>
 								</div>
-								<div className="space-y-3">
-									<div className="h-4 w-2/5 animate-pulse rounded bg-muted/70" />
-									<div className="h-4 w-4/5 animate-pulse rounded bg-muted/70" />
-									<div className="h-4 w-3/5 animate-pulse rounded bg-muted/70" />
+							) : (
+								<div className="rounded-xl border border-border/70 bg-card p-4">
+									<div className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+										<Loader2 className="h-4 w-4 animate-spin" />
+										Loading session...
+									</div>
+									<div className="space-y-3">
+										<div className="h-4 w-2/5 animate-pulse rounded bg-muted/70" />
+										<div className="h-4 w-4/5 animate-pulse rounded bg-muted/70" />
+										<div className="h-4 w-3/5 animate-pulse rounded bg-muted/70" />
+									</div>
 								</div>
+							)
+						) : null}
+						{(status === "starting" || isAwaitingFirstOutput) &&
+						!isSessionSwitching ? (
+							<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+								<Loader2 className="size-4 animate-spin" />
+								<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 							</div>
-						)
-					) : null}
-					{(status === "starting" || isAwaitingFirstOutput) &&
-					!isSessionSwitching ? (
-						<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
-							<Loader2 className="size-4 animate-spin" />
-							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
-						</div>
-					) : null}
-					{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
-						<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
-							<Loader2 className="h-3.5 w-3.5 animate-spin" />
-							{chatTransportState === "reconnecting"
-								? "Reconnecting chat..."
-								: chatTransportState === "unavailable"
-									? "Chat backend unavailable"
-									: "Connecting chat..."}
-						</div>
-					) : null}
-					{shouldShowErrorBanner ? (
-						<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-							{error}
-						</div>
-					) : null}
+						) : null}
+						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
+							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">
+								<Loader2 className="h-3.5 w-3.5 animate-spin" />
+								{chatTransportState === "reconnecting"
+									? "Reconnecting chat..."
+									: chatTransportState === "unavailable"
+										? "Chat backend unavailable"
+										: "Connecting chat..."}
+							</div>
+						) : null}
+						{shouldShowErrorBanner ? (
+							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+								{error}
+							</div>
+						) : null}
+					</SessionContent>
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
