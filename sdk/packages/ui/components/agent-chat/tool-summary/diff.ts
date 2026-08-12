@@ -59,8 +59,10 @@ export function makeUnifiedDiff(
 	ctx = 3,
 	options?: MakeUnifiedDiffOptions,
 ): string {
+	// Empty text means zero lines, not one blank line — otherwise creating an
+	// empty file or deleting all content reports a phantom blank addition.
 	const oldArr = oldText ? oldText.split("\n") : [];
-	const newArr = newText.split("\n");
+	const newArr = newText ? newText.split("\n") : [];
 	const ops = diffLines(oldArr, newArr);
 
 	const output: string[] = [];

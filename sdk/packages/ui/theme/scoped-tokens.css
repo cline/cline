@@ -179,7 +179,7 @@
 	--neutral-1: #121216;
 	--neutral-2: #18191b;
 	--neutral-3: #212225;
-	--neutral-4: #2F2F37;
+	--neutral-4: #2f2f37;
 	--neutral-5: #2e3135;
 	--neutral-6: #363a3f;
 	--neutral-7: #43484e;
@@ -347,6 +347,10 @@
 .cline-ui-theme {
 	/* Brand extensions for artwork; components should prefer semantic tokens. */
 	--brand-violet: oklch(0.55 0.22 293);
+	/* Filled brand surface (user chat bubbles): deep enough in both themes to
+	 * carry near-white text at readable contrast. */
+	--brand-violet-surface: oklch(0.55 0.22 293);
+	--brand-violet-surface-foreground: oklch(0.985 0.005 293);
 	--brand-lilac: oklch(0.88 0.09 315);
 	--brand-magenta: oklch(0.75 0.15 330);
 	--brand-periwinkle: oklch(0.69 0.14 275);
@@ -395,6 +399,8 @@
 .dark .cline-ui-theme,
 .cline-ui-theme.dark {
 	--brand-violet: oklch(0.7 0.17 293);
+	--brand-violet-surface: oklch(0.48 0.18 293);
+	--brand-violet-surface-foreground: oklch(0.97 0.01 293);
 	--brand-lilac: oklch(0.68 0.13 315);
 	--brand-magenta: oklch(0.64 0.17 330);
 	--brand-periwinkle: oklch(0.63 0.16 275);

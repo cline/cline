@@ -81,6 +81,12 @@ impl Default for UpdateStatus {
 #[derive(Default)]
 struct UpdateState {
     status: Mutex<UpdateStatus>,
+    // Serializes whole updater cycles. The periodic loop and the on-demand
+    // check_for_update_now command run the same check/download/stage cycle;
+    // without exclusion, overlapping cycles can download the same bundle
+    // concurrently and the later one can overwrite a freshly staged "ready"
+    // with "idle"/"error" decided from its stale pre-await snapshot.
+    cycle: tokio::sync::Mutex<()>,
 }
 
 impl UpdateState {
@@ -147,9 +153,11 @@ fn set_update_status(
 }
 
 async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
+    let _cycle = state.cycle.lock().await;
     // An update that already finished downloading only needs a restart; keep
     // reporting "ready" instead of flipping back to transient states unless a
-    // newer version shows up.
+    // newer version shows up. Reading it under the cycle lock makes the
+    // snapshot authoritative for this whole cycle.
     let ready_version = state.ready_version();
     if ready_version.is_none() {
         set_update_status(app, state, "checking", None, None);
@@ -689,6 +697,20 @@ fn restart_to_apply_update(
     app.restart();
 }
 
+/// Run one updater check/download/stage cycle immediately instead of waiting
+/// for the next background interval, and report the resulting status. Used by
+/// flows that need an update staged right now (e.g. the "Cline Hub was
+/// updated" prompt), where restarting without a staged update would just
+/// relaunch the same version.
+#[tauri::command]
+async fn check_for_update_now(
+    app: tauri::AppHandle,
+    update_state: State<'_, Arc<UpdateState>>,
+) -> Result<UpdateStatus, String> {
+    check_and_install_update(&app, update_state.inner()).await;
+    Ok(update_state.snapshot())
+}
+
 /// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
 /// webview/lib/app-icon.ts. Every non-default id has a matching bundled
 /// resource at icons/dock/<id>.png.
@@ -924,6 +946,7 @@ fn main() {
             open_mcp_settings_file,
             get_update_status,
             restart_to_apply_update,
+            check_for_update_now,
             set_app_icon,
             drain_desktop_menu_actions,
             set_tray_status

@@ -75,36 +75,43 @@ export interface RunCommandsInfo {
 }
 
 /**
- * run_commands entries can be shell strings or structured `{ command, args }`;
- * the input itself may be `{ commands: [...] }`, `{ command }`, or a string.
+ * run_commands accepts every shape in core's RunCommandsInputUnionSchema:
+ * `{ commands: [...] }` (strings or `{ command, args }` entries, or a single
+ * entry instead of an array), a bare array of either, a top-level
+ * `{ command, args }`, `{ cmd }`, or a bare string.
  */
 export function parseRunCommandsInput(
 	input: unknown,
 ): RunCommandsInfo | undefined {
 	const normalized = normalizeValue(input);
-	if (typeof normalized === "string" && normalized.length > 0) {
-		return { commands: [normalized] };
-	}
-	if (!isRecord(normalized)) return undefined;
-
-	const raw = Array.isArray(normalized.commands)
-		? normalized.commands
-		: typeof normalized.command === "string"
-			? [normalized.command]
-			: null;
-	if (!raw) return undefined;
-
 	const commands: string[] = [];
-	for (const entry of raw) {
+	const pushEntry = (entry: unknown) => {
 		if (typeof entry === "string" && entry.length > 0) {
 			commands.push(entry);
-			continue;
+			return;
 		}
-		if (isRecord(entry) && typeof entry.command === "string") {
+		if (isRecord(entry) && typeof entry.command === "string" && entry.command) {
 			const args = Array.isArray(entry.args)
 				? entry.args.filter((a): a is string => typeof a === "string").join(" ")
 				: "";
 			commands.push(args ? `${entry.command} ${args}` : entry.command);
+		}
+	};
+
+	if (typeof normalized === "string" || Array.isArray(normalized)) {
+		for (const entry of Array.isArray(normalized) ? normalized : [normalized]) {
+			pushEntry(entry);
+		}
+	} else if (isRecord(normalized)) {
+		if (normalized.commands !== undefined) {
+			const raw = normalized.commands;
+			for (const entry of Array.isArray(raw) ? raw : [raw]) {
+				pushEntry(entry);
+			}
+		} else if (typeof normalized.command === "string") {
+			pushEntry(normalized);
+		} else if (typeof normalized.cmd === "string") {
+			pushEntry(normalized.cmd);
 		}
 	}
 	return commands.length > 0 ? { commands } : undefined;
@@ -159,7 +166,7 @@ export function parseWebFetchInput(input: unknown): WebFetchInfo | undefined {
 	if (!Array.isArray(normalized.requests)) return undefined;
 	const urls = normalized.requests
 		.filter((r): r is Record<string, unknown> => isRecord(r))
-		.map((r) => String(r.url ?? ""))
+		.map((r) => (typeof r.url === "string" ? r.url : ""))
 		.filter(Boolean);
 	return urls.length > 0 ? { urls } : undefined;
 }
@@ -194,17 +201,27 @@ export function parseAskQuestionInput(
 	return { question: normalized.question, options };
 }
 
+/** Before/after texts reconstructed from one `@@`-delimited patch section. */
+export interface ApplyPatchHunk {
+	oldText: string;
+	newText: string;
+}
+
 export interface ApplyPatchFile {
 	path: string;
+	/** From the section header: `Add File`, `Update File`, or `Delete File`. */
+	action: "add" | "update" | "delete";
+	/** Destination path from a `*** Move to:` line, when the file was renamed. */
+	movedTo?: string;
 	additions: number;
 	deletions: number;
 	diff: string;
-	/** True for `Add File` sections, whose body is the complete file. */
-	wholeFile: boolean;
-	/** Before/after texts reconstructed from the patch body (fragments for
-	 * Update/Delete sections, complete contents for Add sections). */
-	oldText: string;
-	newText: string;
+	/**
+	 * Per-hunk before/after texts, boundaries preserved. Rendering each hunk
+	 * separately matters: concatenating hunks and re-diffing would let a
+	 * deletion in one hunk pair up with an addition in another.
+	 */
+	hunks: ApplyPatchHunk[];
 }
 
 export interface ApplyPatchInfo {
@@ -215,8 +232,11 @@ export interface ApplyPatchInfo {
 }
 
 const FILE_ACTION_RE = /^\*\*\* (Add|Update|Delete) File: (.+)/;
+const MOVE_TO_RE = /^\*\*\* Move to: (.+)/;
+// `@@ …` context markers delimit hunks and are handled separately below.
+const HUNK_MARKER_RE = /^@@/;
 const SKIP_LINES =
-	/^(?:\*\*\* (?:Begin|End) Patch|%%bash|```|EOF|apply_patch\b|@@|\*\*\* (?:Move to:|End of File))/;
+	/^(?:\*\*\* (?:Begin|End) Patch|%%bash|```|EOF|apply_patch\b|\*\*\* End of File)/;
 
 /**
  * Parse the apply_patch envelope (`*** Add/Update/Delete File:` sections)
@@ -237,11 +257,13 @@ export function parseApplyPatchInput(
 	const files: ApplyPatchFile[] = [];
 	let current: {
 		path: string;
-		wholeFile: boolean;
+		action: "add" | "update" | "delete";
+		movedTo?: string;
 		lines: string[];
 		hunk: string[];
 		oldLines: string[];
 		newLines: string[];
+		hunks: ApplyPatchHunk[];
 		additions: number;
 		deletions: number;
 	} | null = null;
@@ -251,22 +273,30 @@ export function parseApplyPatchInput(
 		// Update/Delete sections are file fragments; only Add File sections
 		// carry complete contents, so only they get real hunk positions.
 		current.lines.push(
-			current.wholeFile ? hunkHeader(current.hunk) : FRAGMENT_HUNK_HEADER,
+			current.action === "add"
+				? hunkHeader(current.hunk)
+				: FRAGMENT_HUNK_HEADER,
 			...current.hunk,
 		);
+		current.hunks.push({
+			oldText: current.oldLines.join("\n"),
+			newText: current.newLines.join("\n"),
+		});
 		current.hunk = [];
+		current.oldLines = [];
+		current.newLines = [];
 	};
 	const flushFile = () => {
 		if (!current) return;
 		flushHunk();
 		files.push({
 			path: current.path,
+			action: current.action,
+			movedTo: current.movedTo,
 			additions: current.additions,
 			deletions: current.deletions,
 			diff: current.lines.join("\n"),
-			wholeFile: current.wholeFile,
-			oldText: current.oldLines.join("\n"),
-			newText: current.newLines.join("\n"),
+			hunks: current.hunks,
 		});
 		current = null;
 	};
@@ -278,14 +308,24 @@ export function parseApplyPatchInput(
 			const path = fileMatch[2].trim();
 			current = {
 				path,
-				wholeFile: fileMatch[1] === "Add",
+				action: fileMatch[1].toLowerCase() as "add" | "update" | "delete",
 				lines: [`--- a/${path}`, `+++ b/${path}`],
 				hunk: [],
 				oldLines: [],
 				newLines: [],
+				hunks: [],
 				additions: 0,
 				deletions: 0,
 			};
+			continue;
+		}
+		const moveMatch = MOVE_TO_RE.exec(line);
+		if (moveMatch) {
+			if (current) current.movedTo = moveMatch[1].trim();
+			continue;
+		}
+		if (HUNK_MARKER_RE.test(line.trim())) {
+			flushHunk();
 			continue;
 		}
 		if (SKIP_LINES.test(line.trim())) continue;

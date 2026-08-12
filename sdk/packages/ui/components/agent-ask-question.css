@@ -1,7 +1,14 @@
 .cline-ui-agent-ask-question {
-	/* Defaults match the desktop palette (blue-500/blue-400); hosts may override. */
-	--cline-ui-agent-ask-question-accent: oklch(62.3% 0.214 259.815);
-	--cline-ui-agent-ask-question-accent-border: oklch(70.7% 0.165 254.624);
+	/* Brand violet, falling back to a literal for hosts without the theme
+	 * tokens; hosts may override. */
+	--cline-ui-agent-ask-question-accent: var(
+		--brand-violet,
+		oklch(0.55 0.22 293)
+	);
+	--cline-ui-agent-ask-question-accent-border: var(
+		--brand-violet,
+		oklch(0.62 0.19 293)
+	);
 }
 
 .cline-ui-agent-ask-question,

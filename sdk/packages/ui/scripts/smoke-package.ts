@@ -44,7 +44,7 @@ const summary = buildToolSummary({
 	toolName: "read_files",
 	input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
 });
-if (summary.label !== "Read app.tsx (10–80)" || summary.kind !== "read") {
+if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") {
 	throw new Error("tool-summary subpath returned an unexpected summary");
 }
 if (typeof ToolFileDiff !== "function") {

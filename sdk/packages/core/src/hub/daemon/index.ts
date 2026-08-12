@@ -16,10 +16,10 @@ import {
 import {
 	clearHubDiscovery,
 	createHubServerUrl,
-	getManagedHubCompatibility,
 	type HubOwnerContext,
 	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
@@ -69,8 +69,8 @@ function resolveDefaultHubOwnerContext() {
 		: resolveSharedHubOwnerContext();
 }
 
-function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
-	return getManagedHubCompatibility(record, resolveHubBuildId()).compatible;
+function isReusableHubRecord(record: HubServerProbeRecord): boolean {
+	return isManagedHubReusable(record, { expectedBuildId: resolveHubBuildId() });
 }
 
 function withMatchingDiscoveryRetirementMetadata(
@@ -135,7 +135,7 @@ async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
 	discoveryPath: string,
 ): Promise<boolean> {
-	if (isCompatibleHubRecord(record)) {
+	if (isReusableHubRecord(record)) {
 		return true;
 	}
 	return retireDiscoveredHub(record, discoveryPath);
@@ -321,7 +321,7 @@ async function ensureDetachedHubServerLocked(
 			);
 			if (
 				healthy?.url &&
-				isCompatibleHubRecord(healthy) &&
+				isReusableHubRecord(healthy) &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discoveredAuthToken,
 				}))
@@ -348,7 +348,7 @@ async function ensureDetachedHubServerLocked(
 			discovered,
 			expectedUrl,
 		);
-		if (isCompatibleHubRecord(expected)) {
+		if (isReusableHubRecord(expected)) {
 			// Live hub is healthy but discovery is missing/unreadable (or auth
 			// token was empty). Prefer attaching via any known auth token rather
 			// than spawning a second daemon that dies with EADDRINUSE.
@@ -431,7 +431,7 @@ async function ensureDetachedHubServerLocked(
 			);
 			if (
 				healthy?.url &&
-				isCompatibleHubRecord(healthy) &&
+				isReusableHubRecord(healthy) &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: nextDiscovery.authToken,
 				}))
@@ -443,7 +443,7 @@ async function ensureDetachedHubServerLocked(
 			}
 		}
 		const nextExpected = await safeProbeHubServer(expectedUrl);
-		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+		if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
 			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 				nextExpected,
 				nextDiscovery,
