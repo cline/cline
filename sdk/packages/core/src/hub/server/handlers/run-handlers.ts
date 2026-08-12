@@ -223,7 +223,20 @@ export async function handleSessionInput(
 			"session input requires a prompt string",
 		);
 	}
-	ctx.publish(ctx.buildEvent("run.started", undefined, sessionId));
+	const session = await ctx.sessionHost.getSession(sessionId);
+	if (!session) {
+		return sessionNotFoundReply(envelope, sessionId);
+	}
+	ctx.publish(
+		ctx.buildEvent(
+			"run.started",
+			{
+				...(envelope.requestId ? { requestId: envelope.requestId } : {}),
+				...(envelope.clientId ? { clientId: envelope.clientId } : {}),
+			},
+			sessionId,
+		),
+	);
 	const attachments =
 		payload.attachments &&
 		typeof payload.attachments === "object" &&

@@ -12,6 +12,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -481,6 +482,7 @@ export default function Home() {
 					/>
 				</div>
 			) : null}
+			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
 }

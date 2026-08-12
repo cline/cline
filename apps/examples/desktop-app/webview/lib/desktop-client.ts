@@ -146,6 +146,7 @@ const NATIVE_COMMANDS = new Set([
 	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",
+	"check_for_update_now",
 	"set_app_icon",
 	"drain_desktop_menu_actions",
 	"set_tray_status",
