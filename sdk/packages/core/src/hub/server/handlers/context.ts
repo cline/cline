@@ -33,6 +33,8 @@ export type PendingCapabilityRequest = {
 	sessionId: string;
 	targetClientId: string;
 	capabilityName: string;
+	payload?: Record<string, unknown>;
+	disconnectTimer?: ReturnType<typeof setTimeout>;
 	onProgress?: (payload: Record<string, unknown>) => void;
 	resolve: (result: {
 		ok: boolean;
@@ -186,6 +188,54 @@ export async function readCoreSessionSnapshot(
 	});
 }
 
+export function cancelContributionOwnerEviction(state: HubSessionState): void {
+	if (state.contributionOwnerEvictionTimer) {
+		clearTimeout(state.contributionOwnerEvictionTimer);
+		state.contributionOwnerEvictionTimer = undefined;
+	}
+}
+
+/**
+ * Session state without participants is kept alive only so a reconnecting
+ * client can reclaim its contributions; evict it once the grace passes so a
+ * long-lived hub does not accumulate an entry per disconnected session.
+ */
+export function scheduleContributionOwnerEviction(
+	ctx: HubTransportContext,
+	sessionId: string,
+	timeoutMs: number,
+): void {
+	const state = ctx.sessionState.get(sessionId);
+	if (
+		!state ||
+		state.participants.size > 0 ||
+		!state.clientContributionOwners?.size ||
+		state.contributionOwnerEvictionTimer
+	) {
+		return;
+	}
+	state.contributionOwnerEvictionTimer = setTimeout(() => {
+		state.contributionOwnerEvictionTimer = undefined;
+		if (
+			ctx.sessionState.get(sessionId) === state &&
+			state.participants.size === 0
+		) {
+			ctx.sessionState.delete(sessionId);
+		}
+	}, timeoutMs);
+}
+
+export function deleteSessionState(
+	ctx: HubTransportContext,
+	sessionId: string,
+): void {
+	const state = ctx.sessionState.get(sessionId);
+	if (state) {
+		cancelContributionOwnerEviction(state);
+	}
+	ctx.sessionState.delete(sessionId);
+}
+
 export function ensureSessionState(
 	ctx: HubTransportContext,
 	sessionId: string,
@@ -195,6 +245,7 @@ export function ensureSessionState(
 ): HubSessionState {
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
+		cancelContributionOwnerEviction(existing);
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
@@ -237,6 +288,7 @@ export function ensureSessionParticipant(
 ): HubSessionState {
 	const existing = ctx.sessionState.get(sessionId);
 	if (existing) {
+		cancelContributionOwnerEviction(existing);
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
