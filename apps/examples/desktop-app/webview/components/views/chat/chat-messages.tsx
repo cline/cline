@@ -41,6 +41,7 @@ import {
 	type ToolApprovalRequestItem,
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
+import { buildToolPresentation } from "./messages/tool-summaries";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -126,13 +127,16 @@ function ChatMessagesImpl({
 	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
-	// Core reports "running" as soon as the turn is dispatched, well before the
-	// first streamed chunk arrives, so keep the thinking indicator up until the
-	// model produces output (or something else needs the user's attention).
+	const lastToolInProgress = useMemo(
+		() =>
+			lastConversationMessage?.role === "tool" &&
+			buildToolPresentation(lastConversationMessage).inProgress,
+		[lastConversationMessage],
+	);
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
-		lastConversationMessage?.role === "user" &&
+		!lastToolInProgress &&
 		pendingToolApprovals.length === 0 &&
 		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
@@ -473,40 +477,11 @@ function ChatMessagesImpl({
 				<ConversationContent
 					className={cn(
 						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
-						showIdleDetails ? "p-0" : "px-6 py-6",
+						showIdleDetails ? "p-0" : "px-6 pt-6 pb-14",
 					)}
 				>
 					{showIdleDetails ? null : (
 						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
-							{pendingToolApprovals.length > 0 ? (
-								<ToolApprovalPanel
-									items={pendingToolApprovals}
-									onApprove={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"approving",
-											onApproveToolApproval,
-										)
-									}
-									onReject={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"rejecting",
-											onRejectToolApproval,
-										)
-									}
-									pendingActions={toolApprovalActions}
-									requestErrors={toolApprovalErrors}
-								/>
-							) : null}
-							{askQuestionItems.length > 0 ? (
-								<AgentAskQuestion
-									errors={askQuestionErrors}
-									items={askQuestionItems}
-									onAnswer={handleAskQuestionAnswer}
-									pendingAnswers={askQuestionActions}
-								/>
-							) : null}
 							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
@@ -593,6 +568,35 @@ function ChatMessagesImpl({
 									/>
 								);
 							})}
+							{pendingToolApprovals.length > 0 ? (
+								<ToolApprovalPanel
+									items={pendingToolApprovals}
+									onApprove={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"approving",
+											onApproveToolApproval,
+										)
+									}
+									onReject={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"rejecting",
+											onRejectToolApproval,
+										)
+									}
+									pendingActions={toolApprovalActions}
+									requestErrors={toolApprovalErrors}
+								/>
+							) : null}
+							{askQuestionItems.length > 0 ? (
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={askQuestionItems}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
+								/>
+							) : null}
 						</div>
 					)}
 					{showSwitchTransition ? (
@@ -619,8 +623,8 @@ function ChatMessagesImpl({
 					) : null}
 					{(status === "starting" || isAwaitingFirstOutput) &&
 					!isSessionSwitching ? (
-						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
+						<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+							<Loader2 className="size-4 animate-spin" />
 							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
 					) : null}
