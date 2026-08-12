@@ -24,6 +24,7 @@ import {
 	DefaultToolNames,
 	RunCommandExecutionController,
 } from "../../extensions/tools";
+import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executors/bash";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -143,6 +144,32 @@ import {
 } from "./runtime-host-support";
 
 const MAX_SCAN_LIMIT = 5000;
+
+// Detached-log retention timers are process-local and intentionally unref'd.
+// Recover once for every process that owns a LocalRuntimeHost so embedders get
+// the same restart cleanup guarantee as the Hub daemon. A failed scan is
+// cleared so a later host construction can retry it.
+let detachedCommandLogRecovery: Promise<void> | undefined;
+
+function recoverDetachedCommandLogsOnce(
+	logger?: BasicLogger,
+	telemetry?: ITelemetryService,
+): void {
+	if (detachedCommandLogRecovery) return;
+	detachedCommandLogRecovery = cleanupStaleDetachedCommandLogs()
+		.then(() => undefined)
+		.catch((error) => {
+			detachedCommandLogRecovery = undefined;
+			logger?.error?.("Detached command log recovery failed", { error });
+			captureSdkError(telemetry, {
+				component: "core",
+				operation: "command.detached_log_recovery",
+				error,
+				severity: "warn",
+				handled: true,
+			});
+		});
+}
 
 function asFiniteUsageNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
@@ -280,6 +307,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
+		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
