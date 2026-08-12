@@ -160,7 +160,10 @@ describe("createShellExecutor", () => {
 			timeoutMs: 2_000,
 			executionController: controller,
 			detachedLogRetentionMs: 250,
-			processStartTokenReader: (pid) => `test-process-${pid}`,
+			processStartTokenProbe: (pid) => ({
+				status: "found",
+				token: `test-process-${pid}`,
+			}),
 		});
 		const execution = shell(
 			{
@@ -234,7 +237,7 @@ describe("createShellExecutor", () => {
 		const detachabilityUpdates: boolean[] = [];
 		const shell = createShellExecutor({
 			executionController: controller,
-			processStartTokenReader: async () => {
+			processStartTokenProbe: async () => {
 				throw new Error("identity unavailable");
 			},
 		});
@@ -309,7 +312,7 @@ describe("createShellExecutor", () => {
 		);
 		const liveDirectory = join(tempDirectory, "cline-command-live");
 		const completedDirectory = join(tempDirectory, "cline-command-completed");
-		let liveProcessStartToken: string | undefined = "process-101";
+		let liveCommandExists = true;
 		try {
 			await Promise.all([mkdir(liveDirectory), mkdir(completedDirectory)]);
 			await Promise.all([
@@ -331,8 +334,10 @@ describe("createShellExecutor", () => {
 					tempDirectory,
 					retentionMs: 250,
 					nowMs: Date.now(),
-					processStartTokenReader: (pid) =>
-						pid === 101 ? liveProcessStartToken : undefined,
+					processStartTokenProbe: (pid) =>
+						pid === 101 && liveCommandExists
+							? { status: "found", token: "process-101" }
+							: { status: "missing" },
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(liveDirectory)).toBe(true);
@@ -349,7 +354,7 @@ describe("createShellExecutor", () => {
 			await expect.poll(() => fileExists(completedDirectory)).toBe(false);
 			expect(await fileExists(liveDirectory)).toBe(true);
 
-			liveProcessStartToken = undefined;
+			liveCommandExists = false;
 			await expect
 				.poll(() => fileExists(join(liveDirectory, "active-command.json")))
 				.toBe(false);
@@ -380,8 +385,10 @@ describe("createShellExecutor", () => {
 					tempDirectory,
 					retentionMs: 100,
 					nowMs: Date.now(),
-					processStartTokenReader: (pid) =>
-						pid === 303 ? "replacement-process" : undefined,
+					processStartTokenProbe: (pid) =>
+						pid === 303
+							? { status: "found", token: "replacement-process" }
+							: { status: "missing" },
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(reusedPidDirectory)).toBe(true);
@@ -392,6 +399,116 @@ describe("createShellExecutor", () => {
 				true,
 			);
 			await expect.poll(() => fileExists(reusedPidDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("preserves a live log through a transient identity probe failure", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-probe-recovery-"),
+		);
+		const directory = join(tempDirectory, "cline-command-probe-recovery");
+		let probeAvailable = false;
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "still running"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(404, "process-404"),
+				),
+			]);
+			const cleanupOptions = {
+				activeCommandPollIntervalMs: 60_000,
+				processProbeFailureGraceMs: 60_000,
+				processStartTokenProbe: () =>
+					probeAvailable
+						? ({ status: "found", token: "process-404" } as const)
+						: ({ status: "unavailable" } as const),
+				retentionMs: 100,
+				tempDirectory,
+			};
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					...cleanupOptions,
+					nowMs: 1_000,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
+			const failedMarker = JSON.parse(
+				await readFile(join(directory, "active-command.json"), "utf8"),
+			) as Record<string, unknown>;
+			expect(failedMarker.probeFailureStartedAtMs).toBe(1_000);
+
+			probeAvailable = true;
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					...cleanupOptions,
+					nowMs: 1_050,
+				}),
+			).resolves.toBe(0);
+			const recoveredMarker = JSON.parse(
+				await readFile(join(directory, "active-command.json"), "utf8"),
+			) as Record<string, unknown>;
+			expect(recoveredMarker.probeFailureStartedAtMs).toBeUndefined();
+			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("bounds retention when identity probing stays unavailable", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-probe-timeout-"),
+		);
+		const directory = join(tempDirectory, "cline-command-probe-timeout");
+		const cleanupOptions = {
+			activeCommandPollIntervalMs: 60_000,
+			processProbeFailureGraceMs: 1_000,
+			processStartTokenProbe: () => ({ status: "unavailable" as const }),
+			retentionMs: 100,
+			tempDirectory,
+		};
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "unverifiable command"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(505, "process-505"),
+				),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					...cleanupOptions,
+					nowMs: 2_000,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				true,
+			);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					...cleanupOptions,
+					nowMs: 3_001,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				false,
+			);
+			expect(await fileExists(join(directory, "completed-at"))).toBe(true);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					...cleanupOptions,
+					nowMs: 3_102,
+				}),
+			).resolves.toBe(1);
+			expect(await fileExists(directory)).toBe(false);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}
@@ -410,7 +527,7 @@ describe("createShellExecutor", () => {
 				writeFile(join(directory, "output.log"), "completed"),
 				writeFile(
 					join(directory, "active-command.json"),
-					detachedCommandMarker(404, "process-404"),
+					detachedCommandMarker(606, "process-606"),
 				),
 				writeFile(join(directory, "completed-at"), String(completedAtMs)),
 			]);
@@ -420,9 +537,9 @@ describe("createShellExecutor", () => {
 					tempDirectory,
 					retentionMs: 500,
 					nowMs: Date.now(),
-					processStartTokenReader: () => {
+					processStartTokenProbe: () => {
 						processProbeCount += 1;
-						return "process-404";
+						return { status: "found", token: "process-606" };
 					},
 				}),
 			).resolves.toBe(1);

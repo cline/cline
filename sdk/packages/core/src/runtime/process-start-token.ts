@@ -5,6 +5,13 @@ import { readFile } from "node:fs/promises";
 const PROCESS_PROBE_TIMEOUT_MS = 2_000;
 const PROCESS_PROBE_MAX_BUFFER_BYTES = 4_096;
 
+export type ProcessStartTokenProbeResult =
+	| { status: "found"; token: string }
+	| { status: "missing" }
+	| { status: "unavailable" };
+
+type ProcessExistence = "running" | "missing" | "unavailable";
+
 type ProcessStartCommand = {
 	file: string;
 	args: string[];
@@ -31,17 +38,45 @@ function resolveProcessStartCommand(pid: number): ProcessStartCommand {
 	};
 }
 
-function formatExternalProcessStartToken(output: string): string | undefined {
-	const startTime = output.trim();
-	return startTime ? `${process.platform}:${startTime}` : undefined;
+function getProcessExistence(pid: number): ProcessExistence {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return "missing";
+	try {
+		process.kill(pid, 0);
+		return "running";
+	} catch (error) {
+		const code =
+			error instanceof Error && "code" in error
+				? String((error as NodeJS.ErrnoException).code)
+				: undefined;
+		if (code === "ESRCH") return "missing";
+		if (code === "EPERM") return "running";
+		return "unavailable";
+	}
 }
 
-export function parseLinuxProcessStartToken(
-	stat: string,
-	bootId: string,
-): string | undefined {
+function classifyFailedProbe(pid: number): ProcessStartTokenProbeResult {
+	return getProcessExistence(pid) === "missing"
+		? { status: "missing" }
+		: { status: "unavailable" };
+}
+
+function formatExternalProcessStartToken(
+	output: string,
+): ProcessStartTokenProbeResult | undefined {
+	const startTime = output.trim();
+	return startTime
+		? { status: "found", token: `${process.platform}:${startTime}` }
+		: undefined;
+}
+
+type LinuxProcessStatResult =
+	| { status: "running"; startTime: string }
+	| { status: "missing" }
+	| { status: "unavailable" };
+
+function parseLinuxProcessStat(stat: string): LinuxProcessStatResult {
 	const commandEnd = stat.lastIndexOf(")");
-	if (commandEnd < 0) return undefined;
+	if (commandEnd < 0) return { status: "unavailable" };
 
 	// Fields after the command name begin at field 3 (state), so field 22
 	// (starttime) is index 19. Use the final ')' because Linux permits ')' in
@@ -50,12 +85,85 @@ export function parseLinuxProcessStartToken(
 		.slice(commandEnd + 1)
 		.trim()
 		.split(/\s+/);
-	if (["Z", "X", "x"].includes(fields[0] ?? "")) return undefined;
+	if (["Z", "X", "x"].includes(fields[0] ?? "")) {
+		return { status: "missing" };
+	}
 	const startTime = fields[19];
+	return startTime && /^\d+$/.test(startTime)
+		? { status: "running", startTime }
+		: { status: "unavailable" };
+}
+
+export function parseLinuxProcessStartToken(
+	stat: string,
+	bootId: string,
+): string | undefined {
+	const processStat = parseLinuxProcessStat(stat);
 	const normalizedBootId = bootId.trim();
-	return startTime && normalizedBootId
-		? `linux:${normalizedBootId}:${startTime}`
+	return processStat.status === "running" && normalizedBootId
+		? `linux:${normalizedBootId}:${processStat.startTime}`
 		: undefined;
+}
+
+function probeLinuxProcessStartToken(
+	pid: number,
+	read: (path: string) => string,
+): ProcessStartTokenProbeResult {
+	let stat: string;
+	try {
+		stat = read(`/proc/${pid}/stat`);
+	} catch {
+		return classifyFailedProbe(pid);
+	}
+	const processStat = parseLinuxProcessStat(stat);
+	if (processStat.status !== "running") return processStat;
+
+	let bootId: string;
+	try {
+		bootId = read("/proc/sys/kernel/random/boot_id").trim();
+	} catch {
+		return { status: "unavailable" };
+	}
+	return bootId
+		? {
+				status: "found",
+				token: `linux:${bootId}:${processStat.startTime}`,
+			}
+		: { status: "unavailable" };
+}
+
+/** Distinguishes an absent process from an unavailable identity probe. */
+export function probeProcessStartToken(
+	pid: number,
+): ProcessStartTokenProbeResult {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return { status: "missing" };
+
+	if (process.platform === "linux") {
+		return probeLinuxProcessStartToken(pid, (path) =>
+			readFileSync(path, "utf8"),
+		);
+	}
+
+	const existence = getProcessExistence(pid);
+	if (existence !== "running") return { status: existence };
+	try {
+		const command = resolveProcessStartCommand(pid);
+		const result = spawnSync(command.file, command.args, {
+			encoding: "utf8",
+			env: command.env,
+			maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
+			stdio: ["ignore", "pipe", "ignore"],
+			timeout: PROCESS_PROBE_TIMEOUT_MS,
+			windowsHide: true,
+		});
+		if (result.status === 0 && typeof result.stdout === "string") {
+			const token = formatExternalProcessStartToken(result.stdout);
+			if (token) return token;
+		}
+		return classifyFailedProbe(pid);
+	} catch {
+		return classifyFailedProbe(pid);
+	}
 }
 
 /**
@@ -67,49 +175,44 @@ export function parseLinuxProcessStartToken(
  * that inherited the same PID.
  */
 export function getProcessStartToken(pid: number): string | undefined {
-	if (!Number.isSafeInteger(pid) || pid <= 0) {
-		return undefined;
-	}
-
-	try {
-		if (process.platform === "linux") {
-			const stat = readFileSync(`/proc/${pid}/stat`, "utf8");
-			const bootId = readFileSync("/proc/sys/kernel/random/boot_id", "utf8");
-			return parseLinuxProcessStartToken(stat, bootId);
-		}
-
-		const command = resolveProcessStartCommand(pid);
-		const result = spawnSync(command.file, command.args, {
-			encoding: "utf8",
-			env: command.env,
-			maxBuffer: PROCESS_PROBE_MAX_BUFFER_BYTES,
-			stdio: ["ignore", "pipe", "ignore"],
-			timeout: PROCESS_PROBE_TIMEOUT_MS,
-			windowsHide: true,
-		});
-		return result.status === 0 && typeof result.stdout === "string"
-			? formatExternalProcessStartToken(result.stdout)
-			: undefined;
-	} catch {
-		return undefined;
-	}
+	const result = probeProcessStartToken(pid);
+	return result.status === "found" ? result.token : undefined;
 }
 
-/** Non-blocking process-token probe for latency-sensitive runtime paths. */
-export async function getProcessStartTokenAsync(
+/** Non-blocking probe for latency-sensitive runtime paths. */
+export async function probeProcessStartTokenAsync(
 	pid: number,
-): Promise<string | undefined> {
-	if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
+): Promise<ProcessStartTokenProbeResult> {
+	if (!Number.isSafeInteger(pid) || pid <= 0) return { status: "missing" };
 
-	try {
-		if (process.platform === "linux") {
-			const [stat, bootId] = await Promise.all([
-				readFile(`/proc/${pid}/stat`, "utf8"),
-				readFile("/proc/sys/kernel/random/boot_id", "utf8"),
-			]);
-			return parseLinuxProcessStartToken(stat, bootId);
+	if (process.platform === "linux") {
+		let stat: string;
+		try {
+			stat = await readFile(`/proc/${pid}/stat`, "utf8");
+		} catch {
+			return classifyFailedProbe(pid);
 		}
+		const processStat = parseLinuxProcessStat(stat);
+		if (processStat.status !== "running") return processStat;
 
+		try {
+			const bootId = (
+				await readFile("/proc/sys/kernel/random/boot_id", "utf8")
+			).trim();
+			return bootId
+				? {
+						status: "found",
+						token: `linux:${bootId}:${processStat.startTime}`,
+					}
+				: { status: "unavailable" };
+		} catch {
+			return { status: "unavailable" };
+		}
+	}
+
+	const existence = getProcessExistence(pid);
+	if (existence !== "running") return { status: existence };
+	try {
 		const command = resolveProcessStartCommand(pid);
 		return await new Promise((resolve) => {
 			execFile(
@@ -123,15 +226,22 @@ export async function getProcessStartTokenAsync(
 					windowsHide: true,
 				},
 				(error, stdout) => {
-					resolve(
-						error || typeof stdout !== "string"
-							? undefined
-							: formatExternalProcessStartToken(stdout),
-					);
+					const token =
+						!error && typeof stdout === "string"
+							? formatExternalProcessStartToken(stdout)
+							: undefined;
+					resolve(token ?? classifyFailedProbe(pid));
 				},
 			);
 		});
 	} catch {
-		return undefined;
+		return classifyFailedProbe(pid);
 	}
+}
+
+export async function getProcessStartTokenAsync(
+	pid: number,
+): Promise<string | undefined> {
+	const result = await probeProcessStartTokenAsync(pid);
+	return result.status === "found" ? result.token : undefined;
 }

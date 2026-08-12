@@ -495,6 +495,9 @@ export type {
 export {
 	getProcessStartToken,
 	getProcessStartTokenAsync,
+	type ProcessStartTokenProbeResult,
+	probeProcessStartToken,
+	probeProcessStartTokenAsync,
 } from "./runtime/process-start-token";
 export {
 	formatRulesForSystemPrompt,

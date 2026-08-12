@@ -3,6 +3,8 @@ import {
 	getProcessStartToken,
 	getProcessStartTokenAsync,
 	parseLinuxProcessStartToken,
+	probeProcessStartToken,
+	probeProcessStartTokenAsync,
 } from "./process-start-token";
 
 describe("process start tokens", () => {
@@ -11,6 +13,10 @@ describe("process start tokens", () => {
 		expect(getProcessStartToken(-1)).toBeUndefined();
 		expect(getProcessStartToken(Number.MAX_SAFE_INTEGER + 1)).toBeUndefined();
 		await expect(getProcessStartTokenAsync(0)).resolves.toBeUndefined();
+		expect(probeProcessStartToken(0)).toEqual({ status: "missing" });
+		await expect(probeProcessStartTokenAsync(0)).resolves.toEqual({
+			status: "missing",
+		});
 	});
 
 	it("parses Linux start ticks when the command name contains a closing parenthesis", () => {
@@ -46,6 +52,14 @@ describe("process start tokens", () => {
 			await expect(getProcessStartTokenAsync(process.pid)).resolves.toBe(
 				synchronous,
 			);
+			expect(probeProcessStartToken(process.pid)).toEqual({
+				status: "found",
+				token: synchronous,
+			});
+			await expect(probeProcessStartTokenAsync(process.pid)).resolves.toEqual({
+				status: "found",
+				token: synchronous,
+			});
 		},
 	);
 });

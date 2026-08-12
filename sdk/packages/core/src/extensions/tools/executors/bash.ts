@@ -23,7 +23,10 @@ import {
 	getDefaultShell,
 	getShellInvocation,
 } from "@cline/shared";
-import { getProcessStartTokenAsync } from "../../../runtime/process-start-token";
+import {
+	type ProcessStartTokenProbeResult,
+	probeProcessStartTokenAsync,
+} from "../../../runtime/process-start-token";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {
@@ -35,6 +38,7 @@ import type { RunCommandExecutionController } from "./run-command-execution-cont
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS = 60_000;
+const DEFAULT_PROCESS_PROBE_FAILURE_GRACE_MS = 5 * 60_000;
 const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
@@ -43,16 +47,17 @@ const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
 
 type CommandProgressStream = "stdout" | "stderr";
 
-export type ProcessStartTokenReader = (
+export type ProcessStartTokenProbe = (
 	pid: number,
-) => string | undefined | Promise<string | undefined>;
+) => ProcessStartTokenProbeResult | Promise<ProcessStartTokenProbeResult>;
 
 export interface DetachedCommandLogCleanupOptions {
 	tempDirectory?: string;
 	retentionMs?: number;
 	nowMs?: number;
-	processStartTokenReader?: ProcessStartTokenReader;
+	processStartTokenProbe?: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs?: number;
+	processProbeFailureGraceMs?: number;
 }
 
 type DetachedCommandMarker = {
@@ -61,6 +66,7 @@ type DetachedCommandMarker = {
 	pid: number;
 	processStartToken: string;
 	detachedAtMs: number;
+	probeFailureStartedAtMs?: number;
 };
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
@@ -75,11 +81,18 @@ function resolveActiveCommandPollIntervalMs(value: number | undefined): number {
 		: DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS;
 }
 
+function resolveProcessProbeFailureGraceMs(value: number | undefined): number {
+	return typeof value === "number" && Number.isFinite(value)
+		? Math.max(0, value)
+		: DEFAULT_PROCESS_PROBE_FAILURE_GRACE_MS;
+}
+
 type ResolvedDetachedCommandLogCleanupOptions = {
 	retentionMs: number;
 	nowMs: number;
-	readProcessStartToken: ProcessStartTokenReader;
+	probeProcessStartToken: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs: number;
+	processProbeFailureGraceMs: number;
 };
 
 function parseDetachedCommandMarker(
@@ -97,7 +110,11 @@ function parseDetachedCommandMarker(
 			marker.processStartToken.length === 0 ||
 			typeof marker.detachedAtMs !== "number" ||
 			!Number.isFinite(marker.detachedAtMs) ||
-			marker.detachedAtMs < 0
+			marker.detachedAtMs < 0 ||
+			(marker.probeFailureStartedAtMs !== undefined &&
+				(typeof marker.probeFailureStartedAtMs !== "number" ||
+					!Number.isFinite(marker.probeFailureStartedAtMs) ||
+					marker.probeFailureStartedAtMs < 0))
 		) {
 			return undefined;
 		}
@@ -184,20 +201,58 @@ async function reconcileDetachedCommandLogDirectory(
 	} else if (activeCommandText !== undefined) {
 		const marker = parseDetachedCommandMarker(activeCommandText);
 		if (marker) {
-			const runningProcessStartToken = await options.readProcessStartToken(
-				marker.pid,
-			);
-			if (runningProcessStartToken === marker.processStartToken) {
+			const probe = await options.probeProcessStartToken(marker.pid);
+			if (
+				probe.status === "found" &&
+				probe.token === marker.processStartToken
+			) {
 				// The detached command, rather than the host that launched it, owns the
 				// active lifecycle. Matching both PID and kernel start token prevents a
 				// later process that reuses the PID from extending this log's lifetime.
+				if (marker.probeFailureStartedAtMs !== undefined) {
+					const { probeFailureStartedAtMs: _failure, ...recoveredMarker } =
+						marker;
+					writeLifecycleMarker(
+						activeCommandPath,
+						`${JSON.stringify(recoveredMarker)}\n`,
+					);
+				}
 				scheduleActiveCommandLogReconciliation(directory, options);
 				return false;
 			}
+			if (probe.status === "unavailable") {
+				const recordedFailureStartedAtMs = marker.probeFailureStartedAtMs;
+				const failureStartedAtMs =
+					recordedFailureStartedAtMs === undefined ||
+					recordedFailureStartedAtMs > options.nowMs
+						? options.nowMs
+						: recordedFailureStartedAtMs;
+				if (failureStartedAtMs !== recordedFailureStartedAtMs) {
+					writeLifecycleMarker(
+						activeCommandPath,
+						`${JSON.stringify({
+							...marker,
+							probeFailureStartedAtMs: failureStartedAtMs,
+						})}\n`,
+					);
+				}
+				const remainingGraceMs =
+					failureStartedAtMs +
+					options.processProbeFailureGraceMs -
+					options.nowMs;
+				if (remainingGraceMs > 0) {
+					scheduleActiveCommandLogReconciliation(
+						directory,
+						options,
+						Math.min(options.activeCommandPollIntervalMs, remainingGraceMs),
+					);
+					return false;
+				}
+			}
 		}
-		// Missing, mismatched, or unverifiable identity cannot safely prove this
-		// is still the original process. Begin bounded retention instead of
-		// falling back to PID-only polling.
+		// A missing process, mismatched identity, malformed marker, or a probe that
+		// exceeded its persisted retry grace begins bounded retention. Never fall
+		// back to PID-only polling.
 		writeLifecycleMarker(completedAtPath, String(options.nowMs));
 		await rm(activeCommandPath, { force: true });
 		retentionStartedAtMs = options.nowMs;
@@ -229,13 +284,14 @@ async function reconcileDetachedCommandLogDirectory(
 function scheduleActiveCommandLogReconciliation(
 	directory: string,
 	options: ResolvedDetachedCommandLogCleanupOptions,
+	delayMs = options.activeCommandPollIntervalMs,
 ): void {
 	const timer = setTimeout(() => {
 		void reconcileDetachedCommandLogDirectory(directory, {
 			...options,
 			nowMs: Date.now(),
 		}).catch(() => undefined);
-	}, options.activeCommandPollIntervalMs);
+	}, delayMs);
 	timer.unref();
 }
 
@@ -252,10 +308,13 @@ export async function cleanupStaleDetachedCommandLogs(
 	const tempDirectory = options.tempDirectory ?? tmpdir();
 	const retentionMs = resolveDetachedLogRetentionMs(options.retentionMs);
 	const nowMs = options.nowMs ?? Date.now();
-	const readProcessStartToken =
-		options.processStartTokenReader ?? getProcessStartTokenAsync;
+	const probeProcessStartToken =
+		options.processStartTokenProbe ?? probeProcessStartTokenAsync;
 	const activeCommandPollIntervalMs = resolveActiveCommandPollIntervalMs(
 		options.activeCommandPollIntervalMs,
+	);
+	const processProbeFailureGraceMs = resolveProcessProbeFailureGraceMs(
+		options.processProbeFailureGraceMs,
 	);
 	let entries: Dirent[];
 	try {
@@ -278,8 +337,9 @@ export async function cleanupStaleDetachedCommandLogs(
 				await reconcileDetachedCommandLogDirectory(directory, {
 					retentionMs,
 					nowMs,
-					readProcessStartToken,
+					probeProcessStartToken,
 					activeCommandPollIntervalMs,
+					processProbeFailureGraceMs,
 				})
 			) {
 				removed += 1;
@@ -360,7 +420,7 @@ export interface ShellExecutorOptions {
 	detachedLogRetentionMs?: number;
 
 	/** Process identity provider used to enable safe command detachment. */
-	processStartTokenReader?: ProcessStartTokenReader;
+	processStartTokenProbe?: ProcessStartTokenProbe;
 }
 
 interface SpawnConfig {
@@ -643,7 +703,7 @@ function spawnAndCollect(
 	combineOutput: boolean,
 	detachedLogRetentionMs: number,
 	executionController?: RunCommandExecutionController,
-	processStartTokenReader: ProcessStartTokenReader = getProcessStartTokenAsync,
+	processStartTokenProbe: ProcessStartTokenProbe = probeProcessStartTokenAsync,
 ): Promise<string> {
 	if (context.signal?.aborted) {
 		return Promise.reject(new Error("Command was aborted"));
@@ -830,9 +890,9 @@ function spawnAndCollect(
 				return;
 			}
 			void (async () => {
-				const token = await processStartTokenReader(childPid);
+				const probe = await processStartTokenProbe(childPid);
 				if (
-					!token ||
+					probe.status !== "found" ||
 					killed ||
 					settled ||
 					child.exitCode !== null ||
@@ -840,7 +900,7 @@ function spawnAndCollect(
 				) {
 					return;
 				}
-				processStartToken = token;
+				processStartToken = probe.token;
 				detachable = true;
 				unregisterExecution = executionController.register({
 					executionId,
@@ -982,7 +1042,7 @@ export function createShellExecutor(
 		env = {},
 		combineOutput = true,
 		executionController,
-		processStartTokenReader = getProcessStartTokenAsync,
+		processStartTokenProbe = probeProcessStartTokenAsync,
 	} = options;
 	const detachedLogRetentionMs = resolveDetachedLogRetentionMs(
 		options.detachedLogRetentionMs,
@@ -1011,7 +1071,7 @@ export function createShellExecutor(
 			combineOutput,
 			detachedLogRetentionMs,
 			executionController,
-			processStartTokenReader,
+			processStartTokenProbe,
 		);
 	};
 }

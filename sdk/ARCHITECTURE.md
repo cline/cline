@@ -179,7 +179,11 @@ same detachment and restart lifecycle instead of relying on a daemon-specific
 entrypoint. Active-command markers pair the PID with a process-generation start
 token, preventing an unrelated process that later reuses the PID from extending
 the log lifetime. Completion markers distinguish a live, possibly silent command
-from a completed log. A host exit alone never starts the retention window for a
+from a completed log. Process probes distinguish an absent process from an
+unavailable identity provider. Transient probe failures retain the active marker
+through a persisted, bounded retry grace; recovery clears that failure state,
+while exhausting the grace starts normal retention so probe failures cannot leak
+logs indefinitely. A host exit alone never starts the retention window for a
 surviving command; the replacement host continues polling the process identity
 and begins retention only after the command ends. A detached client connection
 alone never changes process ownership or command execution.
