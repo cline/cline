@@ -11,9 +11,11 @@ import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
+declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
 
 const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
 const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
+const HUB_BUILD_EPOCH_ENV = "CLINE_HUB_BUILD_EPOCH_MS";
 const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
@@ -26,6 +28,7 @@ export interface HubServerDiscoveryRecord {
 	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
+	buildEpochMs?: number;
 	authToken: string;
 	host: string;
 	port: number;
@@ -42,6 +45,7 @@ export type HubServerProbeRecord = {
 	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
+	buildEpochMs?: number;
 	host: string;
 	port: number;
 	url: string;
@@ -126,6 +130,23 @@ export function resolveHubBuildId(): string {
 	return embedded || `source-${String(corePackage.version)}`;
 }
 
+/**
+ * When this SDK build was produced, embedded at bundle time. Orders builds so
+ * managed-Hub handling can distinguish a newer daemon (attach and prompt the
+ * user to update) from a stale one (retire and replace). Undefined when
+ * running from unbundled sources, where no meaningful ordering exists.
+ */
+export function resolveHubBuildEpochMs(): number | undefined {
+	const configured = Number(process.env[HUB_BUILD_EPOCH_ENV]);
+	if (Number.isFinite(configured) && configured > 0) {
+		return configured;
+	}
+	return typeof __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__ === "number" &&
+		Number.isFinite(__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__)
+		? __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__
+		: undefined;
+}
+
 export type ManagedHubCompatibilityResult =
 	| { compatible: true }
 	| {
@@ -159,6 +180,43 @@ export function getManagedHubCompatibility(
 		return { compatible: false, reason: "build_mismatch" };
 	}
 	return { compatible: true };
+}
+
+/**
+ * Whether a client may keep using a managed local Hub instead of retiring it.
+ *
+ * Same build: always reusable. Different build: reusable only when the Hub
+ * was produced *after* this client's own build (another installation
+ * upgraded the shared Hub) - the daemon is then running newer code, so
+ * replacing it would be a downgrade; the client attaches over the compatible
+ * wire protocol and the build-mismatch watcher prompts the user to update.
+ * A Hub that is older, unordered, or missing build metadata is not reusable
+ * and gets retired and replaced, preserving the stale-daemon fix.
+ */
+export function isManagedHubReusable(
+	record: HubProtocolMetadata & { buildId?: string; buildEpochMs?: number },
+	options?: { expectedBuildId?: string; expectedBuildEpochMs?: number },
+): boolean {
+	const compatibility = getManagedHubCompatibility(
+		record,
+		options?.expectedBuildId ?? resolveHubBuildId(),
+	);
+	if (compatibility.compatible) {
+		return true;
+	}
+	if (compatibility.reason !== "build_mismatch") {
+		return false;
+	}
+	const hubEpochMs = record.buildEpochMs;
+	const expectedEpochMs =
+		options?.expectedBuildEpochMs ?? resolveHubBuildEpochMs();
+	return (
+		typeof hubEpochMs === "number" &&
+		Number.isFinite(hubEpochMs) &&
+		typeof expectedEpochMs === "number" &&
+		Number.isFinite(expectedEpochMs) &&
+		hubEpochMs > expectedEpochMs
+	);
 }
 
 export function resolveHubOwnerContext(
@@ -222,6 +280,10 @@ export async function readHubDiscovery(
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			buildEpochMs:
+				typeof parsed.buildEpochMs === "number"
+					? parsed.buildEpochMs
+					: undefined,
 			authToken: parsed.authToken,
 			host: parsed.host,
 			port: parsed.port,
@@ -419,6 +481,10 @@ export async function probeHubServer(
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			buildEpochMs:
+				typeof parsed.buildEpochMs === "number"
+					? parsed.buildEpochMs
+					: undefined,
 			host: parsed.host,
 			port: parsed.port,
 			url: parsed.url,

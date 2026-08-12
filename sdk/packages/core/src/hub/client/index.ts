@@ -18,6 +18,7 @@ import {
 	clearHubDiscovery,
 	getManagedHubCompatibility,
 	type HubOwnerContext,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
@@ -863,16 +864,27 @@ async function probeCompatibleHubUrl(
 			url: normalized,
 		};
 	}
-	const compatibility = options?.requireCurrentBuild
-		? getManagedHubCompatibility(record, resolveHubBuildId())
-		: isHubProtocolCompatible(record);
-	if (!compatibility.compatible) {
+	if (options?.requireCurrentBuild) {
+		// Managed Hubs: reusable when the build matches or the Hub is a newer
+		// build (another installation upgraded it - attach and let the
+		// build-mismatch watcher prompt the user instead of downgrading it).
+		const expectedBuildId = resolveHubBuildId();
+		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
+		if (
+			!compatibility.compatible &&
+			!isManagedHubReusable(record, { expectedBuildId })
+		) {
+			return {
+				status:
+					compatibility.reason === "unsupported_protocol"
+						? "protocol_mismatch"
+						: "build_mismatch",
+				url: normalized,
+			};
+		}
+	} else if (!isHubProtocolCompatible(record).compatible) {
 		return {
-			status:
-				compatibility.reason === "build_mismatch" ||
-				compatibility.reason === "missing_build"
-					? "build_mismatch"
-					: "protocol_mismatch",
+			status: "protocol_mismatch",
 			url: normalized,
 		};
 	}

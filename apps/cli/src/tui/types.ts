@@ -185,6 +185,11 @@ export interface TuiProps {
 	}) => Promise<PendingPromptMutationResult>;
 	onAbort: () => boolean;
 	onExit: () => void;
+	/**
+	 * Exit the TUI and run the CLI self-update afterwards. Invoked when the
+	 * user accepts the "Hub was updated by another Cline installation" dialog.
+	 */
+	onHubUpdateRestart?: () => void;
 	onRunningChange: (isRunning: boolean) => void;
 	onTurnErrorReported: (reported: boolean) => void;
 	onAutoApproveChange: (enabled: boolean) => void;

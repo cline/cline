@@ -15,10 +15,11 @@ import {
 	clearHubDiscoveryIfOwned,
 	createHubAuthToken,
 	createHubServerUrl,
-	getManagedHubCompatibility,
 	type HubServerDiscoveryRecord,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
+	resolveHubBuildEpochMs,
 	resolveHubBuildId,
 	resolveHubOwnerContext,
 	withHubStartupLock,
@@ -340,6 +341,7 @@ export async function startHubWebSocketServer(
 	let port = requestedPort;
 	let url = createHubServerUrl(host, requestedPort, pathname);
 	const buildId = resolveHubBuildId();
+	const buildEpochMs = resolveHubBuildEpochMs();
 	const authToken = createHubAuthToken();
 	const transport = new HubServerTransport(options);
 	await transport.start();
@@ -357,6 +359,7 @@ export async function startHubWebSocketServer(
 		capabilities: HUB_CAPABILITIES,
 		coreVersion: corePackage.version,
 		buildId,
+		buildEpochMs,
 		pid: process.pid,
 		startedAt,
 	} as const;
@@ -458,6 +461,7 @@ export async function startHubWebSocketServer(
 				maxClientProtocolVersion: versionPayload.maxClientProtocolVersion,
 				coreVersion: versionPayload.coreVersion,
 				buildId: versionPayload.buildId,
+				buildEpochMs: versionPayload.buildEpochMs,
 				host,
 				port,
 				url,
@@ -656,6 +660,7 @@ export async function startHubWebSocketServer(
 			capabilities: [...versionPayload.capabilities],
 			coreVersion: corePackage.version,
 			buildId,
+			buildEpochMs,
 			authToken,
 			host,
 			port,
@@ -759,7 +764,7 @@ export async function ensureHubWebSocketServer(
 			});
 			if (
 				healthy?.url &&
-				getManagedHubCompatibility(healthy, resolveHubBuildId()).compatible &&
+				isManagedHubReusable(healthy) &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discovered.authToken,
 				}))

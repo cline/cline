@@ -487,6 +487,39 @@ describe("hub server startup", () => {
 		}
 	});
 
+	it("reuses managed discovery from a newer build instead of starting a rival", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-newer-build");
+		vi.stubEnv("CLINE_HUB_BUILD_ID", "newer-build");
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "2000");
+		try {
+			const newer = await startHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			servers.add(newer);
+
+			vi.stubEnv("CLINE_HUB_BUILD_ID", "current-build");
+			vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("reuse");
+			expect(result.url).toBe(newer.url);
+		} finally {
+			vi.unstubAllEnvs();
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
 	it("shuts down active server through the shutdown endpoint", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
 		const onShutdownRequested = vi.fn();
