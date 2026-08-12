@@ -188,11 +188,21 @@ async function raceBudget<T>(
 	}
 }
 
+/** At most this many lstat calls are issued concurrently by the size scan. */
+const STAT_SCAN_CONCURRENCY = 32;
+
 type SnapshotOptions = {
 	cwd: string;
 	scratchDir: string;
 	maxUntrackedFileBytes: number;
 	budget: SnapshotBudget;
+	/**
+	 * Cross-turn guard owned by the hook instance. An abandoned (timed-out)
+	 * stat scan cannot be cancelled, so while one is still pending no new scan
+	 * may start — otherwise every turn against a stalled filesystem would pile
+	 * another batch of in-flight syscalls onto the same threadpool.
+	 */
+	inflight: { statScan?: Promise<void> };
 };
 
 /**
@@ -209,7 +219,15 @@ type SnapshotOptions = {
 async function createUntrackedParentCommit(
 	options: SnapshotOptions,
 ): Promise<{ commit?: string; skipped: string[] }> {
-	const { cwd, scratchDir, maxUntrackedFileBytes, budget } = options;
+	const { cwd, scratchDir, maxUntrackedFileBytes, budget, inflight } = options;
+	if (inflight.statScan) {
+		// A previous turn's scan is still stuck in the filesystem. It clears
+		// itself when it finally settles; until then the caller degrades to a
+		// HEAD checkpoint rather than stacking another batch of syscalls.
+		throw new Error(
+			"previous checkpoint stat scan has not finished; skipping snapshot",
+		);
+	}
 	const listing = await execFile(
 		"git",
 		["-C", cwd, "ls-files", "--others", "--exclude-standard", "-z"],
@@ -222,24 +240,40 @@ async function createUntrackedParentCommit(
 	const untrackedFiles = listing.stdout.split("\0").filter(Boolean);
 	const skipped: string[] = [];
 	const eligible: string[] = [];
-	await raceBudget(
-		budget,
-		Promise.all(
-			untrackedFiles.map(async (path) => {
-				try {
-					const stats = await lstat(join(cwd, path));
-					if (stats.isFile() && stats.size > maxUntrackedFileBytes) {
-						skipped.push(path);
-						return;
+	// Bounded worker pool: an abandoned scan then holds at most
+	// STAT_SCAN_CONCURRENCY lstat calls in flight, not one per file. The
+	// mappers never reject (both branches catch), so the pool only resolves.
+	let nextIndex = 0;
+	const statScan = Promise.all(
+		Array.from(
+			{ length: Math.min(STAT_SCAN_CONCURRENCY, untrackedFiles.length) },
+			async () => {
+				while (nextIndex < untrackedFiles.length) {
+					const path = untrackedFiles[nextIndex];
+					nextIndex += 1;
+					if (path === undefined) continue;
+					try {
+						const stats = await lstat(join(cwd, path));
+						if (stats.isFile() && stats.size > maxUntrackedFileBytes) {
+							skipped.push(path);
+							continue;
+						}
+					} catch {
+						// Vanished between listing and stat — nothing to snapshot.
+						continue;
 					}
-				} catch {
-					// Vanished between listing and stat — nothing to snapshot.
-					return;
+					eligible.push(path);
 				}
-				eligible.push(path);
-			}),
+			},
 		),
-	);
+	).then(() => undefined);
+	inflight.statScan = statScan;
+	statScan.finally(() => {
+		if (inflight.statScan === statScan) {
+			inflight.statScan = undefined;
+		}
+	});
+	await raceBudget(budget, statScan);
 	skipped.sort();
 	eligible.sort();
 	if (eligible.length === 0) {
@@ -522,6 +556,8 @@ export function createCheckpointHooks(
 	// Paths already warn-logged as skipped, so a file that stays over the cap
 	// for the whole session produces one warning, not one per turn.
 	const warnedSkipped = new Set<string>();
+	// See SnapshotOptions.inflight — survives across turns of this session.
+	const inflight: { statScan?: Promise<void> } = {};
 
 	const ensureGitRepository = async (): Promise<boolean> => {
 		// Only cache the positive answer: a cwd that is not a git repo can
@@ -599,6 +635,7 @@ export function createCheckpointHooks(
 					scratchDir: checkpointScratchDir(options.sessionId),
 					maxUntrackedFileBytes,
 					budget: { timeoutAt: startedAt + gitTimeoutMs },
+					inflight,
 				},
 				message,
 			);

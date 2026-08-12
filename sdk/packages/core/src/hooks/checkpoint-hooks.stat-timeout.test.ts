@@ -17,7 +17,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 	return {
 		...actual,
 		// A promise with no timer/handle: keeps nothing alive, never settles.
-		lstat: () => new Promise<never>(() => {}),
+		lstat: vi.fn(() => new Promise<never>(() => {})),
 	};
 });
 
@@ -66,31 +66,38 @@ describe("checkpoint stat-scan timeout", () => {
 				},
 			});
 
-			const messages = [userMessage("first request")];
-			const snapshot = {
-				agentId: "agent_1",
-				parentAgentId: undefined,
-				conversationId: "conv_1",
-				runId: "run_1",
-				status: "running" as const,
-				iteration: 1,
-				messages,
-				pendingToolCalls: [],
-				usage: {
-					inputTokens: 0,
-					outputTokens: 0,
-					cacheReadTokens: 0,
-					cacheWriteTokens: 0,
-				},
+			const runTurn = async (messages: AgentMessage[]) => {
+				const snapshot = {
+					agentId: "agent_1",
+					parentAgentId: undefined,
+					conversationId: "conv_1",
+					runId: "run_1",
+					status: "running" as const,
+					iteration: 1,
+					messages,
+					pendingToolCalls: [],
+					usage: {
+						inputTokens: 0,
+						outputTokens: 0,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+					},
+				};
+				await hooks.beforeRun?.({
+					snapshot: {
+						...snapshot,
+						iteration: 0,
+						messages: messages.slice(0, -1),
+					},
+				});
+				await hooks.beforeModel?.({
+					snapshot,
+					request: { messages: [], tools: [] },
+				});
 			};
+
 			const startedAt = performance.now();
-			await hooks.beforeRun?.({
-				snapshot: { ...snapshot, iteration: 0, messages: [] },
-			});
-			await hooks.beforeModel?.({
-				snapshot,
-				request: { messages: [], tools: [] },
-			});
+			await runTurn([userMessage("first request")]);
 			const elapsed = performance.now() - startedAt;
 
 			// The turn is bounded by the budget instead of hanging on lstat, and
@@ -99,6 +106,18 @@ describe("checkpoint stat-scan timeout", () => {
 			const checkpoint = metadata?.checkpoint as CheckpointMetadata;
 			expect(checkpoint.latest.kind).toBe("commit");
 			expect(checkpoint.latest.ref).toMatch(/^[0-9a-f]{40}$/);
+
+			// The abandoned scan cannot be cancelled, so a later turn must not
+			// stack another lstat batch onto the stalled filesystem: the guard
+			// throws before scanning and the turn degrades to HEAD again.
+			const mockedFs = await import("node:fs/promises");
+			const lstatCallsAfterFirstTurn = vi.mocked(mockedFs.lstat).mock.calls
+				.length;
+			expect(lstatCallsAfterFirstTurn).toBeGreaterThan(0);
+			await runTurn([userMessage("first request"), userMessage("second")]);
+			expect(vi.mocked(mockedFs.lstat).mock.calls.length).toBe(
+				lstatCallsAfterFirstTurn,
+			);
 		} finally {
 			await realFs.rm(cwd, { recursive: true, force: true });
 		}
