@@ -1,5 +1,52 @@
 # Changelog
 
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
+## [4.1.7]
+
+### Added
+
+- Restore the "View Changes" button on completion rows, backed by SDK checkpoints, so you can review everything a task touched from the completion card.
+- Bring back a copy button on turn-final response rows.
+- Support pre-registered OAuth clients for remote MCP servers, for setups where dynamic client registration isn't available.
+
+### Changed
+
+- Fade the "View Changes" button until changes since the last message are confirmed, and hide it entirely when there is nothing to show.
+- Centralize plugin settings and contributions, with host-aware snapshots and atomic plugin toggles.
+- Carry execution context in scheduled run reports — readable headers, schedule metadata, durations, and lifecycle error details.
+
+### Fixed
+
+- Preserve prompts queued during a turn when that turn is interrupted: they survive aborts, are drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped.
+- Keep session context durable across aborts and hub restarts, so an interrupted session resumes with the state it had.
+- Settle the turn phase when a mode switch aborts a running turn.
+- Report queued-turn failures as `run.failed` instead of letting them complete silently.
+- Keep a hung MCP server from taking down session creation, and give stdio servers that were never configured a 30-second initialize budget instead of blocking indefinitely.
+- Surface OAuth authorization for SSE MCP servers on a 401 instead of failing outright.
+- Route LiteLLM through Chat Completions instead of the Responses API, fixing requests against LiteLLM proxies.
+- Retry network interruptions that happen mid-stream but before any model output, instead of failing the turn.
+- Use the configured fetch for Vertex ADC token refreshes, so they work behind proxies and custom transports.
+- Include files that were untracked when a snapshot was taken in checkpoint diffs, and pick up checkpoints when git is initialized part-way through a session.
+- Fall back to the session cwd or Desktop for @-mention file search in empty windows.
+- Never run a foreign compiled plugin-sandbox bootstrap for a source host.
+
 ## [4.1.6]
 
 ### Added

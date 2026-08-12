@@ -13,6 +13,10 @@ import {
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
+import {
+	armHubDaemonShutdownWatchdog,
+	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+} from "./shutdown-watchdog";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -74,6 +78,31 @@ function parseArgs(argv: string[]): {
 	return { cwd, host, port, pathname };
 }
 
+/**
+ * Abort-family rejections are expected daemon noise, not fatal faults: when a
+ * user cancels a turn, in-flight provider streams and fetches can reject on a
+ * floating promise after the run has already settled (DOMException
+ * "AbortError" from fetch/undici, Node ABORT_ERR, or the runtime's own
+ * AgentRuntimeAbortError). Exiting on those kills every resident session in
+ * the daemon — the next message from any connected client then lands on
+ * `session_not_found` and forces a rebuild from disk.
+ */
+export function isAbortRejection(reason: unknown): boolean {
+	if (reason instanceof AgentRuntimeAbortError) {
+		return true;
+	}
+	if (reason instanceof Error) {
+		if (reason.name === "AbortError") {
+			return true;
+		}
+		const code = (reason as { code?: unknown }).code;
+		if (code === "ABORT_ERR") {
+			return true;
+		}
+	}
+	return false;
+}
+
 async function main(): Promise<void> {
 	const options = parseArgs(process.argv.slice(2));
 	process.chdir(options.cwd);
@@ -85,10 +114,12 @@ async function main(): Promise<void> {
 	});
 
 	const daemonTelemetry = createHubDaemonTelemetry();
+	let requestDaemonShutdown: () => void = () => {};
 
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
+			onShutdownRequested: () => requestDaemonShutdown(),
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -117,7 +148,21 @@ async function main(): Promise<void> {
 	});
 	setActiveConnectorSupervisor(supervisor);
 
+	let shutdownStarted = false;
 	const shutdown = async (): Promise<void> => {
+		if (shutdownStarted) {
+			return;
+		}
+		shutdownStarted = true;
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 0,
+			onTimeout: () => {
+				process.stderr.write(
+					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
+				);
+			},
+		});
 		// Stop supervising but leave the connectors running: they are detached on
 		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
 		// hub adopts them from their state files.
@@ -127,6 +172,9 @@ async function main(): Promise<void> {
 		await daemonTelemetry.dispose().catch(() => undefined);
 		process.exit(0);
 	};
+	requestDaemonShutdown = () => {
+		void shutdown();
+	};
 
 	let fatalShutdownStarted = false;
 	const shutdownFatal = (label: string, error: unknown): void => {
@@ -134,6 +182,15 @@ async function main(): Promise<void> {
 			return;
 		}
 		fatalShutdownStarted = true;
+		armHubDaemonShutdownWatchdog({
+			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+			exitCode: 1,
+			onTimeout: () => {
+				process.stderr.write(
+					`[hub-daemon] shutdown after ${label} stalled; forcing exit\n`,
+				);
+			},
+		});
 		const message =
 			error instanceof Error ? error.stack || error.message : String(error);
 		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
@@ -168,9 +225,10 @@ async function main(): Promise<void> {
 		shutdownFatal("uncaughtException", error);
 	});
 	process.on("unhandledRejection", (reason) => {
-		if (reason instanceof AgentRuntimeAbortError) {
+		if (isAbortRejection(reason)) {
+			const message = reason instanceof Error ? reason.message : String(reason);
 			process.stderr.write(
-				`[hub-daemon] ignored agent runtime abort rejection: ${reason.message}\n`,
+				`[hub-daemon] ignored abort rejection: ${message}\n`,
 			);
 			return;
 		}

@@ -1861,10 +1861,21 @@ export class AgentRuntime {
 				this.config.logger?.debug?.("Agent event", metadata);
 				break;
 		}
-		this.config.telemetry?.capture({
-			event: `agent.${event.type}`,
-			properties: metadata as TelemetryProperties,
-		});
+		switch (event.type) {
+			// Per-token/per-chunk stream events are ~97% of agent.* telemetry
+			// volume and are never queried, so they are not mirrored to
+			// telemetry. Listeners and hooks below still receive them.
+			case "assistant-text-delta":
+			case "assistant-reasoning-delta":
+			case "tool-updated":
+				break;
+			default:
+				this.config.telemetry?.capture({
+					event: `agent.${event.type}`,
+					properties: metadata as TelemetryProperties,
+				});
+				break;
+		}
 		for (const listener of this.listeners) {
 			listener(event);
 		}

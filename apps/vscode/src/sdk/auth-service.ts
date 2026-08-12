@@ -375,8 +375,12 @@ export class AuthService {
 			}
 		}
 
-		// Verify the token is still valid (not past expiry)
-		if (expiresAt && Date.now() / 1000 >= expiresAt) {
+		// Verify the token is still valid (not past expiry). Re-read the expiry:
+		// a successful refresh above replaces _clineAuthInfo, and the expiry
+		// captured before it belongs to the old token — which has already passed
+		// whenever the process sat idle beyond token lifetime.
+		const currentExpiresAt = this._clineAuthInfo.expiresAt
+		if (currentExpiresAt && Date.now() / 1000 >= currentExpiresAt) {
 			return null
 		}
 

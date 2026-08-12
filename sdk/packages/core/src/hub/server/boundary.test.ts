@@ -1519,6 +1519,124 @@ describe("HubServerTransport boundaries", () => {
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
 	});
 
+	it("projects an unreported non-recoverable agent error as run.failed", async () => {
+		const transport = createTransport({
+			sessionHost: {
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "running",
+					interactive: true,
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			},
+		});
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("Model claude-3-haiku is unavailable"),
+					recoverable: false,
+					iteration: 0,
+				},
+			},
+		});
+
+		const failed = events.filter((event) => event.event === "run.failed");
+		expect(failed).toHaveLength(1);
+		expect(failed[0]?.payload).toMatchObject({
+			reason: "error",
+			error: "Model claude-3-haiku is unavailable",
+			text: "Model claude-3-haiku is unavailable",
+		});
+		// The snapshot lets interactive clients keep the session alive instead
+		// of treating the failed turn as session end.
+		expect(failed[0]?.payload?.snapshot).toMatchObject({
+			interactive: true,
+			status: "running",
+		});
+	});
+
+	it("suppresses the agent-error projection while an RPC turn awaits the result", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+		ctx.activeRpcTurnCountBySession.set("session-1", 1);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("Provider rejected the request"),
+					recoverable: false,
+					iteration: 0,
+				},
+			},
+		});
+
+		expect(events.filter((event) => event.event === "run.failed")).toEqual([]);
+	});
+
+	it("ignores recoverable and non-lead agent error events", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("extension setup hiccup"),
+					recoverable: true,
+					iteration: 0,
+				},
+			},
+		});
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("subagent blew up"),
+					recoverable: false,
+					iteration: 1,
+					parentAgentId: "lead-agent",
+				},
+			},
+		});
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamRole: "teammate",
+				event: {
+					type: "error",
+					error: new Error("teammate blew up"),
+					recoverable: false,
+					iteration: 1,
+				},
+			},
+		});
+
+		expect(events.filter((event) => event.event === "run.failed")).toEqual([]);
+	});
+
 	it("projects live usage events with aggregate usage and agent identity", async () => {
 		const usage = {
 			inputTokens: 10,

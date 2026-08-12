@@ -68,7 +68,7 @@ errors, and response transport.
 actions to the host.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
-dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
+dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
 `palette.css` and `tokens.css` are the canonical theme sources;
@@ -82,8 +82,8 @@ Consumers may import either public token entry point.
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```

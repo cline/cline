@@ -1229,16 +1229,21 @@ async function createProviderModule(
 }
 
 /**
- * Wrap a vendor-constructed model with the empty-response retry middleware.
+ * Wrap a vendor-constructed model with the transient-failure retry
+ * middleware (empty responses + pre-content network interruptions).
  *
  * All-empty turns (no text, no reasoning, no tool call) are a cross-provider
  * phenomenon: production telemetry shows them on hosted backends (openrouter,
  * cline, generic OpenAI-compatible endpoints), not just local Ollama. An
  * empty assistant turn is a hard failure in the agent runtime ("Model
  * returned empty response"), so a single transient flake kills the task.
- * Retrying here — the one composition point every AI SDK vendor flows
- * through — turns those flakes into non-events while leaving the runtime's
- * loud failure in place for models that are persistently empty.
+ * The same telemetry shows mid-stream network deaths (UND_ERR_SOCKET,
+ * body/headers timeouts, ECONNRESET) as the dominant network-class run
+ * killer — the AI SDK's own retry covers only request initiation, so once a
+ * stream has started nothing else retries. Retrying here — the one
+ * composition point every AI SDK vendor flows through — turns those flakes
+ * into non-events while leaving the runtime's loud failure in place for
+ * models that are persistently empty or connections that are truly down.
  *
  * Applied as the *outermost* wrap so each retry re-runs the vendor's full
  * request pipeline, including any vendor-level middleware attached inside

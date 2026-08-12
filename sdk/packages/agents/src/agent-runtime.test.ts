@@ -2293,6 +2293,78 @@ describe("AgentRuntime", () => {
 		expect(telemetry.capture).toHaveBeenCalled();
 	});
 
+	it("does not mirror per-token stream deltas into telemetry.capture", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking" },
+				{ type: "reasoning-delta", text: " harder" },
+				{ type: "text-delta", text: "calling tool" },
+				{
+					type: "tool-call-delta",
+					toolCallId: "stream_call",
+					toolName: "streamer",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const observed: string[] = [];
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [
+				{
+					name: "streamer",
+					description: "streams progress updates",
+					inputSchema: { type: "object" },
+					async execute(_input, context) {
+						context.emitUpdate?.({ progress: 1 });
+						context.emitUpdate?.({ progress: 2 });
+						return { done: true };
+					},
+				},
+			],
+		});
+		runtime.subscribe((event) => {
+			observed.push(event.type);
+		});
+
+		const result = await runtime.run("Stream");
+
+		expect(result.status).toBe("completed");
+		// The runtime event stream itself is untouched: listeners still see
+		// every delta/chunk event.
+		expect(observed).toContain("assistant-reasoning-delta");
+		expect(observed).toContain("assistant-text-delta");
+		expect(observed).toContain("tool-updated");
+
+		const agentEvents = capture.mock.calls
+			.map(([payload]) => payload?.event as string)
+			.filter((name) => name?.startsWith("agent."));
+		// Per-token/per-chunk events must not reach telemetry.
+		expect(agentEvents).not.toContain("agent.assistant-reasoning-delta");
+		expect(agentEvents).not.toContain("agent.assistant-text-delta");
+		expect(agentEvents).not.toContain("agent.tool-updated");
+		// Lifecycle and per-message events still do.
+		for (const expected of [
+			"agent.run-started",
+			"agent.message-added",
+			"agent.turn-started",
+			"agent.assistant-message",
+			"agent.tool-started",
+			"agent.tool-finished",
+			"agent.turn-finished",
+			"agent.run-finished",
+		]) {
+			expect(agentEvents).toContain(expected);
+		}
+	});
+
 	it("propagates agent identity including role through snapshots and plugin setup", async () => {
 		const setup = vi.fn(() => undefined);
 		const plugin: AgentRuntimePlugin = {
