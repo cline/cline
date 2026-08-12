@@ -85,9 +85,11 @@ describe("AuthService logout telemetry reasons", () => {
 		})
 
 		it("reports token_invalid when the stored refresh token is rejected at startup", async () => {
-			// The provider rethrows AuthInvalidTokenError from restore (it used to
-			// swallow it into null, which binned these users as no_stored_session).
-			retrieveClineAuthInfoStub.rejects(new AuthInvalidTokenError("invalid or expired refresh token"))
+			// The provider keeps its null-on-error contract (no behavior change)
+			// but records WHY via the telemetry breadcrumb; without it these
+			// users were binned as no_stored_session.
+			retrieveClineAuthInfoStub.resolves(null)
+			;(service as any)._provider.lastRetrieveFailedWithInvalidToken = true
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
 			await flushTelemetry()
@@ -133,6 +135,22 @@ describe("AuthService logout telemetry reasons", () => {
 
 			expect(token).to.be.null
 			expect(capturedLoggedOut.called).to.be.false
+		})
+
+		it("reports token_invalid via the provider breadcrumb without changing auth state", async () => {
+			// Real ClineAuthProvider path: invalid refresh is swallowed into null
+			// with the breadcrumb set. Telemetry fires; behavior is unchanged
+			// (state keeps the stale session exactly as before this change).
+			retrieveClineAuthInfoStub.resolves(null)
+			;(service as any)._provider.lastRetrieveFailedWithInvalidToken = true
+
+			const token = await service.getAuthToken()
+			await flushTelemetry()
+
+			expect(token).to.be.null
+			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
+			expect((service as any)._authenticated).to.be.true
+			expect((service as any)._clineAuthInfo).to.not.be.null
 		})
 	})
 })

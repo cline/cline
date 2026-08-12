@@ -181,6 +181,12 @@ export class AuthService {
 							this._authenticated = true
 							clineAccountAuthToken = updatedAuthInfo.idToken
 							authStatusChanged = true
+						} else if (provider.lastRetrieveFailedWithInvalidToken) {
+							// Telemetry only: the refresh token was rejected, so the
+							// user has effectively lost their session even though the
+							// provider's null-on-error contract keeps state unchanged.
+							// Report the involuntary logout without altering behavior.
+							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
 						}
 					} catch (error) {
 						// Only log out for permanent auth failures, not network issues
@@ -331,21 +337,23 @@ export class AuthService {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
-				// Fires on every window open for users with no stored session
-				// (e.g. API-key users) — not a logout, hence the dedicated reason.
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.NO_STORED_SESSION)
+				// The provider returns null both when there is no stored session
+				// (fires on every window open for API-key users — not a logout)
+				// and when the stored refresh token was rejected (a real
+				// involuntary logout). Its telemetry breadcrumb distinguishes
+				// the two; control flow is identical either way.
+				telemetryService.captureAuthLoggedOut(
+					this._provider.name,
+					this._provider.lastRetrieveFailedWithInvalidToken
+						? LogoutReason.TOKEN_INVALID
+						: LogoutReason.NO_STORED_SESSION,
+				)
 			}
 		} catch (error) {
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
-			// A stored refresh token the server rejected is a real involuntary
-			// logout — bin it as token_invalid, not as a generic restore error.
-			// (The provider rethrows AuthInvalidTokenError for exactly this case.)
-			telemetryService.captureAuthLoggedOut(
-				this._provider.name,
-				error instanceof AuthInvalidTokenError ? LogoutReason.TOKEN_INVALID : LogoutReason.RESTORE_ERROR,
-			)
+			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
 			return
 		}
 	}

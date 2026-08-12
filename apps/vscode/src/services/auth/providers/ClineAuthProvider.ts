@@ -65,6 +65,14 @@ export interface ClineAuthApiTokenRefreshResponse {
 export class ClineAuthProvider {
 	readonly name = "cline"
 	private refreshRetryCount = 0
+	/**
+	 * Telemetry-only breadcrumb: true when the most recent
+	 * retrieveClineAuthInfo() returned null because the stored refresh token
+	 * was rejected (AuthInvalidTokenError), as opposed to there being no
+	 * stored session. Read by AuthService to pick the logout-reason label;
+	 * never drives behavior.
+	 */
+	public lastRetrieveFailedWithInvalidToken = false
 	private lastRefreshAttempt = 0
 	private readonly MAX_REFRESH_RETRIES = 3
 	private readonly RETRY_DELAY_MS = 30000 // 30 seconds
@@ -163,6 +171,7 @@ export class ClineAuthProvider {
 	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
 	 */
 	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
+		this.lastRetrieveFailedWithInvalidToken = false
 		try {
 			// Get the stored auth data from secure storage
 			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
@@ -294,16 +303,18 @@ export class ClineAuthProvider {
 			return storedAuthData
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
-			// A rejected refresh token is a real involuntary logout — rethrow so
-			// callers can distinguish it from "no stored session" (returning null
-			// here binned those users under no_stored_session in telemetry).
-			// The session was already cleared above before the error propagated.
-			if (error instanceof AuthInvalidTokenError) {
-				throw error
-			}
+			// Telemetry-only breadcrumb: a rejected refresh token is a real
+			// involuntary logout, but this method's null-on-error contract is
+			// load-bearing (callers keep their existing control flow). Record
+			// WHY the retrieve failed so telemetry call sites can bin the
+			// event as token_invalid instead of no_stored_session, without
+			// changing any behavior.
+			this.lastRetrieveFailedWithInvalidToken = error instanceof AuthInvalidTokenError
 			// Reset retry count on unexpected errors
-			this.refreshRetryCount = 0
-			this.lastRefreshAttempt = 0
+			if (!(error instanceof AuthInvalidTokenError)) {
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
+			}
 			return null
 		}
 	}
