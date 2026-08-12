@@ -6992,7 +6992,7 @@ describe("LocalRuntimeHost", () => {
 			});
 		});
 
-		it("falls back to source=shutdown when a non-interactive run completes without submit_and_exit", async () => {
+		it("emits source=turn_completion from persisted turn metadata when a non-interactive run completes without submit_and_exit", async () => {
 			const sessionId = "sess-task-completed-shutdown-fallback";
 			const manifest = createManifest(sessionId);
 			const adapter = createTaskCompletedAdapter();
@@ -7038,10 +7038,15 @@ describe("LocalRuntimeHost", () => {
 
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
+			// The turn-completion metadata is persisted before shutdown, so the
+			// emission derives from it: source, final-turn finishReason, and a
+			// work duration anchored at the turn end rather than session close.
 			expect(emissions[0]).toMatchObject({
 				ulid: sessionId,
-				source: "shutdown",
+				source: "turn_completion",
+				finishReason: "completed",
 			});
+			expect(typeof emissions[0].workDurationMs).toBe("number");
 		});
 
 		it("emits task.completed exactly once when an interactive turn invokes submit_and_exit and is later cancelled", async () => {
@@ -7154,7 +7159,7 @@ describe("LocalRuntimeHost", () => {
 			expect(emissions[0]).toMatchObject({ source: "submit_and_exit" });
 		});
 
-		it("ignores failed submit_and_exit tool calls so the shutdown fallback still fires", async () => {
+		it("ignores failed submit_and_exit tool calls so the turn-completion emission still fires", async () => {
 			const sessionId = "sess-task-completed-failed-submit";
 			const manifest = createManifest(sessionId);
 			const adapter = createTaskCompletedAdapter();
@@ -7206,7 +7211,64 @@ describe("LocalRuntimeHost", () => {
 
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
-			expect(emissions[0]).toMatchObject({ source: "shutdown" });
+			expect(emissions[0]).toMatchObject({ source: "turn_completion" });
+		});
+
+		it("falls back to source=shutdown when turn metadata could not be persisted", async () => {
+			const sessionId = "sess-task-completed-metadata-fallback";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			// Persistence failure: the store rejects the metadata update, so the
+			// session carries no lastTurnCompletion and the coarse status gate
+			// applies.
+			;(sessionService as Record<string, unknown>).updateSession = vi
+				.fn()
+				.mockResolvedValue({ updated: false });
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "just finish",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "shutdown",
+			});
+			expect(emissions[0].finishReason).toBeUndefined();
 		});
 	});
 

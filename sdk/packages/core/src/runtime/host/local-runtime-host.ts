@@ -87,7 +87,10 @@ import {
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
-import type { SessionRecord } from "../../types/sessions";
+import type {
+	SessionHistoryMetadata,
+	SessionRecord,
+} from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
@@ -2201,18 +2204,43 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
-		// Fallback `task.completed` emission for completed sessions that
-		// did not observe an explicit `submit_and_exit` tool call. The
-		// observer in `executeAgentTurn(...)` already emitted the event in
-		// that case, so we suppress here to avoid double-counting.
-		if (input.status === "completed" && !session.submitAndExitObserved) {
+		// `task.completed` emission for sessions that did not observe an
+		// explicit `submit_and_exit` tool call (the observer in
+		// `executeAgentTurn(...)` already emitted in that case; suppress here
+		// to avoid double-counting). The persisted turn-completion metadata is
+		// the authoritative signal when present: it says how the FINAL turn
+		// actually ended, so a session whose last turn errored or was aborted
+		// does not count as completed even if the session row closes cleanly —
+		// and `workDurationMs` measures start → final turn end, excluding the
+		// idle tail before the user closed the session. Sessions without the
+		// metadata (persistence failure, pre-metadata sessions) fall back to
+		// the coarse status-based gate this block always had.
+		const lastTurnCompletion = (
+			session.sessionMetadata as SessionHistoryMetadata | undefined
+		)?.lastTurnCompletion;
+		const completedCleanly = lastTurnCompletion
+			? lastTurnCompletion.finishReason === "completed"
+			: input.status === "completed";
+		if (completedCleanly && !session.submitAndExitObserved) {
+			const workDurationMs = lastTurnCompletion
+				? Date.parse(lastTurnCompletion.endedAt) -
+					Date.parse(session.startedAt)
+				: undefined;
 			captureTaskCompleted(session.config.telemetry, {
 				ulid: session.sessionId,
 				provider: session.config.providerId,
 				modelId: session.config.modelId,
 				mode: session.config.mode,
 				durationMs: Date.now() - Date.parse(session.startedAt),
-				source: "shutdown",
+				source: lastTurnCompletion ? "turn_completion" : "shutdown",
+				...(lastTurnCompletion
+					? {
+							finishReason: lastTurnCompletion.finishReason,
+							...(Number.isFinite(workDurationMs)
+								? { workDurationMs }
+								: {}),
+						}
+					: {}),
 				...this.getSessionAgentTelemetryIdentity(session),
 			});
 		}
