@@ -305,10 +305,14 @@
 		color: var(--error-text);
 	}
 
+	/* The spinner stands in for the tool icon while the call is in flight, so
+	 * it fills the same 1rem box the icons render at and the label never
+	 * shifts when they swap. */
 	.cline-chat-tool-progress {
-		width: 0.75rem;
-		height: 0.75rem;
+		width: 1rem;
+		height: 1rem;
 		flex: 0 0 auto;
+		box-sizing: border-box;
 		border: 2px solid
 			color-mix(in oklab, var(--brand-violet, var(--primary)) 25%, transparent);
 		border-top-color: var(--brand-violet, var(--primary));

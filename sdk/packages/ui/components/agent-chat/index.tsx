@@ -636,9 +636,16 @@ export const ToolActivityTrigger = ({
 	...props
 }: ToolActivityTriggerProps) => {
 	const { expandable, isOpen, panelId, setIsOpen } = useToolActivity();
+	// While the tool is still working, the spinner takes the icon's slot so the
+	// row reads as one glyph + label instead of sprouting chrome on the right.
+	const inFlight = status === "running" || status === "pending";
 	const content = children ?? (
 		<>
-			{icon ? <span className="cline-chat-tool-icon">{icon}</span> : null}
+			{inFlight ? (
+				<output aria-label={status} className="cline-chat-tool-progress" />
+			) : icon ? (
+				<span className="cline-chat-tool-icon">{icon}</span>
+			) : null}
 			<span className="cline-chat-tool-label">{label}</span>
 			{additions !== undefined || deletions !== undefined ? (
 				<span className="cline-chat-tool-diff">
@@ -649,9 +656,6 @@ export const ToolActivityTrigger = ({
 						<span data-diff="deletions">-{deletions}</span>
 					) : null}
 				</span>
-			) : null}
-			{status === "running" || status === "pending" ? (
-				<output aria-label={status} className="cline-chat-tool-progress" />
 			) : null}
 			{expandable && showDisclosureIcon ? (
 				<ChevronDownIcon className="cline-chat-disclosure-icon" />
