@@ -264,6 +264,79 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("falls back to the workspace root when no cwd is set for Claude Code", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
 	it("forwards Vertex GCP settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 
