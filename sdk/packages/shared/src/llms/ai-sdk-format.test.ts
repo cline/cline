@@ -871,6 +871,94 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("preserves generated assistant images across a tool-result turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "image", image, mediaType: "image/png" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: "found",
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: "also found",
+					},
+				],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "[generated image]" },
+					{
+						type: "tool-call",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						input: { query: "bee" },
+					},
+					{
+						type: "tool-call",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						input: { query: "hive" },
+					},
+				],
+			},
+			{
+				role: "tool",
+				content: [
+					{
+						type: "tool-result",
+						toolCallId: "call_1",
+						toolName: "lookup",
+						output: { type: "text", value: "found" },
+					},
+					{
+						type: "tool-result",
+						toolCallId: "call_2",
+						toolName: "lookup",
+						output: { type: "text", value: "also found" },
+					},
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "file", data: image, mediaType: "image/png" }],
+			},
+		]);
+	});
+
 	it("keeps raw base64 string images without mediaType by defaulting to png", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [

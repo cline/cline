@@ -189,6 +189,7 @@ export {
 	ModelPricingSchema,
 	type ModelStatus,
 	ModelStatusSchema,
+	modelSupportsToolCalling,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 } from "./llms/model-info";

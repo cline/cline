@@ -88,8 +88,25 @@ export const ModelModalitiesSchema = z.object({
 
 export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
 
+interface ImageGenerationModelDescriptor {
+	modalities?: ModelModalities;
+	family?: string;
+	metadata?: Record<string, unknown>;
+}
+
+function resolveImageGenerationModelFamily(
+	model: ImageGenerationModelDescriptor,
+): string | undefined {
+	const family =
+		model.family ??
+		(typeof model.metadata?.family === "string"
+			? model.metadata.family
+			: undefined);
+	return family?.trim().toLowerCase();
+}
+
 export function isImageGenerationModel(
-	model: Pick<ModelInfo, "modalities">,
+	model: ImageGenerationModelDescriptor,
 ): boolean {
 	return (
 		model.modalities?.input.includes("text") === true &&
@@ -98,10 +115,25 @@ export function isImageGenerationModel(
 }
 
 export function isDedicatedImageGenerationModel(
-	model: Pick<ModelInfo, "modalities">,
+	model: ImageGenerationModelDescriptor,
 ): boolean {
 	const output = model.modalities?.output;
-	return isImageGenerationModel(model) && output?.includes("text") !== true;
+	return (
+		isImageGenerationModel(model) &&
+		(output?.includes("text") !== true ||
+			resolveImageGenerationModelFamily(model) === "gpt-image")
+	);
+}
+
+/**
+ * Whether a model can receive function/tool definitions. Missing capability
+ * metadata fails open for user-entered and dynamically discovered models;
+ * an explicit capability list without `tools` is authoritative.
+ */
+export function modelSupportsToolCalling(model: {
+	capabilities?: readonly string[];
+}): boolean {
+	return model.capabilities?.includes("tools") ?? true;
 }
 export const ModelInfoSchema = z.object({
 	id: z.string(),

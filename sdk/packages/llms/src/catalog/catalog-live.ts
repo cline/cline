@@ -89,6 +89,16 @@ const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/mistral": "mistral",
 } as const satisfies Record<string, ModelsDevGeneratedProviderSpec["family"]>;
 
+/**
+ * These OpenAI-compatible providers expose media models through their chat or
+ * responses API, but do not implement the AI SDK image-model endpoint used by
+ * `generateImage`. Keep their dedicated media entries out of the catalog until
+ * the runtime has a provider-specific transport for them.
+ */
+const MODELS_DEV_IMAGE_MODEL_ENDPOINT_UNSUPPORTED_PROVIDER_IDS = new Set([
+	"poe",
+]);
+
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
 		return Number.NEGATIVE_INFINITY;
@@ -219,9 +229,8 @@ const KNOWN_MODEL_MODALITIES = new Set<ModelModality>([
 	"pdf",
 ]);
 
-function toModalities(
-	modalities: ModelsDevModel["modalities"],
-): ModelInfo["modalities"] {
+function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
+	const modalities = model.modalities;
 	if (!modalities) {
 		return undefined;
 	}
@@ -234,7 +243,16 @@ function toModalities(
 			),
 		);
 	const input = normalize(modalities.input);
-	const output = normalize(modalities.output);
+	let output = normalize(modalities.output);
+	if (
+		model.family?.trim().toLowerCase() === "gpt-image" &&
+		output.includes("image")
+	) {
+		// models.dev has advertised some GPT Image releases as also producing
+		// text. They are image-endpoint models, so keeping `text` here would route
+		// them through the streaming Responses path instead of `generateImage`.
+		output = output.filter((modality) => modality !== "text");
+	}
 	// A one-sided declaration is incomplete and must not turn an otherwise
 	// usable chat model into an input- or output-incompatible model.
 	if (input.length === 0 || output.length === 0) {
@@ -256,13 +274,22 @@ function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 function isDedicatedImageModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.output?.includes("image") === true &&
-		model.modalities.output.includes("text") !== true
+		(model.modalities.output.includes("text") !== true ||
+			model.family?.trim().toLowerCase() === "gpt-image")
 	);
 }
 
 function providerSupportsDedicatedImageModels(
 	provider: ModelsDevProviderPayload,
+	targetProviderId: string,
 ): boolean {
+	if (
+		MODELS_DEV_IMAGE_MODEL_ENDPOINT_UNSUPPORTED_PROVIDER_IDS.has(
+			targetProviderId,
+		)
+	) {
+		return false;
+	}
 	// Current built-ins without a recognized models.dev SDK package use the
 	// OpenAI-compatible runtime family when their generated spec is normalized.
 	const family = supportedAiSdkProviderFamily(provider) ?? "openai-compatible";
@@ -311,7 +338,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
-	const modalities = toModalities(model.modalities);
+	const modalities = toModalities(model);
 
 	return {
 		id: modelId,
@@ -354,7 +381,7 @@ export function normalizeModelsDevProviderModels(
 		for (const [modelId, model] of Object.entries(source.models)) {
 			if (
 				(isDedicatedImageModel(model) &&
-					!providerSupportsDedicatedImageModels(source)) ||
+					!providerSupportsDedicatedImageModels(source, targetProviderId)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
 				isDeprecatedModel(model)
 			) {

@@ -47,6 +47,7 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsToolCalling,
 	type ToolCallRecord,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
@@ -849,7 +850,9 @@ export class SessionRuntime {
 		const dedicatedImageGeneration = isDedicatedImageGenerationModel(
 			modelInfo ?? {},
 		);
-		const tools = dedicatedImageGeneration
+		const toolCallingDisabled =
+			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+		const tools = toolCallingDisabled
 			? []
 			: Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
@@ -879,7 +882,7 @@ export class SessionRuntime {
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
-			completionPolicy: dedicatedImageGeneration ? null : undefined,
+			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);

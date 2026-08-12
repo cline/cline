@@ -11,6 +11,7 @@ import { join } from "node:path";
 import {
 	type AgentMessage,
 	type AgentModelEvent,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
@@ -841,6 +842,8 @@ describe("sdk-gateway", () => {
 	it("uses generateImage for dedicated text-to-image models", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/webp", base64: "aGVsbG8=" }],
+			providerMetadata: {},
+			usage: { inputTokens: 12, outputTokens: 34, totalTokens: 46 },
 		});
 		const gateway = createGateway({
 			providerConfigs: [
@@ -877,7 +880,101 @@ describe("sdk-gateway", () => {
 		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
 		expect(events).toEqual([
 			{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" },
+			{
+				type: "usage",
+				usage: {
+					inputTokens: 12,
+					outputTokens: 34,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
 			{ type: "finish", reason: "stop" },
+		]);
+	});
+
+	it("routes the GPT Image family through generateImage despite stale text-output metadata", async () => {
+		generateImageSpy.mockResolvedValue({
+			images: [{ mediaType: "image/png", base64: "aGVsbG8=" }],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-1.5",
+							name: "GPT Image 1.5",
+							metadata: { family: "gpt-image" },
+							modalities: {
+								input: ["text", "image"],
+								output: ["text", "image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-image-1.5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(openaiImageSpy).toHaveBeenCalledWith("gpt-image-1.5");
+		expect(generateImageSpy).toHaveBeenCalled();
+		expect(streamTextSpy).not.toHaveBeenCalled();
+		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
+		expect(events).toEqual([
+			{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+			{ type: "finish", reason: "stop" },
+		]);
+	});
+
+	it("rejects generated images that cannot be preserved in bounded history", async () => {
+		generateImageSpy.mockResolvedValue({
+			images: [
+				{
+					mediaType: "image/png",
+					base64: "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4),
+				},
+			],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-test",
+							name: "GPT Image Test",
+							modalities: { input: ["text"], output: ["image"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-image-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toEqual([
+			{
+				type: "finish",
+				reason: "error",
+				error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
+				errorClass: "unknown",
+			},
 		]);
 	});
 
@@ -947,6 +1044,71 @@ describe("sdk-gateway", () => {
 				prompt: {
 					text: "Make the collar blue",
 					images: ["data:image/png;base64,Zmlyc3Q="],
+				},
+			}),
+		);
+	});
+
+	it("uses an image-only latest turn instead of reusing an older text prompt", async () => {
+		generateImageSpy.mockResolvedValue({
+			images: [{ mediaType: "image/png", base64: "ZWRpdGVk" }],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-edit-test",
+							name: "GPT Image Edit Test",
+							modalities: {
+								input: ["text", "image"],
+								output: ["image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-image-edit-test",
+				messages: [
+					{
+						id: "user_old",
+						role: "user",
+						content: [{ type: "text", text: "Draw an old prompt" }],
+						createdAt: 1,
+					},
+					{
+						id: "assistant_old",
+						role: "assistant",
+						content: [{ type: "text", text: "Upload the image to edit" }],
+						createdAt: 2,
+					},
+					{
+						id: "user_image",
+						role: "user",
+						content: [
+							{
+								type: "image",
+								mediaType: "image/png",
+								image: "bmV3LWltYWdl",
+							},
+						],
+						createdAt: 3,
+					},
+				],
+			}),
+		);
+
+		expect(generateImageSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: {
+					images: ["data:image/png;base64,bmV3LWltYWdl"],
 				},
 			}),
 		);
@@ -1652,6 +1814,50 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+		expect(generateImageSpy).not.toHaveBeenCalled();
+	});
+
+	it("does not send tools to mixed image models that explicitly lack tool calling", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "gemini",
+					apiKey: "test",
+					models: [
+						{
+							id: "gemini-2.5-flash-image",
+							name: "Gemini 2.5 Flash Image",
+							capabilities: ["images"],
+							modalities: {
+								input: ["text", "image"],
+								output: ["text", "image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash-image",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "lookup",
+						description: "Lookup a term",
+						inputSchema: { type: "object" },
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
+			| { tools?: Record<string, unknown> }
+			| undefined;
+		expect(call).not.toHaveProperty("tools");
 		expect(generateImageSpy).not.toHaveBeenCalled();
 	});
 

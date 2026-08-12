@@ -16,6 +16,7 @@ import {
 	formatMessagesForAiSdk,
 	isDedicatedImageGenerationModel,
 	isImageGenerationModel,
+	modelSupportsToolCalling,
 	parseJsonStream,
 	sanitizeSurrogates,
 	validateImageMedia,
@@ -106,44 +107,62 @@ function resolveImageGenerationPrompt(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
 ): ImageGenerationPrompt {
+	let latestUserMessageIndex = -1;
 	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
-		const message = request.messages[index];
-		if (message?.role !== "user") continue;
-		const text = message.content
-			.filter((part) => part.type === "text")
-			.map((part) => part.text)
-			.join("\n")
-			.trim();
-		if (!text) continue;
-		if (context.model.modalities?.input.includes("image") !== true) {
-			return text;
+		if (request.messages[index]?.role === "user") {
+			latestUserMessageIndex = index;
+			break;
 		}
+	}
+	if (latestUserMessageIndex < 0) {
+		throw new Error("Image generation requires a text prompt or input image");
+	}
 
+	const message = request.messages[latestUserMessageIndex];
+	if (!message || message.role !== "user") {
+		throw new Error("Image generation requires a text prompt or input image");
+	}
+	const text = message.content
+		.filter((part) => part.type === "text")
+		.map((part) => part.text)
+		.join("\n")
+		.trim();
+	const supportsImageInput =
+		context.model.modalities?.input.includes("image") === true;
+	if (supportsImageInput) {
 		const explicitImages = message.content
 			.filter((part) => part.type === "image")
 			.map(normalizeImageGenerationInput);
 		if (explicitImages.length > 0) {
-			return { text, images: explicitImages };
+			return {
+				images: explicitImages,
+				...(text ? { text } : {}),
+			};
 		}
-
-		// Only infer an edit from the immediately preceding assistant turn. Looking
-		// farther back can silently turn a new generation request into an edit of a
-		// stale image from an unrelated part of the conversation.
-		const previousMessage = request.messages[index - 1];
-		if (previousMessage?.role === "assistant") {
-			const firstGeneratedImage = previousMessage.content.find(
-				(part) => part.type === "image",
-			);
-			if (firstGeneratedImage) {
-				return {
-					text,
-					images: [normalizeImageGenerationInput(firstGeneratedImage)],
-				};
-			}
-		}
+	}
+	if (!text) {
+		throw new Error("Image generation requires a text prompt or input image");
+	}
+	if (!supportsImageInput) {
 		return text;
 	}
-	throw new Error("Image generation requires a text prompt");
+
+	// Only infer an edit from the immediately preceding assistant turn. Looking
+	// farther back can silently turn a new generation request into an edit of a
+	// stale image from an unrelated part of the conversation.
+	const previousMessage = request.messages[latestUserMessageIndex - 1];
+	if (previousMessage?.role === "assistant") {
+		const firstGeneratedImage = previousMessage.content.find(
+			(part) => part.type === "image",
+		);
+		if (firstGeneratedImage) {
+			return {
+				text,
+				images: [normalizeImageGenerationInput(firstGeneratedImage)],
+			};
+		}
+	}
+	return text;
 }
 
 function extractGeneratedImage(
@@ -158,6 +177,9 @@ function extractGeneratedImage(
 	) {
 		return undefined;
 	}
+	// Generated images use the same bounded media envelope as attachments and
+	// persisted history. Accepting an image that hydration later drops would
+	// make the live and replayed assistant transcripts disagree.
 	const validation = validateImageMedia(record.mediaType, record.base64);
 	if (!validation.ok) {
 		throw new Error(validation.message);
@@ -1592,6 +1614,16 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					if (emittedImages === 0) {
 						throw new Error("Image model returned no supported images");
 					}
+					if (result.usage) {
+						yield {
+							type: "usage",
+							usage: normalizeUsage(
+								result.usage as Record<string, unknown>,
+								result.providerMetadata,
+								context.model.metadata?.pricing,
+							),
+						};
+					}
 					yield { type: "finish", reason: "stop" };
 					return;
 				}
@@ -1601,11 +1633,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const runtimeTools = toAiSdkTools(request);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
-				const tools = externalToolExecutionDisabled
+				const toolCallingDisabled =
+					externalToolExecutionDisabled ||
+					!modelSupportsToolCalling(context.model);
+				const tools = toolCallingDisabled
 					? undefined
 					: mergeAiSdkTools(runtimeTools, provider.providerTools);
 				const providerImageGenerationToolEnabled =
-					!externalToolExecutionDisabled &&
+					!toolCallingDisabled &&
 					hasAiSdkTool(
 						provider.providerTools,
 						OPENAI_IMAGE_GENERATION_TOOL_NAME,

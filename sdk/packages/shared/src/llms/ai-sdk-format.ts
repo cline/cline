@@ -738,7 +738,12 @@ export function formatMessagesForAiSdk(
 			}
 		}
 
-		if (message.role === "user" && pendingAssistantImages.length > 0) {
+		const hasToolResults = toolResultParts.length > 0;
+		if (
+			message.role === "user" &&
+			!hasToolResults &&
+			pendingAssistantImages.length > 0
+		) {
 			messageParts.push(...takePendingAssistantImages());
 		}
 
@@ -762,9 +767,19 @@ export function formatMessagesForAiSdk(
 		if (messageParts.length > 0) {
 			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}
-		if (toolResultParts.length > 0) {
+		if (hasToolResults) {
 			pushAiSdkMessage(result, { role: "tool", content: toolResultParts });
 		}
+	}
+
+	if (pendingAssistantImages.length > 0) {
+		// Tool results must stay contiguous with their assistant tool calls. If
+		// there was no later user turn to receive generated images, append one
+		// synthetic user turn after the complete tool-result sequence.
+		pushAiSdkMessage(result, {
+			role: "user",
+			content: takePendingAssistantImages(),
+		});
 	}
 
 	return result;

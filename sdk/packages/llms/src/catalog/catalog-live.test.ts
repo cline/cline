@@ -138,6 +138,14 @@ describe("models-dev-catalog", () => {
 						tool_call: false,
 						modalities: { input: ["text"], output: ["image"] },
 					},
+					"gpt-image-with-text-output": {
+						tool_call: false,
+						family: "gpt-image",
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
 					"embedding-model": {
 						tool_call: false,
 						modalities: { input: ["text"], output: ["text"] },
@@ -150,6 +158,10 @@ describe("models-dev-catalog", () => {
 			"chat-model": expect.any(Object),
 			"image-model": {
 				modalities: { input: ["text"], output: ["image"] },
+			},
+			"gpt-image-with-text-output": {
+				family: "gpt-image",
+				modalities: { input: ["text", "image"], output: ["image"] },
 			},
 		});
 		expect(providerModels["openai-native"]).not.toHaveProperty(
@@ -236,11 +248,26 @@ describe("models-dev-catalog", () => {
 					},
 				},
 			},
+			poe: {
+				id: "poe",
+				name: "Poe",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"unsupported-image": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"chat-model": { tool_call: true },
+				},
+			},
 		});
 
 		expect(providerModels["extra-router"]).toHaveProperty("compatible-image");
 		expect(providerModels["extra-router"]).toHaveProperty("mixed-model");
 		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
+		expect(
+			providerModels["extra-router"]?.["mixed-model"]?.capabilities,
+		).toEqual([]);
 		expect(providerModels.xai).toHaveProperty("supported-image");
 		expect(providerModels["extra-anthropic"]).not.toHaveProperty(
 			"unsupported-image",
@@ -250,6 +277,8 @@ describe("models-dev-catalog", () => {
 			"unsupported-image",
 		);
 		expect(providerModels.gemini).toHaveProperty("supported-image");
+		expect(providerModels.poe).toHaveProperty("chat-model");
+		expect(providerModels.poe).not.toHaveProperty("unsupported-image");
 	});
 
 	it("prefers a text-output model over a newer dedicated image default", () => {
@@ -797,6 +826,22 @@ describe("models-dev-catalog", () => {
 				"openai/gpt-5.3-codex"
 			]?.contextWindow,
 		).toBe(400_000);
+	});
+
+	it("regenerates image models with supported endpoint routing", () => {
+		expect(
+			getGeneratedModelsForProvider("openai-native")["gpt-image-1.5"]
+				?.modalities?.output,
+		).toEqual(["image"]);
+
+		const poeDedicatedImages = Object.values(
+			getGeneratedModelsForProvider("poe"),
+		).filter(
+			(model) =>
+				model.modalities?.output.includes("image") === true &&
+				model.modalities.output.includes("text") !== true,
+		);
+		expect(poeDedicatedImages).toEqual([]);
 	});
 
 	it("includes video input for direct MiniMax M3 catalog entries", () => {
