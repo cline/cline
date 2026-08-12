@@ -87,7 +87,10 @@ import {
 import type { CoreSessionConfig } from "../../types/config";
 import type { CoreSessionEvent } from "../../types/events";
 import type { ActiveSession, PreparedTurnInput } from "../../types/session";
-import type { SessionRecord } from "../../types/sessions";
+import type {
+	SessionHistoryMetadata,
+	SessionRecord,
+} from "../../types/sessions";
 import type { RuntimeCapabilities } from "../capabilities";
 import { normalizeRuntimeCapabilities } from "../capabilities";
 import { normalizeConnectionUpdate } from "../config/connection-update";
@@ -1646,6 +1649,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		}
 		await this.refreshActiveSessionGitMetadata(session);
 		await this.syncOAuthCredentials(session);
+		await this.clearNeedsAttentionMetadata(session);
 		await this.markTurnRunning(session);
 
 		try {
@@ -1678,8 +1682,73 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<void> {
 		if (hasPendingTeamRunWork(session)) return;
 		session.lastInteractiveTurnFinishReason = finishReason;
+		await this.persistTurnCompletionMetadata(session, finishReason);
 		await this.markTurnIdle(session);
 		session.aborting = false;
+	}
+
+	/**
+	 * Records the turn outcome in session metadata so clients can tell the
+	 * agent finished and is waiting on a human without inspecting the
+	 * transcript: interactive sessions stay `idle` between turns and only
+	 * reach a terminal status at stop/dispose, so the row status alone
+	 * cannot distinguish "agent done, needs review" from "idle mid
+	 * conversation". `needsAttention` is skipped for user aborts (someone
+	 * was present to stop the turn) and cleared when the next turn starts;
+	 * clients clear it when the user views the session.
+	 */
+	private async persistTurnCompletionMetadata(
+		session: ActiveSession,
+		finishReason: AgentResult["finishReason"],
+	): Promise<void> {
+		try {
+			await this.persistSessionMetadata(session.sessionId, (current) => {
+				// The turn outcome owns the flag: rebuild it from scratch rather
+				// than merging over the previous value, so a stale flag left by a
+				// failed turn-start clear cannot survive an aborted turn.
+				const { needsAttention: _stale, ...rest } = current ?? {};
+				return {
+					...rest,
+					lastTurnCompletion: {
+						finishReason,
+						endedAt: new Date().toISOString(),
+					},
+					...(finishReason === "aborted" ? {} : { needsAttention: true }),
+				};
+			});
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to persist turn completion metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
+	}
+
+	/**
+	 * Drops the `needsAttention` flag when a new turn starts: a fresh user
+	 * prompt means a human is engaged with the session, so any pending
+	 * "needs review" indicator is stale. Checked against the in-memory
+	 * manifest first so sessions without the flag don't pay a write.
+	 */
+	private async clearNeedsAttentionMetadata(
+		session: ActiveSession,
+	): Promise<void> {
+		const metadata = session.artifacts?.manifest.metadata as
+			| Record<string, unknown>
+			| undefined;
+		if (metadata?.needsAttention === undefined) return;
+		try {
+			await this.persistSessionMetadata(session.sessionId, (current) => {
+				if (!current || current.needsAttention === undefined) return current;
+				const { needsAttention: _needsAttention, ...rest } = current;
+				return rest;
+			});
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to clear session needsAttention metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
 	}
 
 	private resolveInteractiveStopStatus(session: ActiveSession): SessionStatus {
@@ -2105,6 +2174,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (hasPendingTeamRunWork(session)) return;
 		const isAborted = finishReason === "aborted" || session.aborting;
 		const isError = finishReason === "error";
+		await this.persistTurnCompletionMetadata(
+			session,
+			isAborted ? "aborted" : finishReason,
+		);
 		await this.shutdownSession(session, {
 			status: isAborted ? "cancelled" : isError ? "failed" : "completed",
 			exitCode: isError ? 1 : 0,
@@ -2131,18 +2204,43 @@ export class LocalRuntimeHost implements RuntimeHost {
 			endReason: string;
 		},
 	): Promise<void> {
-		// Fallback `task.completed` emission for completed sessions that
-		// did not observe an explicit `submit_and_exit` tool call. The
-		// observer in `executeAgentTurn(...)` already emitted the event in
-		// that case, so we suppress here to avoid double-counting.
-		if (input.status === "completed" && !session.submitAndExitObserved) {
+		// `task.completed` emission for sessions that did not observe an
+		// explicit `submit_and_exit` tool call (the observer in
+		// `executeAgentTurn(...)` already emitted in that case; suppress here
+		// to avoid double-counting). The persisted turn-completion metadata is
+		// the authoritative signal when present: it says how the FINAL turn
+		// actually ended, so a session whose last turn errored or was aborted
+		// does not count as completed even if the session row closes cleanly —
+		// and `workDurationMs` measures start → final turn end, excluding the
+		// idle tail before the user closed the session. Sessions without the
+		// metadata (persistence failure, pre-metadata sessions) fall back to
+		// the coarse status-based gate this block always had.
+		const lastTurnCompletion = (
+			session.sessionMetadata as SessionHistoryMetadata | undefined
+		)?.lastTurnCompletion;
+		const completedCleanly = lastTurnCompletion
+			? lastTurnCompletion.finishReason === "completed"
+			: input.status === "completed";
+		if (completedCleanly && !session.submitAndExitObserved) {
+			const workDurationMs = lastTurnCompletion
+				? Date.parse(lastTurnCompletion.endedAt) -
+					Date.parse(session.startedAt)
+				: undefined;
 			captureTaskCompleted(session.config.telemetry, {
 				ulid: session.sessionId,
 				provider: session.config.providerId,
 				modelId: session.config.modelId,
 				mode: session.config.mode,
 				durationMs: Date.now() - Date.parse(session.startedAt),
-				source: "shutdown",
+				source: lastTurnCompletion ? "turn_completion" : "shutdown",
+				...(lastTurnCompletion
+					? {
+							finishReason: lastTurnCompletion.finishReason,
+							...(Number.isFinite(workDurationMs)
+								? { workDurationMs }
+								: {}),
+						}
+					: {}),
 				...this.getSessionAgentTelemetryIdentity(session),
 			});
 		}

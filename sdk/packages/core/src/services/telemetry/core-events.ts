@@ -424,7 +424,10 @@ export function captureTaskRestarted(
  *   safety-net so we still report completed runs that never observed
  *   `submit_and_exit`.
  */
-export type TaskCompletedSource = "submit_and_exit" | "shutdown";
+export type TaskCompletedSource =
+	| "submit_and_exit"
+	| "shutdown"
+	| "turn_completion";
 
 export function captureTaskCompleted(
 	telemetry: ITelemetryService | undefined,
@@ -435,6 +438,13 @@ export function captureTaskCompleted(
 		mode?: string;
 		durationMs?: number;
 		source?: TaskCompletedSource;
+		/** How the session's final turn ended (from lastTurnCompletion metadata). */
+		finishReason?: string;
+		/**
+		 * Session start → final turn end. Unlike durationMs (start → session
+		 * close), this excludes idle time between finishing and closing.
+		 */
+		workDurationMs?: number;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {
 	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPLETED, properties);

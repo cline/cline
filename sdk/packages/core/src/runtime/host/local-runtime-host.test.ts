@@ -1433,6 +1433,177 @@ describe("LocalRuntimeHost", () => {
 		expect(runtime.shutdown).not.toHaveBeenCalled();
 	});
 
+	describe("turn completion metadata", () => {
+		function createTurnMetadataHarness(
+			sessionId: string,
+			agentOverrides: Record<string, unknown> = {},
+		) {
+			const manifest = createManifest(sessionId);
+			const sessionService = {
+				ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+				createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+					manifestPath: "/tmp/manifest.json",
+					messagesPath: "/tmp/messages.json",
+					manifest,
+				}),
+				persistSessionMessages: vi.fn(),
+				updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+				updateSession: vi.fn().mockResolvedValue({ updated: true }),
+				writeSessionManifest: vi.fn(),
+				listSessions: vi.fn().mockResolvedValue([]),
+				deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+			};
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+				...agentOverrides,
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+			const metadataCalls = () =>
+				sessionService.updateSession.mock.calls
+					.map((call) => call[0] as { metadata?: Record<string, unknown> })
+					.filter((input) => input.metadata !== undefined)
+					.map((input) => input.metadata as Record<string, unknown>);
+			return { manager, sessionService, agent, manifest, metadataCalls };
+		}
+
+		it("records needsAttention metadata after a completed interactive turn", async () => {
+			const sessionId = "sess-turn-metadata-completed";
+			const { manager, metadataCalls } = createTurnMetadataHarness(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				needsAttention: true,
+				lastTurnCompletion: { finishReason: "completed" },
+			});
+			expect(
+				typeof (outcome?.lastTurnCompletion as { endedAt?: unknown })?.endedAt,
+			).toBe("string");
+		});
+
+		it("records the turn outcome without needsAttention for aborted turns", async () => {
+			const sessionId = "sess-turn-metadata-aborted";
+			const { manager, metadataCalls } = createTurnMetadataHarness(sessionId, {
+				run: vi
+					.fn()
+					.mockResolvedValue(createResult({ finishReason: "aborted" })),
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				lastTurnCompletion: { finishReason: "aborted" },
+			});
+			expect(outcome?.needsAttention).toBeUndefined();
+		});
+
+		it("drops a stale needsAttention flag when an aborted turn's clear write failed", async () => {
+			const sessionId = "sess-turn-metadata-aborted-stale";
+			const { manager, sessionService, manifest, metadataCalls } =
+				createTurnMetadataHarness(sessionId, {
+					run: vi
+						.fn()
+						.mockResolvedValue(createResult({ finishReason: "aborted" })),
+				});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			// A prior turn left the flag set, and the best-effort clear at the
+			// next turn's start fails; the aborted turn's outcome write must
+			// still drop the stale flag rather than merging it forward.
+			manifest.metadata = { needsAttention: true };
+			sessionService.updateSession
+				.mockRejectedValueOnce(new Error("transient metadata write failure"))
+				.mockResolvedValue({ updated: true });
+
+			await manager.runTurn({ sessionId, prompt: "hello" });
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				lastTurnCompletion: { finishReason: "aborted" },
+			});
+			expect(outcome?.needsAttention).toBeUndefined();
+		});
+
+		it("clears needsAttention when the next turn starts", async () => {
+			const sessionId = "sess-turn-metadata-clear";
+			const { manager, sessionService, metadataCalls } =
+				createTurnMetadataHarness(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: true,
+				}),
+			);
+			expect(metadataCalls().at(-1)).toMatchObject({ needsAttention: true });
+			sessionService.updateSession.mockClear();
+
+			await manager.runTurn({ sessionId, prompt: "follow up" });
+
+			const calls = metadataCalls();
+			// First write of the new turn drops the stale flag; the turn's own
+			// completion sets it again at the end.
+			expect(calls[0]?.needsAttention).toBeUndefined();
+			expect(calls[0]?.lastTurnCompletion).toBeDefined();
+			expect(calls.at(-1)).toMatchObject({ needsAttention: true });
+		});
+
+		it("records needsAttention metadata when a non-interactive run finishes", async () => {
+			const sessionId = "sess-turn-metadata-single-run";
+			const { manager, metadataCalls } = createTurnMetadataHarness(sessionId);
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					prompt: "hello",
+					interactive: false,
+				}),
+			);
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				needsAttention: true,
+				lastTurnCompletion: { finishReason: "completed" },
+			});
+		});
+	});
+
 	it("disposes idle interactive sessions without changing status", async () => {
 		const sessionId = "sess-interactive-dispose";
 		const manifest = createManifest(sessionId);
@@ -2153,6 +2324,11 @@ describe("LocalRuntimeHost", () => {
 						cacheWriteTokens: 0,
 						totalCost: 0.42,
 					},
+					lastTurnCompletion: {
+						finishReason: "completed",
+						endedAt: expect.any(String),
+					},
+					needsAttention: true,
 				},
 				status: "completed",
 			}),
@@ -2247,8 +2423,9 @@ describe("LocalRuntimeHost", () => {
 				interactive: false,
 			}),
 		);
-		expect(updateSession).toHaveBeenCalledTimes(1);
-		expect(updateSession).toHaveBeenLastCalledWith({
+		// Two writes: turn usage metadata, then the single-run turn outcome.
+		expect(updateSession).toHaveBeenCalledTimes(2);
+		expect(updateSession).toHaveBeenNthCalledWith(1, {
 			sessionId,
 			metadata: {
 				totalCost: 0,
@@ -2268,6 +2445,17 @@ describe("LocalRuntimeHost", () => {
 					totalCost: 0,
 				},
 			},
+		});
+		expect(updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: expect.objectContaining({
+				totalCost: 0,
+				lastTurnCompletion: {
+					finishReason: "completed",
+					endedAt: expect.any(String),
+				},
+				needsAttention: true,
+			}),
 		});
 	});
 
@@ -2415,7 +2603,8 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			runCount: 3,
 		});
-		expect(updateSession).toHaveBeenCalledTimes(2);
+		// Three writes: checkpoint metadata, turn usage, then the turn outcome.
+		expect(updateSession).toHaveBeenCalledTimes(3);
 		expect(updateSession).toHaveBeenNthCalledWith(1, {
 			sessionId,
 			metadata: expect.objectContaining({
@@ -2437,6 +2626,16 @@ describe("LocalRuntimeHost", () => {
 					}),
 				}),
 				totalCost: 0,
+			}),
+		});
+		expect(updateSession).toHaveBeenNthCalledWith(3, {
+			sessionId,
+			metadata: expect.objectContaining({
+				lastTurnCompletion: {
+					finishReason: "completed",
+					endedAt: expect.any(String),
+				},
+				needsAttention: true,
 			}),
 		});
 	});
@@ -6793,7 +6992,7 @@ describe("LocalRuntimeHost", () => {
 			});
 		});
 
-		it("falls back to source=shutdown when a non-interactive run completes without submit_and_exit", async () => {
+		it("emits source=turn_completion from persisted turn metadata when a non-interactive run completes without submit_and_exit", async () => {
 			const sessionId = "sess-task-completed-shutdown-fallback";
 			const manifest = createManifest(sessionId);
 			const adapter = createTaskCompletedAdapter();
@@ -6839,10 +7038,15 @@ describe("LocalRuntimeHost", () => {
 
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
+			// The turn-completion metadata is persisted before shutdown, so the
+			// emission derives from it: source, final-turn finishReason, and a
+			// work duration anchored at the turn end rather than session close.
 			expect(emissions[0]).toMatchObject({
 				ulid: sessionId,
-				source: "shutdown",
+				source: "turn_completion",
+				finishReason: "completed",
 			});
+			expect(typeof emissions[0].workDurationMs).toBe("number");
 		});
 
 		it("emits task.completed exactly once when an interactive turn invokes submit_and_exit and is later cancelled", async () => {
@@ -6955,7 +7159,7 @@ describe("LocalRuntimeHost", () => {
 			expect(emissions[0]).toMatchObject({ source: "submit_and_exit" });
 		});
 
-		it("ignores failed submit_and_exit tool calls so the shutdown fallback still fires", async () => {
+		it("ignores failed submit_and_exit tool calls so the turn-completion emission still fires", async () => {
 			const sessionId = "sess-task-completed-failed-submit";
 			const manifest = createManifest(sessionId);
 			const adapter = createTaskCompletedAdapter();
@@ -7007,7 +7211,64 @@ describe("LocalRuntimeHost", () => {
 
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
-			expect(emissions[0]).toMatchObject({ source: "shutdown" });
+			expect(emissions[0]).toMatchObject({ source: "turn_completion" });
+		});
+
+		it("falls back to source=shutdown when turn metadata could not be persisted", async () => {
+			const sessionId = "sess-task-completed-metadata-fallback";
+			const manifest = createManifest(sessionId);
+			const adapter = createTaskCompletedAdapter();
+			const telemetry = new TelemetryService({
+				adapters: [adapter],
+				distinctId,
+			});
+			const sessionService = createMockSessionService(manifest);
+			// Persistence failure: the store rejects the metadata update, so the
+			// session carries no lastTurnCompletion and the coarse status gate
+			// applies.
+			;(sessionService as Record<string, unknown>).updateSession = vi
+				.fn()
+				.mockResolvedValue({ updated: false });
+			const runtimeBuilder = {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			};
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult({ toolCalls: [] })),
+				continue: vi.fn(),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+				getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+				abort: vi.fn(),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				canStartRun: vi.fn().mockReturnValue(true),
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: sessionService as never,
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+				telemetry,
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ telemetry, sessionId }),
+					prompt: "just finish",
+					interactive: false,
+				}),
+			);
+
+			const emissions = countTaskCompletedEmissions(adapter);
+			expect(emissions).toHaveLength(1);
+			expect(emissions[0]).toMatchObject({
+				ulid: sessionId,
+				source: "shutdown",
+			});
+			expect(emissions[0].finishReason).toBeUndefined();
 		});
 	});
 
