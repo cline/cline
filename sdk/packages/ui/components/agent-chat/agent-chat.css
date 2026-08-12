@@ -245,13 +245,9 @@
 		margin: 0.5rem 0;
 	}
 
-	.cline-chat-tool-trigger {
-		color: var(--success-text);
-	}
-
 	/* Active tool rows carry the brand accent; finished rows settle into the
-	 * muted gray of older transcript chrome. Hover brightens without shifting
-	 * hue. */
+	 * muted gray of older transcript chrome (the base trigger color above).
+	 * Hover brightens without shifting hue. */
 	.cline-chat-tool-trigger[data-status="running"] {
 		color: var(--brand-violet, var(--primary));
 	}
