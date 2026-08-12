@@ -802,6 +802,102 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("marks a classified returned failure while preserving its output", async () => {
+		const tool: AgentTool<unknown, { success: boolean; error?: string }> = {
+			name: "returned_failure",
+			description: "Return a structured operation result",
+			inputSchema: { type: "object" },
+			isError: (output) => !output.success,
+			async execute() {
+				return { success: false, error: "operation failed" };
+			},
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_failure",
+					toolName: "returned_failure",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(request.messages.at(-1)?.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { success: false, error: "operation failed" },
+				});
+				return [
+					{ type: "text-delta", text: "recovered" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model, tools: [tool] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+	});
+
+	it("does not complete a terminal tool until its returned result is accepted", async () => {
+		let attempts = 0;
+		const submitTool: AgentTool<
+			unknown,
+			{ accepted: boolean; error?: string }
+		> = {
+			name: "submit",
+			description: "Submit final answer",
+			inputSchema: { type: "object" },
+			lifecycle: { completesRun: true },
+			isError: (output) => !output.accepted,
+			async execute() {
+				attempts += 1;
+				return attempts === 1
+					? { accepted: false, error: "summary is required" }
+					: { accepted: true };
+			},
+		};
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_submit_1",
+					toolName: "submit",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(request.messages.at(-1)?.content[0]).toMatchObject({
+					type: "tool-result",
+					isError: true,
+					output: { accepted: false, error: "summary is required" },
+				});
+				return [
+					{
+						type: "tool-call-delta",
+						toolCallId: "call_submit_2",
+						toolName: "submit",
+						inputText: "{}",
+					},
+					{ type: "finish", reason: "tool-calls" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({ model, tools: [submitTool] });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("completed");
+		expect(result.iterations).toBe(2);
+		expect(result.outputText).toBe('{"accepted":true}');
+		expect(attempts).toBe(2);
+	});
+
 	it("preserves structured multimodal tool results for the next model request", async () => {
 		const structuredOutput = [
 			{ type: "text", text: "Successfully read image" },

@@ -77,6 +77,14 @@ import type {
 // Helper Functions
 // =============================================================================
 
+function hasFailedOperation(
+	output: ToolOperationResult | ToolOperationResult[],
+): boolean {
+	return (Array.isArray(output) ? output : [output]).some(
+		(operation) => !operation.success,
+	);
+}
+
 function getStringMetadata(
 	context: AgentToolContext,
 	key: string,
@@ -262,6 +270,7 @@ export function createReadFilesTool(
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
 		maxRetries: 1,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			const validate = validateWithZod(
 				ReadFilesInputUnionSchema,
@@ -358,6 +367,7 @@ export function createSearchTool(
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
 		maxRetries: 1,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			// Validate input with Zod schema
 			const validate = validateWithZod(SearchCodebaseUnionInputSchema, input);
@@ -482,6 +492,7 @@ export function createShellTool(
 		timeoutMs: timeoutMs * 2,
 		retryable: false,
 		maxRetries: 0,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			const commands = coalesceAdjacentStringHeredocs(
 				normalizeRunCommandsInput(input),
@@ -531,6 +542,7 @@ export function createWebFetchTool(
 		timeoutMs: timeoutMs * 2,
 		retryable: true,
 		maxRetries: 2,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			// Validate input with Zod schema
 			const validatedInput = validateWithZod(FetchWebContentInputSchema, input);
@@ -622,6 +634,7 @@ export function createApplyPatchTool(
 		timeoutMs,
 		retryable: false,
 		maxRetries: 0,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			const validate = validateWithZod(ApplyPatchInputUnionSchema, input);
 			const patchInput =
@@ -676,6 +689,7 @@ export function createEditorTool(
 		timeoutMs,
 		retryable: false, // Editing operations are stateful and should not auto-retry
 		maxRetries: 0,
+		isError: hasFailedOperation,
 		execute: async (input, context) => {
 			const validatedInput = validateWithZod(EditFileInputSchema, input);
 			const operation = validatedInput.insert_line == null ? "edit" : "insert";

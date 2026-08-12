@@ -125,8 +125,10 @@ const summarize: AgentTool<{ text: string }, { summary: string }> = {
 ```
 
 The runtime wraps successful tool outputs in an internal tool-result message.
-Throw from `execute(...)` to report a tool failure, or use an `afterTool` hook
-to transform the internal `AgentToolResult` envelope.
+Throw from `execute(...)` to report a tool failure. If a tool returns a domain
+result for both success and failure, provide `isError(output)` to classify the
+returned value. An `afterTool` hook can also transform the internal
+`AgentToolResult` envelope.
 
 ### Events
 

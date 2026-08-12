@@ -181,6 +181,8 @@ export interface AgentTool<TInput = unknown, TOutput = unknown>
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
+	/** Classify a returned output as a failed tool execution. */
+	isError?(output: TOutput): boolean;
 	execute: (
 		input: TInput,
 		context: AgentToolContext,
