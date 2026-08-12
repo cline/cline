@@ -1,6 +1,6 @@
 import { existsSync } from "node:fs"
 import path from "node:path"
-import type { ClineCoreListHistoryOptions, SessionHistoryRecord } from "@cline/core"
+import type { ClineCoreListHistoryOptions, SessionHistoryRecord, SessionStatus } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
 import { formatDisplayUserInput, parseUserInputMode } from "@cline/shared"
 import { resolveSessionDataDir } from "@cline/shared/storage"
@@ -70,6 +70,12 @@ function dateStringToTimestamp(value: string | null | undefined): number {
 	}
 	const timestamp = Date.parse(value)
 	return Number.isFinite(timestamp) ? timestamp : 0
+}
+
+const NON_TERMINAL_SESSION_STATUSES = new Set<SessionStatus>(["idle", "running", "pending"])
+
+function isNonTerminalSessionStatus(status: SessionStatus | undefined): boolean {
+	return status !== undefined && NON_TERMINAL_SESSION_STATUSES.has(status)
 }
 
 /**
@@ -690,7 +696,12 @@ export class SdkTaskHistory {
 	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
 		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
 		const cachedSize = metadataNumber(record.metadata, "size")
-		if (cachedSize !== undefined && cachedSize >= 0) {
+		// A cached zero-byte size is only authoritative once the session is terminal. Tasks are
+		// created with metadata.size = 0 before any artifacts exist and that zero was never
+		// re-measured while the session stayed active, so a running/paused task kept showing
+		// "0 B" in History even though its session folder had grown to kilobytes (#13169).
+		// Re-measure the artifact folder for non-terminal sessions that still hold a zero cache.
+		if (cachedSize !== undefined && (cachedSize > 0 || !isNonTerminalSessionStatus(record.status))) {
 			return cachedSize
 		}
 

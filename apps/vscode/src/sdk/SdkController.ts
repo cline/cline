@@ -1932,6 +1932,20 @@ export class Controller {
 			}
 		}
 
+		// The active task's cached metadata.size stays 0 while it is running or paused (it is
+		// only re-measured when the thread is reopened), so History would show "0 B" for a task
+		// that already has data on disk. Measure it now so the list reflects the real on-disk
+		// size, even across History refreshes, without waiting for the user to reopen the task.
+		if (this.task?.taskId) {
+			const activeTaskIndex = tasks.findIndex((task) => task.id === this.task?.taskId)
+			if (activeTaskIndex !== -1) {
+				const freshItem = await this.taskHistory.findHistoryItem(this.task.taskId).catch(() => undefined)
+				if (freshItem?.size !== undefined) {
+					tasks[activeTaskIndex] = { ...tasks[activeTaskIndex], size: freshItem.size }
+				}
+			}
+		}
+
 		return TaskHistoryArray.create({ tasks: tasks.slice(0, limit), hasMore })
 	}
 

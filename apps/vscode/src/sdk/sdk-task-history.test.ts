@@ -444,6 +444,34 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("re-measures a zero-byte cached size for a paused (non-terminal) task", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				// A paused task's session is still alive, so the SDK record reports a
+				// non-terminal status ("idle") and its artifacts can keep growing.
+				status: "idle",
+				// metadata.size is initialized to 0 at session creation and is never
+				// re-measured while the task stays active, so History shows "0 B".
+				metadata: { size: 0 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 6144,
+		})
+
+		expect(getFolderSize.loose).toHaveBeenCalledWith("/tmp/cline/sessions/task-1", { bigint: false })
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144 }),
+			}),
+		)
+	})
+
 	it("keeps existing SDK task size metadata without measuring artifacts", async () => {
 		const { history, updateSession } = makeHistory([makeSessionRecord("task-1", { metadata: { size: 2048 } })])
 
