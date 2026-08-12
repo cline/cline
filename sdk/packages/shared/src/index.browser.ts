@@ -189,6 +189,7 @@ export {
 	ModelPricingSchema,
 	type ModelStatus,
 	ModelStatusSchema,
+	modelHasCapability,
 	modelSupportsToolCalling,
 	type ThinkingConfig,
 	ThinkingConfigSchema,

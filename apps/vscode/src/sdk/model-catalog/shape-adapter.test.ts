@@ -86,6 +86,22 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.supportsPromptCache).toBe(openAiModelInfoSafeDefaults.supportsPromptCache)
 			expect(model.supportsReasoning).toBeUndefined()
 		})
+
+		it("preserves the SDK capability list verbatim, including entries without a boolean projection", () => {
+			const model = adaptSdkModelInfo({
+				id: "m",
+				capabilities: ["tools", "structured_output", "images", "some-future-capability"],
+			})
+			expect(model.capabilities).toEqual(["tools", "structured_output", "images", "some-future-capability"])
+		})
+
+		it("omits the preserved capability list when the SDK sends none", () => {
+			// Absent means "capabilities unknown"; SDK checks fail open on it.
+			// Fabricating a list here would make safe-default booleans read as
+			// authoritative capability denials downstream.
+			const model = adaptSdkModelInfo({ id: "m" })
+			expect(Object.hasOwn(model, "capabilities")).toBe(false)
+		})
 	})
 
 	describe("pricing", () => {

@@ -96,6 +96,14 @@ export interface ModelInfo {
 	}[]
 	temperature?: number
 	apiFormat?: ApiFormat // The API format used by this model
+	/**
+	 * SDK capability list preserved verbatim at the catalog boundary
+	 * (`adaptSdkModelInfo`). Never reconstruct this from the boolean flags
+	 * above — those cover only a subset of capabilities (e.g. `tools` has no
+	 * boolean), and the SDK treats a populated list as authoritative. Absent
+	 * means "capabilities unknown", which SDK checks fail open on.
+	 */
+	capabilities?: readonly string[]
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

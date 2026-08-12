@@ -126,14 +126,42 @@ export function isDedicatedImageGenerationModel(
 }
 
 /**
- * Whether a model can receive function/tool definitions. Missing capability
- * metadata fails open for user-entered and dynamically discovered models;
- * an explicit capability list without `tools` is authoritative.
+ * Whether a model's capability metadata declares `capability`.
+ *
+ * Capability lists reach this check from sources of very different fidelity:
+ * the generated catalog is complete, but host boundaries (VS Code's legacy
+ * ModelInfo, user-authored overrides, dynamic provider listings) may carry
+ * partial lists reconstructed from a handful of boolean flags. A missing or
+ * empty list therefore carries no signal, and each check declares its own
+ * default via `assumeWhenUnspecified` instead of treating absence as denial.
+ *
+ * Capability gates added by future model modes (audio, video, transcription,
+ * …) should route through this helper rather than reading
+ * `model.capabilities` directly, so the unspecified-list semantics stay
+ * consistent across the codebase.
+ */
+export function modelHasCapability(
+	model: { capabilities?: readonly string[] },
+	capability: string,
+	options?: { assumeWhenUnspecified?: boolean },
+): boolean {
+	const capabilities = model.capabilities;
+	if (capabilities === undefined || capabilities.length === 0) {
+		return options?.assumeWhenUnspecified ?? false;
+	}
+	return capabilities.includes(capability);
+}
+
+/**
+ * Whether a model can receive function/tool definitions. Fails open when the
+ * capability list is missing or empty (user-entered and dynamically
+ * discovered models); a populated capability list without `tools` is
+ * authoritative.
  */
 export function modelSupportsToolCalling(model: {
 	capabilities?: readonly string[];
 }): boolean {
-	return model.capabilities?.includes("tools") ?? true;
+	return modelHasCapability(model, "tools", { assumeWhenUnspecified: true });
 }
 export const ModelInfoSchema = z.object({
 	id: z.string(),

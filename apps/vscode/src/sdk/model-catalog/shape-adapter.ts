@@ -37,11 +37,17 @@
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
+ * | capabilities | `sdk.capabilities` preserved verbatim | omitted (undefined) |
+ *
+ * The full SDK capability list is preserved on `ModelInfo.capabilities` in
+ * addition to the boolean projections above. The booleans exist for legacy
+ * consumers; the preserved list is what flows back to the SDK runtime via
+ * `toSdkModelInfo`, so capabilities without a boolean projection (`tools`,
+ * `structured_output`, and any capability added by a future catalog) survive
+ * the boundary round-trip.
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
- * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
- * `reasoning` (for example `tools`, `streaming`, `structured_output`,
- * `temperature`).
+ * `status`.
  *
  * Extension-only fields not populated by this adapter: `thinkingConfig`,
  * `tiers`, `temperature`, `apiFormat`, `supportsGlobalEndpoint`, and local
@@ -206,6 +212,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 
 	if (capabilities) {
+		result.capabilities = capabilities
 		result.supportsImages = capabilities.some((capability) => IMAGE_CAPABILITIES.has(capability))
 		if (capabilities.includes(REASONING_CAPABILITY)) {
 			result.supportsReasoning = true
