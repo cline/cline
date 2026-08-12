@@ -53,6 +53,10 @@ export function HubUpdateRequiredDialog() {
 				return;
 			}
 			setMismatch(payload as HubBuildMismatchPayload);
+			// A new mismatch is a fresh prompt: drop any "no update available"
+			// hint left over from a previous dialog so it reopens in its
+			// initial state instead of pre-set to "Try again".
+			setUpdateHint(null);
 		});
 	}, []);
 
