@@ -12,6 +12,8 @@ export interface InteractiveSlashCommand {
 	instructions: string;
 	description?: string;
 	kind?: "skill" | "workflow";
+	/** Grouping folder path for skills organized under nested folders. */
+	folder?: string;
 }
 
 function normalizeLimit(limit: number | undefined): number {
@@ -149,6 +151,7 @@ export function listInteractiveSlashCommands(
 			instructions: command.instructions,
 			description: command.description,
 			kind: command.kind,
+			folder: command.folder,
 		})),
 	];
 }

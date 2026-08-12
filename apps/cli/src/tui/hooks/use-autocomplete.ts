@@ -149,7 +149,13 @@ export function useAutocomplete(opts: {
 	const skillOptions: AutocompleteOption[] = skillCommands.map((cmd) => ({
 		display: `/${cmd.name}`,
 		value: formatSlashCommandAutocompleteValue(cmd),
-		description: cmd.description,
+		// Show the grouping folder so skills organized under folders keep
+		// their context in the flat autocomplete list.
+		description: cmd.folder
+			? cmd.description
+				? `${cmd.folder} · ${cmd.description}`
+				: cmd.folder
+			: cmd.description,
 		commandName: cmd.name,
 		commandExecution: cmd.execution,
 		commandSource: cmd.source,

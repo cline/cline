@@ -33,6 +33,8 @@ export interface SlashCommandRegistryEntry {
 	instructions: string;
 	source: SlashCommandSource;
 	kind?: InteractiveSlashCommand["kind"];
+	/** Grouping folder path for skills organized under nested folders. */
+	folder?: string;
 	execution: SlashCommandExecution;
 	visible: boolean;
 	selectable: boolean;
@@ -177,6 +179,7 @@ function entryFromRuntimeCommand(
 		instructions: command.instructions,
 		source,
 		kind: command.kind,
+		folder: command.folder,
 		execution,
 		visible: true,
 		selectable: true,
