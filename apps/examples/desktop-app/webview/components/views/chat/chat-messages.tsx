@@ -21,7 +21,7 @@ import {
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
+import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
 	BrainIcon,
@@ -33,7 +33,6 @@ import {
 	ShieldAlert,
 	SplitIcon,
 	UndoIcon,
-	WrenchIcon,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -171,13 +170,21 @@ function ChatMessagesImpl({
 	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
-	// Core reports "running" as soon as the turn is dispatched, well before the
-	// first streamed chunk arrives, so keep the thinking indicator up until the
-	// model produces output (or something else needs the user's attention).
+	// Core reports "running" as soon as the turn is dispatched, and there are
+	// quiet stretches mid-turn with nothing visibly active — most notably
+	// while the model streams a tool call's arguments, before any tool row
+	// exists. Show the thinking indicator whenever the turn is running and
+	// neither streaming text nor an in-progress tool row is on screen.
+	const lastToolInProgress = useMemo(
+		() =>
+			lastConversationMessage?.role === "tool" &&
+			buildToolPresentation(lastConversationMessage).inProgress,
+		[lastConversationMessage],
+	);
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
-		lastConversationMessage?.role === "user" &&
+		!lastToolInProgress &&
 		pendingToolApprovals.length === 0 &&
 		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
@@ -518,40 +525,13 @@ function ChatMessagesImpl({
 				<ConversationContent
 					className={cn(
 						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
-						showIdleDetails ? "p-0" : "px-6 py-6",
+						// Extra bottom padding keeps the last message (and the
+						// hover actions hanging below it) clear of the composer.
+						showIdleDetails ? "p-0" : "px-6 pt-6 pb-14",
 					)}
 				>
 					{showIdleDetails ? null : (
 						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
-							{pendingToolApprovals.length > 0 ? (
-								<ToolApprovalPanel
-									items={pendingToolApprovals}
-									onApprove={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"approving",
-											onApproveToolApproval,
-										)
-									}
-									onReject={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"rejecting",
-											onRejectToolApproval,
-										)
-									}
-									pendingActions={toolApprovalActions}
-									requestErrors={toolApprovalErrors}
-								/>
-							) : null}
-							{askQuestionItems.length > 0 ? (
-								<AgentAskQuestion
-									errors={askQuestionErrors}
-									items={askQuestionItems}
-									onAnswer={handleAskQuestionAnswer}
-									pendingAnswers={askQuestionActions}
-								/>
-							) : null}
 							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
@@ -638,6 +618,38 @@ function ChatMessagesImpl({
 									/>
 								);
 							})}
+							{/* Pending interactions render inline at the end of the
+							    transcript — they are the newest thing that happened,
+							    not a banner pinned to the top. */}
+							{pendingToolApprovals.length > 0 ? (
+								<ToolApprovalPanel
+									items={pendingToolApprovals}
+									onApprove={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"approving",
+											onApproveToolApproval,
+										)
+									}
+									onReject={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"rejecting",
+											onRejectToolApproval,
+										)
+									}
+									pendingActions={toolApprovalActions}
+									requestErrors={toolApprovalErrors}
+								/>
+							) : null}
+							{askQuestionItems.length > 0 ? (
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={askQuestionItems}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
+								/>
+							) : null}
 						</div>
 					)}
 					{showSwitchTransition ? (
@@ -664,8 +676,14 @@ function ChatMessagesImpl({
 					) : null}
 					{(status === "starting" || isAwaitingFirstOutput) &&
 					!isSessionSwitching ? (
-						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
+						// Mirrors the tool-row trigger metrics (min-h-7, py-1, gap-2,
+						// 16px icon, font-medium) so text does not shift when this
+						// swaps with an arriving tool row. No margin of its own: the
+						// conversation column's gap already matches the spacing a tool
+						// row would get, so any extra margin makes this render lower
+						// than its replacement.
+						<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+							<Loader2 className="size-4 animate-spin" />
 							<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 						</div>
 					) : null}
@@ -982,7 +1000,7 @@ const MessageBubble = memo(function MessageBubble({
 		: null;
 	const messageTimestamp = messageTime ? (
 		<time
-			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			className="shrink-0 whitespace-nowrap text-xs leading-none text-muted-foreground/70"
 			dateTime={messageDate.toISOString()}
 			title={messageDate.toLocaleString()}
 		>
@@ -1038,26 +1056,29 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10 -translate-y-1"
+						// The 8px offset is padding, not translation: a translated gap
+					// is dead space that breaks the parent's :hover on the way to
+					// the buttons, hiding them before they can be clicked.
+					className="absolute right-0 top-full z-10 pt-2"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
-									<Check className="h-3.5 w-3.5" />
+									<Check className="size-3.5" />
 								) : (
-									<Copy className="h-3.5 w-3.5" />
+									<Copy className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
@@ -1066,15 +1087,15 @@ const MessageBubble = memo(function MessageBubble({
 								title="Edit message and restart from this point"
 							>
 								{editPending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									<Loader2 className="size-3.5 animate-spin" />
 								) : (
-									<PencilIcon className="h-3.5 w-3.5" />
+									<PencilIcon className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
 						{checkpoint ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -1083,9 +1104,9 @@ const MessageBubble = memo(function MessageBubble({
 								title="Restore checkpoint"
 							>
 								{restorePending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									<Loader2 className="size-3.5 animate-spin" />
 								) : (
-									<UndoIcon className="h-3.5 w-3.5" />
+									<UndoIcon className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
@@ -1106,12 +1127,12 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10 -translate-y-1"
+					className="absolute left-0 top-full z-10 pt-2"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -1121,24 +1142,24 @@ const MessageBubble = memo(function MessageBubble({
 							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
-								<Check className="h-3 w-3" />
+								<Check className="size-3.5" />
 							) : (
-								<Copy className="h-3 w-3" />
+								<Copy className="size-3.5" />
 							)}
 						</MessageAction>
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
-								<Loader2 className="h-3 w-3 animate-spin" />
+								<Loader2 className="size-3.5 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3 rotate-90" />
+								<SplitIcon className="size-3.5 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
@@ -1221,166 +1242,192 @@ function pruneRequestMap<T extends string>(
 // Memoized with element-wise comparison: the grouping pass wraps the same
 // message objects in fresh arrays every commit, so reference-comparing the
 // contents lets finished tool blocks skip re-rendering during streaming.
+function ToolLabel({
+	parts,
+	isRunning,
+}: {
+	parts: ToolLabelPart[];
+	isRunning: boolean;
+}) {
+	return (
+		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+			{parts.map((part, index) =>
+				part.code ? (
+					<span
+						className="font-mono"
+						// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+						key={index}
+					>
+						{part.text}
+					</span>
+				) : (
+					// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+					<span key={index}>{part.text}</span>
+				),
+			)}
+		</span>
+	);
+}
+
+// Every tool call renders as its own row: commands read like a terminal
+// prompt, edits carry their diff, and nothing is merged across calls.
+const ToolCallRow = memo(function ToolCallRow({
+	message,
+}: {
+	message: ChatMessage;
+}) {
+	const { payload, toolName, inProgress, summary } =
+		buildToolPresentation(message);
+	const fileDiffs = summary.items.flatMap((item, index) => {
+		if (item.type !== "file") return [];
+		const hunks =
+			item.hunks ??
+			(item.newText !== undefined
+				? [{ oldText: item.oldText, newText: item.newText }]
+				: null);
+		if (hunks) {
+			return hunks.map((hunk, hunkIndex) => ({
+				key: `${message.id}_diff_${index}_${hunkIndex}`,
+				kind: "rich" as const,
+				item,
+				hunk,
+			}));
+		}
+		return item.diff
+			? [
+					{
+						key: `${message.id}_diff_${index}`,
+						kind: "text" as const,
+						item,
+						hunk: null,
+					},
+				]
+			: [];
+	});
+	// Edit rows open pre-expanded so their diffs are immediately visible.
+	// `defaultOpen` alone misses the streaming path: a row can mount before
+	// its diff arrives, so open when one first appears — unless the user has
+	// taken over the disclosure.
+	const hasFileDiffs = fileDiffs.length > 0;
+	const [open, setOpen] = useState(hasFileDiffs);
+	const [userToggled, setUserToggled] = useState(false);
+	useEffect(() => {
+		if (hasFileDiffs && !userToggled) {
+			setOpen(true);
+		}
+	}, [hasFileDiffs, userToggled]);
+	const handleOpenChange = useCallback((nextOpen: boolean) => {
+		setUserToggled(true);
+		setOpen(nextOpen);
+	}, []);
+
+	const hasError = Boolean(payload?.isError);
+	const Icon = getToolNameIcon(toolName);
+	const isCommand = summary.kind === "command";
+	// Index-based keys: identical detail lines (the same file read twice)
+	// would collide on a content-derived key.
+	const details = summary.details.map((detail, index) => ({
+		detail,
+		key: `${message.id}_${index}`,
+	}));
+	const inputPreview =
+		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
+	const hasExpandedSections =
+		details.length > 0 ||
+		fileDiffs.length > 0 ||
+		Boolean(summary.outputText) ||
+		Boolean(summary.errorText) ||
+		Boolean(inputPreview);
+
+	return (
+		<ToolActivity
+			className="my-0"
+			expandable={hasExpandedSections}
+			onOpenChange={handleOpenChange}
+			open={open}
+		>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions || undefined}
+				deletions={summary.diff?.deletions || undefined}
+				icon={
+					hasError ? (
+						<AlertCircle className="size-4 text-destructive/80" />
+					) : (
+						<Icon className="size-4" />
+					)
+				}
+				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				showDisclosureIcon={false}
+				status={hasError ? "error" : inProgress ? "running" : "success"}
+			/>
+			<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
+				{details.length > 0 ? (
+					<ToolActivityDetails
+						className={cn(
+							"whitespace-pre-wrap",
+							isCommand && "font-mono text-xs",
+						)}
+					>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{fileDiffs.map((entry) =>
+					entry.kind === "rich" && entry.hunk ? (
+						<ToolFileDiff
+							className="mt-1"
+							fragment={entry.item.fragment}
+							key={entry.key}
+							newText={entry.hunk.newText}
+							oldText={entry.hunk.oldText}
+							path={entry.item.path}
+						/>
+					) : (
+						<ToolActivityCode
+							className="mt-1 overflow-x-auto text-xs"
+							key={entry.key}
+						>
+							{entry.item.diff}
+						</ToolActivityCode>
+					),
+				)}
+				{summary.outputText ? (
+					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+						{summary.outputText}
+					</ToolActivityCode>
+				) : null}
+				{inputPreview ? (
+					<div className="space-y-1">
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							Input
+						</div>
+						<ToolActivityCode className="text-sm">
+							{inputPreview}
+						</ToolActivityCode>
+					</div>
+				) : null}
+				{summary.errorText ? (
+					<div className="mt-1 break-words text-destructive">
+						{summary.errorText}
+					</div>
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
+	);
+});
+
+// Consecutive tool messages stack as individual rows; the element-wise
+// comparison lets finished rows skip re-rendering during streaming.
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
-		const presentations = messages.map(buildToolPresentation);
-		const hasFileDiffs = presentations.some(({ summary }) =>
-			summary.items.some(
-				(item) =>
-					item.type === "file" && (item.newText !== undefined || item.diff),
-			),
-		);
-		// Edit rows open pre-expanded so their diffs are immediately visible.
-		// `defaultOpen` alone misses the streaming path: a group mounts with its
-		// first (often read) call and only gains the edit later, so open when a
-		// diff first arrives — unless the user has taken over the disclosure.
-		const [open, setOpen] = useState(hasFileDiffs);
-		const [userToggled, setUserToggled] = useState(false);
-		useEffect(() => {
-			if (hasFileDiffs && !userToggled) {
-				setOpen(true);
-			}
-		}, [hasFileDiffs, userToggled]);
-		const handleOpenChange = useCallback((nextOpen: boolean) => {
-			setUserToggled(true);
-			setOpen(nextOpen);
-		}, []);
-		if (presentations.length === 0) return null;
-		const hasError = presentations.some(({ payload }) => payload?.isError);
-		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const label = buildGroupedToolLabel(
-			presentations.map(({ summary, inProgress }) => ({
-				label: summary.label,
-				aggregate: summary.aggregate,
-				inProgress,
-			})),
-		);
-		const icons = presentations.map(({ toolName }) =>
-			getToolNameIcon(toolName),
-		);
-		const firstIcon = icons[0] ?? WrenchIcon;
-		const Icon = icons.every((icon) => icon === firstIcon)
-			? firstIcon
-			: WrenchIcon;
-		// Index-based keys: identical detail lines (the same file read twice)
-		// would collide on a content-derived key.
-		const details = presentations.flatMap(({ message, summary }) =>
-			summary.details.map((detail, index) => ({
-				detail,
-				key: `${message.id}_${index}`,
-			})),
-		);
-		const fileDiffs = presentations.flatMap(({ message, summary }) =>
-			summary.items.flatMap((item, index) =>
-				item.type === "file" && (item.newText !== undefined || item.diff)
-					? [{ item, key: `${message.id}_diff_${index}` }]
-					: [],
-			),
-		);
-		const inputPreviews = IS_DEBUG
-			? presentations
-					.map(({ message, payload, toolName }) => ({
-						key: message.id,
-						toolName,
-						value: payload ? formatToolValue(payload.input) : "",
-					}))
-					.filter(({ value }) => Boolean(value))
-			: [];
-		const errorPreviews = presentations
-			.map(({ message, summary, toolName }) => ({
-				key: message.id,
-				toolName,
-				value: summary.errorText ?? "",
-			}))
-			.filter(({ value }) => Boolean(value));
-		const hasExpandedSections =
-			details.length > 0 ||
-			fileDiffs.length > 0 ||
-			inputPreviews.length > 0 ||
-			errorPreviews.length > 0;
-		const diff = presentations.reduce(
-			(total, { summary }) => ({
-				additions: total.additions + (summary.diff?.additions ?? 0),
-				deletions: total.deletions + (summary.diff?.deletions ?? 0),
-			}),
-			{ additions: 0, deletions: 0 },
-		);
-
+		if (messages.length === 0) return null;
 		return (
-			<ToolActivity
-				className="my-0"
-				expandable={hasExpandedSections}
-				onOpenChange={handleOpenChange}
-				open={open}
-			>
-				<ToolActivityTrigger
-					additions={diff.additions || undefined}
-					deletions={diff.deletions || undefined}
-					icon={
-						hasError ? (
-							<AlertCircle className="size-4 text-destructive/80" />
-						) : (
-							<Icon className="size-4" />
-						)
-					}
-					label={
-						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
-							{label}
-						</span>
-					}
-					showDisclosureIcon={false}
-					status={hasError ? "error" : isRunning ? "running" : "success"}
-				/>
-				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
-					{details.length > 0 ? (
-						<ToolActivityDetails className="whitespace-pre-wrap">
-							{details.map(({ detail, key }) => (
-								<div key={key}>{detail}</div>
-							))}
-						</ToolActivityDetails>
-					) : null}
-					{fileDiffs.map((entry) =>
-						entry.item.newText !== undefined ? (
-							<ToolFileDiff
-								className="mt-1"
-								fragment={entry.item.fragment}
-								key={entry.key}
-								newText={entry.item.newText}
-								oldText={entry.item.oldText}
-								path={entry.item.path}
-							/>
-						) : (
-							<ToolActivityCode
-								className="mt-1 overflow-x-auto text-xs"
-								key={entry.key}
-							>
-								{entry.item.diff}
-							</ToolActivityCode>
-						),
-					)}
-					{inputPreviews.map((preview) => (
-						<div className="space-y-1" key={`input_${preview.key}`}>
-							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-								{presentations.length > 1
-									? `${preview.toolName} input`
-									: "Input"}
-							</div>
-							<ToolActivityCode className="text-sm">
-								{preview.value}
-							</ToolActivityCode>
-						</div>
-					))}
-					{errorPreviews.map((preview) => (
-						<div
-							className="mt-1 break-words text-destructive"
-							key={`result_${preview.key}`}
-						>
-							{presentations.length > 1 ? `${preview.toolName}: ` : null}
-							{preview.value}
-						</div>
-					))}
-				</ToolActivityContent>
-			</ToolActivity>
+			<div className="flex flex-col gap-1">
+				{messages.map((message) => (
+					<ToolCallRow key={message.id} message={message} />
+				))}
+			</div>
 		);
 	},
 	(prev, next) =>

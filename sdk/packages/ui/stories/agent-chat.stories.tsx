@@ -23,6 +23,7 @@ import {
 	buildToolSummary,
 	type ToolKind,
 	type ToolSummary,
+	type ToolSummaryItem,
 } from "../components/agent-chat/tool-summary";
 
 const meta: Meta<typeof Conversation> = {
@@ -204,11 +205,34 @@ const SUMMARY_ICONS: Partial<Record<ToolKind, () => React.ReactNode>> = {
 	search: SearchIcon,
 };
 
+type SummaryDiffEntry = {
+	key: string;
+	kind: "rich" | "text";
+	item: Extract<ToolSummaryItem, { type: "file" }>;
+	hunk: { oldText?: string; newText: string } | null;
+};
+
 function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 	const Icon = SUMMARY_ICONS[summary.kind] ?? TerminalIcon;
-	const diffs = summary.items.filter(
-		(item) => item.type === "file" && (item.newText !== undefined || item.diff),
-	);
+	const diffs = summary.items.flatMap<SummaryDiffEntry>((item, index) => {
+		if (item.type !== "file") return [];
+		const hunks =
+			item.hunks ??
+			(item.newText !== undefined
+				? [{ oldText: item.oldText, newText: item.newText }]
+				: null);
+		if (hunks) {
+			return hunks.map((hunk, hunkIndex) => ({
+				key: `${index}-${hunkIndex}`,
+				kind: "rich" as const,
+				item,
+				hunk,
+			}));
+		}
+		return item.diff
+			? [{ key: `${index}`, kind: "text" as const, item, hunk: null }]
+			: [];
+	});
 	const expandable =
 		summary.details.length > 0 ||
 		diffs.length > 0 ||
@@ -220,7 +244,24 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 				additions={summary.diff?.additions || undefined}
 				deletions={summary.diff?.deletions || undefined}
 				icon={<Icon />}
-				label={summary.label}
+				label={
+					<span>
+						{summary.labelParts.map((part, index) =>
+							part.code ? (
+								<span
+									className="font-mono"
+									// biome-ignore lint/suspicious/noArrayIndexKey: positional
+									key={index}
+								>
+									{part.text}
+								</span>
+							) : (
+								// biome-ignore lint/suspicious/noArrayIndexKey: positional
+								<span key={index}>{part.text}</span>
+							),
+						)}
+					</span>
+				}
 				status={summary.errorText ? "error" : "success"}
 			/>
 			<ToolActivityContent>
@@ -232,17 +273,19 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 						))}
 					</ToolActivityDetails>
 				) : null}
-				{diffs.map((item) =>
-					item.type !== "file" ? null : item.newText !== undefined ? (
+				{diffs.map((entry) =>
+					entry.kind === "rich" && entry.hunk ? (
 						<ToolFileDiff
-							fragment={item.fragment}
-							key={item.path}
-							newText={item.newText}
-							oldText={item.oldText}
-							path={item.path}
+							fragment={entry.item.fragment}
+							key={entry.key}
+							newText={entry.hunk.newText}
+							oldText={entry.hunk.oldText}
+							path={entry.item.path}
 						/>
 					) : (
-						<ToolActivityCode key={item.path}>{item.diff}</ToolActivityCode>
+						<ToolActivityCode key={entry.key}>
+							{entry.item.diff}
+						</ToolActivityCode>
 					),
 				)}
 				{summary.outputText ? (

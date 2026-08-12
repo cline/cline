@@ -47,7 +47,11 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
 		});
-		expect(summary.label).toBe("Read app.tsx (10–80)");
+		expect(summary.label).toBe("Read file app.tsx (10–80)");
+		expect(summary.labelParts).toEqual([
+			{ text: "Read file " },
+			{ text: "app.tsx (10–80)", code: true },
+		]);
 		expect(summary.kind).toBe("read");
 		expect(summary.details).toEqual(["src/app.tsx:10-80"]);
 		expect(summary.items).toEqual([
@@ -67,7 +71,7 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "a.ts", start_line: 100 }] },
 		});
-		expect(summary.label).toBe("Read a.ts (100+)");
+		expect(summary.label).toBe("Read file a.ts (100+)");
 		expect(summary.details).toEqual(["a.ts:100+"]);
 	});
 
@@ -86,13 +90,13 @@ describe("read_files summaries", () => {
 		expect(
 			buildToolSummary({ toolName: "read_files", input: { paths: ["x.go"] } })
 				.label,
-		).toBe("Read x.go");
+		).toBe("Read file x.go");
 		expect(
 			buildToolSummary({
 				toolName: "read_files",
 				input: '{"file_paths":["y.rs"]}',
 			}).label,
-		).toBe("Read y.rs");
+		).toBe("Read file y.rs");
 	});
 
 	it("shortens long paths in details but keeps basenames in labels", () => {
@@ -102,32 +106,74 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { file_paths: [longPath] },
 		});
-		expect(summary.label).toBe("Read chat-messages.tsx");
+		expect(summary.label).toBe("Read file chat-messages.tsx");
 		expect(summary.details[0]).toBe(shortenPath(longPath));
 		expect(summary.details[0].startsWith(".../")).toBe(true);
 	});
 });
 
 describe("run_commands summaries", () => {
-	it("puts a single command inline in the label", () => {
+	it("leads a single command with the action, command in mono", () => {
 		const summary = buildToolSummary({
 			toolName: "run_commands",
 			input: { commands: ["bun run test"] },
 		});
-		expect(summary.label).toBe("Ran bun run test");
+		expect(summary.label).toBe("Ran command bun run test");
+		expect(summary.labelParts).toEqual([
+			{ text: "Ran command " },
+			{ text: "bun run test", code: true },
+		]);
 		expect(summary.items).toEqual([
 			{ type: "command", command: "bun run test" },
 		]);
+		// The layer above may ellipsize the label, so the expanded panel
+		// always carries the full command.
+		expect(summary.details).toEqual(["bun run test"]);
 	});
 
-	it("truncates long single commands", () => {
+	it("never truncates labels by default — layout owns overflow", () => {
+		const command = `echo ${"x".repeat(400)}`;
 		const summary = buildToolSummary({
 			toolName: "run_commands",
-			input: { commands: [`echo ${"x".repeat(100)}`] },
+			input: { commands: [command] },
 		});
-		expect(summary.label.length).toBeLessThanOrEqual("Ran ".length + 60);
+		expect(summary.label).toBe(`Ran command ${command}`);
+	});
+
+	it("applies maxInlineChars only when a consumer opts in", () => {
+		const summary = buildToolSummary(
+			{
+				toolName: "run_commands",
+				input: { commands: [`echo ${"x".repeat(400)}`] },
+			},
+			{ maxInlineChars: 60 },
+		);
+		expect(summary.label.length).toBeLessThanOrEqual(
+			"Ran command ".length + 60,
+		);
 		expect(summary.label.endsWith("…")).toBe(true);
-		expect(summary.details[0]).toBe(`echo ${"x".repeat(100)}`);
+		expect(summary.details[0]).toBe(`echo ${"x".repeat(400)}`);
+	});
+
+	it("accepts every run_commands union shape", () => {
+		const cases: Array<[unknown, string[]]> = [
+			[{ commands: "ls -la" }, ["ls -la"]],
+			[{ commands: { command: "git", args: ["status"] } }, ["git status"]],
+			[[{ command: "bun", args: ["test"] }], ["bun test"]],
+			[{ command: "bun", args: ["run", "lint"] }, ["bun run lint"]],
+			[{ cmd: "pwd" }, ["pwd"]],
+			[
+				["ls", "pwd"],
+				["ls", "pwd"],
+			],
+			["whoami", ["whoami"]],
+		];
+		for (const [input, expected] of cases) {
+			const summary = buildToolSummary({ toolName: "run_commands", input });
+			expect(summary.items).toEqual(
+				expected.map((command) => ({ type: "command", command })),
+			);
+		}
 	});
 
 	it("aggregates multiple commands and joins structured entries", () => {
@@ -198,7 +244,9 @@ describe("editor summaries", () => {
 				new_text: "const a = 1;\nconst b = 3;\nconst c = 4;",
 			},
 		});
-		expect(summary.label).toBe("Edited util.ts");
+		expect(summary.label).toBe("Edited file util.ts");
+		// The expanded panel leads with the fuller path, like read rows.
+		expect(summary.details).toEqual(["src/util.ts"]);
 		expect(summary.diff).toEqual({ additions: 2, deletions: 1 });
 		const item = summary.items[0];
 		expect(item.type).toBe("file");
@@ -235,8 +283,21 @@ describe("editor summaries", () => {
 			toolName: "editor",
 			input: { path: "new.py", new_text: "print(1)\nprint(2)" },
 		});
-		expect(summary.label).toBe("Created new.py");
+		expect(summary.label).toBe("Created file new.py");
 		expect(summary.diff).toEqual({ additions: 2, deletions: 0 });
+	});
+
+	it("does not report phantom lines for empty texts", () => {
+		const emptied = buildToolSummary({
+			toolName: "editor",
+			input: { path: "a.ts", old_text: "line", new_text: "" },
+		});
+		expect(emptied.diff).toEqual({ additions: 0, deletions: 1 });
+		const emptyCreate = buildToolSummary({
+			toolName: "editor",
+			input: { path: "b.ts", new_text: "" },
+		});
+		expect(emptyCreate.diff).toEqual({ additions: 0, deletions: 0 });
 	});
 
 	it("uses in-progress verbs", () => {
@@ -245,7 +306,7 @@ describe("editor summaries", () => {
 			input: { path: "a.ts", old_text: "x", new_text: "y" },
 			inProgress: true,
 		});
-		expect(summary.label).toBe("Editing a.ts");
+		expect(summary.label).toBe("Editing file a.ts");
 	});
 
 	it("falls back to +N:/-N: counts from the result", () => {
@@ -254,7 +315,7 @@ describe("editor summaries", () => {
 			input: { path: "a.ts" },
 			result: { result: "+12: added line\n-13: removed line\n+14: another" },
 		});
-		expect(summary.label).toBe("Edited a.ts");
+		expect(summary.label).toBe("Edited file a.ts");
 		expect(summary.diff).toEqual({ additions: 2, deletions: 1 });
 	});
 });
@@ -290,15 +351,79 @@ describe("apply_patch summaries", () => {
 		expect(info?.files[1].diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
 		// Reconstructed texts for rich diff renderers.
 		expect(info?.files[0]).toMatchObject({
-			wholeFile: false,
-			oldText: "old line",
-			newText: "new line\nextra line",
+			action: "update",
+			hunks: [{ oldText: "old line", newText: "new line\nextra line" }],
 		});
 		expect(info?.files[1]).toMatchObject({
-			wholeFile: true,
-			oldText: "",
-			newText: "created",
+			action: "add",
+			hunks: [{ oldText: "", newText: "created" }],
 		});
+	});
+
+	it("preserves hunk boundaries instead of re-diffing across them", () => {
+		const multiHunk = [
+			"*** Begin Patch",
+			"*** Update File: src/multi.ts",
+			"@@ first",
+			"-a",
+			"+b",
+			"@@ second",
+			"-b",
+			"+c",
+			"*** End Patch",
+		].join("\n");
+		const info = parseApplyPatchInput(multiHunk);
+		// Concatenated-and-re-diffed would collapse the -b/+b pair into
+		// context; separate hunks keep both changes intact.
+		expect(info?.files[0].hunks).toEqual([
+			{ oldText: "a", newText: "b" },
+			{ oldText: "b", newText: "c" },
+		]);
+		expect(info?.files[0]).toMatchObject({ additions: 2, deletions: 2 });
+		const summary = buildToolSummary({
+			toolName: "apply_patch",
+			input: multiHunk,
+		});
+		const item = summary.items[0];
+		if (item.type === "file") {
+			expect(item.hunks).toHaveLength(2);
+			expect(item.oldText).toBeUndefined();
+		} else {
+			expect.unreachable("expected a file item");
+		}
+	});
+
+	it("labels deleted and renamed files from their section metadata", () => {
+		const patch = [
+			"*** Begin Patch",
+			"*** Delete File: src/gone.ts",
+			"*** End Patch",
+		].join("\n");
+		const summary = buildToolSummary({ toolName: "apply_patch", input: patch });
+		expect(summary.label).toBe("Deleted file gone.ts");
+		expect(summary.details).toEqual(["Deleted src/gone.ts"]);
+		const item = summary.items[0];
+		if (item.type === "file") {
+			expect(item.newText).toBeUndefined();
+			expect(item.hunks).toBeUndefined();
+		}
+
+		const rename = [
+			"*** Begin Patch",
+			"*** Update File: src/old-name.ts",
+			"*** Move to: src/new-name.ts",
+			"-a",
+			"+b",
+			"*** End Patch",
+		].join("\n");
+		const renamed = buildToolSummary({
+			toolName: "apply_patch",
+			input: rename,
+		});
+		expect(renamed.label).toBe("Edited file old-name.ts → new-name.ts");
+		expect(renamed.details).toEqual([
+			"src/old-name.ts → src/new-name.ts +1 -1",
+		]);
 	});
 
 	it("labels multi-file patches with counts and per-file details", () => {
@@ -317,7 +442,7 @@ describe("apply_patch summaries", () => {
 		].join("\n");
 		expect(
 			buildToolSummary({ toolName: "apply_patch", input: single }).label,
-		).toBe("Edited only.ts");
+		).toBe("Edited file only.ts");
 	});
 
 	it("degrades to a generic label when the envelope is unparsable", () => {
@@ -458,7 +583,7 @@ describe("buildGroupedToolLabel", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "a.ts", start_line: 1, end_line: 5 }] },
 		});
-		expect(buildGroupedToolLabel([summary])).toBe("Read a.ts (1–5)");
+		expect(buildGroupedToolLabel([summary])).toBe("Read file a.ts (1–5)");
 	});
 
 	it("merges input-less fallback summaries into grouped counts", () => {
