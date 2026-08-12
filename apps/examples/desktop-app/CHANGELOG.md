@@ -1,5 +1,28 @@
 # Cline Code Desktop Changelog
 
+## 0.0.11
+
+- Images can now be pasted straight from the clipboard into the composer.
+- Opening a folder that isn't a git repo no longer shows git jargon, and the welcome suggestions now adapt to what's actually in the folder instead of assuming a code project.
+- The folder picker now reports failures instead of doing nothing, and offers a manual path entry as a fallback.
+- Opening an existing session no longer overwrites the model you had selected.
+- The diff panel now resolves file paths against the session's working directory, so diffs open correctly for sessions rooted outside the app's own directory.
+- `/team` prompts now run through the core runtime.
+- Failed turns surface their error in the transcript instead of leaving the chat blank.
+- Plugins left behind as empty install directories are no longer listed as installed, and plugin settings and contributions are now managed centrally with atomic toggles.
+- Fixed a startup script-load error, and webview errors are now attributed to the source URL that caused them.
+- Signing out is handled as a normal state rather than surfacing as a command error.
+- Native-feel and performance polish: the browser context menu is suppressed on app chrome (kept for text fields and selections), UI chrome is no longer text-selectable while chat content still is, inner scrollers no longer rubber-band the window, Settings/Sessions/Onboarding/Diff load lazily, the composer no longer flickers the caret on every keystroke, slash commands are cached across menu opens, and Escape closes the provider/model picker.
+- Tool output no longer nests its own scrollbar.
+- Prompts queued during a turn now survive being interrupted — they're preserved across aborts, drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped. Queued turns that fail are reported as failures.
+- Session context stays durable across aborts and hub restarts.
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely.
+- Remote SSE MCP servers surface an OAuth authorization prompt on a 401 instead of failing outright.
+- LiteLLM requests route through Chat Completions instead of the Responses API.
+- Network interruptions mid-stream but before any model output are retried instead of failing the turn.
+- Checkpoints are picked up when git is initialized part-way through a session, and checkpoint diffs include files that were untracked when the snapshot was taken.
+- Scheduled run reports carry execution context — schedule metadata, durations, and lifecycle error details.
+
 ## 0.0.10
 
 - Remote MCP servers can now authenticate with OAuth from Settings → MCP — authorize a server, see its auth status, and cancel or retry a pending authorization. Servers that require a pre-registered OAuth client (client ID/secret) instead of dynamic registration are now supported, and stored tokens are invalidated when a server's client configuration changes.

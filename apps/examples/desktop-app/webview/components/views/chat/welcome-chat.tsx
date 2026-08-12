@@ -11,6 +11,7 @@ import type { ReactNode } from "react";
 import { useEffect, useMemo } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
+import { SessionContent } from "./session-content";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 /** Code-centric starters, shown only when the folder is a git repository. */
@@ -210,10 +211,10 @@ export function WelcomeScreen({
 					{active && notice ? notice : null}
 
 					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0"}
+						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
 						key="persistent-composer"
 					>
-						{composer}
+						{active ? composer : <SessionContent>{composer}</SessionContent>}
 					</div>
 
 					{active ? (

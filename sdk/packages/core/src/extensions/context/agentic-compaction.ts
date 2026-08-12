@@ -59,13 +59,23 @@ export function buildAgenticSummaryInputBudget(options: {
 	});
 }
 
+interface SummaryGenerationResult {
+	text: string;
+	/** Reasoning/thinking output length; discarded from the summary itself. */
+	reasoningChars: number;
+	/** Provider-reported reason the response is incomplete (e.g. "max_output_tokens"). */
+	incompleteReason?: string;
+}
+
 async function generateSummary(options: {
 	providerConfig: ProviderConfig;
 	request: string;
 	logger?: BasicLogger;
-}): Promise<string> {
+}): Promise<SummaryGenerationResult> {
 	const handler = await createHandlerAsync(options.providerConfig);
 	let text = "";
+	let reasoningChars = 0;
+	let incompleteReason: string | undefined;
 	for await (const chunk of handler.createMessage(
 		"Summarize the provided coding session into a concise continuation note with detailed next steps.",
 		[{ role: "user", content: options.request }],
@@ -74,16 +84,25 @@ async function generateSummary(options: {
 			text += chunk.text;
 			continue;
 		}
-		if (chunk.type === "done" && !chunk.success && chunk.error) {
-			throw new Error(chunk.error);
+		if (chunk.type === "reasoning") {
+			reasoningChars += chunk.reasoning?.length ?? 0;
+			continue;
+		}
+		if (chunk.type === "done") {
+			if (!chunk.success && chunk.error) {
+				throw new Error(chunk.error);
+			}
+			incompleteReason = chunk.incompleteReason ?? incompleteReason;
 		}
 	}
 	options.logger?.debug("Generated compaction summary", {
 		outputChars: text.length,
+		reasoningChars,
+		incompleteReason,
 		modelId: options.providerConfig.modelId,
 		providerId: options.providerConfig.providerId,
 	});
-	return text.trim();
+	return { text: text.trim(), reasoningChars, incompleteReason };
 }
 
 function safeJsonSize(value: unknown): number {
@@ -231,12 +250,28 @@ export async function runAgenticCompaction(options: {
 		maxInputTokens: options.context.budget.request.maxInputTokens,
 		triggerTokens: options.context.budget.request.triggerTokens,
 	});
-	const rawSummary = await generateSummary({
+	const summaryResult = await generateSummary({
 		providerConfig: summarizerProviderConfig,
 		request: summaryRequest,
 		logger: options.logger,
 	});
-	if (!rawSummary.trim()) {
+	const rawSummary = summaryResult.text;
+	if (!rawSummary) {
+		options.logger?.log(
+			"Skipped agentic compaction: summarizer returned no summary text",
+			{
+				severity: "warn",
+				summarizerProviderId: summarizerProviderConfig.providerId,
+				summarizerModelId: summarizerProviderConfig.modelId,
+				summarizerMaxOutputTokens: summarizerProviderConfig.maxOutputTokens,
+				reasoningChars: summaryResult.reasoningChars,
+				incompleteReason: summaryResult.incompleteReason,
+				likelyCause:
+					summaryResult.reasoningChars > 0
+						? "output_budget_consumed_by_reasoning"
+						: "empty_response",
+			},
+		);
 		return undefined;
 	}
 
