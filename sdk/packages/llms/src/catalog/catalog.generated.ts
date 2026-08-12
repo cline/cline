@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1786471032395,
+  version: 1786563305349,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -106,7 +106,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-02",
-      "family": "glm"
+      "family": "glm",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.4-mini": {
       "id": "gpt-5.4-mini",
@@ -2467,7 +2479,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -2491,7 +2513,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-ai/DeepSeek-V4-Flash": {
       "id": "deepseek-ai/DeepSeek-V4-Flash",
@@ -2861,7 +2893,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2026-03-01",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.3-chat-latest": {
       "id": "gpt-5.3-chat-latest",
@@ -2907,7 +2951,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -3109,7 +3163,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2": {
       "id": "gpt-5.2",
@@ -3635,7 +3699,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -3659,7 +3733,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-ai/DeepSeek-V3.2": {
       "id": "deepseek-ai/DeepSeek-V3.2",
@@ -4127,7 +4211,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-11-20",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen-2.5-coder-32b": {
       "id": "qwen-2.5-coder-32b",
@@ -4702,6 +4796,9 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxInputTokens": 262144,
       "maxTokens": 65536,
       "capabilities": [
+        "images",
+        "video",
+        "files",
         "tools",
         "reasoning",
         "structured_output",
@@ -4721,8 +4818,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0,
-        "output": 0,
+        "input": 0.32,
+        "output": 3.2,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -5374,7 +5471,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "glm-5v-turbo": {
       "id": "glm-5v-turbo",
@@ -5495,7 +5603,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "grok-4.3": {
       "id": "grok-4.3",
@@ -5776,7 +5896,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo-v2.5"
+      "family": "mimo-v2.5",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "coding-xiaomi-mimo-v2.5-pro": {
       "id": "coding-xiaomi-mimo-v2.5-pro",
@@ -5830,7 +5961,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo-v2.5"
+      "family": "mimo-v2.5",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi-mimo-v2.5-free": {
       "id": "xiaomi-mimo-v2.5-free",
@@ -5857,7 +5999,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo-v2.5"
+      "family": "mimo-v2.5",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi-mimo-v2.5-pro": {
       "id": "xiaomi-mimo-v2.5-pro",
@@ -6397,7 +6550,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-pro-preview-customtools": {
       "id": "gemini-3.1-pro-preview-customtools",
@@ -6432,7 +6597,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -6774,7 +6951,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2": {
       "id": "gpt-5.2",
@@ -6982,7 +7171,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -7017,7 +7218,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "aki-io": {
@@ -7423,7 +7636,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.6-max-preview": {
       "id": "qwen3.6-max-preview",
@@ -7483,7 +7707,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.6-plus": {
       "id": "qwen3.6-plus",
@@ -7545,7 +7780,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.5-27b": {
       "id": "qwen3.5-27b",
@@ -7576,7 +7822,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.5-35b-a3b": {
       "id": "qwen3.5-35b-a3b",
@@ -7607,7 +7864,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.5-plus": {
       "id": "qwen3.5-plus",
@@ -7668,7 +7936,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3-max": {
       "id": "qwen3-max",
@@ -7743,7 +8022,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-omni-flash-realtime": {
       "id": "qwen3-omni-flash-realtime",
@@ -7764,7 +8055,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-next-80b-a3b-instruct": {
       "id": "qwen3-next-80b-a3b-instruct",
@@ -7894,7 +8197,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-05-08",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-14b": {
       "id": "qwen3-14b",
@@ -8160,7 +8474,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-01-19",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen2-5-omni-7b": {
       "id": "qwen2-5-omni-7b",
@@ -8181,7 +8507,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-12",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen-turbo": {
       "id": "qwen-turbo",
@@ -9199,7 +9537,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-omni-flash-realtime": {
       "id": "qwen3-omni-flash-realtime",
@@ -9219,7 +9569,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-next-80b-a3b-instruct": {
       "id": "qwen3-next-80b-a3b-instruct",
@@ -9393,7 +9754,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-05-08",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen3-14b": {
       "id": "qwen3-14b",
@@ -9674,7 +10046,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-01-19",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "deepseek-r1": {
       "id": "deepseek-r1",
@@ -9938,7 +10322,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-12",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwq-32b": {
       "id": "qwq-32b",
@@ -12235,7 +12631,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/kimi-k2.6": {
       "id": "moonshotai/kimi-k2.6",
@@ -12976,7 +13383,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -13072,7 +13491,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.1": {
       "id": "openai/gpt-5.1",
@@ -13270,7 +13701,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -13295,7 +13738,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -13320,7 +13775,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3": {
       "id": "openai/o3",
@@ -13872,7 +14339,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -14023,7 +14502,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -14060,7 +14551,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "bailing": {
@@ -17360,7 +17863,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-01",
-      "family": "mistral"
+      "family": "mistral",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "writer.palmyra-x4-v1:0": {
       "id": "writer.palmyra-x4-v1:0",
@@ -17742,7 +18254,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-12-01",
-      "family": "mistral"
+      "family": "mistral",
+      "modalities": {
+        "input": [
+          "audio",
+          "text"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia.nemotron-nano-12b-v2": {
       "id": "nvidia.nemotron-nano-12b-v2",
@@ -17968,7 +18489,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "audio",
+          "image",
+          "text",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "zai-org/GLM-4.7": {
       "id": "zai-org/GLM-4.7",
@@ -18764,7 +19296,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.15,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-05-12"
+      "releaseDate": "2026-05-12",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claudius": {
       "id": "claudius",
@@ -18786,7 +19329,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.9,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-05-12"
+      "releaseDate": "2026-05-12",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "cline": {
@@ -18804,6 +19358,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -18862,16 +19419,16 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-21",
       "family": "laguna-s",
       "description": "Latest coding agent model from Poolside"
-    },
-    "stepfun/step-3.7-flash": {
-      "id": "stepfun/step-3.7-flash",
-      "name": "Step 3.7 Flash",
-      "contextWindow": 262144,
-      "maxInputTokens": 256000,
-      "maxTokens": 256000,
+    }
+  },
+  "cline-pass": {
+    "cline-pass/deepseek-v4-pro": {
+      "name": "DeepSeek V4 Pro",
+      "id": "cline-pass/deepseek-v4-pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 393216,
       "capabilities": [
-        "images",
-        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -18880,25 +19437,26 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
-            "low",
-            "medium",
-            "high"
+            "high",
+            "xhigh"
           ]
         }
       ],
       "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
+        "input": 1.168,
+        "output": 2.336,
+        "cacheRead": 0.09855,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-05-29",
-      "description": "Fast vision capable model built for agents "
-    }
-  },
-  "cline-pass": {
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-thinking",
+      "description": "Frontier reasoning and coding with 1M context window"
+    },
     "cline-pass/deepseek-v4-flash": {
       "name": "DeepSeek V4 Flash",
       "id": "cline-pass/deepseek-v4-flash",
@@ -18913,6 +19471,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -18985,6 +19546,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -19003,38 +19567,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "family": "kimi-k3",
       "description": "Leading open weights model (reliability might be unstable and will consume usage faster than others)"
     },
-    "cline-pass/deepseek-v4-pro": {
-      "name": "DeepSeek V4 Pro",
-      "id": "cline-pass/deepseek-v4-pro",
-      "contextWindow": 1048576,
-      "maxInputTokens": 1048576,
-      "maxTokens": 393216,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "xhigh"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.63168,
-        "output": 1.26336,
-        "cacheRead": 0.053298,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-thinking",
-      "description": "Frontier reasoning and coding with 1M context window"
-    },
     "cline-pass/glm-5.2": {
       "name": "GLM-5.2",
       "id": "cline-pass/glm-5.2",
@@ -19050,6 +19582,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "high",
@@ -19058,9 +19593,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.4886,
-        "output": 1.5356,
-        "cacheRead": 0.09074,
+        "input": 0.49,
+        "output": 1.54,
+        "cacheRead": 0.091,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -19083,8 +19618,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.7,
-        "output": 3.5,
+        "input": 0.67,
+        "output": 3.4,
         "cacheRead": 0.15,
         "cacheWrite": 0
       },
@@ -19173,6 +19708,17 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-04-22",
       "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      },
       "description": "Fast and efficient MiMo for everyday coding"
     },
     "cline-pass/minimax-m3": {
@@ -19283,6 +19829,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "high",
@@ -19340,40 +19889,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-21",
       "family": "laguna-s",
       "description": "Latest coding agent model from Poolside"
-    },
-    "stepfun/step-3.7-flash": {
-      "id": "stepfun/step-3.7-flash",
-      "name": "Step 3.7 Flash",
-      "contextWindow": 262144,
-      "maxInputTokens": 256000,
-      "maxTokens": 256000,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-05-29",
-      "description": "Fast vision capable model built for agents "
     }
   },
   "cloudferro-sherlock": {
@@ -20059,7 +20574,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k3": {
       "id": "kimi-k3",
@@ -20389,7 +20914,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.988
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -20413,7 +20948,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.082
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mistral-medium-3.5": {
       "id": "mistral-medium-3.5",
@@ -21014,7 +21559,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.011,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-02-02"
+      "releaseDate": "2026-02-02",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "glm-4.7-flash": {
       "id": "glm-4.7-flash",
@@ -21802,7 +22356,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.097
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -21826,7 +22390,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.434
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-r1-0528": {
       "id": "deepseek-r1-0528",
@@ -22725,7 +23299,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k2.6": {
       "id": "kimi-k2.6",
@@ -22862,7 +23447,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-13",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.5-397b-a17b": {
       "id": "qwen3.5-397b-a17b",
@@ -22897,7 +23493,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "glm-5": {
       "id": "glm-5",
@@ -23179,7 +23786,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.3
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini/gemini-3.6-flash": {
       "id": "gemini/gemini-3.6-flash",
@@ -23217,7 +23835,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1.5
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshot/kimi-k3": {
       "id": "moonshot/kimi-k3",
@@ -23734,7 +24363,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1.5
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.6-flash": {
       "id": "qwen/qwen3.6-flash",
@@ -24319,14 +24959,25 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 2
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4-6": {
       "id": "anthropic/claude-sonnet-4-6",
       "name": "Claude Sonnet 4.6",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 64000,
+      "maxTokens": 128000,
       "capabilities": [
         "images",
         "tools",
@@ -24476,7 +25127,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.5
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-haiku-4-5": {
       "id": "anthropic/claude-haiku-4-5",
@@ -24542,7 +25204,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.3
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini/gemini-2.5-flash-lite": {
       "id": "gemini/gemini-2.5-flash-lite",
@@ -24579,7 +25252,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.1
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini/gemini-2.5-pro": {
       "id": "gemini/gemini-2.5-pro",
@@ -24613,7 +25297,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1.25
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-4o-mini": {
       "id": "openai/gpt-4o-mini",
@@ -24837,7 +25532,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -25296,7 +26003,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "databricks-gemini-3-1-pro": {
       "id": "databricks-gemini-3-1-pro",
@@ -25331,7 +26050,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "databricks-claude-sonnet-4-6": {
       "id": "databricks-claude-sonnet-4-6",
@@ -25424,7 +26155,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "databricks-gpt-5-2": {
       "id": "databricks-gpt-5-2",
@@ -25521,7 +26264,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "databricks-gpt-5-1": {
       "id": "databricks-gpt-5-1",
@@ -25858,7 +26613,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "databricks-gemini-2-5-pro": {
       "id": "databricks-gemini-2-5-pro",
@@ -25890,10 +26657,56 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "deepseek": {
+    "deepseek-v4-pro": {
+      "id": "deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
       "name": "DeepSeek V4 Flash",
@@ -25928,40 +26741,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-07-31",
       "family": "deepseek-flash"
-    },
-    "deepseek-v4-pro": {
-      "id": "deepseek-v4-pro",
-      "name": "DeepSeek V4 Pro",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 384000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.435,
-        "output": 0.87,
-        "cacheRead": 0.003625,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-24",
-      "family": "deepseek-thinking"
     },
     "deepseek-chat": {
       "id": "deepseek-chat",
@@ -26007,12 +26786,45 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "digitalocean": {
+    "qwen3.8-max": {
+      "id": "qwen3.8-max",
+      "name": "Qwen3.8-2.4T-A95B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-03",
+      "family": "qwen"
+    },
     "deepseek-v4-flash-0731": {
       "id": "deepseek-v4-flash-0731",
       "name": "DeepSeek V4 Flash 0731",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 209715,
+      "maxTokens": 1048576,
       "capabilities": [
         "tools",
         "reasoning",
@@ -26245,7 +27057,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.2",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 52429,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -26264,9 +27076,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.21,
+        "input": 0.63,
+        "output": 1.98,
+        "cacheRead": 0.0945,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -26310,7 +27122,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nemotron 3 Ultra",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 26214,
+      "maxTokens": 131072,
       "capabilities": [
         "tools",
         "temperature"
@@ -26382,7 +27194,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Nemotron 3 Nano Omni",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 13107,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -26507,7 +27319,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiMo V2.5 Pro",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 52429,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -26537,7 +27349,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.6",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 52429,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "tools",
@@ -26602,7 +27414,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM-5.1",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
-      "maxTokens": 32768,
+      "maxTokens": 163840,
       "capabilities": [
         "tools",
         "reasoning",
@@ -26864,7 +27676,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen 3.5 397B A17B",
       "contextWindow": 131072,
       "maxInputTokens": 131072,
-      "maxTokens": 26214,
+      "maxTokens": 131072,
       "capabilities": [
         "images",
         "video",
@@ -26899,7 +27711,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "MiniMax M2.5 (Public Preview)",
       "contextWindow": 65536,
       "maxInputTokens": 65536,
-      "maxTokens": 13107,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "tools",
@@ -26931,7 +27743,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "GLM 5",
       "contextWindow": 64000,
       "maxInputTokens": 64000,
-      "maxTokens": 12800,
+      "maxTokens": 64000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -27031,7 +27843,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Kimi K2.5",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 52429,
+      "maxTokens": 262144,
       "capabilities": [
         "images",
         "tools",
@@ -27168,7 +27980,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Deepseek 3.2",
       "contextWindow": 163840,
       "maxInputTokens": 163840,
-      "maxTokens": 32768,
+      "maxTokens": 163840,
       "capabilities": [
         "tools",
         "reasoning",
@@ -27590,7 +28402,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 Coder Flash",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 52429,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "temperature",
@@ -27676,7 +28488,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3 32B",
       "contextWindow": 32768,
       "maxInputTokens": 32768,
-      "maxTokens": 6554,
+      "maxTokens": 32768,
       "capabilities": [
         "tools",
         "reasoning",
@@ -28339,6 +29151,575 @@ export const GENERATED_PROVIDER_MODELS: {
       "family": "glm"
     }
   },
+  "edenai": {
+    "anthropic/claude-opus-5": {
+      "id": "anthropic/claude-opus-5",
+      "name": "Claude Opus 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 25,
+        "cacheRead": 0.5,
+        "cacheWrite": 6.25
+      },
+      "releaseDate": "2026-07-24",
+      "family": "claude-opus"
+    },
+    "google/gemini-3.6-flash": {
+      "id": "google/gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0.083333
+      },
+      "releaseDate": "2026-07-21",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "vertex/gemini-3.6-flash": {
+      "id": "vertex/gemini-3.6-flash",
+      "name": "Gemini 3.6 Flash",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0.083333
+      },
+      "releaseDate": "2026-07-21",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "vertex/gemini-3.6-flash@eu": {
+      "id": "vertex/gemini-3.6-flash@eu",
+      "name": "Gemini 3.6 Flash (EU)",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 65536,
+      "capabilities": [
+        "images",
+        "video",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.5,
+        "output": 7.5,
+        "cacheRead": 0.15,
+        "cacheWrite": 0.083333
+      },
+      "releaseDate": "2026-07-21",
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "moonshot/kimi-k3": {
+      "id": "moonshot/kimi-k3",
+      "name": "Kimi K3",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 3,
+        "output": 15,
+        "cacheRead": 0.3,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-16",
+      "family": "kimi-k3"
+    },
+    "openai/gpt-5.6-luna": {
+      "id": "openai/gpt-5.6-luna",
+      "name": "GPT-5.6 Luna",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 1.2,
+        "cacheRead": 0.02,
+        "cacheWrite": 0.25
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-luna"
+    },
+    "openai/gpt-5.6-sol": {
+      "id": "openai/gpt-5.6-sol",
+      "name": "GPT-5.6 Sol",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 5,
+        "output": 30,
+        "cacheRead": 0.5,
+        "cacheWrite": 6.25
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-sol"
+    },
+    "openai/gpt-5.6-terra": {
+      "id": "openai/gpt-5.6-terra",
+      "name": "GPT-5.6 Terra",
+      "contextWindow": 1050000,
+      "maxInputTokens": 922000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 12,
+        "cacheRead": 0.2,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-07-09",
+      "family": "gpt-terra"
+    },
+    "xai/grok-4.5": {
+      "id": "xai/grok-4.5",
+      "name": "Grok 4.5",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.3,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-08",
+      "family": "grok"
+    },
+    "anthropic/claude-sonnet-5": {
+      "id": "anthropic/claude-sonnet-5",
+      "name": "Claude Sonnet 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.2,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-06-30",
+      "family": "claude-sonnet"
+    },
+    "anthropic/claude-sonnet-latest": {
+      "id": "anthropic/claude-sonnet-latest",
+      "name": "Claude Sonnet 5",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high",
+            "xhigh",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 10,
+        "cacheRead": 0.2,
+        "cacheWrite": 2.5
+      },
+      "releaseDate": "2026-06-30",
+      "family": "claude-sonnet"
+    },
+    "zai/glm-5.2": {
+      "id": "zai/glm-5.2",
+      "name": "GLM-5.2",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 131072,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0.26,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-06-13",
+      "family": "glm"
+    },
+    "deepseek/deepseek-v4-pro": {
+      "id": "deepseek/deepseek-v4-pro",
+      "name": "DeepSeek V4 Pro",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-24",
+      "family": "deepseek-thinking"
+    },
+    "deepinfra/openai/gpt-oss-120b": {
+      "id": "deepinfra/openai/gpt-oss-120b",
+      "name": "GPT OSS 120B",
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.037,
+        "output": 0.17,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-08-05",
+      "family": "gpt-oss"
+    },
+    "mistral/mistral-large-2512": {
+      "id": "mistral/mistral-large-2512",
+      "name": "Mistral Large 3",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 1.5,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-11-01",
+      "family": "mistral-large"
+    },
+    "openai/gpt-4o-mini": {
+      "id": "openai/gpt-4o-mini",
+      "name": "GPT-4o mini",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 16384,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "pricing": {
+        "input": 0.15,
+        "output": 0.6,
+        "cacheRead": 0.075,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-07-18",
+      "family": "gpt-mini"
+    }
+  },
   "empiriolabs": {
     "qwen3-8-max": {
       "id": "qwen3-8-max",
@@ -28893,7 +30274,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2-5-pro": {
       "id": "mimo-v2-5-pro",
@@ -29123,7 +30515,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-08",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "glm-5-1": {
       "id": "glm-5-1",
@@ -29659,6 +31062,43 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-02-15",
       "family": "qwen"
     },
+    "seed-2-0-code": {
+      "id": "seed-2-0-code",
+      "name": "Seed 2.0 Code",
+      "contextWindow": 256000,
+      "maxInputTokens": 256000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.4,
+        "output": 2.4,
+        "cacheRead": 0.4,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
+    },
     "step-3-5-flash": {
       "id": "step-3-5-flash",
       "name": "Step 3.5 Flash",
@@ -29967,7 +31407,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemma-4-26B-A4B-it": {
       "id": "google/gemma-4-26B-A4B-it",
@@ -30043,6 +31494,78 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-12-06",
       "family": "llama"
+    },
+    "KBLab/kb-whisper-large": {
+      "id": "KBLab/kb-whisper-large",
+      "name": "KB Whisper",
+      "contextWindow": 448,
+      "maxInputTokens": 448,
+      "maxTokens": 448,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.0023,
+        "output": 0.0023,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-10-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "openai/whisper-large-v3": {
+      "id": "openai/whisper-large-v3",
+      "name": "Whisper 3 Large",
+      "contextWindow": 448,
+      "maxInputTokens": 448,
+      "maxTokens": 4096,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.0023,
+        "output": 0.0023,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-10-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "openai/whisper-large-v3-turbo": {
+      "id": "openai/whisper-large-v3-turbo",
+      "name": "Whisper Large v3 Turbo",
+      "contextWindow": 448,
+      "maxInputTokens": 448,
+      "maxTokens": 448,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.0023,
+        "output": 0.0023,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-10-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "fastrouter": {
@@ -30106,7 +31629,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-v4-pro": {
       "id": "deepseek/deepseek-v4-pro",
@@ -30477,7 +32012,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "sarvam/sarvam-30b": {
       "id": "sarvam/sarvam-30b",
@@ -30925,7 +32472,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-01",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4": {
       "id": "anthropic/claude-sonnet-4",
@@ -32238,7 +33796,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -32378,7 +33948,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "grok-4-1-fast-non-reasoning": {
       "id": "grok-4-1-fast-non-reasoning",
@@ -32536,7 +34118,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -32567,7 +34161,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "zai-glm-5-1": {
       "id": "zai-glm-5-1",
@@ -32775,7 +34381,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -32811,7 +34429,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite-image": {
       "id": "gemini-3.1-flash-lite-image",
@@ -32877,7 +34507,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-flash-latest": {
       "id": "gemini-flash-latest",
@@ -32913,7 +34555,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -32949,7 +34603,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-flash-lite-latest": {
       "id": "gemini-flash-lite-latest",
@@ -32985,7 +34651,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deep-research-max-preview-04-2026": {
       "id": "deep-research-max-preview-04-2026",
@@ -33010,7 +34688,20 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      }
     },
     "deep-research-preview-04-2026": {
       "id": "deep-research-preview-04-2026",
@@ -33035,7 +34726,20 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      }
     },
     "gemini-robotics-er-1.6-preview": {
       "id": "gemini-robotics-er-1.6-preview",
@@ -33067,7 +34771,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-14",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemma-4-26b-a4b-it": {
       "id": "gemma-4-26b-a4b-it",
@@ -33154,7 +34869,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-26",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "gemini-3.1-pro-preview": {
       "id": "gemini-3.1-pro-preview",
@@ -33189,7 +34916,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-pro-preview-customtools": {
       "id": "gemini-3.1-pro-preview-customtools",
@@ -33224,7 +34963,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3-flash-preview": {
       "id": "gemini-3-flash-preview",
@@ -33260,7 +35011,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-computer-use-preview-10-2025": {
       "id": "gemini-2.5-computer-use-preview-10-2025",
@@ -33317,7 +35080,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -33352,7 +35127,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -33384,10 +35171,55 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "github-copilot": {
+    "mai-code-1.1-flash": {
+      "id": "mai-code-1.1-flash",
+      "name": "MAI-Code-1.1-Flash",
+      "contextWindow": 256000,
+      "maxInputTokens": 128000,
+      "maxTokens": 128000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.2,
+        "output": 1.2,
+        "cacheRead": 0.02,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "mai"
+    },
     "claude-opus-5": {
       "id": "claude-opus-5",
       "name": "Claude Opus 5",
@@ -33832,7 +35664,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.5": {
       "id": "gpt-5.5",
@@ -34033,7 +35877,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4.6": {
       "id": "claude-sonnet-4.6",
@@ -35531,7 +37387,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-15",
-      "family": "mistral"
+      "family": "mistral",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "green-l": {
       "id": "green-l",
@@ -35820,6 +37685,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2024-12-06",
       "family": "llama"
     },
+    "whisper-large-v3-turbo": {
+      "id": "whisper-large-v3-turbo",
+      "name": "Whisper Large V3 Turbo",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-10-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "llama-3.1-8b-instant": {
       "id": "llama-3.1-8b-instant",
       "name": "Llama 3.1 8B",
@@ -35838,6 +37729,32 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-07-23",
       "family": "llama"
+    },
+    "whisper-large-v3": {
+      "id": "whisper-large-v3",
+      "name": "Whisper",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2023-09-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "helicone": {
@@ -35903,7 +37820,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "grok-4-1-fast-non-reasoning": {
       "id": "grok-4-1-fast-non-reasoning",
@@ -36155,7 +38083,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-19",
-      "family": "grok"
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k2-0905": {
       "id": "kimi-k2-0905",
@@ -36302,7 +38240,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -39512,10 +41461,10 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.48,
-        "output": 1.8,
+        "input": 0.436,
+        "output": 1.66,
         "cacheRead": 0,
-        "cacheWrite": 0.24
+        "cacheWrite": 0.218
       },
       "releaseDate": "2026-06-05",
       "family": "minimax"
@@ -39680,7 +41629,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.598,
         "output": 0.738,
         "cacheRead": 0,
-        "cacheWrite": 0.3033
+        "cacheWrite": 0.299
       },
       "releaseDate": "2026-04-30",
       "family": "llama"
@@ -39720,7 +41669,7 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 0.445,
         "output": 2.145,
         "cacheRead": 0,
-        "cacheWrite": 0.2845
+        "cacheWrite": 0.2225
       },
       "releaseDate": "2026-04-30",
       "family": "qwen"
@@ -40112,7 +42061,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.6-flash": {
       "id": "google/gemini-3.6-flash",
@@ -40148,7 +42109,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.8-max-preview": {
       "id": "qwen/qwen3.8-max-preview",
@@ -40615,7 +42588,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-flash-lite": {
       "id": "google/gemini-3.1-flash-lite",
@@ -40651,7 +42636,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.6-flash": {
       "id": "qwen/qwen3.6-flash",
@@ -40818,7 +42815,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xai/grok-4.3": {
       "id": "xai/grok-4.3",
@@ -41176,7 +43184,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4-6": {
       "id": "anthropic/claude-sonnet-4-6",
@@ -42046,7 +44066,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -42081,7 +44113,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -42113,7 +44157,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3": {
       "id": "openai/o3",
@@ -42414,12 +44470,12 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "inceptron": {
-    "zai-org/GLM-5.2": {
-      "id": "zai-org/GLM-5.2",
-      "name": "GLM 5.2",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
+    "deepseek-ai/DeepSeek-V4-Flash-0731": {
+      "id": "deepseek-ai/DeepSeek-V4-Flash-0731",
+      "name": "DeepSeek V4 Flash 0731",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
       "capabilities": [
         "tools",
         "reasoning",
@@ -42437,9 +44493,40 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 1.2,
-        "output": 4.2,
-        "cacheRead": 0.26,
+        "input": 0.13,
+        "output": 0.28,
+        "cacheRead": 0.03,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-31",
+      "family": "deepseek-flash"
+    },
+    "zai-org/GLM-5.2": {
+      "id": "zai-org/GLM-5.2",
+      "name": "GLM 5.2",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 1048576,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.75,
+        "output": 2.9,
+        "cacheRead": 0.17,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -42456,13 +44543,14 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
+        "temperature",
         "prompt-cache"
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.75,
-        "output": 3.5,
-        "cacheRead": 0.2,
+        "input": 0.67,
+        "output": 3.4,
+        "cacheRead": 0.15,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-12",
@@ -42484,68 +44572,13 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.66,
-        "output": 3.5,
+        "input": 0.6,
+        "output": 3.41,
         "cacheRead": 0.2,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
       "family": "kimi-k2"
-    },
-    "moonshotai/Kimi-K2.6-Fast": {
-      "id": "moonshotai/Kimi-K2.6-Fast",
-      "name": "Kimi K2.6 Fast",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 262144,
-      "capabilities": [
-        "images",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [],
-      "pricing": {
-        "input": 1.32,
-        "output": 7,
-        "cacheRead": 0.4,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-21",
-      "family": "kimi-k2"
-    },
-    "zai-org/GLM-5.1-FP8": {
-      "id": "zai-org/GLM-5.1-FP8",
-      "name": "GLM 5.1",
-      "contextWindow": 202752,
-      "maxInputTokens": 202752,
-      "maxTokens": 202752,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.4,
-        "output": 4.4,
-        "cacheRead": 0.26,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-04-07",
-      "family": "glm"
     },
     "MiniMaxAI/MiniMax-M2.5": {
       "id": "MiniMaxAI/MiniMax-M2.5",
@@ -42571,7 +44604,7 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.15,
+        "input": 0.22,
         "output": 0.9,
         "cacheRead": 0.05,
         "cacheWrite": 0
@@ -42764,7 +44797,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.6-35b-a3b-fp8": {
       "id": "qwen/qwen3.6-35b-a3b-fp8",
@@ -42792,7 +44836,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemma-4-31b-it-fp8": {
       "id": "google/gemma-4-31b-it-fp8",
@@ -42847,7 +44902,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3-coder-next-fp8": {
       "id": "qwen3-coder-next-fp8",
@@ -42908,7 +44974,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-07-24"
+      "releaseDate": "2026-07-24",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/Kimi-K2.6": {
       "id": "moonshotai/Kimi-K2.6",
@@ -43786,7 +45862,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -43820,7 +45907,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite-preview-06-17": {
       "id": "gemini-2.5-flash-lite-preview-06-17",
@@ -43854,7 +45952,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "video",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite-preview-09-2025": {
       "id": "gemini-2.5-flash-lite-preview-09-2025",
@@ -43888,7 +45997,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-preview-05-20": {
       "id": "gemini-2.5-flash-preview-05-20",
@@ -43922,7 +46042,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -43956,7 +46087,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro-preview-06-05": {
       "id": "gemini-2.5-pro-preview-06-05",
@@ -43990,7 +46132,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3-flash-preview": {
       "id": "gemini-3-flash-preview",
@@ -44012,7 +46165,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3-pro-preview": {
       "id": "gemini-3-pro-preview",
@@ -44034,7 +46198,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5-chat-latest": {
       "id": "gpt-5-chat-latest",
@@ -45262,7 +47437,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
@@ -45409,7 +47596,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2-5-pro": {
       "id": "mimo-v2-5-pro",
@@ -45453,7 +47651,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k2-6": {
       "id": "kimi-k2-6",
@@ -45821,7 +48030,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2-5-flash-lite": {
       "id": "gemini-2-5-flash-lite",
@@ -45846,10 +48067,154 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "kilo": {
+    "bytedance-seed/seed-2-1-turbo": {
+      "id": "bytedance-seed/seed-2-1-turbo",
+      "name": "ByteDance Seed: Seed 2.1 Turbo",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "seed"
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
+    "qwen/qwen3.8-2.4t-a95b": {
+      "id": "qwen/qwen3.8-2.4t-a95b",
+      "name": "Qwen: Qwen3.8 2.4T A95B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 52429,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "qwen"
+    },
+    "x-ai/grok-4.6": {
+      "id": "x-ai/grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "nvidia/nemotron-3.5-lightning:free": {
       "id": "nvidia/nemotron-3.5-lightning:free",
       "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
@@ -45937,8 +48302,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.35,
-        "output": 1.5,
+        "input": 0.3,
+        "output": 1.2,
         "cacheRead": 0.04,
         "cacheWrite": 0
       },
@@ -46040,7 +48405,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.8-max": {
       "id": "qwen/qwen3.8-max",
@@ -46083,7 +48460,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash Latest",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -46103,9 +48480,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.0798,
-        "output": 0.1596,
-        "cacheRead": 0.01596,
+        "input": 0.079996,
+        "output": 0.252,
+        "cacheRead": 0.0252,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-01",
@@ -46178,7 +48555,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-30",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-opus-5": {
       "id": "anthropic/claude-opus-5",
@@ -46317,7 +48704,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.6-flash": {
       "id": "google/gemini-3.6-flash",
@@ -46353,7 +48752,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "poolside/laguna-s-2.1": {
       "id": "poolside/laguna-s-2.1",
@@ -46544,7 +48955,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kwaipilot/kat-coder-air-v2.5": {
       "id": "kwaipilot/kat-coder-air-v2.5",
@@ -46825,14 +49246,15 @@ export const GENERATED_PROVIDER_MODELS: {
           "values": [
             "low",
             "medium",
-            "high"
+            "high",
+            "xhigh"
           ]
         }
       ],
       "pricing": {
         "input": 2,
         "output": 6,
-        "cacheRead": 0.3,
+        "cacheRead": 0.5,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-08",
@@ -47702,7 +50124,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "inclusionai/ring-2.6-1t": {
       "id": "inclusionai/ring-2.6-1t",
@@ -47769,7 +50203,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-chat-latest": {
       "id": "openai/gpt-chat-latest",
@@ -47875,7 +50321,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-28",
-      "family": "nemotron"
+      "family": "nemotron",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -47980,7 +50437,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-04-27",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~google/gemini-pro-latest": {
       "id": "~google/gemini-pro-latest",
@@ -48015,7 +50484,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-04-27",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "audio",
+          "pdf",
+          "image",
+          "text",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~moonshotai/kimi-latest": {
       "id": "~moonshotai/kimi-latest",
@@ -48404,7 +50885,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2.5-pro": {
       "id": "xiaomi/mimo-v2.5-pro",
@@ -48796,7 +51288,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-08",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "z-ai/glm-5.1": {
       "id": "z-ai/glm-5.1",
@@ -49248,7 +51752,20 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-03-15"
+      "releaseDate": "2026-03-15",
+      "modalities": {
+        "input": [
+          "audio",
+          "image",
+          "pdf",
+          "text",
+          "video"
+        ],
+        "output": [
+          "image",
+          "text"
+        ]
+      }
     },
     "nvidia/nemotron-3-super-120b-a12b": {
       "id": "nvidia/nemotron-3-super-120b-a12b",
@@ -49482,7 +51999,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "bytedance-seed/seed-2.0-mini": {
       "id": "bytedance-seed/seed-2.0-mini",
@@ -49740,7 +52269,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview-customtools": {
       "id": "google/gemini-3.1-pro-preview-customtools",
@@ -49775,7 +52316,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -49876,6 +52429,40 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-15",
       "family": "qwen"
+    },
+    "bytedance-seed/seed-2.0-code": {
+      "id": "bytedance-seed/seed-2.0-code",
+      "name": "Seed 2.0 Code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
     },
     "minimax/minimax-m2.5": {
       "id": "minimax/minimax-m2.5",
@@ -50158,7 +52745,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "openai/gpt-audio-mini": {
       "id": "openai/gpt-audio-mini",
@@ -50179,7 +52777,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "z-ai/glm-4.7-flash": {
       "id": "z-ai/glm-4.7-flash",
@@ -50403,7 +53012,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia/nemotron-3-nano-30b-a3b": {
       "id": "nvidia/nemotron-3-nano-30b-a3b",
@@ -50997,7 +53618,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-10-30",
-      "family": "mistral"
+      "family": "mistral",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-oss-safeguard-20b": {
       "id": "openai/gpt-oss-safeguard-20b",
@@ -51247,8 +53878,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-4.6": {
       "id": "z-ai/glm-4.6",
       "name": "GLM-4.6",
-      "contextWindow": 202752,
-      "maxInputTokens": 202752,
+      "contextWindow": 204800,
+      "maxInputTokens": 204800,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -51413,8 +54044,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek/deepseek-v3.1-terminus": {
       "id": "deepseek/deepseek-v3.1-terminus",
       "name": "DeepSeek: DeepSeek V3.1 Terminus",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
+      "contextWindow": 163840,
+      "maxInputTokens": 163840,
       "maxTokens": 32768,
       "capabilities": [
         "tools",
@@ -52450,7 +55081,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -52484,7 +55127,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -52517,7 +55172,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "minimax/minimax-m1": {
       "id": "minimax/minimax-m1",
@@ -52609,7 +55276,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-06-05",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "pdf",
+          "image",
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-r1-0528": {
       "id": "deepseek/deepseek-r1-0528",
@@ -52736,7 +55414,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-05-07",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mistralai/mistral-medium-3": {
       "id": "mistralai/mistral-medium-3",
@@ -53124,8 +55814,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.104,
-        "output": 0.416,
+        "input": 0.08,
+        "output": 0.28,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -54563,7 +57253,41 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "ling-3.0-flash": {
+      "id": "ling-3.0-flash",
+      "name": "InclusionAI Ling 3.0 Flash",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.06,
+        "output": 0.18,
+        "cacheRead": 0.012,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-02",
+      "family": "ling"
     },
     "qwen3.7-flash": {
       "id": "qwen3.7-flash",
@@ -54655,7 +57379,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -54691,7 +57427,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.8-max": {
       "id": "qwen3.8-max",
@@ -55308,7 +58056,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -55344,7 +58104,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nemotron-3-nano-omni": {
       "id": "nemotron-3-nano-omni",
@@ -55536,7 +58308,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -55680,7 +58463,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-opus-4-7": {
       "id": "claude-opus-4-7",
@@ -56302,7 +59096,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -56366,7 +59172,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "minimax-m2.5-highspeed": {
       "id": "minimax-m2.5-highspeed",
@@ -56693,7 +59510,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nemotron-3-nano-30b": {
       "id": "nemotron-3-nano-30b",
@@ -58238,7 +61067,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -58264,7 +61105,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -58305,7 +61158,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3-235b-a22b-fp8": {
       "id": "qwen3-235b-a22b-fp8",
@@ -58553,7 +61418,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-4o-transcribe": {
       "id": "gpt-4o-transcribe",
@@ -58572,7 +61446,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemma-3-27b": {
       "id": "gemma-3-27b",
@@ -58635,7 +61518,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-01-19",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "o3-mini": {
       "id": "o3-mini",
@@ -59008,7 +61903,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "lmstudio": {
@@ -59630,7 +62536,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "muse-spark-1.2-contributor": {
       "id": "muse-spark-1.2-contributor",
@@ -59667,7 +62585,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "muse-spark-1.1": {
       "id": "muse-spark-1.1",
@@ -60462,6 +63392,30 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-16",
       "family": "mistral-small"
     },
+    "voxtral-mini-latest": {
+      "id": "voxtral-mini-latest",
+      "name": "Voxtral Mini (latest)",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-01",
+      "family": "voxtral",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "mistral-medium-2508": {
       "id": "mistral-medium-2508",
       "name": "Mistral Medium 3.1",
@@ -60499,7 +63453,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-07-15",
-      "family": "voxtral"
+      "family": "voxtral",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mistral-small-2506": {
       "id": "mistral-small-2506",
@@ -61033,7 +63996,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "model-oracle-ai": {
@@ -61774,7 +64747,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -61812,7 +64797,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "modelscope": {
@@ -62461,6 +65458,162 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "nano-gpt": {
+    "bytedance-seed/seed-2-1-turbo": {
+      "id": "bytedance-seed/seed-2-1-turbo",
+      "name": "ByteDance Seed 2.1 Turbo",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.5,
+        "output": 2.5,
+        "cacheRead": 0.25,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "seed"
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
+    "deepseek/deepseek-v4-pro-0813:thinking": {
+      "id": "deepseek/deepseek-v4-pro-0813:thinking",
+      "name": "DeepSeek V4 Pro 0813 Thinking",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
+    "liquid/lfm-2.5-2.6b": {
+      "id": "liquid/lfm-2.5-2.6b",
+      "name": "LFM2.5 2.6B",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.2,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "liquid"
+    },
+    "x-ai/grok-4.6": {
+      "id": "x-ai/grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "upstage/solar-pro4": {
       "id": "upstage/solar-pro4",
       "name": "Solar Pro 4",
@@ -62635,7 +65788,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "meta/muse-spark-1.2-contributor": {
       "id": "meta/muse-spark-1.2-contributor",
@@ -62671,7 +65836,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "pokee-isaac": {
       "id": "pokee-isaac",
@@ -62870,7 +66047,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-01",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-v4-flash-0731": {
       "id": "deepseek/deepseek-v4-flash-0731",
@@ -63210,7 +66398,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.6-flash": {
       "id": "google/gemini-3.6-flash",
@@ -63246,7 +66446,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "poolside/laguna-s-2.1": {
       "id": "poolside/laguna-s-2.1",
@@ -63477,7 +66689,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "thinkingmachines/inkling:thinking": {
       "id": "thinkingmachines/inkling:thinking",
@@ -63512,7 +66734,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kwaipilot/kat-coder-air-v2.5": {
       "id": "kwaipilot/kat-coder-air-v2.5",
@@ -64629,7 +67861,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nanogpt/coding-router": {
       "id": "nanogpt/coding-router",
@@ -64931,7 +68173,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-flash-lite-latest": {
       "id": "google/gemini-flash-lite-latest",
@@ -64967,7 +68221,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-latest": {
       "id": "deepseek/deepseek-latest",
@@ -64986,15 +68252,16 @@ export const GENERATED_PROVIDER_MODELS: {
           "type": "effort",
           "values": [
             "none",
+            "low",
             "high",
             "max"
           ]
         }
       ],
       "pricing": {
-        "input": 1.1,
-        "output": 2.2,
-        "cacheRead": 0.11,
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-03",
@@ -65971,7 +69238,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemma-4-e4b-it": {
       "id": "gemma-4-e4b-it",
@@ -65994,7 +69272,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "TEE/gemma-4-31b-it": {
       "id": "TEE/gemma-4-31b-it",
@@ -66219,7 +69508,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-03-29",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-latest": {
       "id": "openai/gpt-latest",
@@ -66686,7 +69985,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-21",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview-low": {
       "id": "google/gemini-3.1-pro-preview-low",
@@ -66709,7 +70018,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-21",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview": {
       "id": "google/gemini-3.1-pro-preview",
@@ -66742,7 +70061,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview-customtools": {
       "id": "google/gemini-3.1-pro-preview-customtools",
@@ -66775,7 +70104,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "sarvam-30b": {
       "id": "sarvam-30b",
@@ -66879,6 +70218,41 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-17",
       "family": "claude-sonnet"
+    },
+    "bytedance-seed/seed-2.0-code": {
+      "id": "bytedance-seed/seed-2.0-code",
+      "name": "ByteDance Seed 2.0 Code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 3,
+        "cacheRead": 0.25,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
     },
     "minimax/minimax-m2.5": {
       "id": "minimax/minimax-m2.5",
@@ -67505,7 +70879,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -68055,7 +71439,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-25",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite-preview-09-2025-thinking": {
       "id": "gemini-2.5-flash-lite-preview-09-2025-thinking",
@@ -68088,7 +71483,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-25",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-preview-09-2025": {
       "id": "gemini-2.5-flash-preview-09-2025",
@@ -68121,7 +71527,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-25",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-preview-09-2025-thinking": {
       "id": "gemini-2.5-flash-preview-09-2025-thinking",
@@ -68154,7 +71571,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-25",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/Kimi-K2-Instruct-0905": {
       "id": "moonshotai/Kimi-K2-Instruct-0905",
@@ -69407,7 +72835,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-flash-lite": {
       "id": "google/gemini-3.1-flash-lite",
@@ -69433,7 +72873,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.5": {
       "id": "openai/gpt-5.5",
@@ -69827,7 +73279,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.1": {
       "id": "openai/gpt-5.1",
@@ -70121,7 +73585,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -70147,7 +73623,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -70173,7 +73661,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3": {
       "id": "openai/o3",
@@ -70338,6 +73838,30 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-12-20",
       "family": "o-mini"
+    },
+    "openai/whisper-large-v3": {
+      "id": "openai/whisper-large-v3",
+      "name": "Whisper Large v3",
+      "contextWindow": 448,
+      "maxInputTokens": 448,
+      "maxTokens": 448,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.01,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2023-11-06",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "nebius": {
@@ -70942,7 +74466,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3-6-flash": {
       "id": "gemini-3-6-flash",
@@ -70977,7 +74513,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k3": {
       "id": "kimi-k3",
@@ -71054,7 +74602,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5-6-luna": {
       "id": "gpt-5-6-luna",
@@ -71347,7 +74905,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5-5": {
       "id": "gpt-5-5",
@@ -71593,7 +75163,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen35-122b-a10b": {
       "id": "qwen35-122b-a10b",
@@ -71660,7 +75242,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -71799,7 +75393,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5-2": {
       "id": "gpt-5-2",
@@ -74076,7 +77682,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-24",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "video",
+          "audio",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "qwen/qwen3-omni-30b-a3b-thinking": {
       "id": "qwen/qwen3-omni-30b-a3b-thinking",
@@ -74099,7 +77717,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-09-24"
+      "releaseDate": "2025-09-24",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "video",
+          "image"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3-vl-235b-a22b-instruct": {
       "id": "qwen/qwen3-vl-235b-a22b-instruct",
@@ -74705,7 +78334,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "poolside/laguna-xs-2.1": {
       "id": "poolside/laguna-xs-2.1",
@@ -74903,7 +78542,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-28",
-      "family": "nemotron"
+      "family": "nemotron",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-ai/deepseek-v4-flash": {
       "id": "deepseek-ai/deepseek-v4-flash",
@@ -75064,7 +78714,16 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-16",
-      "family": "nemotron"
+      "family": "nemotron",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia/nemotron-3-super-120b-a12b": {
       "id": "nvidia/nemotron-3-super-120b-a12b",
@@ -75117,7 +78776,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.5-397b-a17b": {
       "id": "qwen/qwen3.5-397b-a17b",
@@ -76104,7 +79774,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/kimi-k3": {
       "id": "moonshotai/kimi-k3",
@@ -76501,7 +80183,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.83
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-flash-lite": {
       "id": "google/gemini-3.1-flash-lite",
@@ -76537,7 +80231,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "bailian/qwen3.6-flash": {
       "id": "bailian/qwen3.6-flash",
@@ -76704,7 +80410,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/kimi-k2.6": {
       "id": "moonshotai/kimi-k2.6",
@@ -77101,7 +80818,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "bailian/qwen3.5-flash": {
       "id": "bailian/qwen3.5-flash",
@@ -77168,7 +80896,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 4.5
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -77460,7 +81200,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -77967,7 +81719,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -78002,7 +81766,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -78034,7 +81810,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 4.5
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-4.1": {
       "id": "openai/gpt-4.1",
@@ -78909,7 +82697,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-06",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "image"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "gpt-5.5": {
       "id": "gpt-5.5",
@@ -79660,6 +83459,40 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "opencode": {
+    "grok-4.6": {
+      "id": "grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "nemotron-3.5-lightning-free": {
       "id": "nemotron-3.5-lightning-free",
       "name": "Nemotron 3.5 Lightning Free",
@@ -79837,7 +83670,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -79873,7 +83718,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "laguna-s-2.1-free": {
       "id": "laguna-s-2.1-free",
@@ -80077,6 +83934,40 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-07-08",
       "family": "grok"
     },
+    "hy3-free": {
+      "id": "hy3-free",
+      "name": "Hy3 Free",
+      "contextWindow": 190000,
+      "maxInputTokens": 190000,
+      "maxTokens": 64000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-06",
+      "family": "hy3-free"
+    },
     "claude-sonnet-5": {
       "id": "claude-sonnet-5",
       "name": "Claude Sonnet 5",
@@ -80110,31 +84001,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-06-30",
       "family": "claude-sonnet"
-    },
-    "longcat-2.0-free": {
-      "id": "longcat-2.0-free",
-      "name": "LongCat-2.0 Free",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
-      "maxTokens": 131072,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        }
-      ],
-      "pricing": {
-        "input": 0,
-        "output": 0,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-06-30",
-      "family": "longcat"
     },
     "glm-5.2": {
       "id": "glm-5.2",
@@ -80338,7 +84204,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-v4-pro": {
       "id": "deepseek-v4-pro",
@@ -80427,7 +84305,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
-      "family": "mimo-v2.5-free"
+      "family": "mimo-v2.5-free",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.5": {
       "id": "gpt-5.5",
@@ -80836,7 +84725,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -81122,7 +85023,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2": {
       "id": "gpt-5.2",
@@ -81877,7 +85790,7 @@ export const GENERATED_PROVIDER_MODELS: {
     },
     "deepseek-v4-pro": {
       "id": "deepseek-v4-pro",
-      "name": "DeepSeek V4 Pro",
+      "name": "DeepSeek V4 Pro (New)",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
       "maxTokens": 384000,
@@ -81928,7 +85841,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo-v2.5"
+      "family": "mimo-v2.5",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -82054,6 +85978,132 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "openrouter": {
+    "bytedance-seed/seed-2-1-turbo": {
+      "id": "bytedance-seed/seed-2-1-turbo",
+      "name": "Seed 2.1 Turbo",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0.5,
+        "output": 2.5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "seed"
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.003625,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "deepseek-thinking"
+    },
+    "qwen/qwen3.8-2.4t-a95b": {
+      "id": "qwen/qwen3.8-2.4t-a95b",
+      "name": "Qwen3.8 2.4T A95B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 52429,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.2,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "qwen"
+    },
+    "x-ai/grok-4.6": {
+      "id": "x-ai/grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "nvidia/nemotron-3.5-lightning:free": {
       "id": "nvidia/nemotron-3.5-lightning:free",
       "name": "Nemotron 3.5 Lightning (free)",
@@ -82065,7 +86115,11 @@ export const GENERATED_PROVIDER_MODELS: {
         "reasoning",
         "temperature"
       ],
-      "reasoningOptions": [],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
       "pricing": {
         "input": 0,
         "output": 0,
@@ -82219,7 +86273,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-05",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.8-max": {
       "id": "qwen/qwen3.8-max",
@@ -82262,7 +86328,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash Latest",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 131072,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
@@ -82271,6 +86337,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -82281,9 +86350,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.0798,
-        "output": 0.1596,
-        "cacheRead": 0.01596,
+        "input": 0.079996,
+        "output": 0.252,
+        "cacheRead": 0.0252,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-01",
@@ -82303,6 +86372,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -82355,7 +86427,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-30",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-opus-5": {
       "id": "anthropic/claude-opus-5",
@@ -82373,6 +86455,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -82408,6 +86493,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -82484,7 +86572,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.6-flash": {
       "id": "google/gemini-3.6-flash",
@@ -82520,7 +86620,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "poolside/laguna-s-2.1": {
       "id": "poolside/laguna-s-2.1",
@@ -82608,6 +86720,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -82686,7 +86801,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kwaipilot/kat-coder-air-v2.5": {
       "id": "kwaipilot/kat-coder-air-v2.5",
@@ -82967,14 +87092,15 @@ export const GENERATED_PROVIDER_MODELS: {
           "values": [
             "low",
             "medium",
-            "high"
+            "high",
+            "xhigh"
           ]
         }
       ],
       "pricing": {
         "input": 2,
         "output": 6,
-        "cacheRead": 0.3,
+        "cacheRead": 0.5,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-08",
@@ -83147,6 +87273,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -83258,6 +87387,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "high",
@@ -83266,9 +87398,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.4886,
-        "output": 1.5356,
-        "cacheRead": 0.09074,
+        "input": 0.49,
+        "output": 1.54,
+        "cacheRead": 0.091,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -83290,8 +87422,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.7,
-        "output": 3.5,
+        "input": 0.67,
+        "output": 3.4,
         "cacheRead": 0.15,
         "cacheWrite": 0
       },
@@ -83406,6 +87538,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "medium",
@@ -83437,6 +87572,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -83565,6 +87703,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -83599,6 +87740,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -83709,7 +87853,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "inclusionai/ring-2.6-1t": {
       "id": "inclusionai/ring-2.6-1t",
@@ -83759,6 +87915,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "minimal",
@@ -83775,7 +87934,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-chat-latest": {
       "id": "openai/gpt-chat-latest",
@@ -83877,7 +88048,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-28",
-      "family": "nemotron"
+      "family": "nemotron",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~anthropic/claude-haiku-latest": {
       "id": "~anthropic/claude-haiku-latest",
@@ -83928,6 +88110,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -83982,7 +88167,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-04-27",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~google/gemini-pro-latest": {
       "id": "~google/gemini-pro-latest",
@@ -84017,7 +88214,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-04-27",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "audio",
+          "pdf",
+          "image",
+          "text",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "~moonshotai/kimi-latest": {
       "id": "~moonshotai/kimi-latest",
@@ -84035,6 +88244,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -84207,6 +88419,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "high",
@@ -84238,6 +88453,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "high",
@@ -84246,9 +88464,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.63168,
-        "output": 1.26336,
-        "cacheRead": 0.053298,
+        "input": 1.168,
+        "output": 2.336,
+        "cacheRead": 0.09855,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-24",
@@ -84398,7 +88616,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2.5-pro": {
       "id": "xiaomi/mimo-v2.5-pro",
@@ -84443,6 +88672,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -84651,6 +88883,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -84685,6 +88920,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -84765,7 +89003,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-08",
-      "family": "muse"
+      "family": "muse",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "z-ai/glm-5.1": {
       "id": "z-ai/glm-5.1",
@@ -84782,9 +89032,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.952,
-        "output": 2.992,
-        "cacheRead": 0.1768,
+        "input": 1.4,
+        "output": 4.4,
+        "cacheRead": 0.26,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-07",
@@ -85213,6 +89463,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -85245,6 +89498,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -85280,6 +89536,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -85417,6 +89676,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "minimal",
@@ -85433,7 +89695,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "bytedance-seed/seed-2.0-mini": {
       "id": "bytedance-seed/seed-2.0-mini",
@@ -85450,6 +89724,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "temperature"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -85668,7 +89945,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview-customtools": {
       "id": "google/gemini-3.1-pro-preview-customtools",
@@ -85703,7 +89992,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -85721,6 +90022,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -85801,6 +90105,42 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-02-15",
       "family": "qwen"
+    },
+    "bytedance-seed/seed-2.0-code": {
+      "id": "bytedance-seed/seed-2.0-code",
+      "name": "Seed 2.0 Code",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.5,
+        "output": 3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
     },
     "minimax/minimax-m2.5": {
       "id": "minimax/minimax-m2.5",
@@ -85892,6 +90232,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -86053,7 +90396,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
-      "family": "gpt"
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "openai/gpt-audio-mini": {
       "id": "openai/gpt-audio-mini",
@@ -86073,7 +90426,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-01-19",
-      "family": "o-mini"
+      "family": "o-mini",
+      "modalities": {
+        "input": [
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text",
+          "audio"
+        ]
+      }
     },
     "z-ai/glm-4.7-flash": {
       "id": "z-ai/glm-4.7-flash",
@@ -86233,6 +90596,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "minimal",
@@ -86249,7 +90615,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia/nemotron-3-nano-30b-a3b": {
       "id": "nvidia/nemotron-3-nano-30b-a3b",
@@ -86752,6 +91130,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -86833,7 +91214,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-10-30",
-      "family": "mistral"
+      "family": "mistral",
+      "modalities": {
+        "input": [
+          "text",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-oss-safeguard-20b": {
       "id": "openai/gpt-oss-safeguard-20b",
@@ -87100,9 +91491,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5,
-        "output": 2,
-        "cacheRead": 0.1,
+        "input": 0.55,
+        "output": 2.2,
+        "cacheRead": 0.11,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-30",
@@ -87199,13 +91590,12 @@ export const GENERATED_PROVIDER_MODELS: {
         "images",
         "tools",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "pricing": {
-        "input": 0.21,
-        "output": 1.9,
-        "cacheRead": 0.1,
+        "input": 0.26,
+        "output": 1.04,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-23",
@@ -87254,8 +91644,8 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "pricing": {
         "input": 0.27,
-        "output": 1,
-        "cacheRead": 0.135,
+        "output": 0.95,
+        "cacheRead": 0.13,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-22",
@@ -87656,7 +92046,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -87669,9 +92060,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.037,
+        "input": 0.03,
         "output": 0.17,
-        "cacheRead": 0,
+        "cacheRead": 0.03,
         "cacheWrite": 0
       },
       "releaseDate": "2025-08-05",
@@ -88010,7 +92401,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -88045,7 +92448,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -88077,7 +92492,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "minimax/minimax-m1": {
       "id": "minimax/minimax-m1",
@@ -88161,7 +92588,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-06-05",
-      "family": "gemini"
+      "family": "gemini",
+      "modalities": {
+        "input": [
+          "pdf",
+          "image",
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-r1-0528": {
       "id": "deepseek/deepseek-r1-0528",
@@ -88282,7 +92720,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2025-05-07",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mistralai/mistral-medium-3": {
       "id": "mistralai/mistral-medium-3",
@@ -89478,7 +93928,20 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2023-11-08",
-      "family": "auto"
+      "family": "auto",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "pdf",
+          "video"
+        ],
+        "output": [
+          "text",
+          "image"
+        ]
+      }
     },
     "openai/gpt-4": {
       "id": "openai/gpt-4",
@@ -89597,7 +94060,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-flash-lite-latest": {
       "id": "google/gemini-flash-lite-latest",
@@ -89633,7 +94108,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek/deepseek-v4-flash": {
       "id": "deepseek/deepseek-v4-flash",
@@ -89809,7 +94296,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-opus-4.7": {
       "id": "anthropic/claude-opus-4.7",
@@ -90113,7 +94611,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.3-chat-latest": {
       "id": "openai/gpt-5.3-chat-latest",
@@ -90159,7 +94669,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.5-27b": {
       "id": "qwen/qwen3.5-27b",
@@ -90183,7 +94704,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.5-35b-a3b": {
       "id": "qwen/qwen3.5-35b-a3b",
@@ -90207,7 +94739,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview": {
       "id": "google/gemini-3.1-pro-preview",
@@ -90242,7 +94785,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-pro-preview-customtools": {
       "id": "google/gemini-3.1-pro-preview-customtools",
@@ -90277,7 +94832,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -90357,7 +94924,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "minimax/minimax-m2.5-highspeed": {
       "id": "minimax/minimax-m2.5-highspeed",
@@ -90561,7 +95139,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -90762,7 +95352,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-18",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.1": {
       "id": "openai/gpt-5.1",
@@ -91192,7 +95794,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -91227,7 +95841,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -91262,7 +95888,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-opus-4": {
       "id": "anthropic/claude-opus-4",
@@ -92058,7 +96696,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4-6": {
       "id": "anthropic/claude-sonnet-4-6",
@@ -92164,7 +96814,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5.2": {
       "id": "openai/gpt-5.2",
@@ -92425,7 +97087,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -92461,7 +97135,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-20",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "perplexity/sonar": {
       "id": "perplexity/sonar",
@@ -92550,7 +97236,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.3
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -92585,7 +97283,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1.5
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "poolside/laguna-s-2.1": {
       "id": "poolside/laguna-s-2.1",
@@ -93203,7 +97913,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -93238,7 +97960,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.25
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "fastino/gliguard-LLMGuardrails-300M": {
       "id": "fastino/gliguard-LLMGuardrails-300M",
@@ -93477,7 +98211,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.6
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "XiaomiMiMo/MiMo-V2.5": {
       "id": "XiaomiMiMo/MiMo-V2.5",
@@ -93510,7 +98255,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.14
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "XiaomiMiMo/MiMo-V2.5-Pro": {
       "id": "XiaomiMiMo/MiMo-V2.5-Pro",
@@ -93640,7 +98396,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.175
       },
       "releaseDate": "2026-04-17",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-opus-4-7": {
       "id": "claude-opus-4-7",
@@ -93806,7 +98573,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.1
       },
       "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemma-4-E4B-it": {
       "id": "google/gemma-4-E4B-it",
@@ -93839,7 +98616,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.2
       },
       "releaseDate": "2026-04-02",
-      "family": "gemma"
+      "family": "gemma",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3.6-plus": {
       "id": "qwen3.6-plus",
@@ -94136,7 +98923,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.375
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -94270,7 +99069,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.083333
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16": {
       "id": "nvidia/NVIDIA-Nemotron-3-Nano-30B-A3B-BF16",
@@ -95414,7 +100225,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "empiriolabs/deepseek-v4-flash-el": {
       "id": "empiriolabs/deepseek-v4-flash-el",
@@ -95808,7 +100629,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.2,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-02-19"
+      "releaseDate": "2026-02-19",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-flash-lite": {
       "id": "google/gemini-3.1-flash-lite",
@@ -95838,7 +100670,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2026-02-18"
+      "releaseDate": "2026-02-18",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "novita/glm-5": {
       "id": "novita/glm-5",
@@ -96635,7 +101478,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.04,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-10-07"
+      "releaseDate": "2025-10-07",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5-pro": {
       "id": "openai/gpt-5-pro",
@@ -96831,7 +101685,15 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-08-29",
-      "family": "elevenlabs"
+      "family": "elevenlabs",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "openai/gpt-image-1-mini": {
       "id": "openai/gpt-image-1-mini",
@@ -97174,7 +102036,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-19",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
@@ -97222,7 +102095,15 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-05",
-      "family": "elevenlabs"
+      "family": "elevenlabs",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "google/lyria": {
       "id": "google/lyria",
@@ -97240,7 +102121,15 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-04",
-      "family": "lyria"
+      "family": "lyria",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "google/imagen-4-ultra": {
       "id": "google/imagen-4-ultra",
@@ -97405,7 +102294,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-04-26",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3": {
       "id": "openai/o3",
@@ -97759,7 +102659,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-02-05",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -97788,7 +102699,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-02-05",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3-mini": {
       "id": "openai/o3-mini",
@@ -97889,7 +102811,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-12-11",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "topazlabs-co/topazlabs": {
       "id": "topazlabs-co/topazlabs",
@@ -97963,7 +102896,15 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2024-10-28",
-      "family": "elevenlabs"
+      "family": "elevenlabs",
+      "modalities": {
+        "input": [
+          "text"
+        ],
+        "output": [
+          "audio"
+        ]
+      }
     },
     "google/imagen-3-fast": {
       "id": "google/imagen-3-fast",
@@ -98436,6 +103377,56 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2025-08-05",
       "family": "gpt-oss"
+    },
+    "voxtral-mini-3b": {
+      "id": "voxtral-mini-3b",
+      "name": "Voxtral Mini 3B",
+      "contextWindow": 32000,
+      "maxInputTokens": 32000,
+      "maxTokens": 32000,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0.00462,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2025-07",
+      "family": "voxtral",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "whisper-large-v3": {
+      "id": "whisper-large-v3",
+      "name": "Whisper large-v3",
+      "contextWindow": 448,
+      "maxInputTokens": 448,
+      "maxTokens": 4096,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.01618,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-10-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "qihang-ai": {
@@ -98462,7 +103453,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3-flash-preview": {
       "id": "gemini-3-flash-preview",
@@ -98487,7 +103490,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2": {
       "id": "gpt-5.2",
@@ -98555,7 +103570,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-11-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-opus-4-5-20251101": {
       "id": "claude-opus-4-5-20251101",
@@ -99054,7 +104080,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-12-19"
+      "releaseDate": "2025-12-19",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "x-ai/grok-4.1-fast-reasoning": {
       "id": "x-ai/grok-4.1-fast-reasoning",
@@ -99076,7 +104113,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-12-19"
+      "releaseDate": "2025-12-19",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.0-flash-preview": {
       "id": "gemini-3.0-flash-preview",
@@ -99099,7 +104147,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-12-18"
+      "releaseDate": "2025-12-18",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "x-ai/grok-4-fast-non-reasoning": {
       "id": "x-ai/grok-4-fast-non-reasoning",
@@ -99119,7 +104179,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-12-18"
+      "releaseDate": "2025-12-18",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "x-ai/grok-4-fast-reasoning": {
       "id": "x-ai/grok-4-fast-reasoning",
@@ -99141,7 +104212,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-12-18"
+      "releaseDate": "2025-12-18",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2-flash": {
       "id": "mimo-v2-flash",
@@ -99290,7 +104372,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-11-19"
+      "releaseDate": "2025-11-19",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "moonshotai/kimi-k2-thinking": {
       "id": "moonshotai/kimi-k2-thinking",
@@ -99468,7 +104562,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-09-20"
+      "releaseDate": "2025-09-20",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/gpt-5": {
       "id": "openai/gpt-5",
@@ -100018,7 +105123,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.0-flash-lite": {
       "id": "gemini-2.0-flash-lite",
@@ -100040,7 +105156,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash": {
       "id": "gemini-2.5-flash",
@@ -100062,7 +105189,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -100082,7 +105220,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -100104,7 +105253,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "glm-4.5": {
       "id": "glm-4.5",
@@ -100256,7 +105416,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen2.5-vl-72b-instruct": {
       "id": "qwen2.5-vl-72b-instruct",
@@ -100276,7 +105447,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen2.5-vl-7b-instruct": {
       "id": "qwen2.5-vl-7b-instruct",
@@ -100296,7 +105478,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-08-05"
+      "releaseDate": "2025-08-05",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen3-235b-a22b": {
       "id": "qwen3-235b-a22b",
@@ -100864,7 +106057,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -100904,7 +106109,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "kimi-k3": {
       "id": "kimi-k3",
@@ -101436,7 +106653,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1.583
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite@eu": {
       "id": "gemini-3.1-flash-lite@eu",
@@ -101476,7 +106705,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.08333
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.5@eu": {
       "id": "gpt-5.5@eu",
@@ -102245,7 +107486,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.55
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4@eu": {
       "id": "claude-sonnet-4@eu",
@@ -102922,7 +108175,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -102958,7 +108223,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.5": {
       "id": "gpt-5.5",
@@ -103523,7 +108800,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic--claude-4-sonnet": {
       "id": "anthropic--claude-4-sonnet",
@@ -103607,7 +108896,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-04-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-4.1": {
       "id": "gpt-4.1",
@@ -103706,7 +109007,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-03-25",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "amazon--nova-micro": {
       "id": "amazon--nova-micro",
@@ -104127,6 +109440,30 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-01-01",
       "family": "gpt-oss"
+    },
+    "whisper-large-v3": {
+      "id": "whisper-large-v3",
+      "name": "Whisper Large v3",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 8192,
+      "capabilities": [],
+      "pricing": {
+        "input": 0.003,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2023-09-01",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "scx": {
@@ -106780,7 +112117,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6": {
       "id": "claude-sonnet-4-6",
@@ -108931,7 +114280,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.625
       },
       "releaseDate": "2026-02-23",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "qwen/qwen3.5-9b": {
       "id": "qwen/qwen3.5-9b",
@@ -109665,11 +115025,43 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "tinfoil": {
+    "deepseek-v4-flash": {
+      "id": "deepseek-v4-flash",
+      "name": "DeepSeek V4 Flash 0731",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "high",
+            "max"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.7,
+        "output": 1.9,
+        "cacheRead": 0.125,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-07-31",
+      "family": "deepseek-flash"
+    },
     "kimi-k3": {
       "id": "kimi-k3",
       "name": "Kimi K3",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
       "maxTokens": 131072,
       "capabilities": [
         "images",
@@ -109693,8 +115085,8 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 2,
-        "output": 6,
+        "input": 4,
+        "output": 20,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -109704,8 +115096,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "glm-5-2": {
       "id": "glm-5-2",
       "name": "GLM-5.2",
-      "contextWindow": 384000,
-      "maxInputTokens": 384000,
+      "contextWindow": 393216,
+      "maxInputTokens": 393216,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -109740,8 +115132,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gemma4-31b": {
       "id": "gemma4-31b",
       "name": "Gemma 4 31B IT",
-      "contextWindow": 256000,
-      "maxInputTokens": 256000,
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
       "maxTokens": 32768,
       "capabilities": [
         "images",
@@ -109776,8 +115168,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gpt-oss-safeguard-120b": {
       "id": "gpt-oss-safeguard-120b",
       "name": "gpt-oss-safeguard-120b",
-      "contextWindow": 131000,
-      "maxInputTokens": 131000,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
       "maxTokens": 32768,
       "capabilities": [
         "tools",
@@ -109807,8 +115199,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "gpt-oss-120b": {
       "id": "gpt-oss-120b",
       "name": "gpt-oss-120b",
-      "contextWindow": 131000,
-      "maxInputTokens": 131000,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
       "maxTokens": 32768,
       "capabilities": [
         "tools",
@@ -109838,8 +115230,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "llama3-3-70b": {
       "id": "llama3-3-70b",
       "name": "Llama-3.3-70B-Instruct",
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
+      "contextWindow": 131072,
+      "maxInputTokens": 131072,
       "maxTokens": 4096,
       "capabilities": [
         "tools",
@@ -109957,7 +115349,17 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-15",
-      "family": "ling"
+      "family": "ling",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "zai-org/GLM-5.2": {
       "id": "zai-org/GLM-5.2",
@@ -111198,7 +116600,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "deepseek-v4-flash": {
       "id": "deepseek-v4-flash",
@@ -111491,7 +116905,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2": {
       "id": "gpt-5.2",
@@ -111745,6 +117170,39 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "vercel-ai-gateway": {
+    "xai/grok-4.6": {
+      "id": "xai/grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "meta/muse-glimmer-30b": {
       "id": "meta/muse-glimmer-30b",
       "name": "Muse Glimmer 30B",
@@ -113062,6 +118520,33 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-05-07",
       "family": "gemini"
     },
+    "openai/gpt-realtime-whisper": {
+      "id": "openai/gpt-realtime-whisper",
+      "name": "gpt-realtime-whisper",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature",
+        "transcription-streaming"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-05-07",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "xai/grok-4.3": {
       "id": "xai/grok-4.3",
       "name": "Grok 4.3",
@@ -113282,6 +118767,40 @@ export const GENERATED_PROVIDER_MODELS: {
         "input": 1.74,
         "output": 3.48,
         "cacheRead": 0.14,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-04-23",
+      "family": "deepseek"
+    },
+    "deepseek/deepseek-v4-pro-0813": {
+      "id": "deepseek/deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 384000,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.435,
+        "output": 0.87,
+        "cacheRead": 0.0036,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-23",
@@ -113764,6 +119283,32 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-17",
       "family": "gpt"
     },
+    "xai/grok-stt": {
+      "id": "xai/grok-stt",
+      "name": "Grok STT",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-16",
+      "family": "grok",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
     "zai/glm-5-turbo": {
       "id": "zai/glm-5-turbo",
       "name": "GLM 5 Turbo",
@@ -114018,6 +119563,30 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-03-05",
       "family": "gpt"
+    },
+    "fish-audio/transcribe-1": {
+      "id": "fish-audio/transcribe-1",
+      "name": "Transcribe-1",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-03-01",
+      "family": "o",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "alibaba/qwen3.5-flash": {
       "id": "alibaba/qwen3.5-flash",
@@ -115966,7 +121535,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash-lite": {
       "id": "google/gemini-2.5-flash-lite",
@@ -116032,7 +121613,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "openai/o3-pro": {
       "id": "openai/o3-pro",
@@ -116820,6 +122413,84 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2024-03-13",
       "family": "claude-haiku"
+    },
+    "openai/gpt-4o-mini-transcribe": {
+      "id": "openai/gpt-4o-mini-transcribe",
+      "name": "GPT-4o mini Transcribe",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 1.25,
+        "output": 5,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-03-13",
+      "family": "o-mini",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "openai/gpt-4o-transcribe": {
+      "id": "openai/gpt-4o-transcribe",
+      "name": "GPT-4o Transcribe",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 2.5,
+        "output": 10,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2024-03-13",
+      "family": "gpt",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
+    },
+    "openai/whisper-1": {
+      "id": "openai/whisper-1",
+      "name": "Whisper",
+      "contextWindow": 0,
+      "maxInputTokens": 0,
+      "maxTokens": 0,
+      "capabilities": [
+        "temperature"
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2022-09-21",
+      "family": "whisper",
+      "modalities": {
+        "input": [
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "vertex": {
@@ -116891,7 +122562,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.6-flash": {
       "id": "gemini-3.6-flash",
@@ -116927,7 +122610,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-21",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-5@default": {
       "id": "claude-sonnet-5@default",
@@ -117034,7 +122729,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-flash-latest": {
       "id": "gemini-flash-latest",
@@ -117070,7 +122777,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-flash-lite": {
       "id": "gemini-3.1-flash-lite",
@@ -117106,7 +122825,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-flash-lite-latest": {
       "id": "gemini-flash-lite-latest",
@@ -117141,7 +122872,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-opus-4-7@default": {
       "id": "claude-opus-4-7@default",
@@ -117210,7 +122953,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-3.1-pro-preview-customtools": {
       "id": "gemini-3.1-pro-preview-customtools",
@@ -117245,7 +123000,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-sonnet-4-6@default": {
       "id": "claude-sonnet-4-6@default",
@@ -117357,7 +123124,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-12-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "claude-opus-4-5@20251101": {
       "id": "claude-opus-4-5@20251101",
@@ -117516,7 +123295,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0.383
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-flash-lite": {
       "id": "gemini-2.5-flash-lite",
@@ -117550,7 +123341,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gemini-2.5-pro": {
       "id": "gemini-2.5-pro",
@@ -117581,7 +123384,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2025-06-17",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "meta/llama-4-maverick-17b-128e-instruct-maas": {
       "id": "meta/llama-4-maverick-17b-128e-instruct-maas",
@@ -118010,7 +123825,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 1
       },
       "releaseDate": "2026-03-03",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.3-codex": {
       "id": "gpt-5.3-codex",
@@ -118069,7 +123896,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-19",
-      "family": "gemini-pro"
+      "family": "gemini-pro",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "gpt-5.2-codex": {
       "id": "gpt-5.2-codex",
@@ -118291,7 +124130,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "XiaomiMiMo/MiMo-V2.5-Pro": {
       "id": "XiaomiMiMo/MiMo-V2.5-Pro",
@@ -118379,7 +124229,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
-      "family": "qwen"
+      "family": "qwen",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "nvidia/DeepSeek-V3.2-NVFP4": {
       "id": "nvidia/DeepSeek-V3.2-NVFP4",
@@ -119278,6 +125139,41 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "xai": {
+    "grok-4.6": {
+      "id": "grok-4.6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "files",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "grok-4.5": {
       "id": "grok-4.5",
       "name": "Grok 4.5",
@@ -119474,7 +125370,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -119529,7 +125436,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -119583,7 +125501,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -119637,7 +125566,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "mimo-v2.5-pro": {
       "id": "mimo-v2.5-pro",
@@ -121273,7 +127213,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-19",
-      "family": "gemini-flash"
+      "family": "gemini-flash",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-3.1-flash-lite": {
       "id": "google/gemini-3.1-flash-lite",
@@ -121308,7 +127260,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-05-07",
-      "family": "gemini-flash-lite"
+      "family": "gemini-flash-lite",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "video",
+          "audio",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "inclusionai/ring-2.6-1t": {
       "id": "inclusionai/ring-2.6-1t",
@@ -121525,7 +127489,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-22",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2.5-pro": {
       "id": "xiaomi/mimo-v2.5-pro",
@@ -122173,7 +128148,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheWrite": 0
       },
       "releaseDate": "2026-03-18",
-      "family": "mimo"
+      "family": "mimo",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video",
+          "pdf"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2-pro": {
       "id": "xiaomi/mimo-v2-pro",
@@ -122232,7 +128219,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.2,
         "cacheWrite": 4.5
       },
-      "releaseDate": "2026-02-19"
+      "releaseDate": "2026-02-19",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-sonnet-4.6": {
       "id": "anthropic/claude-sonnet-4.6",
@@ -122717,7 +128716,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.05,
         "cacheWrite": 1
       },
-      "releaseDate": "2025-12-17"
+      "releaseDate": "2025-12-17",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "pdf",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "xiaomi/mimo-v2-flash": {
       "id": "xiaomi/mimo-v2-flash",
@@ -123346,7 +129356,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.03,
         "cacheWrite": 1
       },
-      "releaseDate": "2025-07-22"
+      "releaseDate": "2025-07-22",
+      "modalities": {
+        "input": [
+          "pdf",
+          "image",
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-flash": {
       "id": "google/gemini-2.5-flash",
@@ -123378,7 +129399,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.07,
         "cacheWrite": 1
       },
-      "releaseDate": "2025-06-17"
+      "releaseDate": "2025-06-17",
+      "modalities": {
+        "input": [
+          "pdf",
+          "image",
+          "text",
+          "audio"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "google/gemini-2.5-pro": {
       "id": "google/gemini-2.5-pro",
@@ -123411,7 +129443,19 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0.31,
         "cacheWrite": 4.5
       },
-      "releaseDate": "2025-06-17"
+      "releaseDate": "2025-06-17",
+      "modalities": {
+        "input": [
+          "pdf",
+          "image",
+          "text",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     },
     "anthropic/claude-opus-4": {
       "id": "anthropic/claude-opus-4",
@@ -123495,7 +129539,18 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "releaseDate": "2025-03-20"
+      "releaseDate": "2025-03-20",
+      "modalities": {
+        "input": [
+          "text",
+          "image",
+          "audio",
+          "video"
+        ],
+        "output": [
+          "text"
+        ]
+      }
     }
   },
   "zhipuai": {
