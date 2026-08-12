@@ -181,12 +181,16 @@ token, preventing an unrelated process that later reuses the PID from extending
 the log lifetime. Completion markers distinguish a live, possibly silent command
 from a completed log. Process probes distinguish an absent process from an
 unavailable identity provider. Transient probe failures retain the active marker
-through a persisted, bounded retry grace; recovery clears that failure state,
-while exhausting the grace starts normal retention so probe failures cannot leak
-logs indefinitely. A host exit alone never starts the retention window for a
-surviving command; the replacement host continues polling the process identity
-and begins retention only after the command ends. A detached client connection
-alone never changes process ownership or command execution.
+and are never treated as evidence of command completion. Reconciliation keeps
+the advertised log and retries until the provider can prove that the original
+process still exists, its PID belongs to a replacement process, or the process
+is absent. A host exit alone never starts the retention window for a surviving
+command; the replacement host continues polling the process identity and begins
+retention only after the command ends. During persistent provider unavailability,
+the capped log may outlive the normal retention window because preserving a
+potentially live command's advertised path takes precedence over guessing that
+it exited. A detached client connection alone never changes process ownership or
+command execution.
 
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,

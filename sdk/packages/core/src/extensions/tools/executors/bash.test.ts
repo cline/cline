@@ -404,7 +404,7 @@ describe("createShellExecutor", () => {
 		}
 	});
 
-	it("preserves a live log through a transient identity probe failure", async () => {
+	it("preserves a live log through an identity probe failure", async () => {
 		const tempDirectory = await mkdtemp(
 			join(tmpdir(), "detached-log-probe-recovery-"),
 		);
@@ -421,7 +421,6 @@ describe("createShellExecutor", () => {
 			]);
 			const cleanupOptions = {
 				activeCommandPollIntervalMs: 60_000,
-				processProbeFailureGraceMs: 60_000,
 				processStartTokenProbe: () =>
 					probeAvailable
 						? ({ status: "found", token: "process-404" } as const)
@@ -437,10 +436,9 @@ describe("createShellExecutor", () => {
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
-			const failedMarker = JSON.parse(
-				await readFile(join(directory, "active-command.json"), "utf8"),
-			) as Record<string, unknown>;
-			expect(failedMarker.probeFailureStartedAtMs).toBe(1_000);
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				true,
+			);
 
 			probeAvailable = true;
 			await expect(
@@ -449,36 +447,33 @@ describe("createShellExecutor", () => {
 					nowMs: 1_050,
 				}),
 			).resolves.toBe(0);
-			const recoveredMarker = JSON.parse(
-				await readFile(join(directory, "active-command.json"), "utf8"),
-			) as Record<string, unknown>;
-			expect(recoveredMarker.probeFailureStartedAtMs).toBeUndefined();
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				true,
+			);
 			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}
 	});
 
-	it("bounds retention when identity probing stays unavailable", async () => {
+	it("never retires a live log while identity probing stays unavailable", async () => {
 		const tempDirectory = await mkdtemp(
 			join(tmpdir(), "detached-log-probe-timeout-"),
 		);
 		const directory = join(tempDirectory, "cline-command-probe-timeout");
+		let probeStatus: "unavailable" | "missing" = "unavailable";
 		const cleanupOptions = {
 			activeCommandPollIntervalMs: 60_000,
-			processProbeFailureGraceMs: 1_000,
-			processStartTokenProbe: () => ({ status: "unavailable" as const }),
-			retentionMs: 100,
+			processStartTokenProbe: () => ({ status: probeStatus }),
+			retentionMs: 0,
 			tempDirectory,
 		};
 		try {
 			await mkdir(directory);
+			const markerText = detachedCommandMarker(505, "process-505");
 			await Promise.all([
 				writeFile(join(directory, "output.log"), "unverifiable command"),
-				writeFile(
-					join(directory, "active-command.json"),
-					detachedCommandMarker(505, "process-505"),
-				),
+				writeFile(join(directory, "active-command.json"), markerText),
 			]);
 
 			await expect(
@@ -494,21 +489,75 @@ describe("createShellExecutor", () => {
 			await expect(
 				cleanupStaleDetachedCommandLogs({
 					...cleanupOptions,
-					nowMs: 3_001,
+					nowMs: 7 * 24 * 60 * 60 * 1_000,
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(join(directory, "active-command.json"))).toBe(
-				false,
+				true,
 			);
-			expect(await fileExists(join(directory, "completed-at"))).toBe(true);
+			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
+			expect(await fileExists(directory)).toBe(true);
+			expect(
+				await readFile(join(directory, "active-command.json"), "utf8"),
+			).toBe(markerText);
 
+			probeStatus = "missing";
 			await expect(
 				cleanupStaleDetachedCommandLogs({
 					...cleanupOptions,
-					nowMs: 3_102,
+					nowMs: 7 * 24 * 60 * 60 * 1_000 + 1,
 				}),
 			).resolves.toBe(1);
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				false,
+			);
 			expect(await fileExists(directory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("retries when an identity probe rejects", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-probe-rejection-"),
+		);
+		const directory = join(tempDirectory, "cline-command-probe-rejection");
+		let probeAttempts = 0;
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "still running"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(606, "process-606"),
+				),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					activeCommandPollIntervalMs: 25,
+					nowMs: Date.now(),
+					processStartTokenProbe: () => {
+						probeAttempts += 1;
+						if (probeAttempts === 1) {
+							throw new Error("identity provider failed");
+						}
+						return { status: "missing" };
+					},
+					retentionMs: 60_000,
+					tempDirectory,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(join(directory, "active-command.json"))).toBe(
+				true,
+			);
+			expect(await fileExists(join(directory, "completed-at"))).toBe(false);
+
+			await expect.poll(() => probeAttempts).toBeGreaterThanOrEqual(2);
+			await expect
+				.poll(() => fileExists(join(directory, "active-command.json")))
+				.toBe(false);
+			expect(await fileExists(join(directory, "completed-at"))).toBe(true);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}

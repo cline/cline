@@ -38,7 +38,6 @@ import type { RunCommandExecutionController } from "./run-command-execution-cont
 const MAX_DETACHED_LOG_BYTES = 10 * 1024 * 1024;
 const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS = 60_000;
-const DEFAULT_PROCESS_PROBE_FAILURE_GRACE_MS = 5 * 60_000;
 const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
@@ -57,7 +56,6 @@ export interface DetachedCommandLogCleanupOptions {
 	nowMs?: number;
 	processStartTokenProbe?: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs?: number;
-	processProbeFailureGraceMs?: number;
 }
 
 type DetachedCommandMarker = {
@@ -66,7 +64,6 @@ type DetachedCommandMarker = {
 	pid: number;
 	processStartToken: string;
 	detachedAtMs: number;
-	probeFailureStartedAtMs?: number;
 };
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
@@ -81,18 +78,11 @@ function resolveActiveCommandPollIntervalMs(value: number | undefined): number {
 		: DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS;
 }
 
-function resolveProcessProbeFailureGraceMs(value: number | undefined): number {
-	return typeof value === "number" && Number.isFinite(value)
-		? Math.max(0, value)
-		: DEFAULT_PROCESS_PROBE_FAILURE_GRACE_MS;
-}
-
 type ResolvedDetachedCommandLogCleanupOptions = {
 	retentionMs: number;
 	nowMs: number;
 	probeProcessStartToken: ProcessStartTokenProbe;
 	activeCommandPollIntervalMs: number;
-	processProbeFailureGraceMs: number;
 };
 
 function parseDetachedCommandMarker(
@@ -110,11 +100,7 @@ function parseDetachedCommandMarker(
 			marker.processStartToken.length === 0 ||
 			typeof marker.detachedAtMs !== "number" ||
 			!Number.isFinite(marker.detachedAtMs) ||
-			marker.detachedAtMs < 0 ||
-			(marker.probeFailureStartedAtMs !== undefined &&
-				(typeof marker.probeFailureStartedAtMs !== "number" ||
-					!Number.isFinite(marker.probeFailureStartedAtMs) ||
-					marker.probeFailureStartedAtMs < 0))
+			marker.detachedAtMs < 0
 		) {
 			return undefined;
 		}
@@ -201,7 +187,15 @@ async function reconcileDetachedCommandLogDirectory(
 	} else if (activeCommandText !== undefined) {
 		const marker = parseDetachedCommandMarker(activeCommandText);
 		if (marker) {
-			const probe = await options.probeProcessStartToken(marker.pid);
+			let probe: ProcessStartTokenProbeResult;
+			try {
+				probe = await options.probeProcessStartToken(marker.pid);
+			} catch {
+				// Custom identity providers can fail by rejecting instead of returning
+				// an explicit unavailable result. Preserve the same conservative
+				// lifecycle semantics and keep polling in either case.
+				probe = { status: "unavailable" };
+			}
 			if (
 				probe.status === "found" &&
 				probe.token === marker.processStartToken
@@ -209,50 +203,19 @@ async function reconcileDetachedCommandLogDirectory(
 				// The detached command, rather than the host that launched it, owns the
 				// active lifecycle. Matching both PID and kernel start token prevents a
 				// later process that reuses the PID from extending this log's lifetime.
-				if (marker.probeFailureStartedAtMs !== undefined) {
-					const { probeFailureStartedAtMs: _failure, ...recoveredMarker } =
-						marker;
-					writeLifecycleMarker(
-						activeCommandPath,
-						`${JSON.stringify(recoveredMarker)}\n`,
-					);
-				}
 				scheduleActiveCommandLogReconciliation(directory, options);
 				return false;
 			}
 			if (probe.status === "unavailable") {
-				const recordedFailureStartedAtMs = marker.probeFailureStartedAtMs;
-				const failureStartedAtMs =
-					recordedFailureStartedAtMs === undefined ||
-					recordedFailureStartedAtMs > options.nowMs
-						? options.nowMs
-						: recordedFailureStartedAtMs;
-				if (failureStartedAtMs !== recordedFailureStartedAtMs) {
-					writeLifecycleMarker(
-						activeCommandPath,
-						`${JSON.stringify({
-							...marker,
-							probeFailureStartedAtMs: failureStartedAtMs,
-						})}\n`,
-					);
-				}
-				const remainingGraceMs =
-					failureStartedAtMs +
-					options.processProbeFailureGraceMs -
-					options.nowMs;
-				if (remainingGraceMs > 0) {
-					scheduleActiveCommandLogReconciliation(
-						directory,
-						options,
-						Math.min(options.activeCommandPollIntervalMs, remainingGraceMs),
-					);
-					return false;
-				}
+				// An unavailable identity provider is not evidence that the command
+				// exited. Keep the advertised log and retry until the provider can
+				// prove either the same identity, a replacement process, or absence.
+				scheduleActiveCommandLogReconciliation(directory, options);
+				return false;
 			}
 		}
-		// A missing process, mismatched identity, malformed marker, or a probe that
-		// exceeded its persisted retry grace begins bounded retention. Never fall
-		// back to PID-only polling.
+		// A missing process, mismatched identity, or malformed marker begins
+		// bounded retention. Never fall back to PID-only polling.
 		writeLifecycleMarker(completedAtPath, String(options.nowMs));
 		await rm(activeCommandPath, { force: true });
 		retentionStartedAtMs = options.nowMs;
@@ -313,9 +276,6 @@ export async function cleanupStaleDetachedCommandLogs(
 	const activeCommandPollIntervalMs = resolveActiveCommandPollIntervalMs(
 		options.activeCommandPollIntervalMs,
 	);
-	const processProbeFailureGraceMs = resolveProcessProbeFailureGraceMs(
-		options.processProbeFailureGraceMs,
-	);
 	let entries: Dirent[];
 	try {
 		entries = await readdir(tempDirectory, { withFileTypes: true });
@@ -339,7 +299,6 @@ export async function cleanupStaleDetachedCommandLogs(
 					nowMs,
 					probeProcessStartToken,
 					activeCommandPollIntervalMs,
-					processProbeFailureGraceMs,
 				})
 			) {
 				removed += 1;
