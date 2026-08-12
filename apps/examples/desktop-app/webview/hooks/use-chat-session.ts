@@ -774,6 +774,7 @@ export function useChatSession() {
 		setPromptsInQueue(value as PromptInQueue[]);
 	}, []);
 
+	const sessionDiffCwd = (config.cwd || config.workspaceRoot || "").trim();
 	const refreshSessionDiffSummary = useCallback(
 		async (targetSessionId: string) => {
 			try {
@@ -781,7 +782,7 @@ export function useChatSession() {
 					"read_session_hooks",
 					{ sessionId: targetSessionId, limit: MAX_MESSAGES },
 				);
-				const diffState = buildSessionDiffState(events);
+				const diffState = buildSessionDiffState(events, sessionDiffCwd);
 				setFileDiffs(diffState.fileDiffs);
 				setDiffSummary(diffState.summary);
 				setToolCalls(
@@ -794,7 +795,7 @@ export function useChatSession() {
 				// Ignore in non-Tauri mode.
 			}
 		},
-		[],
+		[sessionDiffCwd],
 	);
 
 	// ---- Message helpers ----
@@ -1063,13 +1064,13 @@ export function useChatSession() {
 		if (events.length === 0) {
 			return;
 		}
-		const diffState = buildSessionDiffState(events);
+		const diffState = buildSessionDiffState(events, sessionDiffCwd);
 		if (diffState.fileDiffs.length === 0) {
 			return;
 		}
 		setFileDiffs(diffState.fileDiffs);
 		setDiffSummary(diffState.summary);
-	}, [sessionId, messages, fileDiffs.length]);
+	}, [sessionId, messages, fileDiffs.length, sessionDiffCwd]);
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
@@ -2486,10 +2487,21 @@ export function useChatSession() {
 		setRawTranscript("");
 		setError(null);
 		resetCounters();
-		setConfig((prev) => ({
-			...prev,
-			sessionId: undefined,
-		}));
+		setConfig((prev) => {
+			// Re-seed the composer from the remembered defaults (the same
+			// source a freshly mounted thread uses) so a reset after viewing
+			// a historical session does not retain that session's
+			// provider/model for the next chat.
+			const initial = getInitialChatConfig();
+			return {
+				...prev,
+				sessionId: undefined,
+				provider: initial.provider,
+				model: initial.model,
+				apiKey:
+					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+			};
+		});
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
 		outstandingOptimisticUserIdsRef.current.clear();

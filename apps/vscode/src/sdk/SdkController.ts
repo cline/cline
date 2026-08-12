@@ -1258,7 +1258,7 @@ export class Controller {
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
 		// Fire-and-forget: ensure we have the latest remote config (enterprise
-		// policies like yoloModeAllowed, allowedMCPServers, etc.) without
+		// policies like allowedMCPServers, provider lockdown, etc.) without
 		// blocking the UI.
 		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
 		// A new task is starting — the agent is about to stream.
@@ -1742,10 +1742,6 @@ export class Controller {
 	}
 
 	// ---- Mode switching ----
-
-	async toggleActModeForYoloMode(): Promise<boolean> {
-		return this.mode.toggleActModeForYoloMode()
-	}
 
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		return this.mode.togglePlanActMode(modeToSwitchTo, chatContent)

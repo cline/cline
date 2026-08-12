@@ -20,30 +20,19 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
-	BlocksIcon,
-	BoxIcon,
 	BrainIcon,
 	Check,
 	Clock3,
 	Copy,
-	FilesIcon,
-	LibraryIcon,
 	Loader2,
-	type LucideIcon,
-	MessageCircleQuestionMarkIcon,
-	PanelsTopLeftIcon,
 	PencilIcon,
-	SearchCodeIcon,
 	ShieldAlert,
 	SplitIcon,
-	SquareArrowRightIcon,
-	TerminalIcon,
 	UndoIcon,
-	UserIcon,
-	UsersIcon,
-	WrenchIcon,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -65,10 +54,26 @@ import type {
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { openExternalUrl } from "@/lib/desktop-client";
-import { parseApplyPatchInput } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../ui/markdown";
 import { formatChatMessageContent } from "./message-content";
+import {
+	EXPANDED_PANEL_RAIL_CLASS,
+	IS_DEBUG,
+	STREAMING_TITLE_CLASS,
+} from "./messages/constants";
+import {
+	buildPreviousTimestampMap,
+	buildUserRunCountMap,
+	formatThoughtLabel,
+	getThoughtDurationMilliseconds,
+	groupChatMessages,
+} from "./messages/group-messages";
+import { getToolNameIcon } from "./messages/tool-icons";
+import {
+	buildToolPresentation,
+	formatToolValue,
+} from "./messages/tool-summaries";
 
 type ChatMessagesProps = {
 	sessionId: string | null;
@@ -125,173 +130,6 @@ type AskQuestionRequestItem = {
 	};
 };
 
-type ChatRenderItem =
-	| {
-			type: "message";
-			agentRole: AgentMessageRole;
-			message: ChatMessage;
-			reasoningMessages: ChatMessage[];
-	  }
-	| { type: "tools"; messages: ChatMessage[] };
-
-function hasMessageReasoning(message: ChatMessage): boolean {
-	return Boolean(message.reasoning?.trim() || message.reasoningRedacted);
-}
-
-function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
-	return (
-		message.role === "assistant" &&
-		hasMessageReasoning(message) &&
-		!message.content.trim() &&
-		!message.images?.length
-	);
-}
-
-function buildPreviousTimestampMap(
-	messages: ChatMessage[],
-): Map<ChatMessage, number | undefined> {
-	const previousTimestampByMessage = new Map<ChatMessage, number | undefined>();
-	let previousTimestamp: number | undefined;
-
-	for (const message of messages) {
-		previousTimestampByMessage.set(message, previousTimestamp);
-		if (Number.isFinite(message.createdAt)) {
-			previousTimestamp = message.createdAt;
-		}
-	}
-
-	return previousTimestampByMessage;
-}
-
-function buildUserRunCountMap(
-	messages: ChatMessage[],
-): Map<ChatMessage, number> {
-	const runCountByMessage = new Map<ChatMessage, number>();
-	let lastRunCount = 0;
-
-	for (const message of messages) {
-		const userRunSpan =
-			message.meta?.userRunSpan ?? (message.role === "user" ? 1 : 0);
-		const storedRunCount =
-			message.meta?.runCount ?? message.meta?.checkpoint?.runCount;
-		if (storedRunCount !== undefined) {
-			lastRunCount = Math.max(lastRunCount, storedRunCount);
-			if (message.role === "user" && userRunSpan === 1) {
-				runCountByMessage.set(message, storedRunCount);
-			}
-			continue;
-		}
-		lastRunCount += userRunSpan;
-		if (message.role === "user" && userRunSpan === 1) {
-			runCountByMessage.set(message, lastRunCount);
-		}
-	}
-
-	return runCountByMessage;
-}
-
-function getThoughtDurationMilliseconds(
-	previousTimestamp: number | undefined,
-	thinkingTimestamp: number,
-): number | undefined {
-	if (
-		previousTimestamp === undefined ||
-		!Number.isFinite(previousTimestamp) ||
-		!Number.isFinite(thinkingTimestamp) ||
-		thinkingTimestamp < previousTimestamp
-	) {
-		return undefined;
-	}
-
-	return thinkingTimestamp - previousTimestamp;
-}
-
-function formatThoughtLabel(durationMilliseconds?: number): string {
-	if (durationMilliseconds === undefined) {
-		return "Thinking";
-	}
-
-	const seconds =
-		durationMilliseconds === 0
-			? 0
-			: Math.max(1, Math.round(durationMilliseconds / 1000));
-
-	return `Thought for ${seconds}s`;
-}
-
-function groupChatMessages(messages: ChatMessage[]): ChatRenderItem[] {
-	const items: ChatRenderItem[] = [];
-	let pendingReasoningMessages: ChatMessage[] = [];
-
-	const pushMessage = (
-		message: ChatMessage,
-		agentRole: AgentMessageRole,
-		reasoningMessages = hasMessageReasoning(message) ? [message] : [],
-	) => {
-		items.push({
-			type: "message",
-			agentRole,
-			message,
-			reasoningMessages,
-		});
-	};
-
-	const flushPendingReasoning = () => {
-		const message = pendingReasoningMessages.at(-1);
-		if (!message) {
-			return;
-		}
-		pushMessage(message, "assistant", pendingReasoningMessages);
-		pendingReasoningMessages = [];
-	};
-
-	for (const message of messages) {
-		if (isReasoningOnlyAssistantMessage(message)) {
-			pendingReasoningMessages.push(message);
-			continue;
-		}
-
-		if (message.role === "assistant" && pendingReasoningMessages.length > 0) {
-			const reasoningMessages = hasMessageReasoning(message)
-				? [...pendingReasoningMessages, message]
-				: pendingReasoningMessages;
-			pushMessage(message, "assistant", reasoningMessages);
-			pendingReasoningMessages = [];
-			continue;
-		}
-
-		flushPendingReasoning();
-		const previous = items.at(-1);
-		if (message.role === "tool") {
-			if (previous?.type === "tools") {
-				previous.messages.push(message);
-			} else {
-				items.push({ type: "tools", messages: [message] });
-			}
-			continue;
-		}
-		pushMessage(message, message.role);
-	}
-	flushPendingReasoning();
-	return items;
-}
-
-const IS_DEBUG = process.env.NODE_ENV === "test";
-const STREAMING_TITLE_CLASS = "cline-chat-streaming-title";
-
-/**
- * Expanded reasoning and tool panels hang off a shared left rail: the border
- * sits 8px in, centered under the 16px trigger icon, and the content is padded
- * 16px so panel text lines up with the trigger label above it. Both panels must
- * use this verbatim, and it overrides the panel chrome (border box, radius,
- * background, inset) that `agent-chat.css` gives each of them by default.
- *
- * Reasoning stays capped and scrollable, while tool output grows into the
- * conversation scroller and wraps to avoid a nested scrolling region.
- */
-const EXPANDED_PANEL_RAIL_CLASS =
-	"ml-1 mt-0 max-w-full rounded-none border-0 border-l border-border bg-transparent py-1 px-2 text-sm opacity-70 hover:opacity-100 focus-within:opacity-100";
-
 function ChatMessagesImpl({
 	sessionId,
 	status,
@@ -337,13 +175,21 @@ function ChatMessagesImpl({
 	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
-	// Core reports "running" as soon as the turn is dispatched, well before the
-	// first streamed chunk arrives, so keep the thinking indicator up until the
-	// model produces output (or something else needs the user's attention).
+	// Core reports "running" as soon as the turn is dispatched, and there are
+	// quiet stretches mid-turn with nothing visibly active — most notably
+	// while the model streams a tool call's arguments, before any tool row
+	// exists. Show the thinking indicator whenever the turn is running and
+	// neither streaming text nor an in-progress tool row is on screen.
+	const lastToolInProgress = useMemo(
+		() =>
+			lastConversationMessage?.role === "tool" &&
+			buildToolPresentation(lastConversationMessage).inProgress,
+		[lastConversationMessage],
+	);
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
-		lastConversationMessage?.role === "user" &&
+		!lastToolInProgress &&
 		pendingToolApprovals.length === 0 &&
 		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);
@@ -684,40 +530,13 @@ function ChatMessagesImpl({
 				<ConversationContent
 					className={cn(
 						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
-						showIdleDetails ? "p-0" : "px-6 py-6",
+						// Extra bottom padding keeps the last message (and the
+						// hover actions hanging below it) clear of the composer.
+						showIdleDetails ? "p-0" : "px-6 pt-6 pb-14",
 					)}
 				>
 					{showIdleDetails ? null : (
 						<div className="flex min-h-full w-full min-w-0 flex-col gap-2">
-							{pendingToolApprovals.length > 0 ? (
-								<ToolApprovalPanel
-									items={pendingToolApprovals}
-									onApprove={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"approving",
-											onApproveToolApproval,
-										)
-									}
-									onReject={(requestId) =>
-										handleToolApprovalDecision(
-											requestId,
-											"rejecting",
-											onRejectToolApproval,
-										)
-									}
-									pendingActions={toolApprovalActions}
-									requestErrors={toolApprovalErrors}
-								/>
-							) : null}
-							{askQuestionItems.length > 0 ? (
-								<AgentAskQuestion
-									errors={askQuestionErrors}
-									items={askQuestionItems}
-									onAnswer={handleAskQuestionAnswer}
-									pendingAnswers={askQuestionActions}
-								/>
-							) : null}
 							{renderItems.map((item) => {
 								if (item.type === "tools") {
 									return (
@@ -804,6 +623,38 @@ function ChatMessagesImpl({
 									/>
 								);
 							})}
+							{/* Pending interactions render inline at the end of the
+							    transcript — they are the newest thing that happened,
+							    not a banner pinned to the top. */}
+							{pendingToolApprovals.length > 0 ? (
+								<ToolApprovalPanel
+									items={pendingToolApprovals}
+									onApprove={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"approving",
+											onApproveToolApproval,
+										)
+									}
+									onReject={(requestId) =>
+										handleToolApprovalDecision(
+											requestId,
+											"rejecting",
+											onRejectToolApproval,
+										)
+									}
+									pendingActions={toolApprovalActions}
+									requestErrors={toolApprovalErrors}
+								/>
+							) : null}
+							{askQuestionItems.length > 0 ? (
+								<AgentAskQuestion
+									errors={askQuestionErrors}
+									items={askQuestionItems}
+									onAnswer={handleAskQuestionAnswer}
+									pendingAnswers={askQuestionActions}
+								/>
+							) : null}
 						</div>
 					)}
 					{showSwitchTransition ? (
@@ -830,8 +681,14 @@ function ChatMessagesImpl({
 					) : null}
 					{(status === "starting" || isAwaitingFirstOutput) &&
 					!isSessionSwitching ? (
-						<div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
-							<Loader2 className="h-4 w-4 animate-spin" />
+						// Mirrors the tool-row trigger metrics (min-h-7, py-1, gap-2,
+						// 16px icon, font-medium) so text does not shift when this
+						// swaps with an arriving tool row. No margin of its own: the
+						// conversation column's gap already matches the spacing a tool
+						// row would get, so any extra margin makes this render lower
+						// than its replacement.
+						<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+							<Loader2 className="size-4 animate-spin" />
 							<span className={STREAMING_TITLE_CLASS}>{startingLabel}</span>
 						</div>
 					) : null}
@@ -1158,7 +1015,7 @@ const MessageBubble = memo(function MessageBubble({
 		: null;
 	const messageTimestamp = messageTime ? (
 		<time
-			className="shrink-0 whitespace-nowrap text-[11px] leading-none text-muted-foreground"
+			className="shrink-0 whitespace-nowrap text-xs leading-none text-muted-foreground/70"
 			dateTime={messageDate.toISOString()}
 			title={messageDate.toLocaleString()}
 		>
@@ -1214,26 +1071,29 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10 -translate-y-1"
+						// The 8px offset is padding, not translation: a translated gap
+						// is dead space that breaks the parent's :hover on the way to
+						// the buttons, hiding them before they can be clicked.
+						className="absolute right-0 top-full z-10 pt-2"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
-									<Check className="h-3.5 w-3.5" />
+									<Check className="size-3.5" />
 								) : (
-									<Copy className="h-3.5 w-3.5" />
+									<Copy className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
@@ -1242,15 +1102,15 @@ const MessageBubble = memo(function MessageBubble({
 								title="Edit message and restart from this point"
 							>
 								{editPending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									<Loader2 className="size-3.5 animate-spin" />
 								) : (
-									<PencilIcon className="h-3.5 w-3.5" />
+									<PencilIcon className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
 						{checkpoint ? (
 							<MessageAction
-								className="min-w-0 p-0"
+								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -1259,9 +1119,9 @@ const MessageBubble = memo(function MessageBubble({
 								title="Restore checkpoint"
 							>
 								{restorePending ? (
-									<Loader2 className="h-3.5 w-3.5 animate-spin" />
+									<Loader2 className="size-3.5 animate-spin" />
 								) : (
-									<UndoIcon className="h-3.5 w-3.5" />
+									<UndoIcon className="size-3.5" />
 								)}
 							</MessageAction>
 						) : null}
@@ -1282,12 +1142,12 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10 -translate-y-1"
+					className="absolute left-0 top-full z-10 pt-2"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -1297,24 +1157,24 @@ const MessageBubble = memo(function MessageBubble({
 							title={wasCopied ? "Copied" : "Copy raw assistant output"}
 						>
 							{wasCopied ? (
-								<Check className="h-3 w-3" />
+								<Check className="size-3.5" />
 							) : (
-								<Copy className="h-3 w-3" />
+								<Copy className="size-3.5" />
 							)}
 						</MessageAction>
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							className="min-w-0 p-0"
+							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
 							title="Fork session - copy full message history into a new session"
 						>
 							{forkPending ? (
-								<Loader2 className="h-3 w-3 animate-spin" />
+								<Loader2 className="size-3.5 animate-spin" />
 							) : (
-								<SplitIcon className="h-3 w-3 rotate-90" />
+								<SplitIcon className="size-3.5 rotate-90" />
 							)}
 						</MessageAction>
 					) : null}
@@ -1378,30 +1238,6 @@ function ReasoningBlock({
 	);
 }
 
-type ToolPayload = {
-	toolName?: string;
-	input?: unknown;
-	result?: unknown;
-	isError?: boolean;
-};
-
-type ToolSummary = {
-	label: string;
-	details: string[];
-	aggregate?: {
-		key: string;
-		count: number;
-		noun: string;
-		pluralNoun?: string;
-		completedVerb: string;
-		progressVerb: string;
-	};
-	diff?: {
-		additions: number;
-		deletions: number;
-	};
-};
-
 function pruneRequestMap<T extends string>(
 	prev: Record<string, T>,
 	activeRequestIds: Set<string>,
@@ -1418,1010 +1254,195 @@ function pruneRequestMap<T extends string>(
 	return hasRemoved ? next : prev;
 }
 
-function parseJsonString(value: string): unknown {
-	try {
-		return JSON.parse(value) as unknown;
-	} catch {
-		return value;
-	}
-}
-
-function normalizeDisplayValue(value: unknown): unknown {
-	if (typeof value !== "string") {
-		return value;
-	}
-	const trimmed = value.trim();
-	if (
-		(trimmed.startsWith("{") && trimmed.endsWith("}")) ||
-		(trimmed.startsWith("[") && trimmed.endsWith("]"))
-	) {
-		return parseJsonString(trimmed);
-	}
-	return value;
-}
-
-function formatToolValue(value: unknown): string {
-	const normalized = normalizeDisplayValue(value);
-	if (normalized == null) {
-		return "";
-	}
-	if (typeof normalized === "string") {
-		return normalized;
-	}
-	if (
-		typeof normalized === "object" &&
-		"error" in normalized &&
-		typeof normalized.error === "string"
-	) {
-		return normalized.error;
-	}
-	try {
-		return JSON.stringify(normalized, null, 2);
-	} catch {
-		return String(normalized);
-	}
-}
-
-function parseToolPayload(raw: string): ToolPayload | null {
-	try {
-		return JSON.parse(raw) as ToolPayload;
-	} catch {
-		return null;
-	}
-}
-
-const TOOL_NAME_ALIASES: Record<string, string> = {
-	"apply-patch": "apply_patch",
-	bash: "run_commands",
-	edit: "editor",
-	edit_file: "editor",
-	"file-read": "read_files",
-	file_read: "read_files",
-	search: "search_codebase",
-	"spawn-agent": "spawn_agent",
-	spawn_agent_tool: "spawn_agent",
-	"web-fetch": "fetch_web_content",
-	web_fetch: "fetch_web_content",
-};
-
-function normalizeToolName(toolName: string): string {
-	const normalized = toolName.toLowerCase();
-	return TOOL_NAME_ALIASES[normalized] ?? normalized;
-}
-
-function classifyTool(
-	toolName: string,
-): "exploration" | "file-edit" | "bash" | "spawn" | "tool" {
-	const normalized = normalizeToolName(toolName);
-	if (
-		["search_codebase", "read_files", "fetch_web_content", "skills"].includes(
-			normalized,
-		)
-	)
-		return "exploration";
-	if (["editor", "apply_patch"].includes(normalized)) return "file-edit";
-	if (normalized === "run_commands") return "bash";
-	if (normalized === "spawn_agent" || normalized.startsWith("subagent_"))
-		return "spawn";
-	return "tool";
-}
-
-const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
-	apply_patch: PencilIcon,
-	ask_question: MessageCircleQuestionMarkIcon,
-	editor: PencilIcon,
-	fetch_web_content: PanelsTopLeftIcon,
-	mcp: BoxIcon,
-	plugins: BlocksIcon,
-	read_files: FilesIcon,
-	run_commands: TerminalIcon,
-	search_codebase: SearchCodeIcon,
-	skills: LibraryIcon,
-	spawn_agent: UserIcon,
-	submit_and_exit: SquareArrowRightIcon,
-};
-
-const TOOL_KIND_ICONS: Record<ReturnType<typeof classifyTool>, LucideIcon> = {
-	bash: TerminalIcon,
-	exploration: SearchCodeIcon,
-	"file-edit": PencilIcon,
-	spawn: UserIcon,
-	tool: WrenchIcon,
-};
-
-function getToolNameIcon(toolName: string): LucideIcon {
-	const normalized = normalizeToolName(toolName);
-	if (normalized.startsWith("subagent_")) {
-		return UserIcon;
-	}
-	if (
-		normalized === "team" ||
-		normalized === "teams" ||
-		normalized.startsWith("team_")
-	) {
-		return UsersIcon;
-	}
-	return (
-		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
-	);
-}
-
-function asRecord(value: unknown): Record<string, unknown> | null {
-	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-	return value as Record<string, unknown>;
-}
-
-function asStringArray(value: unknown): string[] {
-	if (!Array.isArray(value)) return [];
-	return value.filter(
-		(item): item is string => typeof item === "string" && item.length > 0,
-	);
-}
-
-/**
- * read_files accepts many input shapes: { files: [{ path }] }, { files: path },
- * { file_paths: [...] }, { paths: [...] }, a bare request, an array, or a string.
- */
-function extractReadFilePaths(input: unknown): string[] {
-	const out: string[] = [];
-	const push = (value: unknown) => {
-		if (typeof value === "string" && value.length > 0) {
-			out.push(value);
-			return;
-		}
-		const record = asRecord(value);
-		if (record && typeof record.path === "string" && record.path.length > 0) {
-			out.push(record.path);
-		}
-	};
-	const record = asRecord(input);
-	const candidates =
-		record?.files ?? record?.file_paths ?? record?.paths ?? record ?? input;
-	if (Array.isArray(candidates)) {
-		for (const candidate of candidates) {
-			push(candidate);
-		}
-	} else {
-		push(candidates);
-	}
-	return out;
-}
-
-/**
- * run_commands entries can be shell strings or structured { command, args }.
- */
-function extractCommands(input: unknown): string[] {
-	const inputObject = asRecord(input);
-	const raw = Array.isArray(inputObject?.commands)
-		? inputObject.commands
-		: typeof inputObject?.command === "string"
-			? [inputObject.command]
-			: typeof input === "string"
-				? [input]
-				: [];
-	const out: string[] = [];
-	for (const entry of raw) {
-		if (typeof entry === "string" && entry.length > 0) {
-			out.push(entry);
-			continue;
-		}
-		const record = asRecord(entry);
-		if (record && typeof record.command === "string") {
-			const args = asStringArray(record.args);
-			out.push([record.command, ...args].join(" "));
-		}
-	}
-	return out;
-}
-
-function toDisplayPath(path: string): string {
-	const parts = path.split(/[\\/]/);
-	return parts.at(-1) || path;
-}
-
-function parseDiffCounts(
-	value: unknown,
-): { additions: number; deletions: number } | null {
-	if (typeof value !== "string") return null;
-	const lines = value.split("\n");
-	let additions = 0;
-	let deletions = 0;
-
-	for (const line of lines) {
-		if (/^\+\d+:/.test(line)) additions += 1;
-		if (/^-\d+:/.test(line)) deletions += 1;
-	}
-
-	if (additions === 0 && deletions === 0) return null;
-	return { additions, deletions };
-}
-
-function pluralize(
-	count: number,
-	singular: string,
-	plural = `${singular}s`,
-): string {
-	return `${count} ${count === 1 ? singular : plural}`;
-}
-
-function resultRecords(result: unknown): Record<string, unknown>[] {
-	const normalized = normalizeDisplayValue(result);
-	if (Array.isArray(normalized)) {
-		return normalized.map(asRecord).filter((item) => item !== null);
-	}
-	const record = asRecord(normalized);
-	return record ? [record] : [];
-}
-
-function recordString(
-	record: Record<string, unknown> | null | undefined,
-	key: string,
-	fallback = "",
-): string {
-	const value = record?.[key];
-	return typeof value === "string" && value.length > 0 ? value : fallback;
-}
-
-function teamSummary(
-	toolName: string,
-	input: unknown,
-	result: unknown,
-	inProgress: boolean,
-	isError: boolean,
-): ToolSummary | null {
-	if (!toolName.startsWith("team_")) return null;
-	if (isError) {
-		const failureLabels: Record<string, string> = {
-			team_attach_outcome_fragment: "Failed to attach outcome fragment",
-			team_await_runs: "Failed while waiting for teammates",
-			team_broadcast: "Failed to broadcast message to teammates",
-			team_cancel_run: "Failed to cancel teammate run",
-			team_cleanup: "Failed to clean up team",
-			team_create_outcome: "Failed to create team outcome",
-			team_finalize_outcome: "Failed to finalize team outcome",
-			team_list_outcomes: "Failed to list team outcomes",
-			team_list_runs: "Failed to list teammate runs",
-			team_mission_log: "Failed to update mission log",
-			team_read_mailbox: "Failed to read team mailbox",
-			team_review_outcome_fragment: "Failed to review outcome fragment",
-			team_run_task: "Failed to assign team task",
-			team_send_message: "Failed to send message",
-			team_shutdown_teammate: "Failed to stop teammate",
-			team_spawn_teammate: "Failed to spawn teammate",
-			team_status: "Failed to check team status",
-			team_task: "Failed to update team task",
-		};
-		return {
-			label: failureLabels[toolName] ?? `Failed ${toolName}`,
-			details: [],
-		};
-	}
-	const inputRecord = asRecord(input);
-	const records = resultRecords(result);
-	const resultRecord = records[0];
-	const aggregate = (
-		key: string,
-		noun: string,
-		completedVerb: string,
-		progressVerb: string,
-		details: string[],
-		pluralNoun?: string,
-		count = 1,
-	): ToolSummary => ({
-		label: `${inProgress ? progressVerb : completedVerb} ${pluralize(
-			count,
-			noun,
-			pluralNoun,
-		)}`,
-		aggregate: {
-			key,
-			count,
-			noun,
-			pluralNoun,
-			completedVerb,
-			progressVerb,
-		},
-		details,
-	});
-	const agentId = recordString(
-		resultRecord,
-		"agentId",
-		recordString(inputRecord, "agentId"),
-	);
-
-	switch (toolName) {
-		case "team_spawn_teammate":
-			return aggregate(
-				"team-spawn",
-				"teammate",
-				"Spawned",
-				"Spawning",
-				agentId ? [agentId] : [],
-			);
-		case "team_run_task": {
-			const mode = recordString(
-				resultRecord,
-				"mode",
-				recordString(inputRecord, "runMode", "sync"),
-			);
-			const status = inProgress
-				? "assigning"
-				: recordString(resultRecord, "status", "assigned");
-			return aggregate(
-				"team-run-task",
-				"team task",
-				"Assigned",
-				"Assigning",
-				[mode, agentId, status].filter(Boolean).join(" ")
-					? [[mode, agentId, status].filter(Boolean).join(" ")]
-					: [],
-				"team tasks",
-			);
-		}
-		case "team_await_runs": {
-			const details = records.map((run) =>
-				[
-					recordString(run, "agentId", recordString(run, "id")),
-					recordString(run, "status"),
-				]
-					.filter(Boolean)
-					.join(" "),
-			);
-			return {
-				label: inProgress ? "Waiting for teammates" : "Waited for teammates",
-				details,
-			};
-		}
-		case "team_shutdown_teammate":
-			return aggregate(
-				"team-shutdown",
-				"teammate",
-				"Stopped",
-				"Stopping",
-				agentId ? [agentId] : [],
-			);
-		case "team_status": {
-			const members = Array.isArray(resultRecord?.members)
-				? resultRecord.members.map(asRecord).filter((item) => item !== null)
-				: [];
-			return {
-				label: inProgress ? "Checking team status" : "Checked team status",
-				details: members.map((member) =>
-					[recordString(member, "agentId"), recordString(member, "status")]
-						.filter(Boolean)
-						.join(" "),
-				),
-			};
-		}
-		case "team_task": {
-			const action = recordString(
-				inputRecord,
-				"action",
-				recordString(resultRecord, "action", "update"),
-			);
-			const verbs: Record<string, [string, string]> = {
-				create: ["Created", "Creating"],
-				list: ["Listed", "Listing"],
-				claim: ["Claimed", "Claiming"],
-				complete: ["Completed", "Completing"],
-				block: ["Blocked", "Blocking"],
-			};
-			const [completedVerb, progressVerb] = verbs[action] ?? [
-				"Updated",
-				"Updating",
-			];
-			const tasks = Array.isArray(resultRecord?.tasks)
-				? resultRecord.tasks.map(asRecord).filter((item) => item !== null)
-				: records;
-			const details = tasks.map((task) =>
-				[
-					recordString(
-						task,
-						"taskId",
-						recordString(task, "id", recordString(inputRecord, "taskId")),
-					),
-					recordString(task, "title", recordString(inputRecord, "title")),
-					recordString(task, "status"),
-				]
-					.filter(Boolean)
-					.join(" "),
-			);
-			return aggregate(
-				`team-task-${action}`,
-				"team task",
-				completedVerb,
-				progressVerb,
-				details,
-				undefined,
-				action === "list" ? tasks.length : 1,
-			);
-		}
-		case "team_list_runs":
-			return {
-				label: inProgress
-					? "Listing teammate runs"
-					: `Listed ${pluralize(records.length, "teammate run")}`,
-				details: records.map((run) =>
-					[recordString(run, "agentId"), recordString(run, "status")]
-						.filter(Boolean)
-						.join(" "),
-				),
-			};
-		case "team_cancel_run":
-			return {
-				label: inProgress
-					? "Cancelling teammate run"
-					: "Cancelled teammate run",
-				details: [
-					[
-						recordString(
-							resultRecord,
-							"runId",
-							recordString(inputRecord, "runId"),
-						),
-						recordString(resultRecord, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_send_message": {
-			const recipient = recordString(
-				resultRecord,
-				"toAgentId",
-				recordString(inputRecord, "toAgentId"),
-			);
-			return aggregate(
-				"team-send-message",
-				"message",
-				"Sent",
-				"Sending",
-				[recipient, recordString(inputRecord, "subject")].filter(Boolean).length
-					? [
-							[recipient, recordString(inputRecord, "subject")]
-								.filter(Boolean)
-								.join(" "),
-						]
-					: [],
-			);
-		}
-		case "team_broadcast": {
-			const delivered = resultRecord?.delivered;
-			return {
-				label: inProgress
-					? "Broadcasting message to teammates"
-					: `Broadcast message to ${pluralize(typeof delivered === "number" ? delivered : 0, "teammate")}`,
-				details: recordString(inputRecord, "subject")
-					? [recordString(inputRecord, "subject")]
-					: [],
-			};
-		}
-		case "team_read_mailbox":
-			return {
-				label: inProgress
-					? "Reading team mailbox"
-					: `Read ${pluralize(records.length, "team message")}`,
-				details: records.map((message) =>
-					[
-						recordString(message, "fromAgentId"),
-						recordString(message, "subject"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				),
-			};
-		case "team_mission_log":
-			return {
-				label: inProgress ? "Updating mission log" : "Updated mission log",
-				details: [
-					[
-						recordString(inputRecord, "kind"),
-						recordString(inputRecord, "summary"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_cleanup":
-			return {
-				label: inProgress ? "Cleaning up team" : "Cleaned up team",
-				details: recordString(resultRecord, "status")
-					? [recordString(resultRecord, "status")]
-					: [],
-			};
-		case "team_create_outcome":
-			return {
-				label: inProgress ? "Creating team outcome" : "Created team outcome",
-				details: [
-					[
-						recordString(resultRecord, "outcomeId"),
-						recordString(inputRecord, "title"),
-						recordString(resultRecord, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_attach_outcome_fragment":
-			return {
-				label: inProgress
-					? "Attaching outcome fragment"
-					: "Attached outcome fragment",
-				details: [
-					[
-						recordString(inputRecord, "section"),
-						recordString(resultRecord, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_review_outcome_fragment":
-			return {
-				label: inProgress
-					? "Reviewing outcome fragment"
-					: "Reviewed outcome fragment",
-				details: [
-					[
-						recordString(inputRecord, "fragmentId"),
-						typeof inputRecord?.approved === "boolean"
-							? inputRecord.approved
-								? "approved"
-								: "rejected"
-							: recordString(resultRecord, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_finalize_outcome":
-			return {
-				label: inProgress
-					? "Finalizing team outcome"
-					: "Finalized team outcome",
-				details: [
-					[
-						recordString(
-							resultRecord,
-							"outcomeId",
-							recordString(inputRecord, "outcomeId"),
-						),
-						recordString(resultRecord, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				].filter(Boolean),
-			};
-		case "team_list_outcomes":
-			return {
-				label: inProgress
-					? "Listing team outcomes"
-					: `Listed ${pluralize(records.length, "team outcome")}`,
-				details: records.map((outcome) =>
-					[
-						recordString(outcome, "title", recordString(outcome, "id")),
-						recordString(outcome, "status"),
-					]
-						.filter(Boolean)
-						.join(" "),
-				),
-			};
-		default:
-			return null;
-	}
-}
-
-function buildToolSummary(
-	toolName: string,
-	input: unknown,
-	result: unknown,
-	inProgress: boolean,
-	isError = false,
-): ToolSummary {
-	const normalized = normalizeToolName(toolName);
-	const inputObject = asRecord(input);
-	const teamToolSummary = teamSummary(
-		normalized,
-		input,
-		result,
-		inProgress,
-		isError,
-	);
-	if (teamToolSummary) return teamToolSummary;
-
-	if (normalized === "read_files") {
-		const files = extractReadFilePaths(input);
-		if (files.length > 0) {
-			return {
-				label: `${inProgress ? "Reading" : "Read"} ${pluralize(files.length, "file")}`,
-				aggregate: {
-					key: "read-files",
-					count: files.length,
-					noun: "file",
-					completedVerb: "Read",
-					progressVerb: "Reading",
-				},
-				details: files.map(
-					(file) => `${inProgress ? "Reading" : "Read"} ${toDisplayPath(file)}`,
-				),
-			};
-		}
-	}
-
-	if (normalized === "search_codebase") {
-		const queries = asStringArray(inputObject?.queries);
-		if (queries.length > 0) {
-			return {
-				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(queries.length, "search")}`,
-				aggregate: {
-					key: "searches",
-					count: queries.length,
-					noun: "search",
-					completedVerb: "Explored",
-					progressVerb: "Exploring",
-				},
-				details: queries.map((query) => query),
-			};
-		}
-	}
-
-	if (normalized === "run_commands") {
-		const commands = extractCommands(input);
-		if (commands.length > 0) {
-			return {
-				label: `${inProgress ? "Running" : "Ran"} ${pluralize(commands.length, "command")}`,
-				aggregate: {
-					key: "commands",
-					count: commands.length,
-					noun: "command",
-					completedVerb: "Ran",
-					progressVerb: "Running",
-				},
-				details: commands.map((command) => command.trim()),
-			};
-		}
-	}
-
-	if (normalized === "fetch_web_content") {
-		const requests = Array.isArray(inputObject?.requests)
-			? inputObject.requests
-			: [];
-		const urls = requests
-			.map((request) => {
-				const requestObject = asRecord(request);
-				return typeof requestObject?.url === "string"
-					? requestObject.url
-					: null;
-			})
-			.filter((url): url is string => Boolean(url));
-		if (urls.length > 0) {
-			return {
-				label: `${inProgress ? "Exploring" : "Explored"} ${pluralize(urls.length, "link")}`,
-				aggregate: {
-					key: "links",
-					count: urls.length,
-					noun: "link",
-					completedVerb: "Explored",
-					progressVerb: "Exploring",
-				},
-				details: urls.map(
-					(url) => `${inProgress ? "Fetching" : "Fetched"} ${url}`,
-				),
-			};
-		}
-	}
-
-	if (normalized === "apply_patch") {
-		const patchText =
-			typeof input === "string"
-				? input
-				: typeof inputObject?.input === "string"
-					? inputObject.input
-					: "";
-		const fileDiffs = patchText ? parseApplyPatchInput(patchText) : [];
-		if (fileDiffs.length > 0) {
-			const additions = fileDiffs.reduce((sum, d) => sum + d.additions, 0);
-			const deletions = fileDiffs.reduce((sum, d) => sum + d.deletions, 0);
-			return {
-				label: `${inProgress ? "Editing" : "Edited"} ${pluralize(fileDiffs.length, "file")}`,
-				aggregate: {
-					key: "edited-files",
-					count: fileDiffs.length,
-					noun: "file",
-					completedVerb: "Edited",
-					progressVerb: "Editing",
-				},
-				diff: { additions, deletions },
-				details: fileDiffs.map(
-					(d) =>
-						`${inProgress ? "Editing" : "Edited"} ${toDisplayPath(d.path)} +${d.additions} -${d.deletions}`,
-				),
-			};
-		}
-		return {
-			label: inProgress ? "Applying patch" : "Applied patch",
-			details: [],
-		};
-	}
-
-	if (normalized === "editor") {
-		// Current editor schema has no `command`; derive it from the input shape.
-		const command =
-			typeof inputObject?.command === "string"
-				? inputObject.command
-				: inputObject?.insert_line != null
-					? "insert"
-					: typeof inputObject?.old_text === "string"
-						? "str_replace"
-						: typeof inputObject?.new_text === "string"
-							? "create"
-							: "edit";
-		const path =
-			typeof inputObject?.path === "string"
-				? toDisplayPath(inputObject.path)
-				: "file";
-		const diff = parseDiffCounts(asRecord(result)?.result);
-		const action = inProgress
-			? command === "str_replace"
-				? "Editing"
-				: command === "create"
-					? "Creating"
-					: command === "insert"
-						? "Inserting"
-						: "Editing"
-			: command === "str_replace"
-				? "Edited"
-				: command === "create"
-					? "Created"
-					: command === "insert"
-						? "Inserted"
-						: "Edited";
-		// The label already carries all the information; no expandable details.
-		const detail = `${action} ${path}`;
-		const aggregate = {
-			key: "edited-files",
-			count: 1,
-			noun: "file",
-			completedVerb: "Edited",
-			progressVerb: "Editing",
-		};
-		if (diff) {
-			return { label: detail, aggregate, diff, details: [] };
-		}
-		return { label: detail, aggregate, details: [] };
-	}
-
-	const query =
-		typeof asRecord(result)?.query === "string"
-			? (asRecord(result)?.query as string)
-			: "";
-	const displayToolName = normalized.startsWith("subagent_")
-		? "spawn_agent"
-		: toolName;
-	const fallback =
-		query ||
-		(inProgress ? `Running ${displayToolName}` : displayToolName) ||
-		"Tool";
-	return { label: fallback, details: [fallback] };
-}
-
-function buildToolSummaryFromMeta(
-	toolName: string,
-	kind: "exploration" | "file-edit" | "bash" | "spawn" | "tool",
-	inProgress: boolean,
-): ToolSummary {
-	if (kind === "exploration") {
-		return { label: inProgress ? "Exploring" : "Explored", details: [] };
-	}
-	if (kind === "file-edit") {
-		return { label: inProgress ? "Editing" : "Edited", details: [] };
-	}
-	if (kind === "bash") {
-		return {
-			label: inProgress ? "Running command" : "Ran command",
-			details: [],
-		};
-	}
-	if (kind === "spawn") {
-		return {
-			label: inProgress ? "Spawning agent" : "Spawned agent",
-			details: [],
-		};
-	}
-	return { label: inProgress ? `Running ${toolName}` : toolName, details: [] };
-}
-
-type ToolPresentation = {
-	message: ChatMessage;
-	payload: ToolPayload | null;
-	toolName: string;
-	kind: ReturnType<typeof classifyTool>;
-	inProgress: boolean;
-	summary: ToolSummary;
-};
-
-function buildToolPresentation(message: ChatMessage): ToolPresentation {
-	const payload = parseToolPayload(message.content);
-	const toolName = message.meta?.toolName || payload?.toolName || "tool";
-	const hookEventName = message.meta?.hookEventName;
-	const inProgress =
-		hookEventName === "tool_call_start" ||
-		hookEventName === "history_tool_use" ||
-		(Boolean(payload) && payload?.result == null && !payload?.isError);
-	const kind = classifyTool(toolName);
-	const summary = payload
-		? buildToolSummary(
-				toolName,
-				payload.input,
-				payload.result,
-				inProgress,
-				Boolean(payload.isError),
-			)
-		: buildToolSummaryFromMeta(toolName, kind, inProgress);
-	return { message, payload, toolName, kind, inProgress, summary };
-}
-
-function buildGroupedToolLabel(presentations: ToolPresentation[]): string {
-	if (presentations.length === 1) {
-		return presentations[0]?.summary.label ?? "Tool";
-	}
-
-	type Segment =
-		| { type: "label"; label: string }
-		| {
-				type: "aggregate";
-				aggregate: NonNullable<ToolSummary["aggregate"]> & {
-					inProgress: boolean;
-				};
-		  };
-	const segments: Segment[] = [];
-	for (const presentation of presentations) {
-		const aggregate = presentation.summary.aggregate;
-		if (!aggregate) {
-			segments.push({ type: "label", label: presentation.summary.label });
-			continue;
-		}
-
-		const previous = segments.at(-1);
-		if (
-			previous?.type === "aggregate" &&
-			previous.aggregate.key === aggregate.key
-		) {
-			segments[segments.length - 1] = {
-				type: "aggregate",
-				aggregate: {
-					...previous.aggregate,
-					count: previous.aggregate.count + aggregate.count,
-					inProgress: previous.aggregate.inProgress || presentation.inProgress,
-				},
-			};
-			continue;
-		}
-
-		segments.push({
-			type: "aggregate",
-			aggregate: { ...aggregate, inProgress: presentation.inProgress },
-		});
-	}
-
-	return segments
-		.map((segment) => {
-			if (segment.type === "label") return segment.label;
-			const { aggregate } = segment;
-			const verb = aggregate.inProgress
-				? aggregate.progressVerb
-				: aggregate.completedVerb;
-			return `${verb} ${pluralize(
-				aggregate.count,
-				aggregate.noun,
-				aggregate.pluralNoun,
-			)}`;
-		})
-		.join(". ");
-}
-
 // Memoized with element-wise comparison: the grouping pass wraps the same
 // message objects in fresh arrays every commit, so reference-comparing the
 // contents lets finished tool blocks skip re-rendering during streaming.
+function ToolLabel({
+	parts,
+	isRunning,
+}: {
+	parts: ToolLabelPart[];
+	isRunning: boolean;
+}) {
+	return (
+		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+			{parts.map((part, index) =>
+				part.code ? (
+					<span
+						className="font-mono"
+						// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+						key={index}
+					>
+						{part.text}
+					</span>
+				) : (
+					// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+					<span key={index}>{part.text}</span>
+				),
+			)}
+		</span>
+	);
+}
+
+// Every tool call renders as its own row: commands read like a terminal
+// prompt, edits carry their diff, and nothing is merged across calls.
+const ToolCallRow = memo(function ToolCallRow({
+	message,
+}: {
+	message: ChatMessage;
+}) {
+	const { payload, toolName, inProgress, summary } =
+		buildToolPresentation(message);
+	const fileDiffs = summary.items.flatMap((item, index) => {
+		if (item.type !== "file") return [];
+		const hunks =
+			item.hunks ??
+			(item.newText !== undefined
+				? [{ oldText: item.oldText, newText: item.newText }]
+				: null);
+		if (hunks) {
+			return hunks.map((hunk, hunkIndex) => ({
+				key: `${message.id}_diff_${index}_${hunkIndex}`,
+				kind: "rich" as const,
+				item,
+				hunk,
+			}));
+		}
+		return item.diff
+			? [
+					{
+						key: `${message.id}_diff_${index}`,
+						kind: "text" as const,
+						item,
+						hunk: null,
+					},
+				]
+			: [];
+	});
+	// Edit rows open pre-expanded so their diffs are immediately visible.
+	// `defaultOpen` alone misses the streaming path: a row can mount before
+	// its diff arrives, so open when one first appears — unless the user has
+	// taken over the disclosure.
+	const hasFileDiffs = fileDiffs.length > 0;
+	const [open, setOpen] = useState(hasFileDiffs);
+	const [userToggled, setUserToggled] = useState(false);
+	useEffect(() => {
+		if (hasFileDiffs && !userToggled) {
+			setOpen(true);
+		}
+	}, [hasFileDiffs, userToggled]);
+	const handleOpenChange = useCallback((nextOpen: boolean) => {
+		setUserToggled(true);
+		setOpen(nextOpen);
+	}, []);
+
+	const hasError = Boolean(payload?.isError);
+	const Icon = getToolNameIcon(toolName);
+	const isCommand = summary.kind === "command";
+	// Index-based keys: identical detail lines (the same file read twice)
+	// would collide on a content-derived key.
+	const details = summary.details.map((detail, index) => ({
+		detail,
+		key: `${message.id}_${index}`,
+	}));
+	const inputPreview =
+		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
+	const hasExpandedSections =
+		details.length > 0 ||
+		fileDiffs.length > 0 ||
+		Boolean(summary.outputText) ||
+		Boolean(summary.errorText) ||
+		Boolean(inputPreview);
+
+	return (
+		<ToolActivity
+			className="my-0"
+			expandable={hasExpandedSections}
+			onOpenChange={handleOpenChange}
+			open={open}
+		>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions || undefined}
+				deletions={summary.diff?.deletions || undefined}
+				icon={
+					hasError ? (
+						<AlertCircle className="size-4 text-destructive/80" />
+					) : (
+						<Icon className="size-4" />
+					)
+				}
+				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				showDisclosureIcon={false}
+				status={hasError ? "error" : inProgress ? "running" : "success"}
+			/>
+			<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
+				{details.length > 0 ? (
+					<ToolActivityDetails
+						className={cn(
+							"whitespace-pre-wrap",
+							isCommand && "font-mono text-xs",
+						)}
+					>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{fileDiffs.map((entry) =>
+					entry.kind === "rich" && entry.hunk ? (
+						<ToolFileDiff
+							className="mt-1"
+							fragment={entry.item.fragment}
+							key={entry.key}
+							newText={entry.hunk.newText}
+							oldText={entry.hunk.oldText}
+							path={entry.item.path}
+						/>
+					) : (
+						<ToolActivityCode
+							className="mt-1 overflow-x-auto text-xs"
+							key={entry.key}
+						>
+							{entry.item.diff}
+						</ToolActivityCode>
+					),
+				)}
+				{summary.outputText ? (
+					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+						{summary.outputText}
+					</ToolActivityCode>
+				) : null}
+				{inputPreview ? (
+					<div className="space-y-1">
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							Input
+						</div>
+						<ToolActivityCode className="text-sm">
+							{inputPreview}
+						</ToolActivityCode>
+					</div>
+				) : null}
+				{summary.errorText ? (
+					<div className="mt-1 break-words text-destructive">
+						{summary.errorText}
+					</div>
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
+	);
+});
+
+// Consecutive tool messages stack as individual rows; the element-wise
+// comparison lets finished rows skip re-rendering during streaming.
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
-		const presentations = messages.map(buildToolPresentation);
-		if (presentations.length === 0) return null;
-		const hasError = presentations.some(({ payload }) => payload?.isError);
-		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const label = buildGroupedToolLabel(presentations);
-		const icons = presentations.map(({ toolName }) =>
-			getToolNameIcon(toolName),
-		);
-		const firstIcon = icons[0] ?? WrenchIcon;
-		const Icon = icons.every((icon) => icon === firstIcon)
-			? firstIcon
-			: WrenchIcon;
-		const details = presentations.flatMap(({ message, summary }) =>
-			summary.details.map((detail) => ({
-				detail,
-				key: `${message.id}_${detail}`,
-			})),
-		);
-		const inputPreviews = IS_DEBUG
-			? presentations
-					.map(({ message, payload, toolName }) => ({
-						key: message.id,
-						toolName,
-						value: payload ? formatToolValue(payload.input) : "",
-					}))
-					.filter(({ value }) => Boolean(value))
-			: [];
-		const resultPreviews = presentations
-			.map(({ message, payload, toolName }) => ({
-				key: message.id,
-				toolName,
-				value: payload?.isError ? formatToolValue(payload.result) : "",
-			}))
-			.filter(({ value }) => Boolean(value));
-		const hasExpandedSections =
-			details.length > 0 ||
-			inputPreviews.length > 0 ||
-			resultPreviews.length > 0;
-		const diff = presentations.reduce(
-			(total, { summary }) => ({
-				additions: total.additions + (summary.diff?.additions ?? 0),
-				deletions: total.deletions + (summary.diff?.deletions ?? 0),
-			}),
-			{ additions: 0, deletions: 0 },
-		);
-
+		if (messages.length === 0) return null;
 		return (
-			<ToolActivity className="my-0" expandable={hasExpandedSections}>
-				<ToolActivityTrigger
-					additions={diff.additions || undefined}
-					deletions={diff.deletions || undefined}
-					icon={
-						hasError ? (
-							<AlertCircle className="size-4 text-destructive/80" />
-						) : (
-							<Icon className="size-4" />
-						)
-					}
-					label={
-						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
-							{label}
-						</span>
-					}
-					showDisclosureIcon={false}
-					status={hasError ? "error" : isRunning ? "running" : "success"}
-				/>
-				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
-					{details.length > 0 ? (
-						<ToolActivityDetails className="whitespace-pre-wrap">
-							{details.map(({ detail, key }) => (
-								<div key={key}>{detail}</div>
-							))}
-						</ToolActivityDetails>
-					) : null}
-					{inputPreviews.map((preview) => (
-						<div className="space-y-1" key={`input_${preview.key}`}>
-							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-								{presentations.length > 1
-									? `${preview.toolName} input`
-									: "Input"}
-							</div>
-							<ToolActivityCode className="text-sm">
-								{preview.value}
-							</ToolActivityCode>
-						</div>
-					))}
-					{resultPreviews.map((preview) => (
-						<div
-							className="mt-1 break-words text-destructive"
-							key={`result_${preview.key}`}
-						>
-							{presentations.length > 1 ? `${preview.toolName}: ` : null}
-							{preview.value}
-						</div>
-					))}
-				</ToolActivityContent>
-			</ToolActivity>
+			<div className="flex flex-col gap-1">
+				{messages.map((message) => (
+					<ToolCallRow key={message.id} message={message} />
+				))}
+			</div>
 		);
 	},
 	(prev, next) =>

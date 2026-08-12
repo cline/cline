@@ -8,7 +8,7 @@ describe("getMcpDescription", () => {
 				name: "local",
 				transport: { type: "stdio", command: "node" },
 			}),
-		).toBe("stdio, local, request timeout 60s, initialize timeout 30s");
+		).toBe("stdio, local, request timeout 60s, initialize timeout 3s");
 	});
 
 	it("shows one configured timeout when it also applies to initialize", () => {
@@ -40,6 +40,6 @@ describe("getMcpDescription", () => {
 				transport: { type: "stdio", command: "node" },
 				timeoutSeconds: Number.NaN,
 			}),
-		).toBe("stdio, local, request timeout 60s, initialize timeout 30s");
+		).toBe("stdio, local, request timeout 60s, initialize timeout 3s");
 	});
 });

@@ -128,16 +128,6 @@ export class SdkModeCoordinator {
 		}
 	}
 
-	async toggleActModeForYoloMode(): Promise<boolean> {
-		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
-		if (currentMode === "act") {
-			return false
-		}
-		await this.options.stateManager.setGlobalState("mode", "act")
-		await this.options.postStateToWebview()
-		return true
-	}
-
 	async togglePlanActMode(modeToSwitchTo: Mode, chatContent?: ChatContent): Promise<boolean> {
 		const currentMode = this.options.stateManager.getGlobalSettingsKey("mode")
 		if (currentMode === modeToSwitchTo) {

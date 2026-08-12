@@ -14,12 +14,14 @@ import {
 	SESSION_NOT_FOUND_ERROR_CODE,
 	SessionNotFoundError,
 } from "../../runtime/host/runtime-host";
-import { spawnDetachedHubServerWithRetry } from "../daemon";
+import { ensureDetachedHubServer } from "../daemon";
 import {
 	clearHubDiscovery,
+	getManagedHubCompatibility,
 	type HubOwnerContext,
 	probeHubServer,
 	readHubDiscovery,
+	resolveHubBuildId,
 } from "../discovery";
 import {
 	resolveProductionHubOwnerContext,
@@ -187,8 +189,6 @@ export interface LocalHubResolutionOptions {
 	cwd?: string;
 }
 
-const HUB_STARTUP_TIMEOUT_MS = 8_000;
-const HUB_STARTUP_POLL_MS = 200;
 const GLOBAL_SUBSCRIPTION_KEY = "*";
 const HUB_CONNECT_TIMEOUT_MS = 8_000;
 const HUB_AUTH_PROTOCOL_PREFIX = "cline-hub-auth.";
@@ -1017,7 +1017,7 @@ type HubProbeResult =
 			url: string;
 	  }
 	| {
-			status: "unreachable" | "protocol_mismatch";
+			status: "unreachable" | "protocol_mismatch" | "build_mismatch";
 			url: string;
 	  };
 
@@ -1028,6 +1028,7 @@ async function probeCompatibleHubUrl(
 		workspaceRoot?: string;
 		cwd?: string;
 		authToken?: string;
+		requireCurrentBuild?: boolean;
 	},
 ): Promise<HubProbeResult> {
 	const normalized = normalizeHubWebSocketUrl(url);
@@ -1040,9 +1041,16 @@ async function probeCompatibleHubUrl(
 			url: normalized,
 		};
 	}
-	if (!isHubProtocolCompatible(record).compatible) {
+	const compatibility = options?.requireCurrentBuild
+		? getManagedHubCompatibility(record, resolveHubBuildId())
+		: isHubProtocolCompatible(record);
+	if (!compatibility.compatible) {
 		return {
-			status: "protocol_mismatch",
+			status:
+				compatibility.reason === "build_mismatch" ||
+				compatibility.reason === "missing_build"
+					? "build_mismatch"
+					: "protocol_mismatch",
 			url: normalized,
 		};
 	}
@@ -1063,26 +1071,6 @@ async function probeCompatibleHubUrl(
 		status: "compatible",
 		url: normalized,
 	};
-}
-
-async function waitForCompatibleHubUrl(
-	owner: HubOwnerContext,
-): Promise<string | undefined> {
-	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
-	while (Date.now() < deadline) {
-		const record = await readHubDiscovery(owner.discoveryPath);
-		if (record?.url) {
-			const compatible = await probeCompatibleHubUrl(record.url, {
-				verifyConnection: true,
-				authToken: record.authToken,
-			});
-			if (compatible.status === "compatible") {
-				return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
-			}
-		}
-		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
-	}
-	return undefined;
 }
 
 async function waitForHubToRetire(url: string): Promise<boolean> {
@@ -1176,6 +1164,7 @@ export async function resolveCompatibleLocalHubUrl(
 	}
 	const compatible = await probeCompatibleHubUrl(record.url, {
 		authToken: record.authToken,
+		requireCurrentBuild: true,
 	});
 	if (compatible.status === "compatible") {
 		return rememberRecoverableLocalHubUrl(compatible.url, record.authToken);
@@ -1202,9 +1191,14 @@ export async function ensureCompatibleLocalHubUrl(
 	if (options.endpoint?.trim()) {
 		return undefined;
 	}
-	const owner = resolveDefaultHubOwnerContext();
-	await spawnDetachedHubServerWithRetry(options.workspaceRoot ?? process.cwd());
-	return await waitForCompatibleHubUrl(owner);
+	try {
+		const ensured = await ensureDetachedHubServer(
+			options.workspaceRoot ?? process.cwd(),
+		);
+		return ensured.url;
+	} catch {
+		return undefined;
+	}
 }
 
 export async function requestHubShutdown(
