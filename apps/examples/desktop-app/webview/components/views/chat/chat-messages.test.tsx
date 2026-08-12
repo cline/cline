@@ -261,6 +261,41 @@ describe("ChatMessages tool disclosures", () => {
 		expect(readBlock?.querySelector(".cline-chat-tool-content")).toBeNull();
 	});
 
+	it("opens a streaming group when an edit diff arrives after mount", async () => {
+		const read: ChatMessage = {
+			id: "stream-read",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["app.ts"] },
+				result: {},
+			}),
+			createdAt: 1,
+		};
+		// The group mounts with only the read call, so it starts collapsed.
+		await renderMessages([read]);
+		expect(container.querySelector(".cline-chat-tool-content")).toBeNull();
+
+		// The edit call joins the same group mid-stream; the diff should
+		// surface without a click.
+		await renderMessages([
+			read,
+			{
+				id: "stream-edit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "app.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 2,
+			},
+		]);
+		expect(container.querySelector(".cline-chat-tool-content")).not.toBeNull();
+	});
+
 	it("summarizes spawned teammates and expands their agent IDs", async () => {
 		await renderMessages(
 			["reviewer", "tester", "writer"].map(

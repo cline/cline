@@ -1224,6 +1224,27 @@ function pruneRequestMap<T extends string>(
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		const presentations = messages.map(buildToolPresentation);
+		const hasFileDiffs = presentations.some(({ summary }) =>
+			summary.items.some(
+				(item) =>
+					item.type === "file" && (item.newText !== undefined || item.diff),
+			),
+		);
+		// Edit rows open pre-expanded so their diffs are immediately visible.
+		// `defaultOpen` alone misses the streaming path: a group mounts with its
+		// first (often read) call and only gains the edit later, so open when a
+		// diff first arrives — unless the user has taken over the disclosure.
+		const [open, setOpen] = useState(hasFileDiffs);
+		const [userToggled, setUserToggled] = useState(false);
+		useEffect(() => {
+			if (hasFileDiffs && !userToggled) {
+				setOpen(true);
+			}
+		}, [hasFileDiffs, userToggled]);
+		const handleOpenChange = useCallback((nextOpen: boolean) => {
+			setUserToggled(true);
+			setOpen(nextOpen);
+		}, []);
 		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
@@ -1288,10 +1309,9 @@ const ToolMessageBlock = memo(
 		return (
 			<ToolActivity
 				className="my-0"
-				// Edit rows open pre-expanded so their diffs are immediately
-				// visible; other rows stay collapsed until clicked.
-				defaultOpen={fileDiffs.length > 0}
 				expandable={hasExpandedSections}
+				onOpenChange={handleOpenChange}
+				open={open}
 			>
 				<ToolActivityTrigger
 					additions={diff.additions || undefined}
