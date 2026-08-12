@@ -525,7 +525,9 @@ function ChatMessagesImpl({
 				<ConversationContent
 					className={cn(
 						"relative mx-auto min-h-full w-full min-w-0 max-w-full",
-						showIdleDetails ? "p-0" : "px-6 py-6",
+						// Extra bottom padding keeps the last message (and the
+						// hover actions hanging below it) clear of the composer.
+						showIdleDetails ? "p-0" : "px-6 pt-6 pb-14",
 					)}
 				>
 					{showIdleDetails ? null : (
