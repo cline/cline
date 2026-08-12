@@ -117,7 +117,10 @@ function QueuedPromptRow(props: {
 					flexGrow={1}
 				/>
 			) : (
-				<text fg={selected ? theme.textOnSelection : undefined} flexGrow={1}>
+				<text
+					fg={selected ? theme.textOnSelection : theme.defaultForeground}
+					flexGrow={1}
+				>
 					{truncatePrompt(item.prompt)}
 				</text>
 			)}

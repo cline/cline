@@ -669,7 +669,53 @@ describe("plugin-sandbox", () => {
 		]);
 	});
 
-	it("resolves sandbox bootstrap from the npm wrapper platform package", async () => {
+	it("selects sibling, then source, then installed bootstrap candidates", async () => {
+		const { selectBootstrapCandidate } = await import("./plugin-sandbox");
+		const makeExists = (existing: string[]) => (path: string) =>
+			existing.includes(path);
+
+		// Compiled bundle: the sibling bootstrap matches the host build.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/dist/extensions/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/dist/extensions/plugin-sandbox-bootstrap.js",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ file: "/dist/extensions/plugin-sandbox-bootstrap.js" });
+
+		// Source host: the source bootstrap must win over a separately
+		// installed CLI package's compiled bootstrap. A published bootstrap
+		// resolves modules against the other installation's layout and
+		// silently breaks plugin loading for the source host.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/src/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/src/plugin-sandbox-bootstrap.ts",
+				installedCandidates: ["/wrapper/extensions/bootstrap.js"],
+				exists: makeExists([
+					"/src/plugin-sandbox-bootstrap.ts",
+					"/wrapper/extensions/bootstrap.js",
+				]),
+			}),
+		).toEqual({ sourcePath: "/src/plugin-sandbox-bootstrap.ts" });
+
+		// Compiled binary (bunfs import.meta): nothing exists on disk next to
+		// the module, so the installed wrapper bootstrap is the right one.
+		expect(
+			selectBootstrapCandidate({
+				siblingCandidates: ["/$bunfs/root/plugin-sandbox-bootstrap.js"],
+				sourceBootstrapPath: "/$bunfs/root/plugin-sandbox-bootstrap.ts",
+				installedCandidates: [undefined, "/wrapper/extensions/bootstrap.js"],
+				exists: makeExists(["/wrapper/extensions/bootstrap.js"]),
+			}),
+		).toEqual({ file: "/wrapper/extensions/bootstrap.js" });
+	});
+
+	it("ignores the npm wrapper platform package bootstrap when running from source", async () => {
 		const previousWrapperPath = process.env.CLINE_WRAPPER_PATH;
 		const wrapperRoot = await mkdtemp(
 			join(tmpdir(), "core-plugin-sandbox-wrapper-"),
@@ -742,13 +788,19 @@ describe("plugin-sandbox", () => {
 			});
 
 			try {
+				// Regression: this host runs from source, so the sandbox must run
+				// the source bootstrap, NOT the wrapper package's compiled one. The
+				// fake wrapper bootstrap would report a "wrapper-bootstrap" plugin
+				// and emit wrapper_bootstrap_selected; with the source bootstrap in
+				// charge, the (nonexistent) plugin path simply fails to load.
 				expect(
-					sandboxed.extensions?.map((extension) => extension.name),
-				).toEqual(["wrapper-bootstrap"]);
-				expect(events).toContainEqual({
+					sandboxed.extensions?.map((extension) => extension.name) ?? [],
+				).toEqual([]);
+				expect(events).not.toContainEqual({
 					name: "wrapper_bootstrap_selected",
 					payload: { ok: true },
 				});
+				expect(sandboxed.failures.length).toBeGreaterThan(0);
 			} finally {
 				await sandboxed.shutdown();
 			}

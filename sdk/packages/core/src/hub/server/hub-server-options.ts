@@ -48,6 +48,12 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Called after an authorized HTTP shutdown request is accepted and before
+	 * server teardown begins. Detached daemon hosts use this to bind process
+	 * lifetime to the server and arm a forced-exit deadline.
+	 */
+	onShutdownRequested?: () => void;
 }
 
 export interface HubWebSocketServer {

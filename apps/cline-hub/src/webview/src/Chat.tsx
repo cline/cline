@@ -807,6 +807,15 @@ export default function Chat({
 					setStatus(message.text);
 					return;
 				case "error":
+					// Recoverable errors are in-run notices (e.g. a plan-mode
+					// guard-blocked command recorded as a model mistake) — the
+					// run continues and any tool failure is already shown on
+					// its tool row, so keep the turn state and transcript
+					// intact. Only genuine failures end the turn.
+					if (message.recoverable) {
+						setStatus(`Recoverable error (run continues): ${message.text}`);
+						return;
+					}
 					setStatus(`Error: ${message.text}`);
 					setSending(false);
 					setHydratingSessionId(undefined);
