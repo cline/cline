@@ -11,8 +11,12 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { restartToApplyUpdate } from "@/hooks/use-app-update";
+import {
+	checkForUpdateNow,
+	restartToApplyUpdate,
+} from "@/hooks/use-app-update";
 import { desktopClient } from "@/lib/desktop-client";
+import { resolveHubUpdateRestartDecision } from "./hub-update-required-helpers";
 
 type HubBuildMismatchPayload = {
 	hubBuildId?: string;
@@ -24,18 +28,24 @@ function mismatchKeyOf(payload: HubBuildMismatchPayload): string {
 	return `${payload.reason ?? ""}:${payload.hubBuildId ?? ""}`;
 }
 
+type UpdatePhase = "idle" | "updating" | "restarting";
+
 /**
  * Blocking prompt shown when the sidecar reports that another Cline
  * installation (for example an updated CLI) replaced the shared Cline Hub
- * with a different build. Restarting relaunches the app - applying any
- * staged auto-update - so the app and the Hub run the same version again.
+ * with a different build. Accepting runs an updater check/download right
+ * away and, once an update is staged, restarts into it so the app and the
+ * Hub run the same version again. If nothing is staged (no release published
+ * yet, or the check failed), the dialog explains why instead of restarting
+ * into the same version and immediately re-prompting.
  */
 export function HubUpdateRequiredDialog() {
 	const [mismatch, setMismatch] = useState<HubBuildMismatchPayload | null>(
 		null,
 	);
 	const [dismissedKey, setDismissedKey] = useState<string | null>(null);
-	const [restarting, setRestarting] = useState(false);
+	const [phase, setPhase] = useState<UpdatePhase>("idle");
+	const [updateHint, setUpdateHint] = useState<string | null>(null);
 
 	useEffect(() => {
 		return desktopClient.subscribe("hub_build_mismatch", (payload) => {
@@ -49,19 +59,27 @@ export function HubUpdateRequiredDialog() {
 	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
 	const open = mismatchKey !== null && mismatchKey !== dismissedKey;
 
-	const handleRestart = useCallback(async () => {
-		setRestarting(true);
-		const restarted = await restartToApplyUpdate();
-		if (!restarted) {
-			setRestarting(false);
+	const handleUpdateAndRestart = useCallback(async () => {
+		setPhase("updating");
+		setUpdateHint(null);
+		const decision = resolveHubUpdateRestartDecision(await checkForUpdateNow());
+		if (decision.action === "restart") {
+			setPhase("restarting");
+			const restarted = await restartToApplyUpdate();
+			if (!restarted) {
+				setPhase("idle");
+			}
+			return;
 		}
+		setUpdateHint(decision.hint);
+		setPhase("idle");
 	}, []);
 
 	return (
 		<AlertDialog
 			open={open}
 			onOpenChange={(nextOpen) => {
-				if (!nextOpen && !restarting) {
+				if (!nextOpen && phase === "idle") {
 					setDismissedKey(mismatchKey);
 				}
 			}}
@@ -77,17 +95,28 @@ export function HubUpdateRequiredDialog() {
 						, and it no longer matches this app. Update and restart Cline Code
 						to stay in sync with the running Hub.
 					</AlertDialogDescription>
+					{updateHint ? (
+						<AlertDialogDescription>{updateHint}</AlertDialogDescription>
+					) : null}
 				</AlertDialogHeader>
 				<AlertDialogFooter>
-					<AlertDialogCancel disabled={restarting}>Later</AlertDialogCancel>
+					<AlertDialogCancel disabled={phase !== "idle"}>
+						Later
+					</AlertDialogCancel>
 					<AlertDialogAction
-						disabled={restarting}
+						disabled={phase !== "idle"}
 						onClick={(event) => {
 							event.preventDefault();
-							void handleRestart();
+							void handleUpdateAndRestart();
 						}}
 					>
-						{restarting ? "Restarting…" : "Update and restart"}
+						{phase === "restarting"
+							? "Restarting…"
+							: phase === "updating"
+								? "Checking for updates…"
+								: updateHint
+									? "Try again"
+									: "Update and restart"}
 					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
