@@ -265,6 +265,44 @@ describe("NodeHubClient", () => {
 
 			await client.dispose();
 		});
+
+		it("ignores frames arriving on a superseded socket after reconnect", async () => {
+			// Regression: during a hub swap or transport recovery the client
+			// re-dials while the old socket can linger half-open. Frames still
+			// arriving on it must not be dispatched alongside the new socket's,
+			// or every listener sees each event twice (rendered as duplicated
+			// assistant text in the CLI and desktop app).
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			await client.connect();
+			const received: unknown[] = [];
+			client.subscribe((event) => received.push(event));
+
+			const firstSocket = MockWebSocket.instances[0];
+			client.close();
+			await client.connect();
+			const secondSocket = MockWebSocket.instances[1];
+			expect(secondSocket).toBeDefined();
+
+			const eventFrame = JSON.stringify({
+				kind: "event",
+				envelope: {
+					version: "v1",
+					event: "session.updated",
+					sessionId: "session-1",
+					payload: {},
+				},
+			});
+			secondSocket.emit("message", { data: eventFrame });
+			// The superseded socket is still delivering (its close never fired):
+			// its copy must be dropped.
+			firstSocket.emit("message", { data: eventFrame });
+
+			expect(received).toHaveLength(1);
+
+			await client.dispose();
+		});
 	});
 
 	describe("timeouts", () => {

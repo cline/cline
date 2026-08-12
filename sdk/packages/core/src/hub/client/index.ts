@@ -413,6 +413,13 @@ export class NodeHubClient {
 		});
 
 		socket.addEventListener("message", (data: unknown) => {
+			if (this.socket !== socket) {
+				// A reconnect superseded this socket. Frames still arriving on
+				// it (in-flight events, a slow server-side close) must not be
+				// dispatched alongside the new socket's — every listener would
+				// see each event twice.
+				return;
+			}
 			this.handleFrame(JSON.parse(decodeSocketData(data)) as HubTransportFrame);
 		});
 		socket.addEventListener("close", (event: unknown) => {

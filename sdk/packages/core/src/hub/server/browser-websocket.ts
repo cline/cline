@@ -18,6 +18,13 @@ type HubCommandFrame = HubTransportFrame & { kind: "command" };
 
 export interface BrowserHubSocketLike {
 	send(data: string): void;
+	/**
+	 * Standard WebSocket readyState when the underlying socket exposes one
+	 * (0 CONNECTING / 1 OPEN / 2 CLOSING / 3 CLOSED). Lets the adapter detect
+	 * dead connections whose close event never fired instead of forwarding
+	 * events into the void forever.
+	 */
+	readonly readyState?: number;
 	addEventListener(
 		type: "message",
 		listener: (event: { data: string }) => void,
@@ -58,10 +65,30 @@ export class BrowserWebSocketHubAdapter {
 		private readonly telemetry?: ITelemetryService,
 	) {}
 
+	private connectionCounter = 0;
+
+	/**
+	 * The connection that currently owns each registered clientId's event
+	 * delivery. A clientId re-registering from a NEW connection supersedes
+	 * the previous one: the old connection's subscriptions for that clientId
+	 * are torn down and its close-time unregister is disarmed. Without this,
+	 * a client that reconnects (hub swap, transport recovery) while its old
+	 * connection lingers accumulates one delivery path per connection and
+	 * every streamed event fans out N times — rendering as duplicated
+	 * assistant text in the CLI and desktop app.
+	 */
+	private readonly deliveryOwnerByClientId = new Map<
+		string,
+		{ connectionId: number; evict: () => void }
+	>();
+
 	attach(socket: BrowserHubSocketLike): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		const connectionId = ++this.connectionCounter;
 		let closed = false;
+
+		logHubMessage("info", "connection.open", { connectionId });
 
 		const sendFrame = (frame: HubTransportFrame): void => {
 			try {
@@ -77,7 +104,33 @@ export class BrowserWebSocketHubAdapter {
 			}
 		};
 
+		/**
+		 * Drop this connection's delivery state for a clientId: subscriptions
+		 * are unsubscribed and the close-time unregister is disarmed. Called
+		 * when a newer connection re-registers the same clientId.
+		 */
+		const evictClientDelivery = (clientId: string): void => {
+			for (const [key, unsubscribe] of subscriptions) {
+				if (key.startsWith(`${clientId}:`)) {
+					unsubscribe();
+					subscriptions.delete(key);
+				}
+			}
+			registeredClientIds.delete(clientId);
+		};
+
 		const onEvent = (envelope: HubEventEnvelope): void => {
+			if (typeof socket.readyState === "number" && socket.readyState > 1) {
+				// The socket is closing/closed but its close event never fired
+				// (crashed peer, half-open connection). Tear down instead of
+				// forwarding events into the void forever.
+				logHubMessage("warn", "connection.dead_socket_detected", {
+					connectionId,
+					readyState: socket.readyState,
+				});
+				onClose();
+				return;
+			}
 			sendFrame({ kind: "event", envelope });
 		};
 
@@ -192,7 +245,28 @@ export class BrowserWebSocketHubAdapter {
 								registration.clientId?.trim() ||
 								frame.envelope.clientId?.trim();
 							if (clientId) {
+								const owner = this.deliveryOwnerByClientId.get(clientId);
+								if (owner && owner.connectionId !== connectionId) {
+									// The clientId moved to this connection: tear down
+									// the previous connection's delivery for it so events
+									// are not fanned out once per historical connection.
+									owner.evict();
+									logHubMessage("warn", "client.superseded", {
+										clientId,
+										previousConnectionId: owner.connectionId,
+										connectionId,
+									});
+								}
+								this.deliveryOwnerByClientId.set(clientId, {
+									connectionId,
+									evict: () => evictClientDelivery(clientId),
+								});
 								registeredClientIds.add(clientId);
+								logHubMessage("info", "client.registered", {
+									clientId,
+									clientType: registration.clientType,
+									connectionId,
+								});
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -201,6 +275,14 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								const owner = this.deliveryOwnerByClientId.get(clientId);
+								if (owner?.connectionId === connectionId) {
+									this.deliveryOwnerByClientId.delete(clientId);
+								}
+								logHubMessage("info", "client.unregistered", {
+									clientId,
+									connectionId,
+								});
 							}
 						}
 						sendFrame({
@@ -214,18 +296,43 @@ export class BrowserWebSocketHubAdapter {
 						if (subscriptions.has(key)) {
 							break;
 						}
+						const owner = frame.clientId
+							? this.deliveryOwnerByClientId.get(frame.clientId)
+							: undefined;
+						if (owner && owner.connectionId !== connectionId) {
+							// A newer connection owns this clientId's delivery; a
+							// late subscribe from a superseded connection must not
+							// re-create a second delivery path.
+							logHubMessage("warn", "stream.subscribe.superseded", {
+								clientId: frame.clientId,
+								sessionId: frame.sessionId,
+								connectionId,
+								owningConnectionId: owner.connectionId,
+							});
+							break;
+						}
 						const unsubscribe = await this.transport.subscribe(
 							frame.clientId,
 							onEvent,
 							{ sessionId: frame.sessionId },
 						);
 						subscriptions.set(key, unsubscribe);
+						logHubMessage("info", "stream.subscribed", {
+							clientId: frame.clientId,
+							sessionId: frame.sessionId,
+							connectionId,
+						});
 						break;
 					}
 					case "stream.unsubscribe": {
 						const key = `${frame.clientId}:${frame.sessionId ?? "*"}`;
 						subscriptions.get(key)?.();
 						subscriptions.delete(key);
+						logHubMessage("info", "stream.unsubscribed", {
+							clientId: frame.clientId,
+							sessionId: frame.sessionId,
+							connectionId,
+						});
 						break;
 					}
 					case "reply":
@@ -271,11 +378,23 @@ export class BrowserWebSocketHubAdapter {
 				return;
 			}
 			closed = true;
+			logHubMessage("info", "connection.closed", {
+				connectionId,
+				registeredClientIds: [...registeredClientIds],
+			});
 			for (const unsubscribe of subscriptions.values()) {
 				unsubscribe();
 			}
 			subscriptions.clear();
 			for (const clientId of registeredClientIds) {
+				// Generation guard: if a newer connection re-registered this
+				// clientId, unregistering here would clobber the live
+				// registration. Only unregister what this connection still owns.
+				const owner = this.deliveryOwnerByClientId.get(clientId);
+				if (owner && owner.connectionId !== connectionId) {
+					continue;
+				}
+				this.deliveryOwnerByClientId.delete(clientId);
 				void this.transport.command({
 					version: "v1",
 					command: "client.unregister",
