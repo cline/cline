@@ -82,8 +82,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			if (!viewport) return;
 			const distance =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
-			const scrolledUp =
-				viewport.scrollTop < lastObservedScrollTop.current - 1;
+			const scrolledUp = viewport.scrollTop < lastObservedScrollTop.current - 1;
 			lastObservedScrollTop.current = viewport.scrollTop;
 			if (isProgrammaticScroll.current) {
 				if (viewport.scrollTop + 1 < lastProgrammaticScrollTop.current) {
