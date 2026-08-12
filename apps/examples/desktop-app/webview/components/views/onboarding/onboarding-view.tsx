@@ -20,6 +20,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -40,7 +41,7 @@ import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
-export type OnboardingStep = "welcome" | "connect" | "done";
+export type OnboardingStep = "welcome" | "connect" | "github" | "done";
 
 type OnboardingConnection =
 	| { kind: "cline" }
@@ -700,7 +701,8 @@ function DoneStep({
 
 /**
  * Full-screen first-run experience: welcome, connect a model provider (Cline
- * account or bring-your-own API key), done. Rendered by the app shell while
+ * account or bring-your-own API key), connect GitHub (Cline accounts only,
+ * skipped when already connected), done. Rendered by the app shell while
  * onboarding has not been completed (see lib/onboarding.ts); `onComplete`
  * marks it completed and returns to the chat.
  */
@@ -726,10 +728,16 @@ export function OnboardingView({
 					onBack={() => setStep("welcome")}
 					onConnected={(nextConnection) => {
 						setConnection(nextConnection);
-						setStep("done");
+						// The GitHub integration lives on the Cline account, so the
+						// step only applies when one is connected.
+						setStep(nextConnection.kind === "cline" ? "github" : "done");
 					}}
 					onSkip={onComplete}
 				/>
+			) : step === "github" ? (
+				<OnboardingCard wide>
+					<GitHubConnectStep onContinue={() => setStep("done")} />
+				</OnboardingCard>
 			) : (
 				<DoneStep connection={connection} onFinish={onComplete} />
 			)}
