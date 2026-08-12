@@ -1,6 +1,6 @@
 /* Import external CSS files */
 @import url("../../node_modules/@vscode/codicons/dist/codicon.css");
-@import url("../node_modules/@fontsource/azeret-mono/index.css");
+@import url("../node_modules/@fontsource-variable/geist-mono/index.css");
 
 /* Tailwind CSS */
 @import "tailwindcss";

@@ -990,7 +990,23 @@ async function handleSend(
 				sessionId,
 				ok: true,
 				queued: true,
-				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+				// Response snapshot only — deliberately not routed through
+				// applyPendingPrompts. The list was taken at enqueue time and
+				// can already be stale when this response is written (the
+				// runtime may have drained the prompt meanwhile, e.g. the
+				// coerced first prompt of a fresh session); overwriting the
+				// event-maintained session.promptsInQueue and rebroadcasting
+				// prompts_in_queue_state here would resurrect a phantom queue
+				// entry for every connected webview.
+				promptsInQueue: prompts
+					.map(mapPendingPrompt)
+					.filter((item) => item.id)
+					.map(({ id, prompt, steer, attachmentCount }) => ({
+						id,
+						prompt,
+						steer,
+						attachmentCount,
+					})),
 			};
 		}
 

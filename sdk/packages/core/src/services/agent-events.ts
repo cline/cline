@@ -119,6 +119,45 @@ function usageDeltaFromEvent(event: Extract<AgentEvent, { type: "usage" }>) {
 	};
 }
 
+/**
+ * `task.tokens` telemetry contract (inherited from the legacy extension):
+ * one event per completed model request, carrying that request's token/cost
+ * deltas as DISJOINT buckets — `tokensIn` is uncached input only, with cache
+ * reads/writes reported in their own attributes, so
+ * `sum(tokensIn + cacheReadTokens + cacheWriteTokens)` equals total input.
+ *
+ * SDK usage events follow the AI SDK convention instead: `event.inputTokens`
+ * is the FULL request input, cache reads/writes included. Emitting it as
+ * `tokensIn` unchanged re-reports the whole (mostly cached) conversation
+ * context on every request, so per-task sums re-count the same context
+ * tokens once per request. This helper translates to the legacy disjoint
+ * buckets (mirroring the webview's `normalizeUsageEvent`). The clamp keeps
+ * ApiHandler-backed providers — whose `inputTokens` is already uncached-only
+ * — from going negative.
+ */
+export function legacyTokenUsageFromUsageEvent(
+	event: Extract<AgentEvent, { type: "usage" }>,
+): {
+	tokensIn: number;
+	tokensOut: number;
+	cacheWriteTokens: number;
+	cacheReadTokens: number;
+	totalCost?: number;
+} {
+	const cacheWriteTokens = event.cacheWriteTokens ?? 0;
+	const cacheReadTokens = event.cacheReadTokens ?? 0;
+	return {
+		tokensIn: Math.max(
+			0,
+			event.inputTokens - cacheReadTokens - cacheWriteTokens,
+		),
+		tokensOut: event.outputTokens,
+		cacheWriteTokens,
+		cacheReadTokens,
+		totalCost: event.cost,
+	};
+}
+
 function resolveUsageAgentKey(input: {
 	isPrimaryAgentEvent: boolean;
 	overrides?: AgentTelemetryContextOverrides;
@@ -229,11 +268,8 @@ export function handleAgentEvent(
 			});
 			captureTokenUsage(telemetry, {
 				ulid: sessionId,
-				tokensIn: event.inputTokens,
-				tokensOut: event.outputTokens,
-				cacheWriteTokens: event.cacheWriteTokens,
-				cacheReadTokens: event.cacheReadTokens,
-				totalCost: event.cost,
+				...legacyTokenUsageFromUsageEvent(event),
+				provider: config.providerId,
 				model: config.modelId,
 				...agentIdentity,
 			});

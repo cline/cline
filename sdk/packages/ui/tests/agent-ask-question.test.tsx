@@ -44,10 +44,12 @@ describe("AgentAskQuestion", () => {
 		const buttons = container.querySelectorAll("button");
 		await act(async () => buttons[1]?.click());
 
+		// The element carries no visible heading — the question itself leads —
+		// but stays labelled for assistive tech.
 		const section = container.querySelector("section");
-		const heading = container.querySelector("h2");
-		expect(section?.getAttribute("aria-labelledby")).toBe(heading?.id);
-		expect(heading?.textContent).toBe("Follow-up question");
+		expect(section?.getAttribute("aria-label")).toBe("Follow-up question");
+		expect(container.querySelector("h2")).toBeNull();
+		expect(container.textContent).toContain("Continue this task?");
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Stop");
 		expect(container.textContent).toContain("Request request-1 · Iteration 2");
 	});

@@ -152,6 +152,33 @@ describe("createOpenAICompatibleProviderModule wire format", () => {
 		});
 		expect(requestBody()).not.toHaveProperty("max_completion_tokens");
 	});
+
+	// Regression test for cline/cline#13119: LiteLLM's Anthropic passthrough
+	// emits tool_call deltas whose `index` mirrors the Anthropic content-block
+	// index (1 when a text block precedes the tool call). Older
+	// @ai-sdk/provider-utils stored tool calls in a sparse array keyed by that
+	// index and crashed at stream flush with
+	// "Cannot read properties of undefined (reading 'hasFinished')".
+	it("survives streamed tool_call deltas whose index does not start at 0", async () => {
+		const fetchMock = createFetchMock(
+			sseToolCallResponseWithNonZeroIndex("claude-opus"),
+		);
+		const model = await createModel({ modelId: "claude-opus", fetchMock });
+
+		const { stream } = await model.doStream({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			maxOutputTokens: 8_192,
+		});
+
+		const parts = await collectStreamParts(stream);
+
+		expect(parts.filter((part) => part.type === "error")).toEqual([]);
+		expect(parts.find((part) => part.type === "tool-call")).toMatchObject({
+			toolCallId: "toolu_abc",
+			toolName: "read_file",
+			input: '{"path":"a.txt"}',
+		});
+	});
 });
 
 async function createModel(input: {
@@ -233,6 +260,73 @@ function sseCompletionResponse(modelId: string): () => Response {
 			created: 0,
 			model: modelId,
 			choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
+			usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
+		})}`,
+		"data: [DONE]",
+		"",
+	].join("\n\n");
+	return () =>
+		new Response(events, {
+			status: 200,
+			headers: { "content-type": "text/event-stream" },
+		});
+}
+
+async function collectStreamParts(
+	stream: ReadableStream<unknown>,
+): Promise<Array<Record<string, unknown> & { type: string }>> {
+	const parts: Array<Record<string, unknown> & { type: string }> = [];
+	const reader = stream.getReader();
+	while (true) {
+		const { done, value } = await reader.read();
+		if (done) {
+			break;
+		}
+		parts.push(value as Record<string, unknown> & { type: string });
+	}
+	return parts;
+}
+
+function sseToolCallResponseWithNonZeroIndex(modelId: string): () => Response {
+	const events = [
+		`data: ${JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [
+				{ index: 0, delta: { role: "assistant", content: "Let me check." } },
+			],
+		})}`,
+		// Anthropic content block 0 is the text above, so the tool call
+		// arrives with index 1 and the tracker never sees an index-0 delta.
+		`data: ${JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [
+				{
+					index: 0,
+					delta: {
+						tool_calls: [
+							{
+								index: 1,
+								id: "toolu_abc",
+								type: "function",
+								function: {
+									name: "read_file",
+									arguments: '{"path":"a.txt"}',
+								},
+							},
+						],
+					},
+				},
+			],
+		})}`,
+		`data: ${JSON.stringify({
+			id: "chatcmpl-test",
+			created: 0,
+			model: modelId,
+			choices: [{ index: 0, delta: {}, finish_reason: "tool_calls" }],
 			usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 },
 		})}`,
 		"data: [DONE]",
