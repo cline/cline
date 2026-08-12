@@ -522,6 +522,18 @@ export async function runInteractive(
 		loadDeferredInitialMessages,
 		initialRepoStatus,
 		workflowSlashCommands,
+		reloadWorkflowSlashCommands: userInstructionService
+			? async () => {
+					// refreshType also re-attaches fs watchers to directories that
+					// were missing at startup (e.g. ~/.agents/skills created by a
+					// first-ever skill install), so this rescan recovers them too.
+					await Promise.all([
+						userInstructionService.refreshType("skill"),
+						userInstructionService.refreshType("workflow"),
+					]);
+					return listInteractiveSlashCommands(userInstructionService);
+				}
+			: undefined,
 		loadAdditionalSlashCommands,
 		loadWelcomeLine: async () =>
 			await resolveClineWelcomeLine({

@@ -65,6 +65,7 @@ import { useRuntimeDialogBridge } from "./hooks/use-runtime-dialog-bridge";
 import { useSlashCommands } from "./hooks/use-slash-commands";
 import { useTerminalTitle } from "./hooks/use-terminal-title";
 import { TerminalColorsContext } from "./hooks/use-theme";
+import type { InteractiveSlashCommand } from "./interactive-welcome";
 import type { AppView, TuiProps, TuiStartupTarget } from "./types";
 import { hydrateSessionMessages } from "./utils/hydrate-messages";
 import { isProviderConfigured } from "./utils/provider-configured";
@@ -80,6 +81,24 @@ function isChatBackedStartupTarget(
 ): boolean {
 	// History is a dialog layered over chat, so dismissing it should reveal chat.
 	return target === "chat" || target === "history";
+}
+
+function isSameSlashCommandList(
+	prev: InteractiveSlashCommand[] | undefined,
+	next: InteractiveSlashCommand[],
+): boolean {
+	if (!prev || prev.length !== next.length) {
+		return false;
+	}
+	return prev.every((command, index) => {
+		const candidate = next[index];
+		return (
+			command.name === candidate.name &&
+			command.description === candidate.description &&
+			command.instructions === candidate.instructions &&
+			command.kind === candidate.kind
+		);
+	});
 }
 
 function App(props: TuiProps) {
@@ -146,6 +165,33 @@ function App(props: TuiProps) {
 		systemCommands,
 		skillCommands,
 	});
+
+	// The slash command list is a startup-time snapshot, so skills and
+	// workflows added while the TUI is running would never appear in the menu.
+	// Mirror the desktop app: rescan disk each time the slash menu opens,
+	// keeping the stale list on screen until fresh results arrive.
+	const reloadWorkflowSlashCommands = props.reloadWorkflowSlashCommands;
+	const slashMenuOpen = autocomplete.mode === "/";
+	const slashReloadInFlightRef = useRef(false);
+	useEffect(() => {
+		if (!slashMenuOpen || !reloadWorkflowSlashCommands) {
+			return;
+		}
+		if (slashReloadInFlightRef.current) {
+			return;
+		}
+		slashReloadInFlightRef.current = true;
+		reloadWorkflowSlashCommands()
+			.then((next) =>
+				setWorkflowSlashCommands((prev) =>
+					isSameSlashCommandList(prev, next) ? prev : next,
+				),
+			)
+			.catch(() => {})
+			.finally(() => {
+				slashReloadInFlightRef.current = false;
+			});
+	}, [slashMenuOpen, reloadWorkflowSlashCommands]);
 
 	const repoStatusInFlightRef = useRef(false);
 	const refreshRepoStatus = useCallback(() => {

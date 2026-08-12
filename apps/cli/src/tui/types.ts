@@ -149,6 +149,13 @@ export interface TuiProps {
 	loadDeferredInitialMessages?: () => Promise<ResumedSessionResult>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
+	/**
+	 * Rescan skills/workflows on disk and return the up-to-date slash command
+	 * list. `workflowSlashCommands` is a startup-time snapshot; the TUI calls
+	 * this when the slash menu opens so skills added while the TUI is running
+	 * still show up.
+	 */
+	reloadWorkflowSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
 	loadAdditionalSlashCommands?: () => Promise<InteractiveSlashCommand[]>;
 	loadWelcomeLine?: () => Promise<string | undefined>;
 	loadClineAccount: () => Promise<ClineAccountSnapshot>;
