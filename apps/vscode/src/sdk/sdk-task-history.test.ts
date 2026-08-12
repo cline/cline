@@ -634,7 +634,7 @@ describe("SdkTaskHistory", () => {
 		const { history } = makeHistory([], telemetry)
 
 		await history.getLegacyResumeInitialMessages("legacy-task")
-		history.settleLegacyMigration("legacy-task", "failed")
+		history.settleLegacyMigration("legacy-task", "session_start_failed")
 
 		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
 		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
@@ -647,12 +647,32 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("reports a migration error when the start resolves but the seed write failed", async () => {
+		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
+		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "legacy prompt" }]
+		const telemetry = makeTelemetry()
+		const { history } = makeHistory([], telemetry)
+
+		await history.getLegacyResumeInitialMessages("legacy-task")
+		history.settleLegacyMigration("legacy-task", "seed_persistence_failed")
+
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
+		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: "legacy-task",
+				outcome: "error",
+				reason: "seed_persistence_failed",
+				legacyApiHistoryLength: 1,
+			}),
+		)
+	})
+
 	it("ignores migration settlement for tasks with no pending conversion", async () => {
 		const telemetry = makeTelemetry()
 		const { history } = makeHistory([makeSessionRecord("sdk-task")], telemetry)
 
 		history.settleLegacyMigration("sdk-task", "persisted")
-		history.settleLegacyMigration("sdk-task", "failed")
+		history.settleLegacyMigration("sdk-task", "session_start_failed")
 
 		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
 	})

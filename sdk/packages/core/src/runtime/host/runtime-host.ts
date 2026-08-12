@@ -245,6 +245,15 @@ export interface StartSessionResult {
 	manifestPath: string;
 	messagesPath: string;
 	result?: AgentResult;
+	/**
+	 * Durability of the seeded `initialMessages` at start. Seeded persistence
+	 * failures are deliberately caught inside the host (a rejection would kill
+	 * the session that otherwise works in memory), so this is the only way for
+	 * callers that need durability (e.g. legacy-task migration telemetry) to
+	 * observe them. Undefined when the start had nothing to seed (no
+	 * `initialMessages`, or the session resumed existing on-disk artifacts).
+	 */
+	seededMessagesPersistence?: "persisted" | "failed";
 }
 
 export interface SendSessionInput {

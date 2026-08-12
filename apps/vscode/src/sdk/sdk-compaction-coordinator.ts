@@ -184,13 +184,17 @@ export class SdkCompactionCoordinator {
 						interactive: true,
 					})
 				} catch (error) {
-					this.options.taskHistory.settleLegacyMigration(taskId, "failed")
+					this.options.taskHistory.settleLegacyMigration(taskId, "session_start_failed")
 					throw error
 				}
 				// Starting the seeded session persists a legacy conversion, making
 				// the migration durable; report its outcome now that the start
-				// settled.
-				this.options.taskHistory.settleLegacyMigration(taskId, "persisted")
+				// settled. The host swallows seeded-persistence failures, so
+				// durability is read off the start result.
+				this.options.taskHistory.settleLegacyMigration(
+					taskId,
+					startResult.seededMessagesPersistence === "failed" ? "seed_persistence_failed" : "persisted",
+				)
 				sessionId = startResult.sessionId
 				// Once the start succeeds, complete compaction even if navigation
 				// changes the displayed/active task. The isolated host owns this

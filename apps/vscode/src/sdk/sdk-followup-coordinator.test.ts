@@ -436,9 +436,26 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("continue")
 
-		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("legacy-task", "failed")
+		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("legacy-task", "session_start_failed")
 		expect(options.taskHistory.settleLegacyMigration).not.toHaveBeenCalledWith("legacy-task", "persisted")
 		expect(options.onResumeFailed).toHaveBeenCalledOnce()
+	})
+
+	it("settles a legacy migration as failed when the start resolves but the seed write failed", async () => {
+		const task = makeTask("legacy-task")
+		const { coordinator, options } = makeCoordinator({ task, isLegacyTask: true })
+		options.taskHistory.getLegacyResumeInitialMessages.mockResolvedValueOnce([{ role: "user", content: "hello" }])
+		// LocalRuntimeHost swallows seeded-persistence failures and resolves the
+		// start anyway, surfacing the failure only on the start result.
+		options.sessions.startNewSession.mockResolvedValueOnce({
+			startResult: { sessionId: "legacy-task", seededMessagesPersistence: "failed" },
+			sdkHost: { send: vi.fn() },
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("legacy-task", "seed_persistence_failed")
+		expect(options.taskHistory.settleLegacyMigration).not.toHaveBeenCalledWith("legacy-task", "persisted")
 	})
 
 	it("echoes attachments on an attachment-only resume", async () => {

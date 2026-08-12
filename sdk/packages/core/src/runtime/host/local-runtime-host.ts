@@ -871,6 +871,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// so losing the resident session before then (hub restart/crash) would
 		// rebuild it from an empty disk file and silently wipe the
 		// conversation. Brand-new empty sessions stay lazy.
+		let seededMessagesPersistence: "persisted" | "failed" | undefined;
 		if (initialMessages.length > 0 && !resumedArtifacts) {
 			try {
 				await this.ensureSessionPersisted(active);
@@ -880,7 +881,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 					initialMessages,
 					active.config.systemPrompt,
 				);
+				seededMessagesPersistence = "persisted";
 			} catch (error) {
+				seededMessagesPersistence = "failed";
 				active.config.logger?.error?.(
 					"Failed to persist seeded session messages at start",
 					{ sessionId, error },
@@ -951,6 +954,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			manifestPath,
 			messagesPath,
 			result,
+			...(seededMessagesPersistence ? { seededMessagesPersistence } : {}),
 		};
 	}
 
