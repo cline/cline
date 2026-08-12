@@ -14,6 +14,12 @@ export type AvailableRuntimeCommand = {
 	instructions: string;
 	description?: string;
 	kind: RuntimeCommandKind;
+	/**
+	 * Grouping folder path (posix-style, relative to the skills search root)
+	 * for skills organized under nested folders. Undefined for top-level
+	 * skills and for workflows.
+	 */
+	folder?: string;
 };
 
 type CommandRecord = {
@@ -75,6 +81,8 @@ function listCommandsForKind(
 			instructions: record.item.instructions,
 			description: resolveCommandDescription(record.item, kind),
 			kind,
+			folder:
+				kind === "skill" ? (record.item as SkillConfig).folder : undefined,
 		}))
 		.sort((a, b) => a.name.localeCompare(b.name) || a.id.localeCompare(b.id));
 }

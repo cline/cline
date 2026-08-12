@@ -1,3 +1,4 @@
+import type { Dirent } from "node:fs";
 import { readdir, readFile, stat } from "node:fs/promises";
 import { basename, dirname, extname, join, resolve } from "node:path";
 import { stripUtf8Bom } from "@cline/shared";
@@ -24,6 +25,16 @@ import {
 const SKILL_FILE_NAME = "SKILL.md";
 const MANAGED_PLUGIN_MANIFEST_FILE_NAME = "managed.json";
 
+// Skills may be organized under grouping folders, e.g.
+// `<root>/frontend/react-review/SKILL.md`. Discovery descends through
+// grouping folders (directories without their own SKILL.md) up to this many
+// levels below the search root; a directory that owns a SKILL.md is a skill
+// package whose subdirectories are resources, not further skills.
+const MAX_SKILL_DISCOVERY_DEPTH = 4;
+
+// Never treated as grouping folders when descending.
+const SKIPPED_GROUPING_DIRECTORY_NAMES = new Set(["node_modules"]);
+
 const MARKDOWN_EXTENSIONS = new Set([".md", ".markdown", ".txt"]);
 
 export {
@@ -45,6 +56,12 @@ export interface SkillConfig {
 	disabled?: boolean;
 	instructions: string;
 	frontmatter: Record<string, unknown>;
+	/**
+	 * Grouping folder path (posix-style, relative to the skills search root)
+	 * when the skill lives in nested organizing folders, e.g. "frontend" for
+	 * `<root>/frontend/react-review/SKILL.md`. Undefined for top-level skills.
+	 */
+	folder?: string;
 }
 
 export interface RuleConfig {
@@ -398,46 +415,99 @@ async function discoverSkillFiles(
 		);
 		return nestedCandidates.flat();
 	}
+	return collectSkillCandidates(directoryPath, []);
+}
 
+/**
+ * Recursively collect SKILL.md candidates below a skills search root.
+ *
+ * `folderSegments` is the grouping-folder path from the search root down to
+ * (and including) `directoryPath`; empty for the root itself. A directory that
+ * contains a SKILL.md is a skill package and is never descended into — its
+ * subdirectories are skill resources. Directories without a SKILL.md are
+ * grouping folders and are scanned for further skills up to
+ * MAX_SKILL_DISCOVERY_DEPTH levels.
+ *
+ * For directories that do not (yet) contain a SKILL.md, the missing file is
+ * still emitted as a candidate: the watcher skips unreadable candidates but
+ * starts watching their directory, so a skill created there later is picked up.
+ */
+async function collectSkillCandidates(
+	directoryPath: string,
+	folderSegments: ReadonlyArray<string>,
+): Promise<UnifiedConfigFileCandidate[]> {
+	let entries: Dirent[];
 	try {
-		const entries = await readdir(directoryPath, { withFileTypes: true });
-		const candidates: UnifiedConfigFileCandidate[] = [];
-		for (const entry of entries) {
-			if (entry.isFile() && entry.name === SKILL_FILE_NAME) {
-				candidates.push({
-					directoryPath,
-					fileName: entry.name,
-					filePath: join(directoryPath, entry.name),
-				});
-				continue;
-			}
-			const entryPath = join(directoryPath, entry.name);
-			const isDirectory =
-				entry.isDirectory() ||
-				(entry.isSymbolicLink() &&
-					(await stat(entryPath)
-						.then((entryStat) => entryStat.isDirectory())
-						.catch((error) => {
-							if (isIgnorableDirectoryError(error)) {
-								return false;
-							}
-							throw error;
-						})));
-			if (isDirectory) {
-				candidates.push({
-					directoryPath: entryPath,
-					fileName: SKILL_FILE_NAME,
-					filePath: join(entryPath, SKILL_FILE_NAME),
-				});
-			}
-		}
-		return candidates;
+		entries = await readdir(directoryPath, { withFileTypes: true });
 	} catch (error) {
 		if (isIgnorableDirectoryError(error)) {
 			return [];
 		}
 		throw error;
 	}
+
+	const isRoot = folderSegments.length === 0;
+	const candidates: UnifiedConfigFileCandidate[] = [];
+	const hasOwnSkillFile = entries.some(
+		(entry) => entry.isFile() && entry.name === SKILL_FILE_NAME,
+	);
+
+	if (!isRoot) {
+		candidates.push({
+			directoryPath,
+			fileName: SKILL_FILE_NAME,
+			filePath: join(directoryPath, SKILL_FILE_NAME),
+			folder: folderSegments.slice(0, -1).join("/") || undefined,
+		});
+		if (hasOwnSkillFile) {
+			return candidates;
+		}
+	} else if (hasOwnSkillFile) {
+		candidates.push({
+			directoryPath,
+			fileName: SKILL_FILE_NAME,
+			filePath: join(directoryPath, SKILL_FILE_NAME),
+		});
+	}
+
+	if (folderSegments.length >= MAX_SKILL_DISCOVERY_DEPTH) {
+		return candidates;
+	}
+
+	for (const entry of entries) {
+		if (entry.isFile()) {
+			continue;
+		}
+		if (
+			!isRoot &&
+			(entry.name.startsWith(".") ||
+				SKIPPED_GROUPING_DIRECTORY_NAMES.has(entry.name))
+		) {
+			continue;
+		}
+		const entryPath = join(directoryPath, entry.name);
+		const isDirectory =
+			entry.isDirectory() ||
+			(entry.isSymbolicLink() &&
+				(await stat(entryPath)
+					.then((entryStat) => entryStat.isDirectory())
+					.catch((error) => {
+						if (isIgnorableDirectoryError(error)) {
+							return false;
+						}
+						throw error;
+					})));
+		if (!isDirectory) {
+			continue;
+		}
+		candidates.push(
+			...(await collectSkillCandidates(entryPath, [
+				...folderSegments,
+				entry.name,
+			])),
+		);
+	}
+	return candidates;
 }
 
 async function discoverRulesLikeFiles(
@@ -542,11 +612,13 @@ export function createSkillsConfigDefinition(
 			: directories,
 		discoverFiles: discoverSkillFiles,
 		includeFile: (fileName) => fileName === SKILL_FILE_NAME,
-		parseFile: (context) =>
-			parseSkillConfigFromMarkdown(
+		parseFile: (context) => ({
+			...parseSkillConfigFromMarkdown(
 				context.content,
 				basename(context.directoryPath),
 			),
+			folder: context.folder,
+		}),
 		resolveId: (skill) => normalizeName(skill.name),
 	};
 }

@@ -302,6 +302,109 @@ Escalation runbook`,
 		}
 	});
 
+	it("discovers skills nested inside grouping folders and records their folder path", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-nested-skill-"),
+		);
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, "skills");
+		await mkdir(join(skillsDir, "top-level"), { recursive: true });
+		await mkdir(join(skillsDir, "frontend", "react-review"), {
+			recursive: true,
+		});
+		await mkdir(join(skillsDir, "frontend", "css", "tailwind-audit"), {
+			recursive: true,
+		});
+		// A skill package's subdirectories are resources, not further skills.
+		await mkdir(join(skillsDir, "top-level", "references"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(skillsDir, "top-level", "SKILL.md"),
+			"Use the top-level skill.",
+		);
+		await writeFile(
+			join(skillsDir, "top-level", "references", "SKILL.md"),
+			"Should not be discovered.",
+		);
+		await writeFile(
+			join(skillsDir, "frontend", "react-review", "SKILL.md"),
+			"Review React code.",
+		);
+		await writeFile(
+			join(skillsDir, "frontend", "css", "tailwind-audit", "SKILL.md"),
+			"Audit Tailwind usage.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+		});
+
+		await watcher.refreshAll();
+		const skills = watcher.getSnapshot("skill");
+
+		expect(skills.get("top-level")?.item).toMatchObject({
+			name: "top-level",
+			instructions: "Use the top-level skill.",
+		});
+		expect((skills.get("top-level")?.item as { folder?: string }).folder).toBe(
+			undefined,
+		);
+		expect(skills.get("react-review")?.item).toMatchObject({
+			name: "react-review",
+			instructions: "Review React code.",
+			folder: "frontend",
+		});
+		expect(skills.get("tailwind-audit")?.item).toMatchObject({
+			name: "tailwind-audit",
+			instructions: "Audit Tailwind usage.",
+			folder: "frontend/css",
+		});
+		expect(skills.get("references")).toBe(undefined);
+	});
+
+	it("does not descend into hidden or node_modules grouping folders", async () => {
+		const tempRoot = await mkdtemp(
+			join(tmpdir(), "core-user-instructions-skipped-folders-"),
+		);
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, "skills");
+		await mkdir(join(skillsDir, "group", ".hidden", "secret-skill"), {
+			recursive: true,
+		});
+		await mkdir(join(skillsDir, "group", "node_modules", "dep-skill"), {
+			recursive: true,
+		});
+		await mkdir(join(skillsDir, "group", "visible-skill"), {
+			recursive: true,
+		});
+		await writeFile(
+			join(skillsDir, "group", ".hidden", "secret-skill", "SKILL.md"),
+			"Hidden skill.",
+		);
+		await writeFile(
+			join(skillsDir, "group", "node_modules", "dep-skill", "SKILL.md"),
+			"Dependency skill.",
+		);
+		await writeFile(
+			join(skillsDir, "group", "visible-skill", "SKILL.md"),
+			"Visible skill.",
+		);
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+		});
+
+		await watcher.refreshAll();
+		const skills = watcher.getSnapshot("skill");
+
+		expect(skills.get("visible-skill")?.item).toMatchObject({
+			folder: "group",
+		});
+		expect(skills.get("secret-skill")).toBe(undefined);
+		expect(skills.get("dep-skill")).toBe(undefined);
+	});
+
 	it.skipIf(process.platform === "win32")(
 		"discovers skill directories through symlinks",
 		async () => {

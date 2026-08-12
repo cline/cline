@@ -9,12 +9,19 @@ export interface UnifiedConfigFileContext<TType extends string = string> {
 	fileName: string;
 	filePath: string;
 	content: string;
+	/**
+	 * Grouping folder path (posix-style, relative to the search root) when the
+	 * candidate lives in nested organizing folders, e.g. "frontend" for
+	 * `<root>/frontend/<name>/SKILL.md`. Undefined for top-level candidates.
+	 */
+	folder?: string;
 }
 
 export interface UnifiedConfigFileCandidate {
 	directoryPath: string;
 	fileName: string;
 	filePath: string;
+	folder?: string;
 }
 
 export interface UnifiedConfigDefinition<
@@ -421,6 +428,7 @@ export class UnifiedConfigFileWatcher<
 						fileName,
 						filePath,
 						content,
+						folder: candidate.folder,
 					};
 					const parsed = definition.parseFile(context);
 					const id = definition.resolveId(parsed, context).trim();

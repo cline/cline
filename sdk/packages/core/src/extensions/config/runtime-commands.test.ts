@@ -64,6 +64,40 @@ Run the release workflow.`,
 		}
 	});
 
+	it("exposes the grouping folder of nested skills on runtime commands", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
+		tempRoots.push(tempRoot);
+		const skillsDir = join(tempRoot, "skills");
+		const nestedSkillDir = join(skillsDir, "frontend", "react-review");
+		await mkdir(nestedSkillDir, { recursive: true });
+		await writeFile(join(nestedSkillDir, "SKILL.md"), "Review React code.");
+
+		const watcher = createUserInstructionConfigWatcher({
+			skills: { directories: [skillsDir] },
+			rules: { directories: [] },
+			workflows: { directories: [] },
+		});
+
+		try {
+			await watcher.refreshAll();
+			expect(listAvailableRuntimeCommandsFromWatcher(watcher)).toEqual([
+				{
+					id: "react-review",
+					name: "react-review",
+					description: "Review React code.",
+					instructions: "Review React code.",
+					kind: "skill",
+					folder: "frontend",
+				},
+			]);
+			expect(
+				resolveRuntimeSlashCommandFromWatcher("/react-review now", watcher),
+			).toBe("Review React code. now");
+		} finally {
+			watcher.stop();
+		}
+	});
+
 	it("prefers the skill when a workflow name collides and ignores disabled entries", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "core-runtime-commands-"));
 		tempRoots.push(tempRoot);
