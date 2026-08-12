@@ -110,7 +110,7 @@ describe("AgentAskQuestion", () => {
 		const labels = [...container.querySelectorAll("button")].map(
 			(button) => button.textContent,
 		);
-		expect(labels).toEqual(["AYes", "BNo", "Submit"]);
+		expect(labels).toEqual(["AYes", "BNo", "Submit⮐"]);
 	});
 
 	it("labels choices alphabetically without changing the submitted answer", async () => {
@@ -140,6 +140,43 @@ describe("AgentAskQuestion", () => {
 		await act(async () => buttons[1]?.click());
 		expect(onAnswer).not.toHaveBeenCalled();
 		await act(async () => buttons[2]?.click());
+		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
+	});
+
+	it("selects lettered options and submits with Enter", async () => {
+		const onAnswer = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["First", "Second"],
+							question: "Choose",
+						},
+					]}
+					onAnswer={onAnswer}
+				/>,
+			),
+		);
+
+		const item = container.querySelector<HTMLElement>(
+			".cline-ui-agent-ask-question__item",
+		);
+		const options = container.querySelectorAll("button");
+		await act(async () => {
+			item?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "b" }),
+			);
+		});
+		expect(options[1]?.getAttribute("aria-pressed")).toBe("true");
+		expect(onAnswer).not.toHaveBeenCalled();
+
+		await act(async () => {
+			item?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			);
+		});
 		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
 	});
 
