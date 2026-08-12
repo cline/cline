@@ -67,18 +67,6 @@ export function resetTelemetryService(): void {
 	_initializationPromise = null
 }
 
-/**
- * Pre-seed the singleton with an already-constructed instance (testing only).
- * This keeps fire-and-forget calls through the `telemetryService` proxy from
- * ever entering the async TelemetryService.create() path, so they settle
- * deterministically within the current microtask queue and never touch real
- * infrastructure (e.g. HostProvider) after test stubs are restored.
- */
-export function injectTelemetryServiceForTest(service: TelemetryService): void {
-	_telemetryServiceInstance = service
-	_initializationPromise = null
-}
-
 export const telemetryService = new Proxy({} as TelemetryService, {
 	get(_target, prop, _receiver) {
 		// Return a function that will call the method on the actual service

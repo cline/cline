@@ -11,27 +11,6 @@ import { fetch, getAxiosSettings } from "@/shared/net"
 import { Logger } from "@/shared/services/Logger"
 import { type ClineAccountUserInfo, type ClineAuthInfo } from "../AuthService"
 import { parseJwtPayload } from "../oca/utils/utils"
-
-/**
- * Discriminated outcome of retrieveClineAuthInfo(). The value and the reason
- * travel together atomically so overlapping retrievals cannot misattribute
- * failures, and callers map each outcome to telemetry explicitly.
- */
-export type ClineAuthRetrieveResult =
-	/** A usable session was restored (possibly stale on transient refresh failures). */
-	| { kind: "success"; authInfo: ClineAuthInfo }
-	/** Nothing is stored — e.g. API-key users on every window open. Not a logout. */
-	| { kind: "no_stored_session" }
-	/** The stored refresh token was rejected as invalid/expired; the stored session was cleared. */
-	| { kind: "token_invalid" }
-	/** A stored session exists but could not be restored (malformed data or an unexpected error). */
-	| { kind: "restore_error" }
-	/**
-	 * A stored session exists and was deliberately left intact, but no usable
-	 * auth info is available right now (rollout stand-down, refresh-retry
-	 * cooldown). Neither a logout nor a signed-out machine.
-	 */
-	| { kind: "session_retained" }
 import { notifyRolloutStanddown, shouldStandDownAuth } from "../rollout-standdown"
 
 interface ClineAuthApiUser {
@@ -180,12 +159,10 @@ export class ClineAuthProvider {
 
 	/**
 	 * Retrieves Cline auth info using the stored access token.
-	 *
-	 * Never throws: every outcome (including failures) is reported through the
-	 * discriminated result so callers get the value and the reason atomically.
 	 * @param controller - The controller instance to access stored secrets.
+	 * @returns {Promise<ClineAuthInfo | null>} A promise that resolves with the auth info or null.
 	 */
-	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthRetrieveResult> {
+	async retrieveClineAuthInfo(controller: Controller): Promise<ClineAuthInfo | null> {
 		try {
 			// Get the stored auth data from secure storage
 			const storedAuthDataString = controller.stateManager.getSecretKey("cline:clineAccountId")
@@ -195,7 +172,7 @@ export class ClineAuthProvider {
 				// Reset retry count when there's no stored auth
 				this.refreshRetryCount = 0
 				this.lastRefreshAttempt = 0
-				return { kind: "no_stored_session" }
+				return null
 			}
 
 			// Parse the stored auth data
@@ -204,13 +181,11 @@ export class ClineAuthProvider {
 				storedAuthData = JSON.parse(storedAuthDataString)
 			} catch (e) {
 				Logger.error("Failed to parse stored auth data:", e)
-				this.clearSession(controller, "Failed to parse stored auth data")
-				return { kind: "restore_error" }
+				return this.clearSession(controller, "Failed to parse stored auth data")
 			}
 
 			if (!storedAuthData.refreshToken || !storedAuthData?.idToken) {
-				this.clearSession(controller, "No refresh token or ID token found in store", storedAuthData)
-				return { kind: "restore_error" }
+				return this.clearSession(controller, "No refresh token or ID token found in store", storedAuthData)
 			}
 
 			if (await this.shouldRefreshIdToken(storedAuthData.refreshToken, storedAuthData.expiresAt)) {
@@ -224,11 +199,11 @@ export class ClineAuthProvider {
 				// intact.
 				if (shouldStandDownAuth()) {
 					if (this.timeUntilExpiry(storedAuthData.idToken) > 30) {
-						return { kind: "success", authInfo: storedAuthData }
+						return storedAuthData
 					}
 					Logger.debug("Rollout stand-down: suppressing token refresh in legacy straggler window")
 					notifyRolloutStanddown()
-					return { kind: "session_retained" }
+					return null
 				}
 
 				// If the token hasn't expired yet,
@@ -238,7 +213,7 @@ export class ClineAuthProvider {
 				if (this.refreshRetryCount > 0 && this.timeUntilExpiry(storedAuthData.idToken) > 30) {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
-					return { kind: "success", authInfo: storedAuthData }
+					return storedAuthData
 				}
 
 				// Check if we need to wait before retrying
@@ -248,14 +223,14 @@ export class ClineAuthProvider {
 					Logger.debug(
 						`Waiting ${Math.ceil((this.RETRY_DELAY_MS - timeSinceLastAttempt) / 1000)}s before retry attempt ${this.refreshRetryCount + 1}/${this.MAX_REFRESH_RETRIES}`,
 					)
-					return { kind: "session_retained" }
+					return null
 				}
 
 				// Check if we've exceeded max retries
 				if (this.refreshRetryCount >= this.MAX_REFRESH_RETRIES) {
 					Logger.error(`Max refresh retries (${this.MAX_REFRESH_RETRIES}) exceeded.`)
 					// Don't clear session - return stored data and let API request fail later
-					return { kind: "success", authInfo: storedAuthData }
+					return storedAuthData
 				}
 
 				// Try to refresh the token using the refresh token
@@ -276,7 +251,7 @@ export class ClineAuthProvider {
 					this.refreshRetryCount = 0
 					this.lastRefreshAttempt = 0
 					Logger.debug("Token refresh successful")
-					return { kind: "success", authInfo }
+					return authInfo || null
 				} catch (refreshError) {
 					Logger.error(
 						`Token refresh failed (attempt ${this.refreshRetryCount}/${this.MAX_REFRESH_RETRIES}):`,
@@ -286,12 +261,13 @@ export class ClineAuthProvider {
 					// If it's an invalid token error, clear immediately and don't retry
 					if (refreshError instanceof AuthInvalidTokenError) {
 						this.clearSession(controller, "Invalid or expired refresh token. Clearing auth state.", storedAuthData)
-						return { kind: "token_invalid" }
+
+						throw refreshError
 					}
 
 					// For network errors, return stored data - let the API request fail later
 					// when the user actually tries to use Cline, not at startup
-					return { kind: "success", authInfo: storedAuthData }
+					return storedAuthData
 				}
 			}
 
@@ -301,7 +277,7 @@ export class ClineAuthProvider {
 
 			// Is the token valid?
 			if (storedAuthData.idToken && storedAuthData.refreshToken && storedAuthData.userInfo.id) {
-				return { kind: "success", authInfo: storedAuthData }
+				return storedAuthData
 			}
 
 			// Verify the token structure
@@ -315,16 +291,15 @@ export class ClineAuthProvider {
 			if (payload.external_id) {
 				storedAuthData.userInfo.id = payload.external_id
 			}
-			return { kind: "success", authInfo: storedAuthData }
+			return storedAuthData
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
-			if (error instanceof AuthInvalidTokenError) {
-				return { kind: "token_invalid" }
-			}
 			// Reset retry count on unexpected errors
-			this.refreshRetryCount = 0
-			this.lastRefreshAttempt = 0
-			return { kind: "restore_error" }
+			if (!(error instanceof AuthInvalidTokenError)) {
+				this.refreshRetryCount = 0
+				this.lastRefreshAttempt = 0
+			}
+			return null
 		}
 	}
 

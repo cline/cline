@@ -9,8 +9,9 @@ import { telemetryService } from "@/services/telemetry"
 import { Logger } from "@/shared/services/Logger"
 import { openExternal } from "@/utils/env"
 import { BannerService } from "../banner/BannerService"
+import { AuthInvalidTokenError, AuthNetworkError } from "../error/ClineError"
 import { featureFlagsService } from "../feature-flags"
-import { ClineAuthProvider, type ClineAuthRetrieveResult } from "./providers/ClineAuthProvider"
+import { ClineAuthProvider } from "./providers/ClineAuthProvider"
 import { notifyRolloutStanddown, shouldStandDownAuth } from "./rollout-standdown"
 import { LogoutReason } from "./types"
 
@@ -174,22 +175,26 @@ export class AuthService {
 					let authStatusChanged = false
 
 					try {
-						const result = await provider.retrieveClineAuthInfo(this._controller)
-						if (result.kind === "success") {
-							this._clineAuthInfo = result.authInfo
+						const updatedAuthInfo = await provider.retrieveClineAuthInfo(this._controller)
+						if (updatedAuthInfo) {
+							this._clineAuthInfo = updatedAuthInfo
 							this._authenticated = true
-							clineAccountAuthToken = result.authInfo.idToken
+							clineAccountAuthToken = updatedAuthInfo.idToken
 							authStatusChanged = true
-						} else if (result.kind === "token_invalid") {
-							// Telemetry only: the refresh token was rejected
-							// mid-session, so the user has effectively lost
-							// their session even though the provider left
-							// caller state untouched. Report the involuntary
-							// logout without altering behavior. (Transient
-							// network failures surface as a success carrying
-							// stale data; the expiry check in getAuthToken()
-							// handles those.)
+						}
+					} catch (error) {
+						// Only log out for permanent auth failures, not network issues
+						if (error instanceof AuthInvalidTokenError) {
+							Logger.error("Token is invalid or expired:", error)
+							this._clineAuthInfo = null
+							this._authenticated = false
 							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
+							authStatusChanged = true
+						} else if (error instanceof AuthNetworkError) {
+							Logger.error("Network error refreshing token", error)
+							// Keep existing auth info, will retry on next getAuthToken() call
+						} else {
+							throw error // Re-throw unexpected errors
 						}
 					} finally {
 						this._refreshPromise = null
@@ -317,61 +322,29 @@ export class AuthService {
 	 * This is typically called when the extension is activated.
 	 */
 	async restoreRefreshTokenAndRetrieveAuthInfo(): Promise<void> {
-		let result: ClineAuthRetrieveResult
 		try {
-			result = await this.retrieveAuthInfo()
+			this._clineAuthInfo = await this.retrieveAuthInfo()
+			if (this._clineAuthInfo) {
+				this._authenticated = true
+				await this.sendAuthStatusUpdate()
+			} else {
+				Logger.warn("No user found after restoring auth token")
+				this._authenticated = false
+				this._clineAuthInfo = null
+				// Fires on every window open for users with no stored session
+				// (e.g. API-key users) — not a logout, hence the dedicated reason.
+				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.NO_STORED_SESSION)
+			}
 		} catch (error) {
-			// The provider maps its own failures into the result and never
-			// throws, so this only fires when restore genuinely never ran
-			// (e.g. waiting on a concurrent refresh blew up).
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
 			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
 			return
 		}
-
-		if (result.kind === "success") {
-			this._clineAuthInfo = result.authInfo
-			this._authenticated = true
-			try {
-				await this.sendAuthStatusUpdate()
-			} catch (error) {
-				// A status-broadcast failure after a successful restore is not
-				// a restore failure: keep the session and don't count it as
-				// restore_error.
-				Logger.error("Error sending auth status update after restore:", error)
-			}
-			return
-		}
-
-		Logger.warn("No user found after restoring auth token")
-		this._authenticated = false
-		this._clineAuthInfo = null
-		switch (result.kind) {
-			case "no_stored_session":
-				// Fires on every window open for users with no stored Cline
-				// session (e.g. API-key users) — a signed-out population
-				// signal, not a logout.
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.NO_STORED_SESSION)
-				break
-			case "token_invalid":
-				// The stored refresh token was rejected — a real involuntary
-				// logout.
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
-				break
-			case "restore_error":
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
-				break
-			case "session_retained":
-				// The stored session was deliberately left intact (rollout
-				// stand-down / refresh cooldown): neither a logout nor a
-				// signed-out machine, so no event.
-				break
-		}
 	}
 
-	private async retrieveAuthInfo(): Promise<ClineAuthRetrieveResult> {
+	private async retrieveAuthInfo(): Promise<ClineAuthInfo | null> {
 		// If a refresh is already in progress, wait for it to complete
 		if (this._refreshPromise) {
 			Logger.info("Token refresh already in progress, waiting for completion")
