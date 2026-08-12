@@ -208,7 +208,7 @@ describe("SpeechInput", () => {
 		);
 		expect(button?.disabled).toBe(false);
 		expect(onActiveChange).toHaveBeenLastCalledWith(false);
-		expect(button?.querySelector(".lucide-audio-lines")).not.toBeNull();
+		expect(button?.querySelector(".lucide-mic")).not.toBeNull();
 		expect(button?.querySelector(".lucide-square")).toBeNull();
 
 		await act(async () => {
@@ -220,10 +220,10 @@ describe("SpeechInput", () => {
 		expect(button?.getAttribute("aria-label")).toBe("Stop recording");
 		expect(button?.title).toBe("Stop recording");
 		expect(
-			button?.querySelector(".lucide-audio-lines")?.getAttribute("class"),
+			button?.querySelector(".lucide-mic")?.getAttribute("class"),
 		).toContain("animate-pulse");
 		expect(
-			button?.querySelector(".lucide-audio-lines")?.getAttribute("class"),
+			button?.querySelector(".lucide-mic")?.getAttribute("class"),
 		).toContain("group-hover:opacity-0");
 		expect(
 			button?.querySelector(".lucide-square")?.getAttribute("class"),
