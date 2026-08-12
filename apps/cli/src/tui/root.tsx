@@ -40,6 +40,7 @@ import {
 	findCommandPaletteShortcut,
 } from "./components/dialogs/command-palette-items";
 import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
+import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -570,11 +571,13 @@ function App(props: TuiProps) {
 
 	const [hubBuildMismatch, setHubBuildMismatch] =
 		useState<ManagedHubBuildMismatchEvent | null>(null);
+	const hubBuildWatchEnabled = shouldWatchManagedHubBuild(props.config);
 	useEffect(() => {
+		if (!hubBuildWatchEnabled) return;
 		return watchManagedHubBuildMismatch({
 			onMismatch: (mismatch) => setHubBuildMismatch(mismatch),
 		});
-	}, []);
+	}, [hubBuildWatchEnabled]);
 
 	const onHubUpdateRestart = props.onHubUpdateRestart;
 	useEffect(() => {
