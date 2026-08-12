@@ -1,5 +1,16 @@
-import type { AgentEvent } from "@cline/shared";
+import type {
+	ApiHandler,
+	ApiStreamChunk,
+	HandlerModelInfo,
+	Message,
+} from "@cline/llms";
+import type {
+	AgentEvent,
+	AgentModelRequest,
+	AgentRuntimeStateSnapshot,
+} from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import { RuntimeEventAdapter } from "../runtime/orchestration/runtime-event-adapter";
 import type { CoreSessionConfig } from "../types/config";
 import type { ActiveSession } from "../types/session";
 import {
@@ -7,6 +18,7 @@ import {
 	handleAgentEvent,
 	legacyTokenUsageFromUsageEvent,
 } from "./agent-events";
+import { createAgentModelFromApiHandler } from "./llms/apihandler-agent-model-adapter";
 import { TelemetryService } from "./telemetry/TelemetryService";
 import { createInitialAccumulatedUsage } from "./usage";
 
@@ -111,9 +123,13 @@ describe("legacyTokenUsageFromUsageEvent", () => {
 		});
 	});
 
-	it("clamps at zero for providers whose inputTokens is already uncached-only", () => {
-		// ApiHandler-backed providers (legacy handler chunks) report
-		// inputTokens exclusive of cache tokens already.
+	it("clamps at zero as a defensive guard against out-of-contract usage", () => {
+		// Every producer is required to report cache-INCLUSIVE inputTokens
+		// (see AgentTokenUsage in @cline/shared; classic disjoint ApiHandler
+		// chunks are normalized in apihandler-agent-model-adapter.ts). An
+		// event violating that invariant must not produce a negative bucket,
+		// but the clamp is a last-resort guard, not a supported shape — the
+		// fix for data like this belongs at the producer boundary.
 		expect(
 			legacyTokenUsageFromUsageEvent(
 				usageEvent({
@@ -192,5 +208,86 @@ describe("handleAgentEvent task.tokens emission", () => {
 		);
 
 		expect(tokenUsageEmits(adapter)).toHaveLength(0);
+	});
+
+	it("round-trips a registered ApiHandler's disjoint usage chunk into task.tokens", async () => {
+		// Boundary test across the whole producer-to-telemetry path: a classic
+		// disjoint ApiStreamUsageChunk (inputTokens = uncached input only) is
+		// normalized to the canonical cache-inclusive AgentUsage by
+		// createAgentModelFromApiHandler, accumulated into the run snapshot the
+		// way AgentRuntime.updateUsage does, re-derived into a per-request
+		// delta by RuntimeEventAdapter, and finally translated back to legacy
+		// disjoint buckets for task.tokens — which must report the original
+		// chunk values, not a clamped zero.
+		const handler: ApiHandler = {
+			getMessages: () => [],
+			getModel: (): HandlerModelInfo => ({ id: "m", info: { id: "m" } }),
+			async *createMessage(
+				_system: string,
+				_messages: Message[],
+			): AsyncGenerator<ApiStreamChunk> {
+				yield {
+					type: "usage",
+					inputTokens: 100,
+					outputTokens: 5,
+					cacheReadTokens: 9000,
+					id: "req-1",
+				};
+			},
+		};
+		const request: AgentModelRequest = {
+			systemPrompt: "sys",
+			messages: [
+				{
+					id: "1",
+					role: "user",
+					content: [{ type: "text", text: "hi" }],
+					createdAt: 0,
+				},
+			],
+			tools: [],
+		};
+		const model = createAgentModelFromApiHandler(handler);
+		const modelEvents = [];
+		for await (const event of await model.stream(request)) {
+			modelEvents.push(event);
+		}
+		const usage = modelEvents.find((event) => event.type === "usage");
+		if (usage?.type !== "usage") throw new Error("no usage event");
+
+		// Accumulate into the run snapshot exactly like AgentRuntime.updateUsage
+		// (zero-initialized state plus `?? 0` defaults; for the first request
+		// the snapshot equals the event).
+		const runtimeAdapter = new RuntimeEventAdapter();
+		const agentEvents = runtimeAdapter.translate({
+			type: "usage-updated",
+			snapshot: {} as AgentRuntimeStateSnapshot,
+			usage: {
+				inputTokens: usage.usage.inputTokens ?? 0,
+				outputTokens: usage.usage.outputTokens ?? 0,
+				cacheReadTokens: usage.usage.cacheReadTokens ?? 0,
+				cacheWriteTokens: usage.usage.cacheWriteTokens ?? 0,
+				reasoningTokenCount: usage.usage.reasoningTokenCount ?? 0,
+				totalCost: usage.usage.totalCost ?? 0,
+			},
+		});
+
+		const { adapter, telemetry } = createTelemetryHarness();
+		const ctx = createContext(telemetry);
+		for (const agentEvent of agentEvents) {
+			handleAgentEvent(ctx, agentEvent, {
+				agentId: "agent-root",
+				isPrimaryAgentEvent: true,
+			});
+		}
+
+		const emits = tokenUsageEmits(adapter);
+		expect(emits).toHaveLength(1);
+		expect(emits[0][1]).toMatchObject({
+			tokensIn: 100,
+			tokensOut: 5,
+			cacheReadTokens: 9000,
+			cacheWriteTokens: 0,
+		});
 	});
 });

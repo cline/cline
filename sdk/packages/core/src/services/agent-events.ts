@@ -131,9 +131,14 @@ function usageDeltaFromEvent(event: Extract<AgentEvent, { type: "usage" }>) {
  * `tokensIn` unchanged re-reports the whole (mostly cached) conversation
  * context on every request, so per-task sums re-count the same context
  * tokens once per request. This helper translates to the legacy disjoint
- * buckets (mirroring the webview's `normalizeUsageEvent`). The clamp keeps
- * ApiHandler-backed providers — whose `inputTokens` is already uncached-only
- * — from going negative.
+ * buckets (mirroring the webview's `normalizeUsageEvent`).
+ *
+ * The subtraction is valid for every producer because the cache-inclusive
+ * invariant is enforced at the producer boundaries: native AI SDK usage
+ * follows it by construction, and registered `ApiHandler` chunks (classic
+ * disjoint shape) are normalized in `apihandler-agent-model-adapter.ts`.
+ * The clamp is a defensive guard against out-of-contract data only — it
+ * must never be relied on to fix up a producer.
  */
 export function legacyTokenUsageFromUsageEvent(
 	event: Extract<AgentEvent, { type: "usage" }>,

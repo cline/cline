@@ -77,6 +77,15 @@ export type AgentMessagePart =
 export type AgentMessageRole = "user" | "assistant" | "tool";
 
 export interface AgentTokenUsage {
+	/**
+	 * Full prompt size for the request, INCLUDING any cache-read/cache-write
+	 * portions (the AI SDK convention). `cacheReadTokens` and
+	 * `cacheWriteTokens` are subsets of this value, not additional input.
+	 * Every producer must satisfy this invariant — classic disjoint
+	 * `ApiHandler` usage chunks are normalized at the adapter boundary
+	 * (`apihandler-agent-model-adapter.ts` in @cline/core). Consumers that
+	 * want uncached input only must subtract the cache buckets.
+	 */
 	inputTokens: number;
 	outputTokens: number;
 	cacheReadTokens: number;
