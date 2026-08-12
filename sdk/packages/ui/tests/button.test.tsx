@@ -74,7 +74,14 @@ describe("Button", () => {
 		const onClick = vi.fn();
 		const onClickCapture = vi.fn();
 		await render(
-			<Button asChild disabled onClick={onClick}>
+			<Button
+				aria-disabled={false}
+				asChild
+				data-disabled="consumer-value"
+				disabled
+				onClick={onClick}
+				tabIndex={0}
+			>
 				<a
 					href="/settings"
 					onClick={onClick}
@@ -118,7 +125,15 @@ describe("IconButton", () => {
 		const onClick = vi.fn();
 		const onClickCapture = vi.fn();
 		await render(
-			<IconButton aria-label="Remove item" asChild disabled onClick={onClick}>
+			<IconButton
+				aria-disabled={false}
+				aria-label="Remove item"
+				asChild
+				data-disabled="consumer-value"
+				disabled
+				onClick={onClick}
+				tabIndex={0}
+			>
 				<a
 					href="/remove"
 					onClick={onClick}
@@ -130,6 +145,7 @@ describe("IconButton", () => {
 		);
 		const link = container.querySelector<HTMLAnchorElement>("a");
 		expect(link?.getAttribute("aria-disabled")).toBe("true");
+		expect(link?.getAttribute("data-disabled")).toBe("");
 		expect(link?.getAttribute("disabled")).toBeNull();
 		expect(link?.tabIndex).toBe(-1);
 		await act(async () => link?.click());

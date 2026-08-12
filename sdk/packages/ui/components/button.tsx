@@ -160,6 +160,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		const Comp = asChild ? Slot : "button";
 		return (
 			<Comp
+				{...props}
 				className={clsx(buttonVariants({ size, tone, variant }), className)}
 				data-slot="button"
 				ref={ref}
@@ -174,7 +175,6 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 							}
 						: { onClick, onClickCapture }
 					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
-				{...props}
 			>
 				{asChild && disabled ? disableComposedChild(children) : children}
 			</Comp>
@@ -296,6 +296,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 		const Comp = asChild ? Slot : "button";
 		return (
 			<Comp
+				{...props}
 				className={clsx(iconButtonVariants({ size, tone, variant }), className)}
 				data-slot="icon-button"
 				ref={ref}
@@ -310,7 +311,6 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 							}
 						: { onClick, onClickCapture }
 					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
-				{...props}
 			>
 				{asChild && disabled ? disableComposedChild(children) : children}
 			</Comp>
