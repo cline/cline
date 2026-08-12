@@ -31,8 +31,11 @@ export class RunCommandExecutionController {
 			) {
 				continue;
 			}
-			if (command.detach()) {
-				detachedCount += 1;
+			try {
+				if (command.detach()) detachedCount += 1;
+			} catch {
+				// Detaching one command can fail while preparing its log. Continue so
+				// parallel commands from the same tool call still get a chance to detach.
 			}
 		}
 		return detachedCount;

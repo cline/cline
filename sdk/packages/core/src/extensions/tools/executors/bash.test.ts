@@ -40,6 +40,16 @@ async function fileExists(path: string): Promise<boolean> {
 	}
 }
 
+function detachedCommandMarker(pid: number, processStartToken: string): string {
+	return `${JSON.stringify({
+		version: 1,
+		executionId: `execution-${pid}`,
+		pid,
+		processStartToken,
+		detachedAtMs: Date.now(),
+	})}\n`;
+}
+
 describe("createShellExecutor", () => {
 	it("runs a simple command and returns stdout", async () => {
 		const shell = createShellExecutor();
@@ -136,21 +146,28 @@ describe("createShellExecutor", () => {
 
 	it("releases a detachable command while it continues in the background", async () => {
 		const controller = new RunCommandExecutionController();
-		let resolveStarted: (() => void) | undefined;
-		const started = new Promise<void>((resolve) => {
-			resolveStarted = resolve;
+		let commandStarted = false;
+		let detachReady = false;
+		const detachabilityUpdates: boolean[] = [];
+		let resolveDetachReady: (() => void) | undefined;
+		const readyToDetach = new Promise<void>((resolve) => {
+			resolveDetachReady = resolve;
 		});
+		const resolveWhenReady = () => {
+			if (commandStarted && detachReady) resolveDetachReady?.();
+		};
 		const shell = createShellExecutor({
 			timeoutMs: 2_000,
 			executionController: controller,
 			detachedLogRetentionMs: 250,
+			processStartTokenReader: (pid) => `test-process-${pid}`,
 		});
 		const execution = shell(
 			{
 				command: process.execPath,
 				args: [
 					"-e",
-					"process.stdout.write(`started:${process.pid}\\n`); setTimeout(() => process.stdout.write('finished\\n'), 300)",
+					"process.stdout.write('started:' + process.pid + '\\n'); setTimeout(() => process.stdout.write('finished\\n'), 300)",
 				],
 			},
 			process.cwd(),
@@ -160,17 +177,24 @@ describe("createShellExecutor", () => {
 				toolCallId: "call-detach",
 				emitUpdate: (update) => {
 					const payload = update as Record<string, unknown>;
+					if (typeof payload.detachable === "boolean") {
+						detachabilityUpdates.push(payload.detachable);
+					}
 					if (
 						typeof payload.chunk === "string" &&
 						payload.chunk.startsWith("started:")
 					) {
-						resolveStarted?.();
+						commandStarted = true;
 					}
+					if (payload.detachable === true) detachReady = true;
+					resolveWhenReady();
 				},
 			},
 		);
 
-		await started;
+		await readyToDetach;
+		expect(detachabilityUpdates[0]).toBe(false);
+		expect(detachabilityUpdates).toContain(true);
 		expect(controller.proceedWhileRunning("session-detach", "other-call")).toBe(
 			0,
 		);
@@ -187,15 +211,55 @@ describe("createShellExecutor", () => {
 		if (!commandPid) throw new Error("Expected detached command pid");
 		try {
 			expect(await fileExists(dirname(logPath))).toBe(true);
-			expect(
-				await readFile(join(dirname(logPath), "active-command-pid"), "utf8"),
-			).toBe(commandPid);
+			const activeCommand = JSON.parse(
+				await readFile(join(dirname(logPath), "active-command.json"), "utf8"),
+			) as Record<string, unknown>;
+			expect(activeCommand).toEqual({
+				version: 1,
+				executionId: expect.any(String),
+				pid: Number(commandPid),
+				processStartToken: expect.any(String),
+				detachedAtMs: expect.any(Number),
+			});
 			await new Promise((resolve) => setTimeout(resolve, 350));
 			expect(await fileExists(logPath)).toBe(true);
 			await expect.poll(() => fileExists(dirname(logPath))).toBe(false);
 		} finally {
 			await rm(dirname(logPath), { recursive: true, force: true });
 		}
+	});
+
+	it("does not advertise detachment when process identity cannot be captured", async () => {
+		const controller = new RunCommandExecutionController();
+		const detachabilityUpdates: boolean[] = [];
+		const shell = createShellExecutor({
+			executionController: controller,
+			processStartTokenReader: async () => {
+				throw new Error("identity unavailable");
+			},
+		});
+
+		await expect(
+			shell(
+				{
+					command: process.execPath,
+					args: ["-e", "process.stdout.write('done')"],
+				},
+				process.cwd(),
+				{
+					...ctx,
+					sessionId: "session-no-identity",
+					emitUpdate: (update) => {
+						const detachable = (update as Record<string, unknown>).detachable;
+						if (typeof detachable === "boolean") {
+							detachabilityUpdates.push(detachable);
+						}
+					},
+				},
+			),
+		).resolves.toBe("done");
+		expect(detachabilityUpdates).not.toContain(true);
+		expect(controller.proceedWhileRunning("session-no-identity")).toBe(0);
 	});
 
 	it("reaps stale detached logs left by a previous Hub process", async () => {
@@ -245,14 +309,20 @@ describe("createShellExecutor", () => {
 		);
 		const liveDirectory = join(tempDirectory, "cline-command-live");
 		const completedDirectory = join(tempDirectory, "cline-command-completed");
-		let liveCommandRunning = true;
+		let liveProcessStartToken: string | undefined = "process-101";
 		try {
 			await Promise.all([mkdir(liveDirectory), mkdir(completedDirectory)]);
 			await Promise.all([
 				writeFile(join(liveDirectory, "output.log"), "silent but running"),
-				writeFile(join(liveDirectory, "active-command-pid"), "101"),
+				writeFile(
+					join(liveDirectory, "active-command.json"),
+					detachedCommandMarker(101, "process-101"),
+				),
 				writeFile(join(completedDirectory, "output.log"), "completed"),
-				writeFile(join(completedDirectory, "active-command-pid"), "202"),
+				writeFile(
+					join(completedDirectory, "active-command.json"),
+					detachedCommandMarker(202, "process-202"),
+				),
 			]);
 
 			await expect(
@@ -261,16 +331,17 @@ describe("createShellExecutor", () => {
 					tempDirectory,
 					retentionMs: 250,
 					nowMs: Date.now(),
-					isProcessAlive: (pid) => pid === 101 && liveCommandRunning,
+					processStartTokenReader: (pid) =>
+						pid === 101 ? liveProcessStartToken : undefined,
 				}),
 			).resolves.toBe(0);
 			expect(await fileExists(liveDirectory)).toBe(true);
-			expect(await fileExists(join(liveDirectory, "active-command-pid"))).toBe(
+			expect(await fileExists(join(liveDirectory, "active-command.json"))).toBe(
 				true,
 			);
 			expect(await fileExists(completedDirectory)).toBe(true);
 			expect(
-				await fileExists(join(completedDirectory, "active-command-pid")),
+				await fileExists(join(completedDirectory, "active-command.json")),
 			).toBe(false);
 			expect(await fileExists(join(completedDirectory, "completed-at"))).toBe(
 				true,
@@ -278,12 +349,85 @@ describe("createShellExecutor", () => {
 			await expect.poll(() => fileExists(completedDirectory)).toBe(false);
 			expect(await fileExists(liveDirectory)).toBe(true);
 
-			liveCommandRunning = false;
+			liveProcessStartToken = undefined;
 			await expect
-				.poll(() => fileExists(join(liveDirectory, "active-command-pid")))
+				.poll(() => fileExists(join(liveDirectory, "active-command.json")))
 				.toBe(false);
 			expect(await fileExists(join(liveDirectory, "completed-at"))).toBe(true);
 			await expect.poll(() => fileExists(liveDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("does not treat a reused PID as the detached command", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-pid-reuse-"),
+		);
+		const reusedPidDirectory = join(tempDirectory, "cline-command-reused-pid");
+		try {
+			await mkdir(reusedPidDirectory);
+			await Promise.all([
+				writeFile(join(reusedPidDirectory, "output.log"), "old command"),
+				writeFile(
+					join(reusedPidDirectory, "active-command.json"),
+					detachedCommandMarker(303, "original-process"),
+				),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					tempDirectory,
+					retentionMs: 100,
+					nowMs: Date.now(),
+					processStartTokenReader: (pid) =>
+						pid === 303 ? "replacement-process" : undefined,
+				}),
+			).resolves.toBe(0);
+			expect(await fileExists(reusedPidDirectory)).toBe(true);
+			expect(
+				await fileExists(join(reusedPidDirectory, "active-command.json")),
+			).toBe(false);
+			expect(await fileExists(join(reusedPidDirectory, "completed-at"))).toBe(
+				true,
+			);
+			await expect.poll(() => fileExists(reusedPidDirectory)).toBe(false);
+		} finally {
+			await rm(tempDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it("honors completion written before a leftover active marker", async () => {
+		const tempDirectory = await mkdtemp(
+			join(tmpdir(), "detached-log-completion-race-"),
+		);
+		const directory = join(tempDirectory, "cline-command-completion-race");
+		const completedAtMs = Date.now() - 1_000;
+		let processProbeCount = 0;
+		try {
+			await mkdir(directory);
+			await Promise.all([
+				writeFile(join(directory, "output.log"), "completed"),
+				writeFile(
+					join(directory, "active-command.json"),
+					detachedCommandMarker(404, "process-404"),
+				),
+				writeFile(join(directory, "completed-at"), String(completedAtMs)),
+			]);
+
+			await expect(
+				cleanupStaleDetachedCommandLogs({
+					tempDirectory,
+					retentionMs: 500,
+					nowMs: Date.now(),
+					processStartTokenReader: () => {
+						processProbeCount += 1;
+						return "process-404";
+					},
+				}),
+			).resolves.toBe(1);
+			expect(processProbeCount).toBe(0);
+			expect(await fileExists(directory)).toBe(false);
 		} finally {
 			await rm(tempDirectory, { recursive: true, force: true });
 		}

@@ -173,14 +173,16 @@ a bounded inspection window after the command exits, and then their temporary
 directories are removed. Every process that constructs a `LocalRuntimeHost`
 starts one detached-log reconciliation: it reaps completed logs outside the
 retention window, reschedules retained logs, and follows active detached-command
-PIDs until they exit, so cleanup does not depend on timers from the process that
-launched the command. Hub daemons and direct embedders therefore share the same
-detachment and restart lifecycle instead of relying on a daemon-specific
-entrypoint. Explicit command-PID and completion markers distinguish a live,
-possibly silent command from a completed log. A host exit alone never starts
-the retention window for a surviving command; the replacement host continues
-polling its PID and begins retention only after the command ends. A detached
-client connection alone never changes process ownership or command execution.
+identities until they exit, so cleanup does not depend on timers from the process
+that launched the command. Hub daemons and direct embedders therefore share the
+same detachment and restart lifecycle instead of relying on a daemon-specific
+entrypoint. Active-command markers pair the PID with a process-generation start
+token, preventing an unrelated process that later reuses the PID from extending
+the log lifetime. Completion markers distinguish a live, possibly silent command
+from a completed log. A host exit alone never starts the retention window for a
+surviving command; the replacement host continues polling the process identity
+and begins retention only after the command ends. A detached client connection
+alone never changes process ownership or command execution.
 
 Session history provenance keeps the client surface and initiation mode separate.
 `StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,

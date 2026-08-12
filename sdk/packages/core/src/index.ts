@@ -493,6 +493,10 @@ export type {
 	SessionRuntime,
 } from "./runtime/orchestration/session-runtime";
 export {
+	getProcessStartToken,
+	getProcessStartTokenAsync,
+} from "./runtime/process-start-token";
+export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
 	mergeRulesForSystemPrompt,

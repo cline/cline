@@ -10,10 +10,11 @@ import {
 	createWriteStream,
 	type Dirent,
 	mkdtempSync,
+	renameSync,
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { readdir, readFile, rm, stat, writeFile } from "node:fs/promises";
+import { readdir, readFile, rm, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { StringDecoder } from "node:string_decoder";
@@ -22,6 +23,7 @@ import {
 	getDefaultShell,
 	getShellInvocation,
 } from "@cline/shared";
+import { getProcessStartTokenAsync } from "../../../runtime/process-start-token";
 import { TimeoutError } from "../helpers";
 import type { ShellExecutor } from "../types";
 import {
@@ -35,19 +37,31 @@ const DEFAULT_DETACHED_LOG_RETENTION_MS = 24 * 60 * 60 * 1_000;
 const DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS = 60_000;
 const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
-const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command-pid";
+const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
 const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
 
 type CommandProgressStream = "stdout" | "stderr";
 
+export type ProcessStartTokenReader = (
+	pid: number,
+) => string | undefined | Promise<string | undefined>;
+
 export interface DetachedCommandLogCleanupOptions {
 	tempDirectory?: string;
 	retentionMs?: number;
 	nowMs?: number;
-	isProcessAlive?: (pid: number) => boolean;
+	processStartTokenReader?: ProcessStartTokenReader;
 	activeCommandPollIntervalMs?: number;
 }
+
+type DetachedCommandMarker = {
+	version: 1;
+	executionId: string;
+	pid: number;
+	processStartToken: string;
+	detachedAtMs: number;
+};
 
 function resolveDetachedLogRetentionMs(value: number | undefined): number {
 	return typeof value === "number" && Number.isFinite(value)
@@ -61,26 +75,78 @@ function resolveActiveCommandPollIntervalMs(value: number | undefined): number {
 		: DEFAULT_ACTIVE_COMMAND_POLL_INTERVAL_MS;
 }
 
-function isProcessAlive(pid: number): boolean {
-	if (!Number.isSafeInteger(pid) || pid <= 0) return false;
-	try {
-		process.kill(pid, 0);
-		return true;
-	} catch (error) {
-		return (
-			error instanceof Error &&
-			"code" in error &&
-			(error as NodeJS.ErrnoException).code === "EPERM"
-		);
-	}
-}
-
 type ResolvedDetachedCommandLogCleanupOptions = {
 	retentionMs: number;
 	nowMs: number;
-	checkProcessAlive: (pid: number) => boolean;
+	readProcessStartToken: ProcessStartTokenReader;
 	activeCommandPollIntervalMs: number;
 };
+
+function parseDetachedCommandMarker(
+	text: string,
+): DetachedCommandMarker | undefined {
+	try {
+		const marker = JSON.parse(text) as Partial<DetachedCommandMarker>;
+		if (
+			marker.version !== 1 ||
+			typeof marker.executionId !== "string" ||
+			marker.executionId.length === 0 ||
+			!Number.isSafeInteger(marker.pid) ||
+			(marker.pid ?? 0) <= 0 ||
+			typeof marker.processStartToken !== "string" ||
+			marker.processStartToken.length === 0 ||
+			typeof marker.detachedAtMs !== "number" ||
+			!Number.isFinite(marker.detachedAtMs) ||
+			marker.detachedAtMs < 0
+		) {
+			return undefined;
+		}
+		return marker as DetachedCommandMarker;
+	} catch {
+		return undefined;
+	}
+}
+
+function writeLifecycleMarker(path: string, text: string): void {
+	const temporaryPath = `${path}.${randomUUID()}.tmp`;
+	try {
+		writeFileSync(temporaryPath, text, "utf8");
+		try {
+			renameSync(temporaryPath, path);
+		} catch (error) {
+			// Windows does not replace an existing destination atomically. Existing
+			// lifecycle markers are only replaced when corrupt, so remove that
+			// unusable generation before installing the valid one.
+			if (
+				error instanceof Error &&
+				"code" in error &&
+				["EEXIST", "EPERM"].includes(
+					String((error as NodeJS.ErrnoException).code),
+				)
+			) {
+				rmSync(path, { force: true });
+				renameSync(temporaryPath, path);
+			} else {
+				throw error;
+			}
+		}
+	} finally {
+		rmSync(temporaryPath, { force: true });
+	}
+}
+
+function parseCompletedAtMs(
+	text: string | undefined,
+	nowMs: number,
+): number | undefined {
+	const normalized = text?.trim();
+	if (!normalized) return undefined;
+	const value = Number(normalized);
+	if (!Number.isFinite(value) || value < 0) return undefined;
+	// Clock rollback or corrupt future timestamps must not retain a log beyond
+	// one full inspection window from this reconciliation.
+	return Math.min(value, nowMs);
+}
 
 async function readOptionalTextFile(path: string): Promise<string | undefined> {
 	try {
@@ -106,25 +172,37 @@ async function reconcileDetachedCommandLogDirectory(
 		DETACHED_LOG_ACTIVE_COMMAND_FILENAME,
 	);
 	const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
+	const completedAtText = await readOptionalTextFile(completedAtPath);
+	let retentionStartedAtMs = parseCompletedAtMs(completedAtText, options.nowMs);
 	const activeCommandText = await readOptionalTextFile(activeCommandPath);
-	if (activeCommandText !== undefined) {
-		const commandPid = Number(activeCommandText.trim());
-		if (options.checkProcessAlive(commandPid)) {
-			// The detached command, rather than the host that launched it, owns the
-			// active lifecycle. It can outlive a Hub restart and remain silent for
-			// longer than the retention window without losing its advertised log.
-			scheduleActiveCommandLogReconciliation(directory, options);
-			return false;
+	if (retentionStartedAtMs !== undefined) {
+		// Completion is written before the active marker is removed. Treat it as
+		// authoritative after a host crash between those two operations.
+		if (activeCommandText !== undefined) {
+			await rm(activeCommandPath, { force: true });
 		}
-		await writeFile(completedAtPath, String(options.nowMs), "utf8");
+	} else if (activeCommandText !== undefined) {
+		const marker = parseDetachedCommandMarker(activeCommandText);
+		if (marker) {
+			const runningProcessStartToken = await options.readProcessStartToken(
+				marker.pid,
+			);
+			if (runningProcessStartToken === marker.processStartToken) {
+				// The detached command, rather than the host that launched it, owns the
+				// active lifecycle. Matching both PID and kernel start token prevents a
+				// later process that reuses the PID from extending this log's lifetime.
+				scheduleActiveCommandLogReconciliation(directory, options);
+				return false;
+			}
+		}
+		// Missing, mismatched, or unverifiable identity cannot safely prove this
+		// is still the original process. Begin bounded retention instead of
+		// falling back to PID-only polling.
+		writeLifecycleMarker(completedAtPath, String(options.nowMs));
 		await rm(activeCommandPath, { force: true });
+		retentionStartedAtMs = options.nowMs;
 	}
 
-	const completedAtText = await readOptionalTextFile(completedAtPath);
-	const recordedCompletedAtMs = Number(completedAtText?.trim());
-	let retentionStartedAtMs = Number.isFinite(recordedCompletedAtMs)
-		? recordedCompletedAtMs
-		: undefined;
 	if (retentionStartedAtMs === undefined) {
 		// Logs without lifecycle markers use their last write as a best-effort
 		// fallback so malformed or interrupted state cannot accumulate forever.
@@ -164,8 +242,8 @@ function scheduleActiveCommandLogReconciliation(
 /**
  * Reaps completed detached command logs outside the retention window,
  * schedules retained logs for their remaining lifetime, and follows active
- * command PIDs until they exit. Local runtime hosts call this at startup so
- * cleanup survives host exits and restarts instead of depending only on the
+ * command identities until they exit. Local runtime hosts call this at startup
+ * so cleanup survives host exits and restarts instead of depending only on the
  * process that launched the command.
  */
 export async function cleanupStaleDetachedCommandLogs(
@@ -174,7 +252,8 @@ export async function cleanupStaleDetachedCommandLogs(
 	const tempDirectory = options.tempDirectory ?? tmpdir();
 	const retentionMs = resolveDetachedLogRetentionMs(options.retentionMs);
 	const nowMs = options.nowMs ?? Date.now();
-	const checkProcessAlive = options.isProcessAlive ?? isProcessAlive;
+	const readProcessStartToken =
+		options.processStartTokenReader ?? getProcessStartTokenAsync;
 	const activeCommandPollIntervalMs = resolveActiveCommandPollIntervalMs(
 		options.activeCommandPollIntervalMs,
 	);
@@ -199,7 +278,7 @@ export async function cleanupStaleDetachedCommandLogs(
 				await reconcileDetachedCommandLogDirectory(directory, {
 					retentionMs,
 					nowMs,
-					checkProcessAlive,
+					readProcessStartToken,
 					activeCommandPollIntervalMs,
 				})
 			) {
@@ -279,6 +358,9 @@ export interface ShellExecutorOptions {
 	 * @default 24 hours
 	 */
 	detachedLogRetentionMs?: number;
+
+	/** Process identity provider used to enable safe command detachment. */
+	processStartTokenReader?: ProcessStartTokenReader;
 }
 
 interface SpawnConfig {
@@ -353,7 +435,7 @@ function createRollingCollector(maxChars: number) {
 function createCommandProgressEmitter(
 	context: AgentToolContext,
 	executionId: string,
-	detachable: boolean,
+	isDetachable: () => boolean,
 	maxOutputChars: number,
 ) {
 	const emitUpdate = context.emitUpdate;
@@ -403,7 +485,7 @@ function createCommandProgressEmitter(
 				stream,
 				chunk,
 				executionId,
-				detachable,
+				detachable: isDetachable(),
 				...(entry.droppedChars > 0
 					? { truncated: true, droppedChars: entry.droppedChars }
 					: {}),
@@ -465,7 +547,7 @@ function scheduleDetachedLogCleanup(
 	cleanupTimer.unref();
 }
 
-function createDetachedLog(retentionMs: number, commandPid: number) {
+function createDetachedLog(retentionMs: number, marker: DetachedCommandMarker) {
 	const directory = mkdtempSync(join(tmpdir(), DETACHED_LOG_DIRECTORY_PREFIX));
 	const path = join(directory, DETACHED_LOG_FILENAME);
 	const activeCommandPath = join(
@@ -474,7 +556,7 @@ function createDetachedLog(retentionMs: number, commandPid: number) {
 	);
 	const completedAtPath = join(directory, DETACHED_LOG_COMPLETED_FILENAME);
 	try {
-		writeFileSync(activeCommandPath, String(commandPid), "utf8");
+		writeLifecycleMarker(activeCommandPath, `${JSON.stringify(marker)}\n`);
 	} catch (error) {
 		rmSync(directory, { recursive: true, force: true });
 		throw error;
@@ -506,7 +588,7 @@ function createDetachedLog(retentionMs: number, commandPid: number) {
 		if (completed) return;
 		completed = true;
 		try {
-			writeFileSync(completedAtPath, String(Date.now()), "utf8");
+			writeLifecycleMarker(completedAtPath, String(Date.now()));
 		} catch {
 			// The startup reaper can fall back to the output timestamp if the
 			// completion marker cannot be persisted.
@@ -561,6 +643,7 @@ function spawnAndCollect(
 	combineOutput: boolean,
 	detachedLogRetentionMs: number,
 	executionController?: RunCommandExecutionController,
+	processStartTokenReader: ProcessStartTokenReader = getProcessStartTokenAsync,
 ): Promise<string> {
 	if (context.signal?.aborted) {
 		return Promise.reject(new Error("Command was aborted"));
@@ -583,7 +666,11 @@ function spawnAndCollect(
 		const stdout = createRollingCollector(maxOutputChars);
 		const stderr = createRollingCollector(maxOutputChars);
 		const executionId = randomUUID();
-		const detachable = Boolean(executionController && context.sessionId);
+		const supportsDetachment = Boolean(
+			executionController && context.sessionId,
+		);
+		let detachable = false;
+		let processStartToken: string | undefined;
 		let killed = false;
 		let settled = false;
 		let detached = false;
@@ -592,7 +679,7 @@ function spawnAndCollect(
 		const progress = createCommandProgressEmitter(
 			context,
 			executionId,
-			detachable,
+			() => detachable,
 			maxOutputChars,
 		);
 
@@ -677,8 +764,24 @@ function spawnAndCollect(
 		}
 
 		const detach = (): boolean => {
-			if (!detachable || killed || settled || !childPid) return false;
-			const log = createDetachedLog(detachedLogRetentionMs, childPid);
+			if (
+				!detachable ||
+				killed ||
+				settled ||
+				!childPid ||
+				child.exitCode !== null ||
+				child.signalCode !== null
+			) {
+				return false;
+			}
+			if (!processStartToken) return false;
+			const log = createDetachedLog(detachedLogRetentionMs, {
+				version: 1,
+				executionId,
+				pid: childPid,
+				processStartToken,
+				detachedAtMs: Date.now(),
+			});
 			progress.stop({ flush: true });
 			detached = true;
 			detachedLog = log;
@@ -711,20 +814,47 @@ function spawnAndCollect(
 
 		child.once("spawn", () => {
 			if (killed) return;
-			if (detachable && context.sessionId && executionController) {
-				unregisterExecution = executionController.register({
-					executionId,
-					sessionId: context.sessionId,
-					toolCallId: context.toolCallId,
-					detach,
-				});
-			}
 			context.emitUpdate?.({
 				stream: "stdout",
 				chunk: "",
 				executionId,
-				detachable,
+				detachable: false,
 			});
+			const sessionId = context.sessionId;
+			if (
+				!supportsDetachment ||
+				!childPid ||
+				!sessionId ||
+				!executionController
+			) {
+				return;
+			}
+			void (async () => {
+				const token = await processStartTokenReader(childPid);
+				if (
+					!token ||
+					killed ||
+					settled ||
+					child.exitCode !== null ||
+					child.signalCode !== null
+				) {
+					return;
+				}
+				processStartToken = token;
+				detachable = true;
+				unregisterExecution = executionController.register({
+					executionId,
+					sessionId,
+					toolCallId: context.toolCallId,
+					detach,
+				});
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: "",
+					executionId,
+					detachable: true,
+				});
+			})().catch(() => undefined);
 		});
 
 		child.stdout?.on("data", (data: Buffer) => {
@@ -852,6 +982,7 @@ export function createShellExecutor(
 		env = {},
 		combineOutput = true,
 		executionController,
+		processStartTokenReader = getProcessStartTokenAsync,
 	} = options;
 	const detachedLogRetentionMs = resolveDetachedLogRetentionMs(
 		options.detachedLogRetentionMs,
@@ -880,6 +1011,7 @@ export function createShellExecutor(
 			combineOutput,
 			detachedLogRetentionMs,
 			executionController,
+			processStartTokenReader,
 		);
 	};
 }
