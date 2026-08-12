@@ -12,7 +12,7 @@
 
 import { parseDiffFromFile } from "@pierre/diffs";
 import { FileDiff, type FileDiffProps } from "@pierre/diffs/react";
-import { useMemo } from "react";
+import { type CSSProperties, useMemo } from "react";
 
 type DiffOptions = NonNullable<FileDiffProps<undefined>["options"]>;
 
@@ -31,6 +31,14 @@ export type ToolFileDiffProps = {
 	 */
 	fragment?: boolean;
 	className?: string;
+	/**
+	 * CSS color (or var()) the diff surface uses as its base background; all
+	 * of @pierre/diffs' derived tints (context lines, gutters, separators)
+	 * are color-mixed from it. Defaults to the host app's `--background`
+	 * token so diffs sit on the app surface instead of pierre's pure
+	 * white/black theme background.
+	 */
+	background?: string;
 	/** Merged over the defaults for per-product tuning. */
 	options?: DiffOptions;
 };
@@ -41,7 +49,15 @@ const BASE_OPTIONS: DiffOptions = {
 	themeType: "system",
 };
 
+// Tool payloads carry code fragments that rarely end in a newline, which
+// would otherwise litter every diff with "No newline at end of file"
+// markers — meaningless noise for chat rows.
+function ensureTrailingNewline(text: string): string {
+	return text.endsWith("\n") ? text : `${text}\n`;
+}
+
 export function ToolFileDiff({
+	background = "var(--background, light-dark(#fff, #000))",
 	className,
 	fragment = false,
 	newText,
@@ -52,8 +68,10 @@ export function ToolFileDiff({
 	const fileDiff = useMemo(() => {
 		try {
 			return parseDiffFromFile(
-				oldText !== undefined ? { contents: oldText, name: path } : null,
-				{ contents: newText, name: path },
+				oldText !== undefined
+					? { contents: ensureTrailingNewline(oldText), name: path }
+					: null,
+				{ contents: ensureTrailingNewline(newText), name: path },
 			);
 		} catch {
 			// Unparsable or identical contents — the row's +/- badge and
@@ -76,6 +94,12 @@ export function ToolFileDiff({
 			className={className}
 			fileDiff={fileDiff}
 			options={resolvedOptions}
+			style={
+				{
+					"--diffs-light-bg": background,
+					"--diffs-dark-bg": background,
+				} as CSSProperties
+			}
 		/>
 	);
 }
