@@ -123,6 +123,52 @@ describe("models-dev-catalog", () => {
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
 	});
 
+	it("keeps dedicated image models without tool calling", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				npm: "@ai-sdk/openai",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"image-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["image"] },
+					},
+					"gpt-image-with-text-output": {
+						tool_call: false,
+						family: "gpt-image",
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
+					},
+					"embedding-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).toMatchObject({
+			"chat-model": expect.any(Object),
+			"image-model": {
+				modalities: { input: ["text"], output: ["image"] },
+			},
+			"gpt-image-with-text-output": {
+				family: "gpt-image",
+				modalities: { input: ["text", "image"], output: ["image"] },
+			},
+		});
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"embedding-model",
+		);
+	});
+
 	it("keeps dedicated video models for providers with a video endpoint", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			google: {
