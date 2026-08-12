@@ -1,11 +1,13 @@
 // Tests for the user.auth_logged_out reason mapping: the old catch-all
-// ERROR_RECOVERY is split into NO_STORED_SESSION / TOKEN_INVALID / RESTORE_ERROR.
+// ERROR_RECOVERY is split into NO_STORED_SESSION / TOKEN_INVALID /
+// RESTORE_ERROR, carried atomically by the provider's discriminated
+// retrieve result.
 
 import { expect } from "chai"
 import { afterEach, beforeEach, describe, it } from "mocha"
 import * as sinon from "sinon"
 import { Controller } from "@/core/controller"
-import { resetTelemetryService } from "@/services/telemetry"
+import { injectTelemetryServiceForTest, resetTelemetryService } from "@/services/telemetry"
 import { TelemetryService } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
 import { AuthInvalidTokenError, AuthNetworkError } from "../../error/ClineError"
@@ -19,9 +21,13 @@ class TestableAuthService extends AuthService {
 	}
 }
 
-/** The exported telemetryService proxy resolves the real service asynchronously. */
-async function flushTelemetry(): Promise<void> {
-	await new Promise((resolve) => setImmediate(resolve))
+/**
+ * Fire-and-forget calls through the `telemetryService` proxy settle within
+ * the current microtask/macrotask queue because the singleton is pre-seeded
+ * with a settled instance (never entering the async create() path). One
+ * macrotask turn also flushes the setImmediate-deferred auth status update.
+ */
+async function settle(): Promise<void> {
 	await new Promise((resolve) => setImmediate(resolve))
 }
 
@@ -52,75 +58,101 @@ describe("AuthService logout telemetry reasons", () => {
 		sandbox.stub(Logger, "info")
 		sandbox.stub(Logger, "debug")
 
-		capturedLoggedOut = sandbox.stub(TelemetryService.prototype, "captureAuthLoggedOut")
-		sandbox.stub(TelemetryService, "create").resolves(new TelemetryService([], {} as any))
-		resetTelemetryService()
+		// Inject a settled instance at the proxy boundary so fire-and-forget
+		// telemetry promises resolve deterministically against these stubs and
+		// never reach real infrastructure (e.g. HostProvider) after restore.
+		const telemetryInstance = new TelemetryService([], {} as any)
+		capturedLoggedOut = sandbox.stub(telemetryInstance, "captureAuthLoggedOut")
+		sandbox.stub(telemetryInstance, "capture")
+		injectTelemetryServiceForTest(telemetryInstance)
 
 		service = new TestableAuthService({} as Controller)
 		sandbox.stub(service, "sendAuthStatusUpdate").resolves()
 		retrieveClineAuthInfoStub = sandbox.stub((service as any)._provider, "retrieveClineAuthInfo")
 	})
 
-	afterEach(() => {
+	afterEach(async () => {
+		// Let any stragglers hit the injected instance before restoring stubs.
+		await settle()
 		resetTelemetryService()
 		sandbox.restore()
 	})
 
 	describe("restoreRefreshTokenAndRetrieveAuthInfo()", () => {
 		it("reports no_stored_session when restore finds no session", async () => {
-			retrieveClineAuthInfoStub.resolves(null)
+			retrieveClineAuthInfoStub.resolves({ kind: "no_stored_session" })
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
+			await settle()
 
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.NO_STORED_SESSION])
 		})
 
-		it("reports restore_error when restore throws", async () => {
-			retrieveClineAuthInfoStub.rejects(new Error("secret storage unavailable"))
-
-			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
-
-			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
-		})
-
 		it("reports token_invalid when the stored refresh token is rejected at startup", async () => {
-			// The provider keeps its null-on-error contract (no behavior change)
-			// but records WHY via the telemetry breadcrumb; without it these
-			// users were binned as no_stored_session.
-			retrieveClineAuthInfoStub.resolves(null)
-			;(service as any)._provider.lastRetrieveFailure = LogoutReason.TOKEN_INVALID
+			retrieveClineAuthInfoStub.resolves({ kind: "token_invalid" })
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
+			await settle()
 
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
 			expect((service as any)._authenticated).to.be.false
 		})
 
-		it("reports restore_error when the provider swallows a restore failure into null", async () => {
-			// Malformed stored data / unexpected restore errors are converted
-			// to null inside the provider; the breadcrumb keeps them from
-			// being binned as no_stored_session.
-			retrieveClineAuthInfoStub.resolves(null)
-			;(service as any)._provider.lastRetrieveFailure = LogoutReason.RESTORE_ERROR
+		it("reports restore_error when a stored session cannot be restored", async () => {
+			retrieveClineAuthInfoStub.resolves({ kind: "restore_error" })
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
+			await settle()
 
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
 			expect((service as any)._authenticated).to.be.false
 		})
 
-		it("reports nothing when restore succeeds", async () => {
-			retrieveClineAuthInfoStub.resolves(authInfo)
+		it("reports restore_error when restore itself throws", async () => {
+			// The provider never throws by contract; this covers the
+			// defensive path (e.g. waiting on a concurrent refresh failed).
+			retrieveClineAuthInfoStub.rejects(new Error("secret storage unavailable"))
 
 			await service.restoreRefreshTokenAndRetrieveAuthInfo()
-			await flushTelemetry()
+			await settle()
+
+			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
+		})
+
+		it("reports nothing when the session is deliberately retained", async () => {
+			// Rollout stand-down / refresh cooldown: the stored session is
+			// kept, so this is neither a logout nor a signed-out machine.
+			retrieveClineAuthInfoStub.resolves({ kind: "session_retained" })
+
+			await service.restoreRefreshTokenAndRetrieveAuthInfo()
+			await settle()
+
+			expect(capturedLoggedOut.called).to.be.false
+			expect((service as any)._authenticated).to.be.false
+		})
+
+		it("reports nothing when restore succeeds", async () => {
+			retrieveClineAuthInfoStub.resolves({ kind: "success", authInfo })
+
+			await service.restoreRefreshTokenAndRetrieveAuthInfo()
+			await settle()
 
 			expect(capturedLoggedOut.called).to.be.false
 			expect((service as any)._authenticated).to.be.true
+		})
+
+		it("keeps the restored session when the post-restore status broadcast fails", async () => {
+			// A status-update failure after a successful restore is not a
+			// restore failure: no restore_error, and the session survives.
+			retrieveClineAuthInfoStub.resolves({ kind: "success", authInfo })
+			;(service.sendAuthStatusUpdate as sinon.SinonStub).rejects(new Error("webview gone"))
+
+			await service.restoreRefreshTokenAndRetrieveAuthInfo()
+			await settle()
+
+			expect(capturedLoggedOut.called).to.be.false
+			expect((service as any)._authenticated).to.be.true
+			expect((service as any)._clineAuthInfo).to.deep.equal(authInfo)
 		})
 	})
 
@@ -132,44 +164,47 @@ describe("AuthService logout telemetry reasons", () => {
 			sandbox.stub((service as any)._provider, "shouldRefreshIdToken").resolves(true)
 		})
 
-		it("reports token_invalid when the refresh token is rejected", async () => {
-			retrieveClineAuthInfoStub.rejects(new AuthInvalidTokenError("invalid or expired token"))
+		it("reports token_invalid when the refresh token is rejected mid-session, without changing auth state", async () => {
+			retrieveClineAuthInfoStub.resolves({ kind: "token_invalid" })
 
 			const token = await service.getAuthToken()
-			await flushTelemetry()
+			await settle()
 
 			expect(token).to.be.null
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
+			// Telemetry only: state keeps the stale session exactly as before.
+			expect((service as any)._authenticated).to.be.true
+			expect((service as any)._clineAuthInfo).to.not.be.null
 		})
 
 		it("reports nothing on transient network failures", async () => {
-			retrieveClineAuthInfoStub.rejects(new AuthNetworkError("status: 503"))
+			// The provider surfaces those as a success carrying the stale
+			// stored data; the expiry check in getAuthToken() returns null.
+			retrieveClineAuthInfoStub.resolves({
+				kind: "success",
+				authInfo: { ...authInfo, expiresAt: Date.now() / 1000 - 60 },
+			})
 
 			const token = await service.getAuthToken()
-			await flushTelemetry()
+			await settle()
 
 			expect(token).to.be.null
 			expect(capturedLoggedOut.called).to.be.false
 		})
 
-		it("reports token_invalid via the provider breadcrumb without changing auth state", async () => {
-			// Real ClineAuthProvider path: invalid refresh is swallowed into null
-			// with the breadcrumb set. Telemetry fires; behavior is unchanged
-			// (state keeps the stale session exactly as before this change).
-			retrieveClineAuthInfoStub.resolves(null)
-			;(service as any)._provider.lastRetrieveFailure = LogoutReason.TOKEN_INVALID
+		it("reports nothing when the session is deliberately retained mid-session", async () => {
+			retrieveClineAuthInfoStub.resolves({ kind: "session_retained" })
 
 			const token = await service.getAuthToken()
-			await flushTelemetry()
+			await settle()
 
 			expect(token).to.be.null
-			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
+			expect(capturedLoggedOut.called).to.be.false
 			expect((service as any)._authenticated).to.be.true
-			expect((service as any)._clineAuthInfo).to.not.be.null
 		})
 	})
 
-	describe("ClineAuthProvider retrieve-failure breadcrumb", () => {
+	describe("ClineAuthProvider retrieve outcomes", () => {
 		const makeController = (storedAuthData: string | undefined): Controller =>
 			({
 				stateManager: {
@@ -178,31 +213,71 @@ describe("AuthService logout telemetry reasons", () => {
 				},
 			}) as unknown as Controller
 
-		it("stays unset when there is no stored session", async () => {
+		/** Expired session so retrieveClineAuthInfo() enters the refresh path. */
+		const expiredStoredData = JSON.stringify({
+			idToken: "not-a-jwt",
+			refreshToken: "refresh-token",
+			expiresAt: Date.now() / 1000 - 60,
+			userInfo: { id: "user_1" },
+			provider: "cline",
+		})
+
+		it("returns no_stored_session when nothing is stored", async () => {
 			const provider = new ClineAuthProvider()
 
 			const result = await provider.retrieveClineAuthInfo(makeController(undefined))
 
-			expect(result).to.be.null
-			expect(provider.lastRetrieveFailure).to.be.null
+			expect(result).to.deep.equal({ kind: "no_stored_session" })
 		})
 
-		it("records restore_error for malformed stored auth data", async () => {
+		it("returns restore_error for malformed stored auth data", async () => {
 			const provider = new ClineAuthProvider()
 
 			const result = await provider.retrieveClineAuthInfo(makeController("not-json{"))
 
-			expect(result).to.be.null
-			expect(provider.lastRetrieveFailure).to.equal(LogoutReason.RESTORE_ERROR)
+			expect(result).to.deep.equal({ kind: "restore_error" })
 		})
 
-		it("records restore_error when stored auth data is missing tokens", async () => {
+		it("returns restore_error when stored auth data is missing tokens", async () => {
 			const provider = new ClineAuthProvider()
 
 			const result = await provider.retrieveClineAuthInfo(makeController(JSON.stringify({ userInfo: {} })))
 
-			expect(result).to.be.null
-			expect(provider.lastRetrieveFailure).to.equal(LogoutReason.RESTORE_ERROR)
+			expect(result).to.deep.equal({ kind: "restore_error" })
+		})
+
+		/** ClineEnv isn't initialized in unit tests; the refresh path logs config.apiBaseUrl. */
+		const stubConfig = (provider: ClineAuthProvider) =>
+			sandbox.stub(provider, "config").get(() => ({ apiBaseUrl: "https://api.test" }))
+
+		it("returns token_invalid when the refresh endpoint rejects the stored token", async () => {
+			const provider = new ClineAuthProvider()
+			stubConfig(provider)
+			sandbox.stub(provider, "refreshToken").rejects(new AuthInvalidTokenError("invalid or expired token"))
+
+			const result = await provider.retrieveClineAuthInfo(makeController(expiredStoredData))
+
+			expect(result).to.deep.equal({ kind: "token_invalid" })
+		})
+
+		it("returns the stale session as success on transient refresh failures", async () => {
+			const provider = new ClineAuthProvider()
+			stubConfig(provider)
+			sandbox.stub(provider, "refreshToken").rejects(new AuthNetworkError("status: 503"))
+
+			const result = await provider.retrieveClineAuthInfo(makeController(expiredStoredData))
+
+			expect(result.kind).to.equal("success")
+		})
+
+		it("returns session_retained during the refresh-retry cooldown", async () => {
+			const provider = new ClineAuthProvider()
+			;(provider as any).refreshRetryCount = 1
+			;(provider as any).lastRefreshAttempt = Date.now()
+
+			const result = await provider.retrieveClineAuthInfo(makeController(expiredStoredData))
+
+			expect(result).to.deep.equal({ kind: "session_retained" })
 		})
 	})
 })
