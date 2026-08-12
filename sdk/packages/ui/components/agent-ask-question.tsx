@@ -1,6 +1,10 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import {
+	type KeyboardEvent as ReactKeyboardEvent,
+	type ReactNode,
+	useState,
+} from "react";
 import { Button } from "./button.js";
 
 export interface AgentAskQuestionItem {
@@ -95,12 +99,40 @@ export function AgentAskQuestion({
 					if (item.multiple) onAnswers?.(item.id, selected);
 					else onAnswer(item.id, selected[0] as string);
 				};
+				const handleKeyDown = (event: ReactKeyboardEvent<HTMLDivElement>) => {
+					if (
+						isPending ||
+						event.repeat ||
+						event.altKey ||
+						event.ctrlKey ||
+						event.metaKey
+					)
+						return;
+
+					if (event.key === "Enter") {
+						if (!canSubmit) return;
+						event.preventDefault();
+						submit();
+						return;
+					}
+
+					if (event.key.length !== 1) return;
+					const optionIndex = event.key.toUpperCase().charCodeAt(0) - 65;
+					const option = options[optionIndex];
+					if (!option || optionIndex > 25) return;
+
+					event.preventDefault();
+					selectOption(option);
+				};
 
 				return (
+					// biome-ignore lint/a11y/noStaticElementInteractions: scopes advertised keyboard shortcuts to the focused question card.
 					<div
 						aria-busy={isPending || undefined}
 						className="cline-ui-agent-ask-question__item"
 						key={item.id}
+						onKeyDown={handleKeyDown}
+						tabIndex={isPending ? -1 : 0}
 					>
 						<div className="cline-ui-agent-ask-question__item-header flex items-start justify-between gap-3">
 							<div className="min-w-0 flex-1 mt-1 mb-2">
@@ -136,6 +168,7 @@ export function AgentAskQuestion({
 							{/* Options are model-supplied and may repeat; repeats submit the same answer. */}
 							{options.map((option, index) => (
 								<Button
+									aria-keyshortcuts={optionLabel(index)}
 									aria-pressed={selected.includes(option)}
 									className="cline-ui-agent-ask-question__option h-auto min-h-9.5 w-full max-w-full justify-start gap-3 whitespace-normal rounded-cline-ui-md p-2 text-left text-cline-ui-sm wrap-anywhere"
 									disabled={isPending}
@@ -159,6 +192,7 @@ export function AgentAskQuestion({
 						</div>
 						<div className="cline-ui-agent-ask-question__footer flex items-center justify-end border-cline-ui-border border-t px-2 py-2">
 							<Button
+								aria-keyshortcuts="Enter"
 								className="cline-ui-agent-ask-question__submit"
 								disabled={!canSubmit || isPending}
 								onClick={submit}
@@ -172,7 +206,12 @@ export function AgentAskQuestion({
 										Sending…
 									</>
 								) : (
-									"Submit"
+									<>
+										Submit
+										<span aria-hidden="true" className="font-cline-ui-mono">
+											⮐
+										</span>
+									</>
 								)}
 							</Button>
 						</div>

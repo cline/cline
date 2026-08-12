@@ -80,7 +80,9 @@ and submits its callbacks.
 
 `AgentAskQuestion` keeps option selection locally and submits explicitly. The
 host owns pending answers, errors, and response transport. Multiple-choice
-items set `multiple: true` and provide `onAnswers` for array submission.
+items set `multiple: true` and provide `onAnswers` for array submission. While
+a question card is focused, its letter shortcuts select options and Enter
+submits the current selection.
 
 `AgentPromptQueue` renders queued prompts and reports edit, remove, and steer
 actions to the host.
