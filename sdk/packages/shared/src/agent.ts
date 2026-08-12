@@ -181,7 +181,13 @@ export interface AgentTool<TInput = unknown, TOutput = unknown>
 	timeoutMs?: number;
 	retryable?: boolean;
 	maxRetries?: number;
-	/** Classify a returned output as a failed tool execution. */
+	/**
+	 * Classify a returned output as a failed tool execution.
+	 *
+	 * This callback is only supported for in-process tools. Sandboxed plugin
+	 * tools must throw from `execute` until the sandbox protocol supports
+	 * returned-failure classification.
+	 */
 	isError?(output: TOutput): boolean;
 	execute: (
 		input: TInput,

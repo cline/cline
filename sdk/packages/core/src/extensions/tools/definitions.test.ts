@@ -1,4 +1,4 @@
-import type { ITelemetryService } from "@cline/shared";
+import { type ITelemetryService, toAiSdkToolResultOutput } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
 	buildRunCommandsDescription,
@@ -1370,6 +1370,43 @@ describe("default run_commands tool", () => {
 });
 
 describe("default read_files tool", () => {
+	it("preserves a successful image when another read in the batch fails", async () => {
+		const tool = createReadFilesTool(async (request) => {
+			if (request.path === "/tmp/missing.png") {
+				throw new Error("file not found");
+			}
+			return [
+				{
+					type: "image",
+					data: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			];
+		});
+
+		const result = await tool.execute(
+			{
+				files: [{ path: "/tmp/image.png" }, { path: "/tmp/missing.png" }],
+			},
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result.map((operation) => operation.success)).toEqual([true, false]);
+		expect(tool.isError?.(result)).toBe(false);
+		expect(
+			toAiSdkToolResultOutput(result, tool.isError?.(result)),
+		).toMatchObject({
+			type: "content",
+			value: expect.arrayContaining([
+				expect.objectContaining({ type: "file", mediaType: "image/png" }),
+			]),
+		});
+	});
+
 	it("validates ranged file requests and passes them to the executor", async () => {
 		const execute = vi.fn(async () => "selected lines");
 		const tool = createReadFilesTool(execute);

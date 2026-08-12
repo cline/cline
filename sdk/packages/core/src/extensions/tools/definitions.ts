@@ -85,6 +85,10 @@ function hasFailedOperation(
 	);
 }
 
+function allOperationsFailed(output: ToolOperationResult[]): boolean {
+	return output.length > 0 && output.every((operation) => !operation.success);
+}
+
 function getStringMetadata(
 	context: AgentToolContext,
 	key: string,
@@ -270,7 +274,9 @@ export function createReadFilesTool(
 		timeoutMs: timeoutMs * 2, // Account for multiple files
 		retryable: true,
 		maxRetries: 1,
-		isError: hasFailedOperation,
+		// A mixed read may contain a successful image. Keep the batch model-visible
+		// as a normal result so the provider formatter preserves that media.
+		isError: allOperationsFailed,
 		execute: async (input, context) => {
 			const validate = validateWithZod(
 				ReadFilesInputUnionSchema,

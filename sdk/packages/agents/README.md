@@ -126,8 +126,10 @@ const summarize: AgentTool<{ text: string }, { summary: string }> = {
 
 The runtime wraps successful tool outputs in an internal tool-result message.
 Throw from `execute(...)` to report a tool failure. If a tool returns a domain
-result for both success and failure, provide `isError(output)` to classify the
-returned value. An `afterTool` hook can also transform the internal
+result for both success and failure, an in-process tool can provide
+`isError(output)` to classify the returned value. Sandboxed plugin tools must
+throw instead; registration rejects classifier callbacks until the sandbox
+protocol can carry them. An `afterTool` hook can also transform the internal
 `AgentToolResult` envelope.
 
 ### Events
