@@ -3,8 +3,10 @@
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import {
+	cloneElement,
 	forwardRef,
 	type ButtonHTMLAttributes,
+	isValidElement,
 	type MouseEventHandler,
 	type ReactNode,
 } from "react";
@@ -124,10 +126,25 @@ const preventDisabledActivation: MouseEventHandler<HTMLElement> = (event) => {
 	event.stopPropagation();
 };
 
+function disableComposedChild(children: ReactNode) {
+	if (!isValidElement<{ onClick?: MouseEventHandler; onClickCapture?: MouseEventHandler }>(children)) {
+		return children;
+	}
+
+	// Radix Slot composes same-element event handlers child-first. Remove the
+	// child's activation handlers before Slot sees them so disabled composed
+	// controls cannot run an action before our guard.
+	return cloneElement(children, {
+		onClick: preventDisabledActivation,
+		onClickCapture: preventDisabledActivation,
+	});
+}
+
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 	(
 		{
 			asChild = false,
+			children,
 			className,
 			disabled,
 			onClick,
@@ -158,7 +175,9 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 						: { onClick, onClickCapture }
 					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
 				{...props}
-			/>
+			>
+				{asChild && disabled ? disableComposedChild(children) : children}
+			</Comp>
 		);
 	},
 );
@@ -261,6 +280,7 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 	(
 		{
 			asChild = false,
+			children,
 			className,
 			disabled,
 			onClick,
@@ -291,7 +311,9 @@ export const IconButton = forwardRef<HTMLButtonElement, IconButtonProps>(
 						: { onClick, onClickCapture }
 					: { disabled, onClick, onClickCapture, type: type ?? "button" })}
 				{...props}
-			/>
+			>
+				{asChild && disabled ? disableComposedChild(children) : children}
+			</Comp>
 		);
 	},
 );

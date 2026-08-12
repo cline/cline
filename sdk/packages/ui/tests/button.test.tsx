@@ -72,9 +72,14 @@ describe("Button", () => {
 
 	it("prevents activation when a composed link is disabled", async () => {
 		const onClick = vi.fn();
+		const onClickCapture = vi.fn();
 		await render(
 			<Button asChild disabled onClick={onClick}>
-				<a href="/settings" onClick={onClick}>
+				<a
+					href="/settings"
+					onClick={onClick}
+					onClickCapture={onClickCapture}
+				>
 					Settings
 				</a>
 			</Button>,
@@ -86,6 +91,7 @@ describe("Button", () => {
 		expect(link?.tabIndex).toBe(-1);
 		await act(async () => link?.click());
 		expect(onClick).not.toHaveBeenCalled();
+		expect(onClickCapture).not.toHaveBeenCalled();
 	});
 });
 
@@ -110,9 +116,14 @@ describe("IconButton", () => {
 
 	it("prevents activation when a composed link is disabled", async () => {
 		const onClick = vi.fn();
+		const onClickCapture = vi.fn();
 		await render(
 			<IconButton aria-label="Remove item" asChild disabled onClick={onClick}>
-				<a href="/remove" onClick={onClick}>
+				<a
+					href="/remove"
+					onClick={onClick}
+					onClickCapture={onClickCapture}
+				>
 					−
 				</a>
 			</IconButton>,
@@ -123,5 +134,6 @@ describe("IconButton", () => {
 		expect(link?.tabIndex).toBe(-1);
 		await act(async () => link?.click());
 		expect(onClick).not.toHaveBeenCalled();
+		expect(onClickCapture).not.toHaveBeenCalled();
 	});
 });
