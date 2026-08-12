@@ -21,7 +21,7 @@ import {
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
-import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
+import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
 	BrainIcon,
@@ -33,7 +33,6 @@ import {
 	ShieldAlert,
 	SplitIcon,
 	UndoIcon,
-	WrenchIcon,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
@@ -1221,166 +1220,192 @@ function pruneRequestMap<T extends string>(
 // Memoized with element-wise comparison: the grouping pass wraps the same
 // message objects in fresh arrays every commit, so reference-comparing the
 // contents lets finished tool blocks skip re-rendering during streaming.
+function ToolLabel({
+	parts,
+	isRunning,
+}: {
+	parts: ToolLabelPart[];
+	isRunning: boolean;
+}) {
+	return (
+		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+			{parts.map((part, index) =>
+				part.code ? (
+					<span
+						className="font-mono text-[0.92em]"
+						// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+						key={index}
+					>
+						{part.text}
+					</span>
+				) : (
+					// biome-ignore lint/suspicious/noArrayIndexKey: parts are positional
+					<span key={index}>{part.text}</span>
+				),
+			)}
+		</span>
+	);
+}
+
+// Every tool call renders as its own row: commands read like a terminal
+// prompt, edits carry their diff, and nothing is merged across calls.
+const ToolCallRow = memo(function ToolCallRow({
+	message,
+}: {
+	message: ChatMessage;
+}) {
+	const { payload, toolName, inProgress, summary } =
+		buildToolPresentation(message);
+	const fileDiffs = summary.items.flatMap((item, index) => {
+		if (item.type !== "file") return [];
+		const hunks =
+			item.hunks ??
+			(item.newText !== undefined
+				? [{ oldText: item.oldText, newText: item.newText }]
+				: null);
+		if (hunks) {
+			return hunks.map((hunk, hunkIndex) => ({
+				key: `${message.id}_diff_${index}_${hunkIndex}`,
+				kind: "rich" as const,
+				item,
+				hunk,
+			}));
+		}
+		return item.diff
+			? [
+					{
+						key: `${message.id}_diff_${index}`,
+						kind: "text" as const,
+						item,
+						hunk: null,
+					},
+				]
+			: [];
+	});
+	// Edit rows open pre-expanded so their diffs are immediately visible.
+	// `defaultOpen` alone misses the streaming path: a row can mount before
+	// its diff arrives, so open when one first appears — unless the user has
+	// taken over the disclosure.
+	const hasFileDiffs = fileDiffs.length > 0;
+	const [open, setOpen] = useState(hasFileDiffs);
+	const [userToggled, setUserToggled] = useState(false);
+	useEffect(() => {
+		if (hasFileDiffs && !userToggled) {
+			setOpen(true);
+		}
+	}, [hasFileDiffs, userToggled]);
+	const handleOpenChange = useCallback((nextOpen: boolean) => {
+		setUserToggled(true);
+		setOpen(nextOpen);
+	}, []);
+
+	const hasError = Boolean(payload?.isError);
+	const Icon = getToolNameIcon(toolName);
+	const isCommand = summary.kind === "command";
+	// Index-based keys: identical detail lines (the same file read twice)
+	// would collide on a content-derived key.
+	const details = summary.details.map((detail, index) => ({
+		detail,
+		key: `${message.id}_${index}`,
+	}));
+	const inputPreview =
+		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
+	const hasExpandedSections =
+		details.length > 0 ||
+		fileDiffs.length > 0 ||
+		Boolean(summary.outputText) ||
+		Boolean(summary.errorText) ||
+		Boolean(inputPreview);
+
+	return (
+		<ToolActivity
+			className="my-0"
+			expandable={hasExpandedSections}
+			onOpenChange={handleOpenChange}
+			open={open}
+		>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions || undefined}
+				deletions={summary.diff?.deletions || undefined}
+				icon={
+					hasError ? (
+						<AlertCircle className="size-4 text-destructive/80" />
+					) : (
+						<Icon className="size-4" />
+					)
+				}
+				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				showDisclosureIcon={false}
+				status={hasError ? "error" : inProgress ? "running" : "success"}
+			/>
+			<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
+				{details.length > 0 ? (
+					<ToolActivityDetails
+						className={cn(
+							"whitespace-pre-wrap",
+							isCommand && "font-mono text-xs",
+						)}
+					>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{fileDiffs.map((entry) =>
+					entry.kind === "rich" && entry.hunk ? (
+						<ToolFileDiff
+							className="mt-1"
+							fragment={entry.item.fragment}
+							key={entry.key}
+							newText={entry.hunk.newText}
+							oldText={entry.hunk.oldText}
+							path={entry.item.path}
+						/>
+					) : (
+						<ToolActivityCode
+							className="mt-1 overflow-x-auto text-xs"
+							key={entry.key}
+						>
+							{entry.item.diff}
+						</ToolActivityCode>
+					),
+				)}
+				{summary.outputText ? (
+					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+						{summary.outputText}
+					</ToolActivityCode>
+				) : null}
+				{inputPreview ? (
+					<div className="space-y-1">
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							Input
+						</div>
+						<ToolActivityCode className="text-sm">
+							{inputPreview}
+						</ToolActivityCode>
+					</div>
+				) : null}
+				{summary.errorText ? (
+					<div className="mt-1 break-words text-destructive">
+						{summary.errorText}
+					</div>
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
+	);
+});
+
+// Consecutive tool messages stack as individual rows; the element-wise
+// comparison lets finished rows skip re-rendering during streaming.
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
-		const presentations = messages.map(buildToolPresentation);
-		const hasFileDiffs = presentations.some(({ summary }) =>
-			summary.items.some(
-				(item) =>
-					item.type === "file" && (item.newText !== undefined || item.diff),
-			),
-		);
-		// Edit rows open pre-expanded so their diffs are immediately visible.
-		// `defaultOpen` alone misses the streaming path: a group mounts with its
-		// first (often read) call and only gains the edit later, so open when a
-		// diff first arrives — unless the user has taken over the disclosure.
-		const [open, setOpen] = useState(hasFileDiffs);
-		const [userToggled, setUserToggled] = useState(false);
-		useEffect(() => {
-			if (hasFileDiffs && !userToggled) {
-				setOpen(true);
-			}
-		}, [hasFileDiffs, userToggled]);
-		const handleOpenChange = useCallback((nextOpen: boolean) => {
-			setUserToggled(true);
-			setOpen(nextOpen);
-		}, []);
-		if (presentations.length === 0) return null;
-		const hasError = presentations.some(({ payload }) => payload?.isError);
-		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const label = buildGroupedToolLabel(
-			presentations.map(({ summary, inProgress }) => ({
-				label: summary.label,
-				aggregate: summary.aggregate,
-				inProgress,
-			})),
-		);
-		const icons = presentations.map(({ toolName }) =>
-			getToolNameIcon(toolName),
-		);
-		const firstIcon = icons[0] ?? WrenchIcon;
-		const Icon = icons.every((icon) => icon === firstIcon)
-			? firstIcon
-			: WrenchIcon;
-		// Index-based keys: identical detail lines (the same file read twice)
-		// would collide on a content-derived key.
-		const details = presentations.flatMap(({ message, summary }) =>
-			summary.details.map((detail, index) => ({
-				detail,
-				key: `${message.id}_${index}`,
-			})),
-		);
-		const fileDiffs = presentations.flatMap(({ message, summary }) =>
-			summary.items.flatMap((item, index) =>
-				item.type === "file" && (item.newText !== undefined || item.diff)
-					? [{ item, key: `${message.id}_diff_${index}` }]
-					: [],
-			),
-		);
-		const inputPreviews = IS_DEBUG
-			? presentations
-					.map(({ message, payload, toolName }) => ({
-						key: message.id,
-						toolName,
-						value: payload ? formatToolValue(payload.input) : "",
-					}))
-					.filter(({ value }) => Boolean(value))
-			: [];
-		const errorPreviews = presentations
-			.map(({ message, summary, toolName }) => ({
-				key: message.id,
-				toolName,
-				value: summary.errorText ?? "",
-			}))
-			.filter(({ value }) => Boolean(value));
-		const hasExpandedSections =
-			details.length > 0 ||
-			fileDiffs.length > 0 ||
-			inputPreviews.length > 0 ||
-			errorPreviews.length > 0;
-		const diff = presentations.reduce(
-			(total, { summary }) => ({
-				additions: total.additions + (summary.diff?.additions ?? 0),
-				deletions: total.deletions + (summary.diff?.deletions ?? 0),
-			}),
-			{ additions: 0, deletions: 0 },
-		);
-
+		if (messages.length === 0) return null;
 		return (
-			<ToolActivity
-				className="my-0"
-				expandable={hasExpandedSections}
-				onOpenChange={handleOpenChange}
-				open={open}
-			>
-				<ToolActivityTrigger
-					additions={diff.additions || undefined}
-					deletions={diff.deletions || undefined}
-					icon={
-						hasError ? (
-							<AlertCircle className="size-4 text-destructive/80" />
-						) : (
-							<Icon className="size-4" />
-						)
-					}
-					label={
-						<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
-							{label}
-						</span>
-					}
-					showDisclosureIcon={false}
-					status={hasError ? "error" : isRunning ? "running" : "success"}
-				/>
-				<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
-					{details.length > 0 ? (
-						<ToolActivityDetails className="whitespace-pre-wrap">
-							{details.map(({ detail, key }) => (
-								<div key={key}>{detail}</div>
-							))}
-						</ToolActivityDetails>
-					) : null}
-					{fileDiffs.map((entry) =>
-						entry.item.newText !== undefined ? (
-							<ToolFileDiff
-								className="mt-1"
-								fragment={entry.item.fragment}
-								key={entry.key}
-								newText={entry.item.newText}
-								oldText={entry.item.oldText}
-								path={entry.item.path}
-							/>
-						) : (
-							<ToolActivityCode
-								className="mt-1 overflow-x-auto text-xs"
-								key={entry.key}
-							>
-								{entry.item.diff}
-							</ToolActivityCode>
-						),
-					)}
-					{inputPreviews.map((preview) => (
-						<div className="space-y-1" key={`input_${preview.key}`}>
-							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-								{presentations.length > 1
-									? `${preview.toolName} input`
-									: "Input"}
-							</div>
-							<ToolActivityCode className="text-sm">
-								{preview.value}
-							</ToolActivityCode>
-						</div>
-					))}
-					{errorPreviews.map((preview) => (
-						<div
-							className="mt-1 break-words text-destructive"
-							key={`result_${preview.key}`}
-						>
-							{presentations.length > 1 ? `${preview.toolName}: ` : null}
-							{preview.value}
-						</div>
-					))}
-				</ToolActivityContent>
-			</ToolActivity>
+			<div className="flex flex-col gap-1">
+				{messages.map((message) => (
+					<ToolCallRow key={message.id} message={message} />
+				))}
+			</div>
 		);
 	},
 	(prev, next) =>

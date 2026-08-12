@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { ChatMessages } from "./chat-messages";
 
+// @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
+// does not implement; without this the suite exits nonzero on an unhandled
+// error even with every test passing.
+CSSStyleSheet.prototype.replaceSync ??= function replaceSync() {} as never;
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -185,7 +190,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
-	it("groups consecutive tool calls and combines matching activity totals", async () => {
+	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{
 				id: "read",
@@ -215,8 +220,37 @@ describe("ChatMessages tool disclosures", () => {
 
 		await renderMessages(tools);
 
-		expect(container.textContent).toContain("Read 2 files · Edited 4 files");
-		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
+		// One row per call — the multi-file read keeps its own count, and each
+		// edit stands alone; nothing merges across calls.
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(5);
+		expect(container.textContent).toContain("Read 2 files");
+		for (const path of ["one.ts", "two.ts", "three.ts", "four.ts"]) {
+			expect(container.textContent).toContain(`Edited ${path}`);
+		}
+		expect(container.textContent).not.toContain("·");
+	});
+
+	it("renders a single command as a terminal prompt with output on expand", async () => {
+		await renderMessages([
+			{
+				id: "command",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["bun run test"] },
+					result: "45 tests passed",
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("$ bun run test"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("45 tests passed");
 	});
 
 	it("pre-expands tool groups that contain edit diffs", async () => {
@@ -313,11 +347,13 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		);
 
-		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Spawned 3 teammates"),
+		const triggers = [...container.querySelectorAll("button")].filter(
+			(element) => element.textContent?.includes("Spawned 1 teammate"),
 		);
-		expect(trigger).toBeDefined();
-		await act(async () => trigger?.click());
+		expect(triggers).toHaveLength(3);
+		for (const trigger of triggers) {
+			await act(async () => trigger.click());
+		}
 		expect(container.textContent).toContain("reviewer");
 		expect(container.textContent).toContain("tester");
 		expect(container.textContent).toContain("writer");
@@ -340,11 +376,13 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		);
 
-		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Assigned 2 team tasks"),
+		const triggers = [...container.querySelectorAll("button")].filter(
+			(element) => element.textContent?.includes("Assigned 1 team task"),
 		);
-		expect(trigger).toBeDefined();
-		await act(async () => trigger?.click());
+		expect(triggers).toHaveLength(2);
+		for (const trigger of triggers) {
+			await act(async () => trigger.click());
+		}
 		expect(container.textContent).toContain("async reviewer queued");
 		expect(container.textContent).toContain("async tester queued");
 	});
@@ -458,9 +496,13 @@ describe("ChatMessages tool disclosures", () => {
 			read("read-after", "after.ts", 3),
 		]);
 
-		expect(container.textContent).toContain(
-			"Read 1 file · Edited 1 file · Read 1 file",
+		// Rows keep call order, each with its own specific label.
+		const labels = [...container.querySelectorAll(".cline-chat-tool")].map(
+			(row) => row.textContent ?? "",
 		);
+		expect(labels[0]).toContain("Read before.ts");
+		expect(labels[1]).toContain("Edited change.ts");
+		expect(labels[2]).toContain("Read after.ts");
 	});
 
 	it("starts a new tool group after non-tool content", async () => {
@@ -520,9 +562,8 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		]);
 
-		expect(container.textContent).toContain(
-			"Ran 2 commands · Spawned 3 agents",
-		);
+		expect(container.textContent).toContain("Ran 2 commands");
+		expect(container.textContent?.match(/Spawned agent/g)).toHaveLength(3);
 		expect(container.textContent).not.toContain("subagent_subagent");
 	});
 
@@ -1067,7 +1108,9 @@ describe("ChatMessages reasoning disclosure", () => {
 				role: "tool",
 				content: JSON.stringify({
 					toolName: "run_commands",
-					input: { commands: ["git status"] },
+					// Two commands so the expanded panel renders detail rows (a
+					// single untruncated command lives in the label alone).
+					input: { commands: ["git status", "git diff"] },
 					result: {},
 				}),
 				createdAt: 3_000,
