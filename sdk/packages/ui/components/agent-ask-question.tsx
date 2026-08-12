@@ -1,11 +1,13 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { type ReactNode, useState } from "react";
+import { Button } from "./button.js";
 
 export interface AgentAskQuestionItem {
 	description?: ReactNode;
 	id: string;
 	meta?: ReactNode;
+	multiple?: boolean;
 	options: readonly string[];
 	question: ReactNode;
 }
@@ -14,27 +16,30 @@ export interface AgentAskQuestionProps {
 	errors?: Readonly<Record<string, ReactNode>>;
 	items: readonly AgentAskQuestionItem[];
 	onAnswer: (id: string, answer: string) => void;
-	pendingAnswers?: Readonly<Record<string, string | undefined>>;
+	onAnswers?: (id: string, answers: readonly string[]) => void;
+	pendingAnswers?: Readonly<
+		Record<string, string | readonly string[] | undefined>
+	>;
 }
 
-function QuestionIcon() {
-	return (
-		<svg
-			aria-hidden="true"
-			className="cline-ui-agent-ask-question__icon size-4 fill-none stroke-[var(--cline-ui-agent-ask-question-accent)] [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]"
-			viewBox="0 0 24 24"
-		>
-			<path d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z" />
-			<path d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1" />
-		</svg>
-	);
+function optionLabel(index: number) {
+	let value = index + 1;
+	let label = "";
+
+	while (value > 0) {
+		value -= 1;
+		label = String.fromCharCode(65 + (value % 26)) + label;
+		value = Math.floor(value / 26);
+	}
+
+	return label;
 }
 
 function Spinner() {
 	return (
 		<svg
 			aria-hidden="true"
-			className="cline-ui-agent-ask-question__spinner mr-1 size-3.5 flex-none fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] [stroke-width:2]"
+			className="cline-ui-agent-ask-question__spinner mr-1 size-3.5 flex-none fill-none stroke-current [stroke-linecap:round] [stroke-linejoin:round] stroke-2"
 			viewBox="0 0 24 24"
 		>
 			<path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -46,8 +51,13 @@ export function AgentAskQuestion({
 	errors = {},
 	items,
 	onAnswer,
+	onAnswers,
 	pendingAnswers = {},
 }: AgentAskQuestionProps) {
+	const [selections, setSelections] = useState<
+		Readonly<Record<string, readonly string[]>>
+	>({});
+
 	return (
 		<section
 			aria-label="Follow-up question"
@@ -55,59 +65,116 @@ export function AgentAskQuestion({
 		>
 			{items.map((item) => {
 				const pendingAnswer = pendingAnswers[item.id];
-				const isPending = Boolean(pendingAnswer);
+				const isPending = Array.isArray(pendingAnswer)
+					? pendingAnswer.length > 0
+					: Boolean(pendingAnswer);
 				const error = errors[item.id];
+				const options = [...new Set(item.options)];
+				const validSelection = (selections[item.id] ?? []).filter((option) =>
+					options.includes(option),
+				);
+				const selected = item.multiple
+					? validSelection
+					: validSelection.slice(-1);
+				const canSubmit =
+					selected.length > 0 && (!item.multiple || Boolean(onAnswers));
+				const selectOption = (option: string) => {
+					setSelections((current) => {
+						const currentSelection = current[item.id] ?? [];
+						const nextSelection = item.multiple
+							? currentSelection.includes(option)
+								? currentSelection.filter((value) => value !== option)
+								: [...currentSelection, option]
+							: [option];
+
+						return { ...current, [item.id]: nextSelection };
+					});
+				};
+				const submit = () => {
+					if (!canSubmit) return;
+					if (item.multiple) onAnswers?.(item.id, selected);
+					else onAnswer(item.id, selected[0] as string);
+				};
 
 				return (
 					<div
 						aria-busy={isPending || undefined}
-						className="cline-ui-agent-ask-question__item rounded-cline-ui-xl border border-[color-mix(in_oklab,var(--cline-ui-agent-ask-question-accent-border)_40%,transparent)] bg-[color-mix(in_oklab,var(--cline-ui-agent-ask-question-accent)_5%,transparent)] p-3"
+						className="cline-ui-agent-ask-question__item"
 						key={item.id}
 					>
-						<div className="cline-ui-agent-ask-question__item-header flex items-start justify-between gap-2">
-							<div className="cline-ui-agent-ask-question__question flex items-center gap-2 font-cline-ui-medium text-cline-ui-foreground text-cline-ui-sm">
-								<QuestionIcon />
-								{item.question}
+						<div className="cline-ui-agent-ask-question__item-header flex items-start justify-between gap-3">
+							<div className="min-w-0 flex-1 mt-1 mb-2">
+								<div className="cline-ui-agent-ask-question__question font-cline-ui-medium text-cline-ui-foreground text-cline-ui-base">
+									{item.question}
+								</div>
+								{item.multiple ? (
+									<div className="cline-ui-agent-ask-question__multiple-hint mt-1 text-cline-ui-sm text-cline-ui-muted-foreground">
+										Select all that apply.
+									</div>
+								) : null}
 							</div>
 							{item.meta ? (
-								<div className="cline-ui-agent-ask-question__meta inline-flex items-center gap-1 text-[11px] text-cline-ui-muted-foreground">
+								<div className="cline-ui-agent-ask-question__meta inline-flex shrink-0 items-center rounded-cline-ui-sm border border-cline-ui-border bg-cline-ui-surface-hover-lighter px-1 py-0.5 font-cline-ui-mono text-cline-ui-muted-foreground text-cline-ui-xs">
 									{item.meta}
 								</div>
 							) : null}
 						</div>
 						{item.description ? (
-							<div className="cline-ui-agent-ask-question__description mt-1 pl-6 text-[11px] text-cline-ui-muted-foreground">
+							<div className="cline-ui-agent-ask-question__description px-4 pt-1 text-cline-ui-sm text-cline-ui-muted-foreground">
 								{item.description}
 							</div>
 						) : null}
 						{error ? (
 							<div
-								className="cline-ui-agent-ask-question__error mt-2 pl-6 text-cline-ui-destructive text-cline-ui-xs"
+								className="cline-ui-agent-ask-question__error mx-4 mt-2 text-cline-ui-destructive text-cline-ui-xs"
 								role="alert"
 							>
 								{error}
 							</div>
 						) : null}
-						<div className="cline-ui-agent-ask-question__options mt-2.5 flex flex-wrap items-center gap-2 pl-6">
+						<div className="cline-ui-agent-ask-question__options flex flex-col px-1 py-1">
 							{/* Options are model-supplied and may repeat; repeats submit the same answer. */}
-							{[...new Set(item.options)].map((option) => (
-								<button
-									className="cline-ui-agent-ask-question__option inline-flex min-h-8 max-w-full flex-none cursor-pointer items-center justify-center gap-1.5 whitespace-normal rounded-cline-ui-md border border-cline-ui-border bg-cline-ui-background px-3 py-0 font-cline-ui-medium text-cline-ui-foreground shadow-xs transition-[color,background-color,border-color,box-shadow] duration-150 ease-[ease] [overflow-wrap:anywhere] [&:hover]:bg-cline-ui-accent [&:hover]:text-cline-ui-accent-foreground focus-visible:outline-3 focus-visible:outline-cline-ui-ring/50 focus-visible:outline-offset-0 disabled:pointer-events-none disabled:opacity-50 cline-ui-dark:border-cline-ui-input cline-ui-dark:bg-cline-ui-input/30 cline-ui-dark:[&:hover]:bg-cline-ui-input/50"
+							{options.map((option, index) => (
+								<Button
+									aria-pressed={selected.includes(option)}
+									className="cline-ui-agent-ask-question__option h-auto min-h-9.5 w-full max-w-full justify-start gap-3 whitespace-normal rounded-cline-ui-md p-2 text-left text-cline-ui-sm wrap-anywhere"
 									disabled={isPending}
 									key={option}
-									onClick={() => onAnswer(item.id, option)}
-									type="button"
+									onClick={() => selectOption(option)}
+									size="sm"
+									tone="neutral"
+									variant="ghost"
 								>
-									{pendingAnswer === option ? (
-										<>
-											<Spinner />
-											Sending…
-										</>
-									) : (
-										option
-									)}
-								</button>
+									<span
+										aria-hidden="true"
+										className="cline-ui-agent-ask-question__option-key"
+									>
+										{optionLabel(index)}
+									</span>
+									<span className="cline-ui-agent-ask-question__option-label min-w-0 flex-1 font-cline-ui-medium text-cline-ui-foreground">
+										{option}
+									</span>
+								</Button>
 							))}
+						</div>
+						<div className="cline-ui-agent-ask-question__footer flex items-center justify-end border-cline-ui-border border-t px-2 py-2">
+							<Button
+								className="cline-ui-agent-ask-question__submit"
+								disabled={!canSubmit || isPending}
+								onClick={submit}
+								size="sm"
+								tone="neutral"
+								variant="fill"
+							>
+								{isPending ? (
+									<>
+										<Spinner />
+										Sending…
+									</>
+								) : (
+									"Submit"
+								)}
+							</Button>
 						</div>
 					</div>
 				);

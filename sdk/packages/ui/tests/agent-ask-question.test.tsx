@@ -42,7 +42,12 @@ describe("AgentAskQuestion", () => {
 		);
 
 		const buttons = container.querySelectorAll("button");
+		expect(
+			[...buttons].every((button) => button.dataset.slot === "button"),
+		).toBe(true);
 		await act(async () => buttons[1]?.click());
+		expect(onAnswer).not.toHaveBeenCalled();
+		await act(async () => buttons[2]?.click());
 
 		// The element carries no visible heading — the question itself leads —
 		// but stays labelled for assistive tech.
@@ -74,7 +79,7 @@ describe("AgentAskQuestion", () => {
 
 		const buttons = container.querySelectorAll("button");
 		expect([...buttons].every((button) => button.disabled)).toBe(true);
-		expect(buttons[0]?.textContent).toContain("Sending…");
+		expect(buttons[2]?.textContent).toContain("Sending…");
 		expect(container.textContent).toContain("Could not send answer");
 		expect(container.querySelector('[role="alert"]')?.textContent).toBe(
 			"Could not send answer",
@@ -105,6 +110,134 @@ describe("AgentAskQuestion", () => {
 		const labels = [...container.querySelectorAll("button")].map(
 			(button) => button.textContent,
 		);
-		expect(labels).toEqual(["Yes", "No"]);
+		expect(labels).toEqual(["AYes", "BNo", "Submit"]);
+	});
+
+	it("labels choices alphabetically without changing the submitted answer", async () => {
+		const onAnswer = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["First", "Second"],
+							question: "Choose",
+						},
+					]}
+					onAnswer={onAnswer}
+				/>,
+			),
+		);
+
+		const buttons = container.querySelectorAll("button");
+		expect(buttons[0]?.textContent).toBe("AFirst");
+		expect(buttons[1]?.textContent).toBe("BSecond");
+		expect(buttons[0]?.querySelector("[aria-hidden='true']")?.textContent).toBe(
+			"A",
+		);
+
+		await act(async () => buttons[1]?.click());
+		expect(onAnswer).not.toHaveBeenCalled();
+		await act(async () => buttons[2]?.click());
+		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
+	});
+
+	it("submits all selected answers for a multiple-choice item", async () => {
+		const onAnswer = vi.fn();
+		const onAnswers = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							multiple: true,
+							options: ["First", "Second", "Third"],
+							question: "Choose",
+						},
+					]}
+					onAnswer={onAnswer}
+					onAnswers={onAnswers}
+				/>,
+			),
+		);
+
+		const buttons = container.querySelectorAll("button");
+		expect(buttons[3]?.disabled).toBe(true);
+		await act(async () => {
+			buttons[0]?.click();
+			buttons[2]?.click();
+		});
+		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("true");
+		expect(buttons[2]?.getAttribute("aria-pressed")).toBe("true");
+		expect(buttons[3]?.disabled).toBe(false);
+
+		await act(async () => buttons[3]?.click());
+		expect(onAnswer).not.toHaveBeenCalled();
+		expect(onAnswers).toHaveBeenCalledWith("request-1", ["First", "Third"]);
+		expect(container.textContent).toContain("Select all that apply.");
+	});
+
+	it("replaces a single choice and toggles a multiple choice off", async () => {
+		const onAnswer = vi.fn();
+		const onAnswers = vi.fn();
+		await act(async () =>
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "single",
+							options: ["First", "Second"],
+							question: "Choose one",
+						},
+						{
+							id: "multiple",
+							multiple: true,
+							options: ["Third", "Fourth"],
+							question: "Choose any",
+						},
+					]}
+					onAnswer={onAnswer}
+					onAnswers={onAnswers}
+				/>,
+			),
+		);
+
+		const buttons = container.querySelectorAll("button");
+		await act(async () => {
+			buttons[0]?.click();
+			buttons[1]?.click();
+		});
+		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("false");
+		expect(buttons[1]?.getAttribute("aria-pressed")).toBe("true");
+		await act(async () => buttons[2]?.click());
+		expect(onAnswer).toHaveBeenCalledWith("single", "Second");
+
+		await act(async () => {
+			buttons[3]?.click();
+			buttons[3]?.click();
+		});
+		expect(buttons[3]?.getAttribute("aria-pressed")).toBe("false");
+		expect(buttons[5]?.disabled).toBe(true);
+	});
+
+	it("does not submit a selection removed by an item update", async () => {
+		const onAnswer = vi.fn();
+		const renderItem = (options: readonly string[]) => (
+			<AgentAskQuestion
+				items={[{ id: "request-1", options, question: "Choose" }]}
+				onAnswer={onAnswer}
+			/>
+		);
+
+		await act(async () => root.render(renderItem(["First", "Second"])));
+		await act(async () => container.querySelectorAll("button")[1]?.click());
+		await act(async () => root.render(renderItem(["First", "Third"])));
+
+		const buttons = container.querySelectorAll("button");
+		expect(buttons[2]?.disabled).toBe(true);
+		await act(async () => buttons[2]?.click());
+		expect(onAnswer).not.toHaveBeenCalled();
 	});
 });
