@@ -81,6 +81,12 @@ impl Default for UpdateStatus {
 #[derive(Default)]
 struct UpdateState {
     status: Mutex<UpdateStatus>,
+    // Serializes whole updater cycles. The periodic loop and the on-demand
+    // check_for_update_now command run the same check/download/stage cycle;
+    // without exclusion, overlapping cycles can download the same bundle
+    // concurrently and the later one can overwrite a freshly staged "ready"
+    // with "idle"/"error" decided from its stale pre-await snapshot.
+    cycle: tokio::sync::Mutex<()>,
 }
 
 impl UpdateState {
@@ -147,9 +153,11 @@ fn set_update_status(
 }
 
 async fn check_and_install_update(app: &tauri::AppHandle, state: &UpdateState) {
+    let _cycle = state.cycle.lock().await;
     // An update that already finished downloading only needs a restart; keep
     // reporting "ready" instead of flipping back to transient states unless a
-    // newer version shows up.
+    // newer version shows up. Reading it under the cycle lock makes the
+    // snapshot authoritative for this whole cycle.
     let ready_version = state.ready_version();
     if ready_version.is_none() {
         set_update_status(app, state, "checking", None, None);
