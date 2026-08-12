@@ -1,6 +1,6 @@
 "use client";
 
-import { AudioLinesIcon, SquareIcon } from "lucide-react";
+import { MicIcon, SquareIcon } from "lucide-react";
 import type { ComponentProps } from "react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -432,11 +432,11 @@ export function SpeechInput({
 					<Spinner className="size-4" />
 				) : isListening ? (
 					<span className="relative size-4">
-						<AudioLinesIcon className="absolute inset-0 size-4 animate-pulse transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0" />
+						<MicIcon className="absolute inset-0 size-4 animate-pulse transition-opacity group-hover:opacity-0 group-focus-visible:opacity-0" />
 						<SquareIcon className="absolute inset-0 m-auto size-3.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
 					</span>
 				) : (
-					<AudioLinesIcon className="size-4" />
+					<MicIcon className="size-4" />
 				)}
 			</Button>
 		</div>
