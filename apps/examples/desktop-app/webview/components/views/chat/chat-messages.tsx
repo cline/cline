@@ -170,13 +170,21 @@ function ChatMessagesImpl({
 	}, [messages]);
 	const shouldShowErrorBanner =
 		Boolean(error) && (!lastErrorMessage || lastErrorMessage.content !== error);
-	// Core reports "running" as soon as the turn is dispatched, well before the
-	// first streamed chunk arrives, so keep the thinking indicator up until the
-	// model produces output (or something else needs the user's attention).
+	// Core reports "running" as soon as the turn is dispatched, and there are
+	// quiet stretches mid-turn with nothing visibly active — most notably
+	// while the model streams a tool call's arguments, before any tool row
+	// exists. Show the thinking indicator whenever the turn is running and
+	// neither streaming text nor an in-progress tool row is on screen.
+	const lastToolInProgress = useMemo(
+		() =>
+			lastConversationMessage?.role === "tool" &&
+			buildToolPresentation(lastConversationMessage).inProgress,
+		[lastConversationMessage],
+	);
 	const isAwaitingFirstOutput =
 		status === "running" &&
 		!streamingMessageId &&
-		lastConversationMessage?.role === "user" &&
+		!lastToolInProgress &&
 		pendingToolApprovals.length === 0 &&
 		pendingAskQuestions.length === 0;
 	const [showSwitchTransition, setShowSwitchTransition] = useState(false);

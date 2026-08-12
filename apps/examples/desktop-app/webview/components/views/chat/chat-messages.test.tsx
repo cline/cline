@@ -1389,15 +1389,43 @@ describe("ChatMessages thinking indicator", () => {
 					id: "tool-1",
 					sessionId: "session-1",
 					role: "tool",
-					content: "not-json",
+					content: JSON.stringify({
+						toolName: "read_files",
+						input: { paths: ["pending.ts"] },
+						result: null,
+					}),
 					createdAt: 2,
-					meta: { toolName: "search" },
+					meta: { hookEventName: "tool_call_start" },
 				},
 			],
 			{ status: "running" },
 		);
 
 		expect(container.textContent).not.toContain("Thinking...");
+	});
+
+	it("shows between a finished tool and the next output", async () => {
+		// The quiet stretch while the model composes its next step (e.g.
+		// streams tool-call arguments) used to render nothing and look frozen.
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "tool-1",
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "read_files",
+						input: { paths: ["done.ts"] },
+						result: { content: "done" },
+					}),
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+
+		expect(container.textContent).toContain("Thinking...");
 	});
 
 	it("hides while a tool approval is pending", async () => {
