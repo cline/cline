@@ -177,28 +177,14 @@ export class SdkCompactionCoordinator {
 			const sdkHost = await this.options.createTempSessionHost()
 			let sessionId: string | undefined
 			try {
-				let startResult: Awaited<ReturnType<SdkSessionHost["start"]>>
-				try {
-					startResult = await sdkHost.start({
-						...resumeStart,
-						interactive: true,
-					})
-				} catch (error) {
-					this.options.taskHistory.settleLegacyMigration(taskId, "session_start_failed")
-					throw error
-				}
-				// Starting the seeded session persists a legacy conversion, making
-				// the migration durable; report its outcome now that the start
-				// settled. The host swallows seeded-persistence failures, so
-				// durability is read off the start result.
-				this.options.taskHistory.settleLegacyMigration(
-					taskId,
-					startResult.seededMessagesPersistence === "failed" ? "seed_persistence_failed" : "persisted",
-				)
+				const startResult = await sdkHost.start({
+					...resumeStart,
+					interactive: true,
+				})
 				sessionId = startResult.sessionId
-				// Once the start succeeds, complete compaction even if navigation
-				// changes the displayed/active task. The isolated host owns this
-				// session, while UI emitters fence stale rows.
+				// Starting may persist legacy conversion. Once it succeeds, complete
+				// compaction even if navigation changes the displayed/active task. The
+				// isolated host owns this session, while UI emitters fence stale rows.
 				await this.runCompaction(sdkHost, sessionId)
 			} finally {
 				try {

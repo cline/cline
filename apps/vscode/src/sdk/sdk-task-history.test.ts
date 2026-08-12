@@ -592,8 +592,7 @@ describe("SdkTaskHistory", () => {
 			{ role: "user", content: "legacy prompt" },
 			{ role: "assistant", content: "legacy answer" },
 		]
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory([], telemetry)
+		const { history } = makeHistory([])
 
 		const messages = await history.getLegacyResumeInitialMessages("legacy-task")
 
@@ -605,76 +604,6 @@ describe("SdkTaskHistory", () => {
 				expect.objectContaining({ role: "user", content: expect.stringContaining("tool names may have changed") }),
 			]),
 		)
-		// The conversion alone is not a durable migration; the completed outcome
-		// waits until the seeded session start persists it.
-		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
-
-		history.settleLegacyMigration("legacy-task", "persisted")
-
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "legacy-task",
-				outcome: "completed",
-				reason: "converted_for_resume",
-				legacyApiHistoryLength: 2,
-				convertedMessageCount: 3,
-			}),
-		)
-
-		// The pending conversion settles exactly once.
-		history.settleLegacyMigration("legacy-task", "persisted")
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
-	})
-
-	it("reports a migration error when the seeded session start fails after conversion", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "legacy prompt" }]
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory([], telemetry)
-
-		await history.getLegacyResumeInitialMessages("legacy-task")
-		history.settleLegacyMigration("legacy-task", "session_start_failed")
-
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "legacy-task",
-				outcome: "error",
-				reason: "session_start_failed",
-				legacyApiHistoryLength: 1,
-			}),
-		)
-	})
-
-	it("reports a migration error when the start resolves but the seed write failed", async () => {
-		legacyStateReaderMock.taskHistory = [makeHistoryItem("legacy-task", { task: "legacy prompt" })]
-		legacyStateReaderMock.apiConversationHistory = [{ role: "user", content: "legacy prompt" }]
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory([], telemetry)
-
-		await history.getLegacyResumeInitialMessages("legacy-task")
-		history.settleLegacyMigration("legacy-task", "seed_persistence_failed")
-
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledTimes(1)
-		expect(telemetry.captureLegacyTaskMigration).toHaveBeenCalledWith(
-			expect.objectContaining({
-				taskId: "legacy-task",
-				outcome: "error",
-				reason: "seed_persistence_failed",
-				legacyApiHistoryLength: 1,
-			}),
-		)
-	})
-
-	it("ignores migration settlement for tasks with no pending conversion", async () => {
-		const telemetry = makeTelemetry()
-		const { history } = makeHistory([makeSessionRecord("sdk-task")], telemetry)
-
-		history.settleLegacyMigration("sdk-task", "persisted")
-		history.settleLegacyMigration("sdk-task", "session_start_failed")
-
-		expect(telemetry.captureLegacyTaskMigration).not.toHaveBeenCalled()
 	})
 
 	it("uses pretty legacy UI messages plus resumed SDK messages when both stores exist", async () => {
@@ -727,6 +656,11 @@ describe("SdkTaskHistory", () => {
 				makeSessionRecord("migrated", {
 					metadata: { migratedFromLegacyTask: true },
 				}),
+				// Resumed legacy sessions carry legacyTask metadata (stamped by
+				// historyItemToSessionMetadata) and count as migrated too.
+				makeSessionRecord("resumed-legacy", {
+					metadata: { legacyTask: true },
+				}),
 			],
 			telemetry,
 		)
@@ -735,9 +669,9 @@ describe("SdkTaskHistory", () => {
 
 		expect(telemetry.captureLegacyTaskMigrationBacklog).toHaveBeenCalledWith({
 			pendingLegacyTaskCount: 1,
-			migratedSdkTaskCount: 1,
-			visibleSdkTaskCount: 2,
-			visibleTaskCount: 3,
+			migratedSdkTaskCount: 2,
+			visibleSdkTaskCount: 3,
+			visibleTaskCount: 4,
 		})
 	})
 

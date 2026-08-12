@@ -220,7 +220,7 @@ describe("TelemetryService metrics", () => {
 
 		service.captureLegacyTaskMigration({
 			taskId: "legacy-task",
-			outcome: "completed",
+			outcome: "success",
 			reason: "migrated",
 			durationMs: 250,
 			legacyApiHistoryLength: 3,
@@ -234,7 +234,7 @@ describe("TelemetryService metrics", () => {
 		const event = provider.logs.find((entry) => entry.event === "task.legacy_task_migration")
 		assert.ok(event)
 		assert.strictEqual(event?.properties?.ulid, "legacy-task")
-		assert.strictEqual(event?.properties?.outcome, "completed")
+		assert.strictEqual(event?.properties?.outcome, "success")
 		assert.strictEqual(event?.properties?.legacyApiHistoryLength, 3)
 
 		assert.deepStrictEqual(

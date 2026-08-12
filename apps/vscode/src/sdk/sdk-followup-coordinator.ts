@@ -201,26 +201,10 @@ export class SdkFollowupCoordinator {
 
 		Logger.log(`[SdkController] Resuming with ${resumeStart.initialMessages?.length ?? 0} initial messages`)
 
-		// Starting the seeded session persists a legacy conversion, making the
-		// migration durable; report its outcome once the start settles. The
-		// host swallows seeded-persistence failures (the session still works
-		// in memory), so durability is read off the start result rather than
-		// inferred from the start resolving.
-		let started: Awaited<ReturnType<SdkSessionLifecycle["startNewSession"]>>
-		try {
-			started = await this.options.sessions.startNewSession({
-				...resumeStart,
-				interactive: true,
-			})
-		} catch (error) {
-			this.options.taskHistory.settleLegacyMigration(taskId, "session_start_failed")
-			throw error
-		}
-		this.options.taskHistory.settleLegacyMigration(
-			taskId,
-			started.startResult.seededMessagesPersistence === "failed" ? "seed_persistence_failed" : "persisted",
-		)
-		const { startResult, sdkHost } = started
+		const { startResult, sdkHost } = await this.options.sessions.startNewSession({
+			...resumeStart,
+			interactive: true,
+		})
 
 		if (this.options.getTask()?.taskId !== taskId) {
 			await this.endStartedResume(sdkHost, startResult.sessionId)

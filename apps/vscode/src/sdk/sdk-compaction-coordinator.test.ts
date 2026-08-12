@@ -278,26 +278,8 @@ describe("SdkCompactionCoordinator", () => {
 		expect(resumedHost.dispose).toHaveBeenCalledWith("compactDisplayedTask")
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
 		expect(options.sessions.endActiveSession).not.toHaveBeenCalled()
-		// The isolated start persisted any pending legacy conversion.
-		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("history-task", "persisted")
 		const rows = compactionRows(options)
 		expect(rows[rows.length - 1].info).toMatchObject({ status: "completed", messagesBefore: 2, messagesAfter: 1 })
-	})
-
-	it("settles a legacy migration as failed when the isolated start reports a failed seed write", async () => {
-		const { coordinator, options, resumedHost } = makeCoordinator({
-			activeSession: undefined,
-			displayedTaskId: "history-task",
-		})
-		resumedHost.start.mockResolvedValueOnce({ sessionId: "history-task", seededMessagesPersistence: "failed" })
-		mockCreateContextCompactionPrepareTurn.mockReturnValueOnce(
-			vi.fn().mockResolvedValue({ messages: [{ role: "user", content: "summary" }] }),
-		)
-
-		await coordinator.compactTask()
-
-		expect(options.taskHistory.settleLegacyMigration).toHaveBeenCalledWith("history-task", "seed_persistence_failed")
-		expect(options.taskHistory.settleLegacyMigration).not.toHaveBeenCalledWith("history-task", "persisted")
 	})
 
 	it("waits for the task's in-flight stop before starting the isolated session", async () => {
@@ -444,7 +426,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			findHistoryItem: vi.fn().mockResolvedValue(undefined),
 			isLegacyTask: vi.fn().mockResolvedValue(false),
 			getLegacyResumeInitialMessages: vi.fn(async (_taskId: string, fallback?: unknown[]) => fallback),
-			settleLegacyMigration: vi.fn(),
 		},
 		sessionConfigBuilder: {
 			build: vi.fn().mockResolvedValue(config),
@@ -464,9 +445,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		}
 		rebuilds: { runExclusive: ReturnType<typeof vi.fn> }
 		messages: { appendAndEmit: ReturnType<typeof vi.fn> }
-		taskHistory: SdkCompactionCoordinatorOptions["taskHistory"] & {
-			settleLegacyMigration: ReturnType<typeof vi.fn>
-		}
 	}
 
 	return {

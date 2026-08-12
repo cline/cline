@@ -1164,7 +1164,7 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
-		const started = await manager.startSession(
+		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
@@ -1185,9 +1185,6 @@ describe("LocalRuntimeHost", () => {
 			initialMessages,
 			"You are a test agent",
 		);
-		// The durability of the seed is observable on the start result, for
-		// callers that must not treat a resolved start as proof of persistence.
-		expect(started.seededMessagesPersistence).toBe("persisted");
 		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
 		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
 			initialMessages,
@@ -1207,73 +1204,6 @@ describe("LocalRuntimeHost", () => {
 			sessionId,
 			status: "idle",
 		});
-	});
-
-	it("reports failed seeded persistence on the start result without failing the start", async () => {
-		const sessionId = "sess-seed-persist-fail";
-		const manifest = createManifest(sessionId);
-		const initialMessages: MessageWithMetadata[] = [
-			{ role: "user" as const, content: "build a thing" },
-			{ role: "assistant" as const, content: "done" },
-		];
-		const sessionService = {
-			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
-			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
-				manifestPath: "/tmp/manifest.json",
-				messagesPath: "/tmp/messages.json",
-				manifest,
-			}),
-			persistSessionMessages: vi.fn().mockRejectedValue(new Error("disk full")),
-			updateSessionStatus: vi.fn().mockResolvedValue({
-				updated: true,
-				endedAt: "2026-01-01T00:00:05.000Z",
-			}),
-			writeSessionManifest: vi.fn(),
-			listSessions: vi.fn().mockResolvedValue([]),
-			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
-		};
-		const runtimeBuilder = {
-			build: vi.fn().mockReturnValue({
-				tools: [],
-				teamRuntime: undefined,
-				teamRestoredFromPersistence: false,
-				shutdown: vi.fn(),
-			}),
-		};
-		const agent = {
-			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
-			getMessages: vi.fn().mockReturnValue(initialMessages),
-			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
-			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
-			abort: vi.fn(),
-			subscribeEvents: vi.fn().mockReturnValue(() => {}),
-			canStartRun: vi.fn().mockReturnValue(true),
-			shutdown: vi.fn().mockResolvedValue(undefined),
-		};
-		const manager = new RuntimeHostUnderTest({
-			distinctId,
-			sessionService: sessionService as never,
-			runtimeBuilder: runtimeBuilder as never,
-			createAgent: () => agent as never,
-		});
-
-		// The failure is swallowed (the in-memory session still works), but it
-		// must be visible on the result so callers never book durability that
-		// did not happen.
-		const started = await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				initialMessages,
-			}),
-		);
-
-		expect(sessionService.persistSessionMessages).toHaveBeenCalled();
-		expect(started.seededMessagesPersistence).toBe("failed");
-		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
-			initialMessages,
-		);
 	});
 
 	it("keeps brand-new empty sessions lazy until the first user turn", async () => {

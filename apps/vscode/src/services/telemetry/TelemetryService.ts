@@ -1805,7 +1805,7 @@ export class TelemetryService {
 	 */
 	public captureLegacyTaskMigration(args: {
 		taskId: string
-		outcome: "completed" | "skipped" | "error"
+		outcome: "success" | "skipped" | "error"
 		reason: string
 		durationMs: number
 		legacyApiHistoryLength?: number
@@ -1847,7 +1847,7 @@ export class TelemetryService {
 			metricAttributes,
 			"Legacy VS Code task migration decisions",
 		)
-		if (args.outcome === "completed") {
+		if (args.outcome === "success") {
 			this.recordCounter(
 				TelemetryService.METRICS.MIGRATION.LEGACY_TASK_SUCCESS_TOTAL,
 				1,

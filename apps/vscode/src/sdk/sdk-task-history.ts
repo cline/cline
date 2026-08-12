@@ -208,16 +208,6 @@ export class SdkTaskHistory {
 	private disposed = false
 	private readonly cachedHistoryHostIdleMs = 30_000
 	private readonly metadataHistoryCacheTtlMs = 10_000
-	/**
-	 * Legacy tasks converted for resume whose migration outcome has not been
-	 * reported yet. The conversion only becomes a durable migration when the
-	 * seeded session start persists it, so the outcome event waits for
-	 * {@link settleLegacyMigration} after the session start settles.
-	 */
-	private readonly pendingLegacyMigrations = new Map<
-		string,
-		{ startedAt: number; legacyApiHistoryLength: number; convertedMessageCount: number }
-	>()
 
 	constructor(private readonly options: SdkTaskHistoryOptions) {}
 
@@ -548,35 +538,7 @@ export class SdkTaskHistory {
 		if (legacyTask) {
 			const legacyApiHistory = readApiConversationHistory(taskId, legacyTask.dataDir)
 			if (legacyApiHistory.length > 0) {
-				// This conversion is the lazy legacy→SDK migration: starting a session
-				// seeded with these messages persists them under the task's id. A
-				// conversion failure is reported here; the completed outcome waits
-				// for settleLegacyMigration once the seeded session start settles,
-				// so a start/persistence failure is not misreported as a migration.
-				const startedAt = Date.now()
-				try {
-					const converted = legacyApiHistoryToSdkMessages(legacyApiHistory, legacyTask.item)
-					Logger.log(`[SdkTaskHistory] Migrating legacy task to SDK session on resume: ${taskId}`)
-					this.pendingLegacyMigrations.set(taskId, {
-						startedAt,
-						legacyApiHistoryLength: legacyApiHistory.length,
-						convertedMessageCount: converted.length,
-					})
-					return converted
-				} catch (error) {
-					this.options.telemetry?.safeCapture(
-						() =>
-							this.options.telemetry?.captureLegacyTaskMigration({
-								taskId,
-								outcome: "error",
-								reason: "conversion_failed",
-								durationMs: Date.now() - startedAt,
-								legacyApiHistoryLength: legacyApiHistory.length,
-							}),
-						"SdkTaskHistory.getLegacyResumeInitialMessages",
-					)
-					throw error
-				}
+				return legacyApiHistoryToSdkMessages(legacyApiHistory, legacyTask.item)
 			}
 		}
 
@@ -584,41 +546,6 @@ export class SdkTaskHistory {
 			return undefined
 		}
 		return appendLegacyResumeWarning(fallbackMessages as { role: string; content: unknown }[])
-	}
-
-	/**
-	 * Report the outcome of a legacy migration prepared by
-	 * {@link getLegacyResumeInitialMessages}. The conversion becomes a durable
-	 * migration only when the session start seeded with it persists the
-	 * converted messages, and LocalRuntimeHost.startSession deliberately
-	 * swallows seeded-persistence failures (the session still works in
-	 * memory), so callers must derive the outcome from the start result:
-	 * "persisted" only when the start resolved with
-	 * `seededMessagesPersistence !== "failed"`, "seed_persistence_failed"
-	 * when it resolved but reported the seed write failed, and
-	 * "session_start_failed" when the start rejected. No-op unless a
-	 * conversion for `taskId` is pending, so callers on the shared resume
-	 * path can call it unconditionally for non-legacy tasks. durationMs spans
-	 * conversion through settlement, i.e. includes the persisting start.
-	 */
-	settleLegacyMigration(taskId: string, outcome: "persisted" | "session_start_failed" | "seed_persistence_failed"): void {
-		const pending = this.pendingLegacyMigrations.get(taskId)
-		if (!pending) {
-			return
-		}
-		this.pendingLegacyMigrations.delete(taskId)
-		const { startedAt, ...counts } = pending
-		this.options.telemetry?.safeCapture(
-			() =>
-				this.options.telemetry?.captureLegacyTaskMigration({
-					taskId,
-					outcome: outcome === "persisted" ? "completed" : "error",
-					reason: outcome === "persisted" ? "converted_for_resume" : outcome,
-					durationMs: Date.now() - startedAt,
-					...counts,
-				}),
-			"SdkTaskHistory.settleLegacyMigration",
-		)
 	}
 
 	private async updateSession(sessionId: string, item: HistoryItem): Promise<void> {
