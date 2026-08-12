@@ -440,7 +440,7 @@ export function buildToolSummary(
 				...labeled(
 					single
 						? [
-								{ text: `${inProgress ? "Reading" : "Read"} ` },
+								{ text: `${inProgress ? "Reading" : "Read"} file ` },
 								{
 									text: `${displayFileName(single.path)}${lineRangeLabelSuffix(single.startLine, single.endLine)}`,
 									code: true,
@@ -476,11 +476,11 @@ export function buildToolSummary(
 					: null;
 			return {
 				...base,
-				// Single commands read like a terminal prompt: `$ bun test`.
+				// Single commands lead with the action, command in mono after.
 				...labeled(
 					singleInline !== null
 						? [
-								{ text: "$ ", code: true },
+								{ text: `${inProgress ? "Running" : "Ran"} command ` },
 								{ text: singleInline, code: true },
 							]
 						: [
@@ -574,15 +574,15 @@ export function buildToolSummary(
 			const actionVerb = (action: "add" | "update" | "delete") =>
 				action === "add"
 					? inProgress
-						? "Creating"
-						: "Created"
+						? "Creating file"
+						: "Created file"
 					: action === "delete"
 						? inProgress
-							? "Deleting"
-							: "Deleted"
+							? "Deleting file"
+							: "Deleted file"
 						: inProgress
-							? "Editing"
-							: "Edited";
+							? "Editing file"
+							: "Edited file";
 			// Renames display as `old → new`.
 			const fileLabel = (file: (typeof info.files)[number]) =>
 				file.movedTo
@@ -671,15 +671,15 @@ export function buildToolSummary(
 							: "edit";
 		const verb = inProgress
 			? command === "create"
-				? "Creating"
+				? "Creating file"
 				: command === "insert"
 					? "Inserting into"
-					: "Editing"
+					: "Editing file"
 			: command === "create"
-				? "Created"
+				? "Created file"
 				: command === "insert"
 					? "Inserted into"
-					: "Edited";
+					: "Edited file";
 
 		let diff: ToolSummary["diff"];
 		let diffText: string | undefined;

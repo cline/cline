@@ -47,9 +47,9 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
 		});
-		expect(summary.label).toBe("Read app.tsx (10–80)");
+		expect(summary.label).toBe("Read file app.tsx (10–80)");
 		expect(summary.labelParts).toEqual([
-			{ text: "Read " },
+			{ text: "Read file " },
 			{ text: "app.tsx (10–80)", code: true },
 		]);
 		expect(summary.kind).toBe("read");
@@ -71,7 +71,7 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "a.ts", start_line: 100 }] },
 		});
-		expect(summary.label).toBe("Read a.ts (100+)");
+		expect(summary.label).toBe("Read file a.ts (100+)");
 		expect(summary.details).toEqual(["a.ts:100+"]);
 	});
 
@@ -90,13 +90,13 @@ describe("read_files summaries", () => {
 		expect(
 			buildToolSummary({ toolName: "read_files", input: { paths: ["x.go"] } })
 				.label,
-		).toBe("Read x.go");
+		).toBe("Read file x.go");
 		expect(
 			buildToolSummary({
 				toolName: "read_files",
 				input: '{"file_paths":["y.rs"]}',
 			}).label,
-		).toBe("Read y.rs");
+		).toBe("Read file y.rs");
 	});
 
 	it("shortens long paths in details but keeps basenames in labels", () => {
@@ -106,21 +106,21 @@ describe("read_files summaries", () => {
 			toolName: "read_files",
 			input: { file_paths: [longPath] },
 		});
-		expect(summary.label).toBe("Read chat-messages.tsx");
+		expect(summary.label).toBe("Read file chat-messages.tsx");
 		expect(summary.details[0]).toBe(shortenPath(longPath));
 		expect(summary.details[0].startsWith(".../")).toBe(true);
 	});
 });
 
 describe("run_commands summaries", () => {
-	it("renders a single command as a terminal prompt", () => {
+	it("leads a single command with the action, command in mono", () => {
 		const summary = buildToolSummary({
 			toolName: "run_commands",
 			input: { commands: ["bun run test"] },
 		});
-		expect(summary.label).toBe("$ bun run test");
+		expect(summary.label).toBe("Ran command bun run test");
 		expect(summary.labelParts).toEqual([
-			{ text: "$ ", code: true },
+			{ text: "Ran command " },
 			{ text: "bun run test", code: true },
 		]);
 		expect(summary.items).toEqual([
@@ -135,7 +135,9 @@ describe("run_commands summaries", () => {
 			toolName: "run_commands",
 			input: { commands: [`echo ${"x".repeat(100)}`] },
 		});
-		expect(summary.label.length).toBeLessThanOrEqual("$ ".length + 60);
+		expect(summary.label.length).toBeLessThanOrEqual(
+			"Ran command ".length + 60,
+		);
 		expect(summary.label.endsWith("…")).toBe(true);
 		expect(summary.details[0]).toBe(`echo ${"x".repeat(100)}`);
 	});
@@ -229,7 +231,7 @@ describe("editor summaries", () => {
 				new_text: "const a = 1;\nconst b = 3;\nconst c = 4;",
 			},
 		});
-		expect(summary.label).toBe("Edited util.ts");
+		expect(summary.label).toBe("Edited file util.ts");
 		expect(summary.diff).toEqual({ additions: 2, deletions: 1 });
 		const item = summary.items[0];
 		expect(item.type).toBe("file");
@@ -266,7 +268,7 @@ describe("editor summaries", () => {
 			toolName: "editor",
 			input: { path: "new.py", new_text: "print(1)\nprint(2)" },
 		});
-		expect(summary.label).toBe("Created new.py");
+		expect(summary.label).toBe("Created file new.py");
 		expect(summary.diff).toEqual({ additions: 2, deletions: 0 });
 	});
 
@@ -289,7 +291,7 @@ describe("editor summaries", () => {
 			input: { path: "a.ts", old_text: "x", new_text: "y" },
 			inProgress: true,
 		});
-		expect(summary.label).toBe("Editing a.ts");
+		expect(summary.label).toBe("Editing file a.ts");
 	});
 
 	it("falls back to +N:/-N: counts from the result", () => {
@@ -298,7 +300,7 @@ describe("editor summaries", () => {
 			input: { path: "a.ts" },
 			result: { result: "+12: added line\n-13: removed line\n+14: another" },
 		});
-		expect(summary.label).toBe("Edited a.ts");
+		expect(summary.label).toBe("Edited file a.ts");
 		expect(summary.diff).toEqual({ additions: 2, deletions: 1 });
 	});
 });
@@ -383,7 +385,7 @@ describe("apply_patch summaries", () => {
 			"*** End Patch",
 		].join("\n");
 		const summary = buildToolSummary({ toolName: "apply_patch", input: patch });
-		expect(summary.label).toBe("Deleted gone.ts");
+		expect(summary.label).toBe("Deleted file gone.ts");
 		expect(summary.details).toEqual(["Deleted src/gone.ts"]);
 		const item = summary.items[0];
 		if (item.type === "file") {
@@ -403,7 +405,7 @@ describe("apply_patch summaries", () => {
 			toolName: "apply_patch",
 			input: rename,
 		});
-		expect(renamed.label).toBe("Edited old-name.ts → new-name.ts");
+		expect(renamed.label).toBe("Edited file old-name.ts → new-name.ts");
 		expect(renamed.details).toEqual([
 			"src/old-name.ts → src/new-name.ts +1 -1",
 		]);
@@ -425,7 +427,7 @@ describe("apply_patch summaries", () => {
 		].join("\n");
 		expect(
 			buildToolSummary({ toolName: "apply_patch", input: single }).label,
-		).toBe("Edited only.ts");
+		).toBe("Edited file only.ts");
 	});
 
 	it("degrades to a generic label when the envelope is unparsable", () => {
@@ -566,7 +568,7 @@ describe("buildGroupedToolLabel", () => {
 			toolName: "read_files",
 			input: { files: [{ path: "a.ts", start_line: 1, end_line: 5 }] },
 		});
-		expect(buildGroupedToolLabel([summary])).toBe("Read a.ts (1–5)");
+		expect(buildGroupedToolLabel([summary])).toBe("Read file a.ts (1–5)");
 	});
 
 	it("merges input-less fallback summaries into grouped counts", () => {

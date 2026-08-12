@@ -225,12 +225,12 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(5);
 		expect(container.textContent).toContain("Read 2 files");
 		for (const path of ["one.ts", "two.ts", "three.ts", "four.ts"]) {
-			expect(container.textContent).toContain(`Edited ${path}`);
+			expect(container.textContent).toContain(`Edited file ${path}`);
 		}
 		expect(container.textContent).not.toContain("·");
 	});
 
-	it("renders a single command as a terminal prompt with output on expand", async () => {
+	it("leads a command row with the action and shows output on expand", async () => {
 		await renderMessages([
 			{
 				id: "command",
@@ -246,7 +246,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("$ bun run test"),
+			element.textContent?.includes("Ran command bun run test"),
 		);
 		expect(trigger).toBeDefined();
 		await act(async () => trigger?.click());
@@ -500,9 +500,9 @@ describe("ChatMessages tool disclosures", () => {
 		const labels = [...container.querySelectorAll(".cline-chat-tool")].map(
 			(row) => row.textContent ?? "",
 		);
-		expect(labels[0]).toContain("Read before.ts");
-		expect(labels[1]).toContain("Edited change.ts");
-		expect(labels[2]).toContain("Read after.ts");
+		expect(labels[0]).toContain("Read file before.ts");
+		expect(labels[1]).toContain("Edited file change.ts");
+		expect(labels[2]).toContain("Read file after.ts");
 	});
 
 	it("starts a new tool group after non-tool content", async () => {
@@ -530,8 +530,8 @@ describe("ChatMessages tool disclosures", () => {
 			tool("second", 3),
 		]);
 
-		expect(container.textContent).toContain("Read first.ts");
-		expect(container.textContent).toContain("Read second.ts");
+		expect(container.textContent).toContain("Read file first.ts");
+		expect(container.textContent).toContain("Read file second.ts");
 	});
 
 	it("normalizes payload-backed configured subagent names", async () => {

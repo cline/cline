@@ -249,7 +249,7 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 						{summary.labelParts.map((part, index) =>
 							part.code ? (
 								<span
-									className="font-mono text-[0.92em]"
+									className="font-mono"
 									// biome-ignore lint/suspicious/noArrayIndexKey: positional
 									key={index}
 								>
