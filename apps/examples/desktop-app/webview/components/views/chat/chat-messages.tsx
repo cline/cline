@@ -1048,7 +1048,7 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10 translate-y-0.5"
+						className="absolute right-0 top-full z-10 translate-y-1.5"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
@@ -1116,7 +1116,7 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10 translate-y-0.5"
+					className="absolute left-0 top-full z-10 translate-y-1.5"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
