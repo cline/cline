@@ -428,6 +428,30 @@ function buildClineModels(): Record<string, ModelInfo> {
 	);
 }
 
+function buildVertexModels(): Record<string, ModelInfo> {
+	const vertexModels = generatedModels("vertex");
+
+	// models.dev does not carry Fable 5 under google-vertex, so overlay the
+	// record here until it does. Pricing is deliberately dropped: Vertex
+	// bills region-dependently (its US/EU multi-region rates exceed
+	// Anthropic's list price), and a copied universal price would understate
+	// the displayed and recorded cost. Omitting it degrades cost display to
+	// "unknown" instead of wrong.
+	if (vertexModels["claude-fable-5"]) {
+		// Upstream now carries the model — its record wins.
+		return vertexModels;
+	}
+	const anthropicFable = generatedModels("anthropic")["claude-fable-5"];
+	if (!anthropicFable) {
+		return vertexModels;
+	}
+	const { pricing: _droppedAnthropicPricing, ...vertexFable } = anthropicFable;
+	return {
+		...vertexModels,
+		"claude-fable-5": vertexFable,
+	};
+}
+
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 	const info: ModelInfo = {
 		id,
@@ -1027,7 +1051,13 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "Claude Code",
 		description: "Use Claude Code SDK with Claude Pro/Max subscription",
 		family: "claude-code",
-		capabilities: ["reasoning"],
+		// provider-tools: the Claude Code CLI executes its own native tools
+		// (Read/Write/Bash/...) inside the spawned agent session and cannot
+		// bridge externally-executed AI SDK tools. Without this capability the
+		// gateway sends Cline's tool definitions (which the provider drops)
+		// while the CLI's own tools stay enabled with no approval plumbing —
+		// every write is refused and no prompt can appear (#13146).
+		capabilities: ["reasoning", "provider-tools"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
 		defaults: { baseUrl: "" },
@@ -1059,7 +1089,7 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 			"GOOGLE_VERTEX_PROJECT",
 			"GOOGLE_VERTEX_LOCATION",
 		],
-		modelsProviderId: "vertex",
+		modelsFactory: buildVertexModels,
 		configFields: VERTEX_CONFIG_FIELDS,
 		metadata: ANTHROPIC_ROUTING_METADATA,
 	},

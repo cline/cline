@@ -490,6 +490,7 @@ export async function runInteractive(
 		tuiApp?.destroy();
 	});
 	let startupErrorReported = false;
+	let updateCliAfterExit = false;
 	const loadDeferredInitialMessages = resumeSessionId?.trim()
 		? async () => {
 				try {
@@ -749,6 +750,10 @@ export async function runInteractive(
 		onExit: () => {
 			tuiApp?.destroy();
 		},
+		onHubUpdateRestart: () => {
+			updateCliAfterExit = true;
+			tuiApp?.destroy();
+		},
 		onRunningChange: (running) => {
 			isRunning = running;
 			if (!running) {
@@ -876,5 +881,20 @@ export async function runInteractive(
 	if (exitSummary) {
 		prepareTerminalForPostTuiOutput();
 		writeln(formatInteractiveExitSummary(exitSummary));
+	}
+	if (updateCliAfterExit) {
+		if (!exitSummary) {
+			prepareTerminalForPostTuiOutput();
+		}
+		writeln(
+			"The shared Cline Hub was updated by another Cline installation. Updating this CLI…",
+		);
+		const { checkForUpdates } = await import("../commands/update");
+		const exitCode = await checkForUpdates({ includeKanban: false });
+		writeln(
+			exitCode === 0
+				? "Start cline again to reconnect to the updated Hub."
+				: "Update did not complete. Run 'cline update' manually, then start cline again.",
+		);
 	}
 }
