@@ -339,7 +339,13 @@ export class AuthService {
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
-			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
+			// A stored refresh token the server rejected is a real involuntary
+			// logout — bin it as token_invalid, not as a generic restore error.
+			// (The provider rethrows AuthInvalidTokenError for exactly this case.)
+			telemetryService.captureAuthLoggedOut(
+				this._provider.name,
+				error instanceof AuthInvalidTokenError ? LogoutReason.TOKEN_INVALID : LogoutReason.RESTORE_ERROR,
+			)
 			return
 		}
 	}

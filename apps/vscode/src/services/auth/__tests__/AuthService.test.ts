@@ -84,6 +84,18 @@ describe("AuthService logout telemetry reasons", () => {
 			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.RESTORE_ERROR])
 		})
 
+		it("reports token_invalid when the stored refresh token is rejected at startup", async () => {
+			// The provider rethrows AuthInvalidTokenError from restore (it used to
+			// swallow it into null, which binned these users as no_stored_session).
+			retrieveClineAuthInfoStub.rejects(new AuthInvalidTokenError("invalid or expired refresh token"))
+
+			await service.restoreRefreshTokenAndRetrieveAuthInfo()
+			await flushTelemetry()
+
+			expect(capturedLoggedOut.firstCall.args).to.deep.equal(["cline", LogoutReason.TOKEN_INVALID])
+			expect((service as any)._authenticated).to.be.false
+		})
+
 		it("reports nothing when restore succeeds", async () => {
 			retrieveClineAuthInfoStub.resolves(authInfo)
 

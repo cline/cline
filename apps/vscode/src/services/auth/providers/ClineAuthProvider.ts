@@ -294,11 +294,16 @@ export class ClineAuthProvider {
 			return storedAuthData
 		} catch (error) {
 			Logger.error("Authentication failed with stored credential:", error)
-			// Reset retry count on unexpected errors
-			if (!(error instanceof AuthInvalidTokenError)) {
-				this.refreshRetryCount = 0
-				this.lastRefreshAttempt = 0
+			// A rejected refresh token is a real involuntary logout — rethrow so
+			// callers can distinguish it from "no stored session" (returning null
+			// here binned those users under no_stored_session in telemetry).
+			// The session was already cleared above before the error propagated.
+			if (error instanceof AuthInvalidTokenError) {
+				throw error
 			}
+			// Reset retry count on unexpected errors
+			this.refreshRetryCount = 0
+			this.lastRefreshAttempt = 0
 			return null
 		}
 	}
