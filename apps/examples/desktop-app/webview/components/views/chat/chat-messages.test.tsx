@@ -219,6 +219,48 @@ describe("ChatMessages tool disclosures", () => {
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
 	});
 
+	it("pre-expands tool groups that contain edit diffs", async () => {
+		await renderMessages([
+			{
+				id: "edit-open",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "open.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 1,
+			},
+			{
+				id: "between",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Splitting the groups",
+				createdAt: 2,
+			},
+			{
+				id: "read-closed",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["closed.ts"] },
+					result: {},
+				}),
+				createdAt: 3,
+			},
+		]);
+
+		const [editBlock, readBlock] = [
+			...container.querySelectorAll(".cline-chat-tool"),
+		];
+		// The edit group's diff panel is visible without a click…
+		expect(editBlock?.querySelector(".cline-chat-tool-content")).not.toBeNull();
+		// …while the read group stays collapsed.
+		expect(readBlock?.querySelector(".cline-chat-tool-content")).toBeNull();
+	});
+
 	it("summarizes spawned teammates and expands their agent IDs", async () => {
 		await renderMessages(
 			["reviewer", "tester", "writer"].map(

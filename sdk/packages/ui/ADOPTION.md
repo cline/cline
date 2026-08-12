@@ -46,15 +46,27 @@ Each application continues to own:
 This boundary gives Cline products a shared visual and interaction language
 without turning `@cline/ui` into a second agent runtime.
 
-One deliberate exception: tool-call *presentation* is shared. The
-`@cline/ui/components/agent-chat/tool-summary` subpath exports pure,
-framework-free functions (`buildToolSummary`, `buildGroupedToolLabel`, and
-the underlying parsers) that turn a raw `{ toolName, input, result }` payload
-into the labels, per-item details, and diff counts every surface should show.
-It takes `unknown` in and data out — no React, no icons, no dependency on
-`@cline/core` or transport events — so consumers still own their message
-schemas, icon assets, and rendering. Use it instead of hand-rolling tool
-labels so read/edit/command rows stay consistent across products.
+The boundary is about runtime coupling, not about keeping the package small.
+When more than one product needs the same presentation behavior, the goal is
+to extract it here as a shared module rather than let each app grow its own
+copy — that is the direction `@cline/ui` is headed, and more shared modules
+are expected over time. Two exist today:
+
+- `@cline/ui/components/agent-chat/tool-summary` — pure, framework-free
+  functions (`buildToolSummary`, `buildGroupedToolLabel`, and the underlying
+  parsers) that turn a raw `{ toolName, input, result }` payload into the
+  labels, per-item details, diff counts, and before/after texts every surface
+  should show. `unknown` in, data out — no React, no icons, no dependency on
+  `@cline/core` or transport events.
+- `@cline/ui/components/agent-chat/tool-diff` — `ToolFileDiff`, a thin
+  wrapper over [`@pierre/diffs`](https://github.com/pierrecomputer/pierre)
+  (optional peer dependency) that renders a tool-summary file item as a
+  syntax-highlighted, theme-aware diff with consistent defaults.
+
+Shared modules like these keep read/edit/command rows identical across
+products while consumers still own their message schemas, icon assets, and
+overall rendering. Before hand-rolling presentation logic in an app, check
+whether it belongs here instead.
 
 ## Current status
 

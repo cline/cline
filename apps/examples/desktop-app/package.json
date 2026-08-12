@@ -31,6 +31,7 @@
 		"@cline/llms": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/ui": "workspace:*",
+		"@pierre/diffs": "^1.3.0",
 		"@fontsource-variable/geist-mono": "^5.2.8",
 		"@fontsource-variable/inter": "^5.2.8",
 		"@hookform/resolvers": "^3.9.1",

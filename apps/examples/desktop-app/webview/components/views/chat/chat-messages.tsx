@@ -20,6 +20,7 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
@@ -1250,8 +1251,8 @@ const ToolMessageBlock = memo(
 		);
 		const fileDiffs = presentations.flatMap(({ message, summary }) =>
 			summary.items.flatMap((item, index) =>
-				item.type === "file" && item.diff
-					? [{ diff: item.diff, key: `${message.id}_diff_${index}` }]
+				item.type === "file" && (item.newText !== undefined || item.diff)
+					? [{ item, key: `${message.id}_diff_${index}` }]
 					: [],
 			),
 		);
@@ -1285,7 +1286,13 @@ const ToolMessageBlock = memo(
 		);
 
 		return (
-			<ToolActivity className="my-0" expandable={hasExpandedSections}>
+			<ToolActivity
+				className="my-0"
+				// Edit rows open pre-expanded so their diffs are immediately
+				// visible; other rows stay collapsed until clicked.
+				defaultOpen={fileDiffs.length > 0}
+				expandable={hasExpandedSections}
+			>
 				<ToolActivityTrigger
 					additions={diff.additions || undefined}
 					deletions={diff.deletions || undefined}
@@ -1312,14 +1319,25 @@ const ToolMessageBlock = memo(
 							))}
 						</ToolActivityDetails>
 					) : null}
-					{fileDiffs.map((entry) => (
-						<ToolActivityCode
-							className="mt-1 overflow-x-auto text-xs"
-							key={entry.key}
-						>
-							{entry.diff}
-						</ToolActivityCode>
-					))}
+					{fileDiffs.map((entry) =>
+						entry.item.newText !== undefined ? (
+							<ToolFileDiff
+								className="mt-1"
+								fragment={entry.item.fragment}
+								key={entry.key}
+								newText={entry.item.newText}
+								oldText={entry.item.oldText}
+								path={entry.item.path}
+							/>
+						) : (
+							<ToolActivityCode
+								className="mt-1 overflow-x-auto text-xs"
+								key={entry.key}
+							>
+								{entry.item.diff}
+							</ToolActivityCode>
+						),
+					)}
 					{inputPreviews.map((preview) => (
 						<div className="space-y-1" key={`input_${preview.key}`}>
 							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
