@@ -149,8 +149,7 @@ export function buildSkillsBrowserGroups(
 		if (!normalizedQuery) return true;
 		return (
 			command.name.toLowerCase().includes(normalizedQuery) ||
-			(command.description?.toLowerCase().includes(normalizedQuery) ??
-				false) ||
+			(command.description?.toLowerCase().includes(normalizedQuery) ?? false) ||
 			(command.folder?.toLowerCase().includes(normalizedQuery) ?? false)
 		);
 	});
@@ -795,7 +794,9 @@ function ChatInputBarImpl({
 
 	const skillsGroups = useMemo(
 		() =>
-			skillsBrowser ? buildSkillsBrowserGroups(skillsCommands, skillsQuery) : [],
+			skillsBrowser
+				? buildSkillsBrowserGroups(skillsCommands, skillsQuery)
+				: [],
 		[skillsBrowser, skillsCommands, skillsQuery],
 	);
 	const flatSkillsCommands = useMemo(

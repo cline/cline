@@ -186,7 +186,10 @@ describe("ChatInputBar", () => {
 			},
 		]);
 		expect(buildSkillsBrowserGroups(commands, "zeta")).toEqual([
-			{ label: "Skills", commands: [expect.objectContaining({ name: "zeta" })] },
+			{
+				label: "Skills",
+				commands: [expect.objectContaining({ name: "zeta" })],
+			},
 		]);
 	});
 
