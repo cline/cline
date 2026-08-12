@@ -61,6 +61,20 @@ export function formatToolValue(value: unknown): string {
 	}
 }
 
+function asRecord(value: unknown): Record<string, unknown> | null {
+	if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+	return value as Record<string, unknown>;
+}
+
+function recordString(
+	record: Record<string, unknown> | null | undefined,
+	key: string,
+	fallback = "",
+): string {
+	const value = record?.[key];
+	return typeof value === "string" && value.length > 0 ? value : fallback;
+}
+
 export function extractRunCommandOutput(value: unknown): string {
 	const normalized = normalizeDisplayValue(value);
 	if (typeof normalized === "string") return normalized;

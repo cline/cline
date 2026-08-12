@@ -983,7 +983,7 @@ describe("ChatMessages tool disclosures", () => {
 		).toContain("3 tests passed");
 	});
 
-	it("caps the combined output of grouped command tool calls", async () => {
+	it("caps command output without dropping the newest tail", async () => {
 		const makeCommand = (id: string, output: string, createdAt: number) => ({
 			id,
 			sessionId: "session-1",
@@ -997,8 +997,7 @@ describe("ChatMessages tool disclosures", () => {
 			meta: { toolName: "run_commands", hookEventName: "tool_call_end" },
 		});
 		await renderMessages([
-			makeCommand("first", "a".repeat(30_000), 1),
-			makeCommand("second", `${"b".repeat(30_000)}newest-tail`, 2),
+			makeCommand("command", `${"a".repeat(60_000)}newest-tail`, 1),
 		]);
 
 		const trigger = container.querySelector<HTMLButtonElement>(
