@@ -756,7 +756,9 @@ function ChatInputBarImpl({
 					)}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							// Focus feedback lands instantly — no transition — so the
+							// border reads as state, not animation.
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}

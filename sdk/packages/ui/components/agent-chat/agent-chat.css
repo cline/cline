@@ -132,6 +132,8 @@
 		color: var(--muted-foreground);
 	}
 
+	/* Actions appear and vanish instantly — a fade on hover chrome reads as
+	 * lag, not polish. */
 	.cline-chat-message-actions {
 		display: flex;
 		min-height: 1.5rem;
@@ -139,7 +141,6 @@
 		gap: 0.25rem;
 		pointer-events: none;
 		opacity: 0;
-		transition: opacity 150ms ease;
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
@@ -359,7 +360,6 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.cline-chat-message-actions,
 		.cline-chat-disclosure-icon {
 			transition: none;
 		}

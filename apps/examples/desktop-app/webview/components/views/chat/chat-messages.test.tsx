@@ -669,12 +669,12 @@ describe("ChatMessages tool disclosures", () => {
 		expect(userActions?.classList.contains("absolute")).toBe(true);
 		expect(userActions?.classList.contains("right-0")).toBe(true);
 		expect(userActions?.classList.contains("top-full")).toBe(true);
-		expect(userActions?.classList.contains("translate-y-2")).toBe(true);
+		expect(userActions?.classList.contains("pt-2")).toBe(true);
 		expect(assistantMessage?.classList.contains("relative")).toBe(true);
 		expect(assistantActions?.classList.contains("absolute")).toBe(true);
 		expect(assistantActions?.classList.contains("left-0")).toBe(true);
 		expect(assistantActions?.classList.contains("top-full")).toBe(true);
-		expect(assistantActions?.classList.contains("translate-y-2")).toBe(true);
+		expect(assistantActions?.classList.contains("pt-2")).toBe(true);
 		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
 		const userAction = userActions?.querySelector(".cline-chat-message-action");
 		expect(userAction?.classList.contains("min-w-0")).toBe(true);

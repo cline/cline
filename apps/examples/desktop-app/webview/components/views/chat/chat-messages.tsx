@@ -1056,7 +1056,10 @@ const MessageBubble = memo(function MessageBubble({
 			{shouldRenderUserActions ? (
 				<>
 					<MessageActions
-						className="absolute right-0 top-full z-10 translate-y-2"
+						// The 8px offset is padding, not translation: a translated gap
+					// is dead space that breaks the parent's :hover on the way to
+					// the buttons, hiding them before they can be clicked.
+					className="absolute right-0 top-full z-10 pt-2"
 						visible={keepUserActionsVisible}
 					>
 						{onCopyMessage ? (
@@ -1124,7 +1127,7 @@ const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderAssistantActions ? (
 				<MessageActions
-					className="absolute left-0 top-full z-10 translate-y-2"
+					className="absolute left-0 top-full z-10 pt-2"
 					visible={keepAssistantActionsVisible}
 				>
 					{onCopyMessage ? (
