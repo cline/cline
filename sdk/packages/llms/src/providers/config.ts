@@ -218,6 +218,7 @@ export interface CodexConfig {
  * Claude Code provider options
  */
 export interface ClaudeCodeConfig {
+	defaultSettings?: Record<string, unknown>;
 	[key: string]: unknown;
 }
 

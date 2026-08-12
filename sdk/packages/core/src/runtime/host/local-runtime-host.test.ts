@@ -516,6 +516,7 @@ describe("LocalRuntimeHost", () => {
 			expect.objectContaining({
 				providerId: "cline-pass",
 				apiKey: "workos:resolved-token",
+				cwd: "/tmp/project",
 			}),
 		);
 	});

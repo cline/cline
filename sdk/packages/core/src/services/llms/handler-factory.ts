@@ -34,6 +34,7 @@ function usesOpenAICompatibleClient(config: ProviderConfig): boolean {
 
 function buildGatewayProviderOptions(
 	config: ProviderConfig,
+	cwd?: string,
 ): Record<string, unknown> | undefined {
 	const options: Record<string, unknown> = {
 		region: config.region,
@@ -76,6 +77,16 @@ function buildGatewayProviderOptions(
 
 	if (config.providerId === "sapaicore") {
 		Object.assign(options, config.sap);
+	}
+
+	if (config.providerId === "claude-code") {
+		const defaultSettings = config.claudeCode?.defaultSettings ?? {};
+		Object.assign(options, config.claudeCode, {
+			defaultSettings: {
+				...(cwd ? { cwd } : {}),
+				...defaultSettings,
+			},
+		});
 	}
 
 	return compactOptions(options);
@@ -235,7 +246,10 @@ export function createAgentModelFromConfig(
 				headers: normalizedProviderConfig.headers,
 				timeoutMs: normalizedProviderConfig.timeoutMs,
 				fetch: normalizedProviderConfig.fetch,
-				options: buildGatewayProviderOptions(normalizedProviderConfig),
+				options: buildGatewayProviderOptions(
+					normalizedProviderConfig,
+					config.cwd,
+				),
 				models: normalizedProviderConfig.knownModels
 					? Object.entries(normalizedProviderConfig.knownModels).map(
 							([id, model]) => toGatewayConfiguredModel(id, model),

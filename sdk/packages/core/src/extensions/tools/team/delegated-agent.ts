@@ -118,6 +118,7 @@ export function buildDelegatedAgentConfig(
 
 	return {
 		...options.configProvider.getConnectionConfig(),
+		cwd: options.cwd ?? runtimeConfig.cwd,
 		systemPrompt,
 		tools: options.tools,
 		maxIterations: options.maxIterations ?? runtimeConfig.maxIterations,

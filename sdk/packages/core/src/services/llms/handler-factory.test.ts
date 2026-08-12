@@ -593,6 +593,78 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("forwards the session cwd to Claude Code while preserving explicit settings", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "claude-sonnet-4-5",
+				cwd: "C:\\workspace\\project",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "claude-sonnet-4-5",
+					claudeCode: {
+						defaultSettings: { permissionMode: "plan" },
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: {
+							defaultSettings: {
+								cwd: "C:\\workspace\\project",
+								permissionMode: "plan",
+							},
+						},
+					}),
+				],
+			}),
+		);
+	});
+
+	it("prefers an explicit Claude Code cwd over the session cwd", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "claude-sonnet-4-5",
+				cwd: "C:\\workspace\\project",
+				systemPrompt: "",
+				tools: [],
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "claude-sonnet-4-5",
+					claudeCode: {
+						defaultSettings: { cwd: "D:\\explicit" },
+					},
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						options: {
+							defaultSettings: { cwd: "D:\\explicit" },
+						},
+					}),
+				],
+			}),
+		);
+	});
+
 	it("uses a registered handler (adapter) instead of the gateway, building it lazily", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

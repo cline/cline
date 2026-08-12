@@ -671,6 +671,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 		const agentConfig = {
 			sessionId,
+			cwd: configWithProvider.cwd,
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,
 			apiKey: providerConfig.apiKey,

@@ -64,6 +64,7 @@ describe("createSpawnAgentTool", () => {
 			configProvider: createDelegatedAgentConfigProvider({
 				providerId: "anthropic",
 				modelId: "mock-model",
+				cwd: "/workspace/project",
 				extensions,
 			}),
 			defaultMaxIterations: 4,
@@ -101,6 +102,7 @@ describe("createSpawnAgentTool", () => {
 			expect.objectContaining({
 				parentAgentId: "parent-1",
 				maxIterations: 4,
+				cwd: "/workspace/project",
 				extensions,
 			}),
 		);
