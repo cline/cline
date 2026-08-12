@@ -3,7 +3,7 @@ import { lstat, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { promisify } from "node:util";
-import type { AgentHooks, BasicLogger } from "@cline/shared";
+import type { AgentHooks, BasicLogger, ITelemetryService } from "@cline/shared";
 import { countUserRunMessages } from "../session/user-run-messages";
 
 const execFile = promisify(execFileCallback);
@@ -76,6 +76,13 @@ type CreateCheckpointHooksOptions = {
 	 * instead of blocking the request path. Defaults to 60s.
 	 */
 	gitTimeoutMs?: number;
+	/**
+	 * Emits one `checkpoint.snapshot` event per built-in snapshot attempt so
+	 * degradations (timeouts, HEAD fallbacks, size-cap skips) are observable in
+	 * the field, not only in local logs. Properties carry outcome, duration,
+	 * and counts — never file paths or contents.
+	 */
+	telemetry?: Pick<ITelemetryService, "capture">;
 };
 
 function warn(logger: BasicLogger | undefined, message: string): void {
@@ -152,10 +159,35 @@ async function runGitWithIndex(
  */
 type SnapshotBudget = { timeoutAt: number };
 
+/** Budget expiry — kept distinct from git failures so telemetry can tell them apart. */
+class CheckpointTimeoutError extends Error {}
+/** A previous turn's stat scan is still pending (see SnapshotOptions.inflight). */
+class CheckpointScanPendingError extends Error {}
+
+type CheckpointFailureReason = "timeout" | "stat_scan_pending" | "git_error";
+
+function classifyCheckpointFailure(error: unknown): CheckpointFailureReason {
+	if (error instanceof CheckpointScanPendingError) {
+		return "stat_scan_pending";
+	}
+	if (error instanceof CheckpointTimeoutError) {
+		return "timeout";
+	}
+	// execFile sets `killed` when it terminated the child on its timeout.
+	if (
+		!!error &&
+		typeof error === "object" &&
+		(error as { killed?: boolean }).killed === true
+	) {
+		return "timeout";
+	}
+	return "git_error";
+}
+
 function remainingMs(budget: SnapshotBudget): number {
 	const remaining = budget.timeoutAt - Date.now();
 	if (remaining <= 0) {
-		throw new Error("checkpoint git time budget exhausted");
+		throw new CheckpointTimeoutError("checkpoint git time budget exhausted");
 	}
 	return remaining;
 }
@@ -178,7 +210,12 @@ async function raceBudget<T>(
 			work,
 			new Promise<never>((_, reject) => {
 				timer = setTimeout(
-					() => reject(new Error("checkpoint stat scan exceeded time budget")),
+					() =>
+						reject(
+							new CheckpointTimeoutError(
+								"checkpoint stat scan exceeded time budget",
+							),
+						),
 					remaining,
 				);
 			}),
@@ -224,7 +261,7 @@ async function createUntrackedParentCommit(
 		// A previous turn's scan is still stuck in the filesystem. It clears
 		// itself when it finally settles; until then the caller degrades to a
 		// HEAD checkpoint rather than stacking another batch of syscalls.
-		throw new Error(
+		throw new CheckpointScanPendingError(
 			"previous checkpoint stat scan has not finished; skipping snapshot",
 		);
 	}
@@ -559,6 +596,11 @@ export function createCheckpointHooks(
 	// See SnapshotOptions.inflight — survives across turns of this session.
 	const inflight: { statScan?: Promise<void> } = {};
 
+	// Why the repo probe failed, when it failed abnormally. A plain "this is
+	// not a git repo" answer stays undefined — that is a normal state, not a
+	// degradation worth reporting.
+	let probeFailure: CheckpointFailureReason | undefined;
+
 	const ensureGitRepository = async (): Promise<boolean> => {
 		// Only cache the positive answer: a cwd that is not a git repo can
 		// become one mid-session (the user runs `git init`), and this probe
@@ -567,6 +609,7 @@ export function createCheckpointHooks(
 		if (repoSupported === true) {
 			return true;
 		}
+		probeFailure = undefined;
 		try {
 			const result = await runGit(
 				options.cwd,
@@ -574,7 +617,8 @@ export function createCheckpointHooks(
 				gitTimeoutMs,
 			);
 			repoSupported = result.stdout === "true";
-		} catch {
+		} catch (error) {
+			probeFailure = classifyCheckpointFailure(error);
 			repoSupported = false;
 		}
 		return repoSupported;
@@ -591,7 +635,33 @@ export function createCheckpointHooks(
 			});
 		}
 
+		const startedAt = Date.now();
+		// One event per built-in snapshot attempt. Outcomes: "stash" (full
+		// snapshot), "head_clean" (clean worktree, HEAD entry is the normal
+		// result), "head_fallback" (degraded to HEAD after a failure), and
+		// "skipped" (no checkpoint written this turn). Counts and durations
+		// only — never paths.
+		const captureSnapshot = (
+			outcome: "stash" | "head_clean" | "head_fallback" | "skipped",
+			extra?: Record<string, string | number | boolean>,
+		): void => {
+			options.telemetry?.capture({
+				event: "checkpoint.snapshot",
+				properties: {
+					sessionId: options.sessionId,
+					runCount,
+					outcome,
+					durationMs: Date.now() - startedAt,
+					...extra,
+				},
+			});
+		};
+
 		if (!(await ensureGitRepository())) {
+			// Only a timed-out probe is a degradation; "not a repo" is normal.
+			if (probeFailure === "timeout") {
+				captureSnapshot("skipped", { reason: probeFailure });
+			}
 			return undefined;
 		}
 
@@ -626,7 +696,6 @@ export function createCheckpointHooks(
 		};
 
 		const message = `${CHECKPOINT_STASH_MESSAGE_PREFIX}${options.sessionId} run=${runCount}`;
-		const startedAt = Date.now();
 		let snapshot: { ref?: string; skipped: string[] };
 		try {
 			snapshot = await createWorktreeStashCommit(
@@ -644,7 +713,12 @@ export function createCheckpointHooks(
 				options.logger,
 				`Checkpoint snapshot failed after ${Date.now() - startedAt}ms: ${error instanceof Error ? error.message : String(error)}`,
 			);
-			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
+			const reason = classifyCheckpointFailure(error);
+			const fallback = await createHeadCheckpoint(
+				"Checkpoint HEAD fallback failed",
+			);
+			captureSnapshot(fallback ? "head_fallback" : "skipped", { reason });
+			return fallback;
 		}
 		const newSkipped = snapshot.skipped.filter(
 			(path) => !warnedSkipped.has(path),
@@ -660,7 +734,15 @@ export function createCheckpointHooks(
 		}
 		const ref = snapshot.ref ?? "";
 		if (!ref) {
-			return createHeadCheckpoint("Checkpoint HEAD fallback failed");
+			// A clean worktree with no untracked files — the HEAD entry is the
+			// expected result here, not a degradation.
+			const fallback = await createHeadCheckpoint(
+				"Checkpoint HEAD fallback failed",
+			);
+			captureSnapshot(fallback ? "head_clean" : "skipped", {
+				skippedUntrackedCount: snapshot.skipped.length,
+			});
+			return fallback;
 		}
 
 		// Store the stash commit under a private ref namespace so it is
@@ -677,9 +759,13 @@ export function createCheckpointHooks(
 				options.logger,
 				`Checkpoint store failed: ${error instanceof Error ? error.message : String(error)}`,
 			);
+			captureSnapshot("skipped", { reason: classifyCheckpointFailure(error) });
 			return undefined;
 		}
 
+		captureSnapshot("stash", {
+			skippedUntrackedCount: snapshot.skipped.length,
+		});
 		return {
 			ref,
 			createdAt: Date.now(),

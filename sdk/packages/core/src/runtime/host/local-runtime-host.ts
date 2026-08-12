@@ -959,6 +959,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	): Promise<RestoreSessionResult> {
 		return this.sessionVersioning.restoreCheckpoint({
 			...input,
+			telemetry: this.defaultTelemetry,
 			getSession: (sessionId) => this.getSession(sessionId),
 			readMessages: (sessionId) => this.readSessionMessages(sessionId),
 			buildStartInput: (context, startInput) => {

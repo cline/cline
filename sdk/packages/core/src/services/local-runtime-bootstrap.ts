@@ -405,6 +405,7 @@ export async function prepareLocalRuntimeBootstrap(
 					createCheckpoint: baseConfig.checkpoint?.createCheckpoint,
 					maxUntrackedFileBytes: baseConfig.checkpoint?.maxUntrackedFileBytes,
 					gitTimeoutMs: baseConfig.checkpoint?.gitTimeoutMs,
+					telemetry: baseConfig.telemetry,
 					readSessionMetadata,
 					writeSessionMetadata,
 				})

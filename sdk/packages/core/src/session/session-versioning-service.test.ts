@@ -408,6 +408,8 @@ describe("SessionVersioningService", () => {
 
 	it("supports workspace-only restore without starting a new session", async () => {
 		const applyWorkspaceCheckpoint = vi.fn(async () => undefined);
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
 		const result = await new SessionVersioningService().restoreCheckpoint({
 			sessionId: "source-session",
 			checkpointRunCount: 1,
@@ -417,11 +419,24 @@ describe("SessionVersioningService", () => {
 				throw new Error("messages should not be read");
 			},
 			applyWorkspaceCheckpoint,
+			telemetry: {
+				capture: (input) => {
+					events.push(input);
+				},
+			},
 		});
 
 		expect(result.sessionId).toBeUndefined();
 		expect(result.checkpoint).toMatchObject({ ref: "aaaa", runCount: 1 });
 		expect(applyWorkspaceCheckpoint).toHaveBeenCalledOnce();
+		expect(events).toHaveLength(1);
+		expect(events[0]?.event).toBe("checkpoint.restore");
+		expect(events[0]?.properties).toMatchObject({
+			outcome: "success",
+			restoreWorkspace: true,
+			restoreMessages: false,
+			checkpointRunCount: 1,
+		});
 	});
 
 	it("raises typed validation errors", async () => {

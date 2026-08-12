@@ -56,10 +56,17 @@ describe("checkpoint stat-scan timeout", () => {
 			// An untracked file forces the snapshot into the lstat scan.
 			await realFs.writeFile(join(cwd, "loose.txt"), "loose\n", "utf8");
 
+			const events: { event: string; properties?: Record<string, unknown> }[] =
+				[];
 			const hooks = createCheckpointHooks({
 				cwd,
 				sessionId: "sess_stat_hang",
 				gitTimeoutMs: 1500,
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
+					},
+				},
 				readSessionMetadata: async () => metadata,
 				writeSessionMetadata: async (next) => {
 					metadata = next;
@@ -118,6 +125,26 @@ describe("checkpoint stat-scan timeout", () => {
 			expect(vi.mocked(mockedFs.lstat).mock.calls.length).toBe(
 				lstatCallsAfterFirstTurn,
 			);
+
+			// Both degradations are reported with their distinct reasons.
+			expect(
+				events.map((entry) => ({
+					event: entry.event,
+					outcome: entry.properties?.outcome,
+					reason: entry.properties?.reason,
+				})),
+			).toEqual([
+				{
+					event: "checkpoint.snapshot",
+					outcome: "head_fallback",
+					reason: "timeout",
+				},
+				{
+					event: "checkpoint.snapshot",
+					outcome: "head_fallback",
+					reason: "stat_scan_pending",
+				},
+			]);
 		} finally {
 			await realFs.rm(cwd, { recursive: true, force: true });
 		}

@@ -601,6 +601,8 @@ describe("createCheckpointHooks", () => {
 		const sessionId = "sess_size_cap";
 		let metadata: Record<string, unknown> | undefined;
 		const warnings: string[] = [];
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
 		try {
 			const hooks = createCheckpointHooks({
 				cwd,
@@ -610,6 +612,11 @@ describe("createCheckpointHooks", () => {
 					debug: () => {},
 					log: (message) => {
 						warnings.push(message);
+					},
+				},
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
 					},
 				},
 				readSessionMetadata: async () => metadata,
@@ -636,6 +643,14 @@ describe("createCheckpointHooks", () => {
 			expect(warnings.some((message) => message.includes("big.bin"))).toBe(
 				true,
 			);
+			// The snapshot event reports the cap being hit — no paths, counts only.
+			expect(events).toHaveLength(1);
+			expect(events[0]?.event).toBe("checkpoint.snapshot");
+			expect(events[0]?.properties).toMatchObject({
+				outcome: "stash",
+				skippedUntrackedCount: 1,
+			});
+			expect(JSON.stringify(events[0])).not.toContain("big.bin");
 
 			// The same still-skipped file does not warn again on later turns.
 			const warningCount = warnings.length;
@@ -738,6 +753,8 @@ describe("createCheckpointHooks", () => {
 	it("skips the checkpoint without blocking or throwing when git exceeds the time budget", async () => {
 		const cwd = await createGitRepo();
 		let writes = 0;
+		const events: { event: string; properties?: Record<string, unknown> }[] =
+			[];
 		try {
 			const hooks = createCheckpointHooks({
 				cwd,
@@ -745,6 +762,11 @@ describe("createCheckpointHooks", () => {
 				// Far below what even `git rev-parse` can finish in, so every git
 				// call this turn is killed by the budget.
 				gitTimeoutMs: 1,
+				telemetry: {
+					capture: (input) => {
+						events.push(input);
+					},
+				},
 				readSessionMetadata: async () => undefined,
 				writeSessionMetadata: async () => {
 					writes += 1;
@@ -755,6 +777,13 @@ describe("createCheckpointHooks", () => {
 			await runCheckpointHooks(hooks);
 
 			expect(writes).toBe(0);
+			// The degradation is observable in the field, not only in local logs.
+			expect(events).toHaveLength(1);
+			expect(events[0]?.event).toBe("checkpoint.snapshot");
+			expect(events[0]?.properties).toMatchObject({
+				outcome: "skipped",
+				reason: "timeout",
+			});
 		} finally {
 			await rm(cwd, { recursive: true, force: true });
 		}
