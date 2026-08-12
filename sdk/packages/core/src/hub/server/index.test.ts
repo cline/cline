@@ -11,6 +11,7 @@ import {
 	clearHubDiscovery,
 	createInMemoryHubOwnerContext,
 	readHubDiscovery,
+	resolveHubBuildId,
 	toHubHealthUrl,
 	writeHubDiscovery,
 } from "../discovery";
@@ -205,13 +206,64 @@ describe("hub server startup", () => {
 		}
 	});
 
-	it("shuts down active server through the shutdown endpoint", async () => {
-		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
+	it("reports its build identity on the unauthenticated health endpoint", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-health-build");
 		const result = await ensureHubWebSocketServer({
 			owner,
 			host: "127.0.0.1",
 			port: 0,
 			pathname: "/hub",
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.add(requireServer(result.server));
+
+		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
+		expect(health.status).toBe(200);
+		const payload = (await health.json()) as { buildId?: string };
+		expect(payload.buildId).toBe(resolveHubBuildId());
+	});
+
+	it("does not reuse managed discovery from a different build", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-stale-build");
+		vi.stubEnv("CLINE_HUB_BUILD_ID", "old-build");
+		try {
+			const stale = await startHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			servers.add(stale);
+
+			vi.stubEnv("CLINE_HUB_BUILD_ID", "new-build");
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("started");
+			expect(result.url).not.toBe(stale.url);
+			servers.add(requireServer(result.server));
+		} finally {
+			vi.unstubAllEnvs();
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
+	it("shuts down active server through the shutdown endpoint", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-shutdown");
+		const onShutdownRequested = vi.fn();
+		const result = await ensureHubWebSocketServer({
+			owner,
+			host: "127.0.0.1",
+			port: 0,
+			pathname: "/hub",
+			onShutdownRequested,
 			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 		});
 		const server = requireServer(result.server);
@@ -230,6 +282,9 @@ describe("hub server startup", () => {
 			headers: { authorization: `Bearer ${authToken}` },
 		});
 		expect(response.status).toBe(202);
+		await vi.waitFor(() => {
+			expect(onShutdownRequested).toHaveBeenCalledOnce();
+		});
 
 		for (let index = 0; index < 50; index += 1) {
 			if ((await readHubDiscovery(owner.discoveryPath)) === undefined) {

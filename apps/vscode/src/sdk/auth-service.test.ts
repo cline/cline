@@ -363,6 +363,33 @@ describe("AuthService", () => {
 			const token = await authService.getAuthToken()
 			expect(token).toBeNull()
 		})
+
+		it("returns the refreshed token when an already-expired token refreshes successfully", async () => {
+			// Regression test: the process sat idle past token expiry (e.g. across
+			// a laptop suspend), so the refresh happens after expiresAt has passed.
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // already expired
+			})
+			testAccess(authService)._authenticated = true
+			vi.mocked(getValidClineCredentials).mockResolvedValue(createTestOAuthCredentials())
+
+			const token = await authService.getAuthToken()
+			expect(token).toBe("workos:oauth-access-token")
+		})
+
+		it("still rejects a token that comes back from refresh already expired", async () => {
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // already expired
+			})
+			testAccess(authService)._authenticated = true
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				...createTestOAuthCredentials(),
+				expires: Date.now() - 1000, // refresh returned an expired token (ms)
+			})
+
+			const token = await authService.getAuthToken()
+			expect(token).toBeNull()
+		})
 	})
 
 	describe("createAuthRequest()", () => {

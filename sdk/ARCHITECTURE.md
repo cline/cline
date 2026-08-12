@@ -145,7 +145,7 @@ event payload and `source` field.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
-7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
+7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
@@ -193,9 +193,16 @@ public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
-through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
-including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
-targets: reconnects may retry the same socket URL, but command recovery and
+through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
+must match both the supported wire protocol and the current Hub build identity;
+a protocol-compatible daemon from another build is retired before its
+replacement starts so upgrades cannot keep executing stale runtime code. SDK
+builds embed a deterministic fingerprint of the runtime sources, package
+manifests, build configuration, and dependency lock, so the identity changes
+with the executable Hub code even before package versions are bumped.
+Explicit endpoints, including loopback URLs such as
+`ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
+reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
