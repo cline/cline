@@ -107,7 +107,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const summary = [...container.querySelectorAll("span")].find((element) =>
-			element.textContent?.includes("Explored"),
+			element.textContent?.includes("Searched"),
 		);
 		expect(summary).toBeDefined();
 		expect(summary?.closest("button")).toBeNull();
@@ -172,7 +172,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Explored 1 search"),
+			element.textContent?.includes("Searched workspace selector"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		const panelId = trigger?.getAttribute("aria-controls");
@@ -215,8 +215,85 @@ describe("ChatMessages tool disclosures", () => {
 
 		await renderMessages(tools);
 
-		expect(container.textContent).toContain("Read 2 files. Edited 4 files");
+		expect(container.textContent).toContain("Read 2 files · Edited 4 files");
 		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
+	});
+
+	it("pre-expands tool groups that contain edit diffs", async () => {
+		await renderMessages([
+			{
+				id: "edit-open",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "open.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 1,
+			},
+			{
+				id: "between",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Splitting the groups",
+				createdAt: 2,
+			},
+			{
+				id: "read-closed",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["closed.ts"] },
+					result: {},
+				}),
+				createdAt: 3,
+			},
+		]);
+
+		const [editBlock, readBlock] = [
+			...container.querySelectorAll(".cline-chat-tool"),
+		];
+		// The edit group's diff panel is visible without a click…
+		expect(editBlock?.querySelector(".cline-chat-tool-content")).not.toBeNull();
+		// …while the read group stays collapsed.
+		expect(readBlock?.querySelector(".cline-chat-tool-content")).toBeNull();
+	});
+
+	it("opens a streaming group when an edit diff arrives after mount", async () => {
+		const read: ChatMessage = {
+			id: "stream-read",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["app.ts"] },
+				result: {},
+			}),
+			createdAt: 1,
+		};
+		// The group mounts with only the read call, so it starts collapsed.
+		await renderMessages([read]);
+		expect(container.querySelector(".cline-chat-tool-content")).toBeNull();
+
+		// The edit call joins the same group mid-stream; the diff should
+		// surface without a click.
+		await renderMessages([
+			read,
+			{
+				id: "stream-edit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "app.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 2,
+			},
+		]);
+		expect(container.querySelector(".cline-chat-tool-content")).not.toBeNull();
 	});
 
 	it("summarizes spawned teammates and expands their agent IDs", async () => {
@@ -382,7 +459,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		expect(container.textContent).toContain(
-			"Read 1 file. Edited 1 file. Read 1 file",
+			"Read 1 file · Edited 1 file · Read 1 file",
 		);
 	});
 
@@ -411,7 +488,8 @@ describe("ChatMessages tool disclosures", () => {
 			tool("second", 3),
 		]);
 
-		expect(container.textContent?.match(/Read 1 file/g)).toHaveLength(2);
+		expect(container.textContent).toContain("Read first.ts");
+		expect(container.textContent).toContain("Read second.ts");
 	});
 
 	it("normalizes payload-backed configured subagent names", async () => {
@@ -443,7 +521,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		expect(container.textContent).toContain(
-			"Ran 2 commands. spawn_agent. spawn_agent. spawn_agent",
+			"Ran 2 commands · Spawned 3 agents",
 		);
 		expect(container.textContent).not.toContain("subagent_subagent");
 	});

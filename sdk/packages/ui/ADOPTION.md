@@ -46,6 +46,28 @@ Each application continues to own:
 This boundary gives Cline products a shared visual and interaction language
 without turning `@cline/ui` into a second agent runtime.
 
+The boundary is about runtime coupling, not about keeping the package small.
+When more than one product needs the same presentation behavior, the goal is
+to extract it here as a shared module rather than let each app grow its own
+copy — that is the direction `@cline/ui` is headed, and more shared modules
+are expected over time. Two exist today:
+
+- `@cline/ui/components/agent-chat/tool-summary` — pure, framework-free
+  functions (`buildToolSummary`, `buildGroupedToolLabel`, and the underlying
+  parsers) that turn a raw `{ toolName, input, result }` payload into the
+  labels, per-item details, diff counts, and before/after texts every surface
+  should show. `unknown` in, data out — no React, no icons, no dependency on
+  `@cline/core` or transport events.
+- `@cline/ui/components/agent-chat/tool-diff` — `ToolFileDiff`, a thin
+  wrapper over [`@pierre/diffs`](https://github.com/pierrecomputer/pierre)
+  (optional peer dependency) that renders a tool-summary file item as a
+  syntax-highlighted, theme-aware diff with consistent defaults.
+
+Shared modules like these keep read/edit/command rows identical across
+products while consumers still own their message schemas, icon assets, and
+overall rendering. Before hand-rolling presentation logic in an app, check
+whether it belongs here instead.
+
 ## Current status
 
 `@cline/ui` is configured for public npm publication with its own version and
@@ -456,7 +478,6 @@ Keep the following outside `@cline/ui`:
 - Application routes and information architecture
 - Session, workspace, provider, and sidecar behavior
 - Runtime event normalization and persistence
-- Tool-name classification and raw tool-payload parsing
 - Approval and question request orchestration
 - Product-specific actions and animation
 - Components that have not been proven reusable by multiple products

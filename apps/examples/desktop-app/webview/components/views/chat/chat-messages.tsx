@@ -20,6 +20,8 @@ import {
 	ToolActivityDetails,
 	ToolActivityTrigger,
 } from "@cline/ui/components/agent-chat";
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import { buildGroupedToolLabel } from "@cline/ui/components/agent-chat/tool-summary";
 import {
 	AlertCircle,
 	BrainIcon,
@@ -69,7 +71,6 @@ import {
 } from "./messages/group-messages";
 import { getToolNameIcon } from "./messages/tool-icons";
 import {
-	buildGroupedToolLabel,
 	buildToolPresentation,
 	formatToolValue,
 } from "./messages/tool-summaries";
@@ -1223,10 +1224,37 @@ function pruneRequestMap<T extends string>(
 const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		const presentations = messages.map(buildToolPresentation);
+		const hasFileDiffs = presentations.some(({ summary }) =>
+			summary.items.some(
+				(item) =>
+					item.type === "file" && (item.newText !== undefined || item.diff),
+			),
+		);
+		// Edit rows open pre-expanded so their diffs are immediately visible.
+		// `defaultOpen` alone misses the streaming path: a group mounts with its
+		// first (often read) call and only gains the edit later, so open when a
+		// diff first arrives — unless the user has taken over the disclosure.
+		const [open, setOpen] = useState(hasFileDiffs);
+		const [userToggled, setUserToggled] = useState(false);
+		useEffect(() => {
+			if (hasFileDiffs && !userToggled) {
+				setOpen(true);
+			}
+		}, [hasFileDiffs, userToggled]);
+		const handleOpenChange = useCallback((nextOpen: boolean) => {
+			setUserToggled(true);
+			setOpen(nextOpen);
+		}, []);
 		if (presentations.length === 0) return null;
 		const hasError = presentations.some(({ payload }) => payload?.isError);
 		const isRunning = presentations.some(({ inProgress }) => inProgress);
-		const label = buildGroupedToolLabel(presentations);
+		const label = buildGroupedToolLabel(
+			presentations.map(({ summary, inProgress }) => ({
+				label: summary.label,
+				aggregate: summary.aggregate,
+				inProgress,
+			})),
+		);
 		const icons = presentations.map(({ toolName }) =>
 			getToolNameIcon(toolName),
 		);
@@ -1234,11 +1262,20 @@ const ToolMessageBlock = memo(
 		const Icon = icons.every((icon) => icon === firstIcon)
 			? firstIcon
 			: WrenchIcon;
+		// Index-based keys: identical detail lines (the same file read twice)
+		// would collide on a content-derived key.
 		const details = presentations.flatMap(({ message, summary }) =>
-			summary.details.map((detail) => ({
+			summary.details.map((detail, index) => ({
 				detail,
-				key: `${message.id}_${detail}`,
+				key: `${message.id}_${index}`,
 			})),
+		);
+		const fileDiffs = presentations.flatMap(({ message, summary }) =>
+			summary.items.flatMap((item, index) =>
+				item.type === "file" && (item.newText !== undefined || item.diff)
+					? [{ item, key: `${message.id}_diff_${index}` }]
+					: [],
+			),
 		);
 		const inputPreviews = IS_DEBUG
 			? presentations
@@ -1249,17 +1286,18 @@ const ToolMessageBlock = memo(
 					}))
 					.filter(({ value }) => Boolean(value))
 			: [];
-		const resultPreviews = presentations
-			.map(({ message, payload, toolName }) => ({
+		const errorPreviews = presentations
+			.map(({ message, summary, toolName }) => ({
 				key: message.id,
 				toolName,
-				value: payload?.isError ? formatToolValue(payload.result) : "",
+				value: summary.errorText ?? "",
 			}))
 			.filter(({ value }) => Boolean(value));
 		const hasExpandedSections =
 			details.length > 0 ||
+			fileDiffs.length > 0 ||
 			inputPreviews.length > 0 ||
-			resultPreviews.length > 0;
+			errorPreviews.length > 0;
 		const diff = presentations.reduce(
 			(total, { summary }) => ({
 				additions: total.additions + (summary.diff?.additions ?? 0),
@@ -1269,7 +1307,12 @@ const ToolMessageBlock = memo(
 		);
 
 		return (
-			<ToolActivity className="my-0" expandable={hasExpandedSections}>
+			<ToolActivity
+				className="my-0"
+				expandable={hasExpandedSections}
+				onOpenChange={handleOpenChange}
+				open={open}
+			>
 				<ToolActivityTrigger
 					additions={diff.additions || undefined}
 					deletions={diff.deletions || undefined}
@@ -1296,6 +1339,25 @@ const ToolMessageBlock = memo(
 							))}
 						</ToolActivityDetails>
 					) : null}
+					{fileDiffs.map((entry) =>
+						entry.item.newText !== undefined ? (
+							<ToolFileDiff
+								className="mt-1"
+								fragment={entry.item.fragment}
+								key={entry.key}
+								newText={entry.item.newText}
+								oldText={entry.item.oldText}
+								path={entry.item.path}
+							/>
+						) : (
+							<ToolActivityCode
+								className="mt-1 overflow-x-auto text-xs"
+								key={entry.key}
+							>
+								{entry.item.diff}
+							</ToolActivityCode>
+						),
+					)}
 					{inputPreviews.map((preview) => (
 						<div className="space-y-1" key={`input_${preview.key}`}>
 							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
@@ -1308,7 +1370,7 @@ const ToolMessageBlock = memo(
 							</ToolActivityCode>
 						</div>
 					))}
-					{resultPreviews.map((preview) => (
+					{errorPreviews.map((preview) => (
 						<div
 							className="mt-1 break-words text-destructive"
 							key={`result_${preview.key}`}
