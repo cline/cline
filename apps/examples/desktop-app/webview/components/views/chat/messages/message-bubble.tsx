@@ -126,7 +126,7 @@ export const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
-	// Spacing between blocks comes solely from the conversation list's `gap-2`
+	// Spacing between blocks comes solely from the conversation list's `gap-8`
 	// and this content column's `gap-2`; blocks must not add their own margins.
 	return (
 		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
@@ -173,13 +173,9 @@ export const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderUserActions ? (
 				<>
-					<MessageActions
-						className="absolute right-0 top-full z-10 pt-2"
-						visible={keepUserActionsVisible}
-					>
+					<MessageActions side="end" visible={keepUserActionsVisible}>
 						{onCopyMessage ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
@@ -193,7 +189,6 @@ export const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
@@ -210,7 +205,6 @@ export const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{checkpoint ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -241,13 +235,9 @@ export const MessageBubble = memo(function MessageBubble({
 			) : null}
 
 			{shouldRenderAssistantActions ? (
-				<MessageActions
-					className="absolute left-0 top-full z-10 pt-2"
-					visible={keepAssistantActionsVisible}
-				>
+				<MessageActions side="start" visible={keepAssistantActionsVisible}>
 					{onCopyMessage ? (
 						<MessageAction
-							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -265,7 +255,6 @@ export const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}

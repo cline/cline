@@ -87,6 +87,7 @@
 	}
 
 	.cline-chat-message {
+		position: relative;
 		display: flex;
 		width: 100%;
 		min-width: 0;
@@ -95,6 +96,18 @@
 		gap: 0.25rem;
 		font-size: var(--text-sm);
 		overflow-wrap: anywhere;
+	}
+
+	/* Invisible hover bridge across only the gap before the absolutely-positioned
+	 * actions. Keeping it narrow avoids intercepting pointer events intended for
+	 * the following message. */
+	.cline-chat-message::after {
+		content: "";
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		height: 0.4rem;
 	}
 
 	.cline-chat-message[data-role="user"] {
@@ -109,14 +122,14 @@
 		color: var(--foreground);
 	}
 
-	/* User bubbles sit on the brand surface so the person's words read as the
-	 * strongest element in the transcript rather than blending into cards. */
+	/* User bubbles use the card surface with a subtle edge so they remain
+	 * distinct from the transcript without overpowering assistant content. */
 	.cline-chat-message[data-role="user"] > .cline-chat-message-content {
 		max-width: 85%;
-		padding: 0.5rem;
-		border-radius: calc(var(--radius) - 4px);
-		background: var(--brand-violet-surface, var(--primary));
-		color: var(--brand-violet-surface-foreground, var(--primary-foreground));
+		padding: 0.6rem 0.8rem;
+		border-radius: calc(var(--radius));
+		background: var(--card-surface);
+		border: 1px solid var(--neutral-a3);
 	}
 
 	.cline-chat-message[data-role="error"] > .cline-chat-message-content {
@@ -135,12 +148,27 @@
 	/* Actions appear and vanish instantly — a fade on hover chrome reads as
 	 * lag, not polish. */
 	.cline-chat-message-actions {
+		position: absolute;
+		top: 100%;
+		z-index: 10;
 		display: flex;
 		min-height: 1.5rem;
 		align-items: center;
-		gap: 0.25rem;
 		pointer-events: none;
 		opacity: 0;
+		margin-top: 0.1rem;
+	}
+
+	.cline-chat-message-actions[data-side="start"] {
+		left: 0;
+	}
+
+	.cline-chat-message-actions[data-side="end"] {
+		right: 0;
+	}
+
+	.cline-chat-message[data-role="assistant"] > .cline-chat-message-actions {
+		margin-top: 0.25rem;
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
@@ -154,30 +182,22 @@
 	}
 
 	.cline-chat-message-action {
-		display: inline-flex;
-		min-width: 1.5rem;
-		height: 1.5rem;
-		align-items: center;
-		justify-content: center;
-		gap: 0.375rem;
-		padding: 0 0.5rem;
-		border: 0;
-		border-radius: calc(var(--radius) - 4px);
-		background: transparent;
-		color: var(--muted-foreground);
+		width: 1.75rem;
+		height: 1.75rem;
+		min-width: 1.75rem;
+		padding: 0;
+		aspect-ratio: 1;
 		font: inherit;
 		font-size: var(--text-xs);
-		cursor: pointer;
 	}
 
-	.cline-chat-message-action:hover {
-		background: var(--accent);
-		color: var(--foreground);
+	.cline-chat-message-action > svg {
+		width: 0.875rem;
+		height: 0.875rem;
 	}
 
-	.cline-chat-message-action:disabled {
-		cursor: not-allowed;
-		opacity: 0.5;
+	.cline-chat-message-actions > time {
+		margin-inline-start: 0.25rem;
 	}
 
 	.cline-chat-reasoning {
@@ -221,7 +241,6 @@
 
 	.cline-chat-disclosure-icon {
 		flex: 0 0 auto;
-		transition: transform 150ms ease;
 	}
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
