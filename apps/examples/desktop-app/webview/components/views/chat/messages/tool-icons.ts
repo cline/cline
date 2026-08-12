@@ -1,4 +1,9 @@
 import {
+	classifyTool,
+	normalizeToolName,
+	type ToolKind,
+} from "@cline/ui/components/agent-chat/tool-summary";
+import {
 	BlocksIcon,
 	BoxIcon,
 	FilesIcon,
@@ -14,46 +19,29 @@ import {
 	UsersIcon,
 	WrenchIcon,
 } from "lucide-react";
-import { classifyTool, normalizeToolName } from "./tool-summaries";
 
+// Overrides for tools whose kind-based icon would be misleading.
 export const TOOL_NAME_ICONS: Record<string, LucideIcon> = {
-	apply_patch: PencilIcon,
-	ask_question: MessageCircleQuestionMarkIcon,
-	editor: PencilIcon,
-	fetch_web_content: PanelsTopLeftIcon,
-	mcp: BoxIcon,
 	plugins: BlocksIcon,
-	read_files: FilesIcon,
-	run_commands: TerminalIcon,
-	search_codebase: SearchCodeIcon,
-	skills: LibraryIcon,
-	spawn_agent: UserIcon,
 	submit_and_exit: SquareArrowRightIcon,
 };
 
-export const TOOL_KIND_ICONS: Record<
-	ReturnType<typeof classifyTool>,
-	LucideIcon
-> = {
-	bash: TerminalIcon,
-	exploration: SearchCodeIcon,
-	"file-edit": PencilIcon,
+export const TOOL_KIND_ICONS: Record<ToolKind, LucideIcon> = {
+	command: TerminalIcon,
+	edit: PencilIcon,
+	mcp: BoxIcon,
+	other: WrenchIcon,
+	question: MessageCircleQuestionMarkIcon,
+	read: FilesIcon,
+	search: SearchCodeIcon,
+	skill: LibraryIcon,
 	spawn: UserIcon,
-	tool: WrenchIcon,
+	team: UsersIcon,
+	web: PanelsTopLeftIcon,
 };
 
 export function getToolNameIcon(toolName: string): LucideIcon {
 	const normalized = normalizeToolName(toolName);
-	if (normalized.startsWith("subagent_")) {
-		return UserIcon;
-	}
-	if (
-		normalized === "team" ||
-		normalized === "teams" ||
-		normalized.startsWith("team_")
-	) {
-		return UsersIcon;
-	}
 	return (
 		TOOL_NAME_ICONS[normalized] ?? TOOL_KIND_ICONS[classifyTool(normalized)]
 	);

@@ -822,10 +822,15 @@ export async function getValidClineCredentials(
 			sdkDebug(
 				`cline.getCredentials outcome=invalid_grant status=${error.status} errorCode=${error.errorCode ?? "none"}`,
 			);
+			// This is the single owner of the involuntary-logout event for the
+			// Cline provider — callers observing the `null` return must NOT
+			// emit their own user.auth_logged_out. `token_invalid` matches the
+			// legacy extension's LogoutReason vocabulary so warehouse queries
+			// cover both bundles; the raw OAuth code stays in `errorCode`.
 			captureAuthLoggedOut(
 				providerOptions.telemetry,
 				providerOptions.provider ?? "cline",
-				"invalid_grant",
+				"token_invalid",
 				{
 					status: error.status,
 					errorCode: error.errorCode,

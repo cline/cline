@@ -779,6 +779,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 	afterEach(() => {
 		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
 		delete process.env.CLINE_HUB_BUILD_ID;
 		vi.resetModules();
 	});
@@ -871,6 +872,62 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
 		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("attaches to a managed hub from a newer build instead of retiring it", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					authToken: "newer-token",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
