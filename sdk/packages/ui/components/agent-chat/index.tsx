@@ -67,6 +67,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 		const shouldStickToBottom = useRef(true);
 		const isProgrammaticScroll = useRef(false);
 		const lastProgrammaticScrollTop = useRef(0);
+		const lastObservedScrollTop = useRef(0);
 		const programmaticScrollTimer = useRef<number | null>(null);
 
 		const clearProgrammaticScroll = useCallback(() => {
@@ -80,6 +81,9 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 			if (!viewport) return;
 			const distance =
 				viewport.scrollHeight - viewport.scrollTop - viewport.clientHeight;
+			const scrolledUp =
+				viewport.scrollTop < lastObservedScrollTop.current - 1;
+			lastObservedScrollTop.current = viewport.scrollTop;
 			if (isProgrammaticScroll.current) {
 				if (viewport.scrollTop + 1 < lastProgrammaticScrollTop.current) {
 					isProgrammaticScroll.current = false;
@@ -95,7 +99,16 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					return;
 				}
 			}
-			shouldStickToBottom.current = distance <= STICK_TO_BOTTOM_THRESHOLD_PX;
+			// Sticking is an intent, not a position: content growing under a
+			// pinned viewport briefly widens `distance` before the resize
+			// observer re-pins, and a scroll event landing in that window must
+			// not read as the user leaving the bottom. Only an actual upward
+			// scroll releases the pin; reaching the bottom always restores it.
+			if (distance <= STICK_TO_BOTTOM_THRESHOLD_PX) {
+				shouldStickToBottom.current = true;
+			} else if (scrolledUp) {
+				shouldStickToBottom.current = false;
+			}
 			setShowScrollButton(distance > SCROLL_BUTTON_THRESHOLD_PX);
 		}, [clearProgrammaticScroll, viewport]);
 
@@ -116,6 +129,7 @@ export const Conversation = forwardRef<HTMLDivElement, ConversationProps>(
 					top: viewport.scrollHeight,
 					behavior: effectiveBehavior,
 				});
+				lastObservedScrollTop.current = viewport.scrollTop;
 				setShowScrollButton(false);
 				if (!isSmooth) return;
 				programmaticScrollTimer.current = window.setTimeout(() => {
