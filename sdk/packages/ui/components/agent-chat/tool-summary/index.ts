@@ -154,14 +154,18 @@ export type ToolSummaryOptions = {
 	pathStyle?: "shortened" | "basename" | "full";
 	/** Cap on extracted output/error text. Default: 64 KiB. */
 	maxOutputChars?: number;
-	/** Cap on inline label text (commands, tasks, questions). Default: 60. */
+	/**
+	 * Safety cap on inline label text (commands, tasks, questions). High by
+	 * default — rows should show the real command and let layout handle
+	 * overflow; this only guards against pathological payloads. Default: 200.
+	 */
 	maxInlineChars?: number;
 };
 
 const DEFAULT_OPTIONS: Required<ToolSummaryOptions> = {
 	pathStyle: "shortened",
 	maxOutputChars: 64 * 1024,
-	maxInlineChars: 60,
+	maxInlineChars: 200,
 };
 
 export const TOOL_NAME_ALIASES: Record<string, string> = {
@@ -723,8 +727,9 @@ export function buildToolSummary(
 						fragment: command !== "create",
 					},
 				],
-				// The label already carries the file; the diff renders from items.
-				details: [],
+				// The label carries the basename; the expanded panel leads with
+				// the fuller path above the diff, matching read rows.
+				details: [formatPath(path, opts.pathStyle)],
 			};
 		}
 	}

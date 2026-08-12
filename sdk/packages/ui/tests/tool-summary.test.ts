@@ -130,16 +130,26 @@ describe("run_commands summaries", () => {
 		expect(summary.details).toEqual([]);
 	});
 
-	it("truncates long single commands and keeps the full text in details", () => {
+	it("keeps realistic commands untruncated in the label", () => {
+		const command = `bun run test --filter @cline/ui --reporter verbose ${"x".repeat(60)}`;
 		const summary = buildToolSummary({
 			toolName: "run_commands",
-			input: { commands: [`echo ${"x".repeat(100)}`] },
+			input: { commands: [command] },
+		});
+		expect(summary.label).toBe(`Ran command ${command}`);
+		expect(summary.details).toEqual([]);
+	});
+
+	it("truncates only pathological commands and keeps the full text in details", () => {
+		const summary = buildToolSummary({
+			toolName: "run_commands",
+			input: { commands: [`echo ${"x".repeat(400)}`] },
 		});
 		expect(summary.label.length).toBeLessThanOrEqual(
-			"Ran command ".length + 60,
+			"Ran command ".length + 200,
 		);
 		expect(summary.label.endsWith("…")).toBe(true);
-		expect(summary.details[0]).toBe(`echo ${"x".repeat(100)}`);
+		expect(summary.details[0]).toBe(`echo ${"x".repeat(400)}`);
 	});
 
 	it("accepts every run_commands union shape", () => {
@@ -232,6 +242,8 @@ describe("editor summaries", () => {
 			},
 		});
 		expect(summary.label).toBe("Edited file util.ts");
+		// The expanded panel leads with the fuller path, like read rows.
+		expect(summary.details).toEqual(["src/util.ts"]);
 		expect(summary.diff).toEqual({ additions: 2, deletions: 1 });
 		const item = summary.items[0];
 		expect(item.type).toBe("file");

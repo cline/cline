@@ -194,7 +194,7 @@
 		padding: 0.25rem 0;
 		border: 0;
 		background: transparent;
-		color: color-mix(in oklab, var(--foreground) 70%, transparent);
+		color: var(--muted-foreground);
 		font: inherit;
 		font-size: var(--text-sm);
 		font-weight: var(--font-weight-medium);
@@ -249,8 +249,11 @@
 		color: var(--success-text);
 	}
 
+	/* Active tool rows carry the brand accent; finished rows settle into the
+	 * muted gray of older transcript chrome. Hover brightens without shifting
+	 * hue. */
 	.cline-chat-tool-trigger[data-status="running"] {
-		color: var(--primary);
+		color: var(--brand-violet, var(--primary));
 	}
 
 	.cline-chat-tool-trigger[data-status="error"] {
@@ -262,15 +265,19 @@
 	}
 
 	button.cline-chat-tool-trigger:hover {
-		color: color-mix(in oklab, var(--success-text) 80%, transparent);
+		color: var(--foreground);
 	}
 
 	button.cline-chat-tool-trigger[data-status="running"]:hover {
-		color: color-mix(in oklab, var(--primary) 80%, transparent);
+		color: color-mix(
+			in oklab,
+			var(--brand-violet, var(--primary)) 80%,
+			var(--foreground)
+		);
 	}
 
 	button.cline-chat-tool-trigger[data-status="error"]:hover {
-		color: color-mix(in oklab, var(--error-text) 80%, transparent);
+		color: color-mix(in oklab, var(--error-text) 80%, var(--foreground));
 	}
 
 	.cline-chat-tool-icon {
@@ -302,8 +309,9 @@
 		width: 0.75rem;
 		height: 0.75rem;
 		flex: 0 0 auto;
-		border: 2px solid color-mix(in oklab, var(--primary) 25%, transparent);
-		border-top-color: var(--primary);
+		border: 2px solid
+			color-mix(in oklab, var(--brand-violet, var(--primary)) 25%, transparent);
+		border-top-color: var(--brand-violet, var(--primary));
 		border-radius: 9999px;
 		animation: cline-chat-spin 800ms linear infinite;
 	}
