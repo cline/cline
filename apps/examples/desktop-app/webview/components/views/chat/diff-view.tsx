@@ -284,10 +284,13 @@ function DiffFileSection({
 							No hunk details available.
 						</p>
 					) : (
-						file.hunks.map((hunk) => (
+						// The index disambiguates repeated same-shaped hunks (e.g.
+						// a file created twice with identical contents); hunks
+						// never reorder within a file, so it is a stable key.
+						file.hunks.map((hunk, index) => (
 							<DiffHunk
 								hunk={hunk}
-								key={`${file.path}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
+								key={`${file.path}-${index}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
 								path={file.path}
 							/>
 						))
