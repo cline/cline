@@ -109,12 +109,14 @@
 		color: var(--foreground);
 	}
 
+	/* User bubbles sit on the brand surface so the person's words read as the
+	 * strongest element in the transcript rather than blending into cards. */
 	.cline-chat-message[data-role="user"] > .cline-chat-message-content {
 		max-width: 85%;
 		padding: 0.5rem;
 		border-radius: calc(var(--radius) - 4px);
-		background: var(--card);
-		color: color-mix(in oklab, var(--foreground) 80%, transparent);
+		background: var(--brand-violet-surface, var(--primary));
+		color: var(--brand-violet-surface-foreground, var(--primary-foreground));
 	}
 
 	.cline-chat-message[data-role="error"] > .cline-chat-message-content {
