@@ -23,6 +23,7 @@ import {
 	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
+import { SessionVersioningService } from "./session-versioning-service";
 
 function git(cwd: string, args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {
@@ -314,6 +315,66 @@ describe("applyCheckpointToWorktree", () => {
 				"refs/cline/restore-transactions",
 			]),
 		).toBe("");
+	});
+
+	it("keeps preserved untracked files in the worktree through the restore transaction", async () => {
+		// The recovery stash must not swallow files the checkpoint never
+		// captured: stash push removes untracked files from the worktree, and
+		// nothing on the restore path would put a size-capped file back.
+		writeFileSync(join(dir, "big.bin"), "capped content", "utf8");
+		writeFileSync(join(dir, "other.txt"), "rewindable\n", "utf8");
+
+		const transaction = await beginWorktreeRestoreTransaction(dir, ["big.bin"]);
+		// The preserved file never left the worktree; the other untracked file
+		// was captured (and removed) as usual.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe("capped content");
+		expect(existsSync(join(dir, "other.txt"))).toBe(false);
+
+		await transaction.rollback();
+		// Rollback's clean also spares the preserved file while restoring the
+		// captured one.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe("capped content");
+		expect(readFileSync(join(dir, "other.txt"), "utf8")).toBe("rewindable\n");
+	});
+
+	it("keeps size-capped files on disk through a full workspace restore (transaction + apply)", async () => {
+		// Composition-level regression test: the per-function guards passed
+		// while the real restore path (transaction first, then apply) deleted
+		// the capped file, because the recovery stash swallowed it.
+		writeFileSync(join(dir, "big.bin"), "capped content", "utf8");
+		writeFileSync(join(dir, "small.txt"), "keep me\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-full-restore", {
+			maxUntrackedFileBytes: 8,
+		});
+		expect(checkpoint.skippedUntracked).toEqual(["big.bin"]);
+
+		writeFileSync(join(dir, "big.bin"), "capped content v2", "utf8");
+		writeFileSync(join(dir, "small.txt"), "changed after checkpoint\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+
+		const session = {
+			sessionId: "restore-session",
+			cwd: dir,
+			metadata: { checkpoint: { latest: checkpoint, history: [checkpoint] } },
+		} as unknown as import("../types/sessions").SessionRecord;
+		await new SessionVersioningService().restoreCheckpoint({
+			sessionId: "restore-session",
+			checkpointRunCount: 1,
+			cwd: dir,
+			restore: { messages: false, workspace: true },
+			getSession: async () => session,
+			readMessages: async () => {
+				throw new Error("messages should not be read");
+			},
+		});
+
+		// The capped file stays at its *current* content — it was never part
+		// of the snapshot, so restore must not touch it in either direction.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe(
+			"capped content v2",
+		);
+		expect(readFileSync(join(dir, "small.txt"), "utf8")).toBe("keep me\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
 	});
 
 	it("leaves size-capped untracked files on disk when rewinding a snapshot", async () => {

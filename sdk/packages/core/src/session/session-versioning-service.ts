@@ -267,7 +267,14 @@ export class SessionVersioningService {
 			input.beginWorkspaceRestoreTransaction ??
 			(input.applyWorkspaceCheckpoint
 				? undefined
-				: beginWorktreeRestoreTransaction);
+				: // Untracked files the snapshot skipped (size cap) exist only in the
+					// worktree; the recovery stash must leave them in place or nothing
+					// ever puts them back.
+					(transactionCwd: string) =>
+						beginWorktreeRestoreTransaction(
+							transactionCwd,
+							plan.checkpoint.skippedUntracked ?? [],
+						));
 		const transaction =
 			restoreWorkspace && beginWorkspaceRestoreTransaction
 				? await beginWorkspaceRestoreTransaction(plan.cwd)

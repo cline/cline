@@ -46,9 +46,18 @@ async function resolveOptionalGitRef(
  * `git clean -fd`. Use a short-lived `stash push --include-untracked`, move
  * its object behind a private ref, and immediately remove it from the user's
  * visible stash list. The private ref remains only until commit or rollback.
+ *
+ * `preserveUntracked` names untracked files the checkpoint never captured
+ * (its size cap): they must survive the restore *in the worktree*. Without
+ * the exemption `stash push --include-untracked` moves them into the
+ * recovery stash, nothing restores them (they are not in the snapshot's
+ * third parent), and commit() discards the recovery ref — silently deleting
+ * them. Excluding them here also spares hashing files the cap was added to
+ * avoid hashing; rollback's `git clean` exempts the same paths.
  */
 export async function beginWorktreeRestoreTransaction(
 	cwd: string,
+	preserveUntracked: readonly string[] = [],
 ): Promise<WorktreeRestoreTransaction> {
 	const check = await execFile(
 		"git",
@@ -66,6 +75,20 @@ export async function beginWorktreeRestoreTransaction(
 	const previousStashRef = await resolveOptionalGitRef(cwd, "refs/stash");
 	const transactionId = randomUUID();
 	const privateRef = `refs/cline/restore-transactions/${transactionId}`;
+	// Pathspec form: everything except the preserved files. `literal` keeps
+	// glob metacharacters in filenames from being interpreted.
+	const stashPathspec =
+		preserveUntracked.length > 0
+			? [
+					"--",
+					".",
+					...preserveUntracked.map((path) => `:(exclude,literal)${path}`),
+				]
+			: [];
+	const cleanExcludeArgs = preserveUntracked.flatMap((path) => [
+		"-e",
+		toCleanExcludePattern(path),
+	]);
 
 	await execFile(
 		"git",
@@ -77,6 +100,7 @@ export async function beginWorktreeRestoreTransaction(
 			"--include-untracked",
 			"--message",
 			`cline restore transaction ${transactionId}`,
+			...stashPathspec,
 		],
 		{ windowsHide: true },
 	);
@@ -99,9 +123,11 @@ export async function beginWorktreeRestoreTransaction(
 				await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 					windowsHide: true,
 				});
-				await execFile("git", ["-C", cwd, "clean", "-fd"], {
-					windowsHide: true,
-				});
+				await execFile(
+					"git",
+					["-C", cwd, "clean", "-fd", ...cleanExcludeArgs],
+					{ windowsHide: true },
+				);
 				await execFile(
 					"git",
 					["-C", cwd, "stash", "apply", "--index", capturedRef],
@@ -135,7 +161,7 @@ export async function beginWorktreeRestoreTransaction(
 			await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
 				windowsHide: true,
 			});
-			await execFile("git", ["-C", cwd, "clean", "-fd"], {
+			await execFile("git", ["-C", cwd, "clean", "-fd", ...cleanExcludeArgs], {
 				windowsHide: true,
 			});
 			if (hasSnapshot) {
