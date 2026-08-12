@@ -188,7 +188,7 @@ export class AuthService {
 							Logger.error("Token is invalid or expired:", error)
 							this._clineAuthInfo = null
 							this._authenticated = false
-							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+							telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.TOKEN_INVALID)
 							authStatusChanged = true
 						} else if (error instanceof AuthNetworkError) {
 							Logger.error("Network error refreshing token", error)
@@ -331,13 +331,15 @@ export class AuthService {
 				Logger.warn("No user found after restoring auth token")
 				this._authenticated = false
 				this._clineAuthInfo = null
-				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+				// Fires on every window open for users with no stored session
+				// (e.g. API-key users) — not a logout, hence the dedicated reason.
+				telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.NO_STORED_SESSION)
 			}
 		} catch (error) {
 			Logger.error("Error restoring auth token:", error)
 			this._authenticated = false
 			this._clineAuthInfo = null
-			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.ERROR_RECOVERY)
+			telemetryService.captureAuthLoggedOut(this._provider.name, LogoutReason.RESTORE_ERROR)
 			return
 		}
 	}
