@@ -61,22 +61,12 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 				},
 			];
 		}
-		case "usage": {
-			// Classic `ApiStreamUsageChunk` reports DISJOINT buckets:
-			// `inputTokens` is uncached input only, with cache reads/writes
-			// alongside. The canonical `AgentUsage` contract is cache-INCLUSIVE
-			// (`inputTokens` = full prompt size; see `AgentTokenUsage` in
-			// @cline/shared). Normalize here so every producer entering the
-			// runtime satisfies the same invariant — consumers that want
-			// uncached input (task.tokens telemetry, the webview usage display,
-			// context-size math) subtract the cache buckets back out.
-			const cacheReadTokens = chunk.cacheReadTokens ?? 0;
-			const cacheWriteTokens = chunk.cacheWriteTokens ?? 0;
+		case "usage":
 			return [
 				{
 					type: "usage",
 					usage: {
-						inputTokens: chunk.inputTokens + cacheReadTokens + cacheWriteTokens,
+						inputTokens: chunk.inputTokens,
 						outputTokens: chunk.outputTokens,
 						cacheReadTokens: chunk.cacheReadTokens,
 						cacheWriteTokens: chunk.cacheWriteTokens,
@@ -85,7 +75,6 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 					},
 				},
 			];
-		}
 		case "done":
 			// `createMessage` streams typically end by returning; a "done" chunk is
 			// optional. Map it to a finish event so the runtime sees a terminal

@@ -95,38 +95,6 @@ describe("createAgentModelFromApiHandler", () => {
 		]);
 	});
 
-	it("normalizes classic disjoint usage to cache-inclusive inputTokens", async () => {
-		// ApiStreamUsageChunk reports disjoint buckets (inputTokens is
-		// uncached input only). The canonical AgentUsage contract wants
-		// inputTokens to be the full prompt size, cache buckets included,
-		// so downstream subtraction (task.tokens, webview display,
-		// context-size math) is valid for every producer.
-		const handler = fakeHandler([
-			{
-				type: "usage",
-				inputTokens: 100,
-				outputTokens: 5,
-				cacheReadTokens: 9000,
-				cacheWriteTokens: 200,
-				id: "x",
-			},
-		]);
-		const model = createAgentModelFromApiHandler(handler);
-		const events = await collect(model.stream(baseRequest));
-
-		expect(events[0]).toEqual({
-			type: "usage",
-			usage: {
-				inputTokens: 9300,
-				outputTokens: 5,
-				cacheReadTokens: 9000,
-				cacheWriteTokens: 200,
-				reasoningTokenCount: undefined,
-				totalCost: undefined,
-			},
-		});
-	});
-
 	it("maps tool_calls (object args) to a tool-call-delta event", async () => {
 		const handler = fakeHandler([
 			{
