@@ -141,8 +141,9 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
-const PROMPT_INPUT_COLLAPSED_ROWS = 1;
-const PROMPT_INPUT_EXPANDED_ROWS = 2;
+// The composer keeps a steady two-line height whether or not it has focus —
+// resizing on blur made the bottom of the conversation jump around.
+const PROMPT_INPUT_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 
@@ -377,7 +378,6 @@ function ChatInputBarImpl({
 	}, [onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const promptInputRef = useRef<HTMLTextAreaElement | null>(null);
-	const [promptInputFocused, setPromptInputFocused] = useState(false);
 	const [cursorIndex, setCursorIndex] = useState(() => promptInput.length);
 	// Mention/slash detection is derived synchronously from the input +
 	// cursor. Deriving (rather than syncing through effects) keeps a keystroke
@@ -429,10 +429,7 @@ function ChatInputBarImpl({
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
-	const promptInputRows =
-		variant === "welcome" || promptInputFocused
-			? PROMPT_INPUT_EXPANDED_ROWS
-			: PROMPT_INPUT_COLLAPSED_ROWS;
+	const promptInputRows = PROMPT_INPUT_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -759,7 +756,9 @@ function ChatInputBarImpl({
 					)}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-[border-color,box-shadow] focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							// Focus feedback lands instantly — no transition — so the
+							// border reads as state, not animation.
+							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome" &&
 								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
 						)}
@@ -784,6 +783,7 @@ function ChatInputBarImpl({
 							aria-haspopup="listbox"
 							className={cn(
 								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
+								variant === "welcome" && "self-start",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -796,8 +796,6 @@ function ChatInputBarImpl({
 									e.currentTarget.selectionStart ?? promptInput.length,
 								)
 							}
-							onBlur={() => setPromptInputFocused(false)}
-							onFocus={() => setPromptInputFocused(true)}
 							onPaste={(e) => {
 								const images = imageFilesFromClipboard(e.clipboardData);
 								if (images.length > 0) {
@@ -1457,7 +1455,7 @@ const ModelSelector = memo(function ModelSelector({
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
 				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]"/>
+				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
 		</div>

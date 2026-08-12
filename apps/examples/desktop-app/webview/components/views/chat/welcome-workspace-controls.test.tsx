@@ -108,7 +108,9 @@ describe("WelcomeWorkspaceControls manual path entry", () => {
 
 		const pathOption = [
 			...container.querySelectorAll<HTMLButtonElement>("button"),
-		].find((candidate) => candidate.textContent?.includes("Open folder \u201c"));
+		].find((candidate) =>
+			candidate.textContent?.includes("Open folder \u201c"),
+		);
 		expect(pathOption).toBeUndefined();
 	});
 

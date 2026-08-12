@@ -27,7 +27,7 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
 | `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
@@ -52,6 +52,23 @@ their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
+`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
+accent, neutral, and destructive tones. Both default to `type="button"` so they
+are safe inside forms. `IconButton` requires an accessible `aria-label`, and
+both components support Radix-style composition through `asChild`.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+
+<Button size="sm" tone="accent" variant="fill">
+	Continue
+</Button>;
+
+<IconButton aria-label="Close" size="sm">
+	<CloseIcon />
+</IconButton>;
+```
+
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
@@ -68,7 +85,7 @@ errors, and response transport.
 actions to the host.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
-dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
+dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
 `palette.css` and `tokens.css` are the canonical theme sources;
@@ -82,8 +99,8 @@ Consumers may import either public token entry point.
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
