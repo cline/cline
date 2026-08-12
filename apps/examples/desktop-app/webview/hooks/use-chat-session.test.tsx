@@ -166,6 +166,108 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("routes command updates after attaching to an in-flight tool call", async () => {
+		const hydratedSessionId = "session-in-flight-command";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-tool-call",
+							sessionId: hydratedSessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["bun test"] },
+								result: null,
+								isError: false,
+							}),
+							createdAt: 1,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-in-flight",
+								hookEventName: "history_tool_use",
+							},
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-12T00:00:00.000Z",
+			});
+		});
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "still running\n" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(current.messages).toHaveLength(1);
+		expect(current.messages[0]?.meta?.toolOutput).toBe("still running\n");
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					output: "done",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const completedPayload = JSON.parse(current.messages[0]?.content ?? "{}");
+		expect(completedPayload).toMatchObject({
+			input: { commands: ["bun test"] },
+			result: "done",
+		});
+		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {

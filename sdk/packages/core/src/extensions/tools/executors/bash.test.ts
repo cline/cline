@@ -99,6 +99,40 @@ describe("createShellExecutor", () => {
 		await execution;
 	});
 
+	it("coalesces and bounds progress queued by noisy commands", async () => {
+		const updates: Array<Record<string, unknown>> = [];
+		const shell = createShellExecutor({
+			timeoutMs: 2_000,
+			maxOutputChars: 128,
+		});
+
+		await shell(
+			{
+				command: process.execPath,
+				args: [
+					"-e",
+					"for (let i = 0; i < 2_000; i++) process.stdout.write('0123456789'); setTimeout(() => {}, 100)",
+				],
+			},
+			process.cwd(),
+			{
+				...ctx,
+				emitUpdate: (update) => updates.push(update as Record<string, unknown>),
+			},
+		);
+
+		const chunks = updates.filter(
+			(update) => typeof update.chunk === "string" && update.chunk.length > 0,
+		);
+		expect(chunks.length).toBeGreaterThan(0);
+		expect(chunks.length).toBeLessThanOrEqual(3);
+		expect(chunks.every((update) => String(update.chunk).length <= 128)).toBe(
+			true,
+		);
+		expect(chunks.some((update) => update.truncated === true)).toBe(true);
+		expect(chunks.at(-1)?.chunk).toContain("0123456789");
+	});
+
 	it("releases a detachable command while it continues in the background", async () => {
 		const controller = new RunCommandExecutionController();
 		let resolveStarted: (() => void) | undefined;

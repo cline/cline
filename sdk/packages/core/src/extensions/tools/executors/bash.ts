@@ -36,6 +36,9 @@ const DETACHED_LOG_DIRECTORY_PREFIX = "cline-command-";
 const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_FILENAME = "active-owner";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
+const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
+
+type CommandProgressStream = "stdout" | "stderr";
 
 export interface DetachedCommandLogCleanupOptions {
 	tempDirectory?: string;
@@ -281,6 +284,117 @@ function createRollingCollector(maxChars: number) {
 	};
 }
 
+/**
+ * Coalesces high-volume process output before it enters the runtime event
+ * pipeline. Each stream keeps only a bounded pending tail and produces at
+ * most one update per flush interval, preventing a noisy child process from
+ * creating an unbounded queue of Hub and websocket events.
+ */
+function createCommandProgressEmitter(
+	context: AgentToolContext,
+	executionId: string,
+	detachable: boolean,
+	maxOutputChars: number,
+) {
+	const emitUpdate = context.emitUpdate;
+	const maxPendingChars =
+		typeof maxOutputChars === "number" && Number.isFinite(maxOutputChars)
+			? Math.max(
+					1,
+					Math.floor(Math.min(MAX_COMMAND_OUTPUT_CHARS, maxOutputChars)),
+				)
+			: MAX_COMMAND_OUTPUT_CHARS;
+	let pending: Partial<
+		Record<CommandProgressStream, { chunk: string; droppedChars: number }>
+	> = {};
+	let streamOrder: CommandProgressStream[] = [];
+	let flushTimer: NodeJS.Timeout | undefined;
+	let stopped = false;
+
+	const clearFlushTimer = () => {
+		if (!flushTimer) return;
+		clearTimeout(flushTimer);
+		flushTimer = undefined;
+	};
+
+	const flush = () => {
+		clearFlushTimer();
+		if (!emitUpdate) {
+			pending = {};
+			streamOrder = [];
+			return;
+		}
+		const buffered = pending;
+		const order = streamOrder;
+		pending = {};
+		streamOrder = [];
+		for (const stream of order) {
+			const entry = buffered[stream];
+			if (!entry?.chunk) continue;
+			const marker =
+				entry.droppedChars > 0
+					? `\u001b[0m[${entry.droppedChars} command-output characters skipped while streaming]\n`
+					: "";
+			const markerFits = marker.length < maxPendingChars;
+			const chunk = markerFits
+				? marker + entry.chunk.slice(-(maxPendingChars - marker.length))
+				: entry.chunk.slice(-maxPendingChars);
+			emitUpdate({
+				stream,
+				chunk,
+				executionId,
+				detachable,
+				...(entry.droppedChars > 0
+					? { truncated: true, droppedChars: entry.droppedChars }
+					: {}),
+			});
+		}
+	};
+
+	const scheduleFlush = () => {
+		if (!emitUpdate || flushTimer || stopped) return;
+		flushTimer = setTimeout(flush, COMMAND_PROGRESS_FLUSH_INTERVAL_MS);
+		flushTimer.unref();
+	};
+
+	return {
+		append(stream: CommandProgressStream, text: string): void {
+			if (!emitUpdate || stopped || !text) return;
+			let entry = pending[stream];
+			if (!entry) {
+				entry = { chunk: "", droppedChars: 0 };
+				pending[stream] = entry;
+				streamOrder.push(stream);
+			}
+			if (text.length >= maxPendingChars) {
+				entry.droppedChars +=
+					entry.chunk.length + text.length - maxPendingChars;
+				entry.chunk = text.slice(-maxPendingChars);
+			} else {
+				const overflow = entry.chunk.length + text.length - maxPendingChars;
+				if (overflow > 0) {
+					entry.droppedChars += overflow;
+					entry.chunk = entry.chunk.slice(overflow);
+				}
+				entry.chunk += text;
+			}
+			scheduleFlush();
+		},
+		flush,
+		stop(options: { flush?: boolean } = {}): void {
+			if (stopped) return;
+			if (options.flush) {
+				flush();
+			} else {
+				clearFlushTimer();
+				pending = {};
+				streamOrder = [];
+			}
+			stopped = true;
+		},
+	};
+}
+
 function scheduleDetachedLogCleanup(
 	directory: string,
 	retentionMs: number,
@@ -395,6 +509,12 @@ function spawnAndCollect(
 		let detached = false;
 		let detachedLog: ReturnType<typeof createDetachedLog> | undefined;
 		let unregisterExecution = () => {};
+		const progress = createCommandProgressEmitter(
+			context,
+			executionId,
+			detachable,
+			maxOutputChars,
+		);
 
 		const settle = (fn: () => void) => {
 			if (settled) return;
@@ -458,6 +578,7 @@ function spawnAndCollect(
 		const killAndReject = (error: Error) => {
 			if (killed || settled) return;
 			killed = true;
+			progress.stop({ flush: true });
 			cleanup();
 			void killProcessTree().finally(() => settle(() => reject(error)));
 		};
@@ -478,6 +599,7 @@ function spawnAndCollect(
 		const detach = (): boolean => {
 			if (!detachable || killed || settled) return false;
 			const log = createDetachedLog(detachedLogRetentionMs);
+			progress.stop({ flush: true });
 			detached = true;
 			detachedLog = log;
 			const currentOut = stdout.current();
@@ -532,12 +654,7 @@ function spawnAndCollect(
 				detachedLog?.write(chunk);
 				return;
 			}
-			context.emitUpdate?.({
-				stream: "stdout",
-				chunk,
-				executionId,
-				detachable,
-			});
+			progress.append("stdout", chunk);
 		});
 
 		child.stderr?.on("data", (data: Buffer) => {
@@ -547,12 +664,7 @@ function spawnAndCollect(
 				detachedLog?.write(chunk);
 				return;
 			}
-			context.emitUpdate?.({
-				stream: "stderr",
-				chunk,
-				executionId,
-				detachable,
-			});
+			progress.append("stderr", chunk);
 		});
 
 		child.on("close", (code) => {
@@ -567,23 +679,14 @@ function spawnAndCollect(
 				detachedLog?.close();
 				return;
 			}
-			cleanup();
 			if (out.finalChunk) {
-				context.emitUpdate?.({
-					stream: "stdout",
-					chunk: out.finalChunk,
-					executionId,
-					detachable,
-				});
+				progress.append("stdout", out.finalChunk);
 			}
 			if (err.finalChunk) {
-				context.emitUpdate?.({
-					stream: "stderr",
-					chunk: err.finalChunk,
-					executionId,
-					detachable,
-				});
+				progress.append("stderr", err.finalChunk);
 			}
+			progress.stop({ flush: true });
+			cleanup();
 
 			if (code !== 0) {
 				const exitCode = code ?? 1;
@@ -630,6 +733,7 @@ function spawnAndCollect(
 				detachedLog?.close();
 				return;
 			}
+			progress.stop({ flush: true });
 			cleanup();
 			settle(() =>
 				reject(new Error(`Failed to execute command: ${error.message}`)),

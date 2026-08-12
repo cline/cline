@@ -182,6 +182,49 @@ function mergeHydratedMessagesWithLive(options: {
 	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
 }
 
+function deriveLiveToolState(messages: ChatMessage[]): {
+	messageIds: Record<string, string>;
+	inputs: Record<string, unknown>;
+} {
+	const messageIds: Record<string, string> = {};
+	const inputs: Record<string, unknown> = {};
+	for (const message of sortMessagesChronologically(messages)) {
+		const toolCallId = message.meta?.toolCallId;
+		if (!toolCallId) continue;
+		const hookEventName = message.meta?.hookEventName;
+		if (
+			hookEventName === "tool_call_end" ||
+			hookEventName === "history_tool_result"
+		) {
+			delete messageIds[toolCallId];
+			delete inputs[toolCallId];
+			continue;
+		}
+		if (
+			hookEventName !== "tool_call_start" &&
+			hookEventName !== "history_tool_use"
+		) {
+			continue;
+		}
+		messageIds[toolCallId] = message.id;
+		try {
+			const payload = JSON.parse(message.content) as unknown;
+			if (
+				payload &&
+				typeof payload === "object" &&
+				!Array.isArray(payload) &&
+				Object.hasOwn(payload, "input")
+			) {
+				inputs[toolCallId] = (payload as { input?: unknown }).input;
+			}
+		} catch {
+			// Routing only needs the ids. A malformed display payload must not
+			// prevent later progress and completion events from reaching the card.
+		}
+	}
+	return { messageIds, inputs };
+}
+
 function updateMessageById(
 	messages: ChatMessage[],
 	id: string,
@@ -1154,13 +1197,16 @@ export function useChatSession() {
 					typeof update.detachable === "boolean"
 						? update.detachable
 						: undefined;
-				if (!chunk && detachable === undefined) return;
+				const sourceTruncated = update.truncated === true;
+				if (!chunk && detachable === undefined && !sourceTruncated) return;
 				const pending = pendingToolOutputRef.current;
 				const existing = pending.get(messageId);
 				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
 				pending.set(messageId, {
 					text: appended.output,
-					truncated: Boolean(existing?.truncated || appended.truncated),
+					truncated: Boolean(
+						existing?.truncated || appended.truncated || sourceTruncated,
+					),
 					detachable: detachable ?? existing?.detachable,
 				});
 				schedulePendingStreamFlush();
@@ -2389,6 +2435,12 @@ export function useChatSession() {
 					sessionId: session.sessionId,
 					hydrationStartedAt,
 				});
+				// Hub attachment starts forwarding future events but does not replay the
+				// tool.started event for a command already in flight. Rebuild its routing
+				// key from canonical history before those future updates can arrive.
+				const liveToolState = deriveLiveToolState(mergedMessages);
+				liveToolMessageIdsRef.current = liveToolState.messageIds;
+				liveToolInputsRef.current = liveToolState.inputs;
 				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();

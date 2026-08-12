@@ -156,8 +156,9 @@ Shell executors emit structured stdout/stderr chunks through
 session, tool-call, and tool identifiers intact. Hub clients reconstruct the
 tool update for their host-facing event stream. Client-contributed executors
 must forward capability progress through this same path rather than creating a
-host-specific side channel. Consumers should coalesce and cap high-frequency
-chunks before rendering them.
+host-specific side channel. The built-in shell executor coalesces output on a
+short interval and bounds each stream's pending tail before it enters the event
+pipeline; consumers independently coalesce and cap their rendered scrollback.
 
 Proceed-while-running is an explicit command lifecycle, separate from client
 or session detachment. A shell process advertises detachability only after it
