@@ -33,6 +33,10 @@ import {
 	EMPTY_CONTENT_TEXT,
 } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
+import {
+	createPlanModeReminderExtension,
+	PLAN_MODE_REMINDER_TEXT,
+} from "../../extensions/tools/plan-mode-reminder-extension";
 import { MESSAGE_BUILDER_LIMIT_ENV } from "../../session/services/message-builder";
 import {
 	SessionRuntime,
@@ -569,6 +573,53 @@ describe("SessionRuntime message preparation", () => {
 		expect(textParts).toEqual(["original", "builder-added"]);
 	});
 
+	it("delivers the plan-mode reminder to the model request via the reminder extension", async () => {
+		const { deps, configs } = makeRecordingRuntimeFactory();
+		const session = new SessionRuntime(
+			makeAgentConfig({
+				extensions: [createPlanModeReminderExtension()],
+			}),
+			deps,
+		);
+
+		await session.run("go");
+		const beforeModel = configs[0]?.hooks?.beforeModel;
+		expect(beforeModel).toBeDefined();
+
+		const result = await beforeModel?.({
+			snapshot: makeSnapshot(),
+			request: {
+				systemPrompt: "system",
+				messages: [
+					{
+						id: "m1",
+						role: "user",
+						content: [
+							{
+								type: "text",
+								text: '<user_input mode="plan">refactor the auth flow</user_input>',
+							},
+						],
+						createdAt: 1,
+					},
+				],
+				tools: [],
+			},
+		});
+
+		const textParts = result?.messages?.flatMap((message) =>
+			message.content.flatMap((part) =>
+				typeof part !== "string" && part.type === "text" ? [part.text] : [],
+			),
+		);
+		// The user_input wrapper is stripped by API normalization, while the
+		// appended reminder block survives to the provider request.
+		expect(textParts).toEqual([
+			"refactor the auth flow",
+			PLAN_MODE_REMINDER_TEXT,
+		]);
+	});
+
 	it("merges beforeModel metadata through final message preparation", async () => {
 		const extension: AgentExtension = {
 			name: "metadata-ext",
@@ -849,9 +900,9 @@ it("derives tool image support metadata from resolved provider model catalog", a
 	// The live telemetry service is a host object with cyclic internals; it
 	// must never ride on toolContextMetadata, which crosses process
 	// boundaries over JSON IPC (plugin sandbox, hub clients).
-	expect(
-		Object.values(runtimeConfig.toolContextMetadata ?? {}),
-	).not.toContain(telemetry);
+	expect(Object.values(runtimeConfig.toolContextMetadata ?? {})).not.toContain(
+		telemetry,
+	);
 	expect(runtimeConfig.toolContextMetadata?.telemetry).toBeUndefined();
 });
 

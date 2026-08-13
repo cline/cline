@@ -58,6 +58,12 @@ export {
 	resolveToolRoutingConfig,
 	type ToolRoutingRule,
 } from "./model-tool-routing";
+export {
+	appendPlanModeReminder,
+	createPlanModeReminderExtension,
+	PLAN_MODE_REMINDER_EXTENSION_NAME,
+	PLAN_MODE_REMINDER_TEXT,
+} from "./plan-mode-reminder-extension";
 // Presets
 export {
 	createDefaultToolsWithPreset,

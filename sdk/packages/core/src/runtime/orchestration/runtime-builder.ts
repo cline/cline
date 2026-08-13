@@ -30,6 +30,7 @@ import {
 	type ToolRoutingRule,
 } from "../../extensions/tools";
 import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
+import { createPlanModeReminderExtension } from "../../extensions/tools/plan-mode-reminder-extension";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
@@ -459,9 +460,19 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 						telemetry: telemetry ?? config.telemetry,
 					})
 				: undefined;
+		// Prompt-level companion to the guard: appends a plan-mode reminder to
+		// the newest user message on every model request, so the contract stays
+		// in front of the model deep into long turns instead of only at the top
+		// of the system prompt. Message-builder output is request-only, so the
+		// reminder never lands in the persisted transcript.
+		const planModeReminder =
+			normalized.mode === "plan"
+				? createPlanModeReminderExtension()
+				: undefined;
 		const injectedExtensions = [
 			userInstructionPlugin,
 			planModeCommandGuard,
+			planModeReminder,
 		].filter((extension) => extension !== undefined);
 		const runtimeExtensions =
 			injectedExtensions.length > 0
