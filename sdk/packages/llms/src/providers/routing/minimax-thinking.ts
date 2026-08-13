@@ -2,7 +2,7 @@ import type {
 	GatewayProviderMetadata,
 	GatewayStreamRequest,
 } from "@cline/shared";
-import { buildProviderAndAliasPatch, type ProviderOptionsPatch } from "./utils";
+import { buildProviderOptionsPatch, type ProviderOptionsPatch } from "./utils";
 
 export const MINIMAX_THINKING_ROUTING_METADATA: GatewayProviderMetadata = {
 	routing: {
@@ -66,8 +66,7 @@ export function buildMiniMaxGatewayReasoningProviderOptionsPatch(
 ): ProviderOptionsPatch | undefined {
 	const reasoning = buildMiniMaxGatewayReasoningOptions(request);
 	return reasoning
-		? buildProviderAndAliasPatch({
-				providerId: request.providerId,
+		? buildProviderOptionsPatch({
 				providerOptionsKey,
 				bucketOptions: reasoning,
 			})

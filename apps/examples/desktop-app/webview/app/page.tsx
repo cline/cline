@@ -13,6 +13,8 @@ import {
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
+import type { RealtimeChatBridge } from "@/components/realtime-voice-bridge";
+import { RealtimeVoiceOverlay } from "@/components/realtime-voice-overlay";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -67,7 +69,10 @@ import {
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
+	loadProviderModelCatalog,
+	MODE_SETTINGS_CHANGED_EVENT,
 	readProviderCatalogSnapshot,
+	type RealtimeVoiceModelTarget,
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
 } from "@/lib/provider-model-catalog";
@@ -168,8 +173,72 @@ export default function Home() {
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
+	const [realtimeVoiceTarget, setRealtimeVoiceTarget] =
+		useState<RealtimeVoiceModelTarget | null>(null);
+	const [activeRealtimeBridge, setActiveRealtimeBridge] =
+		useState<RealtimeChatBridge | null>(null);
+	const [pinnedRealtimeBridge, setPinnedRealtimeBridge] =
+		useState<RealtimeChatBridge | null>(null);
+	const activeRealtimeBridgeRef = useRef<RealtimeChatBridge | null>(null);
 	const { navigation, threads } = appState;
 	const { activeThreadId, settingsSection, view } = navigation.current;
+
+	useEffect(() => {
+		let cancelled = false;
+		let loadId = 0;
+		const loadRealtimeTarget = () => {
+			const currentLoadId = ++loadId;
+			void loadProviderModelCatalog()
+				.then((catalog) => {
+					if (!cancelled && currentLoadId === loadId) {
+						setRealtimeVoiceTarget(catalog.modes.realtimeVoice);
+					}
+				})
+				.catch(() => {
+					if (!cancelled && currentLoadId === loadId) {
+						setRealtimeVoiceTarget(null);
+					}
+				});
+		};
+		const handleModeSettingsChanged = (event: Event) => {
+			const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+			if (!mode || mode === "realtimeVoice") loadRealtimeTarget();
+		};
+		loadRealtimeTarget();
+		window.addEventListener(
+			MODE_SETTINGS_CHANGED_EVENT,
+			handleModeSettingsChanged,
+		);
+		return () => {
+			cancelled = true;
+			loadId += 1;
+			window.removeEventListener(
+				MODE_SETTINGS_CHANGED_EVENT,
+				handleModeSettingsChanged,
+			);
+		};
+	}, []);
+
+	const handleRealtimeBridgeChange = useCallback(
+		(bridge: RealtimeChatBridge) => {
+			if (bridge.threadId === activeThreadId) {
+				activeRealtimeBridgeRef.current = bridge;
+				setActiveRealtimeBridge(bridge);
+			}
+			setPinnedRealtimeBridge((current) =>
+				current?.threadId === bridge.threadId ? bridge : current,
+			);
+		},
+		[activeThreadId],
+	);
+	const handleRealtimeOpenChange = useCallback((open: boolean) => {
+		if (open) {
+			setPinnedRealtimeBridge(activeRealtimeBridgeRef.current);
+		}
+		setRealtimeVoiceOpen(open);
+		if (!open) setPinnedRealtimeBridge(null);
+	}, []);
 
 	const navigate = useCallback((destination: AppLocation) => {
 		dispatchApp({ type: "navigate", destination });
@@ -397,6 +466,20 @@ export default function Home() {
 		)?.title;
 		return { sessionId: parentSessionId, title };
 	}, [activeThread?.historySession?.parentSessionId, sessionHistory.threads]);
+	const renderedChatThreads = useMemo(() => {
+		const realtimeThreadId = realtimeVoiceOpen
+			? pinnedRealtimeBridge?.threadId
+			: undefined;
+		return threads.filter(
+			(thread) =>
+				thread.id === activeThread?.id || thread.id === realtimeThreadId,
+		);
+	}, [
+		activeThread?.id,
+		pinnedRealtimeBridge?.threadId,
+		realtimeVoiceOpen,
+		threads,
+	]);
 
 	return (
 		<AccountProvider>
@@ -423,6 +506,19 @@ export default function Home() {
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
+							realtimeVoiceControl={
+								<RealtimeVoiceOverlay
+									bridge={
+										realtimeVoiceOpen
+											? pinnedRealtimeBridge
+											: activeRealtimeBridge
+									}
+									onConfigure={() => handleSettingsSectionChange("Models")}
+									onOpenChange={handleRealtimeOpenChange}
+									open={realtimeVoiceOpen}
+									target={realtimeVoiceTarget}
+								/>
+							}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
 							setView={handleViewChange}
@@ -446,27 +542,55 @@ export default function Home() {
 								className="flex min-h-0 flex-1 flex-col"
 								inert={view === "settings" ? true : undefined}
 							>
-								<ChatThreadPane
-									key={activeThread.id}
-									historySession={activeThread.historySession}
-									initialPromptDraft={activeThread.initialPromptDraft}
-									knownWorkspacePaths={historyWorkspacePaths}
-									onInitialPromptDraftConsumed={
-										handleInitialPromptDraftConsumed
-									}
-									onUpdateSessionMetadata={handleUpdateSessionMetadata}
-									threadId={activeThread.id}
-									onDeleteSession={handleDeleteSession}
-									onNewThread={handleNewThread}
-									onOpenSession={handleOpenSession}
-									onOpenSessionById={handleOpenSessionById}
-									onOpenSetup={handleOpenSetup}
-									onOpenModelSettings={() =>
-										handleSettingsSectionChange("Models")
-									}
-									parentSession={activeParentSession}
-									onThreadStarted={handleThreadStarted}
-								/>
+								{renderedChatThreads.map((thread) => {
+									const isActive = thread.id === activeThread.id;
+									const parentSessionId =
+										thread.historySession?.parentSessionId?.trim();
+									const parentSession = parentSessionId
+										? {
+												sessionId: parentSessionId,
+												title: sessionHistory.threads.find(
+													(item) => item.id === parentSessionId,
+												)?.title,
+											}
+										: undefined;
+									return (
+										<div
+											className={isActive ? "contents" : "hidden"}
+											key={thread.id}
+										>
+											<ChatThreadPane
+												historySession={thread.historySession}
+												initialPromptDraft={thread.initialPromptDraft}
+												knownWorkspacePaths={historyWorkspacePaths}
+												onInitialPromptDraftConsumed={
+													handleInitialPromptDraftConsumed
+												}
+												onUpdateSessionMetadata={handleUpdateSessionMetadata}
+												threadId={thread.id}
+												onDeleteSession={handleDeleteSession}
+												onNewThread={handleNewThread}
+												onOpenSession={handleOpenSession}
+												onOpenSessionById={handleOpenSessionById}
+												onOpenSetup={handleOpenSetup}
+												onOpenModelSettings={() =>
+													handleSettingsSectionChange("Models")
+												}
+												parentSession={
+													isActive ? activeParentSession : parentSession
+												}
+												onOpenVoiceInputSettings={() =>
+													handleSettingsSectionChange("Models")
+												}
+												onOpenVoiceOutputSettings={() =>
+													handleSettingsSectionChange("Models")
+												}
+												onRealtimeBridgeChange={handleRealtimeBridgeChange}
+												onThreadStarted={handleThreadStarted}
+											/>
+										</div>
+									);
+								})}
 							</div>
 						) : null}
 						{view === "settings" ? (
@@ -480,6 +604,7 @@ export default function Home() {
 						) : null}
 					</SidebarInset>
 				</div>
+				<div id="realtime-voice-portal-root" />
 			</SidebarProvider>
 			{showOnboarding ? (
 				<div className="fixed inset-0 z-50">
@@ -515,6 +640,9 @@ function ChatThreadPane({
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
+	onOpenVoiceInputSettings,
+	onOpenVoiceOutputSettings,
+	onRealtimeBridgeChange,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -536,6 +664,9 @@ function ChatThreadPane({
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
+	onOpenVoiceOutputSettings?: () => void;
+	onRealtimeBridgeChange?: (bridge: RealtimeChatBridge) => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1042,6 +1173,41 @@ function ChatThreadPane({
 		},
 		[onThreadStarted, pendingAttachments, sendPrompt, setPromptInput, threadId],
 	);
+	const handleRealtimeSend = useCallback(
+		async (prompt: string) => {
+			onThreadStarted?.(threadId);
+			return sendPrompt(prompt, [], { source: "realtime" });
+		},
+		[onThreadStarted, sendPrompt, threadId],
+	);
+
+	const realtimeBridge = useMemo<RealtimeChatBridge>(
+		() => ({
+			threadId,
+			sessionId,
+			providerId: config.provider,
+			modelId: config.model,
+			status,
+			hasChatHistory: messages.length > 0,
+			pendingToolApprovals,
+			pendingQuestionCount: pendingAskQuestions.length,
+			sendPrompt: handleRealtimeSend,
+		}),
+		[
+			config.model,
+			config.provider,
+			handleRealtimeSend,
+			messages.length,
+			pendingAskQuestions.length,
+			pendingToolApprovals,
+			sessionId,
+			status,
+			threadId,
+		],
+	);
+	useEffect(() => {
+		onRealtimeBridgeChange?.(realtimeBridge);
+	}, [onRealtimeBridgeChange, realtimeBridge]);
 
 	const handleReasoningChange = useCallback(
 		(next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">) => {
@@ -1366,9 +1532,12 @@ function ChatThreadPane({
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const displayedStatus = hideDeletedSessionUi ? "idle" : status;
 	const displayedSessionId = hideDeletedSessionUi ? null : sessionId;
+	const isAwaitingInitialHydration = Boolean(
+		historySession && hydratedSessionRef.current !== historySession.sessionId,
+	);
 	const displayedIsSwitching = hideDeletedSessionUi
 		? false
-		: isHydratingSession;
+		: isHydratingSession || isAwaitingInitialHydration;
 	const isWelcomeState =
 		displayedMessages.length === 0 && !displayedIsSwitching && !displayedError;
 	const isSessionActive =
@@ -1509,6 +1678,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1579,6 +1749,16 @@ function ChatThreadPane({
 							renamingTitle={renamingSession}
 							status={status}
 							title={threadTitle}
+							workspace={{
+								currentBranch: gitBranch,
+								onListGitBranches: listGitBranches,
+								onPickWorkspaceDirectory: pickWorkspaceDirectory,
+								onRefreshWorkspaces: refreshWorkspaces,
+								onSwitchGitBranch: switchGitBranch,
+								onSwitchWorkspace: switchWorkspace,
+								workspaces,
+								workspaceRoot: resolvedWorkspaceRoot,
+							}}
 						/>
 					</div>
 				) : null}
@@ -1602,6 +1782,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onOpenVoiceOutputSettings={onOpenVoiceOutputSettings}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

@@ -1,6 +1,6 @@
 import { dirname, join, normalize } from "node:path";
 import { fileURLToPath } from "node:url";
-import { ProviderSettingsManager } from "@cline/core";
+import { ClientSettingsManager, ProviderSettingsManager } from "@cline/core";
 import { buildInviteUrl, resolveClineHubServerOptions } from "../options";
 import type { BrowserConfig } from "./types";
 
@@ -19,6 +19,12 @@ export const cliIndexPath = normalize(
 );
 
 export const providerSettingsManager = new ProviderSettingsManager();
+export const desktopClientSettingsManager = new ClientSettingsManager({
+	clientId: "desktop",
+});
+desktopClientSettingsManager.initializeModesIfMissing(
+	providerSettingsManager.read().modes,
+);
 
 export const browserConfig: BrowserConfig = {
 	inviteRequired: Boolean(roomSecret),

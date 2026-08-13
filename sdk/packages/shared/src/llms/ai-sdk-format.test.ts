@@ -801,6 +801,101 @@ describe("formatMessagesForAiSdk", () => {
 		expect(serialized).not.toContain("data:image/jpeg;base64,/9j/");
 	});
 
+	it("moves generated assistant images onto the following user turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here it is" },
+					{ type: "image", image, mediaType: "image/jpeg" },
+				],
+			},
+			{
+				role: "user",
+				content: [{ type: "text", text: "Tell me about the image" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "Here it is" },
+					{ type: "text", text: "[generated image]" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Tell me about the image" },
+					{ type: "file", data: image, mediaType: "image/jpeg" },
+				],
+			},
+		]);
+	});
+
+	it("moves generated assistant images onto string user messages", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+			{
+				role: "user",
+				content: "Describe it",
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "[generated image]" }],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Describe it" },
+					{ type: "file", data: image, mediaType: "image/png" },
+				],
+			},
+		]);
+	});
+
+	it("never emits a generated image on an assistant turn without a following user turn", () => {
+		const image = imageData(8);
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "image", image, mediaType: "image/png" }],
+			},
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "user",
+				content: [{ type: "text", text: "Generate an image" }],
+			},
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "[generated image]" }],
+			},
+		]);
+	});
+
 	it("keeps raw base64 string images without mediaType by defaulting to png", () => {
 		const image = imageData(8);
 		const messages = formatMessagesForAiSdk(undefined, [

@@ -18,6 +18,7 @@ import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
 	ChatApiResult,
+	ChatPromptCompletion,
 	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
@@ -65,6 +66,8 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
+	"chat_video",
+	"chat_audio",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -1081,6 +1084,100 @@ export function useChatSession() {
 				return;
 			}
 
+			if (payload.stream === "chat_video") {
+				let video: { mediaType?: string; artifactName?: string };
+				try {
+					video = JSON.parse(payload.chunk) as typeof video;
+				} catch {
+					return;
+				}
+				if (
+					typeof video.mediaType !== "string" ||
+					!video.mediaType.startsWith("video/") ||
+					typeof video.artifactName !== "string" ||
+					!video.artifactName
+				) {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((prev) => {
+					const generatedVideo = {
+						id: `${assistantId}_video_${video.artifactName}`,
+						mediaType: video.mediaType as string,
+						artifactName: video.artifactName as string,
+					};
+					const updated = updateMessageById(prev, assistantId, (message) => ({
+						...message,
+						videos: [...(message.videos ?? []), generatedVideo],
+					}));
+					if (updated !== prev) return updated;
+					return sliceMessages([
+						...prev,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							videos: [generatedVideo],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				return;
+			}
+
+			if (payload.stream === "chat_audio") {
+				let audio: { mediaType?: string; artifactName?: string };
+				try {
+					audio = JSON.parse(payload.chunk) as typeof audio;
+				} catch {
+					return;
+				}
+				if (
+					typeof audio.mediaType !== "string" ||
+					!audio.mediaType.startsWith("audio/") ||
+					typeof audio.artifactName !== "string" ||
+					!audio.artifactName
+				) {
+					return;
+				}
+				const assistantId =
+					activeAssistantMessageIdRef.current ?? makeId("assistant");
+				activeAssistantMessageIdRef.current = assistantId;
+				setActiveAssistantMessageId(assistantId);
+				setMessages((previous) => {
+					const generatedAudio = {
+						id: `${assistantId}_audio_${audio.artifactName}`,
+						mediaType: audio.mediaType as string,
+						artifactName: audio.artifactName as string,
+					};
+					const updated = updateMessageById(
+						previous,
+						assistantId,
+						(message) => ({
+							...message,
+							audios: [...(message.audios ?? []), generatedAudio],
+						}),
+					);
+					if (updated !== previous) return updated;
+					return sliceMessages([
+						...previous,
+						{
+							id: assistantId,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							audios: [generatedAudio],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				return;
+			}
+
 			// Any non-delta event (tool calls, prompt starts, done markers) must
 			// observe fully applied text, so drain the buffers first.
 			flushPendingStream();
@@ -1503,11 +1600,15 @@ export function useChatSession() {
 	const startSession = useCallback(
 		async (
 			validatedConfig: ChatSessionConfig,
-			options: { preserveStatus?: boolean } = {},
+			options: {
+				preserveStatus?: boolean;
+				source?: "realtime";
+			} = {},
 		): Promise<string> => {
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
+				...(options.source ? { source: options.source } : {}),
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
@@ -1585,7 +1686,11 @@ export function useChatSession() {
 	);
 
 	const sendPrompt = useCallback(
-		async (prompt: string, attachedFiles: File[] = []) => {
+		async (
+			prompt: string,
+			attachedFiles: File[] = [],
+			options: { source?: "realtime" } = {},
+		): Promise<ChatPromptCompletion | undefined> => {
 			const trimmed = prompt.trim();
 			if (!trimmed && attachedFiles.length === 0) return;
 
@@ -1746,7 +1851,7 @@ export function useChatSession() {
 							...parsed,
 							sessionId: plannedSessionId,
 						},
-						{ preserveStatus: true },
+						{ preserveStatus: true, source: options.source },
 					);
 					sessionStartPromiseRef.current = startPromise;
 					try {
@@ -1838,7 +1943,10 @@ export function useChatSession() {
 						return;
 					}
 					setStatus("running");
-					return;
+					return {
+						sessionId: activeSessionId,
+						queued: true,
+					};
 				}
 
 				const result = payload.result as ChatApiResult | undefined;
@@ -2049,6 +2157,12 @@ export function useChatSession() {
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
+				return {
+					sessionId: activeSessionId,
+					queued: false,
+					text: resolvedAssistantText,
+					result,
+				};
 			} catch (err) {
 				if (abortedRef.current) {
 					setStatus("cancelled");

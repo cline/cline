@@ -20,16 +20,27 @@ import {
 	readStoredAppIcon,
 	setStoredAppIcon,
 } from "@/lib/app-icon";
+import {
+	type AvatarOption,
+	getSelectedAvatar,
+	listAvatars,
+	selectAvatar,
+	setAvatarEnabled,
+} from "@/lib/avatar";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	invalidateProviderCatalogCache,
+	notifyModeSettingsChanged,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
+	ProviderMode,
 	ProviderModelsResponse,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
 	ProviderSettingsUpdate,
 } from "@/lib/provider-schema";
 import {
@@ -75,6 +86,22 @@ let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
 } | null = null;
+let modeSettingsCache: ProviderModesSettings = {};
+
+function removeProviderModes(
+	modes: ProviderModesSettings,
+	providerId: string,
+): { modes: ProviderModesSettings; removed: ProviderMode[] } {
+	const next = { ...modes };
+	const removed: ProviderMode[] = [];
+	for (const mode of Object.keys(next) as ProviderMode[]) {
+		if (next[mode]?.providerId === providerId) {
+			delete next[mode];
+			removed.push(mode);
+		}
+	}
+	return { modes: next, removed };
+}
 
 // -----------------------------------------------------------
 // Component
@@ -112,6 +139,11 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+	const [modeSettings, setModeSettings] =
+		useState<ProviderModesSettings>(modeSettingsCache);
+	const [savingModes, setSavingModes] = useState<
+		Partial<Record<ProviderMode, boolean>>
+	>({});
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -144,6 +176,7 @@ export function SettingsView({
 			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
 		) {
 			setProviders(providerCatalogCache.providers);
+			setModeSettings(modeSettingsCache);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return;
@@ -156,6 +189,9 @@ export function SettingsView({
 				"list_provider_catalog",
 			);
 			setProvidersWithCache(payload.providers);
+			const modes = payload.modes ?? {};
+			modeSettingsCache = modes;
+			setModeSettings(modes);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -184,7 +220,7 @@ export function SettingsView({
 				baseUrl?: string;
 				configValues?: ProviderSettingsUpdate["configValues"];
 			},
-		) => {
+		): Promise<boolean> => {
 			try {
 				await desktopClient.invoke("save_provider_settings", {
 					provider: id,
@@ -195,9 +231,11 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
 				// selector, onboarding) in sync with the just-saved settings.
@@ -215,12 +253,52 @@ export function SettingsView({
 						return p;
 					}
 					const nextEnabled = !p.enabled;
-					void persistProviderSettings(id, { enabled: nextEnabled });
+					const updatedModes = nextEnabled
+						? { modes: modeSettings, removed: [] }
+						: removeProviderModes(modeSettings, id);
+					void persistProviderSettings(id, { enabled: nextEnabled }).then(
+						(saved) => {
+							if (saved && updatedModes.removed.length > 0) {
+								modeSettingsCache = updatedModes.modes;
+								setModeSettings(updatedModes.modes);
+								for (const mode of updatedModes.removed) {
+									notifyModeSettingsChanged(mode);
+								}
+							}
+						},
+					);
 					return { ...p, enabled: nextEnabled };
 				}),
 			);
 		},
-		[persistProviderSettings, setProvidersWithCache],
+		[persistProviderSettings, setProvidersWithCache, modeSettings],
+	);
+
+	const updateModeSettings = useCallback(
+		async <Mode extends ProviderMode>(
+			mode: Mode,
+			settings: ProviderModeSettingsMap[Mode] | undefined,
+		) => {
+			setSavingModes((current) => ({ ...current, [mode]: true }));
+			try {
+				const result = await desktopClient.invoke<{
+					modes: ProviderModesSettings;
+				}>("save_mode_settings", {
+					mode,
+					settings,
+				});
+				const modes = result.modes ?? {};
+				modeSettingsCache = modes;
+				setModeSettings(modes);
+				notifyModeSettingsChanged(mode);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				window.alert(`Failed to save ${mode} settings: ${message}`);
+			} finally {
+				setSavingModes((current) => ({ ...current, [mode]: false }));
+			}
+		},
+		[],
 	);
 
 	const updateProvider = useCallback(
@@ -414,9 +492,24 @@ export function SettingsView({
 				onAddProvider={openAddProvider}
 				onConfigure={openProviderDetail}
 				onToggle={toggleProvider}
+				onVoiceInputChange={(settings) =>
+					void updateModeSettings("voiceInput", settings)
+				}
+				onVoiceOutputChange={(settings) =>
+					void updateModeSettings("voiceOutput", settings)
+				}
+				onRealtimeVoiceChange={(settings) =>
+					void updateModeSettings("realtimeVoice", settings)
+				}
 				providers={providers}
+				realtimeVoice={modeSettings.realtimeVoice}
+				realtimeVoiceSaving={savingModes.realtimeVoice}
 				selectedProviderId={selectedProvider.id}
 				variant="panel"
+				voiceInput={modeSettings.voiceInput}
+				voiceInputSaving={savingModes.voiceInput}
+				voiceOutput={modeSettings.voiceOutput}
+				voiceOutputSaving={savingModes.voiceOutput}
 			/>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
@@ -444,7 +537,22 @@ export function SettingsView({
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
 			onToggle={toggleProvider}
+			onVoiceInputChange={(settings) =>
+				void updateModeSettings("voiceInput", settings)
+			}
+			onVoiceOutputChange={(settings) =>
+				void updateModeSettings("voiceOutput", settings)
+			}
+			onRealtimeVoiceChange={(settings) =>
+				void updateModeSettings("realtimeVoice", settings)
+			}
 			providers={providers}
+			realtimeVoice={modeSettings.realtimeVoice}
+			realtimeVoiceSaving={savingModes.realtimeVoice}
+			voiceInput={modeSettings.voiceInput}
+			voiceInputSaving={savingModes.voiceInput}
+			voiceOutput={modeSettings.voiceOutput}
+			voiceOutputSaving={savingModes.voiceOutput}
 		/>
 	);
 
@@ -522,6 +630,12 @@ function GeneralSettingsContent() {
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
+	const [avatars, setAvatars] = useState<AvatarOption[]>([]);
+	const [selectedAvatarId, setSelectedAvatarId] = useState("cline-bot");
+	const [avatarEnabled, setAvatarEnabledState] = useState(true);
+	const [avatarLoading, setAvatarLoading] = useState(true);
+	const [avatarSaving, setAvatarSaving] = useState(false);
+	const [avatarError, setAvatarError] = useState<string | null>(null);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -560,6 +674,35 @@ function GeneralSettingsContent() {
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [loadGlobalSettings]);
+
+	useEffect(() => {
+		let cancelled = false;
+		void Promise.all([listAvatars(), getSelectedAvatar()])
+			.then(([avatars, selected]) => {
+				if (cancelled) return;
+				setAvatars(Array.isArray(avatars) ? avatars : []);
+				if (selected && typeof selected.id === "string") {
+					setSelectedAvatarId(selected.id);
+				}
+				if (selected && typeof selected.enabled === "boolean") {
+					setAvatarEnabledState(selected.enabled);
+				}
+				setAvatarError(null);
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					setAvatarError(
+						error instanceof Error ? error.message : String(error),
+					);
+				}
+			})
+			.finally(() => {
+				if (!cancelled) setAvatarLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const updateTelemetryOptOut = async (nextValue: boolean) => {
 		const previousValue = telemetryOptOut;
@@ -638,6 +781,36 @@ function GeneralSettingsContent() {
 			// Storage was written before the native call failed; roll it back
 			// so the persisted choice matches what the dock actually shows.
 			await setStoredAppIcon(previousIcon).catch(() => {});
+		}
+	};
+
+	const updateAvatar = async (nextId: string) => {
+		const previousId = selectedAvatarId;
+		setSelectedAvatarId(nextId);
+		setAvatarSaving(true);
+		setAvatarError(null);
+		try {
+			await selectAvatar(nextId);
+		} catch (error) {
+			setSelectedAvatarId(previousId);
+			setAvatarError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setAvatarSaving(false);
+		}
+	};
+
+	const updateAvatarEnabled = async (enabled: boolean) => {
+		const previousEnabled = avatarEnabled;
+		setAvatarEnabledState(enabled);
+		setAvatarSaving(true);
+		setAvatarError(null);
+		try {
+			await setAvatarEnabled(enabled);
+		} catch (error) {
+			setAvatarEnabledState(previousEnabled);
+			setAvatarError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setAvatarSaving(false);
 		}
 	};
 
@@ -789,6 +962,51 @@ function GeneralSettingsContent() {
 							</button>
 						))}
 					</div>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Show desktop avatar
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Display the selected avatar as a desktop overlay.
+						</p>
+						{avatarError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update desktop avatar: {avatarError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Show desktop avatar"
+						checked={avatarEnabled}
+						disabled={avatarLoading || avatarSaving}
+						onCheckedChange={(checked) => void updateAvatarEnabled(checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Desktop avatar
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Choose Cline Bot, Mom, or a v2 avatar installed under
+							{" ~/.cline/avatars/<avatar-name>"}.
+						</p>
+					</div>
+					<select
+						aria-label="Desktop avatar"
+						className="h-9 min-w-44 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+						disabled={avatarLoading || avatarSaving}
+						onChange={(event) => void updateAvatar(event.target.value)}
+						value={selectedAvatarId}
+					>
+						{avatars.map((avatar) => (
+							<option key={avatar.id} value={avatar.id}>
+								{avatar.displayName}
+							</option>
+						))}
+					</select>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">

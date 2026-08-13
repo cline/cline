@@ -12,14 +12,23 @@ import {
 	Copy,
 	Loader2,
 	PencilIcon,
+	Square,
 	SplitIcon,
 	UndoIcon,
+	Volume2,
 } from "lucide-react";
 import { memo } from "react";
-import type { ChatMessage, ChatMessageImage } from "@/lib/chat-schema";
+import type {
+	ChatMessage,
+	ChatMessageImage,
+	ChatMessageVideo,
+} from "@/lib/chat-schema";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
+import { MessageAudios, MessageImages, MessageVideos } from "./message-media";
 import { ReasoningBlock } from "./reasoning-block";
+
+export type AssistantSpeechPhase = "generating" | "playing";
 
 // Memoized with id-parameterized callbacks: during streaming only the message
 // object that received a delta changes identity, so all other bubbles skip
@@ -31,6 +40,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onExpandVideo,
 	onEditMessage,
 	editDisabled = false,
 	editPending = false,
@@ -44,6 +54,11 @@ export const MessageBubble = memo(function MessageBubble({
 	forkDisabled = false,
 	forkPending = false,
 	forkError,
+	onSpeakMessage,
+	speechAvailable = false,
+	speechSettingsLoaded = false,
+	speechState,
+	speechTargetLabel,
 	isLastAssistantMessage = false,
 	reasoningContent,
 	reasoningRedacted,
@@ -55,6 +70,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandVideo?: (video: ChatMessageVideo) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -75,6 +91,11 @@ export const MessageBubble = memo(function MessageBubble({
 	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
+	onSpeakMessage?: (messageId: string, content: string) => void | Promise<void>;
+	speechAvailable?: boolean;
+	speechSettingsLoaded?: boolean;
+	speechState?: AssistantSpeechPhase;
+	speechTargetLabel?: string;
 	isLastAssistantMessage?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
@@ -92,7 +113,7 @@ export const MessageBubble = memo(function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyMessage || onForkSession);
+		Boolean(onCopyMessage || onForkSession || onSpeakMessage);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
@@ -106,7 +127,10 @@ export const MessageBubble = memo(function MessageBubble({
 		Boolean(restoreError) ||
 		Boolean(editError);
 	const keepAssistantActionsVisible =
-		isLastAssistantMessage || forkPending || Boolean(forkError);
+		isLastAssistantMessage ||
+		forkPending ||
+		Boolean(forkError) ||
+		Boolean(speechState);
 
 	const messageDate = new Date(message.createdAt);
 	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
@@ -141,24 +165,26 @@ export const MessageBubble = memo(function MessageBubble({
 				) : null}
 
 				{message.images?.length ? (
-					<div className="grid max-w-2xl gap-2">
-						{message.images.map((image, index) => (
-							<button
-								aria-label={`Expand attachment ${index + 1}`}
-								className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								key={image.id}
-								onClick={() => onExpandImage?.(image)}
-								type="button"
-							>
-								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
-								<img
-									alt={`Attachment ${index + 1}`}
-									className="max-h-56.25 max-w-56.25 object-contain"
-									src={`data:${image.mediaType};base64,${image.data}`}
-								/>
-							</button>
-						))}
-					</div>
+					<MessageImages
+						images={message.images}
+						isUser={isUser}
+						onExpandImage={onExpandImage}
+					/>
+				) : null}
+
+				{message.videos?.length && message.sessionId ? (
+					<MessageVideos
+						onExpandVideo={onExpandVideo}
+						sessionId={message.sessionId}
+						videos={message.videos}
+					/>
+				) : null}
+
+				{message.audios?.length && message.sessionId ? (
+					<MessageAudios
+						audios={message.audios}
+						sessionId={message.sessionId}
+					/>
 				) : null}
 
 				{displayContent ? (
@@ -250,6 +276,44 @@ export const MessageBubble = memo(function MessageBubble({
 								<Check className="h-3 w-3" />
 							) : (
 								<Copy className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{onSpeakMessage ? (
+						<MessageAction
+							disabled={!speechSettingsLoaded}
+							label={
+								speechState === "generating"
+									? "Cancel speech generation"
+									: speechState === "playing"
+										? "Stop speaking assistant message"
+										: speechAvailable
+											? "Speak assistant message"
+											: "Configure voice output"
+							}
+							onClick={() => void onSpeakMessage(message.id, displayContent)}
+							title={
+								!speechSettingsLoaded
+									? "Loading voice output settings"
+									: speechState === "generating"
+										? "Cancel speech generation"
+										: speechState === "playing"
+											? "Stop speaking"
+											: speechTargetLabel
+												? `Speak with ${speechTargetLabel}`
+												: "Configure voice output in Settings → Models"
+							}
+						>
+							{speechState ? (
+								<Square
+									className={
+										speechState === "generating"
+											? "size-3 animate-pulse"
+											: "size-3"
+									}
+								/>
+							) : (
+								<Volume2 className="size-3" />
 							)}
 						</MessageAction>
 					) : null}

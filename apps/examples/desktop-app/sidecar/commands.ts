@@ -8,12 +8,15 @@ import type {
 	CoreSettingsSnapshot,
 	ProviderCapability,
 	ProviderClient,
+	ProviderConfig,
 	ProviderProtocol,
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
 import {
 	addLocalProvider,
+	ClientSettingsManager,
 	ClineAccountService,
+	createConfiguredModeSession,
 	captureAuthRefreshSoftFailure,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -24,6 +27,7 @@ import {
 	listLocalProviders,
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
+	parseProviderModeSettings,
 	parseMcpServerRegistration,
 	probeMcpServerConnection,
 	RuntimeOAuthTokenManager,
@@ -34,17 +38,30 @@ import {
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
+	saveModeSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setTelemetryOptOutGlobally,
+	synthesizeConfiguredVoiceOutput,
+	toggleDisabledTool,
+	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
 import {
+	resolveAudioTranscriptionRoute,
+	resolveSpeechGenerationRoute,
+} from "@cline/llms";
+import {
 	CLINE_DEFAULT_MODEL_ID,
 	getClineEnvironmentConfig,
+	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+	ProviderModeSchema,
+	ProviderSessionModeSchema,
+	REALTIME_CLINE_AGENT_INSTRUCTIONS,
+	REALTIME_CLINE_TOOLS,
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
@@ -107,6 +124,80 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
+const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
+const MAX_GENERATED_SPEECH_BYTES = 25 * 1024 * 1024;
+const MAX_SPEECH_TEXT_CHARACTERS = 10_000;
+const desktopClientSettingsManager = new ClientSettingsManager({
+	clientId: "desktop",
+});
+
+function createDesktopProviderSettingsManager(): ProviderSettingsManager {
+	const manager = new ProviderSettingsManager();
+	desktopClientSettingsManager.initializeModesIfMissing(manager.read().modes);
+	return manager;
+}
+
+type DesktopDebugLogLevel = "debug" | "info" | "error";
+
+function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	try {
+		const url = new URL(value);
+		url.username = "";
+		url.password = "";
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return "[invalid URL]";
+	}
+}
+
+function sanitizeDiagnosticFailure(
+	error: unknown,
+	providerConfig: ProviderConfig | undefined,
+): string {
+	let message = error instanceof Error ? error.message : String(error);
+	const sanitizedBaseUrl = sanitizeDiagnosticUrl(providerConfig?.baseUrl);
+	if (providerConfig?.baseUrl && sanitizedBaseUrl) {
+		message = message.replaceAll(providerConfig.baseUrl, sanitizedBaseUrl);
+	}
+	const secrets = [
+		providerConfig?.apiKey,
+		providerConfig?.accessToken,
+		...Object.values(providerConfig?.headers ?? {}),
+	];
+	for (const secret of secrets) {
+		const value = secret?.trim();
+		if (value) {
+			message = message.replaceAll(value, "[redacted]");
+		}
+	}
+	return message;
+}
+
+function emitDesktopDebugLog(
+	ctx: SidecarContext,
+	scope: string,
+	level: DesktopDebugLogLevel,
+	message: string,
+	metadata?: Record<string, unknown>,
+): void {
+	if (level === "error") {
+		ctx.logger?.error?.(message, metadata);
+	} else if (level === "info") {
+		ctx.logger?.log(message, metadata);
+	} else {
+		ctx.logger?.debug(message, metadata);
+	}
+	broadcastEvent(ctx, "desktop_debug_log", {
+		scope,
+		level,
+		message,
+		timestamp: new Date().toISOString(),
+		metadata,
+	});
+}
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
 // anything broader (file:, custom app schemes) would let webview content
@@ -1411,9 +1502,12 @@ export async function handleCommand(
 
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
-		const manager = new ProviderSettingsManager();
+		const manager = createDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager, { isClinePassEnabled: true });
+		return await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+			modeSettings: desktopClientSettingsManager.read().modes,
+		});
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
@@ -1421,6 +1515,267 @@ export async function handleCommand(
 			String(args?.provider ?? ""),
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
+	}
+	if (command === "create_mode_session") {
+		const mode = ProviderSessionModeSchema.parse(args?.mode);
+		const manager = createDesktopProviderSettingsManager();
+		const selection = desktopClientSettingsManager.getModeSettings(mode);
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route =
+			mode === "voiceInput" && providerConfig
+				? resolveAudioTranscriptionRoute(providerConfig)
+				: undefined;
+		const diagnostics = {
+			mode,
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			...(mode === "voiceInput"
+				? {
+						transport: route?.kind,
+						endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+					}
+				: {}),
+		};
+		emitDesktopDebugLog(
+			ctx,
+			mode === "voiceInput" ? "voice-input" : "realtime-voice",
+			"debug",
+			"Creating provider mode session",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const session =
+				mode === "realtimeVoice"
+					? await createConfiguredModeSession(
+							manager,
+							{
+								mode,
+								expiresAfterSeconds: 300,
+								realtimeSessionConfig: {
+									instructions: REALTIME_CLINE_AGENT_INSTRUCTIONS,
+									tools: [...REALTIME_CLINE_TOOLS],
+								},
+							},
+							desktopClientSettingsManager,
+						)
+					: await createConfiguredModeSession(
+							manager,
+							{ mode, expiresAfterSeconds: 300 },
+							desktopClientSettingsManager,
+						);
+			emitDesktopDebugLog(
+				ctx,
+				mode === "voiceInput" ? "voice-input" : "realtime-voice",
+				"debug",
+				"Provider mode session created",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					expiresAt: session.expiresAt,
+					kind: session.kind,
+					...("transport" in session ? { transport: session.transport } : {}),
+				},
+			);
+			return session;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(
+				ctx,
+				mode === "voiceInput" ? "voice-input" : "realtime-voice",
+				"error",
+				"Provider mode session setup failed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					failure,
+				},
+			);
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "transcribe_audio") {
+		const audioBase64 = String(args?.audioBase64 ?? "");
+		const mediaType = String(args?.mediaType ?? "").trim() || undefined;
+		if (!isCanonicalBase64(audioBase64)) {
+			throw new Error("recorded audio must be canonical base64");
+		}
+		const decodedBytes =
+			Math.floor((audioBase64.length * 3) / 4) -
+			(audioBase64.endsWith("==") ? 2 : audioBase64.endsWith("=") ? 1 : 0);
+		if (decodedBytes > MAX_RECORDED_AUDIO_BYTES) {
+			throw new Error(
+				`recorded audio exceeds the ${MAX_RECORDED_AUDIO_BYTES} byte limit`,
+			);
+		}
+		const manager = createDesktopProviderSettingsManager();
+		const selection =
+			desktopClientSettingsManager.getModeSettings("voiceInput");
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveAudioTranscriptionRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			transport: route?.kind,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+			mediaType,
+			audioBytes: decodedBytes,
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"voice-input",
+			"debug",
+			"Starting audio transcription",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const result = await transcribeConfiguredVoiceInput(
+				manager,
+				{
+					audio: Buffer.from(audioBase64, "base64"),
+					mediaType,
+				},
+				desktopClientSettingsManager,
+			);
+			emitDesktopDebugLog(
+				ctx,
+				"voice-input",
+				"debug",
+				"Audio transcription completed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					transcriptCharacters: result.text.length,
+					language: result.language,
+				},
+			);
+			return result;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(
+				ctx,
+				"voice-input",
+				"error",
+				"Audio transcription failed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					failure,
+				},
+			);
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "synthesize_speech") {
+		const text = String(args?.text ?? "").trim();
+		if (!text) {
+			throw new Error("speech text is required");
+		}
+		if (text.length > MAX_SPEECH_TEXT_CHARACTERS) {
+			throw new Error(
+				`speech text exceeds the ${MAX_SPEECH_TEXT_CHARACTERS} character limit`,
+			);
+		}
+		const manager = createDesktopProviderSettingsManager();
+		const selection =
+			desktopClientSettingsManager.getModeSettings("voiceOutput");
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveSpeechGenerationRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			voiceConfigured: Boolean(selection?.voice),
+			transport: route?.kind,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+			textCharacters: text.length,
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"voice-output",
+			"debug",
+			"Starting speech generation",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const result = await synthesizeConfiguredVoiceOutput(
+				manager,
+				{ text },
+				desktopClientSettingsManager,
+			);
+			if (result.audio.byteLength > MAX_GENERATED_SPEECH_BYTES) {
+				throw new Error(
+					`generated speech exceeds the ${MAX_GENERATED_SPEECH_BYTES} byte limit`,
+				);
+			}
+			emitDesktopDebugLog(
+				ctx,
+				"voice-output",
+				"debug",
+				"Speech generation completed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					audioBytes: result.audio.byteLength,
+					mediaType: result.mediaType,
+				},
+			);
+			return {
+				audioBase64: Buffer.from(result.audio).toString("base64"),
+				mediaType: result.mediaType,
+			};
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(
+				ctx,
+				"voice-output",
+				"error",
+				"Speech generation failed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					failure,
+				},
+			);
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "save_mode_settings") {
+		const mode = ProviderModeSchema.parse(args?.mode);
+		const settings =
+			args?.settings == null
+				? undefined
+				: parseProviderModeSettings(mode, args.settings);
+		const manager = createDesktopProviderSettingsManager();
+		const result = await saveModeSettings(
+			manager,
+			{ mode, settings },
+			desktopClientSettingsManager,
+		);
+		emitDesktopDebugLog(ctx, "mode-settings", "info", "Mode settings saved", {
+			mode,
+			providerId: settings?.providerId,
+			modelId: settings?.modelId,
+			configured: Boolean(settings),
+		});
+		return result;
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();

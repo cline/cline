@@ -559,6 +559,9 @@ describe("AgentSidebar session organization", () => {
 							onHome={vi.fn()}
 							onNewThread={onNewThread}
 							onSettingsSectionChange={vi.fn()}
+							realtimeVoiceControl={
+								<span data-testid="realtime-voice-control" />
+							}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
 							settingsSection="General"
@@ -571,8 +574,12 @@ describe("AgentSidebar session organization", () => {
 
 		const logo = container.querySelector('[aria-label="Cline home"]');
 		const newSession = container.querySelector('[aria-label="New Session"]');
+		const realtimeVoice = container.querySelector(
+			'[data-testid="realtime-voice-control"]',
+		);
 		expect(logo).not.toBeNull();
 		expect(newSession).not.toBeNull();
+		expect(realtimeVoice?.parentElement).toBe(newSession?.parentElement);
 		expect(newSession?.textContent).toBe("");
 		await click(newSession as Element);
 		expect(onNewThread).toHaveBeenCalledOnce();
@@ -588,6 +595,9 @@ describe("AgentSidebar session organization", () => {
 							onHome={vi.fn()}
 							onNewThread={vi.fn()}
 							onSettingsSectionChange={vi.fn()}
+							realtimeVoiceControl={
+								<span data-testid="realtime-voice-control" />
+							}
 							sessionHistory={makeSessionHistory([], vi.fn())}
 							setView={vi.fn()}
 							settingsSection="General"
@@ -600,6 +610,14 @@ describe("AgentSidebar session organization", () => {
 
 		expect(container.querySelector('[aria-label="Cline home"]')).not.toBeNull();
 		expect(container.querySelector('[aria-label="New Session"]')).toBeNull();
+		const collapsedLogo = container.querySelector('[aria-label="Cline home"]');
+		const collapsedRealtimeVoice = container.querySelector(
+			'[data-testid="realtime-voice-control"]',
+		);
+		expect(
+			collapsedLogo?.compareDocumentPosition(collapsedRealtimeVoice as Node) ??
+				0,
+		).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
 		expect(
 			container.querySelector('[aria-label="Expand sidebar"]')?.className,
 		).toContain("mt-auto");

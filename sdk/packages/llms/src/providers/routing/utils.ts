@@ -12,33 +12,24 @@ export function createEphemeralCacheControl() {
 	};
 }
 
-/**
- * Target the concrete provider id and, when distinct, its camelCase alias
- * bucket (e.g. `vercel-ai-gateway` + `vercelAiGateway`).
- */
-export function buildProviderAndAliasPatch(options: {
-	providerId: string;
+/** Target the AI SDK v7 camelCase provider-options bucket. */
+export function buildProviderOptionsPatch(options: {
 	providerOptionsKey: string;
 	bucketOptions: Record<string, unknown>;
 }): ProviderOptionsPatch {
-	const { providerId, providerOptionsKey, bucketOptions } = options;
-	const needsAlias =
-		providerOptionsKey !== providerId && providerOptionsKey !== "anthropic";
+	const { providerOptionsKey, bucketOptions } = options;
 	return {
-		[providerId]: bucketOptions,
-		...(needsAlias ? { [providerOptionsKey]: bucketOptions } : {}),
+		[providerOptionsKey]: bucketOptions,
 	};
 }
 
 export function buildThinkingPatch(options: {
-	providerId: string;
 	providerOptionsKey: string;
 	thinkingType: "enabled" | "disabled";
 }): ProviderOptionsPatch {
 	const bucketOptions = { thinking: { type: options.thinkingType } };
 	return {
-		...buildProviderAndAliasPatch({
-			providerId: options.providerId,
+		...buildProviderOptionsPatch({
 			providerOptionsKey: options.providerOptionsKey,
 			bucketOptions,
 		}),

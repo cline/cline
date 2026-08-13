@@ -71,7 +71,13 @@ export type AgentEvent =
 	| AgentDoneEvent
 	| AgentErrorEvent;
 
-export type AgentContentType = "text" | "reasoning" | "tool";
+export type AgentContentType =
+	| "text"
+	| "reasoning"
+	| "image"
+	| "video"
+	| "audio"
+	| "tool";
 
 export interface AgentEventMetadata {
 	/** Current ID */
@@ -119,6 +125,21 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	text?: string;
 	/** Final reasoning/thinking text generated for this turn */
 	reasoning?: string;
+	/** Generated image returned by the model */
+	image?: {
+		data: string;
+		mediaType: string;
+	};
+	/** Generated video persisted by the session host. */
+	video?: {
+		path: string;
+		mediaType: string;
+	};
+	/** Generated audio persisted by the session host. */
+	audio?: {
+		path: string;
+		mediaType: string;
+	};
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */
@@ -753,6 +774,12 @@ export interface AgentConfig {
 	 * When omitted, attached files will be represented as loader errors.
 	 */
 	userFileContentLoader?: (path: string) => Promise<string>;
+	/** Host-owned storage for large generated artifacts. */
+	storeGeneratedArtifact?: (artifact: {
+		kind: "video" | "audio";
+		data: string;
+		mediaType: string;
+	}) => Promise<{ path: string }>;
 	/**
 	 * Optional metadata merged into every tool execution context.
 	 * Hosts can use this to thread runtime-specific identifiers such as session IDs.

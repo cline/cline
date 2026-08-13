@@ -216,6 +216,7 @@ export function AgentSidebar({
 	view,
 	activeSessionId,
 	sessionHistory,
+	realtimeVoiceControl,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -229,6 +230,7 @@ export function AgentSidebar({
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
+	realtimeVoiceControl?: ReactNode;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -625,8 +627,8 @@ export function AgentSidebar({
 
 				<div
 					className={cn(
-						"flex h-10 shrink-0 items-center justify-between px-2",
-						isCollapsed && "px-1.5",
+						"flex min-h-10 shrink-0 items-center justify-between px-3",
+						isCollapsed && "flex-col items-center justify-start gap-1 px-1.5",
 					)}
 				>
 					<div className="flex min-w-0 items-center gap-0.5">
@@ -687,18 +689,26 @@ export function AgentSidebar({
 						</HoverCard>
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 					</div>
-					{!isCollapsed ? (
-						<Button
-							aria-label="New Session"
-							className="size-8 shrink-0 justify-center px-0"
-							onClick={openNewThread}
-							title="New Session"
-							type="button"
-							variant="sidebarItem"
-						>
-							<Plus className="size-4" />
-						</Button>
-					) : null}
+					<div
+						className={cn(
+							"flex shrink-0 items-center gap-0.5",
+							isCollapsed && "flex-col",
+						)}
+					>
+						{realtimeVoiceControl}
+						{!isCollapsed ? (
+							<Button
+								aria-label="New Session"
+								className="size-8 shrink-0 justify-center px-0"
+								onClick={openNewThread}
+								title="New Session"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Plus className="size-4" />
+							</Button>
+						) : null}
+					</div>
 				</div>
 
 				{isCollapsed ? (

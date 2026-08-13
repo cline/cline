@@ -107,6 +107,93 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("persists generated images in assistant message content", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a lighthouse");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "image",
+					image: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			],
+		});
+	});
+
+	it("stores generated videos through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			path: "/sessions/session-1/artifacts/video.mp4",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Animate a lighthouse");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			kind: "video",
+			data: "dmlkZW8=",
+			mediaType: "video/mp4",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "video",
+					path: "/sessions/session-1/artifacts/video.mp4",
+					mediaType: "video/mp4",
+				},
+			],
+		});
+	});
+
+	it("stores generated audio through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "audio", data: "YXVkaW8=", mediaType: "audio/mpeg" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			path: "/sessions/session-1/artifacts/audio.mp3",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Read this aloud");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			kind: "audio",
+			data: "YXVkaW8=",
+			mediaType: "audio/mpeg",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "audio",
+					path: "/sessions/session-1/artifacts/audio.mp3",
+					mediaType: "audio/mpeg",
+				},
+			],
+		});
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),

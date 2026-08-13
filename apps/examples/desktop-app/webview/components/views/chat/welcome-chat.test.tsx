@@ -86,6 +86,20 @@ async function clickButton(text: string, last = false): Promise<void> {
 }
 
 describe("WelcomeScreen", () => {
+	it("keeps the welcome composer in the upper portion of the page", async () => {
+		await renderWelcomeScreen({
+			workspaceRoot: "/projects/project-1",
+			workspaces: ["/projects/project-1"],
+		});
+
+		const content = container.querySelector(".max-w-240");
+		expect(content?.className).toContain("pt-[clamp(4rem,14vh,9rem)]");
+		expect(content?.className).not.toContain("26vh");
+		const composerWrapper = content?.querySelector(".mt-4");
+		expect(composerWrapper?.classList.contains("min-w-0")).toBe(true);
+		expect(composerWrapper?.classList.contains("max-w-full")).toBe(true);
+	});
+
 	// Prompt suggestions (quick-action cards, including "Review changes") are
 	// temporarily disabled while we improve them; see welcome-chat.tsx.
 	// Re-enable these tests when the suggestions come back.

@@ -167,6 +167,11 @@ export function serializeMessage(message: MessageWithMetadata): string {
 					`[${message.role === "user" ? "User" : "Bot"} image]: ${block.mediaType}`,
 				);
 				break;
+			case "video":
+				lines.push(
+					`[${message.role === "user" ? "User" : "Bot"} generated video]: ${block.mediaType} (${block.path})`,
+				);
+				break;
 		}
 	}
 	return lines.join("\n");

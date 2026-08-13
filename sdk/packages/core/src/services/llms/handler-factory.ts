@@ -1,9 +1,11 @@
 import {
 	createGateway,
 	createHandlerAsync,
+	getGeneratedModelsForProvider,
 	hasRegisteredHandler,
 	MODEL_COLLECTIONS_BY_PROVIDER_ID,
 	normalizeProviderId,
+	resolveProviderModelCatalogKeys,
 } from "@cline/llms";
 import type {
 	AgentConfig,
@@ -101,12 +103,18 @@ function readPositiveInteger(value: unknown): number | undefined {
 export function resolveKnownModelsFromConfig(
 	config: AgentConfig,
 ): Record<string, ModelInfo> | undefined {
+	const generatedModels = Object.assign(
+		{},
+		...resolveProviderModelCatalogKeys(config.providerId).map((catalogKey) =>
+			getGeneratedModelsForProvider(catalogKey),
+		),
+	);
 	const pc = config.providerConfig as ProviderConfig | undefined;
 	const knownModels = pc?.knownModels
 		? pc.knownModels
 		: (config.knownModels ??
-			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models ??
-			undefined);
+			(Object.keys(generatedModels).length > 0 ? generatedModels : undefined) ??
+			MODEL_COLLECTIONS_BY_PROVIDER_ID[config.providerId]?.models);
 	// Caller-configured limits are authoritative for the selected model —
 	// surface them to the gateway so the resolved model definition carries
 	// the right limits (e.g. Ollama's num_ctx derives from the resolved
@@ -180,6 +188,7 @@ function toGatewayConfiguredModel(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {

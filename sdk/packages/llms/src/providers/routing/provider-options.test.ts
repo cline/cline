@@ -250,8 +250,8 @@ describe("mergeProviderOptionPatches", () => {
 	});
 });
 
-describe("composeAiSdkProviderOptions: alias bucket emission", () => {
-	it("emits a concrete provider-id bucket and a distinct camelCase alias bucket", () => {
+describe("composeAiSdkProviderOptions: AI SDK v7 bucket emission", () => {
+	it("emits only the canonical camelCase provider bucket", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "vercel-ai-gateway",
@@ -262,12 +262,6 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		);
 
 		const expected = {};
-		expect(result["vercel-ai-gateway"]).toEqual(
-			expect.objectContaining({
-				...expected,
-				strictJsonSchema: false,
-			}),
-		);
 		expect(result.vercelAiGateway).toEqual(
 			expect.objectContaining({
 				...expected,
@@ -277,8 +271,7 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openaiCompatible).toEqual(
 			expect.objectContaining({ strictJsonSchema: false }),
 		);
-		expect(result["vercel-ai-gateway"]).not.toHaveProperty("effort");
-		expect(result["vercel-ai-gateway"]).not.toHaveProperty("reasoningSummary");
+		expect(result["vercel-ai-gateway"]).toBeUndefined();
 	});
 
 	it("disables strict JSON schema for the OpenAI adapter bucket", () => {
@@ -606,7 +599,7 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			},
 			expect: [
 				{
-					bucket: "custom-provider",
+					bucket: "customProvider",
 					has: { reasoning: { enabled: true, max_tokens: 1024 } },
 					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
 				},
@@ -629,7 +622,7 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			},
 			expect: [
 				{
-					bucket: "custom-provider",
+					bucket: "customProvider",
 					has: { reasoning: { enabled: true, max_tokens: 1024 } },
 					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
 				},
@@ -700,10 +693,11 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			}),
 		);
 
-		for (const bucket of ["anthropic", "custom-provider", "openaiCompatible"]) {
+		for (const bucket of ["anthropic", "customProvider", "openaiCompatible"]) {
 			expect(result[bucket]).not.toHaveProperty("thinking.type", "enabled");
 			expect(result[bucket]).not.toHaveProperty("reasoning.max_tokens");
 		}
+		expect(result["custom-provider"]).toBeUndefined();
 	});
 });
 
@@ -993,18 +987,13 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "vercel-ai-gateway GLM thinking-enabled -> provider+alias buckets, no thinking leak",
+			name: "vercel-ai-gateway GLM thinking-enabled -> canonical bucket, no thinking leak",
 			request: {
 				providerId: "vercel-ai-gateway",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: true },
 			},
 			expect: [
-				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { enabled: true } },
-					lacks: ["thinking"],
-				},
 				{
 					bucket: "vercelAiGateway",
 					has: { reasoning: { enabled: true } },
@@ -1029,14 +1018,13 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "vercel-ai-gateway GLM thinking-disabled -> reasoning.exclude in provider+alias",
+			name: "vercel-ai-gateway GLM thinking-disabled -> reasoning.exclude in canonical bucket",
 			request: {
 				providerId: "vercel-ai-gateway",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: false },
 			},
 			expect: [
-				{ bucket: "vercel-ai-gateway", has: { reasoning: { exclude: true } } },
 				{ bucket: "vercelAiGateway", has: { reasoning: { exclude: true } } },
 			],
 		},
@@ -1184,10 +1172,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			request: { providerId: "openai-compatible", modelId: "kimi-k2.6" },
 			context: { family: "kimi-k2.6" },
 			expect: [
-				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "enabled" } },
-				},
 				{ bucket: "openaiCompatible", has: { thinking: { type: "enabled" } } },
 			],
 		},
@@ -1200,10 +1184,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: { family: "kimi-k2.6" },
 			expect: [
-				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "disabled" } },
-				},
 				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "disabled" } },
@@ -1527,10 +1507,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "deepseek" },
 			expect: [
 				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "disabled" } },
-				},
-				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "disabled" } },
 				},
@@ -1545,10 +1521,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: { family: "deepseek-thinking" },
 			expect: [
-				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "disabled" } },
-				},
 				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "disabled" } },
@@ -1565,10 +1537,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "deepseek-flash" },
 			expect: [
 				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "disabled" } },
-				},
-				{
 					bucket: "openaiCompatible",
 					has: { thinking: { type: "disabled" } },
 				},
@@ -1583,10 +1551,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: { family: "deepseek-thinking" },
 			expect: [
-				{
-					bucket: "openai-compatible",
-					has: { thinking: { type: "enabled" } },
-				},
 				{ bucket: "openaiCompatible", has: { thinking: { type: "enabled" } } },
 			],
 		},
@@ -1594,10 +1558,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			name: "openai-compatible deepseek family with unset reasoning -> no thinking emitted",
 			request: { providerId: "openai-compatible", modelId: "deepseek-v4-pro" },
 			context: { family: "deepseek" },
-			expect: [
-				{ bucket: "openai-compatible", lacks: ["thinking"] },
-				{ bucket: "openaiCompatible", lacks: ["thinking"] },
-			],
+			expect: [{ bucket: "openaiCompatible", lacks: ["thinking"] }],
 		},
 		{
 			name: "openrouter MiniMax M3 reasoning enabled -> OpenRouter reasoning shape",
@@ -1658,11 +1619,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			expect: [
 				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { enabled: true } },
-					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
-				},
-				{
 					bucket: "vercelAiGateway",
 					has: { reasoning: { enabled: true } },
 					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
@@ -1681,11 +1637,6 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				capabilities: ["reasoning"],
 			},
 			expect: [
-				{
-					bucket: "vercel-ai-gateway",
-					has: { reasoning: { exclude: true } },
-					lacks: ["thinking"],
-				},
 				{
 					bucket: "vercelAiGateway",
 					has: { reasoning: { exclude: true } },
@@ -1706,7 +1657,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			expect: [
 				{
-					bucket: "vercel-ai-gateway",
+					bucket: "vercelAiGateway",
 					lacks: ["thinking", "reasoning"],
 				},
 			],
@@ -2148,12 +2099,11 @@ describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
 				maxOutputTokens: 64,
 			}),
 		);
-		for (const bucket of ["vercel-ai-gateway", "vercelAiGateway"]) {
-			expect(result[bucket]).toMatchObject({
-				reasoning: { max_tokens: 128 },
-			});
-			expect(result[bucket]).not.toHaveProperty("thinking");
-		}
+		expect(result["vercel-ai-gateway"]).toBeUndefined();
+		expect(result.vercelAiGateway).toMatchObject({
+			reasoning: { max_tokens: 128 },
+		});
+		expect(result.vercelAiGateway).not.toHaveProperty("thinking");
 	});
 });
 
@@ -2229,7 +2179,7 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openai).not.toHaveProperty("reasoningEffort");
 	});
 
-	it("emits the openai-codex `openai` bucket alongside provider-id and alias buckets", () => {
+	it("emits the openai-codex `openai` bucket alongside its canonical bucket", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "openai-codex",
@@ -2252,17 +2202,12 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 		expect(result.openai).not.toHaveProperty("truncation");
-		expect(result["openai-codex"]).toEqual(
-			expect.objectContaining({
-				store: false,
-			}),
-		);
-		expect(result["openai-codex"]).not.toHaveProperty("reasoningEffort");
-		expect(result["openai-codex"]).not.toHaveProperty("reasoningSummary");
-		expect(result["openai-codex"]).not.toHaveProperty("truncation");
+		expect(result["openai-codex"]).toBeUndefined();
 		expect(result.openaiCodex).toEqual(
 			expect.objectContaining({ store: false }),
 		);
+		expect(result.openaiCodex).not.toHaveProperty("reasoningEffort");
+		expect(result.openaiCodex).not.toHaveProperty("reasoningSummary");
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
 	});
 
@@ -2280,10 +2225,11 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 			}),
 		);
 
-		for (const bucket of ["openai", "openai-codex", "openaiCodex"]) {
+		for (const bucket of ["openai", "openaiCodex"]) {
 			expect(result[bucket]).not.toHaveProperty("effort");
 			expect(result[bucket]).not.toHaveProperty("reasoningEffort");
 		}
+		expect(result["openai-codex"]).toBeUndefined();
 	});
 
 	it("keeps Gemini effort out of provider options", () => {

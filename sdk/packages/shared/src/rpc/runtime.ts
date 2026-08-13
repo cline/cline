@@ -1,5 +1,6 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
+import type { ModelModality } from "../llms/model-info";
 import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
@@ -149,6 +150,10 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	supportsTools?: boolean;
+	supportsStreamingTranscription?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =
@@ -200,9 +205,99 @@ export interface ProviderListItem {
 	family?: string;
 }
 
+export interface ProviderModelModeSettings {
+	providerId: string;
+	modelId: string;
+}
+
+export type VoiceInputModeSettings = ProviderModelModeSettings;
+
+export interface VoiceOutputModeSettings extends ProviderModelModeSettings {
+	voice?: string;
+}
+
+export interface RealtimeVoiceModeSettings extends ProviderModelModeSettings {
+	voice?: string;
+}
+
+export const PROVIDER_MODE_IDS = [
+	"voiceInput",
+	"voiceOutput",
+	"realtimeVoice",
+] as const;
+export const ProviderModeSchema = z.enum(PROVIDER_MODE_IDS);
+export type ProviderMode = z.infer<typeof ProviderModeSchema>;
+
+export interface ProviderModeSettingsMap {
+	voiceInput: VoiceInputModeSettings;
+	voiceOutput: VoiceOutputModeSettings;
+	realtimeVoice: RealtimeVoiceModeSettings;
+}
+
+export type ProviderModeSettings<Mode extends ProviderMode = ProviderMode> =
+	ProviderModeSettingsMap[Mode];
+
+export type ProviderModesSettings = {
+	[Mode in ProviderMode]?: ProviderModeSettingsMap[Mode];
+};
+
+export interface StreamingVoiceInputModeSession {
+	kind: "streaming-transcription";
+	providerId: string;
+	modelId: string;
+	token: string;
+	url: string;
+	expiresAt?: number;
+}
+
+export type RealtimeProviderTransport =
+	| "vercel-ai-gateway"
+	| "google"
+	| "openai";
+
+export interface RealtimeVoiceSessionConfig {
+	voice?: string;
+	outputModalities?: Array<"text" | "audio">;
+	turnDetection?: {
+		type: "server-vad" | "semantic-vad" | "disabled";
+		threshold?: number;
+		silenceDurationMs?: number;
+		prefixPaddingMs?: number;
+	} | null;
+}
+
+export interface RealtimeVoiceModeSession {
+	kind: "realtime";
+	providerId: string;
+	modelId: string;
+	supportsTools: boolean;
+	token: string;
+	url: string;
+	expiresAt?: number;
+	transport: RealtimeProviderTransport;
+	sessionConfig: RealtimeVoiceSessionConfig;
+}
+
+export const PROVIDER_SESSION_MODE_IDS = [
+	"voiceInput",
+	"realtimeVoice",
+] as const;
+export const ProviderSessionModeSchema = z.enum(PROVIDER_SESSION_MODE_IDS);
+export type ProviderSessionMode = z.infer<typeof ProviderSessionModeSchema>;
+
+export interface ProviderModeSessionMap {
+	voiceInput: StreamingVoiceInputModeSession;
+	realtimeVoice: RealtimeVoiceModeSession;
+}
+
+export type ProviderModeSession<
+	Mode extends ProviderSessionMode = ProviderSessionMode,
+> = ProviderModeSessionMap[Mode];
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
+	modes: ProviderModesSettings;
 }
 
 export interface ProviderModelsResponse {

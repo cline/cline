@@ -175,7 +175,7 @@ export function WelcomeScreen({
 				<div
 					className={cn(
 						active
-							? "mx-auto flex min-h-full w-full max-w-240 flex-col justify-center px-6 py-16 max-[720px]:px-4 max-[720px]:py-10"
+							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(4rem,14vh,9rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-10"
 							: "contents",
 					)}
 				>
@@ -213,7 +213,11 @@ export function WelcomeScreen({
 					{active && notice ? notice : null}
 
 					<div
-						className={active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6"}
+						className={
+							active
+								? "mt-4 w-full min-w-0 max-w-full"
+								: "z-20 w-full min-w-0 max-w-full shrink-0 px-6 pb-6"
+						}
 						key="persistent-composer"
 					>
 						{active ? composer : <SessionContent>{composer}</SessionContent>}

@@ -21,11 +21,11 @@ export { getClineOrgIndividualInferenceSubscriptionMessage };
 export const CLI_PROMO_CODE = "";
 
 export function getCliSubscriptionUrl(): string {
-	if(!CLI_PROMO_CODE) {
+	if (!CLI_PROMO_CODE) {
 		return new URL(
 			`/dashboard/subscription?personal=true`,
 			getClineEnvironmentConfig().appBaseUrl,
-		).toString()
+		).toString();
 	}
 
 	return `${new URL(

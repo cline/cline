@@ -25,7 +25,7 @@ import type {
 } from "./provider-options-types";
 import { buildOpenRouterReasoningOptions } from "./reasoning-codecs";
 import {
-	buildProviderAndAliasPatch,
+	buildProviderOptionsPatch,
 	buildThinkingPatch,
 	type ProviderOptionsPatch,
 } from "./utils";
@@ -100,8 +100,7 @@ function buildReasoningPatchForProvider(
 	if (!reasoning) {
 		return undefined;
 	}
-	return buildProviderAndAliasPatch({
-		providerId: input.request.providerId,
+	return buildProviderOptionsPatch({
 		providerOptionsKey: input.providerOptionsKey,
 		bucketOptions: { reasoning },
 	});
@@ -172,8 +171,7 @@ const openAiCodexRule: ProviderOptionRule = {
 
 		return {
 			openai: codexOptions,
-			...buildProviderAndAliasPatch({
-				providerId: input.request.providerId,
+			...buildProviderOptionsPatch({
 				providerOptionsKey: input.providerOptionsKey,
 				bucketOptions: codexOptions,
 			}),
@@ -190,8 +188,7 @@ const genericProviderFanoutRule: ProviderOptionRule = {
 	build: (input) =>
 		input.suppressions.genericFanout
 			? undefined
-			: buildProviderAndAliasPatch({
-					providerId: input.request.providerId,
+			: buildProviderOptionsPatch({
 					providerOptionsKey: input.providerOptionsKey,
 					bucketOptions: input.compatibleOptions,
 				}),
@@ -287,7 +284,6 @@ const directMoonshotReasoningRule: ProviderOptionRule = {
 	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildThinkingPatch({
-			providerId: input.request.providerId,
 			providerOptionsKey: input.providerOptionsKey,
 			thinkingType: input.request.reasoning?.enabled ? "enabled" : "disabled",
 		}),
@@ -303,14 +299,16 @@ const fireworksReasoningRule: ProviderOptionRule = {
 		typeof input.request.reasoning?.budgetTokens === "number",
 	suppresses: { genericThinking: true },
 	build: (input) => {
-		const reasoning = input.request.reasoning;
-		return buildProviderAndAliasPatch({
-			providerId: input.request.providerId,
+		const budgetTokens = input.request.reasoning?.budgetTokens;
+		if (typeof budgetTokens !== "number") {
+			return undefined;
+		}
+		return buildProviderOptionsPatch({
 			providerOptionsKey: input.providerOptionsKey,
 			bucketOptions: {
 				thinking: {
 					type: "enabled",
-					budget_tokens: reasoning?.budgetTokens,
+					budget_tokens: budgetTokens,
 				},
 			},
 		});
@@ -371,7 +369,6 @@ const clineReasoningDisabledThinkingRule: ProviderOptionRule = {
 		!isKimiK26Family(input),
 	build: (input) =>
 		buildThinkingPatch({
-			providerId: input.request.providerId,
 			providerOptionsKey: input.providerOptionsKey,
 			thinkingType: "disabled",
 		}),
@@ -388,7 +385,6 @@ const kimiK26ThinkingRule: ProviderOptionRule = {
 	suppresses: { genericThinking: true },
 	build: (input) =>
 		buildThinkingPatch({
-			providerId: input.request.providerId,
 			providerOptionsKey: input.providerOptionsKey,
 			thinkingType: "disabled",
 		}),
@@ -408,7 +404,6 @@ const deepSeekThinkingRule: ProviderOptionRule = {
 		const thinkingType = resolveFamilyThinkingType(input, undefined);
 		return thinkingType
 			? buildThinkingPatch({
-					providerId: input.request.providerId,
 					providerOptionsKey: input.providerOptionsKey,
 					thinkingType,
 				})

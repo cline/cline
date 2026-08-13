@@ -34,6 +34,21 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	type AudioPlayerControlBarProps,
+	type AudioPlayerData,
+	AudioPlayerElement,
+	type AudioPlayerElementProps,
+	AudioPlayerPlayButton,
+	type AudioPlayerPlayButtonProps,
+	type AudioPlayerProps,
+	AudioPlayerTimeDisplay,
+	type AudioPlayerTimeDisplayProps,
+	AudioPlayerTimeRange,
+	type AudioPlayerTimeRangeProps,
+} from "./audio-player.js";
+export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,

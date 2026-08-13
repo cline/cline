@@ -32,6 +32,30 @@ function toAgentModelEvents(chunk: ApiStreamChunk): AgentModelEvent[] {
 	switch (chunk.type) {
 		case "text":
 			return [{ type: "text-delta", text: chunk.text }];
+		case "image":
+			return [
+				{
+					type: "image",
+					data: chunk.data,
+					mediaType: chunk.mediaType,
+				},
+			];
+		case "video":
+			return [
+				{
+					type: "video",
+					data: chunk.data,
+					mediaType: chunk.mediaType,
+				},
+			];
+		case "audio":
+			return [
+				{
+					type: "audio",
+					data: chunk.data,
+					mediaType: chunk.mediaType,
+				},
+			];
 		case "reasoning":
 			// Thought signatures are read as `metadata.thoughtSignature` by
 			// downstream adapters (see ai-sdk format), so surface it there.

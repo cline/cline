@@ -21,6 +21,11 @@ vi.mock("@cline/core", async () => {
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");
 	return {
 		...actual,
+		ClientSettingsManager: class {
+			initializeModesIfMissing = vi.fn();
+			read = vi.fn(() => ({ modes: {} }));
+			getModeSettings = vi.fn(() => undefined);
+		},
 		ClineCore: {
 			create: createCoreMock,
 		},
@@ -220,6 +225,43 @@ describe("Code sidecar runtime capabilities", () => {
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
 		});
+	});
+
+	it("leaves attached-session content projection to the Core event stream", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		for (const event of [
+			"assistant.delta",
+			"assistant.image",
+			"reasoning.delta",
+			"tool.started",
+			"tool.finished",
+		]) {
+			handleHubLiveEvent(ctx, {
+				event,
+				sessionId: "session-image",
+				payload: {
+					text: "one canonical copy",
+					toolCallId: "tool-1",
+					toolName: "run_commands",
+				},
+			});
+		}
+
+		expect(readEvents(ctx)).toEqual([]);
 	});
 
 	it("announces a queued prompt start once when drain emits both queue events", async () => {

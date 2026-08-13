@@ -111,6 +111,13 @@ export type ChatSessionCommandResponse = {
 	removed?: boolean;
 };
 
+export type ChatPromptCompletion = {
+	sessionId: string;
+	queued: boolean;
+	text?: string;
+	result?: ChatApiResult;
+};
+
 export type ChatWsResponseEvent = {
 	type: "chat_response";
 	requestId: string;

@@ -91,15 +91,12 @@ export function createPromptCacheProviderOptions(
 	providerId: string,
 	includeAnthropic: boolean,
 ) {
+	const providerOptionsKey = toProviderOptionsKey(providerId);
 	const providerOptions: Record<string, unknown> = {
 		openaiCompatible: createEphemeralCacheControl(),
-		[providerId]: createEphemeralCacheControl(),
+		[providerOptionsKey]: createEphemeralCacheControl(),
 	};
 
-	const providerOptionsKey = toProviderOptionsKey(providerId);
-	if (providerOptionsKey !== providerId) {
-		providerOptions[providerOptionsKey] = createEphemeralCacheControl();
-	}
 	if (includeAnthropic) {
 		providerOptions.anthropic = createEphemeralCacheControl();
 	}

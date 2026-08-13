@@ -80,6 +80,7 @@ describe("applyInteractiveModelChange", () => {
 		}));
 		const saveProviderSettings = vi.fn(() => ({
 			version: 1 as const,
+			modes: {},
 			providers: {},
 		}));
 		const ensureReady = vi.fn(async () => {});

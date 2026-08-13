@@ -1,10 +1,19 @@
-import { captureSdkError } from "@cline/shared";
+import { createReadStream } from "node:fs";
+import { stat } from "node:fs/promises";
+import { basename, join } from "node:path";
+import { Readable } from "node:stream";
+import {
+	captureSdkError,
+	REALTIME_CLINE_TOOLS,
+	type RealtimeVoiceModeSession,
+} from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
 import { encodeSidecarEvent, sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
+import { sharedSessionDataDir } from "./paths";
 import {
 	BunRuntime,
 	SIDECAR_HOST,
@@ -38,6 +47,21 @@ const TRUSTED_BROWSER_ORIGINS = new Set([
 const JSON_HEADERS = {
 	"content-type": "application/json",
 };
+
+function artifactContentType(filename: string): string {
+	const lower = filename.toLowerCase();
+	if (lower.endsWith(".mp3")) return "audio/mpeg";
+	if (lower.endsWith(".wav")) return "audio/wav";
+	if (lower.endsWith(".aac")) return "audio/aac";
+	if (lower.endsWith(".m4a")) return "audio/mp4";
+	if (lower.endsWith(".weba")) return "audio/webm";
+	if (lower.endsWith(".flac")) return "audio/flac";
+	if (lower.endsWith(".ogg")) return "audio/ogg";
+	if (filename.toLowerCase().endsWith(".webm")) return "video/webm";
+	if (filename.toLowerCase().endsWith(".mov")) return "video/quicktime";
+	if (filename.toLowerCase().endsWith(".mpeg")) return "video/mpeg";
+	return "video/mp4";
+}
 
 function readOrigin(req: Request): string | undefined {
 	const origin = req.headers.get("origin")?.trim();
@@ -205,11 +229,118 @@ export function createFetchHandler(
 		}
 
 		if (
+			req.method === "GET" &&
+			url.pathname.startsWith("/api/session-artifacts/")
+		) {
+			if (!isTrustedRequestOrigin(req)) {
+				return new Response("Forbidden", { status: 403 });
+			}
+			const segments = url.pathname
+				.slice("/api/session-artifacts/".length)
+				.split("/")
+				.map((segment) => decodeURIComponent(segment));
+			const [sessionId, artifactName, ...extra] = segments;
+			if (
+				!sessionId ||
+				!artifactName ||
+				extra.length > 0 ||
+				sessionId === "." ||
+				sessionId === ".." ||
+				artifactName === "." ||
+				artifactName === ".." ||
+				basename(sessionId) !== sessionId ||
+				basename(artifactName) !== artifactName ||
+				!/^[a-zA-Z0-9][a-zA-Z0-9._:-]*$/.test(sessionId) ||
+				!/^[a-zA-Z0-9][a-zA-Z0-9._ -]*$/.test(artifactName)
+			) {
+				return new Response("Invalid artifact path", { status: 400 });
+			}
+			const artifactPath = join(
+				sharedSessionDataDir(),
+				sessionId,
+				"artifacts",
+				artifactName,
+			);
+			const artifactStat = await stat(artifactPath).catch(() => null);
+			if (!artifactStat?.isFile()) {
+				return new Response("Artifact not found", { status: 404 });
+			}
+			const range = req.headers.get("range")?.match(/^bytes=(\d+)-(\d*)$/);
+			const start = range ? Number(range[1]) : 0;
+			const requestedEnd = range?.[2]
+				? Number(range[2])
+				: artifactStat.size - 1;
+			const end = Math.min(requestedEnd, artifactStat.size - 1);
+			if (start < 0 || start > end || start >= artifactStat.size) {
+				return new Response(null, {
+					status: 416,
+					headers: { "content-range": `bytes */${artifactStat.size}` },
+				});
+			}
+			const body = Readable.toWeb(
+				createReadStream(artifactPath, { start, end }),
+			);
+			return new Response(body as unknown as BodyInit, {
+				status: range ? 206 : 200,
+				headers: {
+					...corsHeaders(req),
+					"accept-ranges": "bytes",
+					"cache-control": "private, max-age=31536000, immutable",
+					"content-length": String(end - start + 1),
+					"content-type": artifactContentType(artifactName),
+					...(range
+						? { "content-range": `bytes ${start}-${end}/${artifactStat.size}` }
+						: {}),
+				},
+			});
+		}
+
+		if (
 			url.pathname === "/transport" &&
 			isTrustedRequestOrigin(req) &&
 			server.upgrade(req)
 		) {
 			return undefined;
+		}
+
+		if (
+			url.pathname === "/api/modes/realtime/session" &&
+			req.method === "POST"
+		) {
+			if (!isTrustedRequestOrigin(req)) {
+				return createJsonResponse(
+					req,
+					{ error: "Untrusted request origin" },
+					403,
+				);
+			}
+			try {
+				const session = (await handleCommand(ctx, "create_mode_session", {
+					mode: "realtimeVoice",
+				})) as RealtimeVoiceModeSession;
+				if (session.kind !== "realtime") {
+					throw new Error("Realtime mode returned an unexpected session");
+				}
+				return createJsonResponse(req, {
+					token: session.token,
+					url: session.url,
+					...(session.expiresAt === undefined
+						? {}
+						: { expiresAt: session.expiresAt }),
+					tools: session.supportsTools ? REALTIME_CLINE_TOOLS : [],
+				});
+			} catch (error) {
+				return createJsonResponse(
+					req,
+					{
+						error:
+							error instanceof Error
+								? error.message
+								: "Failed to create realtime session",
+					},
+					400,
+				);
+			}
 		}
 
 		if (url.pathname === "/api/marketplace/catalog") {

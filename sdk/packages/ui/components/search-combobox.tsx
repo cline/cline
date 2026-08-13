@@ -20,7 +20,7 @@ export interface SearchComboboxProps {
 	onValueChange: (value: string) => void;
 	options: SearchComboboxOption[];
 	placeholder?: string;
-	placement?: "top" | "bottom";
+	placement?: "top" | "right" | "bottom" | "left";
 	searchPlaceholder?: string;
 	value?: string;
 }
@@ -117,8 +117,18 @@ export function SearchCombobox({
 						"cline-ui-search-combobox__panel absolute z-50 w-64 overflow-hidden rounded-cline-ui-lg border border-cline-ui-border bg-cline-ui-popover shadow-xl",
 						`cline-ui-search-combobox__panel--${align}`,
 						`cline-ui-search-combobox__panel--${placement}`,
-						align === "start" ? "left-0" : "right-0",
-						placement === "top" ? "bottom-full mb-2" : "top-full mt-2",
+						placement === "left"
+							? `right-full mr-2 ${align === "end" ? "bottom-0" : "top-0"}`
+							: placement === "right"
+								? `left-full ml-2 ${align === "end" ? "bottom-0" : "top-0"}`
+								: align === "start"
+									? "left-0"
+									: "right-0",
+						placement === "top"
+							? "bottom-full mb-2"
+							: placement === "bottom"
+								? "top-full mt-2"
+								: "",
 					].join(" ")}
 					onKeyDown={(event) => {
 						if (event.key === "Escape") {

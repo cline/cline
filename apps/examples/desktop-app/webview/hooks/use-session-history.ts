@@ -41,12 +41,6 @@ export interface SessionThread {
 	isScheduled: boolean;
 }
 
-type SessionHookEvent = {
-	inputTokens?: number;
-	outputTokens?: number;
-	totalCost?: number;
-};
-
 type SessionMessageMeta = {
 	inputTokens?: number;
 	outputTokens?: number;
@@ -74,6 +68,7 @@ type SessionDeletedEvent = CustomEvent<{
 type SidecarSessionStateEvent = {
 	sessionId?: string;
 	status?: string;
+	reason?: string;
 };
 
 type SidecarChatEvent = {
@@ -251,6 +246,7 @@ function inferStatusFromMessages(
 
 function toThread(session: SessionHistoryItem): SessionThread {
 	const workspacePath = (session.workspaceRoot || session.cwd).trim();
+	const usage = session.metadata?.usage;
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
@@ -261,6 +257,9 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		provider: session.provider || "",
 		model: session.model || "",
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
+		inputTokens: usage?.inputTokens,
+		outputTokens: usage?.outputTokens,
+		totalCostUsd: usage?.totalCost,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
 		isScheduled: getSessionMetadataIsScheduled(session.metadata),
@@ -307,41 +306,6 @@ export function formatCostUsd(value?: number): string | null {
 		return `$${value.toFixed(3)}`;
 	}
 	return `$${value.toFixed(2)}`;
-}
-
-function summarizeUsageFromMessages(messages: SessionMessage[]): {
-	inputTokens: number;
-	outputTokens: number;
-	totalCostUsd: number;
-} | null {
-	let inputTokens = 0;
-	let outputTokens = 0;
-	let totalCostUsd = 0;
-	let hasUsage = false;
-
-	for (const message of messages) {
-		const meta = message.meta;
-		if (!meta) {
-			continue;
-		}
-		if (typeof meta.inputTokens === "number") {
-			inputTokens += meta.inputTokens;
-			hasUsage = true;
-		}
-		if (typeof meta.outputTokens === "number") {
-			outputTokens += meta.outputTokens;
-			hasUsage = true;
-		}
-		if (typeof meta.totalCost === "number") {
-			totalCostUsd += meta.totalCost;
-			hasUsage = true;
-		}
-	}
-
-	if (!hasUsage) {
-		return null;
-	}
-	return { inputTokens, outputTokens, totalCostUsd };
 }
 
 function areSessionsEquivalent(
@@ -506,10 +470,6 @@ export function useSessionHistory({
 	// may itself name a batch that was never fetched.
 	const loadedLimitRef = useRef(0);
 	const mayHaveMoreSessionsRef = useRef(false);
-	const usageLoadingRef = useRef<Set<string>>(new Set());
-	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
-		new Map(),
-	);
 	const titleLoadingRef = useRef<Set<string>>(new Set());
 	const messageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -628,16 +588,6 @@ export function useSessionHistory({
 					const existingById = new Map(
 						current.map((thread) => [thread.id, thread]),
 					);
-					const usageById = new Map(
-						current.map((thread) => [
-							thread.id,
-							{
-								inputTokens: thread.inputTokens,
-								outputTokens: thread.outputTokens,
-								totalCostUsd: thread.totalCostUsd,
-							},
-						]),
-					);
 					const next = mapped.map((thread) => {
 						const existing = existingById.get(thread.id);
 						const incomingMetadataTitle = metadataTitleById.get(thread.id);
@@ -649,7 +599,6 @@ export function useSessionHistory({
 							...thread,
 							title:
 								keepExistingTitle && existing ? existing.title : thread.title,
-							...usageById.get(thread.id),
 						};
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
@@ -736,118 +685,6 @@ export function useSessionHistory({
 	}, [scheduleRefresh]);
 
 	useEffect(() => {
-		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
-			.slice(0, 4);
-		let cancelled = false;
-		const timer = window.setTimeout(() => {
-			for (const session of recent) {
-				if (cancelled) {
-					return;
-				}
-				const sessionId = session.sessionId;
-				if (!sessionId) {
-					continue;
-				}
-				if (usageLoadingRef.current.has(sessionId)) {
-					continue;
-				}
-				const existing = threadsRef.current.find(
-					(item) => item.id === sessionId,
-				);
-				const hasUsage =
-					existing?.inputTokens !== undefined ||
-					existing?.outputTokens !== undefined;
-				const lastHydratedStatus =
-					usageHydratedStatusRef.current.get(sessionId);
-				const shouldFetch =
-					!hasUsage ||
-					session.status === "running" ||
-					lastHydratedStatus !== session.status;
-				if (!shouldFetch) {
-					continue;
-				}
-				usageLoadingRef.current.add(sessionId);
-				void desktopClient
-					.invoke<SessionMessage[]>("read_session_messages", {
-						sessionId,
-						maxMessages: 1200,
-					})
-					.then(async (sessionMessages) => {
-						const usage = summarizeUsageFromMessages(sessionMessages);
-						if (!usage) {
-							const events = await desktopClient.invoke<SessionHookEvent[]>(
-								"read_session_hooks",
-								{
-									sessionId,
-									limit: 1200,
-								},
-							);
-							return {
-								inputTokens: events.reduce(
-									(sum, event) => sum + (event.inputTokens ?? 0),
-									0,
-								),
-								outputTokens: events.reduce(
-									(sum, event) => sum + (event.outputTokens ?? 0),
-									0,
-								),
-								totalCostUsd: events.reduce(
-									(sum, event) => sum + (event.totalCost ?? 0),
-									0,
-								),
-							};
-						}
-						return usage;
-					})
-					.then(({ inputTokens, outputTokens, totalCostUsd }) => {
-						setThreads((current) =>
-							updateThreadById(current, sessionId, (thread) => {
-								if (
-									thread.inputTokens === inputTokens &&
-									thread.outputTokens === outputTokens &&
-									thread.totalCostUsd === totalCostUsd
-								) {
-									return thread;
-								}
-								return { ...thread, inputTokens, outputTokens, totalCostUsd };
-							}),
-						);
-					})
-					.catch(() => {
-						if (!hasUsage) {
-							setThreads((current) =>
-								updateThreadById(current, sessionId, (thread) => {
-									if (
-										thread.inputTokens === 0 &&
-										thread.outputTokens === 0 &&
-										(thread.totalCostUsd ?? 0) === 0
-									) {
-										return thread;
-									}
-									return {
-										...thread,
-										inputTokens: 0,
-										outputTokens: 0,
-										totalCostUsd: 0,
-									};
-								}),
-							);
-						}
-					})
-					.finally(() => {
-						usageHydratedStatusRef.current.set(sessionId, session.status);
-						usageLoadingRef.current.delete(sessionId);
-					});
-			}
-		}, 800);
-		return () => {
-			cancelled = true;
-			window.clearTimeout(timer);
-		};
-	}, [activeSessionId, sessions]);
-
-	useEffect(() => {
 		const handleTitleUpdated = (event: Event) => {
 			const detail = (event as SessionTitleUpdatedEvent).detail;
 			const sessionId = detail?.sessionId?.trim();
@@ -878,9 +715,7 @@ export function useSessionHistory({
 			if (!sessionId) {
 				return;
 			}
-			usageLoadingRef.current.delete(sessionId);
 			titleLoadingRef.current.delete(sessionId);
-			usageHydratedStatusRef.current.delete(sessionId);
 			messageHydratedStatusRef.current.delete(sessionId);
 			setSessions((current) =>
 				current.filter((session) => session.sessionId !== sessionId),
@@ -933,7 +768,20 @@ export function useSessionHistory({
 				const known = sessionsRef.current.some(
 					(session) => session.sessionId === sessionId,
 				);
-				const status = normalizeDiscoveredStatus(record.status);
+				const status = normalizeDiscoveredStatus(
+					record.status,
+					"active session",
+				);
+				setThreads((current) =>
+					updateThreadById(current, sessionId, (thread) =>
+						thread.status === status ? thread : { ...thread, status },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, sessionId, (session) =>
+						session.status === status ? session : { ...session, status },
+					),
+				);
 				if (!known) {
 					scheduleRefresh(HISTORY_EVENT_REFRESH_DELAY_MS);
 				} else if (isTerminalHistoryStatus(status)) {
@@ -957,11 +805,24 @@ export function useSessionHistory({
 					return;
 				}
 				const record = payload as SidecarSessionStateEvent;
-				if (record.sessionId?.trim()) {
+				const sessionId = record.sessionId?.trim();
+				if (sessionId) {
+					const status = normalizeDiscoveredStatus(
+						record.reason ?? "completed",
+					);
+					setThreads((current) =>
+						updateThreadById(current, sessionId, (thread) =>
+							thread.status === status ? thread : { ...thread, status },
+						),
+					);
+					setSessions((current) =>
+						updateSessionById(current, sessionId, (session) =>
+							session.status === status ? session : { ...session, status },
+						),
+					);
 					scheduleRefresh(HISTORY_TERMINAL_REFRESH_DELAY_MS, {
 						force: true,
 					});
-					const sessionId = record.sessionId.trim();
 					if (sessionId !== activeSessionId) {
 						setUnreadSessionIds((current) => {
 							const next = new Set(current);

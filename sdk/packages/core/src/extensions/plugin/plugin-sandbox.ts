@@ -468,9 +468,7 @@ function toJsonSafePayload(
 	ancestors.add(value);
 	try {
 		if (Array.isArray(value)) {
-			return value.map(
-				(entry) => toJsonSafePayload(entry, ancestors) ?? null,
-			);
+			return value.map((entry) => toJsonSafePayload(entry, ancestors) ?? null);
 		}
 		const out: Record<string, unknown> = {};
 		for (const [key, entry] of Object.entries(value)) {
@@ -548,8 +546,10 @@ function registerTools(
 				// just as capable of smuggling a non-serializable value as the
 				// context is.
 				const invoke = async (payload: unknown) => {
-					const { input: sandboxInput, context: sandboxContext } =
-						payload as { input: unknown; context: unknown };
+					const { input: sandboxInput, context: sandboxContext } = payload as {
+						input: unknown;
+						context: unknown;
+					};
 					try {
 						return await sandbox.call(
 							"executeTool",

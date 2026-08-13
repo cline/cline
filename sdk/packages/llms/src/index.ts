@@ -109,4 +109,33 @@ export {
 	type ResolveProviderRequestHeadersInput,
 	resolveProviderRequestHeaders,
 } from "./providers/request-headers";
+export {
+	createRealtimeVoiceSession,
+	type RealtimeProviderTransport,
+	type RealtimeVoiceSession,
+	type RealtimeVoiceSessionConfig,
+	type RealtimeVoiceSessionRequest,
+	resolveRealtimeProviderTransport,
+	resolveVercelAIGatewayBaseUrl,
+} from "./realtime";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export {
+	DEFAULT_SPEECH_GENERATION_TIMEOUT_MS,
+	generateSpeechAudio,
+	resolveSpeechGenerationRoute,
+	type SpeechGenerationRequest,
+	type SpeechGenerationResult,
+	type SpeechGenerationRoute,
+} from "./speech";
+export {
+	type AudioTranscriptionRequest,
+	type AudioTranscriptionResult,
+	type AudioTranscriptionRoute,
+	createStreamingAudioTranscriptionSession,
+	DEFAULT_TRANSCRIPTION_TIMEOUT_MS,
+	isStreamingTranscriptionModelId,
+	resolveAudioTranscriptionRoute,
+	type StreamingAudioTranscriptionSession,
+	type StreamingAudioTranscriptionSessionRequest,
+	transcribeAudio,
+} from "./transcription";

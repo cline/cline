@@ -93,10 +93,21 @@ describe("useChatSession", () => {
 			},
 		);
 
-		await act(async () => current.sendPrompt("Start the task"));
+		let completion: Awaited<ReturnType<typeof current.sendPrompt>> | undefined;
+		await act(async () => {
+			completion = await current.sendPrompt("Start the task", [], {
+				source: "realtime",
+			});
+		});
 
 		expect(current.error).toBeNull();
 		expect(startedSessionId).toMatch(/^session_/);
+		expect(completion).toMatchObject({
+			sessionId: startedSessionId,
+			queued: false,
+			text: "done",
+			result: { finishReason: "completed" },
+		});
 		const expectedWorkspacePath = "/home/host/.cline/data/workspaces/chat";
 		expect(current.config).toMatchObject({
 			cwd: expectedWorkspacePath,
@@ -106,6 +117,7 @@ describe("useChatSession", () => {
 			request: expect.objectContaining({
 				action: "start",
 				config: expect.objectContaining({ cwd: "", workspaceRoot: "" }),
+				source: "realtime",
 			}),
 		});
 		expect(invokeMock).toHaveBeenCalledWith(
@@ -254,7 +266,7 @@ describe("useChatSession", () => {
 				reasoningEffort: "high",
 			}));
 		});
-		let sendPromise: Promise<void> | undefined;
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt("Start the task");
 			await Promise.resolve();
@@ -332,7 +344,7 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let sendPromise: Promise<void> | undefined;
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt("Read this", [attachment]);
 			await Promise.resolve();
@@ -759,7 +771,7 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let sendTask: Promise<void> | undefined;
+		let sendTask: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendTask = current.sendPrompt("Track this completed turn");
 			await Promise.resolve();
@@ -1427,7 +1439,7 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let sendPromise: Promise<void> | undefined;
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt("First prompt");
 		});
@@ -1652,8 +1664,8 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let firstSend: Promise<void> | undefined;
-		let secondSend: Promise<void> | undefined;
+		let firstSend: ReturnType<typeof current.sendPrompt> | undefined;
+		let secondSend: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			firstSend = current.sendPrompt("First prompt");
 			await Promise.resolve();
@@ -1736,8 +1748,8 @@ describe("useChatSession", () => {
 			},
 		);
 
-		let firstSend: Promise<void> | undefined;
-		let secondSend: Promise<void> | undefined;
+		let firstSend: ReturnType<typeof current.sendPrompt> | undefined;
+		let secondSend: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			firstSend = current.sendPrompt("First prompt", [attachment]);
 			await Promise.resolve();
@@ -2019,7 +2031,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 	// function resolving to a bare promise would make callers adopt (await)
 	// that promise, deadlocking on the deliberately unresolved send RPC.
 	async function dispatchPrompt(prompt: string) {
-		let sendPromise: Promise<void> = Promise.resolve();
+		let sendPromise: ReturnType<typeof current.sendPrompt> | undefined;
 		await act(async () => {
 			sendPromise = current.sendPrompt(prompt);
 			// Drain the start/send dispatch chain (startSession RPC, attachment
@@ -2028,7 +2040,7 @@ describe("coerced-queue first turn vs stale send response", () => {
 				await new Promise((resolve) => setTimeout(resolve, 0));
 			}
 		});
-		return { sendPromise };
+		return { sendPromise: sendPromise! };
 	}
 
 	function emitTurnEvents(

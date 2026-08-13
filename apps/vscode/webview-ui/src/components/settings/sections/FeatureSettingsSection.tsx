@@ -223,7 +223,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							))}
 						</div>
 					</div>
-
 				</div>
 
 				{/* Advanced */}
