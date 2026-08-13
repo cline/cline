@@ -155,6 +155,8 @@ export class TelemetryService {
 		member_id: string
 	} | null = null
 	private taskErrorCounts = new Map<string, number>()
+	/** Last `pending:migrated` backlog state emitted as an event, so the "backlog" event only reports transitions. */
+	private lastLegacyBacklogEventKey?: string
 	public static readonly METRICS = {
 		TASK: {
 			TURNS_TOTAL: "cline.turns.total",
@@ -1911,6 +1913,19 @@ export class TelemetryService {
 			attributes,
 			"SDK sessions marked as migrated from legacy VS Code task history",
 		)
+		// The caller runs on every task-history enumeration (every webview state
+		// post), so capturing unconditionally re-reported the same backlog ~29
+		// times per machine per 12h fleet-wide. Gauges above stay per-call; the
+		// event fires only when the migration state transitions, and never for
+		// machines with no legacy history at all.
+		const backlogEventKey = `${args.pendingLegacyTaskCount}:${args.migratedSdkTaskCount}`
+		if (this.lastLegacyBacklogEventKey === backlogEventKey) {
+			return
+		}
+		this.lastLegacyBacklogEventKey = backlogEventKey
+		if (args.pendingLegacyTaskCount === 0 && args.migratedSdkTaskCount === 0) {
+			return
+		}
 		this.capture({
 			event: TelemetryService.EVENTS.TASK.LEGACY_TASK_MIGRATION,
 			properties: {

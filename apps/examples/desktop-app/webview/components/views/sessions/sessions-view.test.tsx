@@ -25,6 +25,7 @@ const thread: SessionThread = {
 	inputTokens: 13_837_938,
 	outputTokens: 132_579,
 	status: "completed",
+	isScheduled: false,
 };
 
 const session: SessionHistoryItem = {
