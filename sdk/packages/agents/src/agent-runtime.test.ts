@@ -2927,6 +2927,19 @@ describe("AgentRuntime sdk.error reporting", () => {
 		});
 	});
 
+	it("tells the user a filtered turn will not succeed on retry", async () => {
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "content-filter" }],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain("blocked by a content filter");
+		expect(result.error?.message).not.toBe("Model returned empty response");
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
