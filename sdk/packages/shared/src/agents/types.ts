@@ -100,6 +100,8 @@ export interface AgentContentStartEvent extends AgentEventMetadata {
 	toolCallId?: string;
 	/** Input being passed to the tool */
 	input?: unknown;
+	/** Where a model tool is executed; absent for ordinary local tools. */
+	execution?: "client" | "provider";
 }
 
 export interface AgentContentUpdateEvent extends AgentEventMetadata {
@@ -130,6 +132,8 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	error?: string;
 	/** Time taken in milliseconds for tool content */
 	durationMs?: number;
+	/** Where a model tool is executed; absent for ordinary local tools. */
+	execution?: "client" | "provider";
 }
 
 export interface AgentIterationStartEvent extends AgentEventMetadata {

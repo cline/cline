@@ -29,6 +29,8 @@ export interface ToolCallRecord {
 	id: string;
 	/** Name of the tool that was called */
 	name: string;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: "client" | "provider";
 	/** Input passed to the tool */
 	input: unknown;
 	/** Output returned from the tool (if successful) */
@@ -87,6 +89,7 @@ export interface ToolApprovalResult {
 export const ToolCallRecordSchema = z.object({
 	id: z.string(),
 	name: z.string(),
+	execution: z.enum(["client", "provider"]).optional(),
 	input: z.unknown(),
 	output: z.unknown(),
 	error: z.string().optional(),
