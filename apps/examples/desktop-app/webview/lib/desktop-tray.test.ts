@@ -48,7 +48,13 @@ describe("desktop tray", () => {
 		let eventHandler: MenuEventHandler | undefined;
 		const pendingBatches: unknown[][] = [
 			[{ type: "new-session" }, { type: "unexpected" }],
-			[{ type: "open-session", sessionId: "session-1" }],
+			[
+				{ type: "open-session", sessionId: "session-1" },
+				{ type: "open-settings" },
+				{ type: "zoom-in" },
+				{ type: "zoom-out" },
+				{ type: "zoom-reset" },
+			],
 		];
 		mocks.listen.mockImplementation(
 			async (_eventName: string, handler: MenuEventHandler) => {
@@ -83,6 +89,10 @@ describe("desktop tray", () => {
 			expect(onAction.mock.calls).toEqual([
 				[{ type: "new-session" }],
 				[{ type: "open-session", sessionId: "session-1" }],
+				[{ type: "open-settings" }],
+				[{ type: "zoom-in" }],
+				[{ type: "zoom-out" }],
+				[{ type: "zoom-reset" }],
 			]),
 		);
 		unsubscribe();
