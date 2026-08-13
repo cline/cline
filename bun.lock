@@ -19,7 +19,7 @@
     },
     "apps/cli": {
       "name": "@cline/cli",
-      "version": "3.0.53",
+      "version": "3.0.54",
       "bin": {
         "cline": "src/index.ts",
       },
@@ -354,7 +354,7 @@
     },
     "apps/vscode": {
       "name": "claude-dev",
-      "version": "4.1.8",
+      "version": "4.1.9",
       "dependencies": {
         "@anthropic-ai/sdk": "^0.37.0",
         "@bufbuild/protobuf": "^2.2.5",
@@ -628,7 +628,7 @@
     },
     "sdk/packages/agents": {
       "name": "@cline/agents",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
@@ -637,7 +637,7 @@
     },
     "sdk/packages/core": {
       "name": "@cline/core",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@cline/agents": "workspace:*",
         "@cline/llms": "workspace:*",
@@ -675,7 +675,7 @@
     },
     "sdk/packages/llms": {
       "name": "@cline/llms",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@ai-sdk/amazon-bedrock": "^5.0.50",
         "@ai-sdk/anthropic": "^4.0.36",
@@ -717,14 +717,14 @@
     },
     "sdk/packages/sdk": {
       "name": "@cline/sdk",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "@cline/core": "workspace:*",
       },
     },
     "sdk/packages/shared": {
       "name": "@cline/shared",
-      "version": "0.0.73",
+      "version": "0.0.74",
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",

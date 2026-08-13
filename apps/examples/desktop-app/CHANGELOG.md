@@ -1,5 +1,25 @@
 # Cline Code Desktop Changelog
 
+## 0.0.12
+
+- Every tool call now gets its own row in the transcript, with its own icon, status, and expandable detail — no more "Read 3 files · Ran 2 commands" grouping. Commands read like a terminal (`$ bun test`) with their captured output on expand, and edits show their diffs inline, one per hunk.
+- Running tool rows are highlighted in brand violet and settle to gray when they finish; errors stay red.
+- File diffs — both in chat rows and the diff panel — now render through a shared syntax-highlighted renderer that follows the app's theme instead of the browser's.
+- Refreshed session transcript layout, message surfaces, and composer, with new Inter and Geist Mono typography.
+- The thinking indicator now stays up during quiet stretches of a turn, such as while tool arguments are streaming, so the turn no longer looks frozen.
+- Message actions (copy, fork, timestamp) no longer crowd the message text, and expanded panels render at full opacity instead of faded.
+- On the welcome screen the chat input is centered and top-aligned, and prompt suggestions are temporarily hidden.
+- The first turn of a fresh session no longer wedges the composer on "Agent is working…" forever.
+- Scheduled runs no longer appear in the session sidebar and history list.
+- Reconnecting to a stale managed Cline Hub daemon is fixed. When another Cline install ships a newer Hub, the app now prompts to update and restart — and stages the app update first, so it no longer relaunches into the same version and immediately re-prompts.
+- The Hub daemon now shuts down cleanly instead of exiting with an error when a client is still connected.
+- The Claude Code provider is usable for agentic work again: sessions are anchored on the workspace folder, your `~/.claude` and project settings are loaded, and file edits under the workspace are allowed instead of every write being refused with no approval prompt.
+- Truncated tool-call JSON is now rejected instead of being silently "repaired" into wrong arguments.
+- Fixed strict providers (seen on Vercel with kimi-k3) rejecting a turn with "user message must have content" when a message held only empty text.
+- Fixed a mid-turn crash on streamed tool calls with non-zero indexes, hit through LiteLLM's Anthropic passthrough.
+- Compaction now respects your Max Output Tokens setting instead of a hardcoded 1024-token cap — reasoning models were spending the entire budget thinking, so no summary arrived and compaction was skipped every time.
+- Vertex AI: added Fable 5 and custom model IDs, and the global-region picker no longer hides models from the live catalog.
+
 ## 0.0.11
 
 - Images can now be pasted straight from the clipboard into the composer.

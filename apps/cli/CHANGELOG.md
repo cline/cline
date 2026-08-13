@@ -1,5 +1,16 @@
 # Cline CLI Changelog
 
+## 3.0.54
+
+- Fixed the Claude Code provider being unusable for agentic work: the provider now runs its own native tools instead of receiving tool definitions it cannot bridge, the session is anchored on your workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so your permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings (from SDK v0.0.74)
+- Fixed truncated tool-call JSON being silently "repaired" into wrong arguments — a payload with an unterminated string is now rejected rather than getting an invented terminator (from SDK v0.0.74)
+- Fixed strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts (from SDK v0.0.74)
+- Fixed a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough (from SDK v0.0.74)
+- Managed Hub daemons now upgrade directionally: when another Cline install ships a newer Hub build, the CLI attaches to the newer daemon and prompts you to update and restart instead of the two installs repeatedly retiring each other's daemons. Yolo and sandbox sessions, which never attach to the shared Hub, are not interrupted by that prompt (from SDK v0.0.74)
+- Fixed the Hub daemon logging an unhandled `hub server close failed` error and exiting non-zero whenever a client was still connected at shutdown (from SDK v0.0.74)
+- Fixed per-task token totals being inflated roughly 5x on cache-heavy sessions — token telemetry now reports disjoint uncached-input, cache-read, and cache-write buckets instead of re-counting the whole cached conversation on every request (from SDK v0.0.74)
+- Upgrading the CLI now retires an already-running Hub daemon and respawns it on the new code, instead of the upgraded CLI continuing to talk to a daemon executing the previous release
+
 ## 3.0.53
 
 - Fixed the CLI reconnecting to a stale Hub daemon after an upgrade. Hub daemons now carry a runtime build fingerprint, so an upgraded CLI retires and respawns a daemon still running older code instead of attaching to it (from SDK v0.0.73)
