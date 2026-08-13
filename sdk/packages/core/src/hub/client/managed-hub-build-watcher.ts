@@ -52,19 +52,41 @@ export interface ManagedHubBuildMismatchEvent {
 	expectedBuildId: string;
 }
 
-function resolveHubInstanceId(record: {
+type HubInstanceFields = {
 	hubId?: string;
 	pid?: number;
 	startedAt?: string;
-}): string | undefined {
-	const hubId = record.hubId?.trim();
-	if (hubId) {
-		return hubId;
+};
+
+/**
+ * Identify the running daemon instance.
+ *
+ * The probe used here is unauthenticated, and `/health` deliberately reports
+ * only build and address fields - no `hubId`, `pid`, or `startedAt`. So the
+ * identity comes from the discovery record, which every daemon version writes
+ * with all three and which a replacement daemon rewrites as its own. The probe
+ * is still preferred when it does carry an id, since that is the process we
+ * actually just talked to.
+ */
+function resolveHubInstanceId(
+	probe: HubInstanceFields,
+	record: HubInstanceFields | undefined,
+): string | undefined {
+	for (const source of [probe, record]) {
+		const hubId = source?.hubId?.trim();
+		if (hubId) {
+			return hubId;
+		}
 	}
-	const fallback = [record.pid, record.startedAt]
-		.filter((part) => part !== undefined && part !== null && part !== "")
-		.join(":");
-	return fallback || undefined;
+	for (const source of [probe, record]) {
+		const parts = [source?.pid, source?.startedAt].filter(
+			(part) => part !== undefined && part !== null && part !== "",
+		);
+		if (parts.length > 0) {
+			return parts.join(":");
+		}
+	}
+	return undefined;
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -129,7 +151,7 @@ export async function checkManagedHubBuildMismatch(): Promise<
 		reason,
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
-		hubInstanceId: resolveHubInstanceId(healthy),
+		hubInstanceId: resolveHubInstanceId(healthy, record),
 		expectedBuildId,
 	});
 	if (compatibility.reason === "unsupported_protocol") {
