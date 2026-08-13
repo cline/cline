@@ -135,6 +135,13 @@ export class BrowserWebSocketHubAdapter {
 		};
 
 		const onMessage = async (event: { data: string }): Promise<void> => {
+			if (closed) {
+				// Dead-socket teardown can run while frames from this connection
+				// are still queued; processing one after teardown would create
+				// delivery state (e.g. a stream.subscribe's transport
+				// subscription) that no cleanup path ever releases.
+				return;
+			}
 			try {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
@@ -143,6 +150,45 @@ export class BrowserWebSocketHubAdapter {
 						let settled = false;
 						const context = commandLogContext(frame);
 						logHubMessage("info", "command.start", context);
+						// Ownership must transfer BEFORE the command executes:
+						// handleClientRegister publishes hub.client.registered
+						// synchronously mid-command, and that delivery can trigger
+						// dead-socket teardown on the superseded connection. If it
+						// were still the recorded owner at that instant, its close
+						// path would unregister the very client being registered
+						// (and the transport-side unregister drops the clientId's
+						// listeners entirely — silent event loss).
+						let registerClientId: string | undefined;
+						let previousOwner:
+							| { connectionId: number; evict: () => void }
+							| undefined;
+						if (frame.envelope.command === "client.register") {
+							const registration = (frame.envelope.payload ??
+								{}) as unknown as HubClientRegistration;
+							registerClientId =
+								registration.clientId?.trim() ||
+								frame.envelope.clientId?.trim() ||
+								undefined;
+							if (registerClientId) {
+								const clientId = registerClientId;
+								previousOwner = this.deliveryOwnerByClientId.get(clientId);
+								if (
+									previousOwner &&
+									previousOwner.connectionId !== connectionId
+								) {
+									previousOwner.evict();
+									logHubMessage("warn", "client.superseded", {
+										clientId,
+										previousConnectionId: previousOwner.connectionId,
+										connectionId,
+									});
+								}
+								this.deliveryOwnerByClientId.set(clientId, {
+									connectionId,
+									evict: () => evictClientDelivery(clientId),
+								});
+							}
+						}
 						const slowTimer = setTimeout(() => {
 							if (settled) return;
 							logHubMessage("warn", "command.slow", {
@@ -239,29 +285,40 @@ export class BrowserWebSocketHubAdapter {
 							});
 						}
 						if (frame.envelope.command === "client.register" && reply.ok) {
-							const registration = (frame.envelope.payload ??
-								{}) as unknown as HubClientRegistration;
-							const clientId =
-								registration.clientId?.trim() ||
-								frame.envelope.clientId?.trim();
-							if (clientId) {
-								const owner = this.deliveryOwnerByClientId.get(clientId);
-								if (owner && owner.connectionId !== connectionId) {
-									// The clientId moved to this connection: tear down
-									// the previous connection's delivery for it so events
-									// are not fanned out once per historical connection.
-									owner.evict();
-									logHubMessage("warn", "client.superseded", {
-										clientId,
-										previousConnectionId: owner.connectionId,
-										connectionId,
-									});
+							if (
+								registerClientId &&
+								this.deliveryOwnerByClientId.get(registerClientId)
+									?.connectionId === connectionId
+							) {
+								// Ownership was claimed before the command ran; only
+								// arm the close-time unregister if no other connection
+								// re-registered the clientId while this command was in
+								// flight.
+								registeredClientIds.add(registerClientId);
+							}
+						} else if (
+							frame.envelope.command === "client.register" &&
+							!reply.ok
+						) {
+							// The registration failed: release the pre-claimed
+							// ownership. The previous owner's evicted subscriptions
+							// are not restored (its delivery is unrecoverable), but
+							// restoring the ownership record keeps its close-time
+							// unregister armed, matching pre-call semantics.
+							if (
+								registerClientId &&
+								!registeredClientIds.has(registerClientId) &&
+								this.deliveryOwnerByClientId.get(registerClientId)
+									?.connectionId === connectionId
+							) {
+								if (previousOwner) {
+									this.deliveryOwnerByClientId.set(
+										registerClientId,
+										previousOwner,
+									);
+								} else {
+									this.deliveryOwnerByClientId.delete(registerClientId);
 								}
-								this.deliveryOwnerByClientId.set(clientId, {
-									connectionId,
-									evict: () => evictClientDelivery(clientId),
-								});
-								registeredClientIds.add(clientId);
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&

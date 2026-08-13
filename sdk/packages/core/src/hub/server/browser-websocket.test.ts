@@ -288,6 +288,72 @@ describe("BrowserWebSocketHubAdapter", () => {
 			expect(unregisterCalls()).toHaveLength(1);
 		});
 
+		it("does not let a dead old socket unregister the replacement mid-register", async () => {
+			// handleClientRegister publishes hub.client.registered synchronously
+			// inside command handling — before the adapter processes the reply.
+			// That publish reaches the OLD connection's global subscription; if
+			// its socket is dead (readyState 3, close never fired), dead-socket
+			// teardown runs mid-publish. Ownership must already belong to the
+			// registering connection at that instant, or the old connection's
+			// close path unregisters the client that is being registered right
+			// now (and the transport-side unregister callback would drop the
+			// clientId's listeners entirely — silent event loss).
+			const capturedListeners: Array<(envelope: unknown) => void> = [];
+			const transport = {
+				command: vi.fn((envelope: { command?: string; payload?: unknown }) => {
+					if (envelope.command === "client.register") {
+						const clientId = (envelope.payload as { clientId?: string })
+							?.clientId;
+						for (const listener of [...capturedListeners]) {
+							listener({
+								version: "v1",
+								event: "hub.client.registered",
+								payload: { clientId },
+							});
+						}
+					}
+					return Promise.resolve({
+						version: "v1",
+						requestId: "req",
+						ok: true,
+						payload: {},
+					} as HubReplyEnvelope);
+				}),
+				subscribe: vi.fn(
+					(
+						_clientId: string | undefined,
+						onEvent: (envelope: unknown) => void,
+						_options?: { sessionId?: string },
+					) => {
+						capturedListeners.push(onEvent);
+						return vi.fn();
+					},
+				),
+			};
+			const adapter = new BrowserWebSocketHubAdapter(transport);
+			const oldSocket = Object.assign(createSocket(), { readyState: 1 });
+			const newSocket = createSocket();
+			adapter.attach(oldSocket);
+			adapter.attach(newSocket);
+
+			oldSocket.emitMessage(registerFrame("client-a", "req-1"));
+			await settle();
+			// Global subscription: receives client lifecycle events.
+			oldSocket.emitMessage(subscribeFrame("client-a"));
+			await settle();
+
+			// The old socket dies without a close event.
+			oldSocket.readyState = 3;
+
+			newSocket.emitMessage(registerFrame("client-a", "req-2"));
+			await settle();
+
+			const unregisterCalls = transport.command.mock.calls.filter(
+				([envelope]) => envelope?.command === "client.unregister",
+			);
+			expect(unregisterCalls).toHaveLength(0);
+		});
+
 		it("tears down delivery when the socket is dead but close never fired", async () => {
 			const transport = createTransport();
 			const adapter = new BrowserWebSocketHubAdapter(transport);
@@ -315,6 +381,12 @@ describe("BrowserWebSocketHubAdapter", () => {
 			onEvent({ version: "v1", event: "session.updated", payload: {} });
 			expect(socket.sent).toHaveLength(sentBefore);
 			expect(unsubscribe).toHaveBeenCalledTimes(1);
+
+			// Frames still queued from the dead connection must not create new
+			// delivery state after teardown — nothing would ever clean it up.
+			socket.emitMessage(subscribeFrame("client-a", "session-9"));
+			await settle();
+			expect(transport.subscribe).toHaveBeenCalledTimes(1);
 		});
 	});
 });
