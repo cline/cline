@@ -46,6 +46,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
+import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -155,7 +156,6 @@ const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
-const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
 
 async function blobToBase64(blob: Blob): Promise<string> {
 	const bytes = new Uint8Array(await blob.arrayBuffer());

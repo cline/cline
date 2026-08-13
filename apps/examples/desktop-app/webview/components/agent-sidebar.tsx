@@ -90,7 +90,6 @@ import {
 	filterSessionsBySource,
 	getSessionSourceLabel,
 	getSessionSources,
-	SCHEDULED_SESSION_SOURCE,
 } from "@/lib/session-history";
 import {
 	groupThreadsByProject,
@@ -339,7 +338,7 @@ export function AgentSidebar({
 			case "Running":
 				return filtered.filter((t) => t.status === "running");
 			case "Schedules":
-				return filtered.filter((t) => t.source === SCHEDULED_SESSION_SOURCE);
+				return filtered.filter((t) => t.isScheduled);
 			case "Favorites":
 				return filtered.filter((t) => t.pinned);
 			default:

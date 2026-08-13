@@ -41,6 +41,14 @@ export function supportsAudio(model: ProviderModel): boolean {
 	);
 }
 
+export function filterChatModels(
+	models: ProviderModel[] | undefined,
+): ProviderModel[] {
+	return (models ?? []).filter(
+		(model) => !isDedicatedTranscriptionModel(model),
+	);
+}
+
 export function selectTranscriptionModel(
 	providers: Provider[],
 	selection: VoiceInputSelection | undefined,
@@ -66,11 +74,11 @@ export function selectTranscriptionModel(
 }
 
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).map((model) => model.id);
+	return filterChatModels(models).map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? [])
+	return filterChatModels(models)
 		.filter((model) => model.supportsReasoning)
 		.map((model) => model.id);
 }
@@ -124,8 +132,9 @@ export function publishProviderModels(
 	models: ProviderModel[],
 ): void {
 	invalidateProviderCatalogCache();
+	const chatModels = filterChatModels(models);
 	for (const listener of providerModelsListeners) {
-		listener(providerId, models);
+		listener(providerId, chatModels);
 	}
 }
 
@@ -228,5 +237,5 @@ export async function loadProviderModels(
 			provider: providerId,
 		},
 	);
-	return payload.models ?? [];
+	return filterChatModels(payload.models);
 }

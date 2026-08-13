@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1786563305349,
+  version: 1786599760518,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -19380,13 +19380,22 @@ export const GENERATED_PROVIDER_MODELS: {
       "description": "Fast and efficient with 1M context window "
     },
     "nvidia/nemotron-3.5-lightning": {
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
+      "id": "nvidia/nemotron-3.5-lightning",
+      "name": "Nemotron 3.5 Lightning 30B A3B",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
-        "temperature"
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
       ],
       "pricing": {
         "input": 0,
@@ -19394,8 +19403,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "name": "nemotron-3.5-lightning",
-      "id": "nvidia/nemotron-3.5-lightning",
+      "releaseDate": "2026-08-11",
+      "family": "nemotron",
       "description": "NVIDIA's latest flash model with 30B params"
     },
     "poolside/laguna-s-2.1:free": {
@@ -19593,9 +19602,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.49,
-        "output": 1.54,
-        "cacheRead": 0.091,
+        "input": 0.5,
+        "output": 3.15,
+        "cacheRead": 0.1,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -19643,9 +19652,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5795,
-        "output": 2.44,
-        "cacheRead": 0.0976,
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0.16,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -19850,13 +19859,22 @@ export const GENERATED_PROVIDER_MODELS: {
       "description": "Fast and efficient with 1M context window "
     },
     "nvidia/nemotron-3.5-lightning": {
-      "contextWindow": 128000,
-      "maxInputTokens": 128000,
-      "maxTokens": 8192,
+      "id": "nvidia/nemotron-3.5-lightning",
+      "name": "Nemotron 3.5 Lightning 30B A3B",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
       "capabilities": [
         "tools",
         "reasoning",
-        "temperature"
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
       ],
       "pricing": {
         "input": 0,
@@ -19864,8 +19882,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "cacheRead": 0,
         "cacheWrite": 0
       },
-      "name": "nemotron-3.5-lightning",
-      "id": "nvidia/nemotron-3.5-lightning",
+      "releaseDate": "2026-08-11",
+      "family": "nemotron",
       "description": "NVIDIA's latest flash model with 30B params"
     },
     "poolside/laguna-s-2.1:free": {
@@ -23704,6 +23722,14 @@ export const GENERATED_PROVIDER_MODELS: {
           "type": "toggle"
         },
         {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "xhigh"
+          ]
+        },
+        {
           "type": "budget_tokens"
         }
       ],
@@ -23730,6 +23756,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -23866,6 +23895,8 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "low",
+            "high",
             "max"
           ]
         }
@@ -23897,9 +23928,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
-        },
-        {
-          "type": "budget_tokens"
         }
       ],
       "pricing": {
@@ -24064,6 +24092,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "none",
@@ -24153,6 +24184,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 262000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -24220,9 +24252,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
-        },
-        {
-          "type": "budget_tokens"
         }
       ],
       "pricing": {
@@ -24278,6 +24307,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -24313,9 +24345,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
-        },
-        {
-          "type": "budget_tokens"
         }
       ],
       "pricing": {
@@ -24394,9 +24423,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
-        },
-        {
-          "type": "budget_tokens"
         }
       ],
       "pricing": {
@@ -24413,7 +24439,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 65000,
+      "maxTokens": 384000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24429,7 +24455,7 @@ export const GENERATED_PROVIDER_MODELS: {
           "type": "effort",
           "values": [
             "high",
-            "xhigh"
+            "max"
           ]
         }
       ],
@@ -24447,7 +24473,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Pro",
       "contextWindow": 1000000,
       "maxInputTokens": 1000000,
-      "maxTokens": 65000,
+      "maxTokens": 384000,
       "capabilities": [
         "tools",
         "reasoning",
@@ -24463,7 +24489,7 @@ export const GENERATED_PROVIDER_MODELS: {
           "type": "effort",
           "values": [
             "high",
-            "xhigh"
+            "max"
           ]
         }
       ],
@@ -24558,6 +24584,15 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
         }
       ],
       "pricing": {
@@ -24585,6 +24620,15 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "low",
+            "medium",
+            "high"
+          ]
         }
       ],
       "pricing": {
@@ -24604,6 +24648,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 262000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -24640,6 +24685,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "none",
@@ -24672,6 +24720,9 @@ export const GENERATED_PROVIDER_MODELS: {
         "prompt-cache"
       ],
       "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
         {
           "type": "effort",
           "values": [
@@ -24761,9 +24812,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "reasoningOptions": [
         {
           "type": "toggle"
-        },
-        {
-          "type": "budget_tokens"
         }
       ],
       "pricing": {
@@ -24988,6 +25036,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "effort",
           "values": [
             "low",
@@ -25045,6 +25096,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "maxTokens": 262000,
       "capabilities": [
         "images",
+        "video",
         "tools",
         "reasoning",
         "structured_output",
@@ -25156,6 +25208,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [
         {
+          "type": "toggle"
+        },
+        {
           "type": "budget_tokens",
           "min": 1024
         }
@@ -25191,6 +25246,8 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "none",
+            "minimal",
             "low",
             "medium",
             "high"
@@ -25239,6 +25296,8 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "none",
+            "minimal",
             "low",
             "medium",
             "high"
@@ -25284,6 +25343,8 @@ export const GENERATED_PROVIDER_MODELS: {
         {
           "type": "effort",
           "values": [
+            "none",
+            "minimal",
             "low",
             "medium",
             "high"
@@ -48166,7 +48227,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "values": [
             "low",
             "medium",
-            "high",
             "xhigh"
           ]
         }
@@ -48214,6 +48274,65 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-12",
       "family": "grok"
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "name": "LiquidAI: LFM2.5-2.6B (free)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "liquid"
+    },
+    "nvidia/nemotron-3.5-lightning": {
+      "id": "nvidia/nemotron-3.5-lightning",
+      "name": "Nemotron 3.5 Lightning 30B A3B",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "nemotron"
     },
     "nvidia/nemotron-3.5-lightning:free": {
       "id": "nvidia/nemotron-3.5-lightning:free",
@@ -52403,7 +52522,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -57218,6 +57337,40 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "llmgateway": {
+    "grok-4-6": {
+      "id": "grok-4-6",
+      "name": "Grok 4.6",
+      "contextWindow": 500000,
+      "maxInputTokens": 500000,
+      "maxTokens": 500000,
+      "capabilities": [
+        "images",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "low",
+            "medium",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 2,
+        "output": 6,
+        "cacheRead": 0.5,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-12",
+      "family": "grok"
+    },
     "muse-spark-1.2": {
       "id": "muse-spark-1.2",
       "name": "Muse Spark 1.2",
@@ -57670,7 +57823,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 2,
         "output": 6,
-        "cacheRead": 0.5,
+        "cacheRead": 0.3,
         "cacheWrite": 0
       },
       "releaseDate": "2026-07-08",
@@ -58435,7 +58588,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 1.25,
         "output": 2.5,
-        "cacheRead": 0.3125,
+        "cacheRead": 0.2,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-17",
@@ -65614,6 +65767,68 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-08-12",
       "family": "grok"
     },
+    "nvidia/nemotron-3.5-lightning": {
+      "id": "nvidia/nemotron-3.5-lightning",
+      "name": "Nvidia Nemotron 3.5 Lightning",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.2,
+        "cacheRead": 0.01,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "nemotron"
+    },
+    "nvidia/nemotron-3.5-lightning:thinking": {
+      "id": "nvidia/nemotron-3.5-lightning:thinking",
+      "name": "Nvidia Nemotron 3.5 Lightning Thinking",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 65536,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.05,
+        "output": 0.2,
+        "cacheRead": 0.01,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "nemotron"
+    },
     "upstage/solar-pro4": {
       "id": "upstage/solar-pro4",
       "name": "Solar Pro 4",
@@ -66503,39 +66718,6 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-07-21",
       "family": "laguna"
-    },
-    "qwen3.8-max-preview": {
-      "id": "qwen3.8-max-preview",
-      "name": "Qwen3.8 Max Preview",
-      "contextWindow": 991000,
-      "maxInputTokens": 991000,
-      "maxTokens": 64000,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "low",
-            "medium",
-            "high",
-            "max"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 1.5,
-        "output": 5,
-        "cacheRead": 0.15,
-        "cacheWrite": 2
-      },
-      "releaseDate": "2026-07-19",
-      "family": "qwen"
     },
     "moonshotai/kimi-k3": {
       "id": "moonshotai/kimi-k3",
@@ -86039,8 +86221,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "qwen/qwen3.8-2.4t-a95b": {
       "id": "qwen/qwen3.8-2.4t-a95b",
       "name": "Qwen3.8 2.4T A95B",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
       "maxTokens": 52429,
       "capabilities": [
         "tools",
@@ -86055,7 +86237,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "values": [
             "low",
             "medium",
-            "high",
             "xhigh"
           ]
         }
@@ -86103,6 +86284,55 @@ export const GENERATED_PROVIDER_MODELS: {
       },
       "releaseDate": "2026-08-12",
       "family": "grok"
+    },
+    "liquid/lfm-2.5-2.6b:free": {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "name": "LFM2.5-2.6B (free)",
+      "contextWindow": 128000,
+      "maxInputTokens": 128000,
+      "maxTokens": 32768,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [],
+      "pricing": {
+        "input": 0,
+        "output": 0,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "liquid"
+    },
+    "nvidia/nemotron-3.5-lightning": {
+      "id": "nvidia/nemotron-3.5-lightning",
+      "name": "Nemotron 3.5 Lightning 30B A3B",
+      "contextWindow": 1000000,
+      "maxInputTokens": 1000000,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.25,
+        "cacheRead": 0.05,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-11",
+      "family": "nemotron"
     },
     "nvidia/nemotron-3.5-lightning:free": {
       "id": "nvidia/nemotron-3.5-lightning:free",
@@ -87398,9 +87628,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.49,
-        "output": 1.54,
-        "cacheRead": 0.091,
+        "input": 0.5,
+        "output": 3.15,
+        "cacheRead": 0.1,
         "cacheWrite": 0
       },
       "releaseDate": "2026-06-13",
@@ -88732,9 +88962,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5795,
-        "output": 2.44,
-        "cacheRead": 0.0976,
+        "input": 0.95,
+        "output": 4,
+        "cacheRead": 0.16,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -89868,7 +90098,8 @@ export const GENERATED_PROVIDER_MODELS: {
         "tools",
         "reasoning",
         "structured_output",
-        "temperature"
+        "temperature",
+        "prompt-cache"
       ],
       "reasoningOptions": [
         {
@@ -89876,9 +90107,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.14,
-        "output": 1,
-        "cacheRead": 0,
+        "input": 0.25,
+        "output": 1.25,
+        "cacheRead": 0.25,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-23",
@@ -90082,7 +90313,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -90098,9 +90329,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.5,
-        "output": 3.6,
-        "cacheRead": 0.3,
+        "input": 0.45,
+        "output": 3,
+        "cacheRead": 0.045,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",

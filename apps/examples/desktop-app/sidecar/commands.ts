@@ -56,6 +56,7 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
+import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -113,8 +114,6 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
-const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
-
 type DesktopDebugLogLevel = "debug" | "info" | "error";
 
 function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {

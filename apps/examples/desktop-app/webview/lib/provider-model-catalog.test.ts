@@ -1,8 +1,11 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	buildProviderModelCatalog,
+	filterChatModels,
 	isDedicatedTranscriptionModel,
+	publishProviderModels,
 	selectTranscriptionModel,
+	subscribeToProviderModels,
 	supportsAudio,
 } from "./provider-model-catalog";
 import type { Provider } from "./provider-schema";
@@ -136,11 +139,65 @@ describe("transcription model selection", () => {
 			modelId: "scribe_v2",
 		};
 		const catalog = buildProviderModelCatalog([elevenLabs], selection);
+		expect(catalog.providerModels.elevenlabs).toEqual([]);
 		expect(catalog.voiceInput).toMatchObject({
 			providerId: "elevenlabs",
 			modelId: "scribe_v2",
 			supportsStreaming: false,
 		});
+	});
+
+	it("keeps transcription-only models out of chat while retaining chat audio models", () => {
+		const provider: Provider = {
+			id: "openai",
+			name: "OpenAI",
+			models: 3,
+			color: "#000000",
+			letter: "OA",
+			enabled: true,
+			modelList: [
+				{
+					id: "gpt-4o-mini-transcribe",
+					name: "GPT-4o mini Transcribe",
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+				},
+				{
+					id: "gpt-audio",
+					name: "GPT Audio",
+					inputModalities: ["text", "audio"],
+					outputModalities: ["text", "audio"],
+				},
+				{
+					id: "gpt-text",
+					name: "GPT Text",
+					inputModalities: ["text"],
+					outputModalities: ["text"],
+				},
+			],
+		};
+
+		const catalog = buildProviderModelCatalog([provider]);
+		expect(catalog.providerModels.openai).toEqual(["gpt-audio", "gpt-text"]);
+		expect(
+			filterChatModels(provider.modelList).map((model) => model.id),
+		).toEqual(["gpt-audio", "gpt-text"]);
+
+		const listener = vi.fn();
+		const unsubscribe = subscribeToProviderModels(listener);
+		try {
+			publishProviderModels("openai", provider.modelList ?? []);
+			expect(listener).toHaveBeenCalledWith(
+				"openai",
+				expect.arrayContaining([
+					expect.objectContaining({ id: "gpt-audio" }),
+					expect.objectContaining({ id: "gpt-text" }),
+				]),
+			);
+			expect(listener.mock.calls[0]?.[1]).toHaveLength(2);
+		} finally {
+			unsubscribe();
+		}
 	});
 
 	it("preserves streaming transcription capability for the composer", () => {

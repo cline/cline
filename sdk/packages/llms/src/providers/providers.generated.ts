@@ -528,7 +528,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "deepseek",
-		defaultModelId: "deepseek-v4-flash",
+		defaultModelId: "deepseek-v4-pro",
 		apiKeyEnv: ["DEEPSEEK_API_KEY"],
 		docsUrl: "https://api-docs.deepseek.com/quick_start/pricing",
 		defaults: {
@@ -542,7 +542,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "digitalocean",
-		defaultModelId: "deepseek-v4-flash-0731",
+		defaultModelId: "qwen3.8-max",
 		apiKeyEnv: ["DIGITALOCEAN_ACCESS_TOKEN"],
 		docsUrl:
 			"https://docs.digitalocean.com/products/gradient-ai-platform/details/models/",
@@ -590,6 +590,20 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		docsUrl: "https://docs.ebtech.com/ai/model-api.html",
 		defaults: {
 			baseUrl: "https://maas-api.ebcloud.com/v1",
+		},
+	},
+	{
+		id: "edenai",
+		name: "Eden AI",
+		description: "Eden AI model provider from models.dev",
+		family: "openai-compatible",
+		capabilities: ["tools", "reasoning", "prompt-cache"],
+		modelsProviderId: "edenai",
+		defaultModelId: "anthropic/claude-opus-5",
+		apiKeyEnv: ["EDENAI_API_KEY"],
+		docsUrl: "https://docs.edenai.co",
+		defaults: {
+			baseUrl: "https://api.edenai.run/v3",
 		},
 	},
 	{
@@ -713,7 +727,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "github-copilot",
-		defaultModelId: "claude-opus-5",
+		defaultModelId: "mai-code-1.1-flash",
 		apiKeyEnv: ["GITHUB_TOKEN"],
 		docsUrl: "https://docs.github.com/en/copilot",
 		defaults: {
@@ -879,7 +893,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "inceptron",
-		defaultModelId: "zai-org/GLM-5.2",
+		defaultModelId: "deepseek-ai/DeepSeek-V4-Flash-0731",
 		apiKeyEnv: ["INCEPTRON_API_KEY"],
 		docsUrl: "https://docs.inceptron.io",
 		defaults: {
@@ -980,7 +994,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "kilo",
-		defaultModelId: "nvidia/nemotron-3.5-lightning:free",
+		defaultModelId: "bytedance-seed/seed-2-1-turbo",
 		apiKeyEnv: ["KILO_API_KEY"],
 		docsUrl: "https://kilo.ai",
 		defaults: {
@@ -1052,7 +1066,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "llmgateway",
-		defaultModelId: "muse-spark-1.2",
+		defaultModelId: "grok-4-6",
 		apiKeyEnv: ["LLMGATEWAY_API_KEY"],
 		docsUrl: "https://llmgateway.io/docs",
 		defaults: {
@@ -1356,9 +1370,9 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		name: "NanoGPT",
 		description: "NanoGPT model provider from models.dev",
 		family: "openai-compatible",
-		capabilities: ["tools", "prompt-cache", "reasoning"],
+		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "nano-gpt",
-		defaultModelId: "upstage/solar-pro4",
+		defaultModelId: "bytedance-seed/seed-2-1-turbo",
 		apiKeyEnv: ["NANO_GPT_API_KEY"],
 		docsUrl: "https://docs.nano-gpt.com",
 		defaults: {
@@ -1509,7 +1523,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "opencode",
-		defaultModelId: "nemotron-3.5-lightning-free",
+		defaultModelId: "grok-4.6",
 		apiKeyEnv: ["OPENCODE_API_KEY"],
 		docsUrl: "https://opencode.ai/docs/zen",
 		defaults: {
@@ -1537,7 +1551,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "openrouter",
-		defaultModelId: "nvidia/nemotron-3.5-lightning:free",
+		defaultModelId: "bytedance-seed/seed-2-1-turbo",
 		apiKeyEnv: ["OPENROUTER_API_KEY"],
 		docsUrl: "https://openrouter.ai/models",
 		defaults: {
@@ -2033,7 +2047,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "tinfoil",
-		defaultModelId: "kimi-k3",
+		defaultModelId: "deepseek-v4-flash",
 		apiKeyEnv: ["TINFOIL_API_KEY"],
 		docsUrl: "https://docs.tinfoil.sh",
 		defaults: {
@@ -2139,7 +2153,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "vercel-ai-gateway",
-		defaultModelId: "meta/muse-glimmer-30b",
+		defaultModelId: "xai/grok-4.6",
 		apiKeyEnv: ["AI_GATEWAY_API_KEY"],
 		docsUrl:
 			"https://github.com/vercel/ai/tree/5eb85cc45a259553501f535b8ac79a77d0e79223/packages/gateway",
@@ -2222,7 +2236,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "xai",
-		defaultModelId: "grok-4.5",
+		defaultModelId: "grok-4.6",
 		apiKeyEnv: ["XAI_API_KEY"],
 		docsUrl: "https://docs.x.ai/docs/models",
 	},
