@@ -13,7 +13,7 @@ tauri = { version = "2.11.1", features = ["image-png", "tray-icon"] }
 notify-rust = "4.18"
 tauri-plugin-notification = "2"
 tauri-plugin-updater = "2"
-tokio = { version = "1", features = ["time"] }
+tokio = { version = "1", features = ["sync", "time"] }
 rfd = "0.15"
 
 [target."cfg(target_os = \"macos\")".dependencies]

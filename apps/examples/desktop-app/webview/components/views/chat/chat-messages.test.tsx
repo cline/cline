@@ -613,8 +613,9 @@ describe("ChatMessages tool disclosures", () => {
 		const messageList = message?.parentElement;
 		const content = message?.querySelector(".cline-chat-message-content");
 
-		// The list and the content column each own their spacing via gap-2...
-		expect(messageList?.classList.contains("gap-2")).toBe(true);
+		// The list owns conversation spacing via gap-8, while the content column
+		// keeps the tighter gap-2 spacing between blocks within one message.
+		expect(messageList?.classList.contains("gap-8")).toBe(true);
 		expect(content?.classList.contains("flex")).toBe(true);
 		expect(content?.classList.contains("flex-col")).toBe(true);
 		expect(content?.classList.contains("gap-2")).toBe(true);
@@ -666,19 +667,12 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		expect(userMessage?.classList.contains("relative")).toBe(true);
-		expect(userActions?.classList.contains("absolute")).toBe(true);
-		expect(userActions?.classList.contains("right-0")).toBe(true);
-		expect(userActions?.classList.contains("top-full")).toBe(true);
-		expect(userActions?.classList.contains("pt-2")).toBe(true);
+		expect(userActions?.getAttribute("data-side")).toBe("end");
 		expect(assistantMessage?.classList.contains("relative")).toBe(true);
-		expect(assistantActions?.classList.contains("absolute")).toBe(true);
-		expect(assistantActions?.classList.contains("left-0")).toBe(true);
-		expect(assistantActions?.classList.contains("top-full")).toBe(true);
-		expect(assistantActions?.classList.contains("pt-2")).toBe(true);
+		expect(assistantActions?.getAttribute("data-side")).toBe("start");
 		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
 		const userAction = userActions?.querySelector(".cline-chat-message-action");
-		expect(userAction?.classList.contains("min-w-0")).toBe(true);
-		expect(userAction?.classList.contains("p-0")).toBe(true);
+		expect(userAction?.getAttribute("data-slot")).toBe("icon-button");
 		const assistantActionButtons = [
 			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
 				[]),
@@ -686,9 +680,7 @@ describe("ChatMessages tool disclosures", () => {
 		expect(assistantActionButtons).toHaveLength(2);
 		expect(
 			assistantActionButtons.every(
-				(action) =>
-					action.classList.contains("min-w-0") &&
-					action.classList.contains("p-0"),
+				(action) => action.getAttribute("data-slot") === "icon-button",
 			),
 		).toBe(true);
 		expect(userActions?.querySelector("time")?.getAttribute("datetime")).toBe(

@@ -45,11 +45,15 @@ function nowMs(): number {
 	return Date.now();
 }
 
-function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
-	const encoded = JSON.stringify({
+export function encodeSidecarEvent(name: string, payload: unknown): string {
+	return JSON.stringify({
 		type: "event",
 		event: { name, payload },
 	});
+}
+
+function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
+	const encoded = encodeSidecarEvent(name, payload);
 	for (const client of ctx.wsClients) {
 		try {
 			client.send(encoded);
@@ -499,6 +503,7 @@ export function createSidecarContext(
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 

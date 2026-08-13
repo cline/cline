@@ -67,6 +67,27 @@ export function useAppUpdateStatus(): AppUpdateStatus {
 }
 
 /**
+ * Ask the Rust shell to check for, download, and stage an update right now,
+ * instead of waiting for the next background updater interval. Resolves with
+ * the resulting updater status ("ready" means an update is staged and a
+ * restart will apply it), or null when the check could not run at all
+ * (web/sidecar mode, or a bridge failure).
+ */
+export async function checkForUpdateNow(): Promise<AppUpdateStatus | null> {
+	try {
+		const status = await desktopClient.invoke<AppUpdateStatus>(
+			"check_for_update_now",
+		);
+		// Keep the shared polled store in sync so the sidebar indicator and
+		// update toast reflect an update staged through this path too.
+		setUpdateStatus(status);
+		return status;
+	} catch {
+		return null;
+	}
+}
+
+/**
  * Restart the app so the staged update takes effect. Resolves false (after
  * surfacing a toast) if the restart command fails, so callers can reset
  * pending UI.
