@@ -1,12 +1,13 @@
 import { existsSync } from "node:fs";
 import { isHubDaemonProcess, resolveClineBuildEnv } from "@cline/shared";
 import {
+	compareHubBuilds,
 	getManagedHubCompatibility,
 	type HubOwnerContext,
-	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
+	resolveHubBuildIdentity,
 } from "../discovery";
 import {
 	resolveProductionHubOwnerContext,
@@ -26,15 +27,66 @@ function resolveDefaultWatchIntervalMs(): number {
 export interface ManagedHubBuildMismatchEvent {
 	/** WebSocket URL of the live managed Hub that does not match this build. */
 	url: string;
-	/** Why this client should update: the running Hub is a newer build this
-	 * client stays attached to, or it speaks an unsupported protocol. */
-	reason: "unsupported_protocol" | "build_mismatch";
+	/**
+	 * Why client and Hub disagree:
+	 * - `build_mismatch`: the running Hub is a newer build this client stays
+	 *   attached to, and updating this client resolves it.
+	 * - `unsupported_protocol`: this client cannot speak the Hub's protocol.
+	 * - `outdated_hub`: this client is the newer build, but the running Hub was
+	 *   left in place because it is still serving sessions. Nothing to install;
+	 *   the Hub is replaced once those sessions end.
+	 */
+	reason: "unsupported_protocol" | "build_mismatch" | "outdated_hub";
 	/** Build identity reported by the running Hub, when it reports one. */
 	hubBuildId?: string;
 	/** Core package version reported by the running Hub. */
 	hubCoreVersion?: string;
+	/**
+	 * Identifies the running daemon *instance*, not its build. Two daemons from
+	 * the same build share a build id, so anything that needs to know whether
+	 * the very same Hub is still running - rather than merely another Hub of
+	 * the same build - must compare this.
+	 */
+	hubInstanceId?: string;
 	/** Build identity this client expects a managed Hub to match. */
 	expectedBuildId: string;
+}
+
+type HubInstanceFields = {
+	hubId?: string;
+	pid?: number;
+	startedAt?: string;
+};
+
+/**
+ * Identify the running daemon instance.
+ *
+ * The probe used here is unauthenticated, and `/health` deliberately reports
+ * only build and address fields - no `hubId`, `pid`, or `startedAt`. So the
+ * identity comes from the discovery record, which every daemon version writes
+ * with all three and which a replacement daemon rewrites as its own. The probe
+ * is still preferred when it does carry an id, since that is the process we
+ * actually just talked to.
+ */
+function resolveHubInstanceId(
+	probe: HubInstanceFields,
+	record: HubInstanceFields | undefined,
+): string | undefined {
+	for (const source of [probe, record]) {
+		const hubId = source?.hubId?.trim();
+		if (hubId) {
+			return hubId;
+		}
+	}
+	for (const source of [probe, record]) {
+		const parts = [source?.pid, source?.startedAt].filter(
+			(part) => part !== undefined && part !== null && part !== "",
+		);
+		if (parts.length > 0) {
+			return parts.join(":");
+		}
+	}
+	return undefined;
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -81,16 +133,34 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (!healthy?.url) {
 		return undefined;
 	}
+	// Reading discovery and probing the Hub are separate steps, and instance
+	// identity comes from the first while the build data comes from the second.
+	// A daemon replaced between them would be described with its predecessor's
+	// identity, which is exactly the confusion the caller's consecutive-instance
+	// check exists to avoid. Confirm the record still describes the daemon just
+	// probed, and report nothing this round when it does not - a Hub mid-swap is
+	// churn, and the next check sees whatever it settles into.
+	const recheck = await readHubDiscovery(owner.discoveryPath).catch(
+		() => undefined,
+	);
+	if (
+		!recheck?.url ||
+		recheck.url !== record.url ||
+		resolveHubInstanceId({}, recheck) !== resolveHubInstanceId({}, record)
+	) {
+		return undefined;
+	}
 	const expectedBuildId = resolveHubBuildId();
 	const compatibility = getManagedHubCompatibility(healthy, expectedBuildId);
 	if (compatibility.compatible) {
 		return undefined;
 	}
-	// Prompt only for mismatches that persist and that updating this client
-	// resolves: a newer reusable Hub this client stays attached to, or a Hub
-	// whose protocol this client cannot speak at all. Older or unordered
-	// builds are retired and replaced automatically, so prompting would only
-	// flash a stale dialog.
+	// Prompt for mismatches that persist: a newer reusable Hub this client
+	// stays attached to, a Hub whose protocol this client cannot speak, or an
+	// older Hub that was left running because it is serving sessions. An older
+	// idle Hub is retired and replaced automatically, so reporting it here
+	// would only flash a stale dialog - the caller filters that case by
+	// requiring the mismatch to survive consecutive checks.
 	const report = (
 		reason: ManagedHubBuildMismatchEvent["reason"],
 	): ManagedHubBuildMismatchEvent => ({
@@ -98,18 +168,21 @@ export async function checkManagedHubBuildMismatch(): Promise<
 		reason,
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
+		hubInstanceId: resolveHubInstanceId(healthy, record),
 		expectedBuildId,
 	});
 	if (compatibility.reason === "unsupported_protocol") {
 		return report("unsupported_protocol");
 	}
-	if (
-		compatibility.reason === "build_mismatch" &&
-		isManagedHubReusable(healthy)
-	) {
-		return report("build_mismatch");
+	// Only a Hub this client is strictly newer than gets the "older Hub" copy;
+	// that is the case the retire path defers while sessions are live. A newer
+	// Hub - or one that carries too little metadata to order, where updating
+	// this client is what supplies the missing ordering - is a client-update
+	// prompt as before.
+	if (compareHubBuilds(resolveHubBuildIdentity(), healthy) > 0) {
+		return report("outdated_hub");
 	}
-	return undefined;
+	return report("build_mismatch");
 }
 
 export interface WatchManagedHubBuildOptions {
@@ -140,6 +213,7 @@ export function watchManagedHubBuildMismatch(
 	}
 	const intervalMs = options.intervalMs ?? resolveDefaultWatchIntervalMs();
 	let notifiedKey: string | undefined;
+	let pendingKey: string | undefined;
 	let checking = false;
 	const timer = setInterval(() => {
 		if (checking) {
@@ -150,12 +224,26 @@ export function watchManagedHubBuildMismatch(
 			.then((mismatch) => {
 				if (!mismatch) {
 					notifiedKey = undefined;
+					pendingKey = undefined;
 					return;
 				}
 				const key = `${mismatch.reason}:${mismatch.hubBuildId ?? ""}`;
 				if (key === notifiedKey) {
 					return;
 				}
+				// An older Hub is normally retired and replaced within a moment
+				// of being observed. Only report one that is still there on the
+				// next check, which means it was deliberately left running.
+				//
+				// Keyed by instance, not build: a replacement daemon from the
+				// same older build is a different Hub, and treating it as the
+				// same one would report the churn this check exists to hide.
+				const instanceKey = `${key}:${mismatch.hubInstanceId ?? ""}`;
+				if (mismatch.reason === "outdated_hub" && pendingKey !== instanceKey) {
+					pendingKey = instanceKey;
+					return;
+				}
+				pendingKey = undefined;
 				notifiedKey = key;
 				options.onMismatch(mismatch);
 			})

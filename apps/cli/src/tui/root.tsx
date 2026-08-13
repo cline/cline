@@ -584,10 +584,15 @@ function App(props: TuiProps) {
 		if (!hubBuildMismatch) return;
 		setHubBuildMismatch(null);
 		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		const reason = hubBuildMismatch.reason;
 		void dialog
 			.choice<boolean>({
 				content: (ctx: ChoiceContext<boolean>) => (
-					<HubUpdateRequiredContent {...ctx} hubCoreVersion={hubCoreVersion} />
+					<HubUpdateRequiredContent
+						{...ctx}
+						hubCoreVersion={hubCoreVersion}
+						reason={reason}
+					/>
 				),
 			})
 			.then((update) => {
@@ -596,7 +601,9 @@ function App(props: TuiProps) {
 					return;
 				}
 				showToast(
-					"Hub still differs from this CLI. Run 'cline update' and restart when convenient.",
+					reason === "outdated_hub"
+						? "Hub is on an older build until its active sessions end. No action needed."
+						: "Hub still differs from this CLI. Run 'cline update' and restart when convenient.",
 					"info",
 				);
 				refocusTextareaRef.current();
