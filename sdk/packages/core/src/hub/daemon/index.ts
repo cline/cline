@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync } from "node:fs";
+import { closeSync, mkdirSync, openSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -71,6 +71,30 @@ function resolveDefaultHubOwnerContext() {
 
 function isReusableHubRecord(record: HubServerProbeRecord): boolean {
 	return isManagedHubReusable(record, { expectedBuildId: resolveHubBuildId() });
+}
+
+/**
+ * Reads the discovery record the npm postinstall set aside (see
+ * apps/cli/script/postinstall.mjs). Deliberately bypasses readHubDiscovery —
+ * the file is best-effort recovery metadata, not a live record — and stays
+ * synchronous so it adds no async boundary to the ensure flow.
+ */
+function readSupersededHubDiscovery(
+	discoveryPath: string,
+): { url?: string; authToken?: string; pid?: number } | undefined {
+	try {
+		const raw = JSON.parse(
+			readFileSync(`${discoveryPath}.superseded`, "utf8"),
+		) as { url?: unknown; authToken?: unknown; pid?: unknown };
+		return {
+			url: typeof raw.url === "string" ? raw.url : undefined,
+			authToken:
+				typeof raw.authToken === "string" ? raw.authToken : undefined,
+			pid: typeof raw.pid === "number" ? raw.pid : undefined,
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 function withMatchingDiscoveryRetirementMetadata(
@@ -308,6 +332,13 @@ async function ensureDetachedHubServerLocked(
 	};
 	await retireLegacySharedHub(owner).catch(() => undefined);
 	const discovered = await readHubDiscovery(owner.discoveryPath);
+	// The npm package's postinstall sets the discovery record aside (same
+	// ".superseded" suffix) so pre-3.0.55 updaters cannot restart a busy hub.
+	// Without it, a hub displaced that way could never be retired here: the
+	// port probe alone carries no auth token or pid.
+	const superseded = discovered?.url
+		? undefined
+		: readSupersededHubDiscovery(owner.discoveryPath);
 	let retiredUnusableDiscovery = false;
 	if (discovered?.url) {
 		const discoveredAuthToken = discovered.authToken;
@@ -345,7 +376,7 @@ async function ensureDetachedHubServerLocked(
 	if (expected?.url) {
 		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 			expected,
-			discovered,
+			discovered ?? superseded,
 			expectedUrl,
 		);
 		if (isReusableHubRecord(expected)) {
@@ -355,6 +386,7 @@ async function ensureDetachedHubServerLocked(
 			const candidateTokens = [
 				expected.authToken,
 				discovered?.authToken,
+				superseded?.authToken,
 			].filter(
 				(token): token is string =>
 					typeof token === "string" && token.trim().length > 0,
@@ -379,7 +411,7 @@ async function ensureDetachedHubServerLocked(
 					host: expected.host,
 					port: expected.port,
 					url: expected.url,
-					pid: expected.pid ?? discovered?.pid,
+					pid: expected.pid ?? discovered?.pid ?? superseded?.pid,
 					startedAt: expected.startedAt ?? new Date().toISOString(),
 					updatedAt: new Date().toISOString(),
 				};
@@ -446,7 +478,7 @@ async function ensureDetachedHubServerLocked(
 		if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
 			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 				nextExpected,
-				nextDiscovery,
+				nextDiscovery ?? superseded,
 				expectedUrl,
 			);
 			const retiredExpected = await retireIncompatibleHub(
