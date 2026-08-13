@@ -43,6 +43,7 @@
 	},
 	"files": [
 		"components.css",
+		"components/badge.tsx",
 		"components/button.tsx",
 		"components/generated-media.tsx",
 		"components/agent-chat/agent-chat.css",
