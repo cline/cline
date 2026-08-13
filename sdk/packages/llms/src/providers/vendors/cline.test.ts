@@ -1,5 +1,6 @@
+import type { GatewayResolvedProviderConfig } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { createCline } from "./cline";
+import { createCline, createClineProviderModule } from "./cline";
 
 describe("createCline", () => {
 	const fetchMock = vi.fn<typeof fetch>();
@@ -110,6 +111,42 @@ describe("createCline", () => {
 			max_completion_tokens: 8_192,
 		});
 		expect(body).not.toHaveProperty("max_tokens");
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("applies %s provider-options buckets to the request body", async (providerId) => {
+		const modelId = "anthropic/claude-sonnet-4.6";
+		fetchMock.mockResolvedValue(jsonCompletionResponse(modelId));
+		const module = await createClineProviderModule(
+			{
+				providerId,
+				apiKey: "test-key",
+				baseUrl: "https://api.cline.bot/api/v1",
+				fetch: fetchMock,
+			} as unknown as GatewayResolvedProviderConfig,
+			{ provider: { id: providerId } } as never,
+		);
+		const model = module.model(modelId) as {
+			doGenerate: (options: unknown) => Promise<unknown>;
+		};
+
+		// The gateway routes Cline options under the concrete provider id
+		// and its camelCase alias (see clineGatewayReasoningRule +
+		// buildProviderAndAliasPatch). The provider name must match the
+		// provider id for these to reach the wire.
+		const bucket = { reasoning: { enabled: true, max_tokens: 1024 } };
+		await model.doGenerate({
+			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
+			providerOptions:
+				providerId === "cline"
+					? { cline: bucket }
+					: { "cline-pass": bucket, clinePass: bucket },
+		});
+
+		const body = capturedRequestBody(fetchMock);
+		expect(body.reasoning).toEqual({ enabled: true, max_tokens: 1024 });
 	});
 
 	it("keeps max_tokens for non-reasoning models", async () => {
