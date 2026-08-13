@@ -58,7 +58,12 @@ export function buildCompatibleProviderOptions(options: {
 	const promptCache = hasPromptCacheRoute ? createEphemeralCacheControl() : {};
 
 	return {
-		...(target === "openai-compatible" ? { strictJsonSchema: false } : {}),
+		// The "cline" target is the OpenAI-compatible Cline provider; keep the
+		// same relaxed JSON schema behavior it had before it split off from the
+		// generic openai-compatible target.
+		...(target === "openai-compatible" || target === "cline"
+			? { strictJsonSchema: false }
+			: {}),
 		...buildCompatibleThinkingOptions({ request, context, suppressions }),
 		...(reasoning ? { reasoning } : {}),
 		...promptCache,

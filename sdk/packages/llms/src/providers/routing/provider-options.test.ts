@@ -594,6 +594,27 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
+			name: "ClinePass-routed Sonnet 4.5 -> gateway reasoning under provider-id and alias buckets",
+			request: {
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "low" },
+			},
+			context: { family: "claude-sonnet" },
+			expect: [
+				{
+					bucket: "cline-pass",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "clinePass",
+					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
 			name: "legacy custom Claude with promptCacheStrategy -> Anthropic reasoning",
 			request: {
 				providerId: "custom-provider",
