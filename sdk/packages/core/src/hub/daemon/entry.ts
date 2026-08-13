@@ -14,9 +14,9 @@ import {
 } from "../discovery/workspace";
 import { startHubWebSocketServer } from "../server";
 import {
-	armHubDaemonShutdownWatchdog,
+	createHubDaemonShutdownCoordinator,
 	HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-} from "./shutdown-watchdog";
+} from "./shutdown-coordinator";
 import { createHubDaemonTelemetry } from "./telemetry";
 
 initVcr(process.env.CLINE_VCR);
@@ -114,12 +114,99 @@ async function main(): Promise<void> {
 	});
 
 	const daemonTelemetry = createHubDaemonTelemetry();
-	let requestDaemonShutdown: () => void = () => {};
+	const formatError = (error: unknown): string =>
+		error instanceof Error ? error.stack || error.message : String(error);
+	let shutdownCoordinator:
+		| ReturnType<typeof createHubDaemonShutdownCoordinator>
+		| undefined;
+	let pendingShutdownRequest: { reason: string; exitCode: number } | undefined;
+	let pendingShutdownWatchdog: ReturnType<typeof setTimeout> | undefined;
+	const requestOrQueueShutdown = (request: {
+		reason: string;
+		exitCode: number;
+	}): Promise<void> | undefined => {
+		if (shutdownCoordinator) {
+			return shutdownCoordinator.request(request);
+		}
+		if (
+			!pendingShutdownRequest ||
+			request.exitCode > pendingShutdownRequest.exitCode
+		) {
+			pendingShutdownRequest = request;
+		}
+		if (!pendingShutdownWatchdog) {
+			pendingShutdownWatchdog = setTimeout(() => {
+				const pending = pendingShutdownRequest ?? request;
+				try {
+					process.stderr.write(
+						`[hub-daemon] startup did not reach shutdown coordination after ${pending.reason}; forcing process exit\n`,
+					);
+				} finally {
+					process.exit(pending.exitCode);
+				}
+			}, HUB_DAEMON_SHUTDOWN_DEADLINE_MS);
+		}
+		return undefined;
+	};
+
+	let fatalShutdownStarted = false;
+	const shutdownFatal = (label: string, error: unknown): void => {
+		if (fatalShutdownStarted) {
+			return;
+		}
+		fatalShutdownStarted = true;
+		process.stderr.write(`[hub-daemon] ${label}: ${formatError(error)}\n`);
+		void requestOrQueueShutdown({ reason: label, exitCode: 1 });
+	};
+
+	let terminationSignalCount = 0;
+	const handleTerminationSignal = (signal: "SIGINT" | "SIGTERM"): void => {
+		terminationSignalCount += 1;
+		if (terminationSignalCount > 1) {
+			if (shutdownCoordinator) {
+				shutdownCoordinator.force({
+					reason: `second termination signal (${signal})`,
+					exitCode: 0,
+				});
+				return;
+			}
+			if (pendingShutdownWatchdog) {
+				clearTimeout(pendingShutdownWatchdog);
+				pendingShutdownWatchdog = undefined;
+			}
+			process.exit(pendingShutdownRequest?.exitCode ?? 0);
+			return;
+		}
+		void requestOrQueueShutdown({ reason: signal, exitCode: 0 });
+	};
+	// Install process handlers before the endpoint can be published. A signal
+	// arriving in the publish-to-ready window is queued for the coordinator
+	// instead of taking Node/Bun's default exit path and leaving stale discovery.
+	process.on("SIGINT", () => handleTerminationSignal("SIGINT"));
+	process.on("SIGTERM", () => handleTerminationSignal("SIGTERM"));
+	process.on("uncaughtException", (error) => {
+		shutdownFatal("uncaughtException", error);
+	});
+	process.on("unhandledRejection", (reason) => {
+		if (isAbortRejection(reason)) {
+			const message = reason instanceof Error ? reason.message : String(reason);
+			process.stderr.write(
+				`[hub-daemon] ignored abort rejection: ${message}\n`,
+			);
+			return;
+		}
+		shutdownFatal("unhandledRejection", reason);
+	});
 
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServer({
-			onShutdownRequested: () => requestDaemonShutdown(),
+			onShutdownRequested: () => {
+				void requestOrQueueShutdown({
+					reason: "authenticated HTTP shutdown request",
+					exitCode: 0,
+				});
+			},
 			host: endpoint.host,
 			port: endpoint.port,
 			pathname: endpoint.pathname,
@@ -148,92 +235,61 @@ async function main(): Promise<void> {
 	});
 	setActiveConnectorSupervisor(supervisor);
 
-	let shutdownStarted = false;
-	const shutdown = async (): Promise<void> => {
-		if (shutdownStarted) {
-			return;
-		}
-		shutdownStarted = true;
-		armHubDaemonShutdownWatchdog({
-			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-			exitCode: 0,
-			onTimeout: () => {
-				process.stderr.write(
-					"[hub-daemon] graceful shutdown stalled; forcing exit\n",
-				);
-			},
-		});
-		// Stop supervising but leave the connectors running: they are detached on
-		// purpose so a hub restart does not disconnect Slack/Telegram, and the next
-		// hub adopts them from their state files.
-		supervisor.dispose();
-		setActiveConnectorSupervisor(undefined);
-		await server.close();
-		await daemonTelemetry.dispose().catch(() => undefined);
-		process.exit(0);
-	};
-	requestDaemonShutdown = () => {
-		void shutdown();
-	};
-
-	let fatalShutdownStarted = false;
-	const shutdownFatal = (label: string, error: unknown): void => {
-		if (fatalShutdownStarted) {
-			return;
-		}
-		fatalShutdownStarted = true;
-		armHubDaemonShutdownWatchdog({
-			deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
-			exitCode: 1,
-			onTimeout: () => {
-				process.stderr.write(
-					`[hub-daemon] shutdown after ${label} stalled; forcing exit\n`,
-				);
-			},
-		});
-		const message =
-			error instanceof Error ? error.stack || error.message : String(error);
-		process.stderr.write(`[hub-daemon] ${label}: ${message}\n`);
-		void server
-			.close()
-			.catch((closeError) => {
-				const closeMessage =
-					closeError instanceof Error
-						? closeError.stack || closeError.message
-						: String(closeError);
-				process.stderr.write(
-					`[hub-daemon] shutdown after ${label} failed: ${closeMessage}\n`,
-				);
-			})
-			.finally(() => {
-				void daemonTelemetry
-					.dispose()
-					.catch(() => undefined)
-					.finally(() => {
-						process.exit(1);
-					});
-			});
-	};
-
-	process.on("SIGINT", () => {
-		void shutdown();
-	});
-	process.on("SIGTERM", () => {
-		void shutdown();
-	});
-	process.on("uncaughtException", (error) => {
-		shutdownFatal("uncaughtException", error);
-	});
-	process.on("unhandledRejection", (reason) => {
-		if (isAbortRejection(reason)) {
-			const message = reason instanceof Error ? reason.message : String(reason);
+	shutdownCoordinator = createHubDaemonShutdownCoordinator({
+		deadlineMs: HUB_DAEMON_SHUTDOWN_DEADLINE_MS,
+		cleanup: async () => {
+			const errors: unknown[] = [];
+			// Stop supervising but leave the connectors running: they are detached
+			// on purpose so a hub restart does not disconnect Slack/Telegram, and
+			// the next hub adopts them from their state files.
+			try {
+				supervisor.dispose();
+			} catch (error) {
+				errors.push(error);
+			} finally {
+				setActiveConnectorSupervisor(undefined);
+			}
+			// Listener and runtime shutdown begin together, but telemetry stays
+			// available until runtime/session disposal has settled. The listener's
+			// close callback may still hang under Bun; the coordinator watchdog
+			// bounds that final await.
+			const closing = server.beginClose();
+			await Promise.allSettled([closing.transportStopped]);
+			try {
+				await daemonTelemetry.dispose();
+			} catch (error) {
+				errors.push(error);
+			}
+			try {
+				await closing.closed;
+			} catch (error) {
+				errors.push(error);
+			}
+			if (errors.length > 0) {
+				throw new AggregateError(errors, "hub daemon shutdown cleanup failed");
+			}
+		},
+		exit: (code) => process.exit(code),
+		onCleanupError: (error) => {
 			process.stderr.write(
-				`[hub-daemon] ignored abort rejection: ${message}\n`,
+				`[hub-daemon] shutdown cleanup failed: ${formatError(error)}\n`,
 			);
-			return;
-		}
-		shutdownFatal("unhandledRejection", reason);
+		},
+		onForcedExit: ({ reason }) => {
+			process.stderr.write(`[hub-daemon] ${reason}; forcing process exit\n`);
+		},
 	});
+	if (pendingShutdownRequest) {
+		if (pendingShutdownWatchdog) {
+			clearTimeout(pendingShutdownWatchdog);
+			pendingShutdownWatchdog = undefined;
+		}
+		rejectHubDaemonReady(
+			new Error("Hub daemon shutdown was requested before readiness"),
+		);
+		await shutdownCoordinator.request(pendingShutdownRequest);
+		return;
+	}
 
 	resolveHubDaemonReady();
 	try {

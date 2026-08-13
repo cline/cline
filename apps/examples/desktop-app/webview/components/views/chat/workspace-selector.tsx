@@ -250,7 +250,7 @@ export function WorkspaceSelector({
 									? `Workspace ${workspaceName}, branch ${currentBranch}`
 									: `Folder ${workspaceName}`
 							}
-							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 text-sm"
 							disabled={disabled || switching}
 							id="git-branch-btn"
 							onClick={() => {

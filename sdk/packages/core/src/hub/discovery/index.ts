@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import { existsSync } from "node:fs";
-import { chmod, mkdir, readFile, rm, writeFile } from "node:fs/promises";
+import { mkdir, open, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import {
 	type HubCompatibilityResult,
@@ -11,9 +11,11 @@ import { resolveClineDataDir, resolveClineDir } from "@cline/shared/storage";
 import corePackage from "../../../package.json";
 
 declare const __CLINE_CORE_RUNTIME_BUILD_ID__: string | undefined;
+declare const __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__: number | undefined;
 
 const HUB_DISCOVERY_ENV = "CLINE_HUB_DISCOVERY_PATH";
 const HUB_BUILD_ID_ENV = "CLINE_HUB_BUILD_ID";
+const HUB_BUILD_EPOCH_ENV = "CLINE_HUB_BUILD_EPOCH_MS";
 const HUB_STARTUP_LOCK_MAX_AGE_MS = 30_000;
 const HUB_STARTUP_LOCK_WAIT_MS = 15_000;
 const HUB_STARTUP_LOCK_POLL_MS = 100;
@@ -26,6 +28,7 @@ export interface HubServerDiscoveryRecord {
 	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
+	buildEpochMs?: number;
 	authToken: string;
 	host: string;
 	port: number;
@@ -42,6 +45,7 @@ export type HubServerProbeRecord = {
 	capabilities?: readonly string[];
 	coreVersion?: string;
 	buildId?: string;
+	buildEpochMs?: number;
 	host: string;
 	port: number;
 	url: string;
@@ -87,11 +91,11 @@ function sleep(ms: number): Promise<void> {
 	return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-function getStartupLockDir(discoveryPath: string): string {
-	return `${discoveryPath}.lock`;
+function getHubLockDir(lockBasis: string): string {
+	return `${lockBasis}.lock`;
 }
 
-async function readStartupLockRecord(
+async function readHubLockRecord(
 	lockDir: string,
 ): Promise<{ pid: number; acquiredAt: string } | undefined> {
 	try {
@@ -110,7 +114,7 @@ async function readStartupLockRecord(
 	}
 }
 
-async function removeStartupLock(lockDir: string): Promise<void> {
+async function removeHubLock(lockDir: string): Promise<void> {
 	await rm(lockDir, { recursive: true, force: true }).catch(() => undefined);
 }
 
@@ -124,6 +128,23 @@ export function resolveHubBuildId(): string {
 			? __CLINE_CORE_RUNTIME_BUILD_ID__.trim()
 			: "";
 	return embedded || `source-${String(corePackage.version)}`;
+}
+
+/**
+ * When this SDK build was produced, embedded at bundle time. Orders builds so
+ * managed-Hub handling can distinguish a newer daemon (attach and prompt the
+ * user to update) from a stale one (retire and replace). Undefined when
+ * running from unbundled sources, where no meaningful ordering exists.
+ */
+export function resolveHubBuildEpochMs(): number | undefined {
+	const configured = Number(process.env[HUB_BUILD_EPOCH_ENV]);
+	if (Number.isFinite(configured) && configured > 0) {
+		return configured;
+	}
+	return typeof __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__ === "number" &&
+		Number.isFinite(__CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__)
+		? __CLINE_CORE_RUNTIME_BUILD_EPOCH_MS__
+		: undefined;
 }
 
 export type ManagedHubCompatibilityResult =
@@ -159,6 +180,43 @@ export function getManagedHubCompatibility(
 		return { compatible: false, reason: "build_mismatch" };
 	}
 	return { compatible: true };
+}
+
+/**
+ * Whether a client may keep using a managed local Hub instead of retiring it.
+ *
+ * Same build: always reusable. Different build: reusable only when the Hub
+ * was produced *after* this client's own build (another installation
+ * upgraded the shared Hub) - the daemon is then running newer code, so
+ * replacing it would be a downgrade; the client attaches over the compatible
+ * wire protocol and the build-mismatch watcher prompts the user to update.
+ * A Hub that is older, unordered, or missing build metadata is not reusable
+ * and gets retired and replaced, preserving the stale-daemon fix.
+ */
+export function isManagedHubReusable(
+	record: HubProtocolMetadata & { buildId?: string; buildEpochMs?: number },
+	options?: { expectedBuildId?: string; expectedBuildEpochMs?: number },
+): boolean {
+	const compatibility = getManagedHubCompatibility(
+		record,
+		options?.expectedBuildId ?? resolveHubBuildId(),
+	);
+	if (compatibility.compatible) {
+		return true;
+	}
+	if (compatibility.reason !== "build_mismatch") {
+		return false;
+	}
+	const hubEpochMs = record.buildEpochMs;
+	const expectedEpochMs =
+		options?.expectedBuildEpochMs ?? resolveHubBuildEpochMs();
+	return (
+		typeof hubEpochMs === "number" &&
+		Number.isFinite(hubEpochMs) &&
+		typeof expectedEpochMs === "number" &&
+		Number.isFinite(expectedEpochMs) &&
+		hubEpochMs > expectedEpochMs
+	);
 }
 
 export function resolveHubOwnerContext(
@@ -222,6 +280,10 @@ export async function readHubDiscovery(
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			buildEpochMs:
+				typeof parsed.buildEpochMs === "number"
+					? parsed.buildEpochMs
+					: undefined,
 			authToken: parsed.authToken,
 			host: parsed.host,
 			port: parsed.port,
@@ -239,32 +301,108 @@ export async function writeHubDiscovery(
 	discoveryPath: string,
 	record: HubServerDiscoveryRecord,
 ): Promise<void> {
-	await mkdir(dirname(discoveryPath), { recursive: true });
-	// Remove any existing file first so writeFile creates it fresh with the
-	// correct mode. On Linux, the mode option is ignored for existing files.
-	await rm(discoveryPath, { force: true }).catch(() => undefined);
-	await writeFile(discoveryPath, `${JSON.stringify(record, null, 2)}\n`, {
-		encoding: "utf8",
-		mode: 0o600,
+	await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		const directory = dirname(discoveryPath);
+		await mkdir(directory, { recursive: true });
+		const temporaryPath = `${discoveryPath}.${process.pid}.${randomBytes(6).toString("hex")}.tmp`;
+		let temporaryFile: Awaited<ReturnType<typeof open>> | undefined;
+		try {
+			temporaryFile = await open(temporaryPath, "wx", 0o600);
+			await temporaryFile.writeFile(`${JSON.stringify(record, null, 2)}\n`, {
+				encoding: "utf8",
+			});
+			await temporaryFile.sync();
+			await temporaryFile.close();
+			temporaryFile = undefined;
+			// On local filesystems with atomic same-directory rename semantics, this
+			// prevents readers from observing the old remove/write gap and preserves
+			// the previous complete record if publication fails.
+			await rename(temporaryPath, discoveryPath);
+			// Persist the rename where directory fsync is supported. Windows and
+			// some virtual filesystems reject opening directories, so durability
+			// there remains best-effort while the replacement itself stays atomic.
+			let directoryHandle: Awaited<ReturnType<typeof open>> | undefined;
+			try {
+				directoryHandle = await open(directory, "r");
+				await directoryHandle.sync();
+			} catch {
+				// Best-effort durability only; the discovery record is already valid.
+			} finally {
+				await directoryHandle?.close().catch(() => undefined);
+			}
+		} catch (error) {
+			await temporaryFile?.close().catch(() => undefined);
+			await rm(temporaryPath, { force: true }).catch(() => undefined);
+			throw error;
+		}
 	});
-	await chmod(discoveryPath, 0o600);
 }
 
 export async function clearHubDiscovery(discoveryPath: string): Promise<void> {
-	await rm(discoveryPath, { force: true }).catch(() => undefined);
+	await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		await rm(discoveryPath, { force: true }).catch(() => undefined);
+	});
 }
 
-export async function withHubStartupLock<T>(
+export async function clearHubDiscoveryIfOwned(
 	discoveryPath: string,
+	hubId: string,
+): Promise<boolean> {
+	return await withHubDiscoveryMutationLock(discoveryPath, async () => {
+		const current = await readHubDiscovery(discoveryPath);
+		if (current?.hubId !== hubId) {
+			return false;
+		}
+		await rm(discoveryPath, { force: true });
+		return true;
+	});
+}
+
+async function withHubLock<T>(
+	lockBasis: string,
+	label: string,
 	callback: () => Promise<T>,
 ): Promise<T> {
-	const lockDir = getStartupLockDir(discoveryPath);
+	const lockDir = getHubLockDir(lockBasis);
 	await mkdir(dirname(lockDir), { recursive: true });
 	const deadline = Date.now() + HUB_STARTUP_LOCK_WAIT_MS;
 
 	while (true) {
 		try {
 			await mkdir(lockDir, { recursive: false });
+		} catch (error) {
+			const code =
+				error instanceof Error && "code" in error
+					? String((error as NodeJS.ErrnoException).code)
+					: "";
+			if (code !== "EEXIST") {
+				throw error;
+			}
+			const record = await readHubLockRecord(lockDir);
+			if (!record) {
+				// The winner creates the directory before it can publish owner.json.
+				// Do not steal that initialization window. A genuinely abandoned
+				// empty lock is reclaimed only after the bounded wait.
+				if (Date.now() >= deadline) {
+					await removeHubLock(lockDir);
+					continue;
+				}
+				await sleep(HUB_STARTUP_LOCK_POLL_MS);
+				continue;
+			}
+			const lockAge = Date.now() - Date.parse(record.acquiredAt);
+			if (!isPidAlive(record.pid) || lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS) {
+				await removeHubLock(lockDir);
+				continue;
+			}
+			if (Date.now() >= deadline) {
+				throw new Error(`Timed out waiting for hub ${label} lock ${lockDir}`);
+			}
+			await sleep(HUB_STARTUP_LOCK_POLL_MS);
+			continue;
+		}
+
+		try {
 			await writeFile(
 				join(lockDir, "owner.json"),
 				`${JSON.stringify(
@@ -274,37 +412,29 @@ export async function withHubStartupLock<T>(
 				)}\n`,
 				"utf8",
 			);
-			try {
-				return await callback();
-			} finally {
-				await removeStartupLock(lockDir);
-			}
-		} catch (error) {
-			const code =
-				error instanceof Error && "code" in error
-					? String((error as NodeJS.ErrnoException).code)
-					: "";
-			if (code !== "EEXIST") {
-				throw error;
-			}
-			const record = await readStartupLockRecord(lockDir);
-			const lockAge = record
-				? Date.now() - Date.parse(record.acquiredAt)
-				: HUB_STARTUP_LOCK_MAX_AGE_MS + 1;
-			if (
-				!record ||
-				!isPidAlive(record.pid) ||
-				lockAge > HUB_STARTUP_LOCK_MAX_AGE_MS
-			) {
-				await removeStartupLock(lockDir);
-				continue;
-			}
-			if (Date.now() >= deadline) {
-				throw new Error(`Timed out waiting for hub startup lock ${lockDir}`);
-			}
-			await sleep(HUB_STARTUP_LOCK_POLL_MS);
+			return await callback();
+		} finally {
+			await removeHubLock(lockDir);
 		}
 	}
+}
+
+function withHubDiscoveryMutationLock<T>(
+	discoveryPath: string,
+	callback: () => Promise<T>,
+): Promise<T> {
+	return withHubLock(
+		`${discoveryPath}.mutation`,
+		"discovery mutation",
+		callback,
+	);
+}
+
+export function withHubStartupLock<T>(
+	discoveryPath: string,
+	callback: () => Promise<T>,
+): Promise<T> {
+	return withHubLock(discoveryPath, "startup", callback);
 }
 
 export async function probeHubServer(
@@ -351,6 +481,10 @@ export async function probeHubServer(
 			coreVersion:
 				typeof parsed.coreVersion === "string" ? parsed.coreVersion : undefined,
 			buildId: typeof parsed.buildId === "string" ? parsed.buildId : undefined,
+			buildEpochMs:
+				typeof parsed.buildEpochMs === "number"
+					? parsed.buildEpochMs
+					: undefined,
 			host: parsed.host,
 			port: parsed.port,
 			url: parsed.url,

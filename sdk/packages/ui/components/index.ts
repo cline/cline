@@ -1,6 +1,17 @@
 "use client";
 
 export {
+	Button,
+	type ButtonProps,
+	type ButtonSize,
+	type ButtonTone,
+	buttonVariants,
+	type ButtonVariant,
+	IconButton,
+	iconButtonVariants,
+	type IconButtonProps,
+} from "./button.js";
+export {
 	type AgentApprovalAction,
 	AgentApprovalCard,
 	type AgentApprovalCardProps,

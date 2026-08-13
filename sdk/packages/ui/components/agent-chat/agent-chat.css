@@ -87,6 +87,7 @@
 	}
 
 	.cline-chat-message {
+		position: relative;
 		display: flex;
 		width: 100%;
 		min-width: 0;
@@ -95,6 +96,18 @@
 		gap: 0.25rem;
 		font-size: var(--text-sm);
 		overflow-wrap: anywhere;
+	}
+
+	/* Invisible hover bridge across only the gap before the absolutely-positioned
+	 * actions. Keeping it narrow avoids intercepting pointer events intended for
+	 * the following message. */
+	.cline-chat-message::after {
+		content: "";
+		position: absolute;
+		top: 100%;
+		left: 0;
+		right: 0;
+		height: 0.4rem;
 	}
 
 	.cline-chat-message[data-role="user"] {
@@ -109,12 +122,14 @@
 		color: var(--foreground);
 	}
 
+	/* User bubbles use the card surface with a subtle edge so they remain
+	 * distinct from the transcript without overpowering assistant content. */
 	.cline-chat-message[data-role="user"] > .cline-chat-message-content {
 		max-width: 85%;
-		padding: 0.5rem;
-		border-radius: calc(var(--radius) - 4px);
-		background: var(--card);
-		color: color-mix(in oklab, var(--foreground) 80%, transparent);
+		padding: 0.6rem 0.8rem;
+		border-radius: calc(var(--radius));
+		background: var(--card-surface);
+		border: 1px solid var(--neutral-a3);
 	}
 
 	.cline-chat-message[data-role="error"] > .cline-chat-message-content {
@@ -130,14 +145,30 @@
 		color: var(--muted-foreground);
 	}
 
+	/* Actions appear and vanish instantly — a fade on hover chrome reads as
+	 * lag, not polish. */
 	.cline-chat-message-actions {
+		position: absolute;
+		top: 100%;
+		z-index: 10;
 		display: flex;
 		min-height: 1.5rem;
 		align-items: center;
-		gap: 0.25rem;
 		pointer-events: none;
 		opacity: 0;
-		transition: opacity 150ms ease;
+		margin-top: 0.1rem;
+	}
+
+	.cline-chat-message-actions[data-side="start"] {
+		left: 0;
+	}
+
+	.cline-chat-message-actions[data-side="end"] {
+		right: 0;
+	}
+
+	.cline-chat-message[data-role="assistant"] > .cline-chat-message-actions {
+		margin-top: 0.25rem;
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
@@ -151,30 +182,22 @@
 	}
 
 	.cline-chat-message-action {
-		display: inline-flex;
-		min-width: 1.5rem;
-		height: 1.5rem;
-		align-items: center;
-		justify-content: center;
-		gap: 0.375rem;
-		padding: 0 0.5rem;
-		border: 0;
-		border-radius: calc(var(--radius) - 4px);
-		background: transparent;
-		color: var(--muted-foreground);
+		width: 1.75rem;
+		height: 1.75rem;
+		min-width: 1.75rem;
+		padding: 0;
+		aspect-ratio: 1;
 		font: inherit;
 		font-size: var(--text-xs);
-		cursor: pointer;
 	}
 
-	.cline-chat-message-action:hover {
-		background: var(--accent);
-		color: var(--foreground);
+	.cline-chat-message-action > svg {
+		width: 0.875rem;
+		height: 0.875rem;
 	}
 
-	.cline-chat-message-action:disabled {
-		cursor: not-allowed;
-		opacity: 0.5;
+	.cline-chat-message-actions > time {
+		margin-inline-start: 0.25rem;
 	}
 
 	.cline-chat-reasoning {
@@ -194,7 +217,7 @@
 		padding: 0.25rem 0;
 		border: 0;
 		background: transparent;
-		color: color-mix(in oklab, var(--foreground) 70%, transparent);
+		color: var(--muted-foreground);
 		font: inherit;
 		font-size: var(--text-sm);
 		font-weight: var(--font-weight-medium);
@@ -218,7 +241,6 @@
 
 	.cline-chat-disclosure-icon {
 		flex: 0 0 auto;
-		transition: transform 150ms ease;
 	}
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
@@ -245,32 +267,19 @@
 		margin: 0.5rem 0;
 	}
 
-	.cline-chat-tool-trigger {
-		color: var(--success-text);
-	}
-
-	.cline-chat-tool-trigger[data-status="running"] {
-		color: var(--primary);
-	}
-
+	/* Running rows share the thinking indicator's muted gray (the base trigger
+	 * color above) — the spinner alone signals activity. Errors go red; hover
+	 * brightens without shifting hue. */
 	.cline-chat-tool-trigger[data-status="error"] {
 		color: var(--error-text);
 	}
 
-	.cline-chat-tool-trigger[data-status="pending"] {
-		color: var(--muted-foreground);
-	}
-
 	button.cline-chat-tool-trigger:hover {
-		color: color-mix(in oklab, var(--success-text) 80%, transparent);
-	}
-
-	button.cline-chat-tool-trigger[data-status="running"]:hover {
-		color: color-mix(in oklab, var(--primary) 80%, transparent);
+		color: var(--foreground);
 	}
 
 	button.cline-chat-tool-trigger[data-status="error"]:hover {
-		color: color-mix(in oklab, var(--error-text) 80%, transparent);
+		color: color-mix(in oklab, var(--error-text) 80%, var(--foreground));
 	}
 
 	.cline-chat-tool-icon {
@@ -279,9 +288,13 @@
 		place-items: center;
 	}
 
+	/* Row labels stay on one line, take the full available width, and
+	 * ellipsize at the container edge — the data layer never truncates. */
 	.cline-chat-tool-label {
 		min-width: 0;
-		overflow-wrap: anywhere;
+		overflow: hidden;
+		text-overflow: ellipsis;
+		white-space: nowrap;
 	}
 
 	.cline-chat-tool-diff {
@@ -298,12 +311,17 @@
 		color: var(--error-text);
 	}
 
+	/* The spinner stands in for the tool icon while the call is in flight, so
+	 * it fills the same 1rem box the icons render at and the label never
+	 * shifts when they swap. It draws in currentColor to match whatever the
+	 * row text renders as (muted gray normally, red on error). */
 	.cline-chat-tool-progress {
-		width: 0.75rem;
-		height: 0.75rem;
+		width: 1rem;
+		height: 1rem;
 		flex: 0 0 auto;
-		border: 2px solid color-mix(in oklab, var(--primary) 25%, transparent);
-		border-top-color: var(--primary);
+		box-sizing: border-box;
+		border: 2px solid color-mix(in oklab, currentColor 25%, transparent);
+		border-top-color: currentColor;
 		border-radius: 9999px;
 		animation: cline-chat-spin 800ms linear infinite;
 	}
@@ -361,7 +379,6 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.cline-chat-message-actions,
 		.cline-chat-disclosure-icon {
 			transition: none;
 		}
