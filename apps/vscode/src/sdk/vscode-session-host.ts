@@ -75,6 +75,8 @@ export interface VscodeSessionHostOptions {
 	toolPolicies?: Record<string, ToolPolicy>
 	/** Shared SDK telemetry service owned by SdkController. */
 	telemetry?: ITelemetryService
+	/** Resolves once the applicable remote config is ready for a new SDK session. */
+	beforeStartSession?: () => Promise<void>
 	/** Returns the latest prepared remote-config integration, if remote config is active. */
 	getRemoteConfigIntegration?: () => PreparedRemoteConfigCoreIntegration | undefined
 	/**
@@ -137,6 +139,9 @@ export class VscodeSessionHost implements SdkSessionHost {
 			distinctId: getDistinctId() || undefined,
 			prepare: async () => ({
 				applyToStartSessionInput: async (input: ClineCoreStartInput): Promise<ClineCoreStartInput> => {
+					await options.beforeStartSession?.()
+					// Read only after the readiness gate: it may have atomically replaced
+					// the integration that must be captured by this session.
 					const remoteConfigIntegration = options.getRemoteConfigIntegration?.()
 					const inputWithRemoteConfig = remoteConfigIntegration
 						? await remoteConfigIntegration.applyToStartSessionInput(input)

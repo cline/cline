@@ -20,6 +20,19 @@ import {
 } from "./paths";
 import { DefaultRemoteConfigTelemetryAdapter } from "./telemetry";
 
+export async function clearMaterializedRemoteConfigRuntime(options: {
+	workspacePath: string;
+	pluginName?: string;
+	artifactStore?: RemoteConfigManagedArtifactStore;
+}): Promise<void> {
+	const paths = resolveRemoteConfigPaths(options);
+	const artifactStore = options.artifactStore ?? new FileSystemRemoteConfigManagedArtifactStore();
+	await artifactStore.removeChildren(paths.workflowsPath);
+	await artifactStore.removeChildren(paths.skillsPath);
+	await artifactStore.remove(paths.rulesFilePath);
+	await artifactStore.remove(paths.manifestPath);
+}
+
 function deriveClaims(
 	bundle: RemoteConfigBundle | undefined,
 ): RemoteConfigSyncResult["claims"] {

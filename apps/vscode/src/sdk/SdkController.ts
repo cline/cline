@@ -66,6 +66,7 @@ import {
 	type ProviderFailureTelemetry,
 	ProviderFailureTelemetryTurnGate,
 } from "./provider-failure-telemetry"
+import { RemoteConfigRefreshCoordinator } from "./remote-config-refresh-coordinator"
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
@@ -232,6 +233,15 @@ export class Controller {
 	// Timer for periodic remote config fetching (enterprise policy enforcement)
 	private remoteConfigTimer?: NodeJS.Timeout
 	private remoteConfigCoreIntegration?: PreparedRemoteConfigCoreIntegration
+	private remoteConfigRevision = 0
+	private remoteConfigAvailable = false
+	private readonly remoteConfigRefreshCoordinator = new RemoteConfigRefreshCoordinator<boolean>((isCurrent) =>
+		this.performRemoteConfigRefresh(isCurrent),
+	)
+	private resolveInitialRemoteConfigReady!: () => void
+	private readonly initialRemoteConfigReady = new Promise<void>((resolve) => {
+		this.resolveInitialRemoteConfigReady = resolve
+	})
 
 	// Watches user-instruction files (workflows/skills/rules), including those
 	// materialized by remote config under `.cline/remote-config/`. Used to expand
@@ -256,6 +266,14 @@ export class Controller {
 
 	get remoteConfigBundle(): RemoteConfigBundle | undefined {
 		return this.remoteConfigCoreIntegration?.prepared.bundle
+	}
+
+	get isRemoteConfigAvailable(): boolean {
+		return this.remoteConfigAvailable
+	}
+
+	get currentRemoteConfigRevision(): number {
+		return this.remoteConfigRevision
 	}
 
 	constructor(readonly context: ClineExtensionContext) {
@@ -371,6 +389,7 @@ export class Controller {
 				})
 			},
 			onDidBecomeIdle: () => this.handleSessionBecameIdle(),
+			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
 			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
 			foregroundCommands: this.foregroundCommands,
 			getTerminalManager: () => {
@@ -542,7 +561,7 @@ export class Controller {
 			},
 			runExclusive: (operation) => this.sessionRebuilds.runExclusive(operation),
 			getTask: () => this.task,
-			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			loadInitialMessages: (sessionHost, taskId) => this.sessionHistory.loadInitialMessages(sessionHost, taskId),
 			buildStartSessionInput,
@@ -601,7 +620,7 @@ export class Controller {
 			onAskResponse: (text, images, files) => this.askResponse(text, images, files),
 			onCancelTask: () => this.cancelTask(),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
-			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			resolveContextMentions: (text) => this.resolveContextMentions(text),
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
@@ -617,7 +636,7 @@ export class Controller {
 			taskHistory: this.taskHistory,
 			sessionConfigBuilder: this.sessionConfigBuilder,
 			getDisplayedTaskId: () => this.task?.taskId,
-			createTempSessionHost: () => VscodeSessionHost.create({ mcpHub: this.mcpHub }),
+			createTempSessionHost: () => this.createRemoteConfigAwareSessionHost(),
 			loadInitialMessages: (reader, taskId) => this.sessionHistory.loadInitialMessages(reader, taskId),
 			getWorkspaceRoot: () => this.getWorkspaceRoot(),
 			postStateToWebview: () => this.postStateToWebview(),
@@ -656,11 +675,19 @@ export class Controller {
 		// organization and apply org-level policies.
 		this.authService
 			.restoreRefreshTokenAndRetrieveAuthInfo()
-			.then(() => {
+			.then(async () => {
+				try {
+					await this.refreshRemoteConfig()
+				} catch (err) {
+					Logger.error("[SdkController] Initial remote config refresh failed:", err)
+				}
 				this.startRemoteConfigTimer()
 			})
 			.catch((err) => {
 				Logger.error("[SdkController] Failed to restore auth state:", err)
+			})
+			.finally(() => {
+				this.resolveInitialRemoteConfigReady()
 			})
 
 		Logger.log("[SdkController] Initialized with SDK adapter layer + gRPC bridge + auth services")
@@ -743,27 +770,96 @@ export class Controller {
 	 * MCP server management, OpenTelemetry, etc.).
 	 */
 	private startRemoteConfigTimer(): void {
-		// Initial fetch
-		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Initial remote config refresh failed:", err))
 		// Set up 1-hour interval
 		this.remoteConfigTimer = setInterval(() => {
 			this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config timer failed:", err))
 		}, 3600000) // 1 hour
 	}
 
-	private async refreshRemoteConfig(): Promise<void> {
-		await refreshSdkRemoteConfig(this, {
-			workspacePath: await this.getRemoteConfigWorkspacePath(),
+	async refreshRemoteConfig(): Promise<boolean> {
+		const userId = this.authService.getInfo().user?.uid ?? "signed-out"
+		const organizationId = this.authService.getActiveOrganizationId() ?? "no-org"
+		return this.remoteConfigRefreshCoordinator.refresh(`${userId}:${organizationId}`)
+	}
+
+	async waitForInitialRemoteConfig(): Promise<void> {
+		await this.initialRemoteConfigReady
+	}
+
+	async rematerializeRemoteConfig(): Promise<void> {
+		const refreshed = await this.refreshRemoteConfig()
+		if (!refreshed) {
+			throw new Error("Could not apply managed configuration change. Check your connection and try again.")
+		}
+		await this.sessions.endActiveSession("remoteConfigToggle", { awaitStop: true })
+		await this.postStateToWebview()
+	}
+
+	private async ensureRemoteConfigForSessionStart(): Promise<void> {
+		const startedAt = Date.now()
+		await this.waitForInitialRemoteConfig()
+		const refreshed = await this.refreshRemoteConfig()
+		const activeOrganizationId = this.authService.getActiveOrganizationId()
+		if (refreshed) {
+			void telemetryService.captureRemoteConfigSessionGate({
+				outcome: "refreshed",
+				durationMs: Date.now() - startedAt,
+				managed: Boolean(activeOrganizationId),
+			})
+			return
+		}
+
+		const bundleOrganizationId = this.remoteConfigBundle?.metadata?.organizationId
+		if (activeOrganizationId && bundleOrganizationId === activeOrganizationId) {
+			Logger.warn("[SdkController] Remote config refresh failed; starting with last known-good organization policy")
+			void telemetryService.captureRemoteConfigSessionGate({
+				outcome: "last_known_good",
+				durationMs: Date.now() - startedAt,
+				managed: true,
+			})
+			return
+		}
+		void telemetryService.captureRemoteConfigSessionGate({
+			outcome: "blocked",
+			durationMs: Date.now() - startedAt,
+			managed: Boolean(activeOrganizationId),
 		})
+		throw new Error("Could not verify organization policy. Check your connection and try again.")
+	}
+
+	private createRemoteConfigAwareSessionHost(): Promise<VscodeSessionHost> {
+		return VscodeSessionHost.create({
+			mcpHub: this.mcpHub,
+			beforeStartSession: () => this.ensureRemoteConfigForSessionStart(),
+			getRemoteConfigIntegration: () => this.remoteConfigCoreIntegration,
+		})
+	}
+
+	private async performRemoteConfigRefresh(isCurrent: () => boolean): Promise<boolean> {
+		const refreshed = await refreshSdkRemoteConfig(this, {
+			workspacePath: await this.getRemoteConfigWorkspacePath(),
+			isCurrent,
+		})
+		if (!isCurrent()) {
+			return false
+		}
 		// Remote config may have materialized new workflows/skills/rules under
 		// `.cline/remote-config/`. Refresh the watcher so slash-command expansion
 		// sees them without waiting on filesystem events.
 		await this.refreshUserInstructionWatchers()
+		return refreshed
+	}
+
+	setRemoteConfigAvailable(available: boolean): void {
+		this.remoteConfigAvailable = available
 	}
 
 	async setRemoteConfigCoreIntegration(integration: PreparedRemoteConfigCoreIntegration | undefined): Promise<void> {
 		const previous = this.remoteConfigCoreIntegration
 		this.remoteConfigCoreIntegration = integration
+		if (previous !== integration) {
+			this.remoteConfigRevision += 1
+		}
 		if (previous && previous !== integration) {
 			try {
 				await previous.dispose()
@@ -1257,10 +1353,7 @@ export class Controller {
 		historyItem?: HistoryItem,
 		taskSettings?: Partial<Settings>,
 	): Promise<string | undefined> {
-		// Fire-and-forget: ensure we have the latest remote config (enterprise
-		// policies like allowedMCPServers, provider lockdown, etc.) without
-		// blocking the UI.
-		this.refreshRemoteConfig().catch((err) => Logger.error("[SdkController] Remote config refresh before task failed:", err))
+		await this.waitForInitialRemoteConfig()
 		// A new task is starting — the agent is about to stream.
 		this.turnStateTracker.set("streaming")
 		// Clear the previous turn's completion signal so this turn's phase is computed fresh.
@@ -1269,6 +1362,7 @@ export class Controller {
 	}
 
 	async reinitExistingTaskFromId(taskId: string): Promise<void> {
+		await this.waitForInitialRemoteConfig()
 		this.turnStateTracker.set("streaming")
 		this.messageTranslatorState.clearTurnOutcome()
 		await this.taskStart.reinitExistingTaskFromId(taskId)
@@ -1417,7 +1511,7 @@ export class Controller {
 		const sourceSessionId = activeSession?.sessionId ?? currentTask.taskId
 		let sdkMessages: SdkUserMessage[]
 		let tempHost: VscodeSessionHost | undefined
-		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
 			sdkMessages = (await sessionHost.readMessages(sourceSessionId)) as SdkUserMessage[]
 			const sdkTargetIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
@@ -1638,7 +1732,7 @@ export class Controller {
 		// After a window reload the latest task is shown from history without a
 		// live session, so fall back to a temporary host for the comparison.
 		let tempHost: VscodeSessionHost | undefined
-		const sessionHost = activeSession?.sdkHost ?? (tempHost = await VscodeSessionHost.create({ mcpHub: this.mcpHub }))
+		const sessionHost = activeSession?.sdkHost ?? (tempHost = await this.createRemoteConfigAwareSessionHost())
 		try {
 			if (!sessionHost.compareCheckpoint) {
 				throw new Error("This session host does not support checkpoint comparison")
@@ -2088,6 +2182,7 @@ export class Controller {
 				backgroundCommandRunning: this.backgroundCommandRunning,
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 				foregroundCommandRunning: this.foregroundCommands.isRunning,
+				isRemoteConfigAvailable: this.isRemoteConfigAvailable,
 				// Without this the webview always receives workspaceRoots: [] on the
 				// SDK path (classic Controller exposes a public workspaceManager;
 				// SdkController builds one lazily). The task-header working-directory

@@ -13,6 +13,8 @@ import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelem
 import {
 	getRolloutErrorProperties,
 	getRolloutTelemetryMetadata,
+	REMOTE_CONFIG_REFRESH_EVENT,
+	REMOTE_CONFIG_SESSION_GATE_EVENT,
 	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
 	type RolloutBundleActivation,
 	type RolloutTelemetryMetadata,
@@ -582,6 +584,38 @@ export class TelemetryService {
 				actual_bundle: input.actualBundle,
 				fallback: input.fallback,
 				...(input.fallback ? getRolloutErrorProperties(input.error) : {}),
+			},
+		})
+	}
+
+	public captureRemoteConfigRefresh(input: {
+		outcome: "applied" | "cleared" | "failed" | "superseded"
+		durationMs: number
+		managed: boolean
+		configVersion?: string
+	}): void {
+		this.capture({
+			event: REMOTE_CONFIG_REFRESH_EVENT,
+			properties: {
+				outcome: input.outcome,
+				duration_ms: Math.max(0, Math.round(input.durationMs)),
+				managed: input.managed,
+				...(input.configVersion ? { config_version: input.configVersion.slice(0, 100) } : {}),
+			},
+		})
+	}
+
+	public captureRemoteConfigSessionGate(input: {
+		outcome: "refreshed" | "last_known_good" | "blocked"
+		durationMs: number
+		managed: boolean
+	}): void {
+		this.capture({
+			event: REMOTE_CONFIG_SESSION_GATE_EVENT,
+			properties: {
+				outcome: input.outcome,
+				duration_ms: Math.max(0, Math.round(input.durationMs)),
+				managed: input.managed,
 			},
 		})
 	}
