@@ -7,6 +7,7 @@ const {
 	openSync,
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
+	localHubHasNoActiveSessions,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
@@ -28,6 +29,8 @@ const {
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
+	// Idle by default, so existing replacement cases are unaffected.
+	localHubHasNoActiveSessions: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -96,6 +99,7 @@ vi.mock("@cline/shared", () => ({
 }));
 
 vi.mock("../client", () => ({
+	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
 	verifyHubConnection,
@@ -137,6 +141,8 @@ describe("ensureDetachedHubServer", () => {
 		rememberRecoverableLocalHubUrl.mockReset();
 		rememberRecoverableLocalHubUrl.mockImplementation((url: string) => url);
 		verifyHubConnection.mockReset();
+		localHubHasNoActiveSessions.mockReset();
+		localHubHasNoActiveSessions.mockResolvedValue(true);
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockReset();
@@ -399,6 +405,39 @@ describe("ensureDetachedHubServer", () => {
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(spawn).toHaveBeenCalledOnce();
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("attaches to an older hub that is still serving sessions instead of retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			localHubHasNoActiveSessions.mockResolvedValue(false);
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+			});
+			// Reuse is rejected by build id before any connection check, so the
+			// only verify call is the one guarding the deferred attach.
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+
+			await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
 		} finally {
 			kill.mockRestore();
 		}
