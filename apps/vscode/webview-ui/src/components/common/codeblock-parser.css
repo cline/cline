@@ -157,13 +157,13 @@
 /* Deletion (for diffs) */
 .hljs-deletion {
 	background-color: var(--vscode-diffEditor-removedTextBackground);
-	color: var(--vscode-diffEditor-removedLineBackground);
+	color: var(--vscode-editor-foreground);
 }
 
 /* Addition (for diffs) */
 .hljs-addition {
 	background-color: var(--vscode-diffEditor-insertedTextBackground);
-	color: var(--vscode-diffEditor-insertedLineBackground);
+	color: var(--vscode-editor-foreground);
 }
 
 /* Section headers - slightly emphasized */

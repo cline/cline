@@ -460,11 +460,14 @@ export function captureTokenUsage(
 	telemetry: ITelemetryService | undefined,
 	properties: {
 		ulid: string;
+		/** Uncached input tokens only — disjoint from the cache buckets. */
 		tokensIn: number;
 		tokensOut: number;
 		cacheWriteTokens?: number;
 		cacheReadTokens?: number;
+		/** This request's cost delta, not a running total. */
 		totalCost?: number;
+		provider?: string;
 		model: string;
 	} & Partial<TelemetryAgentIdentityProperties>,
 ): void {

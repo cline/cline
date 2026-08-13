@@ -412,8 +412,12 @@ export class SdkTaskHistory {
 		const legacyHistory = this.readAllLegacyTaskHistory()
 			.filter(({ item }) => item.task && !sdkIds.has(item.id))
 			.map(({ item }) => historyItemToSessionHistoryRecord(item))
+		// An SDK record with legacy metadata is a legacy task that was resumed,
+		// i.e. migrated (historyItemToSessionMetadata stamps legacyTask on resume).
 		const migratedSdkTaskCount = visibleSdkHistory.filter(
-			(item) => metadataBoolean(item.metadata, "migratedFromLegacyTask") === true,
+			(item) =>
+				metadataBoolean(item.metadata, "migratedFromLegacyTask") === true ||
+				metadataBoolean(item.metadata, "legacyTask") === true,
 		).length
 
 		const mergedHistory = [...visibleSdkHistory, ...legacyHistory].sort(compareSessionHistoryRecordsByRecencyDesc)
