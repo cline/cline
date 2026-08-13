@@ -155,6 +155,12 @@ export function withLatestAssistantTurnMetadata(
 	}
 
 	const lastAssistantIndex = assistantIndexes[assistantIndexes.length - 1];
+	// Completion markers may only be stamped on an assistant message this run
+	// produced. The legacy fallback above targets a previous turn's terminal
+	// message (for metrics/model backfill); rewriting its marker would falsify
+	// history — e.g. a turn aborted before any assistant output must not flip
+	// the previous turn's "completed" to "aborted".
+	const canStampTurnCompletion = lastAssistantIndex >= firstNewMessageIndex;
 	const hasAssistantTurnMetrics = assistantIndexes.some(
 		(index) => next[index]?.metrics,
 	);
@@ -190,7 +196,7 @@ export function withLatestAssistantTurnMetadata(
 			// marker so stored transcripts distinguish a finished turn from one
 			// interrupted mid-stream. Earlier turns keep their own markers via
 			// the previous-message merge above.
-			...(targetIndex === lastAssistantIndex
+			...(canStampTurnCompletion && targetIndex === lastAssistantIndex
 				? {
 						turnCompletion: {
 							finishReason: result.finishReason,

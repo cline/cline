@@ -472,6 +472,36 @@ describe("withLatestAssistantTurnMetadata", () => {
 		});
 	});
 
+	it("does not rewrite a previous turn's marker when the run produced no new assistant message", () => {
+		// E.g. a turn aborted while still "Thinking...": the legacy fallback
+		// targets the previous turn's terminal assistant message for
+		// metrics/model backfill, but its completion marker must not flip
+		// from "completed" to "aborted".
+		const previousMessages = [
+			{ role: "user", content: "first" },
+			{
+				role: "assistant",
+				content: "first answer",
+				turnCompletion: { finishReason: "completed", endedAt: 1111 },
+			},
+		] as MessageWithMetadata[];
+
+		const persisted = withLatestAssistantTurnMetadata(
+			[
+				{ role: "user", content: "first" },
+				{ role: "assistant", content: "first answer" },
+				{ role: "user", content: "second" },
+			],
+			createResult({ finishReason: "aborted" }),
+			previousMessages,
+		);
+
+		expect(persisted[1]).toMatchObject({
+			turnCompletion: { finishReason: "completed", endedAt: 1111 },
+		});
+		expect(persisted[2]).not.toHaveProperty("turnCompletion");
+	});
+
 	it("keeps prior turns' completion markers when persisting a later turn", () => {
 		const previousMessages = [
 			{ role: "user", content: "first" },

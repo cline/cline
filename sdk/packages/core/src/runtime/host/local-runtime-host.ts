@@ -1680,7 +1680,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		session: ActiveSession,
 		finishReason: AgentResult["finishReason"],
 	): Promise<void> {
-		if (hasPendingTeamRunWork(session)) return;
+		if (hasPendingTeamRunWork(session)) {
+			// The turn lifecycle stays open while teammates are mid-flight, but
+			// a user abort is a definitive outcome: without recording it, the
+			// session record keeps advertising the previous turn's completion.
+			// Status handling is deliberately untouched — pending team updates
+			// may still continue the turn.
+			if (finishReason === "aborted") {
+				await this.persistTurnCompletionMetadata(session, finishReason);
+			}
+			return;
+		}
 		session.lastInteractiveTurnFinishReason = finishReason;
 		await this.persistTurnCompletionMetadata(session, finishReason);
 		await this.markTurnIdle(session);
@@ -1780,7 +1790,32 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const endedAt = new Date();
 		const messages = session.agent.getMessages();
 		const usage = createInitialAccumulatedUsage();
-		session.persistedMessages = messages;
+		const result: AgentResult = {
+			text: "",
+			usage,
+			messages,
+			toolCalls: [],
+			iterations: 0,
+			finishReason: "aborted",
+			model: {
+				id: session.config.modelId,
+				provider: session.config.providerId,
+			},
+			startedAt: endedAt,
+			endedAt,
+			durationMs: 0,
+		};
+		// Decorate over the previously persisted copy: metadata that exists
+		// only in the stored transcript (per-turn turnCompletion markers)
+		// would otherwise be wiped by flushing the agent's raw in-memory
+		// messages. If this aborted run did produce an assistant message, it
+		// gets an accurate "aborted" marker of its own.
+		const persistedMessages = withLatestAssistantTurnMetadata(
+			messages,
+			result,
+			session.persistedMessages ?? [],
+		);
+		session.persistedMessages = persistedMessages;
 		session.started = session.started || messages.length > 0;
 		// Flush the transcript now: persistence otherwise lags at
 		// assistant-message/turn boundaries, so without this an aborted turn
@@ -1794,7 +1829,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				await this.invoke<void>(
 					"persistSessionMessages",
 					session.sessionId,
-					messages,
+					persistedMessages,
 					session.config.systemPrompt,
 				);
 			} catch (error) {
@@ -1831,21 +1866,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		queueMicrotask(() => {
 			void this.pendingPromptsController.drain(session.sessionId);
 		});
-		return {
-			text: "",
-			usage,
-			messages,
-			toolCalls: [],
-			iterations: 0,
-			finishReason: "aborted",
-			model: {
-				id: session.config.modelId,
-				provider: session.config.providerId,
-			},
-			startedAt: endedAt,
-			endedAt,
-			durationMs: 0,
-		};
+		return result;
 	}
 
 	private async executeAgentTurn(

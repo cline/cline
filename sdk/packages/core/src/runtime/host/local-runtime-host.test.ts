@@ -1584,6 +1584,105 @@ describe("LocalRuntimeHost", () => {
 			expect(calls.at(-1)).toMatchObject({ needsAttention: true });
 		});
 
+		it("records an aborted outcome even while team runs are still pending", async () => {
+			const sessionId = "sess-turn-metadata-team-abort";
+			const { manager, sessionService, metadataCalls } =
+				createTurnMetadataHarness(sessionId, {
+					run: vi
+						.fn()
+						.mockResolvedValue(createResult({ finishReason: "aborted" })),
+				});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			const getSession = Reflect.get(
+				manager as object,
+				"getSessionOrThrow",
+			) as (sessionId: string) => { activeTeamRunIds: Set<string> };
+			const active = Reflect.apply(getSession, manager, [sessionId]);
+			active.activeTeamRunIds.add("team-run-1");
+
+			await manager.runTurn({ sessionId, prompt: "go" });
+
+			const outcome = metadataCalls().at(-1);
+			expect(outcome).toMatchObject({
+				lastTurnCompletion: { finishReason: "aborted" },
+			});
+			expect(outcome?.needsAttention).toBeUndefined();
+			// The turn lifecycle stays open for the pending team work.
+			expect(sessionService.updateSessionStatus).not.toHaveBeenCalledWith(
+				sessionId,
+				"idle",
+				null,
+			);
+		});
+
+		it("preserves earlier turns' transcript markers when an abort flushes the transcript", async () => {
+			const sessionId = "sess-abort-preserves-markers";
+			const turn1Messages = [
+				{ role: "user" as const, content: "first" },
+				{ role: "assistant" as const, content: "first answer" },
+			];
+			let currentMessages: Array<{ role: "user" | "assistant"; content: string }> =
+				[];
+			let rejectContinue: ((error: Error) => void) | undefined;
+			let markContinueStarted: (() => void) | undefined;
+			const continueStarted = new Promise<void>((resolve) => {
+				markContinueStarted = resolve;
+			});
+			const { manager, sessionService } = createTurnMetadataHarness(sessionId, {
+				run: vi
+					.fn()
+					.mockResolvedValue(
+						createResult({ text: "first", messages: turn1Messages }),
+					),
+				continue: vi.fn().mockImplementationOnce(
+					() =>
+						new Promise<AgentResult>((_resolve, reject) => {
+							rejectContinue = reject;
+							markContinueStarted?.();
+						}),
+				),
+				abort: vi.fn(() => {
+					rejectContinue?.(new Error("user cancelled"));
+				}),
+				getMessages: vi.fn(() => currentMessages),
+			});
+
+			await manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId }),
+					interactive: true,
+				}),
+			);
+			await manager.runTurn({ sessionId, prompt: "first" });
+			// The aborted turn added only the user prompt before being stopped.
+			currentMessages = [
+				...turn1Messages,
+				{ role: "user" as const, content: "second" },
+			];
+			const secondTurn = manager.runTurn({ sessionId, prompt: "second" });
+			await continueStarted;
+			await manager.abort(sessionId, new Error("user cancelled"));
+			await expect(secondTurn).resolves.toMatchObject({
+				finishReason: "aborted",
+			});
+
+			const persisted = sessionService.persistSessionMessages.mock.calls.at(
+				-1,
+			)?.[1] as Array<{ turnCompletion?: { finishReason?: string } }>;
+			// Turn 1's marker survives the abort flush unchanged, and the
+			// aborted turn (no assistant output) adds no marker of its own.
+			expect(persisted[1]?.turnCompletion).toMatchObject({
+				finishReason: "completed",
+			});
+			expect(persisted[2]?.turnCompletion).toBeUndefined();
+		});
+
 		it("records needsAttention metadata when a non-interactive run finishes", async () => {
 			const sessionId = "sess-turn-metadata-single-run";
 			const { manager, metadataCalls } = createTurnMetadataHarness(sessionId);
