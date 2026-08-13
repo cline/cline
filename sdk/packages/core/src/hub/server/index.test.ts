@@ -451,8 +451,11 @@ describe("hub server startup", () => {
 
 		const health = await fetch(new URL("/health", toHubHealthUrl(result.url)));
 		expect(health.status).toBe(200);
-		const payload = (await health.json()) as { buildId?: string };
+		const payload = (await health.json()) as { buildId?: string; pid?: number };
 		expect(payload.buildId).toBe(resolveHubBuildId());
+		// The pid lets clients retire an incompatible hub whose discovery
+		// record (normally the source of pid and auth token) has been lost.
+		expect(payload.pid).toBe(process.pid);
 	});
 
 	it("does not reuse managed discovery from a different build", async () => {

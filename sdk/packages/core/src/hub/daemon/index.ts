@@ -309,6 +309,7 @@ async function ensureDetachedHubServerLocked(
 	await retireLegacySharedHub(owner).catch(() => undefined);
 	const discovered = await readHubDiscovery(owner.discoveryPath);
 	let retiredUnusableDiscovery = false;
+	let fallBackAfterFailedRetirement = false;
 	if (discovered?.url) {
 		const discoveredAuthToken = discovered.authToken;
 		if (!discoveredAuthToken) {
@@ -410,17 +411,33 @@ async function ensureDetachedHubServerLocked(
 			endpointOverrides.allowPortFallback !== true &&
 			endpoint.port !== 0
 		) {
-			throw new Error(
-				`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
-			);
+			if (hasExplicitEndpoint) {
+				throw new Error(
+					`An incompatible Cline Hub is already running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+				);
+			}
+			// An orphaned hub (e.g. one whose discovery record was lost, so no
+			// auth token or pid is known) is squatting the default port. Leave
+			// it there and start the replacement on an OS-assigned port:
+			// clients resolve the local hub through the discovery record
+			// first, so the replacement stays discoverable while 'cline
+			// doctor fix' remains available to clean up the orphan.
+			fallBackAfterFailedRetirement = true;
 		}
 	}
 	const shouldUseFallbackPort =
-		endpointOverrides.allowPortFallback === true && endpoint.port !== 0;
+		(endpointOverrides.allowPortFallback === true ||
+			fallBackAfterFailedRetirement) &&
+		endpoint.port !== 0;
 	const spawnEndpoint = shouldUseFallbackPort
 		? { ...endpoint, port: 0 }
 		: endpoint;
 	await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
+	// Contend for the expected port only while our daemon is trying to bind
+	// it. Once we spawn on an OS-assigned port, an unretired squatter on the
+	// expected port no longer blocks us - and retiring it would clear the
+	// discovery record our own daemon just published.
+	let awaitingExpectedPortBind = spawnEndpoint.port !== 0;
 	const deadline = Date.now() + HUB_STARTUP_TIMEOUT_MS;
 	while (Date.now() < deadline) {
 		const nextDiscovery = await readHubDiscovery(owner.discoveryPath);
@@ -442,25 +459,35 @@ async function ensureDetachedHubServerLocked(
 				});
 			}
 		}
-		const nextExpected = await safeProbeHubServer(expectedUrl);
-		if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
-			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
-				nextExpected,
-				nextDiscovery,
-				expectedUrl,
-			);
-			const retiredExpected = await retireIncompatibleHub(
-				expectedForRetirement,
-				owner.discoveryPath,
-			);
-			if (
-				!retiredExpected &&
-				endpointOverrides.allowPortFallback !== true &&
-				endpoint.port !== 0
-			) {
-				throw new Error(
-					`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+		if (awaitingExpectedPortBind) {
+			const nextExpected = await safeProbeHubServer(expectedUrl);
+			if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
+				const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
+					nextExpected,
+					nextDiscovery,
+					expectedUrl,
 				);
+				const retiredExpected = await retireIncompatibleHub(
+					expectedForRetirement,
+					owner.discoveryPath,
+				);
+				if (!retiredExpected) {
+					if (hasExplicitEndpoint) {
+						throw new Error(
+							`An incompatible Cline Hub is still running at ${expectedUrl} and could not be retired automatically. Run 'cline doctor fix' to stop stale hub daemons before starting a new hub.`,
+						);
+					}
+					// The daemon we spawned on the default port lost a race
+					// with an unretirable incompatible hub and can never
+					// bind. Respawn on an OS-assigned port so the loop can
+					// resolve through the discovery record instead of timing
+					// out.
+					awaitingExpectedPortBind = false;
+					await spawnDetachedHubServerWithRetry(workspaceRoot, {
+						...endpoint,
+						port: 0,
+					});
+				}
 			}
 		}
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));

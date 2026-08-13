@@ -474,7 +474,50 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
-	it("throws a targeted error when an incompatible hub cannot be retired", async () => {
+	it("falls back to an OS-assigned port when an unretirable incompatible hub squats the default endpoint", async () => {
+		vi.useFakeTimers();
+		try {
+			readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValue({
+				url: "ws://127.0.0.1:54321/hub",
+				authToken: "fallback-token",
+			});
+			// The squatter keeps answering health probes on the default port
+			// with no pid and no auth token, so it can never be retired.
+			probeHubServer.mockImplementation(async (url: string) =>
+				url.includes("54321")
+					? {
+							url: "ws://127.0.0.1:54321/hub",
+							protocolVersion: "v1",
+							buildId: "current-build",
+						}
+					: {
+							url: "ws://127.0.0.1:25463/hub",
+							protocolVersion: "v2",
+							buildId: "future-build",
+						},
+			);
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:54321/hub",
+				authToken: "fallback-token",
+			});
+			expect(spawn).toHaveBeenCalledOnce();
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(spawnArgs).toContain("--port");
+			expect(spawnArgs).toContain("0");
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("throws a targeted error when an incompatible hub cannot be retired at an explicit endpoint", async () => {
 		vi.useFakeTimers();
 		try {
 			readHubDiscovery.mockResolvedValue(undefined);
@@ -486,7 +529,7 @@ describe("ensureDetachedHubServer", () => {
 
 			const { ensureDetachedHubServer } = await import(".");
 			const pending = expect(
-				ensureDetachedHubServer("/workspace"),
+				ensureDetachedHubServer("/workspace", { port: 25463 }),
 			).rejects.toThrow(
 				"An incompatible Cline Hub is already running at ws://127.0.0.1:25463/hub and could not be retired automatically.",
 			);
@@ -495,6 +538,53 @@ describe("ensureDetachedHubServer", () => {
 			await pending;
 			expect(spawn).not.toHaveBeenCalled();
 		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("retires an orphaned incompatible hub using the pid reported by its health probe", async () => {
+		vi.useFakeTimers();
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			// No discovery record exists for the squatter (it was lost), so the
+			// pid surfaced by the unauthenticated health probe is the only
+			// retirement lever.
+			readHubDiscovery.mockResolvedValueOnce(undefined).mockResolvedValue({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			probeHubServer
+				.mockResolvedValueOnce({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					pid: 4242,
+				})
+				.mockResolvedValueOnce(undefined)
+				.mockResolvedValue({
+					url: "ws://127.0.0.1:25463/hub",
+					protocolVersion: "v1",
+					buildId: "current-build",
+				});
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "new-token",
+			});
+			expect(kill).toHaveBeenCalledWith(4242, "SIGTERM");
+			expect(spawn).toHaveBeenCalledOnce();
+			const spawnArgs = ((spawn as unknown as { mock: { calls: unknown[][] } })
+				.mock.calls[0]?.[1] ?? []) as string[];
+			expect(spawnArgs).toContain("25463");
+			expect(spawnArgs).not.toContain("0");
+		} finally {
+			kill.mockRestore();
 			vi.useRealTimers();
 		}
 	});

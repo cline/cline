@@ -465,6 +465,12 @@ export async function startHubWebSocketServer(
 				host,
 				port,
 				url,
+				// The serving process id lets clients retire an incompatible hub
+				// even when its discovery record (which carries pid and auth
+				// token) has been lost or clobbered. Graceful /shutdown still
+				// requires the auth token; exposing the local pid only enables
+				// same-user signal delivery, which the OS already permits.
+				pid: process.pid,
 			});
 			res.statusCode = 200;
 			res.setHeader("content-type", "application/json");
@@ -489,6 +495,7 @@ export async function startHubWebSocketServer(
 				host,
 				port,
 				url,
+				pid: process.pid,
 				updatedAt: new Date().toISOString(),
 			} satisfies HubServerDiscoveryRecord);
 			res.statusCode = 200;
