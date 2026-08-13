@@ -278,7 +278,6 @@ export function resolveCliHubOwnerContext() {
 }
 
 let pendingAutoUpdate: ManualUpdateCommand | undefined;
-let deferredApplyHookRegistered = false;
 
 /**
  * Non-blocking auto-update check for CLI startup.
@@ -287,9 +286,11 @@ let deferredApplyHookRegistered = false;
  * cline processes are running swaps the binary under them — their respawn
  * paths break on the new build fingerprint — and historically also restarted
  * the hub daemon out from under live sessions. The check only records that an
- * update is available; the install runs when this process exits and no other
- * CLI is attached to the hub, at which point nothing is running that the swap
- * could hurt. The next launch picks up the new binary and a fresh hub.
+ * update is available; the CLI entrypoint calls applyDeferredUpdate() from
+ * its exit sequence (an explicit process.exit() follows, so a beforeExit hook
+ * would never fire), and the install runs only when no other CLI is attached
+ * to the hub — at that point nothing is running that the swap could hurt.
+ * The next launch picks up the new binary and a fresh hub.
  *
  * Skipped for npx, dev, unknown installs. Disable with CLINE_NO_AUTO_UPDATE=1.
  */
@@ -310,12 +311,6 @@ export function autoUpdateOnStartup(): void {
 				updateCommand,
 				packageManager,
 			);
-			if (!deferredApplyHookRegistered) {
-				deferredApplyHookRegistered = true;
-				process.once("beforeExit", () => {
-					void applyDeferredUpdate().catch(() => undefined);
-				});
-			}
 		} catch {
 			// Best-effort, silently ignore
 		}
@@ -374,6 +369,7 @@ export async function applyDeferredUpdate(
 	if (await otherCliClientsAttached().catch(() => true)) {
 		return "deferred";
 	}
+	pendingAutoUpdate = undefined;
 	const child = spawn(pending.command, {
 		shell: true,
 		detached: true,
