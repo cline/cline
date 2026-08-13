@@ -262,11 +262,6 @@ export class BrowserWebSocketHubAdapter {
 									evict: () => evictClientDelivery(clientId),
 								});
 								registeredClientIds.add(clientId);
-								logHubMessage("info", "client.registered", {
-									clientId,
-									clientType: registration.clientType,
-									connectionId,
-								});
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -279,10 +274,6 @@ export class BrowserWebSocketHubAdapter {
 								if (owner?.connectionId === connectionId) {
 									this.deliveryOwnerByClientId.delete(clientId);
 								}
-								logHubMessage("info", "client.unregistered", {
-									clientId,
-									connectionId,
-								});
 							}
 						}
 						sendFrame({
