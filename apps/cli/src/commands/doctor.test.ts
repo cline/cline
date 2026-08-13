@@ -624,3 +624,42 @@ describe("doctor supervision reporting", () => {
 		);
 	});
 });
+
+describe("describeProcessesStartedDuringFix", () => {
+	const { describeProcessesStartedDuringFix } = __test__;
+	const liveParents = new Map([
+		[100, 10],
+		[200, 20],
+	]);
+	const resolveLiveParent = (pid: number) => liveParents.get(pid);
+
+	it("says nothing when no process started during the fix", () => {
+		expect(
+			describeProcessesStartedDuringFix([], resolveLiveParent),
+		).toBeUndefined();
+	});
+
+	it("blames the parent only when every process has a live one", () => {
+		expect(
+			describeProcessesStartedDuringFix([100, 200], resolveLiveParent),
+		).toBe(
+			"\nThese processes were respawned by a live parent. Stop the parent process listed above, then re-run.",
+		);
+	});
+
+	// A process can start on its own mid-repair - a user opening a new session,
+	// say - and telling them to go kill an unrelated parent would be wrong.
+	it("states the facts when no process has a live parent", () => {
+		expect(describeProcessesStartedDuringFix([777], resolveLiveParent)).toBe(
+			"\nThese processes started after the fix began, so they were not targeted. Re-run to see whether they persist.",
+		);
+	});
+
+	it("separates respawns from independent starts in a mixed batch", () => {
+		expect(
+			describeProcessesStartedDuringFix([100, 777], resolveLiveParent),
+		).toBe(
+			"\nSome of these were respawned by a live parent (100); stop the parent process listed above, then re-run. The rest started after the fix began and were not targeted.",
+		);
+	});
+});
