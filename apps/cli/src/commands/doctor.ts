@@ -461,6 +461,11 @@ function readParentPid(pid: number): number | undefined {
 	}
 }
 
+function liveParentPid(pid: number): number | undefined {
+	const parent = readParentPid(pid);
+	return parent && isProcessRunning(parent) ? parent : undefined;
+}
+
 /**
  * A daemon whose parent is still running was almost certainly just spawned by
  * that parent, and killing it only invites the parent to spawn another. Naming
@@ -471,12 +476,33 @@ function formatDaemonPidList(label: string, pids: number[]): string {
 		return `${label} ${c.dim}0${c.reset}`;
 	}
 	const described = pids.map((pid) => {
-		const parent = readParentPid(pid);
-		return parent && isProcessRunning(parent)
-			? `${pid} (spawned by ${parent})`
-			: String(pid);
+		const parent = liveParentPid(pid);
+		return parent ? `${pid} (spawned by ${parent})` : String(pid);
 	});
 	return `${label} ${c.dim}${described.join(", ")}${c.reset}`;
+}
+
+/**
+ * Advice for processes first seen during the fix. Only a process with a live
+ * parent is known to have been respawned by it; anything else may have been
+ * started independently (a user opening a new session mid-repair), so it gets
+ * a statement of fact rather than an instruction to go kill something.
+ */
+export function describeProcessesStartedDuringFix(
+	pids: number[],
+	resolveLiveParent: (pid: number) => number | undefined,
+): string | undefined {
+	if (pids.length === 0) {
+		return undefined;
+	}
+	const respawned = pids.filter((pid) => resolveLiveParent(pid) !== undefined);
+	if (respawned.length === 0) {
+		return "\nThese processes started after the fix began, so they were not targeted. Re-run to see whether they persist.";
+	}
+	if (respawned.length === pids.length) {
+		return "\nThese processes were respawned by a live parent. Stop the parent process listed above, then re-run.";
+	}
+	return `\nSome of these were respawned by a live parent (${respawned.join(", ")}); stop the parent process listed above, then re-run. The rest started after the fix began and were not targeted.`;
 }
 
 function formatStartupLockList(
@@ -579,6 +605,7 @@ function killPids(pids: number[]): number {
 export const __test__ = {
 	decideForeignContainer,
 	CONTAINER_CGROUP_PATTERN,
+	describeProcessesStartedDuringFix,
 	formatSupervisedConnector,
 };
 
@@ -758,9 +785,13 @@ export async function runDoctorCommand(
 	];
 	if (spawnedDuringFix.length > 0) {
 		writeln(formatDaemonPidList("started during fix", spawnedDuringFix));
-		io.writeln(
-			"\nProcesses started while the fix ran are respawns from a live parent. Stop the parent process listed above, then re-run.",
+		const advice = describeProcessesStartedDuringFix(
+			spawnedDuringFix,
+			liveParentPid,
 		);
+		if (advice) {
+			io.writeln(advice);
+		}
 	}
 	return 0;
 }
