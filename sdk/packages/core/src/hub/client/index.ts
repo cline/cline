@@ -927,7 +927,16 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-function hasActiveHubSessions(payload: unknown): boolean {
+/**
+ * Whether the session list carries work that stopping the hub would destroy.
+ *
+ * Counting must err busy only for sessions that are genuinely alive. A client
+ * that dies without stopping its session leaves the hub-side runtime behind
+ * with no participants - and a status that never reaches a terminal state - so
+ * treating every non-terminal status as busy pins the hub as "serving
+ * sessions" forever.
+ */
+export function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
@@ -942,14 +951,23 @@ function hasActiveHubSessions(payload: unknown): boolean {
 			status?: unknown;
 			participants?: unknown;
 		};
-		if (
-			record.status === "running" ||
-			record.status === "idle" ||
-			record.status === "pending"
-		) {
+		// Someone is attached: stopping the hub cuts their connection.
+		if (Array.isArray(record.participants) && record.participants.length > 0) {
 			return true;
 		}
-		return Array.isArray(record.participants) && record.participants.length > 0;
+		// A turn may be executing inside the hub with nobody attached
+		// (headless and scheduled runs); stopping the hub kills it mid-turn.
+		if (record.status === "running" || record.status === "pending") {
+			return true;
+		}
+		// An idle session with a confirmed-empty participant list is persisted,
+		// resumable state, not live work. Hubs too old to report participants
+		// (core < 0.0.75) get the conservative reading: idle may still mean
+		// someone is attached.
+		if (record.status === "idle") {
+			return !Array.isArray(record.participants);
+		}
+		return false;
 	});
 }
 
