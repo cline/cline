@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
+import discoveryFixture from "@/core/storage/remote-config/fixtures/user-remote-config-discovery.json"
 
 const {
 	fetchUserRemoteConfig,
@@ -7,6 +8,8 @@ const {
 	isRemoteConfigEnabled,
 	writeRemoteConfigToCache,
 	readRemoteConfigFromCache,
+	activeOrganization,
+	axiosRequest,
 } = vi.hoisted(() => ({
 	fetchUserRemoteConfig: vi.fn(),
 	switchAccount: vi.fn(),
@@ -14,18 +17,14 @@ const {
 	isRemoteConfigEnabled: vi.fn(),
 	writeRemoteConfigToCache: vi.fn(),
 	readRemoteConfigFromCache: vi.fn(),
-}))
-
-vi.mock("@/services/account/ClineAccountService", () => ({
-	ClineAccountService: {
-		getInstance: () => ({ fetchUserRemoteConfig }),
-	},
+	activeOrganization: { id: "org-current" as string | null },
+	axiosRequest: vi.fn(),
 }))
 
 vi.mock("@/services/auth/AuthService", () => ({
 	AuthService: {
 		getInstance: () => ({
-			getActiveOrganizationId: () => "org-current",
+			getActiveOrganizationId: () => activeOrganization.id,
 			getAuthToken: async () => "token",
 		}),
 	},
@@ -43,7 +42,7 @@ vi.mock("@/core/storage/remote-config/utils", () => ({
 
 vi.mock("@/services/EnvUtils", () => ({ buildBasicClineHeaders: async () => ({}) }))
 vi.mock("@/shared/net", () => ({ getAxiosSettings: () => ({}) }))
-vi.mock("axios", () => ({ default: { request: vi.fn() } }))
+vi.mock("axios", () => ({ default: { request: axiosRequest } }))
 
 import { SdkRemoteConfigControlPlane } from "@/core/storage/remote-config/sdk-control-plane"
 
@@ -55,14 +54,31 @@ describe("SdkRemoteConfigControlPlane", () => {
 		isRemoteConfigEnabled.mockReset().mockReturnValue(true)
 		writeRemoteConfigToCache.mockReset().mockResolvedValue(undefined)
 		readRemoteConfigFromCache.mockReset().mockResolvedValue({ version: "v1" })
+		activeOrganization.id = "org-current"
+		axiosRequest.mockReset().mockRejectedValue(new Error("offline"))
 	})
 
 	function makeControlPlane() {
 		return new SdkRemoteConfigControlPlane({
-			accountService: { switchAccount },
-			stateManager: { setSecret },
+			accountService: { switchAccount, fetchUserRemoteConfig },
+			stateManager: { setSecret, getGlobalStateKey: () => ({}) },
 		})
 	}
+
+	it("adapts the discovery API contract without dropping rules, workflows, skills, or policy fields", async () => {
+		activeOrganization.id = null
+		fetchUserRemoteConfig.mockResolvedValue(discoveryFixture)
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle?.metadata?.organizationId).toBe("org-contract")
+		expect(bundle?.remoteConfig?.globalRules?.[0]?.name).toBe("Contract Rule")
+		expect(bundle?.remoteConfig?.globalWorkflows?.[0]?.name).toBe("Contract Workflow")
+		expect(bundle?.managedInstructions?.[0]?.name).toBe("Contract Skill")
+		expect(bundle?.remoteConfig?.allowedMCPServers?.[0]?.id).toBe("https://github.com/example/contract-mcp")
+		expect(bundle?.remoteConfig?.openTelemetryEnabled).toBe(true)
+	})
 
 	it("returns undefined and marks explicit no-config when discovery returns nothing", async () => {
 		fetchUserRemoteConfig.mockResolvedValue(undefined)
@@ -74,7 +90,8 @@ describe("SdkRemoteConfigControlPlane", () => {
 		expect(controlPlane.wasExplicitNoConfig()).toBe(true)
 	})
 
-	it("wraps discovered remote config in a bundle", async () => {
+	it("wraps discovered remote config in a bundle when no organization is active", async () => {
+		activeOrganization.id = null
 		fetchUserRemoteConfig.mockResolvedValue({
 			organizationId: "org-target",
 			value: JSON.stringify({ version: "v1" }),
@@ -92,7 +109,103 @@ describe("SdkRemoteConfigControlPlane", () => {
 		expect(writeRemoteConfigToCache).toHaveBeenCalledWith("org-target", { version: "v1" })
 	})
 
+	it("prefers the active organization even when discovery only lists another organization", async () => {
+		activeOrganization.id = "org-b"
+		fetchUserRemoteConfig.mockResolvedValue({
+			organizationId: "org-a",
+			value: JSON.stringify({ version: "org-a" }),
+			organizations: [{ organizationId: "org-a", name: "A" }],
+		})
+		readRemoteConfigFromCache.mockResolvedValue({ version: "org-b" })
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle?.metadata?.organizationId).toBe("org-b")
+		expect(bundle?.remoteConfig?.version).toBe("org-b")
+		expect(switchAccount).not.toHaveBeenCalled()
+		expect(writeRemoteConfigToCache).toHaveBeenCalledWith("org-b", { version: "org-b" })
+	})
+
+	it("does not fall back to another organization when the active org is opted out", async () => {
+		activeOrganization.id = "org-b"
+		isRemoteConfigEnabled.mockImplementation((orgId: string) => orgId !== "org-b")
+		fetchUserRemoteConfig.mockResolvedValue({
+			organizationId: "org-a",
+			value: JSON.stringify({ version: "org-a" }),
+			organizations: [
+				{ organizationId: "org-a", name: "A" },
+				{ organizationId: "org-b", name: "B" },
+			],
+		})
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle).toBeUndefined()
+		expect(controlPlane.wasExplicitNoConfig()).toBe(true)
+		expect(controlPlane.isRemoteConfigAvailable()).toBe(true)
+		expect(switchAccount).not.toHaveBeenCalled()
+	})
+
+	it("reports unavailable when the active organization's remote config is disabled", async () => {
+		activeOrganization.id = "org-b"
+		fetchUserRemoteConfig.mockResolvedValue({
+			organizationId: "org-a",
+			value: JSON.stringify({ version: "org-a" }),
+			organizations: [{ organizationId: "org-a", name: "A" }],
+		})
+		axiosRequest.mockResolvedValue({
+			status: 200,
+			data: { success: true, data: { enabled: false, value: "" } },
+		})
+		readRemoteConfigFromCache.mockResolvedValue(undefined)
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle).toBeUndefined()
+		expect(controlPlane.isRemoteConfigAvailable()).toBe(false)
+		expect(switchAccount).not.toHaveBeenCalled()
+	})
+
+	it("filters disabled optional instructions from the effective SDK bundle", async () => {
+		activeOrganization.id = null
+		fetchUserRemoteConfig.mockResolvedValue({
+			organizationId: "org-target",
+			value: JSON.stringify({
+				version: "v1",
+				globalRules: [
+					{ name: "Optional rule", alwaysEnabled: false, contents: "optional" },
+					{ name: "Locked rule", alwaysEnabled: true, contents: "locked" },
+				],
+				globalWorkflows: [{ name: "Optional workflow", alwaysEnabled: false, contents: "workflow" }],
+				globalSkills: [{ name: "Optional skill", alwaysEnabled: false, contents: "skill" }],
+			}),
+			organizations: [{ organizationId: "org-target", name: "Target" }],
+		})
+		const controlPlane = new SdkRemoteConfigControlPlane({
+			accountService: { switchAccount, fetchUserRemoteConfig },
+			stateManager: {
+				setSecret,
+				getGlobalStateKey: (key): Record<string, boolean> =>
+					key === "remoteRulesToggles"
+						? { "Optional rule": false, "Locked rule": false }
+						: key === "remoteWorkflowToggles"
+							? { "Optional workflow": false }
+							: { "Optional skill": false },
+			},
+		})
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle?.remoteConfig?.globalRules?.map((entry) => entry.name)).toEqual(["Locked rule"])
+		expect(bundle?.remoteConfig?.globalWorkflows).toEqual([])
+		expect(bundle?.managedInstructions).toEqual([])
+	})
+
 	it("converts globalSkills to managed skill instructions", async () => {
+		activeOrganization.id = "org-target"
 		fetchUserRemoteConfig.mockResolvedValue({
 			organizationId: "org-target",
 			value: JSON.stringify({
@@ -116,7 +229,8 @@ describe("SdkRemoteConfigControlPlane", () => {
 		])
 	})
 
-	it("skips disabled active org and selects an enabled fallback org", async () => {
+	it("selects an enabled fallback org when no organization is active", async () => {
+		activeOrganization.id = null
 		isRemoteConfigEnabled.mockImplementation((orgId: string) => orgId === "org-fallback")
 		fetchUserRemoteConfig.mockResolvedValue({
 			organizationId: "org-disabled",

@@ -2,7 +2,12 @@ import { describe, it } from "bun:test"
 import * as assert from "assert"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
+import {
+	REMOTE_CONFIG_REFRESH_EVENT,
+	REMOTE_CONFIG_SESSION_GATE_EVENT,
+	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
+	ROLLOUT_ERROR_MESSAGE_LIMIT,
+} from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -124,6 +129,30 @@ describe("TelemetryService metrics", () => {
 		assert.strictEqual(events[0].properties?.error_type, "TypeError")
 		assert.strictEqual((events[0].properties?.error_message as string).length, ROLLOUT_ERROR_MESSAGE_LIMIT)
 		assert.strictEqual(events[0].properties?.extension_variant, "legacy")
+	})
+
+	it("captures bounded, content-free remote-config rollout signals", () => {
+		const provider = new FakeProvider()
+		const service = createTelemetryService(provider, { extension_variant: "next" })
+
+		service.captureRemoteConfigRefresh({
+			outcome: "applied",
+			durationMs: 12.6,
+			managed: true,
+			configVersion: "v".repeat(120),
+		})
+		service.captureRemoteConfigSessionGate({ outcome: "last_known_good", durationMs: 4.2, managed: true })
+
+		const refresh = provider.logs.find((entry) => entry.event === REMOTE_CONFIG_REFRESH_EVENT)
+		assert.strictEqual(refresh?.properties?.outcome, "applied")
+		assert.strictEqual(refresh?.properties?.duration_ms, 13)
+		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
+		assert.strictEqual(refresh?.properties?.extension_variant, "next")
+		assert.strictEqual(refresh?.properties?.organization_id, undefined)
+		const gate = provider.logs.find((entry) => entry.event === REMOTE_CONFIG_SESSION_GATE_EVENT)
+		assert.strictEqual(gate?.properties?.outcome, "last_known_good")
+		assert.strictEqual(gate?.properties?.duration_ms, 4)
+		assert.strictEqual(gate?.properties?.extension_variant, "next")
 	})
 
 	it("does not capture rollout activation events for ordinary builds", () => {

@@ -130,6 +130,33 @@ describe("VscodeSessionHost telemetry wiring", () => {
 		expect(capabilities.toolExecutors).toBeUndefined()
 	})
 
+	it("waits for policy readiness before selecting and applying remote config", async () => {
+		const events: string[] = []
+		const beforeStartSession = vi.fn(async () => {
+			events.push("ready")
+		})
+		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => {
+			events.push("apply")
+			return input
+		})
+		await VscodeSessionHost.create({
+			// biome-ignore lint/suspicious/noExplicitAny: focused host unit test
+			mcpHub: {} as any,
+			beforeStartSession,
+			getRemoteConfigIntegration: () =>
+				({
+					applyToStartSessionInput,
+					dispose: vi.fn(),
+				}) as never,
+		})
+
+		const prepare = mockClineCoreCreate.mock.calls[0][0].prepare
+		const bootstrap = await prepare()
+		await bootstrap.applyToStartSessionInput({ config: { cwd: "/workspace" } })
+
+		expect(events).toEqual(["ready", "apply"])
+	})
+
 	it("applies remote config before appending VS Code extra tools", async () => {
 		mockCreateVscodeExtraTools.mockResolvedValueOnce([{ name: "vscode-tool" }] as never)
 		const applyToStartSessionInput = vi.fn(async (input: ClineCoreStartInput) => ({
