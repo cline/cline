@@ -696,12 +696,13 @@ export class SdkTaskHistory {
 	private async getCachedTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord): Promise<number | undefined> {
 		// metadata.size is a display cache: fill it when absent, and let explicit item.size updates replace it.
 		const cachedSize = metadataNumber(record.metadata, "size")
-		// A cached zero-byte size is only authoritative once the session is terminal. Tasks are
-		// created with metadata.size = 0 before any artifacts exist and that zero was never
-		// re-measured while the session stayed active, so a running/paused task kept showing
-		// "0 B" in History even though its session folder had grown to kilobytes (#13169).
-		// Re-measure the artifact folder for non-terminal sessions that still hold a zero cache.
-		if (cachedSize !== undefined && (cachedSize > 0 || !isNonTerminalSessionStatus(record.status))) {
+		// The cache is only authoritative once the session is terminal. A live session's folder
+		// keeps growing, and nothing re-measures it while the task is open, so whatever was
+		// cached first is a floor, not the current size — History showed "0 B" (or a stale
+		// early value) for a running/paused task whose folder had grown to kilobytes (#13169).
+		// Re-measure the artifact folder for non-terminal sessions (idle/running/pending — a
+		// paused task reports idle).
+		if (cachedSize !== undefined && !isNonTerminalSessionStatus(record.status)) {
 			return cachedSize
 		}
 
@@ -711,7 +712,9 @@ export class SdkTaskHistory {
 			return artifactSize
 		}
 
-		return undefined
+		// The measurement failed (unreadable folder) — a previously cached size is still a
+		// better answer than none, which the History list would render as "0 B".
+		return cachedSize
 	}
 
 	private async getSessionArtifactSize(record: SessionHistoryRecord): Promise<number | undefined> {

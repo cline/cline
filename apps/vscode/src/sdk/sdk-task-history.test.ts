@@ -451,8 +451,8 @@ describe("SdkTaskHistory", () => {
 				// A paused task's session is still alive, so the SDK record reports a
 				// non-terminal status ("idle") and its artifacts can keep growing.
 				status: "idle",
-				// metadata.size is initialized to 0 at session creation and is never
-				// re-measured while the task stays active, so History shows "0 B".
+				// Nothing re-measures the folder while the task is open, so the cached
+				// size stays at whatever was measured first and History shows "0 B".
 				metadata: { size: 0 },
 				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
 			}),
@@ -470,6 +470,47 @@ describe("SdkTaskHistory", () => {
 				metadata: expect.objectContaining({ size: 6144 }),
 			}),
 		)
+	})
+
+	it("re-measures a stale non-zero cached size for a running task", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 6144,
+		})
+
+		expect(updateSession).toHaveBeenCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144 }),
+			}),
+		)
+	})
+
+	it("falls back to the cached size when a live session's artifacts are unreadable", async () => {
+		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({
+			id: "task-1",
+			size: 2048,
+		})
+
+		expect(updateSession).not.toHaveBeenCalled()
 	})
 
 	it("keeps existing SDK task size metadata without measuring artifacts", async () => {
