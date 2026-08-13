@@ -228,6 +228,57 @@ describe("translateSessionEvent — pending prompts", () => {
 			}),
 		])
 	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
+			}),
+		])
+	})
 })
 
 // ---------------------------------------------------------------------------
