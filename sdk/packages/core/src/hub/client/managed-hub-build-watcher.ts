@@ -41,8 +41,30 @@ export interface ManagedHubBuildMismatchEvent {
 	hubBuildId?: string;
 	/** Core package version reported by the running Hub. */
 	hubCoreVersion?: string;
+	/**
+	 * Identifies the running daemon *instance*, not its build. Two daemons from
+	 * the same build share a build id, so anything that needs to know whether
+	 * the very same Hub is still running - rather than merely another Hub of
+	 * the same build - must compare this.
+	 */
+	hubInstanceId?: string;
 	/** Build identity this client expects a managed Hub to match. */
 	expectedBuildId: string;
+}
+
+function resolveHubInstanceId(record: {
+	hubId?: string;
+	pid?: number;
+	startedAt?: string;
+}): string | undefined {
+	const hubId = record.hubId?.trim();
+	if (hubId) {
+		return hubId;
+	}
+	const fallback = [record.pid, record.startedAt]
+		.filter((part) => part !== undefined && part !== null && part !== "")
+		.join(":");
+	return fallback || undefined;
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -107,6 +129,7 @@ export async function checkManagedHubBuildMismatch(): Promise<
 		reason,
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
+		hubInstanceId: resolveHubInstanceId(healthy),
 		expectedBuildId,
 	});
 	if (compatibility.reason === "unsupported_protocol") {
@@ -172,8 +195,13 @@ export function watchManagedHubBuildMismatch(
 				// An older Hub is normally retired and replaced within a moment
 				// of being observed. Only report one that is still there on the
 				// next check, which means it was deliberately left running.
-				if (mismatch.reason === "outdated_hub" && pendingKey !== key) {
-					pendingKey = key;
+				//
+				// Keyed by instance, not build: a replacement daemon from the
+				// same older build is a different Hub, and treating it as the
+				// same one would report the churn this check exists to hide.
+				const instanceKey = `${key}:${mismatch.hubInstanceId ?? ""}`;
+				if (mismatch.reason === "outdated_hub" && pendingKey !== instanceKey) {
+					pendingKey = instanceKey;
 					return;
 				}
 				pendingKey = undefined;
