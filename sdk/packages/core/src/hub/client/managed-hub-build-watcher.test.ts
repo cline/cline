@@ -168,6 +168,53 @@ describe("checkManagedHubBuildMismatch", () => {
 		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
 	});
 
+	/**
+	 * Identity is read before the probe and build data after it, so a daemon
+	 * swapped in between would otherwise be reported under its predecessor's
+	 * identity.
+	 */
+	it("returns undefined when the hub is replaced while it is being probed", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const records = [
+			{ ...liveRecord, hubId: "hub-instance-a" },
+			{ ...liveRecord, hubId: "hub-instance-b" },
+		];
+		let read = 0;
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				// Second read within the same check sees the replacement.
+				readHubDiscovery: vi.fn(async () => records[read++] ?? records[1]),
+				probeHubServer: vi.fn(async () => ({
+					protocolVersion: "v1",
+					buildId: "old-build",
+					buildEpochMs: 500,
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+				})),
+			};
+		});
+		const { checkManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+	});
+
 	it("returns undefined when the recorded hub is unreachable", async () => {
 		mockDiscovery({ record: liveRecord, probe: undefined });
 		const { checkManagedHubBuildMismatch } = await import(

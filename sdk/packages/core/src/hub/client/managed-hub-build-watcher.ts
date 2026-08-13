@@ -133,6 +133,23 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (!healthy?.url) {
 		return undefined;
 	}
+	// Reading discovery and probing the Hub are separate steps, and instance
+	// identity comes from the first while the build data comes from the second.
+	// A daemon replaced between them would be described with its predecessor's
+	// identity, which is exactly the confusion the caller's consecutive-instance
+	// check exists to avoid. Confirm the record still describes the daemon just
+	// probed, and report nothing this round when it does not - a Hub mid-swap is
+	// churn, and the next check sees whatever it settles into.
+	const recheck = await readHubDiscovery(owner.discoveryPath).catch(
+		() => undefined,
+	);
+	if (
+		!recheck?.url ||
+		recheck.url !== record.url ||
+		resolveHubInstanceId({}, recheck) !== resolveHubInstanceId({}, record)
+	) {
+		return undefined;
+	}
 	const expectedBuildId = resolveHubBuildId();
 	const compatibility = getManagedHubCompatibility(healthy, expectedBuildId);
 	if (compatibility.compatible) {
