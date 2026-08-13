@@ -57,7 +57,7 @@ export type CloudSessionRecord = {
 	title?: string;
 	sandboxUrl: string;
 	repoContext: { repoUrl?: string; branch?: string };
-	metadata: { modelId?: string };
+	metadata: { modelId?: string; statusReason?: string };
 	expiredAt?: string | null;
 	createdAt: string;
 	updatedAt: string;
@@ -412,6 +412,18 @@ export class CloudSessionApi {
 		}
 	}
 
+	async status(
+		sessionId: string,
+		options: { authToken?: string; signal?: AbortSignal } = {},
+	): Promise<{ sessionId?: string; status?: string; statusReason?: string }> {
+		return await this.request(
+			`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
+			{ signal: options.signal },
+			undefined,
+			options.authToken,
+		);
+	}
+
 	async create(input: CreateCloudSessionInput): Promise<{
 		sessionId: string;
 		sandboxUrl: string;
@@ -585,17 +597,13 @@ export class CloudSessionApi {
 				| { sessionId?: string; status?: string; statusReason?: string }
 				| undefined;
 			try {
-				result = await this.request(
-					`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
-					{
-						signal: AbortSignal.any([
-							signal,
-							AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-						]),
-					},
-					undefined,
+				result = await this.status(sessionId, {
 					authToken,
-				);
+					signal: AbortSignal.any([
+						signal,
+						AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+					]),
+				});
 			} catch (error) {
 				if (signal.aborted) throw error;
 				if (
@@ -744,6 +752,7 @@ type CloudSessionManagerOptions = {
 		| "create"
 		| "delete"
 		| "list"
+		| "status"
 		| "history"
 		| "updateTitle"
 		| "listRepositories"
@@ -1110,7 +1119,8 @@ export class CloudSessionManager {
 	private readonly knownSessions = new Map<string, CloudSessionRecord>();
 	private lastListedSessions: CloudSessionRecord[] = [];
 	private discoveryRefresh?: Promise<CloudSessionRecord[]>;
-	// REST cannot list sessions that are still provisioning.
+	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
+	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
 	// Sessions mid-delete; blocks concurrent code from re-dialing them.
 	private readonly deletingSessions = new Set<string>();
@@ -1139,7 +1149,37 @@ export class CloudSessionManager {
 
 	async list(): Promise<CloudSessionRecord[]> {
 		const organizationId = await this.resolveActiveOrganizationId();
-		const scoped = await this.options.api.list(organizationId);
+		const listed = await this.options.api.list(organizationId);
+		// Keep canonical rows available while their status checks run.
+		this.lastListedSessions = listed;
+		for (const session of listed) {
+			this.knownSessions.set(session.id, session);
+		}
+		const scoped = await Promise.all(
+			listed.map(async (session) => {
+				if (
+					session.status !== "provisioning" ||
+					typeof this.options.api.status !== "function"
+				) {
+					return session;
+				}
+				const result = await this.options.api
+					.status(session.id)
+					.catch(() => undefined);
+				const status = result?.status?.trim();
+				if (!status) return session;
+				return {
+					...session,
+					status,
+					metadata: {
+						...session.metadata,
+						...(result?.statusReason?.trim()
+							? { statusReason: result.statusReason.trim() }
+							: {}),
+					},
+				};
+			}),
+		);
 		// Retain other scopes for routing; only lastListedSessions drives the sidebar.
 		for (const session of scoped) {
 			this.knownSessions.set(session.id, session);
@@ -1213,7 +1253,20 @@ export class CloudSessionManager {
 		}
 
 		const placeholders = Array.from(this.pendingCreates.values());
-		const listed = records.map((record) => {
+		const unmatchedPlaceholders = [...placeholders];
+		const listedRecords = records.filter((record) => {
+			const placeholderIndex = unmatchedPlaceholders.findIndex(
+				(placeholder) =>
+					placeholder.repoUrl === record.repoContext.repoUrl &&
+					placeholder.model === record.metadata.modelId &&
+					String(placeholder.branch ?? "") ===
+						String(record.repoContext.branch ?? ""),
+			);
+			if (placeholderIndex < 0) return true;
+			unmatchedPlaceholders.splice(placeholderIndex, 1);
+			return false;
+		});
+		const listed = listedRecords.map((record) => {
 			const projected = cloudSessionToDiscoveryRecord(record);
 			const live = this.ctx.liveSessions.get(record.id);
 			if (!live) {
@@ -1243,6 +1296,29 @@ export class CloudSessionManager {
 	}
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
+		const key = [
+			input.organizationId?.trim() ?? "",
+			input.repoUrl,
+			input.branch?.trim() ?? "",
+			input.modelId,
+			String(input.thinking ?? ""),
+			input.reasoningEffort ?? "",
+			String(input.autoApproveTools ?? ""),
+		].join("\u0000");
+		const existing = this.createRequests.get(key);
+		if (existing) return await existing;
+		const creating = this.createOnce(input).finally(() => {
+			if (this.createRequests.get(key) === creating) {
+				this.createRequests.delete(key);
+			}
+		});
+		this.createRequests.set(key, creating);
+		return await creating;
+	}
+
+	private async createOnce(
+		input: CreateCloudSessionInput,
+	): Promise<JsonRecord> {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
 		}
@@ -1257,6 +1333,7 @@ export class CloudSessionManager {
 			provider: "cline",
 			model: input.modelId,
 			repoUrl: input.repoUrl,
+			branch: input.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			startedAt,
@@ -1400,6 +1477,9 @@ export class CloudSessionManager {
 			return { ...placeholder };
 		}
 		const known = await this.ensureKnownSession(outerSessionId);
+		if (known.status === "provisioning" || known.status === "failed") {
+			return attachResultPayload(known, known.status);
+		}
 		if (isExpiredRecord(known)) {
 			// A connection left over from before expiry would reconnect-loop
 			// against a dead sandbox forever.
@@ -1874,6 +1954,9 @@ export class CloudSessionManager {
 			return [];
 		}
 		const known = this.knownSessions.get(outerSessionId);
+		if (known?.status === "provisioning" || known?.status === "failed") {
+			return [];
+		}
 		if (known && isExpiredRecord(known)) {
 			// An expired session with no snapshot legitimately has no transcript.
 			return (await this.loadArchivedMessages(known)) ?? [];

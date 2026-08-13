@@ -12,6 +12,7 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { disposeSidecarContext } from "./context";
+import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
 const REMOTE_SESSION: CloudSessionRecord = {
@@ -928,6 +929,25 @@ describe("cloud agents feature flag", () => {
 		} finally {
 			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
 		}
+	});
+});
+
+describe("cloud session discovery", () => {
+	it("does not project a live cloud session through local discovery", () => {
+		const { ctx } = createContext();
+		ctx.liveSessions.set("ses-cloud", {
+			busy: true,
+			messages: [{ role: "user", content: "cloud prompt" }],
+			promptsInQueue: [],
+			status: "running",
+			config: { executionTarget: "cloud" },
+			startedAt: Date.now(),
+		});
+
+		const sessions = discoverChatSessions(ctx) as Array<{ sessionId?: string }>;
+		expect(sessions.some((session) => session.sessionId === "ses-cloud")).toBe(
+			false,
+		);
 	});
 });
 
@@ -2312,12 +2332,20 @@ describe("CloudSessionManager", () => {
 	it("shows a provisioning placeholder in the session list until create settles", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient(false);
+		let serverReady = false;
 		let finishCreate:
 			| ((value: { sessionId: string; sandboxUrl: string }) => void)
 			| undefined;
 		const manager = new CloudSessionManager(ctx, {
 			api: {
-				list: async () => [],
+				list: async () => [
+					{
+						...REMOTE_SESSION,
+						id: "ses-created",
+						status: serverReady ? "ready" : "provisioning",
+					},
+					{ ...REMOTE_SESSION, id: "ses-failed", status: "failed" },
+				],
 				create: () =>
 					new Promise((resolve) => {
 						finishCreate = resolve;
@@ -2337,8 +2365,13 @@ describe("CloudSessionManager", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 
 		const during = await manager.listForDiscovery();
-		const placeholder = during.find(
+		const provisioning = during.filter(
 			(session) => session.status === "provisioning",
+		);
+		expect(provisioning).toHaveLength(1);
+		const placeholder = provisioning[0];
+		expect(during.some((session) => session.sessionId === "ses-failed")).toBe(
+			true,
 		);
 		expect(placeholder).toMatchObject({
 			origin: "cloud",
@@ -2360,6 +2393,7 @@ describe("CloudSessionManager", () => {
 			/still provisioning/,
 		);
 
+		serverReady = true;
 		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
 		await creating;
 
@@ -2376,6 +2410,85 @@ describe("CloudSessionManager", () => {
 			placeholderId,
 			sessionId: "ses-created",
 		});
+	});
+
+	it("keeps server provisioning rows visible and reconciles their status", async () => {
+		const { ctx } = createContext();
+		let status = "provisioning";
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [{ ...REMOTE_SESSION, status: "provisioning" }],
+				status: async () => ({ sessionId: REMOTE_SESSION.id, status }),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => {
+				throw new Error("must not connect while provisioning");
+			},
+		});
+
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({
+				sessionId: REMOTE_SESSION.id,
+				status: "provisioning",
+			}),
+		]);
+		await expect(manager.attach(REMOTE_SESSION.id)).resolves.toMatchObject({
+			sessionId: REMOTE_SESSION.id,
+			status: "provisioning",
+		});
+		await expect(manager.readMessages(REMOTE_SESSION.id)).resolves.toEqual([]);
+
+		status = "ready";
+		await expect(manager.listForDiscovery()).resolves.toEqual([
+			expect.objectContaining({
+				sessionId: REMOTE_SESSION.id,
+				status: "ready",
+			}),
+		]);
+	});
+
+	it("single-flights identical cloud creates", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let createCalls = 0;
+		let finishCreate:
+			| ((value: { sessionId: string; sandboxUrl: string }) => void)
+			| undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: () => {
+					createCalls += 1;
+					return new Promise((resolve) => {
+						finishCreate = resolve;
+					});
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const first = manager.create(input);
+		const second = manager.create(input);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		expect(createCalls).toBe(1);
+		expect(
+			(await manager.listForDiscovery()).filter(
+				(session) => session.status === "provisioning",
+			),
+		).toHaveLength(1);
+
+		finishCreate?.({ sessionId: "ses-created", sandboxUrl: "pod" });
+		await expect(Promise.all([first, second])).resolves.toEqual([
+			expect.objectContaining({ sessionId: "ses-created" }),
+			expect.objectContaining({ sessionId: "ses-created" }),
+		]);
 	});
 
 	it("deletes a late sandbox with the account that created it", async () => {

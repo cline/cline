@@ -752,7 +752,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {
@@ -1040,7 +1043,10 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		const recent = sessions
-			.filter((session) => session.sessionId !== activeSessionId)
+			.filter(
+				(session) =>
+					session.sessionId !== activeSessionId && session.origin !== "cloud",
+			)
 			.slice(0, 4);
 		let cancelled = false;
 		const timer = window.setTimeout(() => {

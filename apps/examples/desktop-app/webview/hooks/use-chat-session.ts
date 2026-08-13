@@ -204,8 +204,12 @@ export function mergeCloudSnapshotWithLive(
 		preserveUnmatchedLive?: boolean;
 	},
 ): ChatMessage[] {
-	const messageKey = (message: ChatMessage) =>
-		`${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+	const messageKey = (message: ChatMessage) => {
+		if (message.role === "tool" && message.meta?.toolCallId) {
+			return `tool\u0000${message.meta.toolCallId}`;
+		}
+		return `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+	};
 	const hydratedKeyCounts = new Map<string, number>();
 	for (const message of hydrated) {
 		const key = messageKey(message);
@@ -1521,7 +1525,7 @@ export function useChatSession() {
 						output: null,
 					}),
 					createdAt: chunkCreatedAt(payload),
-					meta: { toolName, hookEventName: "tool_call_start" },
+					meta: { toolName, toolCallId, hookEventName: "tool_call_start" },
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
@@ -1558,7 +1562,12 @@ export function useChatSession() {
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
 						content: toolPayload,
-						meta: { ...msg.meta, toolName, hookEventName: "tool_call_end" },
+						meta: {
+							...msg.meta,
+							toolName,
+							toolCallId,
+							hookEventName: "tool_call_end",
+						},
 					})),
 				);
 				return;

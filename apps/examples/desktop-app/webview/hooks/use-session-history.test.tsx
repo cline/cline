@@ -323,3 +323,30 @@ describe("useSessionHistory complete history loading", () => {
 		expect(current.mayHaveMoreSessions).toBe(false);
 	});
 });
+
+describe("useSessionHistory background hydration", () => {
+	it("does not open cloud sessions to enrich sidebar metadata", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				sessionRow("local-session"),
+				{
+					...sessionRow("ses-cloud"),
+					origin: "cloud",
+					executionTarget: "cloud",
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		await flush(801);
+		const hydratedSessionIds = invokeMock.mock.calls
+			.filter(([command]) => command === "read_session_messages")
+			.map(([, args]) => args?.sessionId);
+		expect(hydratedSessionIds).toContain("local-session");
+		expect(hydratedSessionIds).not.toContain("ses-cloud");
+	});
+});

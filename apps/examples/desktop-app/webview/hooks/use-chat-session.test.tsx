@@ -219,6 +219,40 @@ describe("mergeCloudSnapshotWithLive", () => {
 
 		expect(merged.map((item) => item.id)).toEqual(["saved"]);
 	});
+
+	it("replaces a live tool card with its completed snapshot by tool call id", () => {
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				{
+					id: "saved-tool",
+					sessionId: "ses-cloud",
+					role: "tool",
+					content: '{"toolName":"read_files","output":"done"}',
+					createdAt: 2,
+					meta: { toolCallId: "call-1" },
+				},
+			],
+			[
+				{
+					id: "live-tool",
+					sessionId: "ses-cloud",
+					role: "tool",
+					content: '{"toolName":"read_files","output":null}',
+					createdAt: 1,
+					meta: { toolCallId: "call-1" },
+				},
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates: new Map(),
+				preserveUnmatchedLive: true,
+			},
+		);
+
+		expect(merged.map((message) => message.id)).toEqual(["saved-tool"]);
+	});
 });
 
 let container: HTMLDivElement;
