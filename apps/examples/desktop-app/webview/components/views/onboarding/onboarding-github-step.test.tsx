@@ -192,4 +192,80 @@ describe("GitHubConnectStep", () => {
 		expect(container.textContent).not.toContain("Finish installing");
 		expect(buttonByText("Connect GitHub")).toBeDefined();
 	});
+
+	it("stops polling once cancelled instead of leaving the interval running", async () => {
+		mockIntegrationsCommand({
+			list: () => [],
+			githubInstallUrl: () => ({ url: "https://github.com/install" }),
+		});
+		await render();
+		vi.useFakeTimers();
+
+		await act(async () => {
+			buttonByText("Connect GitHub").click();
+		});
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(GITHUB_INSTALL_POLL_INTERVAL_MS);
+		});
+
+		await act(async () => {
+			buttonByText("Cancel").click();
+		});
+		const callsAfterCancel = invoke.mock.calls.length;
+
+		// No further polls may fire after cancelling.
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(GITHUB_INSTALL_POLL_INTERVAL_MS * 5);
+		});
+		expect(invoke.mock.calls.length).toBe(callsAfterCancel);
+	});
+
+	it("stops polling and reports the signed-out session when the account expires", async () => {
+		let signedOut = false;
+		mockIntegrationsCommand({
+			list: () =>
+				signedOut ? { signedIn: false, code: "ACCOUNT_NOT_AUTHENTICATED" } : [],
+			githubInstallUrl: () => ({ url: "https://github.com/install" }),
+		});
+		await render();
+		vi.useFakeTimers();
+
+		await act(async () => {
+			buttonByText("Connect GitHub").click();
+		});
+		expect(container.textContent).toContain("Finish installing");
+
+		signedOut = true;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(GITHUB_INSTALL_POLL_INTERVAL_MS);
+		});
+
+		// Back to the actionable connect state, not a permanent spinner.
+		expect(container.textContent).not.toContain("Finish installing");
+		expect(container.textContent).toContain("Your Cline account session ended");
+		expect(buttonByText("Connect GitHub")).toBeDefined();
+
+		const callsAfterSignOut = invoke.mock.calls.length;
+		await act(async () => {
+			await vi.advanceTimersByTimeAsync(GITHUB_INSTALL_POLL_INTERVAL_MS * 5);
+		});
+		expect(invoke.mock.calls.length).toBe(callsAfterSignOut);
+	});
+
+	it("checks integrations once even when the parent re-renders", async () => {
+		mockIntegrationsCommand({ list: () => [] });
+		const onContinue = vi.fn();
+		await act(async () => {
+			root.render(<GitHubConnectStep onContinue={onContinue} />);
+		});
+		const callsAfterMount = invoke.mock.calls.length;
+		expect(callsAfterMount).toBe(1);
+
+		// A parent re-render passing a brand-new inline callback must not
+		// re-trigger the initial check.
+		await act(async () => {
+			root.render(<GitHubConnectStep onContinue={() => onContinue()} />);
+		});
+		expect(invoke.mock.calls.length).toBe(callsAfterMount);
+	});
 });
