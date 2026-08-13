@@ -72,6 +72,15 @@ export const CONTEXT_WINDOW_OVERFLOW_RECOVERY_FAILED_MESSAGE =
 export const CONTEXT_WINDOW_OVERFLOW_NO_RECOVERY_MESSAGE =
 	"The conversation exceeds the model's context window. Compact the conversation, start a new session, or switch to a model with a larger context window.";
 
+/**
+ * Retries for a turn whose model stream stalled (the provider connection
+ * went silent and the model layer's stall watchdog aborted it — error class
+ * `stream_stalled`). The stalled attempt produced no committed state, so
+ * re-running the request is safe; a fresh connection usually succeeds.
+ */
+const MAX_STREAM_STALL_RETRIES = 2;
+const STREAM_STALL_RETRY_BASE_DELAY_MS = 2_000;
+
 /** Thrown when overflow recovery cannot proceed; carries the terminal text. */
 class ContextWindowOverflowError extends Error {
 	constructor(message: string, providerError: string | undefined) {
@@ -697,7 +706,7 @@ export class AgentRuntime {
 				});
 
 				const { message, finishReason } =
-					await this.generateAssistantMessageWithOverflowRecovery();
+					await this.generateAssistantMessageWithRecovery();
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
@@ -880,6 +889,77 @@ export class AgentRuntime {
 		for (const hook of this.hooks.afterRun) {
 			await hook({ snapshot: this.snapshot(), result });
 		}
+	}
+
+	/**
+	 * Run a model turn with both recovery layers: context-overflow recovery
+	 * (below) and stalled-stream retries. A turn that failed because the
+	 * provider stream went silent (`stream_stalled`, raised by the model
+	 * layer's stall watchdog) committed nothing, so it is retried up to
+	 * {@link MAX_STREAM_STALL_RETRIES} times with a short backoff instead of
+	 * failing the whole run. Turns that stalled *after* producing tool calls
+	 * are not retried — the normal loop executes that partial work (matching
+	 * the errored-stream behavior in `execute`).
+	 */
+	private async generateAssistantMessageWithRecovery(): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}> {
+		for (let attempt = 0; ; attempt++) {
+			const turn = await this.generateAssistantMessageWithOverflowRecovery();
+			const stalled =
+				turn.finishReason === "error" &&
+				this.state.lastErrorClass === "stream_stalled" &&
+				!turn.message.content.some((part) => part.type === "tool-call");
+			if (
+				!stalled ||
+				attempt >= MAX_STREAM_STALL_RETRIES ||
+				this.abortController?.signal.aborted
+			) {
+				return turn;
+			}
+			const providerError = this.state.lastError;
+			this.config.logger?.log?.("Model stream stalled; retrying turn", {
+				severity: "warn",
+				iteration: this.state.iteration,
+				attempt: attempt + 1,
+				maxAttempts: MAX_STREAM_STALL_RETRIES,
+				providerError,
+			});
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message: `model stream stalled — retrying (attempt ${attempt + 1}/${MAX_STREAM_STALL_RETRIES})`,
+				metadata: {
+					kind: "stream_stall_recovery",
+					reason: "stream_stall_recovery",
+					phase: "started",
+					iteration: this.state.iteration,
+					providerError,
+				},
+			});
+			await this.waitBeforeStallRetry(
+				STREAM_STALL_RETRY_BASE_DELAY_MS * (attempt + 1),
+			);
+			this.throwIfAborted();
+		}
+	}
+
+	/** Backoff between stall retries that wakes up immediately on abort. */
+	private async waitBeforeStallRetry(delayMs: number): Promise<void> {
+		const signal = this.abortController?.signal;
+		if (signal?.aborted) {
+			return;
+		}
+		await new Promise<void>((resolve) => {
+			const finish = () => {
+				clearTimeout(timer);
+				signal?.removeEventListener("abort", finish);
+				resolve();
+			};
+			const timer = setTimeout(finish, delayMs);
+			signal?.addEventListener("abort", finish, { once: true });
+		});
 	}
 
 	/**

@@ -21,6 +21,16 @@ export interface ProviderFactoryResult {
 	 * middleware. Leave unset for the defaults.
 	 */
 	retryEmptyResponses?: false | Omit<RetryEmptyResponseOptions, "logger">;
+	/**
+	 * Vendor fallback for the stream-stall watchdog applied at the central
+	 * composition point in `ai-sdk.ts`. A stalled provider stream (an open
+	 * connection that stops delivering chunks) otherwise hangs the agent turn
+	 * forever. Request- and provider-config overrides always win; this field
+	 * only replaces the global defaults — e.g. local backends (Ollama) allow
+	 * longer silences for model loading and prompt processing. Set `false` to
+	 * opt a vendor out entirely.
+	 */
+	stallTimeouts?: false | { firstChunkMs?: number; chunkMs?: number };
 	buildStreamConfig?: (
 		request: GatewayStreamRequest,
 		context: GatewayProviderContext,

@@ -84,6 +84,61 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
+/**
+ * Default bound on the wait for the first content chunk of a model turn.
+ * Generous because hosted reasoning models can queue and process large
+ * prompts for a while before emitting anything.
+ */
+export const DEFAULT_STREAM_FIRST_CHUNK_TIMEOUT_MS = 180_000;
+
+/**
+ * Default bound on the silence between content chunks once a turn has
+ * started streaming. Providers emit deltas continuously while generating;
+ * a multi-minute gap with zero output almost always means the connection
+ * died without the socket closing (half-open TCP, dead proxy hop).
+ */
+export const DEFAULT_STREAM_CHUNK_TIMEOUT_MS = 120_000;
+
+function positiveTimeoutMs(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? Math.floor(value)
+		: undefined;
+}
+
+/**
+ * Resolve the stream-stall watchdog passed to the AI SDK's `timeout` option.
+ * Without it, a provider stream that stops delivering chunks while keeping
+ * the connection open hangs the agent turn forever — the user sees a
+ * permanent "Thinking..." spinner and has to kill the process (ENG report:
+ * frequent with long reasoning turns routed through gateway providers).
+ *
+ * Precedence: request `apiTimeoutMs` (agent config) > provider config
+ * `timeoutMs` > vendor `stallTimeouts` fallback > global defaults. Vendors
+ * can return `stallTimeouts: false` to opt out entirely.
+ */
+export function resolveStreamStallTimeouts(
+	request: Pick<GatewayStreamRequest, "apiTimeoutMs">,
+	config: Pick<GatewayResolvedProviderConfig, "timeoutMs">,
+	vendorFallback?: ProviderFactoryResult["stallTimeouts"],
+): { firstChunkMs: number; chunkMs: number } | undefined {
+	if (vendorFallback === false) {
+		return undefined;
+	}
+	const override =
+		positiveTimeoutMs(request.apiTimeoutMs) ??
+		positiveTimeoutMs(config.timeoutMs);
+	return {
+		firstChunkMs:
+			override ??
+			positiveTimeoutMs(vendorFallback?.firstChunkMs) ??
+			DEFAULT_STREAM_FIRST_CHUNK_TIMEOUT_MS,
+		chunkMs:
+			override ??
+			positiveTimeoutMs(vendorFallback?.chunkMs) ??
+			DEFAULT_STREAM_CHUNK_TIMEOUT_MS,
+	};
+}
+
 function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -1102,7 +1157,41 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "abort") {
-					// abort
+					// The AI SDK emits `abort` both for caller-requested
+					// cancellation and for its internal stall watchdog (the
+					// `timeout` option wired in `createAiSdkProvider`). Caller
+					// aborts keep the silent-finish behavior — the agent loop
+					// already handles them via its own abort signal. A watchdog
+					// abort means the provider connection went silent mid-turn:
+					// surface it as a stream error so the turn fails visibly
+					// (and can be retried) instead of being accepted truncated.
+					if (!request.signal?.aborted) {
+						// The reason is the watchdog's DOMException serialized as
+						// "TimeoutError: Chunk timeout of Nms exceeded" — drop the
+						// error-name prefix, the message already says "timeout".
+						const reason =
+							typeof part.reason === "string" && part.reason.trim().length > 0
+								? part.reason.trim().replace(/^TimeoutError:\s*/, "")
+								: "stream aborted without a reason";
+						const message = `Model stream stalled: ${reason}`;
+						const reported = captureSdkError(context.telemetry, {
+							component: "llms",
+							operation: "provider.stream",
+							error: new Error(message),
+							errorMessage: message,
+							severity: "error",
+							handled: true,
+							context: {
+								providerId: request.providerId,
+								modelId: request.modelId,
+							},
+						});
+						streamError = {
+							message,
+							errorClass: "stream_stalled",
+							reported,
+						};
+					}
 					break;
 				}
 			}
@@ -1312,6 +1401,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const requestConfig = provider.buildStreamConfig
 					? provider.buildStreamConfig(request, context)
 					: buildAiSdkStreamConfig(request, context);
+				const stallTimeouts = resolveStreamStallTimeouts(
+					request,
+					config,
+					provider.stallTimeouts,
+				);
 				recordProviderRequestCapture({
 					stage: "ai_sdk_prompt",
 					request,
@@ -1334,6 +1428,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					...(useSystemOption ? { system: systemPrompt } : {}),
 					...(tools ? { tools } : {}),
 					abortSignal: request.signal,
+					// Stall watchdog: bounds the wait for the first content chunk
+					// and the silence between chunks so a dead provider stream
+					// fails the turn instead of hanging it forever. Fires as an
+					// `abort` stream part handled in `emitAiSdkEvents`.
+					...(stallTimeouts ? { timeout: stallTimeouts } : {}),
 					experimental_repairToolCall: repairMalformedToolCall as never,
 					experimental_telemetry: {
 						isEnabled: langfuse,

@@ -170,6 +170,10 @@ class GatewayModelAdapter implements AgentModel {
 				legacyReasoning,
 				requestedReasoning,
 			),
+			apiTimeoutMs:
+				typeof request.options?.apiTimeoutMs === "number"
+					? request.options.apiTimeoutMs
+					: undefined,
 			signal: request.signal ?? this.defaults?.signal,
 		});
 	}
