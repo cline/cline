@@ -76,7 +76,6 @@ const result = await Bun.build({
 		// dispatchers in the bundle.
 		"@opentui/core",
 		"@opentui/react",
-		"@opentui-ui/dialog",
 		"opentui-spinner",
 		"react",
 		"react/jsx-runtime",

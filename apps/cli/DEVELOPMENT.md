@@ -105,7 +105,7 @@ cline-sdk/
 | CLI Framework | Commander.js | Argument parsing, subcommands |
 | TUI Renderer | OpenTUI (`@opentui/core`) | Native terminal rendering engine (Zig + C ABI) |
 | TUI Components | OpenTUI React (`@opentui/react`) | React 19 reconciler for declarative terminal UI |
-| TUI Dialogs | `@opentui-ui/dialog` | Modal dialog system (model picker, tool approval, etc.) |
+| TUI Dialogs | `src/tui/dialog` (in-repo) | Cline's own modal dialog system (model picker, tool approval, etc.) |
 | Linter/Formatter | Biome | Code quality and formatting |
 | Testing | Vitest | Unit and E2E tests |
 | Logging | Pino | Runtime file logging |
@@ -259,10 +259,10 @@ type ChatEntry =
 
 ### Dialog System
 
-Dialogs use `@opentui-ui/dialog`. The pattern:
+Dialogs use Cline's own dialog system in `src/tui/dialog` (manager, provider, and panel chrome; no external dialog dependency). The pattern:
 
 ```tsx
-import { useDialog } from "@opentui-ui/dialog/react";
+import { useDialog } from "../dialog";
 
 const dialog = useDialog();
 const result = await dialog.choice<string>({
@@ -272,6 +272,8 @@ const result = await dialog.choice<string>({
 ```
 
 Dialog content components receive `resolve` and `dismiss` callbacks through the context. They use `useDialogKeyboard` for keyboard handling scoped to the dialog.
+
+The panel chrome (border, accent, backdrop) is controlled by a dialog variant: `frame` (default), `edge`, `topbar`, `shadow`, or `classic` (the old borderless look). Set the `variant` prop on `DialogProvider`, or override at runtime with the `CLINE_DIALOG_VARIANT` environment variable to compare looks.
 
 Important gotcha: async data loading inside a dialog (via useEffect/useState) causes layout gaps between flex children in OpenTUI. Always fetch data before opening the dialog and pass it as props.
 
@@ -442,8 +444,9 @@ Then attach VS Code or Chrome DevTools to `ws://127.0.0.1:6499`.
 - Packages used by CLI:
   - `@opentui/core` - Native renderer and built-in elements
   - `@opentui/react` - React reconciler (`createRoot`, hooks)
-  - `@opentui-ui/dialog` - Dialog/modal system
   - `opentui-spinner` - Spinner component
+
+Dialogs/modals are implemented in-repo at `src/tui/dialog` (no external dialog package).
 
 ## Publishing
 

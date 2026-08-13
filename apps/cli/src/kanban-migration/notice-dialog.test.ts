@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { resolveMigrationNoticeKeyAction } from "./notice-dialog";
 
-vi.mock("@opentui-ui/dialog/react", () => ({
+vi.mock("../tui/dialog", () => ({
 	useDialogKeyboard: () => undefined,
 }));
 

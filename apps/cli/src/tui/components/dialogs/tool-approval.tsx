@@ -1,6 +1,5 @@
 import type { ToolApprovalRequest } from "@cline/shared";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 import type React from "react";
 import { palette } from "../../palette";
 import {

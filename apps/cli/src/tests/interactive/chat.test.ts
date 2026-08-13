@@ -120,13 +120,12 @@ test.describe("Dialog dismissal - panel is fully removed", () => {
 		);
 	};
 
-	// @opentui-ui/dialog is built against @opentui/core ^0.1.69, whose
-	// Renderable.remove(id) took an id. Core 0.4.x renamed it to
-	// remove(child) and throws on a non-renderable argument, so the
-	// package's removeDialog() aborted before detaching its panel — the React
-	// portal content unmounted, but the imperative grey box stayed on screen
-	// over the chat. Asserting on the panel's background (not its text) is what
-	// distinguishes a leaked box from a clean teardown.
+	// Regression coverage for dialog panel teardown: with the previous
+	// third-party dialog package, an @opentui/core API mismatch left the grey
+	// panel box on screen after the React content unmounted. The dialog system
+	// is now implemented in-repo (src/tui/dialog), but asserting on the
+	// panel's background (not its text) is still what distinguishes a leaked
+	// panel from a clean teardown.
 	test("closing the help dialog removes its grey panel", async ({
 		terminal,
 	}) => {

@@ -1,4 +1,4 @@
-import type { DialogActions, DialogId } from "@opentui-ui/dialog/react";
+import type { DialogActions, DialogId } from "../../dialog";
 import { describe, expect, it } from "vitest";
 import { withShownDialog } from "./loading-dialog-lifecycle";
 

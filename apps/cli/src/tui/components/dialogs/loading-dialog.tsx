@@ -1,9 +1,5 @@
 // @jsxImportSource @opentui/react
-import type {
-	DialogId,
-	DialogSize,
-	DialogStyle,
-} from "@opentui-ui/dialog/react";
+import type { DialogId, DialogSize, DialogStyle } from "../../dialog";
 import "opentui-spinner/react";
 import {
 	type LoadingDialogActions,

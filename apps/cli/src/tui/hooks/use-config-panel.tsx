@@ -1,6 +1,5 @@
 import { Llms } from "@cline/core";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import type { DialogActions } from "@opentui-ui/dialog/react";
+import type { ChoiceContext, DialogActions } from "../dialog";
 import { useCallback, useMemo } from "react";
 import type {
 	InteractiveConfigData,

@@ -7,8 +7,7 @@ import {
 	resolveProviderConfig,
 } from "@cline/core";
 import { isClineProvider } from "@cline/shared";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import type { DialogActions } from "@opentui-ui/dialog/react";
+import type { ChoiceContext, DialogActions } from "../dialog";
 import { useCallback } from "react";
 import { isOpenAICodexCliProvider } from "../../utils/codex-cli";
 import {

@@ -1,7 +1,6 @@
 import { readGlobalSettings, setAutoUpdateEnabledGlobally } from "@cline/core";
 import { useTerminalDimensions } from "@opentui/react";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../dialog";
 import { useEffect, useMemo, useState } from "react";
 import type {
 	InteractiveConfigData,
