@@ -5,6 +5,28 @@ import type {
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
+const GITHUB_INSTALL_HOST = "github.com";
+
+function resolveInstallRedirect(location: string, requestUrl: URL): string {
+	let resolved: URL;
+	try {
+		resolved = new URL(location, requestUrl);
+	} catch {
+		throw new Error(`GitHub install redirect is not a valid URL: ${location}`);
+	}
+	if (resolved.protocol !== "https:") {
+		throw new Error(
+			`GitHub install redirect must use https, got: ${resolved.protocol}`,
+		);
+	}
+	if (resolved.hostname !== GITHUB_INSTALL_HOST) {
+		throw new Error(
+			`GitHub install redirect pointed at an unexpected host: ${resolved.hostname}`,
+		);
+	}
+	return resolved.toString();
+}
+
 export interface ClineIntegrationsRequestOptions {
 	apiBaseUrl: string;
 	/** Frontend origin the browser install flow returns to when it finishes. */
@@ -59,7 +81,7 @@ export async function resolveGitHubInstallUrl(
 
 		const location = response.headers.get("location");
 		if (response.status >= 300 && response.status < 400 && location?.trim()) {
-			return { url: location };
+			return { url: resolveInstallRedirect(location.trim(), installUrl) };
 		}
 
 		const text = await response.text().catch(() => "");

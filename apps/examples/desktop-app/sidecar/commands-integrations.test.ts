@@ -141,6 +141,66 @@ describe("resolveGitHubInstallUrl", () => {
 		expect(init.redirect).toBe("manual");
 	});
 
+	it("resolves a relative redirect location against the request URL", async () => {
+		const fetchImpl = vi.fn().mockResolvedValue(
+			new Response(null, {
+				status: 302,
+				headers: { location: "//github.com/apps/cline/installations/new" },
+			}),
+		);
+
+		const result = await resolveGitHubInstallUrl(requestOptions(fetchImpl));
+
+		// A bare relative Location would blow up later in the URL opener.
+		expect(result).toEqual({
+			url: "https://github.com/apps/cline/installations/new",
+		});
+	});
+
+	it.each([
+		["https://evil.example/apps/cline", "evil.example"],
+		["https://github.com.evil.example/apps/cline", "github.com.evil.example"],
+		// Subdomains are not part of the install flow, so they are not allowed
+		// either -- the host must be exactly github.com.
+		["https://gist.github.com/apps/cline", "gist.github.com"],
+	])("rejects a redirect to a non-GitHub host (%s)", async (location, host) => {
+		const fetchImpl = vi
+			.fn()
+			.mockResolvedValue(
+				new Response(null, { status: 302, headers: { location } }),
+			);
+
+		await expect(
+			resolveGitHubInstallUrl(requestOptions(fetchImpl)),
+		).rejects.toThrow(`unexpected host: ${host}`);
+	});
+
+	it("rejects a redirect that does not use https", async () => {
+		const fetchImpl = vi.fn().mockResolvedValue(
+			new Response(null, {
+				status: 302,
+				headers: { location: "http://github.com/apps/cline" },
+			}),
+		);
+
+		await expect(
+			resolveGitHubInstallUrl(requestOptions(fetchImpl)),
+		).rejects.toThrow("must use https");
+	});
+
+	it("rejects a redirect location that is not a usable URL", async () => {
+		const fetchImpl = vi.fn().mockResolvedValue(
+			new Response(null, {
+				status: 302,
+				headers: { location: "http://" },
+			}),
+		);
+
+		await expect(
+			resolveGitHubInstallUrl(requestOptions(fetchImpl)),
+		).rejects.toThrow("not a valid URL");
+	});
+
 	it("throws when the install endpoint does not answer with a redirect", async () => {
 		const fetchImpl = vi
 			.fn()

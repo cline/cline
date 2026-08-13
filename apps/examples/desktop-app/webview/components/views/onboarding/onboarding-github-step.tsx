@@ -2,7 +2,7 @@
 
 import { GitHubIcon } from "@cline/ui";
 import { Loader2, Lock } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +23,11 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 	const [connectError, setConnectError] = useState<string | null>(null);
 	const [repos, setRepos] = useState<ClineGitHubRepository[] | null>(null);
 
+	const onContinueRef = useRef(onContinue);
+	useEffect(() => {
+		onContinueRef.current = onContinue;
+	}, [onContinue]);
+
 	useEffect(() => {
 		let cancelled = false;
 		void (async () => {
@@ -35,7 +40,7 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 					result.status === "not-authenticated" ||
 					findGitHubIntegration(result.integrations)
 				) {
-					onContinue();
+					onContinueRef.current();
 					return;
 				}
 				setPhase("connect");
@@ -48,7 +53,7 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 		return () => {
 			cancelled = true;
 		};
-	}, [onContinue]);
+	}, []);
 
 	useEffect(() => {
 		// The install finishes in the external browser, which cannot navigate the
@@ -58,23 +63,42 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 		}
 		let cancelled = false;
 		let inFlight = false;
+		let interval: ReturnType<typeof setInterval> | undefined;
+		const stop = () => {
+			cancelled = true;
+			if (interval !== undefined) {
+				clearInterval(interval);
+				interval = undefined;
+			}
+		};
+
 		async function poll() {
 			try {
 				const result = await listClineIntegrations();
-				if (cancelled || result.status !== "ok") {
+				if (cancelled) {
+					return;
+				}
+				if (result.status === "not-authenticated") {
+					// The account session ended mid-install. Nothing will ever
+					// arrive, so stop polling instead of spinning forever.
+					stop();
+					setConnectError(
+						"Your Cline account session ended. Sign in again to connect GitHub.",
+					);
+					setPhase("connect");
 					return;
 				}
 				if (findGitHubIntegration(result.integrations)) {
 					setPhase("connected");
 				}
 			} catch {
-				// Transient failures keep polling; the user can skip anytime.
+				// Transient failures keep polling; the user can cancel anytime.
 			} finally {
 				inFlight = false;
 			}
 		}
 
-		const interval = setInterval(() => {
+		interval = setInterval(() => {
 			if (inFlight) {
 				return;
 			}
@@ -82,10 +106,8 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 			void poll();
 		}, GITHUB_INSTALL_POLL_INTERVAL_MS);
 
-		return () => {
-			cancelled = true;
-			clearInterval(interval);
-		};
+		// Covers unmount and every phase change, including the Cancel button.
+		return stop;
 	}, [phase]);
 
 	useEffect(() => {
@@ -116,7 +138,8 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 			const url = await fetchGitHubInstallUrl();
 			await openExternalUrl(url);
 		} catch (error) {
-			setConnectError(error instanceof Error ? error.message : String(error));
+			const reason = error instanceof Error ? error.message : String(error);
+			setConnectError(`Failed to start the GitHub connection: ${reason}`);
 			setPhase("connect");
 		}
 	}, []);
@@ -191,7 +214,7 @@ export function GitHubConnectStep({ onContinue }: { onContinue: () => void }) {
 
 				{connectError ? (
 					<p className="mt-2 text-xs text-destructive" role="alert">
-						Failed to start the GitHub connection: {connectError}
+						{connectError}
 					</p>
 				) : null}
 
