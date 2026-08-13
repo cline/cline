@@ -23,7 +23,7 @@ Use this page for providers that follow the same setup pattern.
   - [Hugging Face](#hugging-face)
   - [Mistral](#mistral)
   - [Moonshot](#moonshot)
-  - [Nebius AI Studio](#nebius-ai-studio)
+  - [Nebius Token Factory](#nebius-token-factory)
   - [Nous Research](#nous-research)
   - [Oracle Code Assist](#oracle-code-assist)
   - [Qwen Code](#qwen-code)
@@ -200,16 +200,21 @@ Moonshot provides API access to Kimi model families.
 2. Create an API key in account settings.
 3. In Cline, select **Moonshot** and enter the key.
 
-### Nebius AI Studio
-Nebius AI Studio offers managed hosted model APIs.
+### Nebius Token Factory
 
-**Website:** [https://studio.nebius.com/](https://studio.nebius.com/)
+Nebius Token Factory provides OpenAI-compatible hosted inference for models available to your project. Cline uses its existing Nebius provider and Chat Completions integration; no custom base URL is required.
+
+**Website:** [https://tokenfactory.nebius.com/](https://tokenfactory.nebius.com/)
+
+**Integration guide:** [Cline with Nebius Token Factory](https://docs.tokenfactory.nebius.com/integrations/coding/cline)
 
 #### Basic Setup
 
-1. Create/sign in to Nebius AI Studio.
-2. Generate API credentials.
-3. In Cline, choose **Nebius AI Studio** and provide the credential.
+1. [Create a Token Factory API key](https://tokenfactory.nebius.com/project/api-keys).
+2. In Cline, choose **Nebius Token Factory** and paste the key.
+3. Choose a model from Cline's model picker.
+
+Cline's Nebius provider and model catalog are generated from [models.dev](https://models.dev/). Because model availability can change, avoid copying a static model list from this page. Use Cline's current picker and, when you need to confirm project-specific availability, consult Token Factory's [`GET /v1/models`](https://docs.tokenfactory.nebius.com/api-reference/models/list-models) endpoint.
 
 ### Nous Research
 Nous Research provides access to Hermes-family model offerings.
