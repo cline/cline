@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import {
 	type AgentToolContext,
 	type BasicLogger,
@@ -238,6 +238,18 @@ function handleAgentEvent(
 			}
 			if (event.contentType === "image" && event.image) {
 				emitChunk(ctx, sessionId, "chat_image", JSON.stringify(event.image));
+				break;
+			}
+			if (event.contentType === "video" && event.video) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_video",
+					JSON.stringify({
+						mediaType: event.video.mediaType,
+						artifactName: basename(event.video.path),
+					}),
+				);
 				break;
 			}
 			if (event.contentType === "tool") {
@@ -726,6 +738,10 @@ export function handleHubLiveEvent(
 					}),
 				);
 			}
+			return;
+		}
+		case "assistant.video": {
+			// Video events follow the same canonical HubRuntimeHost projection path.
 			return;
 		}
 		case "reasoning.delta": {

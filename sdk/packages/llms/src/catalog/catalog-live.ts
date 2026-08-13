@@ -99,6 +99,18 @@ const MODELS_DEV_IMAGE_MODEL_ENDPOINT_UNSUPPORTED_PROVIDER_IDS = new Set([
 	"poe",
 ]);
 
+// Dedicated video models require a provider factory that exposes AI SDK's
+// VideoModel interface. Other providers may still expose mixed text/video
+// language models through their normal streaming endpoint.
+const DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS: ReadonlySet<string> = new Set([
+	"gemini",
+	"vercel-ai-gateway",
+]);
+
+export function supportsDedicatedVideoEndpoint(providerId: string): boolean {
+	return DEDICATED_VIDEO_ENDPOINT_PROVIDER_IDS.has(providerId);
+}
+
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
 		return Number.NEGATIVE_INFINITY;
@@ -258,7 +270,7 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (!output.includes("image")) {
+	if (!output.includes("image") && !output.includes("video")) {
 		return undefined;
 	}
 	return { input, output };
@@ -267,7 +279,8 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("text") === true &&
-		model.modalities.output?.includes("image") === true
+		(model.modalities.output?.includes("image") === true ||
+			model.modalities.output?.includes("video") === true)
 	);
 }
 
@@ -276,6 +289,13 @@ function isDedicatedImageModel(model: ModelsDevModel): boolean {
 		model.modalities?.output?.includes("image") === true &&
 		(model.modalities.output.includes("text") !== true ||
 			model.family?.trim().toLowerCase() === "gpt-image")
+	);
+}
+
+function isDedicatedVideoModel(model: ModelsDevModel): boolean {
+	return (
+		model.modalities?.output?.includes("video") === true &&
+		model.modalities.output.includes("text") !== true
 	);
 }
 
@@ -307,6 +327,15 @@ function isChatModel(model: ModelInfo): boolean {
 		(model.modalities === undefined ||
 			model.modalities.input.includes("text")) &&
 		(model.modalities === undefined || model.modalities.output.includes("text"))
+	);
+}
+
+function hasSupportedDedicatedVideoEndpoint(
+	providerId: string,
+	model: ModelsDevModel,
+): boolean {
+	return (
+		!isDedicatedVideoModel(model) || supportsDedicatedVideoEndpoint(providerId)
 	);
 }
 
@@ -383,6 +412,7 @@ export function normalizeModelsDevProviderModels(
 				(isDedicatedImageModel(model) &&
 					!providerSupportsDedicatedImageModels(source, targetProviderId)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
+				!hasSupportedDedicatedVideoEndpoint(targetProviderId, model) ||
 				isDeprecatedModel(model)
 			) {
 				continue;

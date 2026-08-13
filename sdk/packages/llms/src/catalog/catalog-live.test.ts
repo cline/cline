@@ -169,6 +169,104 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
+	it("keeps dedicated video models for providers with a video endpoint", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			google: {
+				id: "google",
+				name: "Google",
+				models: {
+					"video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"image-to-video-model": {
+						tool_call: false,
+						modalities: { input: ["text", "image"], output: ["video"] },
+					},
+				},
+			},
+			vercel: {
+				id: "vercel",
+				name: "Vercel AI Gateway",
+				models: {
+					"gateway-video-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+				},
+			},
+		});
+		expect(providerModels.gemini).toMatchObject({
+			"video-model": {
+				modalities: { input: ["text"], output: ["video"] },
+			},
+			"image-to-video-model": {
+				modalities: { input: ["text", "image"], output: ["video"] },
+			},
+		});
+		expect(providerModels["vercel-ai-gateway"]).toMatchObject({
+			"gateway-video-model": {
+				modalities: { input: ["text"], output: ["video"] },
+			},
+		});
+	});
+
+	it("omits unsupported dedicated video models but keeps mixed and tool-capable models", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			openai: {
+				id: "openai",
+				name: "OpenAI",
+				models: {
+					"dedicated-video": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"tool-flagged-dedicated-video": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["video"] },
+					},
+					"image-to-video": {
+						tool_call: false,
+						modalities: { input: ["image"], output: ["video"] },
+					},
+					"mixed-video": {
+						tool_call: false,
+						modalities: {
+							input: ["text"],
+							output: ["text", "video"],
+						},
+					},
+					"tool-capable-video": {
+						tool_call: true,
+						modalities: {
+							input: ["text", "video"],
+							output: ["text", "video"],
+						},
+					},
+				},
+			},
+		});
+
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"tool-flagged-dedicated-video",
+		);
+		expect(providerModels["openai-native"]).not.toHaveProperty(
+			"image-to-video",
+		);
+		expect(providerModels["openai-native"]).toMatchObject({
+			"mixed-video": {
+				modalities: { input: ["text"], output: ["text", "video"] },
+			},
+			"tool-capable-video": expect.objectContaining({
+				capabilities: expect.arrayContaining(["tools", "video"]),
+				modalities: { input: ["text", "video"], output: ["text", "video"] },
+			}),
+		});
+	});
+
 	it("only admits dedicated image models for provider families with an image model factory", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			"extra-router": {

@@ -851,6 +851,7 @@ export {
 export type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
@@ -860,6 +861,7 @@ export {
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
+	ChatMessageVideoSchema,
 	ChatSessionConfigSchema,
 	ChatSessionStatusSchema,
 	ChatSummarySchema,

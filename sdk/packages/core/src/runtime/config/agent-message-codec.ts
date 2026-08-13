@@ -12,6 +12,7 @@ import type {
 	ThinkingContent,
 	ToolResultContent,
 	ToolUseContent,
+	VideoContent,
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
 
@@ -197,6 +198,8 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
+		case "video":
+			return { type: "video", path: block.path, mediaType: block.mediaType };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
 		case "tool_use":
@@ -260,6 +263,14 @@ function agentPartToContentBlock(
 						data: part.image,
 						mediaType: part.mediaType ?? "image/png",
 					} satisfies ImageContent)
+				: undefined;
+		case "video":
+			return part.path
+				? ({
+						type: "video",
+						path: part.path,
+						mediaType: part.mediaType,
+					} satisfies VideoContent)
 				: undefined;
 		case "file":
 			return {

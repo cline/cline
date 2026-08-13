@@ -132,6 +132,37 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("stores generated videos through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			path: "/sessions/session-1/artifacts/video.mp4",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Animate a lighthouse");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			kind: "video",
+			data: "dmlkZW8=",
+			mediaType: "video/mp4",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "video",
+					path: "/sessions/session-1/artifacts/video.mp4",
+					mediaType: "video/mp4",
+				},
+			],
+		});
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),
