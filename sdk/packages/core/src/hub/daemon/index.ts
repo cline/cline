@@ -23,7 +23,6 @@ import {
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
-	resolveHubBuildId,
 	withHubStartupLock,
 	writeHubDiscovery,
 } from "../discovery";
@@ -42,6 +41,40 @@ const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
 const HUB_SPAWN_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
 const COMPILED_BUN_HUB_DAEMON_ARG = "--cline-hub-daemon";
+const HUB_RETIRE_ATTEMPT_LIMIT = 3;
+const HUB_RETIRE_ATTEMPT_WINDOW_MS = 60_000;
+
+const retireAttemptsByUrl = new Map<
+	string,
+	{ count: number; windowStartedAt: number }
+>();
+
+/**
+ * Circuit breaker on repeated retirements of the same Hub URL.
+ *
+ * Build ordering already guarantees that only one side of a pair can decide to
+ * retire, so a healthy install retires a given URL once. Retiring the same URL
+ * over and over means something upstream is wrong, and the failure mode is
+ * severe: long-lived clients (sidecars, interactive CLI sessions) tear each
+ * other's daemon down in a tight loop and every session dies with an abnormal
+ * socket close. Backing off after a few attempts keeps a future ordering bug to
+ * a stale-build prompt instead of an unusable Hub.
+ */
+export const __test__ = {
+	resetRetireAttempts(): void {
+		retireAttemptsByUrl.clear();
+	},
+};
+
+function shouldAttemptRetire(url: string, now = Date.now()): boolean {
+	const entry = retireAttemptsByUrl.get(url);
+	if (!entry || now - entry.windowStartedAt > HUB_RETIRE_ATTEMPT_WINDOW_MS) {
+		retireAttemptsByUrl.set(url, { count: 1, windowStartedAt: now });
+		return true;
+	}
+	entry.count += 1;
+	return entry.count <= HUB_RETIRE_ATTEMPT_LIMIT;
+}
 
 function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 	return [
@@ -70,7 +103,7 @@ function resolveDefaultHubOwnerContext() {
 }
 
 function isReusableHubRecord(record: HubServerProbeRecord): boolean {
-	return isManagedHubReusable(record, { expectedBuildId: resolveHubBuildId() });
+	return isManagedHubReusable(record);
 }
 
 function withMatchingDiscoveryRetirementMetadata(
@@ -118,6 +151,9 @@ async function retireDiscoveredHub(
 	record: { url: string; authToken?: string; pid?: number },
 	discoveryPath: string,
 ): Promise<boolean> {
+	if (!shouldAttemptRetire(record.url)) {
+		return false;
+	}
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
 	if (record.pid) {
 		try {
