@@ -34,13 +34,6 @@ export interface ClineWebSearchOptions {
 export interface ClineProviderOptions {
 	apiKey?: string;
 	baseURL: string;
-	/**
-	 * AI SDK provider name, used as the `providerOptions` lookup key for
-	 * request-body passthrough. Must match the gateway provider id ("cline" or
-	 * "cline-pass") so options routed under that id (e.g. gateway reasoning)
-	 * reach the wire. Defaults to "cline".
-	 */
-	name?: string;
 	headers?: Record<string, string>;
 	fetch?: typeof fetch;
 	onResponseError?: (response: Response) => Promise<void> | void;
@@ -188,7 +181,10 @@ export interface ClineProvider {
 export function createCline(options: ClineProviderOptions): ClineProvider {
 	const providerFetch = createClineFetch(options);
 	const compatible = createOpenAICompatible({
-		name: options.name ?? "cline",
+		// Both Cline gateway providers ("cline" and "cline-pass") share this AI
+		// SDK provider and the same Cline API; option routing keys their
+		// providerOptions to the "cline" bucket (see buildProviderAndAliasPatch).
+		name: "cline",
 		baseURL: withoutTrailingSlash(options.baseURL),
 		apiKey: options.apiKey,
 		headers: options.headers,
@@ -227,15 +223,11 @@ function readResponseErrorHandler(
 
 export async function createClineProviderModule(
 	config: GatewayResolvedProviderConfig,
-	context: GatewayProviderContext,
+	_context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	const cline = createCline({
 		apiKey: await resolveApiKey(config),
 		baseURL: config.baseUrl ?? "https://api.cline.bot/api/v1",
-		// Keep the provider name aligned with the gateway provider id so
-		// provider options emitted under "cline-pass"/"clinePass" buckets are
-		// still applied when this module serves ClinePass.
-		name: context.provider.id,
 		headers: config.headers,
 		fetch: config.fetch,
 		onResponseError: readResponseErrorHandler(config),

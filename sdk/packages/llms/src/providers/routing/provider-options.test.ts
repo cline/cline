@@ -594,22 +594,21 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "ClinePass-routed Sonnet 4.5 -> gateway reasoning under provider-id and alias buckets",
+			// ClinePass is served by the shared "cline" AI SDK provider (same
+			// Cline API), which only reads the "cline" providerOptions bucket.
+			// Uses an explicit budget because effort-based reasoning is portable
+			// and never reaches provider-option buckets.
+			name: "ClinePass-routed Sonnet 4.5 budget -> gateway reasoning under the shared cline bucket",
 			request: {
 				providerId: "cline-pass",
 				modelId: "anthropic/claude-sonnet-4-5",
-				reasoning: { enabled: true, effort: "low" },
+				reasoning: { enabled: true, budgetTokens: 2048 },
 			},
 			context: { family: "claude-sonnet" },
 			expect: [
 				{
-					bucket: "cline-pass",
-					has: { reasoning: { enabled: true, max_tokens: 1024 } },
-					lacks: ["thinking"],
-				},
-				{
-					bucket: "clinePass",
-					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					bucket: "cline",
+					has: { reasoning: { enabled: true, max_tokens: 2048 } },
 					lacks: ["thinking"],
 				},
 			],
@@ -2526,5 +2525,33 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.vertex).not.toHaveProperty("reasoningEffort");
 		expect(result.vertex).not.toHaveProperty("reasoningSummary");
 		expect(result.google).toBeUndefined();
+	});
+});
+
+describe("composeAiSdkProviderOptions: ClinePass bucket normalization", () => {
+	it("keys ClinePass options to the shared cline bucket only", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 2048 },
+			}),
+			makeContext({
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		// The shared "cline" AI SDK provider serves both gateway ids and only
+		// reads the "cline" providerOptions bucket, so nothing may be emitted
+		// under the concrete "cline-pass" id or its camelCase alias.
+		expect(result.cline).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 2048 },
+			}),
+		);
+		expect(result).not.toHaveProperty("cline-pass");
+		expect(result).not.toHaveProperty("clinePass");
 	});
 });

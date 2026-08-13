@@ -1,5 +1,10 @@
-import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type {
+	GatewayProviderContext,
+	GatewayResolvedProviderConfig,
+	GatewayStreamRequest,
+} from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { composeAiSdkProviderOptions } from "../routing/provider-options";
 import { createCline, createClineProviderModule } from "./cline";
 
 describe("createCline", () => {
@@ -116,8 +121,8 @@ describe("createCline", () => {
 	it.each([
 		"cline",
 		"cline-pass",
-	])("applies %s provider-options buckets to the request body", async (providerId) => {
-		const modelId = "anthropic/claude-sonnet-4.6";
+	])("routes composed %s gateway reasoning onto the request body", async (providerId) => {
+		const modelId = "anthropic/claude-sonnet-4-5";
 		fetchMock.mockResolvedValue(jsonCompletionResponse(modelId));
 		const module = await createClineProviderModule(
 			{
@@ -132,21 +137,56 @@ describe("createCline", () => {
 			doGenerate: (options: unknown) => Promise<unknown>;
 		};
 
-		// The gateway routes Cline options under the concrete provider id
-		// and its camelCase alias (see clineGatewayReasoningRule +
-		// buildProviderAndAliasPatch). The provider name must match the
-		// provider id for these to reach the wire.
-		const bucket = { reasoning: { enabled: true, max_tokens: 1024 } };
+		// Cross-layer contract: option routing must emit gateway reasoning into
+		// the providerOptions bucket the shared "cline" AI SDK provider reads.
+		// Both gateway ids ("cline" and "cline-pass") hit the same Cline API
+		// through this provider, so their options key to the "cline" bucket.
+		// Uses an explicit budget because effort-based reasoning is portable
+		// and travels via the AI SDK top-level option, not provider options.
+		const request: GatewayStreamRequest = {
+			providerId,
+			modelId,
+			messages: [
+				{
+					id: "msg-1",
+					role: "user",
+					content: [{ type: "text", text: "hi" }],
+					createdAt: 0,
+				},
+			],
+			reasoning: { enabled: true, budgetTokens: 2048 },
+		};
+		const context = {
+			provider: {
+				id: providerId,
+				name: providerId,
+				defaultModelId: modelId,
+				models: [],
+				metadata: {
+					routing: {
+						reasoning: {
+							format: "anthropic-thinking",
+							routes: [{ matcher: "anthropic-compatible" }],
+						},
+					},
+				},
+			},
+			model: {
+				id: modelId,
+				name: modelId,
+				providerId,
+				metadata: { family: "claude-sonnet" },
+			},
+			config: { providerId },
+		} as GatewayProviderContext;
+
 		await model.doGenerate({
 			prompt: [{ role: "user", content: [{ type: "text", text: "hi" }] }],
-			providerOptions:
-				providerId === "cline"
-					? { cline: bucket }
-					: { "cline-pass": bucket, clinePass: bucket },
+			providerOptions: composeAiSdkProviderOptions(request, context),
 		});
 
 		const body = capturedRequestBody(fetchMock);
-		expect(body.reasoning).toEqual({ enabled: true, max_tokens: 1024 });
+		expect(body.reasoning).toEqual({ enabled: true, max_tokens: 2048 });
 	});
 
 	it("keeps max_tokens for non-reasoning models", async () => {
