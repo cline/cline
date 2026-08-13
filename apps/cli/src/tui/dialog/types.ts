@@ -7,29 +7,6 @@ export type DialogId = string | number;
 
 export type DialogSize = "small" | "medium" | "large" | "full";
 
-/**
- * Visual chrome applied to every dialog.
- *
- * Docked concepts (the app stays visible behind a light dim):
- * - "dock" (default): bottom sheet spanning the full width
- * - "drawer": right-hand side panel spanning the full height
- * - "hud": drop-down console anchored to the top
- *
- * Other concepts kept for comparison: "pages" (full-screen subpage
- * takeover) and the centered floating panels "frame", "edge", "topbar",
- * "shadow", and "classic" (the old borderless third-party look).
- */
-export type DialogVariant =
-	| "dock"
-	| "drawer"
-	| "hud"
-	| "pages"
-	| "frame"
-	| "edge"
-	| "topbar"
-	| "shadow"
-	| "classic";
-
 export interface DialogStyle {
 	backgroundColor?: string;
 	width?: number;

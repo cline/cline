@@ -273,7 +273,7 @@ const result = await dialog.choice<string>({
 
 Dialog content components receive `resolve` and `dismiss` callbacks through the context. They use `useDialogKeyboard` for keyboard handling scoped to the dialog.
 
-The dialog chrome is controlled by a dialog variant. The docked concepts keep the conversation visible behind a light dim: `dock` (default, full-width bottom sheet), `drawer` (full-height right side panel), and `hud` (drop-down console from the top). Also available: `pages` (opaque full-screen subpage takeover) and the centered floating panels `frame`, `edge`, `topbar`, `shadow`, and `classic` (the old borderless look). Set the `variant` prop on `DialogProvider`, or override at runtime with the `CLINE_DIALOG_VARIANT` environment variable to compare looks.
+Dialogs render as full-width bottom sheets docked to the bottom edge of the terminal, under a heavy accent line that follows the active theme. The conversation stays visible above the sheet behind a light dim. The sheet chrome lives in `src/tui/dialog/panel.tsx`.
 
 Important gotcha: async data loading inside a dialog (via useEffect/useState) causes layout gaps between flex children in OpenTUI. Always fetch data before opening the dialog and pass it as props.
 

@@ -16,19 +16,8 @@ import {
 	useSyncExternalStore,
 } from "react";
 import { DialogManager } from "./manager";
-import type {
-	DialogActions,
-	DialogId,
-	DialogSize,
-	DialogState,
-	DialogVariant,
-} from "./types";
-import {
-	DEFAULT_DIALOG_VARIANT,
-	DialogPanel,
-	getVariantChrome,
-	normalizeDialogVariant,
-} from "./variants";
+import { BACKDROP_COLOR, BACKDROP_OPACITY, DialogPanel } from "./panel";
+import type { DialogActions, DialogId, DialogSize, DialogState } from "./types";
 
 const DialogContext = createContext<DialogManager | null>(null);
 
@@ -100,30 +89,19 @@ export function useDialogKeyboard(
 
 export interface DialogProviderProps {
 	children: ReactNode;
-	/** Default panel width preset; individual dialogs may override. */
+	/** Default sheet content width preset; individual dialogs may override. */
 	size?: DialogSize;
-	/**
-	 * Visual chrome for all dialogs. The CLINE_DIALOG_VARIANT environment
-	 * variable overrides this, which makes comparing looks easy.
-	 */
-	variant?: DialogVariant;
 }
 
 /**
- * Cline's own dialog layer: renders a dimmed backdrop plus centered panels
- * for every open dialog, and provides useDialog()/useDialogState() to the
- * subtree. Replaces the previous @opentui-ui/dialog dependency.
+ * Cline's own dialog layer: dialogs render as full-width bottom sheets over
+ * a lightly dimmed conversation, and the subtree gets useDialog() and
+ * useDialogState(). Replaces the previous @opentui-ui/dialog dependency.
  */
 export function DialogProvider(props: DialogProviderProps) {
 	const renderer = useRenderer();
 	const { width, height } = useTerminalDimensions();
 	const [manager] = useState(() => new DialogManager(renderer));
-	const [variant] = useState<DialogVariant>(
-		() =>
-			normalizeDialogVariant(process.env.CLINE_DIALOG_VARIANT) ??
-			props.variant ??
-			DEFAULT_DIALOG_VARIANT,
-	);
 
 	useEffect(() => {
 		return () => {
@@ -151,11 +129,10 @@ export function DialogProvider(props: DialogProviderProps) {
 	});
 
 	const backdropColor = useMemo(() => {
-		const chrome = getVariantChrome(variant);
-		const rgba = parseColor(topDialog?.backdropColor ?? chrome.backdropColor);
-		rgba.a = topDialog?.backdropOpacity ?? chrome.backdropOpacity;
+		const rgba = parseColor(topDialog?.backdropColor ?? BACKDROP_COLOR);
+		rgba.a = topDialog?.backdropOpacity ?? BACKDROP_OPACITY;
 		return rgba;
-	}, [variant, topDialog]);
+	}, [topDialog]);
 
 	const handleBackdropClick = useCallback(() => {
 		const top = manager.getTopDialog();
@@ -179,31 +156,24 @@ export function DialogProvider(props: DialogProviderProps) {
 					width={width}
 					height={height}
 					zIndex={9998}
-					alignItems="center"
-					justifyContent="center"
 				>
-					{variant !== "pages" && (
-						// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input.
-						<box
-							position="absolute"
-							left={0}
-							top={0}
-							width={width}
-							height={height}
-							backgroundColor={backdropColor}
-							onMouseUp={handleBackdropClick}
-						/>
-					)}
-					{dialogs.map((record, index) => (
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input. */}
+					<box
+						position="absolute"
+						left={0}
+						top={0}
+						width={width}
+						height={height}
+						backgroundColor={backdropColor}
+						onMouseUp={handleBackdropClick}
+					/>
+					{dialogs.map((record) => (
 						<DialogPanel
 							key={String(record.id)}
 							record={record}
-							variant={variant}
 							defaultSize={props.size}
 							terminalWidth={width}
 							terminalHeight={height}
-							stackIndex={index + 1}
-							stackDepth={dialogs.length}
 						/>
 					))}
 				</box>
