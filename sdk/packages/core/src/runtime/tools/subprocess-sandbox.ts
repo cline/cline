@@ -7,7 +7,6 @@ import {
 import {
 	MAX_NODE_TIMER_DELAY_MS,
 	normalizeIdleTimeoutMs,
-	SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV,
 } from "./subprocess-sandbox-lifecycle";
 
 interface SandboxCallMessage {
@@ -202,6 +201,11 @@ export class SubprocessSandbox {
 		return false;
 	}
 
+	/**
+	 * The parent is the sole idle-lifecycle authority. A matching child-side
+	 * deadline can fire just before this timer and drop a newly dispatched RPC.
+	 * Children should independently handle only parent IPC disconnection.
+	 */
 	private armIdleTimer(child: ChildProcess): void {
 		if (this.process !== child) {
 			return;
@@ -258,20 +262,12 @@ export class SubprocessSandbox {
 			name: this.options.name,
 			runtimeExecutable: this.options.runtimeExecutable,
 		});
-		const childEnv = { ...withResolvedClineBuildEnv(process.env) };
-		if (this.idleTimeoutMs === undefined) {
-			delete childEnv[SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV];
-		} else {
-			childEnv[SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV] = String(
-				this.idleTimeoutMs,
-			);
-		}
 		const child = spawn(
 			command[0] ?? resolveSubprocessRuntimeExecutable(this.options),
 			command.slice(1),
 			{
 				stdio: ["ignore", "ignore", "pipe", "ipc"],
-				env: childEnv,
+				env: withResolvedClineBuildEnv(process.env),
 				// Prevent a console window from flashing on Windows.
 				windowsHide: true,
 			},

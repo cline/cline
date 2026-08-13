@@ -16,12 +16,7 @@ import {
 	normalizePluginManifest,
 	type PluginManifest,
 } from "@cline/shared";
-import {
-	IdleExitController,
-	installParentDisconnectGuard,
-	parseIdleTimeoutMs,
-	SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV,
-} from "../../runtime/tools/subprocess-sandbox-lifecycle";
+import { installParentDisconnectGuard } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -333,10 +328,6 @@ function assertValidPluginSetupCtx(
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
 const contributionCounters = new Map<string, number>();
-const idleExitController = new IdleExitController(() => process.exit(0));
-idleExitController.configure(
-	parseIdleTimeoutMs(process.env[SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV]),
-);
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -907,23 +898,18 @@ process.on(
 		if (!message || message.type !== "call") {
 			return;
 		}
-		idleExitController.beginCall();
+		const method = methods[message.method];
+		if (!method) {
+			sendResponse(message.id, false, undefined, {
+				message: `Unknown method: ${String(message.method)}`,
+			});
+			return;
+		}
 		try {
-			const method = methods[message.method];
-			if (!method) {
-				sendResponse(message.id, false, undefined, {
-					message: `Unknown method: ${String(message.method)}`,
-				});
-				return;
-			}
-			try {
-				const result = await method((message.args || {}) as never);
-				sendResponse(message.id, true, result);
-			} catch (error) {
-				sendResponse(message.id, false, undefined, toErrorPayload(error));
-			}
-		} finally {
-			idleExitController.endCall();
+			const result = await method((message.args || {}) as never);
+			sendResponse(message.id, true, result);
+		} catch (error) {
+			sendResponse(message.id, false, undefined, toErrorPayload(error));
 		}
 	},
 );

@@ -5,16 +5,14 @@ import {
 	resolveSubprocessRuntimeExecutable,
 	SubprocessSandbox,
 } from "./subprocess-sandbox";
-import { SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV } from "./subprocess-sandbox-lifecycle";
 
 const lifecycleBootstrapScript = [
-	`const idleTimeoutEnv = ${JSON.stringify(SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV)};`,
 	"const generation = process.pid + ':' + Date.now() + ':' + Math.random();",
 	"let held;",
 	"process.on('message', (m) => {",
 	"  if (!m || m.type !== 'call') return;",
 	"  if (m.method === 'hold') { held = m; return; }",
-	"  const respond = (request) => process.send({ type: 'response', id: request.id, ok: true, result: { pid: process.pid, generation, idleTimeoutMs: process.env[idleTimeoutEnv] } });",
+	"  const respond = (request) => process.send({ type: 'response', id: request.id, ok: true, result: { pid: process.pid, generation } });",
 	"  if (m.method === 'release') {",
 	"    if (held) { respond(held); held = undefined; }",
 	"    respond(m);",
@@ -186,9 +184,7 @@ describe("SubprocessSandbox idle lifecycle", () => {
 			const first = await sandbox.call<{
 				pid: number;
 				generation: string;
-				idleTimeoutMs: string;
 			}>("pid", {});
-			expect(first.idleTimeoutMs).toBe("1000");
 
 			await vi.advanceTimersByTimeAsync(1001);
 

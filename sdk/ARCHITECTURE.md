@@ -411,7 +411,8 @@ through `PluginSandboxOptions.idleTimeoutMs` or
 reinitializes it transparently. Pending requests are associated with the child
 generation that owns them so an old process exiting cannot reject work sent to
 its replacement. The bootstrap also exits when its parent IPC channel
-disconnects and maintains its own activity-aware idle timer as a backstop.
+disconnects. The parent is the single authority for idle shutdown so competing
+deadlines cannot terminate a child while the parent is dispatching new work.
 
 Design implications:
 
