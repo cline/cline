@@ -61,6 +61,25 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(optimisticStates.has("optimistic-2")).toBe(false);
 	});
 
+	it("keeps a new assistant reply when an older reply has identical text", () => {
+		const merged = mergeCloudSnapshotWithLive(
+			[message("saved-old", "assistant", "Done", 1)],
+			[
+				message("live-old", "assistant", "Done", 1),
+				message("live-new", "assistant", "Done", 2),
+			],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates: new Map(),
+				preserveUnmatchedLive: true,
+			},
+		);
+
+		expect(merged.map((item) => item.id)).toEqual(["saved-old", "live-new"]);
+	});
+
 	it("keeps a failed optimistic prompt during the first hydrate", () => {
 		const optimisticStates = new Map([
 			["failed-prompt", { sessionId: "ses-cloud", state: "failed" as const }],
@@ -2010,6 +2029,11 @@ describe("useChatSession", () => {
 		expect(
 			current.messages.find((message) => message.role === "error")?.content,
 		).toContain("Cloud run failed");
+
+		await act(async () => {
+			endedHandler?.({ sessionId: current.sessionId, reason: "aborted" });
+		});
+		expect(current.status).toBe("cancelled");
 	});
 
 	it("never attributes an earlier turn's core error to a later detail-less failure", async () => {

@@ -1030,6 +1030,7 @@ export function WelcomeWorkspaceControls({
 						<CloudBranchPicker
 							branch={cloudBranch}
 							defaultBranch={cloudDefaultBranch}
+							key={cloudRepositoryId ?? "no-repository"}
 							onBranchChange={onCloudBranchChange}
 							onClose={() => setOpenMenu(null)}
 							onListBranches={onListCloudBranches}

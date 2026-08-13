@@ -279,6 +279,54 @@ describe("CloudSessionApi", () => {
 		expect(body).not.toHaveProperty("branch");
 	});
 
+	it("waits for the current asynchronous provisioning contract", async () => {
+		vi.useFakeTimers();
+		let statusCalls = 0;
+		try {
+			const api = new CloudSessionApi({
+				apiBaseUrl: "https://api.example",
+				appBaseUrl: "https://app.example",
+				getAuthToken: async () => "sk_test",
+				fetch: async (input, init) => {
+					const url = new URL(String(input));
+					if (init?.method === "POST") {
+						return jsonResponse(
+							{
+								success: true,
+								data: { sessionId: "ses-1", status: "provisioning" },
+							},
+							201,
+						);
+					}
+					expect(url.pathname).toBe("/api/v1/session/ses-1/status");
+					statusCalls += 1;
+					return jsonResponse({
+						success: true,
+						data: {
+							sessionId: "ses-1",
+							status: statusCalls === 1 ? "provisioning" : "ready",
+						},
+					});
+				},
+			});
+
+			const creating = api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await vi.waitFor(() => expect(statusCalls).toBe(1));
+			await vi.advanceTimersByTimeAsync(3_000);
+
+			await expect(creating).resolves.toMatchObject({
+				sessionId: "ses-1",
+				sandboxUrl: "",
+			});
+			expect(statusCalls).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("returns a stable, environment-aware GitHub connection error", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -966,6 +1014,27 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["run.completed", "run.completed"]);
 	});
 
+	it("does not let an older identical reply supersede a new buffered turn", () => {
+		const buffered = [
+			event("assistant.delta", "a-2", { text: "Done" }),
+			event("run.completed", "done-2"),
+		];
+		const baseline = [{ role: "assistant", content: "Done" }];
+
+		expect(
+			reconcileBufferedCloudEvents(buffered, baseline, {
+				baselineMessages: baseline,
+			}).map((item) => item.event),
+		).toEqual(["assistant.delta", "run.completed"]);
+		expect(
+			reconcileBufferedCloudEvents(
+				buffered,
+				[...baseline, { role: "assistant", content: "Done" }],
+				{ baselineMessages: baseline },
+			).map((item) => item.event),
+		).toEqual(["run.completed"]);
+	});
+
 	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "partial failure" }),
@@ -1249,9 +1318,10 @@ describe("CloudSessionManager", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 		// Seed the queue from a valid snapshot first.
+		hub.prompts[0].userImages = ["data:image/png;base64,AQID"];
 		await manager.pendingPrompts("ses-outer");
 		expect(ctx.liveSessions.get("ses-outer")?.promptsInQueue).toMatchObject([
-			{ id: "q-1" },
+			{ id: "q-1", userImages: ["data:image/png;base64,AQID"] },
 		]);
 
 		hub.malformedQueueReply = true;
@@ -1448,7 +1518,7 @@ describe("CloudSessionManager", () => {
 			api: {
 				create: async () => ({
 					sessionId: "ses-outer",
-					sandboxUrl: "https://pod.example/hub",
+					sandboxUrl: "",
 				}),
 			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",

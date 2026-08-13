@@ -14,7 +14,6 @@ import {
 	type CloudBranchListOptions,
 	type CloudBranchListResult,
 	type CloudRepositoryListResult,
-	type CloudRepositoryOption,
 	cloudRepositoryLabel,
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
@@ -35,6 +34,7 @@ import type {
 
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
+const PROVISIONING_POLL_MS = 3_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
@@ -126,6 +126,24 @@ type ApiResponse<T> = {
 
 function trimTrailingSlash(value: string): string {
 	return value.replace(/\/+$/, "");
+}
+
+function waitForProvisioningPoll(signal: AbortSignal): Promise<void> {
+	return new Promise((resolve, reject) => {
+		if (signal.aborted) {
+			reject(signal.reason);
+			return;
+		}
+		const onAbort = () => {
+			clearTimeout(timeout);
+			reject(signal.reason);
+		};
+		const timeout = setTimeout(() => {
+			signal.removeEventListener("abort", onAbort);
+			resolve();
+		}, PROVISIONING_POLL_MS);
+		signal.addEventListener("abort", onAbort, { once: true });
+	});
 }
 
 function readApiError(payload: unknown, fallback: string): string {
@@ -415,6 +433,7 @@ export class CloudSessionApi {
 			input.organizationId?.trim() ?? "",
 		].join("\u0000");
 		const sequence = ++this.createSequence;
+		let createdSessionId = "";
 		let settlePost!: () => void;
 		const postSettled = new Promise<void>((resolve) => {
 			settlePost = resolve;
@@ -426,7 +445,8 @@ export class CloudSessionApi {
 		try {
 			const created = await this.request<{
 				sessionId: string;
-				sandboxUrl: string;
+				sandboxUrl?: string;
+				status?: string;
 			}>(
 				"/api/v1/session",
 				{
@@ -446,11 +466,30 @@ export class CloudSessionApi {
 					: undefined,
 				creationAuthToken,
 			);
-			if (created?.sessionId?.trim()) {
-				this.claimedSessionIds.add(created.sessionId.trim());
+			const sessionId = created?.sessionId?.trim();
+			if (!sessionId) {
+				throw new CloudSessionError(
+					"request_failed",
+					"The cloud session service returned no session id.",
+				);
 			}
-			return { ...created, cleanupAuthToken: creationAuthToken };
+			this.claimedSessionIds.add(sessionId);
+			createdSessionId = sessionId;
+			settlePost();
+			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
+				await this.waitUntilReady(
+					sessionId,
+					creationAuthToken,
+					controller.signal,
+				);
+			}
+			return {
+				sessionId,
+				sandboxUrl: created.sandboxUrl?.trim() ?? "",
+				cleanupAuthToken: creationAuthToken,
+			};
 		} catch (error) {
+			if (createdSessionId) throw error;
 			// Provisioning may outlive the synchronous request only when the
 			// POST timed out or the server failed after possibly accepting it
 			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
@@ -534,6 +573,58 @@ export class CloudSessionApi {
 				this.inFlightCreates.delete(peerKey);
 			}
 		}
+	}
+
+	private async waitUntilReady(
+		sessionId: string,
+		authToken: string,
+		signal: AbortSignal,
+	): Promise<void> {
+		while (!signal.aborted) {
+			let result:
+				| { sessionId?: string; status?: string; statusReason?: string }
+				| undefined;
+			try {
+				result = await this.request(
+					`/api/v1/session/${encodeURIComponent(sessionId)}/status`,
+					{
+						signal: AbortSignal.any([
+							signal,
+							AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+						]),
+					},
+					undefined,
+					authToken,
+				);
+			} catch (error) {
+				if (signal.aborted) throw error;
+				if (
+					error instanceof CloudSessionError &&
+					error.code !== "request_failed"
+				) {
+					throw error;
+				}
+				await waitForProvisioningPoll(signal);
+				continue;
+			}
+			const status = result?.status?.trim().toLowerCase();
+			if (status === "ready" || status === "active") return;
+			if (status === "failed") {
+				throw new CloudSessionError(
+					"request_failed",
+					result?.statusReason?.trim() ||
+						"The cloud sandbox could not be prepared.",
+				);
+			}
+			if (status !== "provisioning") {
+				throw new CloudSessionError(
+					"request_failed",
+					"The cloud session service returned an unexpected provisioning status.",
+				);
+			}
+			await waitForProvisioningPoll(signal);
+		}
+		throw signal.reason;
 	}
 
 	/**
@@ -881,6 +972,23 @@ function assistantTexts(messages: unknown[]): string[] {
 		.filter(Boolean);
 }
 
+function newlyPersistedAssistantTexts(
+	snapshotMessages: unknown[],
+	baselineMessages: unknown[],
+): string[] {
+	const baselineCounts = new Map<string, number>();
+	for (const text of assistantTexts(baselineMessages)) {
+		baselineCounts.set(text, (baselineCounts.get(text) ?? 0) + 1);
+	}
+	return assistantTexts(snapshotMessages).filter((text) => {
+		const count = baselineCounts.get(text) ?? 0;
+		if (count === 0) return true;
+		if (count === 1) baselineCounts.delete(text);
+		else baselineCounts.set(text, count - 1);
+		return false;
+	});
+}
+
 function collectToolCallIds(
 	value: unknown,
 	result = new Set<string>(),
@@ -937,10 +1045,14 @@ export function reconcileBufferedCloudEvents(
 		 * silently losing queued/steered prompts.
 		 */
 		queueSnapshotApplied?: boolean;
+		baselineMessages?: unknown[];
 	} = {},
 ): HubEventEnvelope[] {
 	const queueSnapshotApplied = options.queueSnapshotApplied !== false;
-	const snapshotAssistantTexts = assistantTexts(snapshotMessages);
+	const unclaimedAssistantTexts = newlyPersistedAssistantTexts(
+		snapshotMessages,
+		options.baselineMessages ?? [],
+	);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
 	// Queue events are full snapshots, so only the newest one matters.
 	const lastQueueEvent = queueSnapshotApplied
@@ -952,9 +1064,11 @@ export function reconcileBufferedCloudEvents(
 	const flush = (terminal: boolean) => {
 		if (segment.length === 0) return;
 		const streamed = terminal ? streamedAssistantText(segment) : "";
-		const contentPersisted =
-			Boolean(streamed) &&
-			snapshotAssistantTexts.some((text) => text.includes(streamed));
+		const persistedIndex = streamed
+			? unclaimedAssistantTexts.findIndex((text) => text.includes(streamed))
+			: -1;
+		const contentPersisted = persistedIndex >= 0;
+		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
 		for (const event of segment) {
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
@@ -1193,7 +1307,7 @@ export class CloudSessionManager {
 			...input,
 			organizationId,
 		});
-		if (!created?.sessionId?.trim() || !created.sandboxUrl?.trim()) {
+		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
 				"The cloud session service returned an unexpected response; please try again.",
@@ -1521,6 +1635,7 @@ export class CloudSessionManager {
 					? (sessionReply.payload.session as JsonRecord)
 					: undefined;
 			const live = this.ctx.liveSessions.get(outerSessionId);
+			const baselineMessages = live?.messages ?? [];
 			const runtimeStatus = String(
 				session?.status ?? live?.status ?? "running",
 			).trim();
@@ -1599,7 +1714,7 @@ export class CloudSessionManager {
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
-				{ queueSnapshotApplied: queueSnapshotValid },
+				{ queueSnapshotApplied: queueSnapshotValid, baselineMessages },
 			);
 			connection.bufferedEvents = [];
 			connection.bufferingEvents = false;
@@ -1739,6 +1854,11 @@ export class CloudSessionManager {
 				steer: item.delivery === "steer",
 				attachmentCount:
 					typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+				userImages: Array.isArray(item.userImages)
+					? item.userImages.filter(
+							(image): image is string => typeof image === "string",
+						)
+					: undefined,
 			}))
 			.filter((item) => item.id);
 		const live = this.ctx.liveSessions.get(outerSessionId);

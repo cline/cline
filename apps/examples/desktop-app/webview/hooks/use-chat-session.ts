@@ -214,6 +214,7 @@ export function mergeCloudSnapshotWithLive(
 	const hydratedAssistantTexts = hydrated
 		.filter((message) => message.role === "assistant" && message.content)
 		.map((message) => message.content);
+	const unmatchedHydratedAssistantTexts = [...hydratedAssistantTexts];
 	const liveOnly: ChatMessage[] = [];
 	const optimistic: ChatMessage[] = [];
 	for (const message of current) {
@@ -234,14 +235,20 @@ export function mergeCloudSnapshotWithLive(
 		if (hydratedCount > 0) {
 			if (hydratedCount === 1) hydratedKeyCounts.delete(key);
 			else hydratedKeyCounts.set(key, hydratedCount - 1);
+			if (message.role === "assistant" && message.content) {
+				const index = unmatchedHydratedAssistantTexts.indexOf(message.content);
+				if (index >= 0) unmatchedHydratedAssistantTexts.splice(index, 1);
+			}
 			continue;
 		}
-		if (
-			message.role === "assistant" &&
-			message.content &&
-			hydratedAssistantTexts.some((text) => text.includes(message.content))
-		) {
-			continue;
+		if (message.role === "assistant" && message.content) {
+			const index = unmatchedHydratedAssistantTexts.findIndex((text) =>
+				text.includes(message.content),
+			);
+			if (index >= 0) {
+				unmatchedHydratedAssistantTexts.splice(index, 1);
+				continue;
+			}
 		}
 		// UI-only error bubbles never appear in canonical snapshots; dropping
 		// them here would erase the explanation for the most recent failure
@@ -1634,7 +1641,11 @@ export function useChatSession() {
 				) {
 					return;
 				}
-				setStatus(nextStatus as ChatSessionStatus);
+				setStatus(
+					(nextStatus === "aborted"
+						? "cancelled"
+						: nextStatus) as ChatSessionStatus,
+				);
 			},
 		);
 		const unsubscribeEnded = desktopClient.subscribe(
@@ -1662,7 +1673,11 @@ export function useChatSession() {
 				if (endReason === "error" || endReason === "failed") {
 					appendTurnFailureMessage(targetSessionId, "");
 				}
-				setStatus(endReason as ChatSessionStatus);
+				setStatus(
+					(endReason === "aborted"
+						? "cancelled"
+						: endReason) as ChatSessionStatus,
+				);
 			},
 		);
 		const unsubscribeRehydrated = desktopClient.subscribe(

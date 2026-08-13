@@ -1477,7 +1477,8 @@ function ChatThreadPane({
 		if (
 			!cloudAgentsEnabled &&
 			config.executionTarget === "cloud" &&
-			!historySession
+			!historySession &&
+			!sessionId
 		) {
 			handleExecutionTargetChange("local");
 		}
@@ -1486,6 +1487,7 @@ function ChatThreadPane({
 		config.executionTarget,
 		historySession,
 		handleExecutionTargetChange,
+		sessionId,
 	]);
 
 	const handleCloudRepoUrlChange = useCallback(
