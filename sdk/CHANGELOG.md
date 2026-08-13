@@ -1,5 +1,18 @@
 # Cline SDK Changelog
 
+## 0.0.74
+
+- Fixed the Claude Code provider being unusable for agentic work: the provider now declares its own native tools instead of receiving Cline's unbridgeable tool definitions, the session is anchored on the workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so user-configured permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings
+- Fixed truncated tool-call JSON being silently "repaired" into wrong arguments — a payload with an unterminated string is now rejected rather than getting an invented terminator
+- Fixed strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts
+- Fixed a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough, by updating the AI SDK packages
+- Managed Hub daemons now upgrade directionally: when another install ships a newer Hub build, hosts attach to the newer daemon and prompt to update and restart instead of the two installs repeatedly retiring each other's daemons. Older or unordered Hubs are still retired and replaced
+- Fixed the Hub daemon logging an unhandled `hub server close failed` rejection and exiting non-zero whenever a client was connected at shutdown; shutdown is now clean
+- `run.started` is now emitted only after the target session resolves and carries the originating `requestId` and `clientId`, so multi-client hosts can correlate delivery acknowledgments
+- Token telemetry now reports disjoint per-request buckets — uncached input, cache reads, cache writes — instead of re-counting the whole cached conversation on every event, which inflated per-task sums roughly 5x on cache-heavy sessions
+- Involuntary Cline logouts (a rejected refresh token) are now reported instead of credentials being cleared silently; a transient network failure refreshing the stored session on startup no longer books as a logout
+- Per-token stream deltas are no longer mirrored into telemetry — they accounted for ~97% of all agent event volume with no analytical value
+
 ## 0.0.73
 
 - Fixed hosts reconnecting to stale managed Hub daemons: daemons now carry a runtime build fingerprint, so upgrading retires and respawns a daemon still running older code instead of attaching to it
