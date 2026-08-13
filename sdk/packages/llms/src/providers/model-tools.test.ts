@@ -6,7 +6,7 @@ describe("supportsModelTool", () => {
 		"cline",
 		"cline-pass",
 		"anthropic",
-		"openai",
+		"openai-native",
 		"gemini",
 		"vertex",
 	])("supports native web search for %s", (providerId) => {
@@ -20,6 +20,10 @@ describe("supportsModelTool", () => {
 				"web_search",
 			),
 		).toBe(false);
+		// "openai" is an alias for "openai-compatible", not native OpenAI.
+		expect(supportsModelTool({ providerId: "openai" }, "web_search")).toBe(
+			false,
+		);
 	});
 
 	it("excludes Claude routes from Vertex until that adapter exposes tools", () => {

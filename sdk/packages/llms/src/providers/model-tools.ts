@@ -21,7 +21,10 @@ export function supportsModelTool(
 		case "cline":
 		case "cline-pass":
 		case "anthropic":
-		case "openai":
+		// Native OpenAI is the "openai-native" builtin id. The bare "openai" id
+		// aliases to "openai-compatible" (see PROVIDER_ID_ALIASES), whose module
+		// has no native web search.
+		case "openai-native":
 		case "gemini":
 			return true;
 		case "vertex":
