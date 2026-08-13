@@ -1,17 +1,14 @@
 import { type ChildProcess, spawn } from "node:child_process";
 import { realpathSync } from "node:fs";
 import {
-	clearHubDiscovery,
 	isAutoUpdateEnabledGlobally,
-	probeHubServer,
+	NodeHubClient,
 	readHubDiscovery,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
-	stopLocalHubServerGracefully,
 } from "@cline/core";
 import { resolveClineBuildEnv } from "@cline/shared";
 import { version } from "../../package.json";
-import { ensureCliHubServer } from "../utils/hub-runtime";
 import { c, writeErr, writeln } from "../utils/output";
 import {
 	getInstalledKanbanVersion,
@@ -237,50 +234,6 @@ async function runKanbanUpdate(
 	return waitForProcessExit(updateProcess);
 }
 
-/**
- * Start the hub through the freshly installed CLI after a self-update.
- *
- * On Unix, the npm wrapper normally starts the CLI from bin/.cline. npm 12 may
- * remove that cached executable while replacing the package and then block the
- * postinstall script that recreates it. The current process keeps running from
- * the unlinked executable, but process.execPath is no longer spawnable. Going
- * back through the wrapper makes it resolve the newly installed platform
- * binary instead.
- *
- * Windows does not create the bin/.cline cache, and development builds do not
- * have CLINE_WRAPPER_PATH, so those cases keep using the normal in-process
- * ensure path.
- */
-export async function ensureCliHubServerAfterUpdate(
-	workspaceRoot: string,
-	env: NodeJS.ProcessEnv = process.env,
-	platform: NodeJS.Platform = process.platform,
-): Promise<void> {
-	const wrapperPath = env.CLINE_WRAPPER_PATH?.trim();
-	if (!wrapperPath || platform === "win32") {
-		await ensureCliHubServer(workspaceRoot);
-		return;
-	}
-
-	const child = spawn(wrapperPath, ["hub", "ensure"], {
-		cwd: workspaceRoot,
-		env: {
-			...env,
-			// The fresh CLI only exists to start the hub. Do not let it launch
-			// another background update check while this update is finishing.
-			CLINE_NO_AUTO_UPDATE: "1",
-		},
-		stdio: "ignore",
-		windowsHide: true,
-	});
-	const exitCode = await waitForProcessExit(child);
-	if (exitCode !== 0) {
-		throw new Error(
-			`freshly installed Cline failed to start the hub (exit code ${exitCode})`,
-		);
-	}
-}
-
 function formatUpdateSummaryTargets(targets: string[]): string {
 	if (targets.length === 0) {
 		return "";
@@ -318,86 +271,26 @@ export function getPreferredKanbanInstaller(
 	);
 }
 
-const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
-
 export function resolveCliHubOwnerContext() {
 	return resolveClineBuildEnv() === "production"
 		? resolveProductionHubOwnerContext()
 		: resolveSharedHubOwnerContext();
 }
 
-async function waitForHubToStop(
-	url: string,
-	authToken: string | undefined,
-	timeoutMs: number,
-): Promise<boolean> {
-	const deadline = Date.now() + timeoutMs;
-	while (Date.now() < deadline) {
-		const check = await probeHubServer(url, { authToken }).catch(
-			() => undefined,
-		);
-		if (!check?.url) return true;
-		await sleep(100);
-	}
-	return false;
-}
-
-/**
- * Restart the hub server if one is currently running.
- * Gracefully asks the running hub process to stop, falls back to process signals,
- * clears stale discovery, then re-ensures a fresh instance is spawned.
- */
-async function restartHubServerIfRunning(): Promise<void> {
-	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath).catch(
-		() => undefined,
-	);
-
-	const health = discovery?.url
-		? await probeHubServer(discovery.url, {
-				authToken: discovery.authToken,
-			}).catch(() => undefined)
-		: undefined;
-	if (!discovery || !health?.url) return;
-
-	const pid = discovery?.pid;
-	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
-
-	let stopped = await stopLocalHubServerGracefully(owner).catch(() => false);
-	if (!stopped && pid) {
-		try {
-			process.kill(pid, "SIGTERM");
-		} catch {
-			// best-effort
-		}
-	}
-
-	stopped = await waitForHubToStop(health.url, discovery.authToken, 3_000);
-	if (!stopped && pid) {
-		try {
-			process.kill(pid, "SIGKILL");
-		} catch {
-			// best-effort
-		}
-		stopped = await waitForHubToStop(health.url, discovery.authToken, 2_000);
-	}
-
-	await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
-
-	// Re-ensure a fresh hub instance is spawned.
-	try {
-		await ensureCliHubServerAfterUpdate(process.cwd());
-		writeln(`${c.green}✓${c.reset} ${c.dim}[hub] server restarted${c.reset}`);
-	} catch (err) {
-		writeErr(
-			`[hub] failed to restart server: ${err instanceof Error ? err.message : String(err)}`,
-		);
-	}
-}
+let pendingAutoUpdate: ManualUpdateCommand | undefined;
+let deferredApplyHookRegistered = false;
 
 /**
  * Non-blocking auto-update check for CLI startup.
- * Spawns a detached install process if a newer version is available.
+ *
+ * Deliberately does NOT install right away: replacing the npm package while
+ * cline processes are running swaps the binary under them — their respawn
+ * paths break on the new build fingerprint — and historically also restarted
+ * the hub daemon out from under live sessions. The check only records that an
+ * update is available; the install runs when this process exits and no other
+ * CLI is attached to the hub, at which point nothing is running that the swap
+ * could hurt. The next launch picks up the new binary and a fresh hub.
+ *
  * Skipped for npx, dev, unknown installs. Disable with CLINE_NO_AUTO_UPDATE=1.
  */
 export function autoUpdateOnStartup(): void {
@@ -413,29 +306,85 @@ export function autoUpdateOnStartup(): void {
 		try {
 			const latest = await getLatestVersion(packageName, version);
 			if (!latest || compareVersions(version, latest) >= 0) return;
-			const autoUpdateCommand = withMinimumReleaseAgeBypass(
+			pendingAutoUpdate = withMinimumReleaseAgeBypass(
 				updateCommand,
 				packageManager,
 			);
-			const child = spawn(autoUpdateCommand.command, {
-				shell: true,
-				detached: true,
-				stdio: "ignore",
-				env: autoUpdateCommand.env
-					? { ...process.env, ...autoUpdateCommand.env }
-					: process.env,
-				// Prevent a console window from flashing on Windows; detached
-				// processes otherwise allocate a new visible console.
-				windowsHide: true,
-			});
-			const exitCode = await waitForProcessExit(child);
-			if (exitCode === 0) {
-				await restartHubServerIfRunning();
+			if (!deferredApplyHookRegistered) {
+				deferredApplyHookRegistered = true;
+				process.once("beforeExit", () => {
+					void applyDeferredUpdate().catch(() => undefined);
+				});
 			}
 		} catch {
 			// Best-effort, silently ignore
 		}
 	})();
+}
+
+/**
+ * True when a hub is reachable and another cli* client is attached to it.
+ * Only cli* clients run the npm-installed binary — desktop sidecars and
+ * connectors ship their own — so only they make the swap unsafe. By the time
+ * beforeExit fires this process's own registrations are closed, so any cli
+ * client still listed belongs to another process. Errors count as attached:
+ * never install unless the hub positively confirms nothing would be hurt.
+ */
+async function otherCliClientsAttached(): Promise<boolean> {
+	const owner = resolveCliHubOwnerContext();
+	const discovery = await readHubDiscovery(owner.discoveryPath).catch(
+		() => undefined,
+	);
+	if (!discovery?.url) {
+		return false;
+	}
+	const client = new NodeHubClient({
+		url: discovery.url,
+		authToken: discovery.authToken,
+		clientType: "cli-update-check",
+		displayName: "cline update check",
+	});
+	try {
+		const reply = await client.command("client.list", {});
+		const clients =
+			(reply.payload as { clients?: Array<{ clientType?: unknown }> })
+				.clients ?? [];
+		return clients.some(
+			(entry) =>
+				typeof entry?.clientType === "string" &&
+				entry.clientType.startsWith("cli") &&
+				entry.clientType !== "cli-update-check",
+		);
+	} finally {
+		await client.dispose().catch(() => undefined);
+	}
+}
+
+/**
+ * Spawns the recorded update install, detached, if no other CLI would be
+ * affected by the package swap. Fire-and-forget: the install outlives this
+ * process and its postinstall never blocks an exit.
+ */
+export async function applyDeferredUpdate(
+	pending: ManualUpdateCommand | undefined = pendingAutoUpdate,
+): Promise<"none" | "deferred" | "started"> {
+	if (!pending) {
+		return "none";
+	}
+	if (await otherCliClientsAttached().catch(() => true)) {
+		return "deferred";
+	}
+	const child = spawn(pending.command, {
+		shell: true,
+		detached: true,
+		stdio: "ignore",
+		env: pending.env ? { ...process.env, ...pending.env } : process.env,
+		// Prevent a console window from flashing on Windows; detached
+		// processes otherwise allocate a new visible console.
+		windowsHide: true,
+	});
+	child.unref();
+	return "started";
 }
 
 export interface CheckForUpdatesOptions {
@@ -554,7 +503,9 @@ export async function checkForUpdates(
 					const exitCode = await runCliUpdate(manualUpdateCommand);
 					if (exitCode === 0) {
 						installedUpdates.push(`${packageName}@${latestVersion}`);
-						await restartHubServerIfRunning();
+						writeln(
+							`${c.dim}The update takes effect the next time cline starts.${c.reset}`,
+						);
 					} else {
 						writeErr(
 							`Cline update failed (exit code ${exitCode}). Try running: ${manualUpdateCommand.command}`,
