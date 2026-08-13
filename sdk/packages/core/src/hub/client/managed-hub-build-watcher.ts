@@ -41,52 +41,8 @@ export interface ManagedHubBuildMismatchEvent {
 	hubBuildId?: string;
 	/** Core package version reported by the running Hub. */
 	hubCoreVersion?: string;
-	/**
-	 * Identifies the running daemon *instance*, not its build. Two daemons from
-	 * the same build share a build id, so anything that needs to know whether
-	 * the very same Hub is still running - rather than merely another Hub of
-	 * the same build - must compare this.
-	 */
-	hubInstanceId?: string;
 	/** Build identity this client expects a managed Hub to match. */
 	expectedBuildId: string;
-}
-
-type HubInstanceFields = {
-	hubId?: string;
-	pid?: number;
-	startedAt?: string;
-};
-
-/**
- * Identify the running daemon instance.
- *
- * The probe used here is unauthenticated, and `/health` deliberately reports
- * only build and address fields - no `hubId`, `pid`, or `startedAt`. So the
- * identity comes from the discovery record, which every daemon version writes
- * with all three and which a replacement daemon rewrites as its own. The probe
- * is still preferred when it does carry an id, since that is the process we
- * actually just talked to.
- */
-function resolveHubInstanceId(
-	probe: HubInstanceFields,
-	record: HubInstanceFields | undefined,
-): string | undefined {
-	for (const source of [probe, record]) {
-		const hubId = source?.hubId?.trim();
-		if (hubId) {
-			return hubId;
-		}
-	}
-	for (const source of [probe, record]) {
-		const parts = [source?.pid, source?.startedAt].filter(
-			(part) => part !== undefined && part !== null && part !== "",
-		);
-		if (parts.length > 0) {
-			return parts.join(":");
-		}
-	}
-	return undefined;
 }
 
 function resolveDefaultHubOwnerContext(): HubOwnerContext {
@@ -133,23 +89,6 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (!healthy?.url) {
 		return undefined;
 	}
-	// Reading discovery and probing the Hub are separate steps, and instance
-	// identity comes from the first while the build data comes from the second.
-	// A daemon replaced between them would be described with its predecessor's
-	// identity, which is exactly the confusion the caller's consecutive-instance
-	// check exists to avoid. Confirm the record still describes the daemon just
-	// probed, and report nothing this round when it does not - a Hub mid-swap is
-	// churn, and the next check sees whatever it settles into.
-	const recheck = await readHubDiscovery(owner.discoveryPath).catch(
-		() => undefined,
-	);
-	if (
-		!recheck?.url ||
-		recheck.url !== record.url ||
-		resolveHubInstanceId({}, recheck) !== resolveHubInstanceId({}, record)
-	) {
-		return undefined;
-	}
 	const expectedBuildId = resolveHubBuildId();
 	const compatibility = getManagedHubCompatibility(healthy, expectedBuildId);
 	if (compatibility.compatible) {
@@ -168,7 +107,6 @@ export async function checkManagedHubBuildMismatch(): Promise<
 		reason,
 		hubBuildId: healthy.buildId,
 		hubCoreVersion: healthy.coreVersion,
-		hubInstanceId: resolveHubInstanceId(healthy, record),
 		expectedBuildId,
 	});
 	if (compatibility.reason === "unsupported_protocol") {
@@ -234,13 +172,8 @@ export function watchManagedHubBuildMismatch(
 				// An older Hub is normally retired and replaced within a moment
 				// of being observed. Only report one that is still there on the
 				// next check, which means it was deliberately left running.
-				//
-				// Keyed by instance, not build: a replacement daemon from the
-				// same older build is a different Hub, and treating it as the
-				// same one would report the churn this check exists to hide.
-				const instanceKey = `${key}:${mismatch.hubInstanceId ?? ""}`;
-				if (mismatch.reason === "outdated_hub" && pendingKey !== instanceKey) {
-					pendingKey = instanceKey;
+				if (mismatch.reason === "outdated_hub" && pendingKey !== key) {
+					pendingKey = key;
 					return;
 				}
 				pendingKey = undefined;
