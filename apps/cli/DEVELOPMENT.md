@@ -273,7 +273,7 @@ const result = await dialog.choice<string>({
 
 Dialog content components receive `resolve` and `dismiss` callbacks through the context. They use `useDialogKeyboard` for keyboard handling scoped to the dialog.
 
-The dialog chrome is controlled by a dialog variant. The default, `pages`, renders every dialog as an opaque full-screen subpage (branded header bar, heavy accent rule, Esc navigates back; stacked dialogs are deeper pages). The remaining variants are centered floating panels over a dimmed backdrop: `frame`, `edge`, `topbar`, `shadow`, and `classic` (the old borderless look). Set the `variant` prop on `DialogProvider`, or override at runtime with the `CLINE_DIALOG_VARIANT` environment variable to compare looks.
+The dialog chrome is controlled by a dialog variant. The docked concepts keep the conversation visible behind a light dim: `dock` (default, full-width bottom sheet), `drawer` (full-height right side panel), and `hud` (drop-down console from the top). Also available: `pages` (opaque full-screen subpage takeover) and the centered floating panels `frame`, `edge`, `topbar`, `shadow`, and `classic` (the old borderless look). Set the `variant` prop on `DialogProvider`, or override at runtime with the `CLINE_DIALOG_VARIANT` environment variable to compare looks.
 
 Important gotcha: async data loading inside a dialog (via useEffect/useState) causes layout gaps between flex children in OpenTUI. Always fetch data before opening the dialog and pass it as props.
 

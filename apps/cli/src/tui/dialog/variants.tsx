@@ -8,6 +8,9 @@ import type {
 } from "./types";
 
 export const DIALOG_VARIANTS: readonly DialogVariant[] = [
+	"dock",
+	"drawer",
+	"hud",
 	"pages",
 	"frame",
 	"edge",
@@ -16,7 +19,7 @@ export const DIALOG_VARIANTS: readonly DialogVariant[] = [
 	"classic",
 ];
 
-export const DEFAULT_DIALOG_VARIANT: DialogVariant = "pages";
+export const DEFAULT_DIALOG_VARIANT: DialogVariant = "dock";
 
 export function normalizeDialogVariant(
 	value: string | undefined | null,
@@ -42,6 +45,24 @@ interface PaddingSides {
 }
 
 const VARIANT_CHROME: Record<DialogVariant, VariantChrome> = {
+	dock: {
+		background: "#181b22",
+		backdropColor: "#000000",
+		backdropOpacity: 0.25,
+		defaultPadding: { top: 1, right: 1, bottom: 1, left: 1 },
+	},
+	drawer: {
+		background: "#181b22",
+		backdropColor: "#000000",
+		backdropOpacity: 0.25,
+		defaultPadding: { top: 1, right: 2, bottom: 1, left: 2 },
+	},
+	hud: {
+		background: "#181b22",
+		backdropColor: "#000000",
+		backdropOpacity: 0.25,
+		defaultPadding: { top: 1, right: 1, bottom: 1, left: 1 },
+	},
 	pages: {
 		// Fallback page surface; dark themes reuse their own background so the
 		// page reads as in-app navigation rather than an overlay.
@@ -108,6 +129,9 @@ function resolveWidth(
  * width, so the panel grows by this amount to keep the inner width the same.
  */
 const VARIANT_WIDTH_OVERHEAD: Record<DialogVariant, number> = {
+	dock: 0,
+	drawer: 1,
+	hud: 0,
 	pages: 0,
 	frame: 2,
 	edge: 1,
@@ -178,6 +202,115 @@ export function DialogPanel(props: DialogPanelProps) {
 	);
 	const padding = resolvePadding(style, chrome.defaultPadding);
 	const background = style.backgroundColor ?? chrome.background;
+
+	if (variant === "dock") {
+		// Bottom sheet: full-width panel rising from the bottom edge under a
+		// heavy accent rule; the conversation stays visible above it.
+		const maxHeight = Math.min(
+			style.maxHeight ?? terminalHeight - 4,
+			terminalHeight - 2,
+		);
+		return (
+			<box
+				position="absolute"
+				left={0}
+				bottom={0}
+				width="100%"
+				maxHeight={maxHeight}
+				flexDirection="column"
+				alignItems="center"
+				backgroundColor={background}
+				border={["top"]}
+				borderStyle="heavy"
+				borderColor={accent}
+			>
+				<box
+					flexDirection="column"
+					width={width}
+					maxWidth={maxWidth}
+					minWidth={style.minWidth}
+					maxHeight={maxHeight - 1}
+					paddingTop={padding.top}
+					paddingRight={padding.right}
+					paddingBottom={padding.bottom}
+					paddingLeft={padding.left}
+				>
+					{record.element}
+				</box>
+			</box>
+		);
+	}
+
+	if (variant === "drawer") {
+		// Side drawer: full-height panel docked to the right edge behind a
+		// solid accent spine; the conversation stays visible on the left.
+		const drawerWidth = Math.min(
+			width,
+			Math.max(Math.min(terminalWidth - 24, maxPanelWidth), 30),
+		);
+		return (
+			<box
+				position="absolute"
+				right={0}
+				top={0}
+				height="100%"
+				width={drawerWidth}
+				flexDirection="row"
+				backgroundColor={background}
+			>
+				<box width={1} flexShrink={0} backgroundColor={accent} />
+				<box
+					flexDirection="column"
+					flexGrow={1}
+					justifyContent={record.size === "small" ? "center" : "flex-start"}
+					paddingTop={padding.top}
+					paddingRight={padding.right}
+					paddingBottom={padding.bottom}
+					paddingLeft={padding.left}
+				>
+					{record.element}
+				</box>
+			</box>
+		);
+	}
+
+	if (variant === "hud") {
+		// Drop-down console: full-width panel hanging from the top edge above
+		// a heavy accent rule, like a quake-style command deck.
+		const maxHeight = Math.min(
+			style.maxHeight ?? terminalHeight - 4,
+			terminalHeight - 2,
+		);
+		return (
+			<box
+				position="absolute"
+				left={0}
+				top={0}
+				width="100%"
+				maxHeight={maxHeight}
+				flexDirection="column"
+				alignItems="center"
+				backgroundColor={background}
+				border={["bottom"]}
+				borderStyle="heavy"
+				borderColor={accent}
+			>
+				<box
+					flexDirection="column"
+					width={width}
+					maxWidth={maxWidth}
+					minWidth={style.minWidth}
+					maxHeight={maxHeight - 1}
+					paddingTop={padding.top}
+					paddingRight={padding.right}
+					paddingBottom={padding.bottom}
+					paddingLeft={padding.left}
+				>
+					{record.element}
+				</box>
+			</box>
+		);
+	}
 
 	if (variant === "pages") {
 		// Full-screen subpage: branded header bar, heavy accent rule, and the
