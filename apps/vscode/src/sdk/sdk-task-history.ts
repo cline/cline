@@ -743,8 +743,14 @@ export class SdkTaskHistory {
 		// record available: `record` was read before the (async) folder measurement, and for a
 		// live task a usage update can land in that gap — persisting the pre-measurement
 		// snapshot would roll its token/cost totals back.
-		const current = (await host.get(record.sessionId).catch(() => undefined)) ?? record
-		if (metadataNumber(current.metadata, "size") === size) {
+		const current = await host.get(record.sessionId).catch((error) => {
+			Logger.warn(`[SdkTaskHistory] Failed to re-read SDK session before caching size: ${record.sessionId}`, error)
+			return undefined
+		})
+		// No fresh base (read failed, or the session was deleted): skip the write rather than
+		// persist a snapshot that may already be outdated. Size is only a display cache, and
+		// the measured value is returned to the caller either way.
+		if (!current || metadataNumber(current.metadata, "size") === size) {
 			return
 		}
 

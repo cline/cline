@@ -520,6 +520,31 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("skips the size cache write when the session cannot be re-read", async () => {
+		vi.mocked(getFolderSize.loose).mockResolvedValue(6144 as never)
+		const { history, getSession, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048, tokensIn: 10 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+		getSession.mockImplementationOnce(
+			async (sessionId: string) =>
+				makeSessionRecord(sessionId, {
+					status: "running",
+					metadata: { size: 2048, tokensIn: 10 },
+					messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+				}) as never,
+		)
+		getSession.mockRejectedValueOnce(new Error("unavailable") as never)
+
+		// The measured size still reaches the caller; only the cache write is skipped.
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({ id: "task-1", size: 6144 })
+
+		expect(updateSession).not.toHaveBeenCalled()
+	})
+
 	it("falls back to the cached size when a live session's artifacts are unreadable", async () => {
 		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
 		const { history, updateSession } = makeHistory([
