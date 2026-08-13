@@ -93,6 +93,19 @@ function resolveWidth(
 	return preset === -1 ? Math.max(terminalWidth - 4, 20) : preset;
 }
 
+/**
+ * Extra columns each variant's chrome consumes (borders, accent bars).
+ * Dialog contents size themselves against the historical borderless panel
+ * width, so the panel grows by this amount to keep the inner width the same.
+ */
+const VARIANT_WIDTH_OVERHEAD: Record<DialogVariant, number> = {
+	frame: 2,
+	edge: 1,
+	topbar: 0,
+	shadow: 2,
+	classic: 0,
+};
+
 function resolvePadding(
 	style: DialogStyle,
 	defaults: PaddingSides,
@@ -125,9 +138,18 @@ export function DialogPanel(props: DialogPanelProps) {
 	const accent = getDialogAccents(theme).act;
 	const chrome = VARIANT_CHROME[variant];
 	const style = record.style ?? {};
-	const width =
-		style.width ?? resolveWidth(record.size, defaultSize, terminalWidth);
-	const maxWidth = style.maxWidth ?? terminalWidth - 2;
+	const overhead = VARIANT_WIDTH_OVERHEAD[variant];
+	// The drop shadow extends 2 columns past the panel, so leave room for it.
+	const maxPanelWidth = terminalWidth - (variant === "shadow" ? 4 : 2);
+	const width = Math.min(
+		(style.width ?? resolveWidth(record.size, defaultSize, terminalWidth)) +
+			overhead,
+		maxPanelWidth,
+	);
+	const maxWidth = Math.min(
+		(style.maxWidth ?? terminalWidth - 2) + overhead,
+		maxPanelWidth,
+	);
 	const padding = resolvePadding(style, chrome.defaultPadding);
 	const background = style.backgroundColor ?? chrome.background;
 
@@ -174,7 +196,7 @@ export function DialogPanel(props: DialogPanelProps) {
 				<box
 					flexDirection="column"
 					width={width}
-					maxWidth={Math.min(maxWidth, terminalWidth - 4)}
+					maxWidth={maxWidth}
 					minWidth={style.minWidth}
 					maxHeight={style.maxHeight}
 					backgroundColor={background}
