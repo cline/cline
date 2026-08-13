@@ -83,6 +83,14 @@ const PROVIDER_ERROR_RETRY_BASE_DELAY_MS = 1_000;
 const PROVIDER_ERROR_RETRY_MAX_DELAY_MS = 15_000;
 
 /**
+ * Terminal message for a turn the provider blocked. Kept separate from the
+ * generic empty-response text because the two call for opposite user action:
+ * an empty response is worth retrying, a filtered one reproduces every time.
+ */
+const CONTENT_FILTER_EMPTY_TURN_MESSAGE =
+	"Model returned no content because the response was blocked by a content filter. Retrying is unlikely to help — try rephrasing the request.";
+
+/**
  * Terminal message when a context-window overflow cannot be recovered because
  * there is no conversation history to compact — the system prompt, tools, and
  * current input alone exceed the window.
@@ -852,7 +860,11 @@ export class AgentRuntime {
 					// limit is not a true empty response: fall through so the message is
 					// kept and the max-tokens recovery branch below can nudge and retry.
 					if (!hasModelToolActivity && finishReason !== "max-tokens") {
-						throw new Error("Model returned empty response");
+						throw new Error(
+							finishReason === "content-filter"
+								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
+								: "Model returned empty response",
+						);
 					}
 				}
 				const toolCalls = message.content.filter(
