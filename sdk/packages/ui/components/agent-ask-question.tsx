@@ -122,12 +122,6 @@ export function AgentAskQuestion({
 						document.activeElement as HTMLButtonElement,
 					);
 
-					if (event.key === "Enter" && canSubmit && !event.repeat) {
-						event.preventDefault();
-						submit();
-						return;
-					}
-
 					if (event.key === "ArrowDown" || event.key === "ArrowRight") {
 						event.preventDefault();
 						optionButtons[(activeIndex + 1) % optionButtons.length]?.focus();
