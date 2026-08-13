@@ -593,12 +593,25 @@ export class TelemetryService {
 		})
 	}
 
+	/**
+	 * Volume guard for the remote-config events: they fire on every session
+	 * start and refresh for ALL users, but the signal is managed-org behavior
+	 * and failures. The unmanaged happy path ("nothing to enforce, allowed")
+	 * would dominate event volume with no informational value, so it is dropped.
+	 */
+	private static shouldCaptureRemoteConfigEvent(managed: boolean, outcome: string): boolean {
+		return managed || outcome === "failed" || outcome === "blocked" || outcome === "last_known_good"
+	}
+
 	public captureRemoteConfigRefresh(input: {
 		outcome: "applied" | "cleared" | "failed" | "superseded"
 		durationMs: number
 		managed: boolean
 		configVersion?: string
 	}): void {
+		if (!TelemetryService.shouldCaptureRemoteConfigEvent(input.managed, input.outcome)) {
+			return
+		}
 		this.capture({
 			event: TelemetryService.EVENTS.REMOTE_CONFIG.REFRESH,
 			properties: {
@@ -615,6 +628,9 @@ export class TelemetryService {
 		durationMs: number
 		managed: boolean
 	}): void {
+		if (!TelemetryService.shouldCaptureRemoteConfigEvent(input.managed, input.outcome)) {
+			return
+		}
 		this.capture({
 			event: TelemetryService.EVENTS.REMOTE_CONFIG.SESSION_GATE,
 			properties: {
