@@ -105,7 +105,7 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	}
 	if (
 		compatibility.reason === "build_mismatch" &&
-		isManagedHubReusable(healthy, { expectedBuildId })
+		isManagedHubReusable(healthy)
 	) {
 		return report("build_mismatch");
 	}

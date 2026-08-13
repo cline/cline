@@ -182,41 +182,143 @@ export function getManagedHubCompatibility(
 	return { compatible: true };
 }
 
+export interface HubBuildIdentity {
+	buildId?: string;
+	buildEpochMs?: number;
+	coreVersion?: string;
+}
+
+function finiteEpochMs(value: number | undefined): number | undefined {
+	return typeof value === "number" && Number.isFinite(value) && value > 0
+		? value
+		: undefined;
+}
+
+/**
+ * Numeric release components of a semver-ish version, ignoring any prerelease
+ * or build suffix. Undefined when the value carries no comparable release.
+ */
+function parseReleaseComponents(
+	version: string | undefined,
+): number[] | undefined {
+	const release = version?.trim().split(/[-+]/, 1)[0];
+	if (!release) {
+		return undefined;
+	}
+	const components = release.split(".").map((part) => Number(part));
+	if (
+		components.length === 0 ||
+		components.some((part) => !Number.isInteger(part) || part < 0)
+	) {
+		return undefined;
+	}
+	return components;
+}
+
+function compareReleaseComponents(a: number[], b: number[]): number {
+	for (let index = 0; index < Math.max(a.length, b.length); index++) {
+		const left = a[index] ?? 0;
+		const right = b[index] ?? 0;
+		if (left !== right) {
+			return left < right ? -1 : 1;
+		}
+	}
+	return 0;
+}
+
+/**
+ * Total order over Hub builds: negative when `a` is older than `b`, positive
+ * when newer, zero when the two are indistinguishable.
+ *
+ * The ordering is what keeps concurrent installations from replacing each
+ * other's daemons. A one-sided "may I reuse this?" predicate lets both sides
+ * answer no, and two clients then retire each other's Hub forever; a total
+ * order is antisymmetric by construction, so at most one side can ever decide
+ * to retire. Every tier below preserves that: a field decides only when both
+ * records carry it, and the final fallback is "equal", which means reuse.
+ *
+ * Tiers, in order: identical build, embedded build epoch, core release
+ * version, then build id as a deterministic tiebreak.
+ */
+export function compareHubBuilds(
+	a: HubBuildIdentity,
+	b: HubBuildIdentity,
+): number {
+	const buildIdA = a.buildId?.trim();
+	const buildIdB = b.buildId?.trim();
+	if (buildIdA && buildIdB && buildIdA === buildIdB) {
+		return 0;
+	}
+
+	const epochA = finiteEpochMs(a.buildEpochMs);
+	const epochB = finiteEpochMs(b.buildEpochMs);
+	if (epochA !== undefined && epochB !== undefined && epochA !== epochB) {
+		return epochA < epochB ? -1 : 1;
+	}
+
+	const releaseA = parseReleaseComponents(a.coreVersion);
+	const releaseB = parseReleaseComponents(b.coreVersion);
+	if (releaseA && releaseB) {
+		const release = compareReleaseComponents(releaseA, releaseB);
+		if (release !== 0) {
+			return release;
+		}
+	}
+
+	if (buildIdA && buildIdB && buildIdA !== buildIdB) {
+		return buildIdA < buildIdB ? -1 : 1;
+	}
+
+	return 0;
+}
+
+/**
+ * This build's own identity, in the same shape a daemon publishes into its
+ * discovery record.
+ *
+ * Self and peer identities must be built from the same fields. Enriching only
+ * the local side - filling in a `coreVersion` the wire record can omit, say -
+ * makes a build's identity depend on which role it is playing, and two
+ * installations then decide the comparison on different tiers and each
+ * conclude that it is the newer one. Callers that need a synthetic identity
+ * pass it verbatim rather than layering overrides onto this.
+ */
+export function resolveHubBuildIdentity(): HubBuildIdentity {
+	return {
+		buildId: resolveHubBuildId(),
+		buildEpochMs: resolveHubBuildEpochMs(),
+		coreVersion: String(corePackage.version),
+	};
+}
+
 /**
  * Whether a client may keep using a managed local Hub instead of retiring it.
  *
- * Same build: always reusable. Different build: reusable only when the Hub
- * was produced *after* this client's own build (another installation
- * upgraded the shared Hub) - the daemon is then running newer code, so
- * replacing it would be a downgrade; the client attaches over the compatible
- * wire protocol and the build-mismatch watcher prompts the user to update.
- * A Hub that is older, unordered, or missing build metadata is not reusable
- * and gets retired and replaced, preserving the stale-daemon fix.
+ * A Hub is retired only when this client's build is *strictly newer* by
+ * {@link compareHubBuilds}. Same build, newer Hub, and indistinguishable
+ * builds all attach over the compatible wire protocol and let the
+ * build-mismatch watcher prompt the user to update. Because the decision is
+ * derived from a total order, two installations can never retire each other.
+ *
+ * Genuine protocol incompatibility is unaffected: those Hubs cannot be spoken
+ * to at all and are still replaced.
  */
 export function isManagedHubReusable(
-	record: HubProtocolMetadata & { buildId?: string; buildEpochMs?: number },
-	options?: { expectedBuildId?: string; expectedBuildEpochMs?: number },
+	record: HubProtocolMetadata & HubBuildIdentity,
+	options?: { self?: HubBuildIdentity },
 ): boolean {
-	const compatibility = getManagedHubCompatibility(
-		record,
-		options?.expectedBuildId ?? resolveHubBuildId(),
-	);
+	const self = options?.self ?? resolveHubBuildIdentity();
+	const compatibility = getManagedHubCompatibility(record, self.buildId ?? "");
 	if (compatibility.compatible) {
 		return true;
 	}
-	if (compatibility.reason !== "build_mismatch") {
+	if (
+		compatibility.reason !== "build_mismatch" &&
+		compatibility.reason !== "missing_build"
+	) {
 		return false;
 	}
-	const hubEpochMs = record.buildEpochMs;
-	const expectedEpochMs =
-		options?.expectedBuildEpochMs ?? resolveHubBuildEpochMs();
-	return (
-		typeof hubEpochMs === "number" &&
-		Number.isFinite(hubEpochMs) &&
-		typeof expectedEpochMs === "number" &&
-		Number.isFinite(expectedEpochMs) &&
-		hubEpochMs > expectedEpochMs
-	);
+	return compareHubBuilds(self, record) <= 0;
 }
 
 export function resolveHubOwnerContext(
