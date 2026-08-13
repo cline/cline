@@ -51,6 +51,7 @@ export const GENERATED_PROVIDER_IDS = [
 	"dinference",
 	"drun",
 	"ebcloud",
+	"edenai",
 	"empiriolabs",
 	"evroc",
 	"fastrouter",

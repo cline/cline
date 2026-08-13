@@ -1,7 +1,7 @@
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
-import { sendEvent } from "./context";
+import { encodeSidecarEvent, sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -327,6 +327,11 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			// Replay a pending mismatch so webviews that connect (or reload)
+			// after detection still prompt the user to update and restart.
+			if (ctx.hubBuildMismatch) {
+				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
+			}
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;

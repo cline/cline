@@ -20,7 +20,7 @@
 		"@streamdown/cjk": "^1.0.3",
 		"@tailwindcss/vite": "^4.2.1",
 		"@xyflow/react": "^12.10.1",
-		"ai": "^7",
+		"ai": "^7.0.58",
 		"ansi-to-react": "^6.2.6",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1",
