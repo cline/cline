@@ -30,6 +30,14 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", capabilities: ["tools", 42] })).toThrow(CatalogShapeError)
 		})
 
+		it("throws CatalogShapeError when modalities are malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: "image" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["text"] } })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["text"], output: ["hologram"] } })).toThrow(
+				CatalogShapeError,
+			)
+		})
+
 		it("throws CatalogShapeError when pricing is malformed", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: "cheap" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: "free" } })).toThrow(CatalogShapeError)
@@ -101,6 +109,14 @@ describe("adaptSdkModelInfo", () => {
 			// authoritative capability denials downstream.
 			const model = adaptSdkModelInfo({ id: "m" })
 			expect(Object.hasOwn(model, "capabilities")).toBe(false)
+		})
+
+		it("preserves SDK input and output modalities", () => {
+			const model = adaptSdkModelInfo({
+				id: "image-model",
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
+			})
+			expect(model.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
 		})
 	})
 

@@ -29,6 +29,12 @@ import type { InteractiveSlashCommand } from "./interactive-welcome";
 export type ChatEntry = (
 	| { kind: "user"; text: string }
 	| { kind: "assistant_text"; text: string; streaming: boolean }
+	| {
+			kind: "assistant_image";
+			mediaType: string;
+			byteLength: number;
+			path?: string;
+	  }
 	| { kind: "reasoning"; text: string; streaming: boolean }
 	| {
 			kind: "tool_call";

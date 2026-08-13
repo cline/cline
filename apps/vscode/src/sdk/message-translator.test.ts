@@ -576,6 +576,32 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].partial).toBe(false)
 	})
 
+	it("translates generated image content_end to a displayable data URL", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "image",
+					image: { data: "aGVsbG8=", mediaType: "image/png" },
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				images: ["data:image/png;base64,aGVsbG8="],
+				partial: false,
+			}),
+		])
+	})
+
 	it("translates tool content_end with error", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
@@ -3999,5 +4025,24 @@ describe("tool display paths are relativized to the cwd", () => {
 		const toolMessage = clineMessages.find((m) => m.say === "tool")
 		expect(toolMessage).toBeDefined()
 		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.images?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				images: ["data:image/webp;base64,aGVsbG8="],
+			}),
+		)
 	})
 })

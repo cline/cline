@@ -7,6 +7,7 @@ import type {
 } from "../../runtime/session-events";
 import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
 import { resolveNonCompactionStatusLabel } from "../../utils/events";
+import { materializeGeneratedImage } from "../../utils/generated-images";
 import {
 	formatToolInput,
 	formatToolOutput,
@@ -203,6 +204,19 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 						case "tool": {
 							closeInlineStream();
 							closeToolEntry(event);
+							break;
+						}
+						case "image": {
+							closeInlineStream();
+							const image = event.image;
+							if (!image) break;
+							const saved = materializeGeneratedImage(image);
+							appendEntry({
+								kind: "assistant_image",
+								mediaType: image.mediaType,
+								byteLength: saved?.byteLength ?? 0,
+								path: saved?.path,
+							});
 							break;
 						}
 					}

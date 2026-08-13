@@ -1,3 +1,4 @@
+import type { ModelModalities } from "@cline/shared"
 import { ApiFormat } from "./proto/cline/models"
 import type { ApiHandlerSettings } from "./storage/state-keys"
 
@@ -104,6 +105,8 @@ export interface ModelInfo {
 	 * means "capabilities unknown", which SDK checks fail open on.
 	 */
 	capabilities?: readonly string[]
+	/** SDK input/output modalities preserved for runtime model routing. */
+	modalities?: ModelModalities
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

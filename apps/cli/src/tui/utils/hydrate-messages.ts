@@ -5,6 +5,7 @@ import {
 	parseUserInputMode,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
+import { materializeGeneratedImage } from "../../utils/generated-images";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
@@ -76,6 +77,23 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 		const userTextParts: string[] = [];
 
 		for (const block of msg.content) {
+			if (block.type === "image" && msg.role === "assistant") {
+				if (block.data) {
+					const saved = materializeGeneratedImage({
+						data: block.data,
+						mediaType: block.mediaType,
+					});
+					entries.push({
+						kind: "assistant_image",
+						mediaType: block.mediaType,
+						byteLength: saved?.byteLength ?? 0,
+						path: saved?.path,
+						mode,
+					});
+				}
+				continue;
+			}
+
 			if (block.type === "text") {
 				if (msg.role === "user") {
 					userTextParts.push(block.text);

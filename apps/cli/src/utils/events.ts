@@ -4,6 +4,7 @@ import {
 	parseCompactionNoticeMetadata,
 } from "../tui/utils/compaction-status";
 import { formatCliErrorMessage } from "./cline-pass-errors";
+import { materializeGeneratedImage } from "./generated-images";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -184,6 +185,20 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					}
 					shouldPrefixNextTextWithBlankLine = false;
 					break;
+				case "image": {
+					closeInlineStreamIfNeeded();
+					const image = event.image;
+					if (!image) break;
+					const saved = materializeGeneratedImage(image);
+					if (saved) {
+						write(`${c.dim}[generated image]${c.reset} ${saved.path}\n`);
+					} else {
+						write(
+							`${c.dim}[generated image]${c.reset} ${image.mediaType} could not be saved\n`,
+						);
+					}
+					break;
+				}
 			}
 			break;
 

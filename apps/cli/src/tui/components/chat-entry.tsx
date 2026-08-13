@@ -45,6 +45,13 @@ function trimLeading(text: string): string {
 	return text.replace(/^\n+/, "");
 }
 
+function formatImageSize(byteLength: number): string {
+	if (byteLength <= 0) return "unknown size";
+	if (byteLength < 1024) return `${byteLength} B`;
+	if (byteLength < 1024 * 1024) return `${(byteLength / 1024).toFixed(1)} KiB`;
+	return `${(byteLength / (1024 * 1024)).toFixed(1)} MiB`;
+}
+
 function ReasoningBlock(props: { text: string; streaming: boolean }) {
 	const [expanded, setExpanded] = useState(false);
 	const { width } = useTerminalDimensions();
@@ -650,6 +657,20 @@ export function ChatEntryView(props: {
 				</box>
 			);
 		}
+
+		case "assistant_image":
+			return (
+				<box flexDirection="row">
+					<box width={2}>
+						<text fg={accent}>*</text>
+					</box>
+					<text fg={defaultFg} selectable>
+						{entry.path
+							? `Generated image (${entry.mediaType}, ${formatImageSize(entry.byteLength)}): ${entry.path}`
+							: `Generated image (${entry.mediaType}) could not be saved`}
+					</text>
+				</box>
+			);
 
 		case "reasoning":
 			return <ReasoningBlock text={entry.text} streaming={entry.streaming} />;

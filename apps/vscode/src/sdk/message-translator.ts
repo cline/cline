@@ -1507,6 +1507,21 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					})
 					break
 				}
+				case "image": {
+					const image = event.image
+					if (!image?.data || !image.mediaType.startsWith("image/")) {
+						break
+					}
+					messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "text",
+						text: "",
+						images: [`data:${image.mediaType};base64,${image.data}`],
+						partial: false,
+					})
+					break
+				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
@@ -2373,6 +2388,20 @@ export function sdkMessagesToClineMessages(
 										type: "content_end",
 										contentType: "reasoning",
 										reasoning: block.thinking.trim(),
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "image":
+						if (block.data && block.mediaType.startsWith("image/")) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "image",
+										image: { data: block.data, mediaType: block.mediaType },
 									} as AgentEvent,
 									state,
 								),

@@ -100,6 +100,7 @@ function translateContentEnd(
 		output?: unknown;
 		error?: string;
 		durationMs?: number;
+		image?: { data: string; mediaType: string };
 	};
 
 	switch (e.contentType) {
@@ -109,6 +110,18 @@ function translateContentEnd(
 		case "reasoning":
 			// Reasoning was already streamed via content_start chunks; don't re-send.
 			return [];
+		case "image":
+			if (!e.image?.data || !e.image.mediaType) return [];
+			return [
+				{
+					sessionUpdate: "agent_message_chunk",
+					content: {
+						type: "image",
+						data: e.image.data,
+						mimeType: e.image.mediaType,
+					},
+				},
+			];
 		case "tool": {
 			const toolCallId = e.toolCallId ?? "unknown";
 			const failed = !!e.error;

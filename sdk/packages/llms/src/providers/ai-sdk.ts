@@ -1545,6 +1545,12 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					context,
 					kind,
 				);
+				const googleImageProviderKey =
+					kind === "google"
+						? "google"
+						: kind === "vertex"
+							? "vertex"
+							: undefined;
 				const providerOptions =
 					context.provider.metadata?.imageTransport === "openrouter" &&
 					isImageGenerationModel(context.model)
@@ -1562,16 +1568,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 									modalities: ["image", "text"],
 								},
 							}
-						: kind === "google" &&
+						: googleImageProviderKey !== undefined &&
 								isImageGenerationModel(context.model) &&
 								!isDedicatedImageGenerationModel(context.model)
 							? {
 									...composedProviderOptions,
-									google: {
-										...((composedProviderOptions.google ?? {}) as Record<
-											string,
-											unknown
-										>),
+									[googleImageProviderKey]: {
+										...((composedProviderOptions[googleImageProviderKey] ??
+											{}) as Record<string, unknown>),
 										responseModalities: ["TEXT", "IMAGE"],
 									},
 								}

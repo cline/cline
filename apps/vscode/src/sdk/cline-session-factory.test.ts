@@ -821,6 +821,7 @@ describe("buildSessionConfig", () => {
 				contextWindow: 16_000,
 				supportsImages: true,
 				supportsPromptCache: true,
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
 				inputPrice: 0,
 				outputPrice: 0,
 			},
@@ -830,6 +831,7 @@ describe("buildSessionConfig", () => {
 		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
 
 		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
+		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
 	})
 
 	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {

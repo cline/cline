@@ -1,3 +1,5 @@
+import { readFileSync, rmSync } from "node:fs";
+import { dirname } from "node:path";
 import type { Message } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
@@ -179,5 +181,36 @@ describe("hydrateSessionMessages", () => {
 				mode: undefined,
 			},
 		]);
+	});
+
+	it("materializes generated images from resumed assistant history", () => {
+		const messages = [
+			{
+				role: "assistant",
+				content: [
+					{
+						type: "image",
+						data: Buffer.from("history-image").toString("base64"),
+						mediaType: "image/webp",
+					},
+				],
+			},
+		] as Message[];
+
+		const [entry] = hydrateSessionMessages(messages);
+		expect(entry).toMatchObject({
+			kind: "assistant_image",
+			mediaType: "image/webp",
+			byteLength: 13,
+			mode: undefined,
+		});
+		if (entry?.kind !== "assistant_image" || !entry.path) {
+			throw new Error("Expected a materialized assistant image");
+		}
+		try {
+			expect(readFileSync(entry.path, "utf8")).toBe("history-image");
+		} finally {
+			rmSync(dirname(entry.path), { recursive: true, force: true });
+		}
 	});
 });

@@ -1817,6 +1817,60 @@ describe("sdk-gateway", () => {
 		expect(generateImageSpy).not.toHaveBeenCalled();
 	});
 
+	it("requests Vertex text and image output without dropping provider options", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "caption" },
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "vertex",
+					options: {
+						project: "test-project",
+						location: "global",
+					},
+					models: [
+						{
+							id: "vertex-gemini-image-mixed-test",
+							name: "Vertex Gemini Image Mixed Test",
+							modalities: {
+								input: ["text", "image"],
+								output: ["text", "image"],
+							},
+						},
+					],
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "vertex",
+				modelId: "vertex-gemini-image-mixed-test",
+				messages: baseMessages,
+				reasoning: { enabled: true, budgetTokens: 512 },
+			}),
+		);
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerOptions: expect.objectContaining({
+					vertex: {
+						thinkingConfig: {
+							thinkingBudget: 512,
+							includeThoughts: true,
+						},
+						responseModalities: ["TEXT", "IMAGE"],
+					},
+				}),
+			}),
+		);
+		expect(generateImageSpy).not.toHaveBeenCalled();
+	});
+
 	it("does not send tools to mixed image models that explicitly lack tool calling", async () => {
 		mockSuccessfulStream();
 		const gateway = createGateway({
