@@ -69,20 +69,18 @@ export class UnifiedSessionPersistenceService {
 	}
 
 	private toPersistedMessages(
-		messages: LlmsProviders.Message[] | undefined,
+		messages: LlmsProviders.MessageWithMetadata[] | undefined,
 		result?: AgentResult,
-		previousMessages?: LlmsProviders.Message[],
+		previousMessages?: LlmsProviders.MessageWithMetadata[],
 	): StoredMessageWithMetadata[] | undefined {
 		if (!messages) return undefined;
 		return result
 			? withLatestAssistantTurnMetadata(
 					result.messages,
 					result,
-					previousMessages as LlmsProviders.MessageWithMetadata[] | undefined,
+					previousMessages,
 				)
-			: normalizeStoredMessagesForPersistence(
-					messages as LlmsProviders.MessageWithMetadata[],
-				);
+			: normalizeStoredMessagesForPersistence(messages);
 	}
 
 	ensureSessionsDir(): string {
@@ -311,12 +309,10 @@ export class UnifiedSessionPersistenceService {
 
 	persistSessionMessages(
 		sessionId: string,
-		messages: LlmsProviders.Message[],
+		messages: LlmsProviders.MessageWithMetadata[],
 		systemPrompt?: string,
 	): Promise<void> {
-		const normalizedMessages = normalizeStoredMessagesForPersistence(
-			messages as LlmsProviders.MessageWithMetadata[],
-		);
+		const normalizedMessages = normalizeStoredMessagesForPersistence(messages);
 		return this.manifestStore.persistSessionMessages(
 			sessionId,
 			normalizedMessages,
@@ -382,7 +378,7 @@ export class UnifiedSessionPersistenceService {
 		status: SessionStatus,
 		summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.Message[],
+		messages?: LlmsProviders.MessageWithMetadata[],
 	): Promise<void> {
 		return this.teamChildren.onTeamTaskEnd(
 			rootSessionId,

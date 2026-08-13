@@ -796,6 +796,10 @@ export {
 	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
 export {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "./session/display-messages";
+export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,

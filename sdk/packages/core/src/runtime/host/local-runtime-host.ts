@@ -1412,7 +1412,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async readLiveSessionMessages(
 		sessionId: string,
-	): Promise<LlmsProviders.Message[]> {
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) return [];
 		// Resident sessions are authoritative: disk persistence lags at
@@ -1432,7 +1432,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<LlmsProviders.Message[]> {
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) return [];
 		const row = await this.getRow(target);

@@ -1,4 +1,8 @@
-import { formatDisplayUserInput } from "@cline/shared";
+import { projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	formatDisplayUserInput,
+	type MessageWithMetadata,
+} from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
 	WebviewChatMessage,
@@ -193,13 +197,17 @@ export function mapHistoryToWebviewMessages(
 ): WebviewChatMessage[] {
 	const mapped: WebviewChatMessage[] = [];
 	const toolLocations = new Map<string, HistoryToolLocation>();
+	const displayHistory = projectSessionMessagesForDisplay(
+		history as MessageWithMetadata[],
+	);
 
-	for (const [index, entry] of history.entries()) {
+	for (const entry of displayHistory) {
+		const { message, sourceIndex } = entry;
 		const record =
-			entry && typeof entry === "object"
-				? (entry as Record<string, unknown>)
-				: { content: entry };
-		const messageKey = asString(record.id) ?? `history-${index}`;
+			message && typeof message === "object"
+				? (message as unknown as Record<string, unknown>)
+				: { content: message };
+		const messageKey = asString(record.id) ?? `history-${sourceIndex}`;
 		const rawRole = asString(record.role)?.toLowerCase();
 		let role: WebviewChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
