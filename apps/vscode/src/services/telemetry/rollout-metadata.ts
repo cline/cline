@@ -12,8 +12,6 @@ export interface RolloutBundleActivation {
 }
 
 export const ROLLOUT_BUNDLE_ACTIVATED_EVENT = "extension.rollout.bundle_activated"
-export const REMOTE_CONFIG_REFRESH_EVENT = "remote_config.refresh"
-export const REMOTE_CONFIG_SESSION_GATE_EVENT = "remote_config.session_gate"
 export const ROLLOUT_ERROR_MESSAGE_LIMIT = 500
 
 /**

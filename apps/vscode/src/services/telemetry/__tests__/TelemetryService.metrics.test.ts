@@ -2,12 +2,7 @@ import { describe, it } from "bun:test"
 import * as assert from "assert"
 import { PROVIDER_FAILURE_ERROR_TYPE, PROVIDER_FAILURE_PHASE } from "../../../sdk/provider-failure-telemetry"
 import type { ITelemetryProvider, TelemetryProperties, TelemetrySettings } from "../providers/ITelemetryProvider"
-import {
-	REMOTE_CONFIG_REFRESH_EVENT,
-	REMOTE_CONFIG_SESSION_GATE_EVENT,
-	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
-	ROLLOUT_ERROR_MESSAGE_LIMIT,
-} from "../rollout-metadata"
+import { ROLLOUT_BUNDLE_ACTIVATED_EVENT, ROLLOUT_ERROR_MESSAGE_LIMIT } from "../rollout-metadata"
 import { TelemetryMetadata, TelemetryService } from "../TelemetryService"
 
 class FakeProvider implements ITelemetryProvider {
@@ -143,13 +138,13 @@ describe("TelemetryService metrics", () => {
 		})
 		service.captureRemoteConfigSessionGate({ outcome: "last_known_good", durationMs: 4.2, managed: true })
 
-		const refresh = provider.logs.find((entry) => entry.event === REMOTE_CONFIG_REFRESH_EVENT)
+		const refresh = provider.logs.find((entry) => entry.event === "remote_config.refresh")
 		assert.strictEqual(refresh?.properties?.outcome, "applied")
 		assert.strictEqual(refresh?.properties?.duration_ms, 13)
 		assert.strictEqual((refresh?.properties?.config_version as string).length, 100)
 		assert.strictEqual(refresh?.properties?.extension_variant, "next")
 		assert.strictEqual(refresh?.properties?.organization_id, undefined)
-		const gate = provider.logs.find((entry) => entry.event === REMOTE_CONFIG_SESSION_GATE_EVENT)
+		const gate = provider.logs.find((entry) => entry.event === "remote_config.session_gate")
 		assert.strictEqual(gate?.properties?.outcome, "last_known_good")
 		assert.strictEqual(gate?.properties?.duration_ms, 4)
 		assert.strictEqual(gate?.properties?.extension_variant, "next")

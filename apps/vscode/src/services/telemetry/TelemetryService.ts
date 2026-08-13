@@ -13,8 +13,6 @@ import type { ITelemetryProvider, TelemetryProperties } from "./providers/ITelem
 import {
 	getRolloutErrorProperties,
 	getRolloutTelemetryMetadata,
-	REMOTE_CONFIG_REFRESH_EVENT,
-	REMOTE_CONFIG_SESSION_GATE_EVENT,
 	ROLLOUT_BUNDLE_ACTIVATED_EVENT,
 	type RolloutBundleActivation,
 	type RolloutTelemetryMetadata,
@@ -252,6 +250,13 @@ export class TelemetryService {
 		WORKSPACE: {
 			// Track multi-root checkpoint operations
 			MULTI_ROOT_CHECKPOINT: "workspace.multi_root_checkpoint",
+		},
+		// Organization remote-config lifecycle events
+		REMOTE_CONFIG: {
+			// Tracks the outcome of every remote-config refresh attempt
+			REFRESH: "remote_config.refresh",
+			// Tracks the session-start policy gate decision
+			SESSION_GATE: "remote_config.session_gate",
 		},
 		TASK: {
 			// Tracks user feedback on completed tasks
@@ -595,7 +600,7 @@ export class TelemetryService {
 		configVersion?: string
 	}): void {
 		this.capture({
-			event: REMOTE_CONFIG_REFRESH_EVENT,
+			event: TelemetryService.EVENTS.REMOTE_CONFIG.REFRESH,
 			properties: {
 				outcome: input.outcome,
 				duration_ms: Math.max(0, Math.round(input.durationMs)),
@@ -611,7 +616,7 @@ export class TelemetryService {
 		managed: boolean
 	}): void {
 		this.capture({
-			event: REMOTE_CONFIG_SESSION_GATE_EVENT,
+			event: TelemetryService.EVENTS.REMOTE_CONFIG.SESSION_GATE,
 			properties: {
 				outcome: input.outcome,
 				duration_ms: Math.max(0, Math.round(input.durationMs)),
