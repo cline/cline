@@ -1,5 +1,11 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync, readFileSync } from "node:fs";
+import {
+	closeSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	unlinkSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -93,6 +99,20 @@ function readSupersededHubDiscovery(
 		};
 	} catch {
 		return undefined;
+	}
+}
+
+/**
+ * The set-aside record is one-shot recovery metadata: once an ensure completes
+ * with a live, verified hub it has served its purpose, and keeping it around
+ * is a hazard — its pid can be recycled by the OS and a much later launch
+ * that finds no live record would SIGTERM an unrelated process with it.
+ */
+function discardSupersededHubDiscovery(discoveryPath: string): void {
+	try {
+		unlinkSync(`${discoveryPath}.superseded`);
+	} catch {
+		// Already gone or unreadable — nothing to discard.
 	}
 }
 
@@ -356,6 +376,7 @@ async function ensureDetachedHubServerLocked(
 					authToken: discoveredAuthToken,
 				}))
 			) {
+				discardSupersededHubDiscovery(owner.discoveryPath);
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: discoveredAuthToken,
@@ -420,6 +441,7 @@ async function ensureDetachedHubServerLocked(
 					// Best-effort repair; attaching still works with the token
 					// we just verified even if the discovery file is unwritable.
 				}
+				discardSupersededHubDiscovery(owner.discoveryPath);
 				return rememberIfManaged({
 					url: expected.url,
 					authToken: token,
@@ -467,6 +489,7 @@ async function ensureDetachedHubServerLocked(
 					authToken: nextDiscovery.authToken,
 				}))
 			) {
+				discardSupersededHubDiscovery(owner.discoveryPath);
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: nextDiscovery.authToken,
