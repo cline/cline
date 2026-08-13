@@ -27,7 +27,7 @@ const meta: Meta<typeof AgentAskQuestion> = {
 		docs: {
 			description: {
 				component:
-					"Presents one or more model-supplied follow-up questions with constrained answers. Hosts own submission, pending, and error state for each question.",
+					"Presents one or more model-supplied follow-up questions with explicit submission. Set an item to multiple and provide onAnswers to allow more than one selection. Hosts own pending and error state for each question.",
 			},
 		},
 	},
@@ -56,7 +56,7 @@ export const SendingAnswer: Story = {
 	render: Default.render,
 };
 
-export const Error: Story = {
+export const ErrorState: Story = {
 	args: {
 		errors: { location: "The answer could not be sent. Please try again." },
 	},
@@ -75,6 +75,21 @@ export const LongOptions: Story = {
 				question: "Which implementation strategy should Cline use?",
 			},
 		],
+	},
+	render: Default.render,
+};
+
+export const MultipleChoice: Story = {
+	args: {
+		items: [
+			{
+				id: "surfaces",
+				multiple: true,
+				options: ["Desktop", "VS Code", "CLI"],
+				question: "Where should this feature be available?",
+			},
+		],
+		onAnswers: () => {},
 	},
 	render: Default.render,
 };

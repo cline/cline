@@ -220,13 +220,13 @@ describe("@cline/ui theme contract", () => {
 			expect(root).toContain(`--font-weight-${token}: ${value};`);
 		}
 		for (const [token, value] of [
-			["normal", 400],
-			["medium", 500],
-			["semibold", 600],
-			["bold", 600],
+			["normal", 380],
+			["medium", 480],
+			["semibold", 560],
 		] as const) {
 			expect(dark).toContain(`--font-weight-${token}: ${value};`);
 		}
+		expect(dark).toContain("--font-weight-bold: var(--font-weight-semibold);");
 		for (const token of [
 			"--font-sans:",
 			"--font-mono:",

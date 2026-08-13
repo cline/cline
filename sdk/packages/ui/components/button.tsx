@@ -17,7 +17,7 @@ const BASE =
 	"inline-flex items-center justify-center whitespace-nowrap rounded-cline-ui-md font-cline-ui-medium cursor-pointer " +
 	"disabled:pointer-events-none disabled:opacity-50 data-[disabled]:pointer-events-none data-[disabled]:opacity-50 " +
 	"[&_svg]:pointer-events-none [&_svg]:shrink-0 shrink-0 " +
-	"outline-none focus-visible:ring-2 focus-visible:ring-cline-ui-ring/60 transition-colors";
+	"outline-none focus-visible:ring-1 focus-visible:ring-cline-ui-ring/60";
 
 // ─── Button ───────────────────────────────────────────────────────────────────
 
@@ -127,7 +127,12 @@ const preventDisabledActivation: MouseEventHandler<HTMLElement> = (event) => {
 };
 
 function disableComposedChild(children: ReactNode) {
-	if (!isValidElement<{ onClick?: MouseEventHandler; onClickCapture?: MouseEventHandler }>(children)) {
+	if (
+		!isValidElement<{
+			onClick?: MouseEventHandler;
+			onClickCapture?: MouseEventHandler;
+		}>(children)
+	) {
 		return children;
 	}
 
