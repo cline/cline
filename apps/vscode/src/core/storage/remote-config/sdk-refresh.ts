@@ -112,8 +112,15 @@ export async function refreshSdkRemoteConfig(
 					outcome = "superseded"
 					return
 				}
+				const publishedOrganizationId = candidateIntegration?.prepared.bundle?.metadata?.organizationId as
+					| string
+					| undefined
 				await controller.setRemoteConfigCoreIntegration(candidateIntegration)
 				candidateIntegration = undefined // Ownership transferred to the controller.
+				controller.stateManager.setGlobalState(
+					"lastManagedOrganizationId",
+					publishedOrganizationId ?? controller.authService.getActiveOrganizationId() ?? undefined,
+				)
 				shouldPostState = true
 				outcome = "applied"
 				configVersion = remoteConfig.version

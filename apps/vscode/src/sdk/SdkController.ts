@@ -809,8 +809,31 @@ export class Controller {
 			return
 		}
 
+		if (!activeOrganizationId) {
+			if (this.stateManager.getGlobalStateKey("lastManagedOrganizationId")) {
+				// This install last ran under organization policy, but the current
+				// identity could not be resolved (refresh failed and no org was
+				// restored — e.g. the API is unreachable). Fail closed rather than
+				// starting an unpoliced session.
+				void telemetryService.captureRemoteConfigSessionGate({
+					outcome: "blocked",
+					durationMs: Date.now() - startedAt,
+					managed: true,
+				})
+				throw new Error("Could not verify organization policy. Check your connection and try again.")
+			}
+			// No organization policy applies to personal or signed-out use; a
+			// failed refresh must not block local work.
+			void telemetryService.captureRemoteConfigSessionGate({
+				outcome: "unmanaged",
+				durationMs: Date.now() - startedAt,
+				managed: false,
+			})
+			return
+		}
+
 		const bundleOrganizationId = this.remoteConfigBundle?.metadata?.organizationId
-		if (activeOrganizationId && bundleOrganizationId === activeOrganizationId) {
+		if (bundleOrganizationId === activeOrganizationId) {
 			Logger.warn("[SdkController] Remote config refresh failed; starting with last known-good organization policy")
 			void telemetryService.captureRemoteConfigSessionGate({
 				outcome: "last_known_good",
@@ -822,7 +845,7 @@ export class Controller {
 		void telemetryService.captureRemoteConfigSessionGate({
 			outcome: "blocked",
 			durationMs: Date.now() - startedAt,
-			managed: Boolean(activeOrganizationId),
+			managed: true,
 		})
 		throw new Error("Could not verify organization policy. Check your connection and try again.")
 	}
@@ -1854,9 +1877,12 @@ export class Controller {
 
 	async handleSignOut(): Promise<void> {
 		const sessionProviderId = this.getSessionProviderId() ?? this.getActiveProviderId()
+		// Capture before deauth nulls the auth info, so the per-org config cache
+		// (which can hold enterprise secrets) is actually deleted on sign-out.
+		const organizationId = this.authService.getActiveOrganizationId() ?? undefined
 		await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
-		clearRemoteConfig()
+		clearRemoteConfig(organizationId)
 		await this.setRemoteConfigCoreIntegration(undefined)
 		await this.postStateToWebview()
 	}
@@ -2183,6 +2209,7 @@ export class Controller {
 				backgroundCommandTaskId: this.backgroundCommandTaskId,
 				foregroundCommandRunning: this.foregroundCommands.isRunning,
 				isRemoteConfigAvailable: this.isRemoteConfigAvailable,
+				currentRemoteConfigRevision: this.currentRemoteConfigRevision,
 				// Without this the webview always receives workspaceRoots: [] on the
 				// SDK path (classic Controller exposes a public workspaceManager;
 				// SdkController builds one lazily). The task-header working-directory

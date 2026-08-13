@@ -77,9 +77,18 @@ describe("remote-config runtime", () => {
 						remoteConfig: {
 							version: "v1",
 							globalRules: [{ name: "rule", contents: "stale rule" }],
-							globalWorkflows: [{ name: "workflow", contents: "stale workflow" }],
+							globalWorkflows: [
+								{ name: "workflow", contents: "stale workflow" },
+							],
 						},
-						managedInstructions: [{ id: "skill", kind: "skill", name: "skill", contents: "stale skill" }],
+						managedInstructions: [
+							{
+								id: "skill",
+								kind: "skill",
+								name: "skill",
+								contents: "stale skill",
+							},
+						],
 					};
 				},
 			},
@@ -87,16 +96,24 @@ describe("remote-config runtime", () => {
 
 		await expect(fs.stat(initial.paths.rulesFilePath)).resolves.toBeDefined();
 		await expect(fs.stat(initial.paths.manifestPath)).resolves.toBeDefined();
-		await expect(fs.readdir(initial.paths.workflowsPath)).resolves.toHaveLength(1);
+		await expect(fs.readdir(initial.paths.workflowsPath)).resolves.toHaveLength(
+			1,
+		);
 		await expect(fs.readdir(initial.paths.skillsPath)).resolves.toHaveLength(1);
 
 		await clearMaterializedRemoteConfigRuntime({ workspacePath });
 
-		await expect(fs.stat(initial.paths.rulesFilePath)).rejects.toMatchObject({ code: "ENOENT" });
-		await expect(fs.stat(initial.paths.manifestPath)).rejects.toMatchObject({ code: "ENOENT" });
+		await expect(fs.stat(initial.paths.rulesFilePath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
+		await expect(fs.stat(initial.paths.manifestPath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
 		await expect(fs.readdir(initial.paths.workflowsPath)).resolves.toEqual([]);
 		await expect(fs.readdir(initial.paths.skillsPath)).resolves.toEqual([]);
-		await expect(fs.stat(initial.paths.bundleCachePath)).resolves.toBeDefined();
+		await expect(fs.stat(initial.paths.bundleCachePath)).rejects.toMatchObject({
+			code: "ENOENT",
+		});
 	});
 
 	it("builds and reads non-secret blob upload metadata", () => {

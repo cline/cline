@@ -29,7 +29,40 @@ vi.mock("@/services/telemetry", () => ({
 	},
 }))
 
+const { buildBaseStateMock } = vi.hoisted(() => ({
+	buildBaseStateMock: vi.fn(async () => ({ taskHistory: [] })),
+}))
+vi.mock("@core/controller/state/getStateToPostToWebview", () => ({
+	getStateToPostToWebview: buildBaseStateMock,
+}))
+
 describe("SDK remote-config coordination", () => {
+	it("posts the current remote-config revision to the webview", async () => {
+		const controller = {
+			stateManager: {
+				getGlobalSettingsKey: () => undefined,
+				getRemoteConfigSettings: () => ({}),
+				setGlobalState: vi.fn(),
+			},
+			backgroundCommandRunning: false,
+			backgroundCommandTaskId: undefined,
+			foregroundCommands: { isRunning: false },
+			isRemoteConfigAvailable: true,
+			currentRemoteConfigRevision: 7,
+			ensureWorkspaceManager: async () => undefined,
+			taskHistory: { listHistory: async () => [] },
+			sessions: { getActiveSession: () => undefined },
+			turnStateTracker: { get: () => undefined },
+			messageTranslatorState: { getMinter: () => ({ epoch: 1, nextSeq: () => 1 }) },
+		}
+
+		await SdkController.prototype.getStateToPostToWebview.call(controller as never)
+
+		expect(buildBaseStateMock).toHaveBeenCalledWith(
+			expect.objectContaining({ isRemoteConfigAvailable: true, currentRemoteConfigRevision: 7 }),
+		)
+	})
+
 	it("keys refreshes by the current user and organization", async () => {
 		const refresh = vi.fn().mockResolvedValue(true)
 		const controller = {
@@ -110,6 +143,40 @@ describe("SDK remote-config coordination", () => {
 		).resolves.toBeUndefined()
 		expect(telemetryService.captureRemoteConfigSessionGate).toHaveBeenCalledWith(
 			expect.objectContaining({ outcome: "last_known_good", managed: true }),
+		)
+	})
+
+	it("does not block session start for users without an active organization when refresh fails", async () => {
+		const controller = {
+			waitForInitialRemoteConfig: vi.fn().mockResolvedValue(undefined),
+			refreshRemoteConfig: vi.fn().mockResolvedValue(false),
+			authService: { getActiveOrganizationId: () => null },
+			stateManager: { getGlobalStateKey: () => undefined },
+			remoteConfigBundle: undefined,
+		}
+
+		await expect(
+			SdkController.prototype["ensureRemoteConfigForSessionStart"].call(controller as never),
+		).resolves.toBeUndefined()
+		expect(telemetryService.captureRemoteConfigSessionGate).toHaveBeenCalledWith(
+			expect.objectContaining({ outcome: "unmanaged", managed: false }),
+		)
+	})
+
+	it("blocks session start when the install was managed but the identity cannot be resolved", async () => {
+		const controller = {
+			waitForInitialRemoteConfig: vi.fn().mockResolvedValue(undefined),
+			refreshRemoteConfig: vi.fn().mockResolvedValue(false),
+			authService: { getActiveOrganizationId: () => null },
+			stateManager: { getGlobalStateKey: () => "org-previous" },
+			remoteConfigBundle: undefined,
+		}
+
+		await expect(SdkController.prototype["ensureRemoteConfigForSessionStart"].call(controller as never)).rejects.toThrow(
+			"Could not verify organization policy",
+		)
+		expect(telemetryService.captureRemoteConfigSessionGate).toHaveBeenCalledWith(
+			expect.objectContaining({ outcome: "blocked", managed: true }),
 		)
 	})
 

@@ -222,18 +222,23 @@ export class ClineAccountService {
 		}
 	}
 
-	async fetchUserRemoteConfig(): Promise<UserRemoteConfigDiscoveryResponse | undefined> {
+	/**
+	 * Returns undefined when no auth token is available (signed out or token
+	 * refresh failed), and null when the server answered but distributes no
+	 * remote config for this user. Callers rely on the distinction: only the
+	 * server's answer may be treated as "explicitly no config".
+	 */
+	async fetchUserRemoteConfig(): Promise<UserRemoteConfigDiscoveryResponse | null | undefined> {
 		const token = await this._authService.getAuthToken()
 		if (!token) {
 			return undefined
 		}
 
-		const data = await this.authenticatedRequest<UserRemoteConfigDiscoveryResponse | null>(
+		return await this.authenticatedRequest<UserRemoteConfigDiscoveryResponse | null>(
 			CLINE_API_ENDPOINT.USER_REMOTE_CONFIG,
 			{},
 			{ allowNullData: true, authToken: token },
 		)
-		return data ?? undefined
 	}
 
 	/**

@@ -606,7 +606,7 @@ export class TelemetryService {
 	}
 
 	public captureRemoteConfigSessionGate(input: {
-		outcome: "refreshed" | "last_known_good" | "blocked"
+		outcome: "refreshed" | "last_known_good" | "unmanaged" | "blocked"
 		durationMs: number
 		managed: boolean
 	}): void {

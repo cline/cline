@@ -40,6 +40,7 @@ vi.mock("@/core/storage/remote-config/utils", () => ({
 	isRemoteConfigEnabled,
 }))
 
+vi.mock("@/config", () => ({ ClineEnv: { config: () => ({ apiBaseUrl: "https://api.example.test" }) } }))
 vi.mock("@/services/EnvUtils", () => ({ buildBasicClineHeaders: async () => ({}) }))
 vi.mock("@/shared/net", () => ({ getAxiosSettings: () => ({}) }))
 vi.mock("axios", () => ({ default: { request: axiosRequest } }))
@@ -80,8 +81,44 @@ describe("SdkRemoteConfigControlPlane", () => {
 		expect(bundle?.remoteConfig?.openTelemetryEnabled).toBe(true)
 	})
 
-	it("returns undefined and marks explicit no-config when discovery returns nothing", async () => {
+	it("returns undefined and marks explicit no-config when discovery returns nothing while signed out", async () => {
+		activeOrganization.id = null
 		fetchUserRemoteConfig.mockResolvedValue(undefined)
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle).toBeUndefined()
+		expect(controlPlane.wasExplicitNoConfig()).toBe(true)
+	})
+
+	it("reports explicit no-config for a locally opted-out organization without any network call", async () => {
+		activeOrganization.id = "org-current"
+		isRemoteConfigEnabled.mockReturnValue(false)
+		const controlPlane = makeControlPlane()
+
+		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
+
+		expect(bundle).toBeUndefined()
+		expect(controlPlane.wasExplicitNoConfig()).toBe(true)
+		expect(controlPlane.isRemoteConfigAvailable()).toBe(true)
+		expect(fetchUserRemoteConfig).not.toHaveBeenCalled()
+	})
+
+	it("throws instead of reporting no-config when no auth token is available for an active organization", async () => {
+		activeOrganization.id = "org-current"
+		fetchUserRemoteConfig.mockResolvedValue(undefined)
+		const controlPlane = makeControlPlane()
+
+		await expect(controlPlane.fetchBundle({ workspacePath: "/workspace" })).rejects.toThrow(
+			"Remote config discovery returned no response",
+		)
+		expect(controlPlane.wasExplicitNoConfig()).toBe(false)
+	})
+
+	it("reports explicit no-config when the server answers null for an active organization", async () => {
+		activeOrganization.id = "org-current"
+		fetchUserRemoteConfig.mockResolvedValue(null)
 		const controlPlane = makeControlPlane()
 
 		const bundle = await controlPlane.fetchBundle({ workspacePath: "/workspace" })
@@ -167,6 +204,20 @@ describe("SdkRemoteConfigControlPlane", () => {
 		expect(bundle).toBeUndefined()
 		expect(controlPlane.isRemoteConfigAvailable()).toBe(false)
 		expect(switchAccount).not.toHaveBeenCalled()
+	})
+
+	it("throws instead of reporting no-config when the fetch fails and no cache exists", async () => {
+		activeOrganization.id = "org-current"
+		fetchUserRemoteConfig.mockResolvedValue({
+			organizationId: "org-other",
+			value: JSON.stringify({ version: "other" }),
+		})
+		axiosRequest.mockRejectedValue(new Error("network down"))
+		readRemoteConfigFromCache.mockResolvedValue(undefined)
+		const controlPlane = makeControlPlane()
+
+		await expect(controlPlane.fetchBundle({ workspacePath: "/workspace" })).rejects.toThrow("network down")
+		expect(controlPlane.wasExplicitNoConfig()).toBe(false)
 	})
 
 	it("filters disabled optional instructions from the effective SDK bundle", async () => {

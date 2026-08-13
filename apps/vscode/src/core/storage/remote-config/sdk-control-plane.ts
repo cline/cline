@@ -15,7 +15,7 @@ import { isRemoteConfigEnabled } from "./utils"
 export interface SdkRemoteConfigControlPlaneController {
 	accountService: {
 		switchAccount(organizationId: string): Promise<unknown>
-		fetchUserRemoteConfig(): Promise<import("@/shared/ClineAccount").UserRemoteConfigDiscoveryResponse | undefined>
+		fetchUserRemoteConfig(): Promise<import("@/shared/ClineAccount").UserRemoteConfigDiscoveryResponse | null | undefined>
 	}
 	stateManager: {
 		setSecret(key: "remoteLiteLlmApiKey", value: string | undefined): unknown
@@ -103,7 +103,10 @@ async function fetchRemoteConfigForOrganization(organizationId: string): Promise
 				Logger.error(`Cached config validation failed for organization ${organizationId}:`, validationError)
 			}
 		}
-		return undefined
+		// A transient failure with no usable cache must NOT be reported as "no
+		// config" — the caller would clear the org's policy and report success.
+		// Rethrow so the refresh preserves the last known-good state instead.
+		throw error
 	}
 }
 
@@ -219,13 +222,34 @@ export class SdkRemoteConfigControlPlane {
 	}
 
 	private async discoverRemoteConfigOrg(): Promise<{ organizationId: string; discoveredValue?: string } | undefined> {
+		const activeOrganizationId = AuthService.getInstance().getActiveOrganizationId()
+
+		// Opt-out is a local, admin-gated preference. Evaluate it before any
+		// network call so opting out clears remote config even while offline.
+		if (activeOrganizationId && !isRemoteConfigEnabled(activeOrganizationId)) {
+			// The org still distributes config; keep availability so the account
+			// UI keeps offering the opt-in toggle to the opted-out admin.
+			this.remoteConfigAvailable = true
+			return undefined
+		}
+
 		const response = await this.controller.accountService.fetchUserRemoteConfig()
-		if (!response) {
+		if (response === undefined) {
+			// No auth token was available. A user with an active organization is
+			// signed in, so this is auth/network trouble (e.g. token refresh
+			// failed offline), not an org without config. Treating it as explicit
+			// no-config would wipe the enforced policy.
+			if (activeOrganizationId) {
+				throw new Error("Remote config discovery returned no response for the active organization")
+			}
+			return undefined
+		}
+		if (response === null) {
+			// The server answered and distributes no remote config for this user.
 			return undefined
 		}
 
 		const discovery = parseRemoteConfigDiscovery(response)
-		const activeOrganizationId = AuthService.getInstance().getActiveOrganizationId()
 		if (activeOrganizationId) {
 			return {
 				organizationId: activeOrganizationId,

@@ -76,6 +76,7 @@ function makeController(initialVersion = "existing") {
 		controller: {
 			authService: { getActiveOrganizationId: () => "org-current" },
 			mcpHub: {},
+			stateManager: { setGlobalState: vi.fn() },
 			setRemoteConfigAvailable: vi.fn(),
 			postStateToWebview: vi.fn().mockResolvedValue(undefined),
 			setRemoteConfigCoreIntegration,
@@ -140,6 +141,7 @@ describe("refreshSdkRemoteConfig", () => {
 		expect(captureRemoteConfigRefresh).toHaveBeenCalledWith(
 			expect.objectContaining({ outcome: "applied", managed: true, configVersion: "current" }),
 		)
+		expect(controller.stateManager.setGlobalState).toHaveBeenCalledWith("lastManagedOrganizationId", "org-current")
 	})
 
 	it("preserves the previous integration and disposes the candidate when compatibility application fails", async () => {
