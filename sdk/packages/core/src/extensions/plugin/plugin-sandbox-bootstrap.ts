@@ -16,6 +16,12 @@ import {
 	normalizePluginManifest,
 	type PluginManifest,
 } from "@cline/shared";
+import {
+	IdleExitController,
+	installParentDisconnectGuard,
+	parseIdleTimeoutMs,
+	SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV,
+} from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -113,10 +119,7 @@ interface PluginSetupCtx {
  * setters are host concerns and are intentionally no-ops in the sandbox.
  */
 interface PluginTelemetryBridge {
-	capture(input: {
-		event: string;
-		properties?: Record<string, unknown>;
-	}): void;
+	capture(input: { event: string; properties?: Record<string, unknown> }): void;
 	captureRequired(event: string, properties?: Record<string, unknown>): void;
 	recordCounter(
 		name: string,
@@ -330,6 +333,10 @@ function assertValidPluginSetupCtx(
 let pluginCounter = 0;
 const pluginState = new Map<string, PluginState>();
 const contributionCounters = new Map<string, number>();
+const idleExitController = new IdleExitController(() => process.exit(0));
+idleExitController.configure(
+	parseIdleTimeoutMs(process.env[SUBPROCESS_SANDBOX_IDLE_TIMEOUT_MS_ENV]),
+);
 
 // ---------------------------------------------------------------------------
 // IPC helpers
@@ -887,6 +894,8 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	resolveRuleContent,
 };
 
+installParentDisconnectGuard();
+
 process.on(
 	"message",
 	async (message: {
@@ -898,18 +907,23 @@ process.on(
 		if (!message || message.type !== "call") {
 			return;
 		}
-		const method = methods[message.method];
-		if (!method) {
-			sendResponse(message.id, false, undefined, {
-				message: `Unknown method: ${String(message.method)}`,
-			});
-			return;
-		}
+		idleExitController.beginCall();
 		try {
-			const result = await method((message.args || {}) as never);
-			sendResponse(message.id, true, result);
-		} catch (error) {
-			sendResponse(message.id, false, undefined, toErrorPayload(error));
+			const method = methods[message.method];
+			if (!method) {
+				sendResponse(message.id, false, undefined, {
+					message: `Unknown method: ${String(message.method)}`,
+				});
+				return;
+			}
+			try {
+				const result = await method((message.args || {}) as never);
+				sendResponse(message.id, true, result);
+			} catch (error) {
+				sendResponse(message.id, false, undefined, toErrorPayload(error));
+			}
+		} finally {
+			idleExitController.endCall();
 		}
 	},
 );
