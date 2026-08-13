@@ -333,9 +333,9 @@ export function autoUpdateOnStartup(): void {
 /**
  * True when a hub is reachable and another cli* client is attached to it.
  * Only cli* clients run the npm-installed binary — desktop sidecars and
- * connectors ship their own — so only they make the swap unsafe. By the time
- * beforeExit fires this process's own registrations are closed, so any cli
- * client still listed belongs to another process. Errors count as attached:
+ * connectors ship their own — so only they make the swap unsafe. This runs
+ * after the entrypoint's disposeAll(), so this process's own registrations
+ * are closed and any cli client still listed belongs to another process. Errors count as attached:
  * never install unless the hub positively confirms nothing would be hurt.
  */
 async function otherCliClientsAttached(): Promise<boolean> {
