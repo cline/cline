@@ -8,11 +8,18 @@ export type DialogId = string | number;
 export type DialogSize = "small" | "medium" | "large" | "full";
 
 /**
- * Visual chrome applied to every dialog panel. "classic" reproduces the old
- * borderless third-party look and is kept for comparison; the others are
- * Cline-designed styles.
+ * Visual chrome applied to every dialog. "pages" (the default) is a
+ * full-screen subpage takeover rather than a floating modal; the remaining
+ * variants are centered-panel styles ("classic" reproduces the old
+ * borderless third-party look and is kept for comparison).
  */
-export type DialogVariant = "frame" | "edge" | "topbar" | "shadow" | "classic";
+export type DialogVariant =
+	| "pages"
+	| "frame"
+	| "edge"
+	| "topbar"
+	| "shadow"
+	| "classic";
 
 export interface DialogStyle {
 	backgroundColor?: string;

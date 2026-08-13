@@ -8,6 +8,7 @@ import type {
 } from "./types";
 
 export const DIALOG_VARIANTS: readonly DialogVariant[] = [
+	"pages",
 	"frame",
 	"edge",
 	"topbar",
@@ -15,7 +16,7 @@ export const DIALOG_VARIANTS: readonly DialogVariant[] = [
 	"classic",
 ];
 
-export const DEFAULT_DIALOG_VARIANT: DialogVariant = "frame";
+export const DEFAULT_DIALOG_VARIANT: DialogVariant = "pages";
 
 export function normalizeDialogVariant(
 	value: string | undefined | null,
@@ -41,6 +42,14 @@ interface PaddingSides {
 }
 
 const VARIANT_CHROME: Record<DialogVariant, VariantChrome> = {
+	pages: {
+		// Fallback page surface; dark themes reuse their own background so the
+		// page reads as in-app navigation rather than an overlay.
+		background: "#14161b",
+		backdropColor: "#000000",
+		backdropOpacity: 0, // pages are opaque full-screen takeovers
+		defaultPadding: { top: 1, right: 1, bottom: 1, left: 1 },
+	},
 	frame: {
 		background: "#1c1f27",
 		backdropColor: "#000000",
@@ -99,6 +108,7 @@ function resolveWidth(
  * width, so the panel grows by this amount to keep the inner width the same.
  */
 const VARIANT_WIDTH_OVERHEAD: Record<DialogVariant, number> = {
+	pages: 0,
 	frame: 2,
 	edge: 1,
 	topbar: 0,
@@ -125,15 +135,31 @@ export interface DialogPanelProps {
 	variant: DialogVariant;
 	defaultSize: DialogSize | undefined;
 	terminalWidth: number;
+	terminalHeight: number;
+	/** 1-based position of this dialog in the stack (1 = opened first). */
+	stackIndex: number;
+	/** Number of dialogs currently open. */
+	stackDepth: number;
 }
 
 /**
- * Renders one dialog's chrome (panel, borders, accents) around its content.
- * The panel is absolutely positioned inside the centered dialog layer, so
- * stacked dialogs overlap in the middle of the screen.
+ * Renders one dialog's chrome around its content.
+ *
+ * For the "pages" variant each dialog is an opaque full-screen subpage with a
+ * branded header; stacked dialogs are deeper pages and the top one covers the
+ * rest. For the panel variants, dialogs are absolutely positioned inside the
+ * centered dialog layer and overlap in the middle of the screen.
  */
 export function DialogPanel(props: DialogPanelProps) {
-	const { record, variant, defaultSize, terminalWidth } = props;
+	const {
+		record,
+		variant,
+		defaultSize,
+		terminalWidth,
+		terminalHeight,
+		stackIndex,
+		stackDepth,
+	} = props;
 	const theme = useTheme();
 	const accent = getDialogAccents(theme).act;
 	const chrome = VARIANT_CHROME[variant];
@@ -152,6 +178,77 @@ export function DialogPanel(props: DialogPanelProps) {
 	);
 	const padding = resolvePadding(style, chrome.defaultPadding);
 	const background = style.backgroundColor ?? chrome.background;
+
+	if (variant === "pages") {
+		// Full-screen subpage: branded header bar, heavy accent rule, and the
+		// dialog content centered on an opaque page. Esc reads as "back".
+		const pageBackground =
+			style.backgroundColor ??
+			(theme.variant === "dark" && theme.background
+				? theme.background
+				: chrome.background);
+		// Header (1) + rule (1) + a row of breathing room above and below.
+		const availableHeight = Math.max(terminalHeight - 4, 5);
+		const maxHeight = Math.min(
+			style.maxHeight ?? availableHeight,
+			availableHeight,
+		);
+		return (
+			<box
+				position="absolute"
+				left={0}
+				top={0}
+				width="100%"
+				height="100%"
+				flexDirection="column"
+				backgroundColor={pageBackground}
+			>
+				<box
+					flexDirection="row"
+					justifyContent="space-between"
+					height={1}
+					flexShrink={0}
+					paddingLeft={1}
+					paddingRight={1}
+				>
+					<box flexDirection="row">
+						<box backgroundColor={accent} paddingLeft={1} paddingRight={1}>
+							<text fg="#000000">
+								<strong>cline</strong>
+							</text>
+						</box>
+					</box>
+					<text fg="gray">
+						{stackDepth > 1
+							? `esc \u2039 back (${stackIndex}/${stackDepth})`
+							: "esc \u2039 close"}
+					</text>
+				</box>
+				<box
+					height={1}
+					flexShrink={0}
+					border={["top"]}
+					borderStyle="heavy"
+					borderColor={accent}
+				/>
+				<box flexGrow={1} alignItems="center" justifyContent="center">
+					<box
+						flexDirection="column"
+						width={width}
+						maxWidth={maxWidth}
+						minWidth={style.minWidth}
+						maxHeight={maxHeight}
+						paddingTop={padding.top}
+						paddingRight={padding.right}
+						paddingBottom={padding.bottom}
+						paddingLeft={padding.left}
+					>
+						{record.element}
+					</box>
+				</box>
+			</box>
+		);
+	}
 
 	if (variant === "edge") {
 		// Borderless card with a solid accent bar down the left edge.

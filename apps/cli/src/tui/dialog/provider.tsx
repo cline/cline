@@ -182,23 +182,28 @@ export function DialogProvider(props: DialogProviderProps) {
 					alignItems="center"
 					justifyContent="center"
 				>
-					{/* biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input. */}
-					<box
-						position="absolute"
-						left={0}
-						top={0}
-						width={width}
-						height={height}
-						backgroundColor={backdropColor}
-						onMouseUp={handleBackdropClick}
-					/>
-					{dialogs.map((record) => (
+					{variant !== "pages" && (
+						// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI boxes handle terminal mouse input.
+						<box
+							position="absolute"
+							left={0}
+							top={0}
+							width={width}
+							height={height}
+							backgroundColor={backdropColor}
+							onMouseUp={handleBackdropClick}
+						/>
+					)}
+					{dialogs.map((record, index) => (
 						<DialogPanel
 							key={String(record.id)}
 							record={record}
 							variant={variant}
 							defaultSize={props.size}
 							terminalWidth={width}
+							terminalHeight={height}
+							stackIndex={index + 1}
+							stackDepth={dialogs.length}
 						/>
 					))}
 				</box>
