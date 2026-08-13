@@ -449,6 +449,54 @@ function formatPidList(label: string, pids: number[]): string {
 	return `${label} ${c.dim}${pids.join(", ")}${c.reset}`;
 }
 
+function readParentPid(pid: number): number | undefined {
+	try {
+		const output = spawnSync("ps", ["-o", "ppid=", "-p", String(pid)], {
+			encoding: "utf8",
+		});
+		const parsed = Number(output.stdout?.trim());
+		return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * A daemon whose parent is still running was almost certainly just spawned by
+ * that parent, and killing it only invites the parent to spawn another. Naming
+ * the parent points at the process the user actually has to stop.
+ */
+function formatDaemonPidList(label: string, pids: number[]): string {
+	if (pids.length === 0) {
+		return `${label} ${c.dim}0${c.reset}`;
+	}
+	const described = pids.map((pid) => {
+		const parent = readParentPid(pid);
+		return parent && isProcessRunning(parent)
+			? `${pid} (spawned by ${parent})`
+			: String(pid);
+	});
+	return `${label} ${c.dim}${described.join(", ")}${c.reset}`;
+}
+
+function formatStartupLockList(
+	label: string,
+	locks: StartupArtifact[],
+): string {
+	const described = locks
+		.map((lock) => {
+			if (lock.pid === undefined) {
+				return "unreadable";
+			}
+			return lock.stale ? `${lock.pid} (stale)` : `${lock.pid} (held, live)`;
+		})
+		.filter((entry) => entry.length > 0);
+	if (described.length === 0) {
+		return `${label} ${c.dim}0${c.reset}`;
+	}
+	return `${label} ${c.dim}${described.join(", ")}${c.reset}`;
+}
+
 function formatRecentSpawnedProcess(record: SpawnedProcessRecord): string {
 	const pieces = [
 		record.timestamp ?? "unknown-time",
@@ -556,13 +604,8 @@ export async function runDoctorCommand(
 		);
 		writeln(`hub uptime ${c.dim}${before.hubUptime ?? "n/a"}${c.reset}`);
 		writeln(formatPidList("hub listeners", before.listeningPids));
-		writeln(formatPidList("stale hub daemons", before.staleHubPids));
-		writeln(
-			formatPidList(
-				"hub startup locks",
-				before.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
-			),
-		);
+		writeln(formatDaemonPidList("stale hub daemons", before.staleHubPids));
+		writeln(formatStartupLockList("hub startup locks", before.hubStartupLocks));
 		writeln(formatPidList("cli processes", before.staleCliPids));
 		writeln(formatPidList("sidecar processes", before.staleSidecarPids));
 		if (before.activeConnectors.length === 0) {
@@ -673,16 +716,52 @@ export async function runDoctorCommand(
 		`cleared hub discovery records ${c.dim}${clearedArtifacts.discovery}${c.reset}`,
 	);
 	writeln(`hub healthy after fix: ${after.hubHealthy ? "yes" : "no"}`);
-	writeln(formatPidList("remaining hub listeners", after.listeningPids));
-	writeln(formatPidList("remaining stale hub daemons", after.staleHubPids));
+	// "Remaining" means a process this run tried to kill and failed to. A
+	// re-scan alone cannot tell that apart from a process that appeared while
+	// the fix was running, and reporting the two together reads as a failure
+	// to kill something that was never targeted.
+	const survived = (targets: number[], remaining: number[]) =>
+		remaining.filter((pid) => targets.includes(pid));
+	const appeared = (targets: number[], remaining: number[]) =>
+		remaining.filter((pid) => !targets.includes(pid));
 	writeln(
 		formatPidList(
-			"remaining hub startup locks",
-			after.hubStartupLocks.map((a) => a.pid ?? -1).filter((pid) => pid > 0),
+			"remaining hub listeners",
+			survived(refreshedAfterGracefulStop.listeningPids, after.listeningPids),
 		),
 	);
-	writeln(formatPidList("remaining cli processes", after.staleCliPids));
-	writeln(formatPidList("remaining sidecar processes", after.staleSidecarPids));
+	writeln(
+		formatDaemonPidList(
+			"remaining stale hub daemons",
+			survived(staleHubTargets, after.staleHubPids),
+		),
+	);
+	writeln(
+		formatStartupLockList("remaining hub startup locks", after.hubStartupLocks),
+	);
+	writeln(
+		formatPidList(
+			"remaining cli processes",
+			survived(staleCliTargets, after.staleCliPids),
+		),
+	);
+	writeln(
+		formatPidList(
+			"remaining sidecar processes",
+			survived(staleSidecarTargets, after.staleSidecarPids),
+		),
+	);
+	const spawnedDuringFix = [
+		...appeared(staleHubTargets, after.staleHubPids),
+		...appeared(staleCliTargets, after.staleCliPids),
+		...appeared(staleSidecarTargets, after.staleSidecarPids),
+	];
+	if (spawnedDuringFix.length > 0) {
+		writeln(formatDaemonPidList("started during fix", spawnedDuringFix));
+		io.writeln(
+			"\nProcesses started while the fix ran are respawns from a live parent. Stop the parent process listed above, then re-run.",
+		);
+	}
 	return 0;
 }
 
