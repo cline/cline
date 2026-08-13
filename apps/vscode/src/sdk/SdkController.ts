@@ -11,6 +11,7 @@ import {
 	createRestoredCheckpointMetadata,
 	createUserInstructionConfigService,
 	ensureChatWorkspace,
+	findCheckpointForRun,
 	getProviderAuthStorageId,
 	type PreparedRemoteConfigCoreIntegration,
 	readSessionCheckpointHistory,
@@ -69,6 +70,7 @@ import {
 import {
 	findVisibleCheckpointUserMessageByRun,
 	getCheckpointRunCountForMessage,
+	isCheckpointRunUserMessage,
 	isVisibleCheckpointUserMessage,
 } from "./sdk-checkpoints"
 import { SdkCompactionCoordinator } from "./sdk-compaction-coordinator"
@@ -1624,20 +1626,25 @@ export class Controller {
 	}
 
 	/**
-	 * Checkpoint run count → untracked paths that run's snapshot skipped over
-	 * the size cap, so the restore UI can warn that those files stay at their
-	 * current content when the workspace is reset. Runs without skips are
-	 * included (empty array) so the webview can resolve "nearest checkpoint at
-	 * or before run N" against a complete key set. Undefined when no entry
-	 * skipped anything (the common case) or no live session exists — after a
-	 * window reload the warning is simply absent rather than blocking restore.
+	 * Message ts → untracked paths that the checkpoint a restore from that
+	 * message would use skipped over the size cap, so the restore UI can warn
+	 * that those files stay at their current content when the workspace is
+	 * reset. Resolved with the exact chain editMessageAndRegenerate uses
+	 * (visible-row ordinal → persisted SDK message → run count → nearest
+	 * checkpoint at or before it), so the warning cannot diverge from what a
+	 * restore actually does — webview-side run counting would drift on
+	 * compaction summaries and hidden synthetic prompts, which advance the
+	 * run counter without a webview row. Undefined when no entry skipped
+	 * anything (the common case) or no live session exists — after a window
+	 * reload the warning is simply absent rather than blocking restore.
 	 */
-	private async getCheckpointSkippedUntrackedByRun(): Promise<Record<number, string[]> | undefined> {
+	private async getCheckpointSkippedUntrackedByMessageTs(): Promise<Record<number, string[]> | undefined> {
 		try {
 			const activeSession = this.sessions.getActiveSession()
 			const sessionId = activeSession?.sessionId
 			const sessionHost = activeSession?.sdkHost
-			if (!sessionId || !sessionHost) {
+			const currentTask = this.task
+			if (!sessionId || !sessionHost || !currentTask) {
 				return undefined
 			}
 			const sessionRecord = await sessionHost.get(sessionId)
@@ -1645,7 +1652,36 @@ export class Controller {
 			if (!history.some((entry) => entry.skippedUntracked?.length)) {
 				return undefined
 			}
-			return Object.fromEntries(history.map((entry) => [entry.runCount, entry.skippedUntracked ?? []]))
+			const clineMessages = currentTask.messageStateHandler.getClineMessages()
+			const sdkMessages = (await sessionHost.readMessages(sessionId)) as SdkUserMessage[]
+			const result: Record<number, string[]> = {}
+			let userOrdinal = 0
+			for (let index = 0; index < clineMessages.length; index += 1) {
+				const message = clineMessages[index]
+				if (!isVisibleCheckpointUserMessage(message)) {
+					continue
+				}
+				// The ordinal counts every visible user row (mirroring
+				// editMessageAndRegenerate); restore eligibility additionally
+				// excludes followup-answer rows.
+				userOrdinal += 1
+				if (!isCheckpointRunUserMessage(clineMessages, index)) {
+					continue
+				}
+				const sdkIndex = findSdkUserMessageIndexByOrdinal(sdkMessages, userOrdinal)
+				if (sdkIndex === -1) {
+					continue
+				}
+				const runCount = getSdkCheckpointRunCountForMessageIndex(sdkMessages, sdkIndex)
+				if (runCount === undefined) {
+					continue
+				}
+				const entry = findCheckpointForRun(history, runCount)
+				if (entry?.skippedUntracked?.length) {
+					result[message.ts] = entry.skippedUntracked
+				}
+			}
+			return Object.keys(result).length > 0 ? result : undefined
 		} catch {
 			return undefined
 		}
@@ -2122,7 +2158,7 @@ export class Controller {
 				// badge and anything else keyed on workspaceRoots depend on it.
 				workspaceManager: await this.ensureWorkspaceManager(),
 			})
-			state.checkpointSkippedUntrackedByRun = await this.getCheckpointSkippedUntrackedByRun()
+			state.checkpointSkippedUntrackedByTs = await this.getCheckpointSkippedUntrackedByMessageTs()
 			const sdkTaskHistory = (await this.taskHistory.listHistory({ limit: 100, hydrate: false }))
 				.map(sessionHistoryRecordToHistoryItem)
 				.filter((item) => item.ts && item.task)
