@@ -18,10 +18,12 @@ import {
 	clearHubDiscovery,
 	getManagedHubCompatibility,
 	type HubOwnerContext,
+	type HubServerDiscoveryRecord,
 	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
+	writeHubDiscovery,
 } from "../discovery";
 import {
 	resolveProductionHubOwnerContext,
@@ -983,6 +985,55 @@ async function localHubHasNoActiveSessions(
 	}
 }
 
+async function recoverSupersededLocalHubUrl(
+	owner: HubOwnerContext,
+	options: LocalHubResolutionOptions,
+): Promise<string | undefined> {
+	const supersededPath = `${owner.discoveryPath}.superseded`;
+	const superseded = await readHubDiscovery(supersededPath);
+	if (!superseded?.url || !superseded.authToken) {
+		return undefined;
+	}
+	const compatible = await probeCompatibleHubUrl(superseded.url, {
+		authToken: superseded.authToken,
+	});
+	if (compatible.status !== "compatible") {
+		return undefined;
+	}
+	if (
+		!(await verifyHubConnection(compatible.url, {
+			workspaceRoot: options.workspaceRoot,
+			cwd: options.cwd,
+			authToken: superseded.authToken,
+		}))
+	) {
+		return undefined;
+	}
+	if (
+		await localHubHasNoActiveSessions(
+			compatible.url,
+			superseded.authToken,
+			options,
+		)
+	) {
+		return undefined;
+	}
+
+	const repaired: HubServerDiscoveryRecord = {
+		...superseded,
+		url: compatible.url,
+		updatedAt: new Date().toISOString(),
+	};
+	try {
+		await writeHubDiscovery(owner.discoveryPath, repaired);
+		await clearHubDiscovery(supersededPath);
+	} catch {
+		// Attaching is still safe with the verified token. Keep the recovery
+		// record so a later launch can retry repairing live discovery.
+	}
+	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
+}
+
 export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
@@ -994,7 +1045,7 @@ export async function resolveCompatibleLocalHubUrl(
 	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
-		return undefined;
+		return await recoverSupersededLocalHubUrl(owner, options);
 	}
 	const compatible = await probeCompatibleHubUrl(record.url, {
 		authToken: record.authToken,

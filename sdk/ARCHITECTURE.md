@@ -141,7 +141,7 @@ event payload and `source` field.
 
 1. Host constructs a `RuntimeHost` through `@cline/core`.
 2. `@cline/core` selects `HubRuntimeHost` or `RemoteRuntimeHost` through `packages/core/src/runtime/host.ts`.
-3. When no compatible local hub is already discovered, `@cline/core` can spawn a detached hub daemon and reconnect through discovery.
+3. Auto mode resolves live discovery before prewarming a replacement daemon. If an npm update shielded discovery while the old Hub still serves active sessions, the client verifies and restores that one-shot record before attaching. Otherwise, when no compatible local Hub is available, `@cline/core` can spawn a detached Hub daemon and reconnect through discovery.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.

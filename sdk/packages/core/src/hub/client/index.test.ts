@@ -15,6 +15,7 @@ class MockWebSocket {
 	static readonly CLOSING = 2;
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
+	static commandPayloads = new Map<string, unknown>();
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -30,26 +31,28 @@ class MockWebSocket {
 
 	static reset(): void {
 		MockWebSocket.instances = [];
+		MockWebSocket.commandPayloads.clear();
 	}
 
 	send(data: string): void {
 		const frame = JSON.parse(data) as {
 			kind?: string;
-			envelope?: { requestId?: string };
+			envelope?: { requestId?: string; command?: string };
 		};
 		this.sentFrames.push(frame);
 		if (frame.kind === "command" && frame.envelope?.requestId) {
+			const command = frame.envelope.command ?? "client.register";
 			queueMicrotask(() => {
 				this.emit("message", {
 					data: JSON.stringify({
 						kind: "reply",
 						envelope: {
 							version: "v1",
-							command: "client.register",
+							command,
 							requestId: frame.envelope?.requestId,
 							ok: true,
 							clientId: "hub",
-							payload: {},
+							payload: MockWebSocket.commandPayloads.get(command) ?? {},
 						},
 					}),
 				});
@@ -774,6 +777,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 	// path and fail locally whenever a stray hub daemon is listening on
 	// the default port (passes in CI only because no daemon is running).
 	beforeEach(() => {
+		MockWebSocket.reset();
 		vi.resetModules();
 	});
 
@@ -782,6 +786,120 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		vi.unstubAllEnvs();
 		delete process.env.CLINE_HUB_BUILD_ID;
 		vi.resetModules();
+	});
+
+	it("restores shielded discovery and attaches while the old Hub is active", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.list", {
+			sessions: [{ status: "running", participants: [] }],
+		});
+		const discoveryPath = "/tmp/hub-discovery.json";
+		const oldRecord = {
+			hubId: "old-hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		const writeHubDiscoveryMock = vi.fn(async () => undefined);
+		const clearHubDiscoveryMock = vi.fn(async () => undefined);
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async (path: string) =>
+					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
+				),
+				probeHubServer: vi.fn(async () => oldRecord),
+				writeHubDiscovery: writeHubDiscoveryMock,
+				clearHubDiscovery: clearHubDiscoveryMock,
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(oldRecord.url);
+		expect(writeHubDiscoveryMock).toHaveBeenCalledWith(
+			discoveryPath,
+			expect.objectContaining({
+				hubId: "old-hub",
+				buildId: "old-build",
+				authToken: "old-token",
+				url: oldRecord.url,
+			}),
+		);
+		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
+			`${discoveryPath}.superseded`,
+		);
+	});
+
+	it("leaves an idle shielded Hub for the normal replacement path", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.list", {
+			sessions: [{ status: "completed", participants: [] }],
+		});
+		const discoveryPath = "/tmp/hub-discovery.json";
+		const oldRecord = {
+			hubId: "old-hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		const writeHubDiscoveryMock = vi.fn(async () => undefined);
+		const clearHubDiscoveryMock = vi.fn(async () => undefined);
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async (path: string) =>
+					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
+				),
+				probeHubServer: vi.fn(async () => oldRecord),
+				writeHubDiscovery: writeHubDiscoveryMock,
+				clearHubDiscovery: clearHubDiscoveryMock,
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(writeHubDiscoveryMock).not.toHaveBeenCalled();
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
 	it("does not clear discovery on transient probe failure", async () => {
