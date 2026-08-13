@@ -407,10 +407,11 @@
 	--brand-periwinkle: oklch(0.63 0.16 275);
 	--brand-cyan: oklch(0.72 0.09 210);
 	--card-surface: var(--neutral-3);
-	--font-weight-normal: 400;
-	--font-weight-medium: 500;
-	--font-weight-semibold: 600;
-	--font-weight-bold: 600;
+	/* adjustment for optical weight: bright text appear thicker over dark background */
+	--font-weight-normal: 380;
+	--font-weight-medium: 480;
+	--font-weight-semibold: 560;
+	--font-weight-bold: var(--font-weight-semibold);
 }
 
 .cline-ui-theme,
