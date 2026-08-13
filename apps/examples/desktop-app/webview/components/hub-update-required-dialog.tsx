@@ -62,6 +62,10 @@ export function HubUpdateRequiredDialog() {
 
 	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
 	const open = mismatchKey !== null && mismatchKey !== dismissedKey;
+	// This app is already the newer build: the Hub is behind because it is
+	// serving sessions, so there is nothing to install and the dialog is
+	// informational.
+	const hubIsOutdated = mismatch?.reason === "outdated_hub";
 
 	const handleUpdateAndRestart = useCallback(async () => {
 		setPhase("updating");
@@ -90,38 +94,58 @@ export function HubUpdateRequiredDialog() {
 		>
 			<AlertDialogContent>
 				<AlertDialogHeader>
-					<AlertDialogTitle>Cline Hub was updated</AlertDialogTitle>
+					<AlertDialogTitle>
+						{hubIsOutdated
+							? "Cline Hub is running an older build"
+							: "Cline Hub was updated"}
+					</AlertDialogTitle>
 					<AlertDialogDescription>
-						Another Cline installation updated the shared Cline Hub
-						{mismatch?.hubCoreVersion
-							? ` (core ${mismatch.hubCoreVersion})`
-							: ""}
-						, and it no longer matches this app. Update and restart Cline Code
-						to stay in sync with the running Hub.
+						{hubIsOutdated ? (
+							<>
+								This app is newer than the shared Cline Hub
+								{mismatch?.hubCoreVersion
+									? ` (core ${mismatch.hubCoreVersion})`
+									: ""}
+								, which was left running because it is still serving active
+								sessions. Your work is unaffected - the Hub is replaced with the
+								newer build once those sessions end.
+							</>
+						) : (
+							<>
+								Another Cline installation updated the shared Cline Hub
+								{mismatch?.hubCoreVersion
+									? ` (core ${mismatch.hubCoreVersion})`
+									: ""}
+								, and it no longer matches this app. Update and restart Cline
+								Code to stay in sync with the running Hub.
+							</>
+						)}
 					</AlertDialogDescription>
-					{updateHint ? (
+					{updateHint && !hubIsOutdated ? (
 						<AlertDialogDescription>{updateHint}</AlertDialogDescription>
 					) : null}
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel disabled={phase !== "idle"}>
-						Later
+						{hubIsOutdated ? "Got it" : "Later"}
 					</AlertDialogCancel>
-					<AlertDialogAction
-						disabled={phase !== "idle"}
-						onClick={(event) => {
-							event.preventDefault();
-							void handleUpdateAndRestart();
-						}}
-					>
-						{phase === "restarting"
-							? "Restarting…"
-							: phase === "updating"
-								? "Checking for updates…"
-								: updateHint
-									? "Try again"
-									: "Update and restart"}
-					</AlertDialogAction>
+					{hubIsOutdated ? null : (
+						<AlertDialogAction
+							disabled={phase !== "idle"}
+							onClick={(event) => {
+								event.preventDefault();
+								void handleUpdateAndRestart();
+							}}
+						>
+							{phase === "restarting"
+								? "Restarting…"
+								: phase === "updating"
+									? "Checking for updates…"
+									: updateHint
+										? "Try again"
+										: "Update and restart"}
+						</AlertDialogAction>
+					)}
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>

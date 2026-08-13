@@ -953,7 +953,7 @@ function hasActiveHubSessions(payload: unknown): boolean {
 	});
 }
 
-async function localHubHasNoActiveSessions(
+export async function localHubHasNoActiveSessions(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
