@@ -70,6 +70,9 @@ describe("checkManagedHubBuildMismatch", () => {
 			reason: "build_mismatch",
 			hubBuildId: "newer-build",
 			hubCoreVersion: "0.0.73",
+			// The unauthenticated probe carries no instance fields, so this comes
+			// from the discovery record.
+			hubInstanceId: "hub-test",
 			expectedBuildId: "current-build",
 		});
 	});
@@ -248,18 +251,27 @@ describe("watchManagedHubBuildMismatch", () => {
 	 * Two daemons from the same build share a build id, so a replacement of the
 	 * same older build must not satisfy the consecutive-sighting check - that
 	 * churn is exactly what the check exists to hide.
+	 *
+	 * The probe here carries no instance fields, matching what an
+	 * unauthenticated `/health` actually returns; identity has to come from the
+	 * discovery record, which the replacement daemon rewrites as its own.
 	 */
 	it("does not report when a different daemon of the same older build takes over", async () => {
 		vi.useFakeTimers();
 		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
-		let probeResult: Record<string, unknown> | undefined = {
-			hubId: "hub-instance-a",
+		// Exactly the /health payload shape: build and address fields only.
+		const healthProbe = {
 			protocolVersion: "v1",
 			buildId: "old-build",
 			buildEpochMs: 500,
 			host: "127.0.0.1",
 			port: 59999,
 			url: "ws://127.0.0.1:59999/hub",
+		};
+		let discoveryRecord: Record<string, unknown> = {
+			...liveRecord,
+			hubId: "hub-instance-a",
+			pid: 111,
 		};
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -277,8 +289,8 @@ describe("watchManagedHubBuildMismatch", () => {
 			return {
 				...actual,
 				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async () => liveRecord),
-				probeHubServer: vi.fn(async () => probeResult),
+				readHubDiscovery: vi.fn(async () => discoveryRecord),
+				probeHubServer: vi.fn(async () => healthProbe),
 			};
 		});
 		const { watchManagedHubBuildMismatch } = await import(
@@ -295,7 +307,11 @@ describe("watchManagedHubBuildMismatch", () => {
 			expect(onMismatch).not.toHaveBeenCalled();
 
 			// A different daemon, same build: not the Hub we were watching.
-			probeResult = { ...probeResult, hubId: "hub-instance-b" };
+			discoveryRecord = {
+				...discoveryRecord,
+				hubId: "hub-instance-b",
+				pid: 222,
+			};
 			await vi.advanceTimersByTimeAsync(1_000);
 			expect(onMismatch).not.toHaveBeenCalled();
 
@@ -306,6 +322,71 @@ describe("watchManagedHubBuildMismatch", () => {
 				expect.objectContaining({
 					reason: "outdated_hub",
 					hubInstanceId: "hub-instance-b",
+				}),
+			);
+		} finally {
+			stop();
+		}
+	});
+
+	// Records written before Hubs carried an id still identify an instance
+	// through pid and start time.
+	it("falls back to pid and start time when no hub id is recorded", async () => {
+		vi.useFakeTimers();
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const { hubId: _omitted, ...recordWithoutHubId } = liveRecord;
+		let discoveryRecord: Record<string, unknown> = {
+			...recordWithoutHubId,
+			pid: 111,
+			startedAt: "2026-08-13T00:00:00.000Z",
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => discoveryRecord),
+				probeHubServer: vi.fn(async () => ({
+					protocolVersion: "v1",
+					buildId: "old-build",
+					buildEpochMs: 500,
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+				})),
+			};
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+		});
+		try {
+			await vi.advanceTimersByTimeAsync(1_000);
+			discoveryRecord = { ...discoveryRecord, pid: 222 };
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).not.toHaveBeenCalled();
+
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).toHaveBeenCalledTimes(1);
+			expect(onMismatch).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					hubInstanceId: "222:2026-08-13T00:00:00.000Z",
 				}),
 			);
 		} finally {
