@@ -43,7 +43,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
-import { syncAppFontSize } from "@/lib/app-font-size";
+import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
@@ -309,6 +309,11 @@ export default function Home() {
 						break;
 					case "open-settings":
 						handleViewChange("settings");
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action);
 						break;
 				}
 			}),

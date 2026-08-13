@@ -46,7 +46,7 @@ describe("desktop tray", () => {
 		let eventHandler: MenuEventHandler | undefined;
 		const pendingBatches: unknown[][] = [
 			["new-session", "unexpected"],
-			["open-settings"],
+			["open-settings", "zoom-in", "zoom-out", "zoom-reset"],
 		];
 		mocks.listen.mockImplementation(
 			async (_eventName: string, handler: MenuEventHandler) => {
@@ -78,7 +78,13 @@ describe("desktop tray", () => {
 		eventHandler?.({ payload: undefined });
 
 		await vi.waitFor(() =>
-			expect(onAction.mock.calls).toEqual([["new-session"], ["open-settings"]]),
+			expect(onAction.mock.calls).toEqual([
+				["new-session"],
+				["open-settings"],
+				["zoom-in"],
+				["zoom-out"],
+				["zoom-reset"],
+			]),
 		);
 		unsubscribe();
 		expect(mocks.unlisten).toHaveBeenCalledOnce();

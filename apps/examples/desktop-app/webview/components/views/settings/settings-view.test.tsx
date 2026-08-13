@@ -3,7 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { APP_FONT_SIZE_STORAGE_KEY } from "@/lib/app-font-size";
+import {
+	APP_FONT_SIZE_STORAGE_KEY,
+	applyAppZoomAction,
+} from "@/lib/app-font-size";
 import { SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
@@ -88,5 +91,14 @@ describe("SettingsView font size", () => {
 		expect(window.localStorage.getItem(APP_FONT_SIZE_STORAGE_KEY)).toBe("19");
 		expect(document.documentElement.style.fontSize).toBe("19px");
 		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("19");
+
+		await act(async () => {
+			applyAppZoomAction("zoom-in");
+		});
+
+		expect(window.localStorage.getItem(APP_FONT_SIZE_STORAGE_KEY)).toBe("20");
+		expect(container.textContent).toContain("20px");
+		expect(updatedSlider?.getAttribute("aria-valuenow")).toBe("20");
+		expect(increaseButton?.disabled).toBe(true);
 	});
 });

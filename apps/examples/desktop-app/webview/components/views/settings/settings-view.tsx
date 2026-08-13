@@ -10,6 +10,7 @@ import {
 	MIN_APP_FONT_SIZE,
 	readStoredAppFontSize,
 	setStoredAppFontSize,
+	subscribeToAppFontSize,
 } from "@/lib/app-font-size";
 import {
 	APP_ICONS,
@@ -529,6 +530,8 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+
+	useEffect(() => subscribeToAppFontSize(setFontSize), []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);

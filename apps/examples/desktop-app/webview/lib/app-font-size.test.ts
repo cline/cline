@@ -1,14 +1,16 @@
 // @vitest-environment jsdom
 
 import { runInNewContext } from "node:vm";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	APP_FONT_SIZE_BOOTSTRAP_SCRIPT,
 	APP_FONT_SIZE_STORAGE_KEY,
+	applyAppZoomAction,
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
 	readStoredAppFontSize,
 	setStoredAppFontSize,
+	subscribeToAppFontSize,
 	syncAppFontSize,
 } from "./app-font-size";
 
@@ -43,6 +45,33 @@ describe("app font size", () => {
 		document.documentElement.style.removeProperty("font-size");
 		expect(syncAppFontSize()).toBe(18);
 		expect(document.documentElement.style.fontSize).toBe("18px");
+	});
+
+	it("applies zoom actions, clamps the range, and notifies subscribers", () => {
+		const onChange = vi.fn();
+		const unsubscribe = subscribeToAppFontSize(onChange);
+		setStoredAppFontSize(19);
+		onChange.mockClear();
+
+		expect(applyAppZoomAction("zoom-in")).toBe(20);
+		expect(onChange).toHaveBeenLastCalledWith(20);
+
+		onChange.mockClear();
+		expect(applyAppZoomAction("zoom-in")).toBe(20);
+		expect(onChange).toHaveBeenLastCalledWith(20);
+
+		onChange.mockClear();
+		expect(applyAppZoomAction("zoom-out")).toBe(19);
+		expect(onChange).toHaveBeenLastCalledWith(19);
+
+		onChange.mockClear();
+		expect(applyAppZoomAction("zoom-reset")).toBe(DEFAULT_APP_FONT_SIZE);
+		expect(onChange).toHaveBeenLastCalledWith(DEFAULT_APP_FONT_SIZE);
+
+		unsubscribe();
+		onChange.mockClear();
+		applyAppZoomAction("zoom-out");
+		expect(onChange).not.toHaveBeenCalled();
 	});
 
 	it("restores the saved size before the first paint", () => {

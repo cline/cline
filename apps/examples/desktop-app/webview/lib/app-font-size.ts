@@ -1,4 +1,5 @@
 export const APP_FONT_SIZE_STORAGE_KEY = "cline.code.font-size.v1";
+export const APP_FONT_SIZE_CHANGE_EVENT = "cline-app-font-size-change";
 
 export const APP_FONT_SIZES = [12, 13, 14, 15, 16, 17, 18, 19, 20] as const;
 
@@ -9,10 +10,21 @@ export const MIN_APP_FONT_SIZE: AppFontSize = APP_FONT_SIZES[0];
 export const MAX_APP_FONT_SIZE: AppFontSize =
 	APP_FONT_SIZES[APP_FONT_SIZES.length - 1];
 
+export const APP_ZOOM_ACTIONS = ["zoom-in", "zoom-out", "zoom-reset"] as const;
+
+export type AppZoomAction = (typeof APP_ZOOM_ACTIONS)[number];
+
 export function isAppFontSize(value: unknown): value is AppFontSize {
 	return (
 		typeof value === "number" &&
 		(APP_FONT_SIZES as readonly number[]).includes(value)
+	);
+}
+
+export function isAppZoomAction(value: unknown): value is AppZoomAction {
+	return (
+		typeof value === "string" &&
+		(APP_ZOOM_ACTIONS as readonly string[]).includes(value)
 	);
 }
 
@@ -65,6 +77,11 @@ export function readStoredAppFontSize(): AppFontSize {
 export function applyAppFontSize(fontSize: AppFontSize): AppFontSize {
 	document.documentElement.style.fontSize = `${fontSize}px`;
 	document.documentElement.dataset.clineFontSize = String(fontSize);
+	window.dispatchEvent(
+		new CustomEvent<AppFontSize>(APP_FONT_SIZE_CHANGE_EVENT, {
+			detail: fontSize,
+		}),
+	);
 	return fontSize;
 }
 
@@ -79,4 +96,31 @@ export function setStoredAppFontSize(fontSize: AppFontSize): AppFontSize {
 		// Applying still works for this session when persistence is unavailable.
 	}
 	return applyAppFontSize(fontSize);
+}
+
+export function applyAppZoomAction(action: AppZoomAction): AppFontSize {
+	if (action === "zoom-reset") {
+		return setStoredAppFontSize(DEFAULT_APP_FONT_SIZE);
+	}
+
+	const currentIndex = APP_FONT_SIZES.indexOf(readStoredAppFontSize());
+	const offset = action === "zoom-in" ? 1 : -1;
+	const nextIndex = Math.min(
+		APP_FONT_SIZES.length - 1,
+		Math.max(0, currentIndex + offset),
+	);
+	return setStoredAppFontSize(APP_FONT_SIZES[nextIndex]);
+}
+
+export function subscribeToAppFontSize(
+	onChange: (fontSize: AppFontSize) => void,
+): () => void {
+	const handleChange = (event: Event) => {
+		if (event instanceof CustomEvent && isAppFontSize(event.detail)) {
+			onChange(event.detail);
+		}
+	};
+	window.addEventListener(APP_FONT_SIZE_CHANGE_EVENT, handleChange);
+	return () =>
+		window.removeEventListener(APP_FONT_SIZE_CHANGE_EVENT, handleChange);
 }
