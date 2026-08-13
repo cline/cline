@@ -85,6 +85,37 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
+function buildProviderModelTools(
+	provider: ProviderFactoryResult,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): ToolSet | undefined {
+	if (!request.modelTools?.length) {
+		return undefined;
+	}
+
+	const requestedNames = [
+		...new Set(request.modelTools.map((tool) => tool.name)),
+	];
+	if (!provider.buildModelTools) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" does not implement requested model tool(s): ${requestedNames.join(", ")}.`,
+		);
+	}
+
+	const modelTools = provider.buildModelTools(request.modelTools);
+	const missingNames = requestedNames.filter(
+		(toolName) => !Object.hasOwn(modelTools, toolName),
+	);
+	if (missingNames.length > 0) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" did not build requested model tool(s): ${missingNames.join(", ")}.`,
+		);
+	}
+
+	return modelTools;
+}
+
 function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -1371,10 +1402,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const runtimeTools = providerDisablesExternalToolExecution(context)
 					? undefined
 					: toAiSdkTools(request);
-				const modelTools =
-					request.modelTools?.length && provider.buildModelTools
-						? provider.buildModelTools(request.modelTools)
-						: undefined;
+				const modelTools = buildProviderModelTools(provider, request, context);
 				const tools =
 					runtimeTools || modelTools
 						? { ...runtimeTools, ...modelTools }

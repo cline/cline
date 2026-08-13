@@ -19,6 +19,7 @@ import {
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
+import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
 	createGateway,
 	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
@@ -540,6 +541,93 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
+	});
+
+	it("rejects model tools not declared by the provider manifest", async () => {
+		const createProvider = vi.fn(() => ({
+			async *stream() {
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-provider",
+						name: "Custom Provider",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "custom-provider",
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		await expect(
+			gateway.stream({
+				providerId: "custom-provider",
+				modelId: "alpha",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		).rejects.toThrow(
+			'Provider "custom-provider" model "alpha" does not support model tool(s): web_search.',
+		);
+		expect(createProvider).not.toHaveBeenCalled();
+	});
+
+	it("fails loudly when a declared model tool has no adapter builder", async () => {
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "compatible-with-search",
+						name: "Compatible With Search",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "compatible-with-search",
+							},
+						],
+						modelToolCapabilities: [{ name: "web_search" }],
+					},
+					defaults: {
+						apiKey: "test-key",
+						baseUrl: "https://example.com/v1",
+					},
+					createProvider: createOpenAICompatibleProvider,
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "compatible-with-search",
+				modelId: "alpha",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "finish",
+				reason: "error",
+				error:
+					'Provider adapter for "compatible-with-search" does not implement requested model tool(s): web_search.',
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
 	});
 
 	it("keeps custom provider loading lazy until first use", async () => {
@@ -3013,6 +3101,31 @@ describe("sdk-gateway", () => {
 			| { maxOutputTokens?: unknown }
 			| undefined;
 		expect(call).not.toHaveProperty("maxOutputTokens");
+	});
+
+	it("translates web search into the native OpenAI tool for ChatGPT OAuth", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		);
+
+		expect(nativeWebSearchSpy).toHaveBeenCalledWith(undefined);
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: expect.objectContaining({
+					web_search: expect.objectContaining({ type: "provider-tool" }),
+				}),
+			}),
+		);
 	});
 
 	it("does not send explicit maxOutputTokens to ChatGPT OAuth", async () => {

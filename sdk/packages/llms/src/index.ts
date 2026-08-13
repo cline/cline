@@ -103,6 +103,7 @@ export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export {
 	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
 	supportsModelTool,
 } from "./providers/model-tools";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";

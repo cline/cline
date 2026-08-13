@@ -2,7 +2,11 @@ import type {
 	GatewayProviderFactory,
 	GatewayProviderRegistration,
 } from "@cline/shared";
-import { BUILTIN_SPECS, type ProviderFamily, toManifest } from "./builtins";
+import {
+	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
+	BUILTIN_SPECS,
+	type ProviderFamily,
+} from "./builtins";
 
 const FAMILY_FACTORY_PROMISES = new Map<
 	ProviderFamily,
@@ -97,7 +101,7 @@ function resolveRuntimeFamily(
 
 export const BUILTIN_PROVIDER_REGISTRATIONS: GatewayProviderRegistration[] =
 	BUILTIN_SPECS.map((spec) => ({
-		manifest: toManifest(spec),
+		manifest: BUILTIN_PROVIDER_MANIFESTS_BY_ID[spec.id],
 		defaults: {
 			...spec.defaults,
 			apiKeyEnv: spec.apiKeyEnv,

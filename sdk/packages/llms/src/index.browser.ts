@@ -34,6 +34,7 @@ export {
 } from "./providers/billing";
 export {
 	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
 	supportsModelTool,
 } from "./providers/model-tools";
 export {

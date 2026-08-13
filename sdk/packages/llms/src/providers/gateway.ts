@@ -18,6 +18,7 @@ import {
 } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
 
@@ -306,6 +307,25 @@ export class DefaultGateway implements Gateway {
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
 		});
+		const unsupportedModelTools = [
+			...new Set(
+				(request.modelTools ?? [])
+					.filter(
+						(tool) =>
+							!providerManifestSupportsModelTool(
+								resolved.provider,
+								resolved.model.id,
+								tool.name,
+							),
+					)
+					.map((tool) => tool.name),
+			),
+		];
+		if (unsupportedModelTools.length > 0) {
+			throw new Error(
+				`Provider "${resolved.provider.id}" model "${resolved.model.id}" does not support model tool(s): ${unsupportedModelTools.join(", ")}.`,
+			);
+		}
 		const providerRecord = await this.registry.createProvider(
 			request.providerId,
 		);

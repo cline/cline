@@ -1,37 +1,70 @@
-import type { ModelToolName } from "@cline/shared";
+import type { GatewayProviderManifest, ModelToolName } from "@cline/shared";
+import { BUILTIN_PROVIDER_MANIFESTS_BY_ID } from "./builtins";
+import { normalizeProviderId } from "./ids";
+import { modelRouteMatches } from "./model-facts";
 
 export interface ModelToolSupportInput {
 	providerId: string;
 	modelId?: string;
 }
 
+function resolveModelRouteContext(
+	manifest: GatewayProviderManifest,
+	modelId: string | undefined,
+): {
+	modelId: string;
+	family?: string;
+	capabilities?: readonly string[];
+} {
+	const resolvedModelId = modelId?.trim() || manifest.defaultModelId;
+	const model = manifest.models.find((entry) => entry.id === resolvedModelId);
+	const family = model?.metadata?.family;
+	return {
+		modelId: resolvedModelId,
+		family: typeof family === "string" ? family : undefined,
+		capabilities: model?.capabilities,
+	};
+}
+
+/** Resolve a model-tool capability directly from a provider manifest. */
+export function providerManifestSupportsModelTool(
+	manifest: GatewayProviderManifest,
+	modelId: string | undefined,
+	toolName: ModelToolName,
+): boolean {
+	const capability = manifest.modelToolCapabilities?.find(
+		(entry) => entry.name === toolName,
+	);
+	if (!capability) {
+		return false;
+	}
+
+	const routeContext = resolveModelRouteContext(manifest, modelId);
+	if (
+		capability.routes?.length &&
+		!capability.routes.some((route) => modelRouteMatches(route, routeContext))
+	) {
+		return false;
+	}
+
+	return !capability.excludeRoutes?.some((route) =>
+		modelRouteMatches(route, routeContext),
+	);
+}
+
 /**
- * Resolve stable native model-tool support. This intentionally describes
- * provider execution support, not ordinary function/tool calling support.
+ * Resolve stable native model-tool support for a configured Cline provider.
+ * This intentionally describes provider execution support, not ordinary
+ * function/tool calling support. Builtin specs are the source of truth; vendor
+ * modules only translate supported portable tools into AI SDK tool objects.
  */
 export function supportsModelTool(
 	input: ModelToolSupportInput,
 	toolName: ModelToolName,
 ): boolean {
-	if (toolName !== "web_search") {
-		return false;
-	}
-
-	switch (input.providerId) {
-		case "cline":
-		case "cline-pass":
-		case "anthropic":
-		// Native OpenAI is the "openai-native" builtin id. The bare "openai" id
-		// aliases to "openai-compatible" (see PROVIDER_ID_ALIASES), whose module
-		// has no native web search.
-		case "openai-native":
-		case "gemini":
-			return true;
-		case "vertex":
-			// Vertex Claude uses the Anthropic provider surface but is created by a
-			// separate adapter today; enable this once that adapter exposes tools.
-			return !input.modelId?.toLowerCase().includes("claude");
-		default:
-			return false;
-	}
+	const providerId = normalizeProviderId(input.providerId);
+	const manifest = BUILTIN_PROVIDER_MANIFESTS_BY_ID[providerId];
+	return manifest
+		? providerManifestSupportsModelTool(manifest, input.modelId, toolName)
+		: false;
 }
