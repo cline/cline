@@ -335,11 +335,46 @@ describe("AgentAskQuestion", () => {
 		expect(document.activeElement).toBe(buttons[2]);
 		expect(buttons[2]?.getAttribute("aria-pressed")).toBe("true");
 
+		expect(onAnswer).not.toHaveBeenCalled();
+	});
+
+	it("lets Enter activate the focused option instead of submitting another selection", async () => {
+		const onAnswer = vi.fn();
 		await act(async () =>
-			buttons[2]?.dispatchEvent(
-				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			root.render(
+				<AgentAskQuestion
+					items={[
+						{
+							id: "request-1",
+							options: ["First", "Second"],
+							question: "Choose",
+						},
+					]}
+					onAnswer={onAnswer}
+				/>,
 			),
 		);
-		expect(onAnswer).toHaveBeenCalledWith("request-1", "Third");
+
+		const buttons = container.querySelectorAll("button");
+		await act(async () => buttons[0]?.click());
+		await act(async () =>
+			buttons[0]?.dispatchEvent(
+				new KeyboardEvent("keydown", {
+					bubbles: true,
+					key: "ArrowDown",
+				}),
+			),
+		);
+		expect(document.activeElement).toBe(buttons[1]);
+
+		const enter = new KeyboardEvent("keydown", {
+			bubbles: true,
+			cancelable: true,
+			key: "Enter",
+		});
+		await act(async () => buttons[1]?.dispatchEvent(enter));
+
+		expect(enter.defaultPrevented).toBe(false);
+		expect(onAnswer).not.toHaveBeenCalled();
 	});
 });
