@@ -2923,6 +2923,28 @@ describe("AgentRuntime sdk.error reporting", () => {
 			operation: "agent.run",
 			handled: false,
 			error_message: "Model returned empty response",
+			// Several unrelated upstream causes reach the user through this
+			// one message; without the finish reason on the event they are
+			// indistinguishable in the warehouse.
+			finishReason: "stop",
+		});
+	});
+
+	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "content-filter" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			operation: "agent.run",
+			finishReason: "content-filter",
 		});
 	});
 });
