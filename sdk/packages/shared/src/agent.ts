@@ -255,10 +255,24 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Why a model turn stopped producing output.
+ *
+ * `content-filter` is distinct from `stop` because the two need opposite
+ * handling when the turn produced nothing: a `stop` with no content is a
+ * transient upstream flake worth retrying, while a filtered turn will
+ * reproduce on every attempt. Collapsing them (as this union did before)
+ * left both surfacing as "Model returned empty response", which tells a
+ * user to retry something that cannot succeed.
+ *
+ * Provider finish reasons with no dedicated member here (`other`,
+ * `unknown`, ...) still normalize to `stop`.
+ */
 export type AgentModelFinishReason =
 	| "stop"
 	| "tool-calls"
 	| "max-tokens"
+	| "content-filter"
 	| "aborted"
 	| "error";
 

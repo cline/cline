@@ -507,6 +507,12 @@ export class AgentRuntime {
 		 * telemetry leave this false, so their failures still get reported.
 		 */
 		lastErrorReported: false,
+		/**
+		 * Finish reason of the most recent model turn, carried into
+		 * `sdk.error` so failures can be attributed to a cause. Undefined
+		 * when the run failed before any turn reported one.
+		 */
+		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
@@ -701,6 +707,7 @@ export class AgentRuntime {
 		this.state.lastError = undefined;
 		this.state.lastErrorClass = undefined;
 		this.state.lastErrorReported = false;
+		this.state.lastFinishReason = undefined;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
 
@@ -1300,6 +1307,12 @@ export class AgentRuntime {
 				}
 				case "finish": {
 					finishReason = event.reason;
+					// Recorded for failure telemetry: several distinct upstream
+					// causes (filtered turn, output cap hit before any content,
+					// genuinely empty stream) reach the user through the same
+					// run-failed path, and without this attribute they are
+					// indistinguishable once reported.
+					this.state.lastFinishReason = event.reason;
 					if (event.error) {
 						this.state.lastError = event.error;
 						// Models that classify at their own error boundary (where the
@@ -2009,6 +2022,9 @@ export class AgentRuntime {
 							...(metadata as TelemetryProperties),
 							providerId: this.getTelemetryProviderId(),
 							modelId: this.getTelemetryModelId(),
+							...(this.state.lastFinishReason
+								? { finishReason: this.state.lastFinishReason }
+								: {}),
 						},
 					});
 				}
