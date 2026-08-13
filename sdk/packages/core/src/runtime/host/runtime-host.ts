@@ -328,6 +328,16 @@ export interface SessionConnectionRuntimeService {
 	): Promise<void>;
 }
 
+export interface SessionEventRelayRuntimeService {
+	/**
+	 * Whether this host currently holds a live hub event subscription for the
+	 * session and therefore relays its agent events to `subscribe()`
+	 * listeners. Lets embedders that also observe the hub directly avoid
+	 * forwarding the same live stream twice.
+	 */
+	isRelayingSessionEvents(sessionId: string): boolean;
+}
+
 export interface RuntimeHostSubscribeOptions {
 	sessionId?: string;
 }

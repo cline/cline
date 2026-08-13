@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -453,6 +458,128 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
 			scheduleId: "schedule-1",
 		});
+	});
+});
+
+describe("handleHubLiveEvent stream relay dedupe", () => {
+	function chatEvents(ctx: SidecarContext, stream: string) {
+		return readEvents(ctx).filter(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream === stream,
+		);
+	}
+
+	async function createAttachedSessionContext(coreRelaysSession: boolean) {
+		const { createSidecarContext } = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.sessionManager = {
+			isRelayingSessionEvents: vi.fn(() => coreRelaysSession),
+		} as never;
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		} satisfies LiveSession);
+		return ctx;
+	}
+
+	it("relays live streams for attached sessions the core is not subscribed to", async () => {
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createAttachedSessionContext(false);
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "Hello" },
+		});
+
+		const chunks = chatEvents(ctx, "chat_text");
+		expect(chunks).toHaveLength(1);
+		expect(chunks[0]?.event.payload.chunk).toBe("Hello");
+	});
+
+	it("forwards redacted-only reasoning through the core relay path", async () => {
+		// When the observer relay is suppressed, the core-path mapper is the
+		// only source of chat_reasoning events. Redacted reasoning arrives with
+		// no text and must still reach the webview as a redacted marker.
+		const { createSidecarContext, handleCoreSessionEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+
+		handleCoreSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_start",
+					contentType: "reasoning",
+					redacted: true,
+				},
+			},
+		} as never);
+
+		const chunks = chatEvents(ctx, "chat_reasoning");
+		expect(chunks).toHaveLength(1);
+		expect(JSON.parse(String(chunks[0]?.event.payload.chunk))).toEqual({
+			text: "",
+			redacted: true,
+		});
+	});
+
+	it("skips observer stream relays when the core already relays the session", async () => {
+		// After the webview hydrates a session (attach) and then interacts with
+		// it (send / pending prompts), ClineCore holds its own hub subscription
+		// and handleCoreSessionEvent forwards the live events. Relaying the
+		// observer's copy too would duplicate every streamed delta.
+		const { handleHubLiveEvent } = await import("./context");
+		const ctx = await createAttachedSessionContext(true);
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.delta",
+			sessionId: "session-1",
+			payload: { text: "Hello" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "reasoning.delta",
+			sessionId: "session-1",
+			payload: { text: "thinking" },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "tool.started",
+			sessionId: "session-1",
+			payload: { toolCallId: "tool-1", toolName: "read_file", input: {} },
+		});
+		handleHubLiveEvent(ctx, {
+			event: "tool.finished",
+			sessionId: "session-1",
+			payload: { toolCallId: "tool-1", toolName: "read_file", output: "ok" },
+		});
+
+		expect(chatEvents(ctx, "chat_text")).toHaveLength(0);
+		expect(chatEvents(ctx, "chat_reasoning")).toHaveLength(0);
+		expect(chatEvents(ctx, "chat_tool_call_start")).toHaveLength(0);
+		expect(chatEvents(ctx, "chat_tool_call_end")).toHaveLength(0);
+
+		// Session lifecycle events must still flow: they keep the sidecar's
+		// status snapshot fresh and are idempotent for the webview.
+		handleHubLiveEvent(ctx, {
+			event: "run.completed",
+			sessionId: "session-1",
+			payload: { reason: "completed" },
+		});
+		expect(
+			readEvents(ctx).filter(
+				(message) => message.event.name === "chat_session_ended",
+			),
+		).toHaveLength(1);
 	});
 });
 

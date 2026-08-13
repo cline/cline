@@ -189,13 +189,18 @@ function handleAgentEvent(
 		case "content_start": {
 			if (event.contentType === "text" && event.text) {
 				emitChunk(ctx, sessionId, "chat_text", event.text);
-			} else if (event.contentType === "reasoning" && event.reasoning) {
+			} else if (
+				event.contentType === "reasoning" &&
+				// Redacted-only reasoning arrives with no text but must still
+				// reach the webview, which renders it as a redacted marker.
+				(event.reasoning || event.redacted === true)
+			) {
 				emitChunk(
 					ctx,
 					sessionId,
 					"chat_reasoning",
 					JSON.stringify({
-						text: event.reasoning,
+						text: event.reasoning ?? "",
 						redacted: event.redacted === true,
 					}),
 				);
@@ -358,7 +363,7 @@ function emitQueuedPromptStart(
 	);
 }
 
-function handleCoreSessionEvent(
+export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
@@ -690,9 +695,23 @@ export function handleHubLiveEvent(
 	if (!session?.attachedViaHub) {
 		return;
 	}
+	// ClineCore holds its own hub subscription for any session it has started,
+	// sent a turn to, or managed pending prompts for, and
+	// handleCoreSessionEvent already forwards those live events to the
+	// webview. Attach (set on every webview hydrate) must not relay the same
+	// streams a second time or every delta reaches the UI twice — rendering
+	// as word-by-word duplication ("TheThe quick quick brown brown…").
+	// isRelayingSessionEvents also reports false while the core's hub client
+	// is disconnected or reconnecting, so this observer keeps the live stream
+	// flowing for the duration of a core-side outage instead of dropping it.
+	const coreRelaysLiveEvents =
+		ctx.sessionManager?.isRelayingSessionEvents(sessionId) === true;
 
 	switch (event.event) {
 		case "assistant.delta": {
+			if (coreRelaysLiveEvents) {
+				return;
+			}
 			const text =
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			if (text) {
@@ -701,6 +720,9 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "reasoning.delta": {
+			if (coreRelaysLiveEvents) {
+				return;
+			}
 			const text =
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			const redacted = event.payload?.redacted === true;
@@ -716,6 +738,9 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "tool.started": {
+			if (coreRelaysLiveEvents) {
+				return;
+			}
 			emitChunk(
 				ctx,
 				sessionId,
@@ -735,6 +760,9 @@ export function handleHubLiveEvent(
 			return;
 		}
 		case "tool.finished": {
+			if (coreRelaysLiveEvents) {
+				return;
+			}
 			emitChunk(
 				ctx,
 				sessionId,

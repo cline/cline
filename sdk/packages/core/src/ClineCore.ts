@@ -646,4 +646,18 @@ export class ClineCore {
 			const service = this.host as RuntimeHostServiceExtensions;
 			return service.updateSessionConnection?.(...args) ?? Promise.resolve();
 		};
+	/**
+	 * Whether this instance currently holds a live hub event subscription for
+	 * the session and is relaying its agent events to `subscribe()` listeners.
+	 *
+	 * Hub-backed hosts subscribe to a session's live events when they start,
+	 * restore, run a turn on, or manage pending prompts for it. Embedders that
+	 * additionally observe the hub through their own client can use this to
+	 * avoid forwarding the same live stream twice. Returns `false` for hosts
+	 * that do not relay hub events (e.g. the local runtime host).
+	 */
+	isRelayingSessionEvents = (sessionId: string): boolean => {
+		const service = this.host as RuntimeHostServiceExtensions;
+		return service.isRelayingSessionEvents?.(sessionId) === true;
+	};
 }

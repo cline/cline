@@ -9,6 +9,7 @@ const subscribeMock = vi.hoisted(() => vi.fn());
 const closeMock = vi.hoisted(() => vi.fn());
 const disposeMock = vi.hoisted(() => vi.fn());
 const getClientIdMock = vi.hoisted(() => vi.fn(() => "client-1"));
+const isConnectedMock = vi.hoisted(() => vi.fn(() => true));
 const restartLocalHubIfIdleAfterStartupTimeoutMock = vi.hoisted(() => vi.fn());
 
 vi.mock("../client", () => ({
@@ -24,6 +25,7 @@ vi.mock("../client", () => ({
 		close = closeMock;
 		dispose = disposeMock;
 		getClientId = getClientIdMock;
+		isConnected = isConnectedMock;
 		getUrl = () => this.url;
 	},
 	isHubCommandTimeoutError: (
@@ -77,6 +79,8 @@ describe("HubRuntimeHost", () => {
 		closeMock.mockReset();
 		disposeMock.mockReset();
 		getClientIdMock.mockClear();
+		isConnectedMock.mockReset();
+		isConnectedMock.mockReturnValue(true);
 		restartLocalHubIfIdleAfterStartupTimeoutMock.mockReset();
 	});
 
@@ -831,6 +835,76 @@ describe("HubRuntimeHost", () => {
 			{ sessionId: "sess-1" },
 			"sess-1",
 		);
+	});
+
+	it("reports whether a session's live events are being relayed", async () => {
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(false);
+
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(true);
+		expect(host.isRelayingSessionEvents("other-session")).toBe(false);
+
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
+		await host.stopSession("sess-1");
+
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(false);
+	});
+
+	it("reports not relaying while the hub client is disconnected", async () => {
+		// Holding a session subscription is not the same as delivering it: a
+		// disconnected/reconnecting client receives nothing, and embedders that
+		// suppress their own relay based on this state would otherwise drop the
+		// live stream entirely for the duration of the outage.
+		subscribeMock.mockReturnValue(() => {});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(true);
+
+		isConnectedMock.mockReturnValue(false);
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(false);
+
+		isConnectedMock.mockReturnValue(true);
+		expect(host.isRelayingSessionEvents("sess-1")).toBe(true);
 	});
 
 	it("maps hub completion events back to agent and lifecycle events without duplicating done", async () => {

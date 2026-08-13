@@ -1474,6 +1474,24 @@ export class HubRuntimeHost implements RuntimeHost {
 		return this.events.subscribe(listener, options);
 	}
 
+	/**
+	 * Whether this host holds a live hub event subscription for the session
+	 * (created by start/restore/run-turn/pending-prompt commands) and is
+	 * therefore already relaying its agent events to `subscribe()` listeners.
+	 *
+	 * Subscription ownership alone is not enough: while this host's hub
+	 * client is disconnected (or mid-reconnect) it cannot deliver anything,
+	 * so embedders that would suppress their own copy of the live stream
+	 * based on this state must be told `false` — otherwise the stream goes
+	 * missing entirely for the duration of the outage.
+	 */
+	isRelayingSessionEvents(sessionId: string): boolean {
+		return (
+			this.client.isConnected() &&
+			this.sessionSubscriptions.has(sessionId.trim())
+		);
+	}
+
 	private ensureSessionSubscription(sessionId: string): void {
 		const target = sessionId.trim();
 		if (!target || this.sessionSubscriptions.has(target)) {
