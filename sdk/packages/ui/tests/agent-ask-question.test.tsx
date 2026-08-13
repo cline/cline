@@ -369,9 +369,15 @@ describe("AgentAskQuestion", () => {
 			cancelable: true,
 			key: "Enter",
 		});
-		await act(async () => buttons[1]?.dispatchEvent(enter));
+		await act(async () => {
+			if (buttons[1]?.dispatchEvent(enter)) buttons[1].click();
+		});
 
 		expect(enter.defaultPrevented).toBe(false);
-		expect(onAnswer).not.toHaveBeenCalled();
+		expect(buttons[0]?.getAttribute("aria-pressed")).toBe("false");
+		expect(buttons[1]?.getAttribute("aria-pressed")).toBe("true");
+
+		await act(async () => buttons[2]?.click());
+		expect(onAnswer).toHaveBeenCalledWith("request-1", "Second");
 	});
 });
