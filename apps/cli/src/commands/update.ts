@@ -278,6 +278,19 @@ export function resolveCliHubOwnerContext() {
 }
 
 let pendingAutoUpdate: ManualUpdateCommand | undefined;
+let pendingAutoUpdateCheck: Promise<void> | undefined;
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// How long the exit sequence will wait for a still-in-flight startup version
+// check before giving up on it. Long enough for a typical registry response,
+// short enough that one-shot commands do not feel it.
+const UPDATE_CHECK_EXIT_GRACE_MS = 250;
+
+// Hard cap on the exit-time hub query. The hub client's default connect and
+// command timeouts add up to tens of seconds against a wedged hub, and this
+// runs while the user is waiting for their shell prompt back.
+const CLIENT_COUNT_EXIT_TIMEOUT_MS = 3_000;
 
 /**
  * Non-blocking auto-update check for CLI startup.
@@ -303,7 +316,7 @@ export function autoUpdateOnStartup(): void {
 		getInstallationInfo(version);
 	if (!updateCommand) return;
 
-	void (async () => {
+	pendingAutoUpdateCheck = (async () => {
 		try {
 			const latest = await getLatestVersion(packageName, version);
 			if (!latest || compareVersions(version, latest) >= 0) return;
@@ -340,15 +353,41 @@ async function otherCliClientsAttached(): Promise<boolean> {
 		displayName: "cline update check",
 	});
 	try {
-		const reply = await client.command("client.list", {});
+		const reply = await client.command("client.list", {}, undefined, {
+			timeoutMs: CLIENT_COUNT_EXIT_TIMEOUT_MS,
+		});
 		const clients =
 			(reply.payload as { clients?: Array<{ clientType?: unknown }> })
 				.clients ?? [];
-		return clients.some(
-			(entry) =>
-				typeof entry?.clientType === "string" &&
-				entry.clientType.startsWith("cli") &&
-				entry.clientType !== "cli-update-check",
+		if (
+			clients.some(
+				(entry) =>
+					typeof entry?.clientType === "string" &&
+					entry.clientType.startsWith("cli") &&
+					entry.clientType !== "cli-update-check",
+			)
+		) {
+			return true;
+		}
+		// A TUI's registration can be lost in transport churn while its session
+		// connection survives (observed in review), so an empty client list is
+		// not proof of safety. Cross-check for sessions somebody is attached to.
+		// Participants, not session status: finished sessions can linger idle
+		// forever and must not pin updates, and participant-less scheduled runs
+		// live in the hub process, which a binary swap does not touch.
+		const sessions = await client.command(
+			"session.list",
+			{ limit: 500 },
+			undefined,
+			{ timeoutMs: CLIENT_COUNT_EXIT_TIMEOUT_MS },
+		);
+		const sessionRecords =
+			(sessions.payload as { sessions?: Array<{ participants?: unknown }> })
+				.sessions ?? [];
+		return sessionRecords.some(
+			(session) =>
+				Array.isArray(session?.participants) &&
+				session.participants.length > 0,
 		);
 	} finally {
 		await client.dispose().catch(() => undefined);
@@ -361,12 +400,27 @@ async function otherCliClientsAttached(): Promise<boolean> {
  * process and its postinstall never blocks an exit.
  */
 export async function applyDeferredUpdate(
-	pending: ManualUpdateCommand | undefined = pendingAutoUpdate,
+	pending?: ManualUpdateCommand,
 ): Promise<"none" | "deferred" | "started"> {
+	if (!pending) {
+		// Short-lived commands can reach exit before the startup version check
+		// resolves; give it a brief grace so one-shot-only usage still updates.
+		if (pendingAutoUpdateCheck) {
+			await Promise.race([pendingAutoUpdateCheck, sleep(UPDATE_CHECK_EXIT_GRACE_MS)]);
+		}
+		pending = pendingAutoUpdate;
+	}
 	if (!pending) {
 		return "none";
 	}
-	if (await otherCliClientsAttached().catch(() => true)) {
+	// The whole query is bounded: the user is waiting on their prompt, and a
+	// wedged hub must not turn a finished command into a hung one. A timeout
+	// counts as "attached" — never install unless the hub positively confirms.
+	const attached = await Promise.race([
+		otherCliClientsAttached(),
+		sleep(CLIENT_COUNT_EXIT_TIMEOUT_MS).then(() => true),
+	]).catch(() => true);
+	if (attached) {
 		return "deferred";
 	}
 	pendingAutoUpdate = undefined;
