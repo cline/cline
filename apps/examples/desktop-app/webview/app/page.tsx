@@ -13,6 +13,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -582,6 +583,7 @@ export default function Home() {
 					/>
 				</div>
 			) : null}
+			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
 }
@@ -1959,7 +1961,6 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}
@@ -1968,7 +1969,6 @@ function ChatThreadPane({
 					onRepoUrlChange={handleCloudRepoUrlChange}
 					onCloudBranchChange={handleCloudBranchChange}
 					cloudAgentsEnabled={cloudAgentsEnabled}
-					quickActions={[]}
 				/>
 			</div>
 			<AlertDialog

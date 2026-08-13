@@ -19,6 +19,7 @@
 	--brand-magenta: oklch(0.75 0.15 330);
 	--brand-periwinkle: oklch(0.69 0.14 275);
 	--brand-cyan: oklch(0.87 0.07 210);
+	--card-surface: color-mix(in srgb, var(--neutral-2) 50%, var(--neutral-3));
 
 	/* Standard Tailwind typography variables. Consumers provide the fonts. */
 	--font-sans: "Inter Variable", sans-serif;
@@ -68,6 +69,7 @@
 	--brand-magenta: oklch(0.64 0.17 330);
 	--brand-periwinkle: oklch(0.63 0.16 275);
 	--brand-cyan: oklch(0.72 0.09 210);
+	--card-surface: var(--neutral-3);
 	--font-weight-normal: 400;
 	--font-weight-medium: 500;
 	--font-weight-semibold: 600;

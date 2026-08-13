@@ -495,9 +495,10 @@ describe("ChatInputBar", () => {
 		expect(rightControls?.contains(workspaceTrigger ?? null)).toBe(true);
 		const sendTrigger = container.querySelector('[aria-label="Send message"]');
 		const stopTrigger = container.querySelector('[aria-label="Stop agent"]');
-		expect(promptInput?.parentElement?.className).toContain("items-end");
+		expect(promptInput?.parentElement?.className).toContain("items-start");
 		expect(promptInput?.parentElement?.contains(sendTrigger)).toBe(true);
 		expect(promptInput?.parentElement?.contains(stopTrigger)).toBe(true);
+		expect(sendTrigger?.parentElement?.className).toContain("self-end");
 		expect(rightControls?.contains(sendTrigger)).toBe(false);
 		expect(leftControls?.parentElement).toBe(rightControls?.parentElement);
 	});
