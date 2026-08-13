@@ -244,6 +244,75 @@ describe("watchManagedHubBuildMismatch", () => {
 		}
 	});
 
+	/**
+	 * Two daemons from the same build share a build id, so a replacement of the
+	 * same older build must not satisfy the consecutive-sighting check - that
+	 * churn is exactly what the check exists to hide.
+	 */
+	it("does not report when a different daemon of the same older build takes over", async () => {
+		vi.useFakeTimers();
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		let probeResult: Record<string, unknown> | undefined = {
+			hubId: "hub-instance-a",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => liveRecord),
+				probeHubServer: vi.fn(async () => probeResult),
+			};
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+		});
+		try {
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).not.toHaveBeenCalled();
+
+			// A different daemon, same build: not the Hub we were watching.
+			probeResult = { ...probeResult, hubId: "hub-instance-b" };
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).not.toHaveBeenCalled();
+
+			// It settles: the second instance is still there on the next check.
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).toHaveBeenCalledTimes(1);
+			expect(onMismatch).toHaveBeenLastCalledWith(
+				expect.objectContaining({
+					reason: "outdated_hub",
+					hubInstanceId: "hub-instance-b",
+				}),
+			);
+		} finally {
+			stop();
+		}
+	});
+
 	it("never reports an outdated hub that is replaced right after it is seen", async () => {
 		vi.useFakeTimers();
 		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
