@@ -3,6 +3,7 @@ import { realpathSync } from "node:fs";
 import {
 	clearHubDiscovery,
 	isAutoUpdateEnabledGlobally,
+	localHubHasNoActiveSessions,
 	probeHubServer,
 	readHubDiscovery,
 	resolveProductionHubOwnerContext,
@@ -359,6 +360,17 @@ async function restartHubServerIfRunning(): Promise<void> {
 			}).catch(() => undefined)
 		: undefined;
 	if (!discovery || !health?.url) return;
+
+	// Clients attached to the hub cannot survive a restart under them: the
+	// replacement hub comes up with the new build's fingerprint, which their
+	// compatibility check rejects. Leave a busy hub alone; the next fresh
+	// launch retires it once its sessions are gone.
+	if (!(await localHubHasNoActiveSessions(health.url, discovery.authToken))) {
+		writeln(
+			`${c.dim}[hub] update installed; hub has active sessions, deferring restart to the next launch${c.reset}`,
+		);
+		return;
+	}
 
 	const pid = discovery?.pid;
 	writeln(`${c.dim}[hub] restarting server…${c.reset}`);
