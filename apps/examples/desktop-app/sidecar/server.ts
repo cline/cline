@@ -9,8 +9,9 @@ import {
 } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { handleCommand } from "./commands";
-import { sendEvent } from "./context";
+import { encodeSidecarEvent, sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
+import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
 import { sharedSessionDataDir } from "./paths";
 import {
@@ -137,7 +138,15 @@ type DesktopClientErrorReport = {
 	command?: unknown;
 	timeoutMs?: unknown;
 	transportState?: unknown;
+	sourceUrl?: unknown;
+	lineno?: unknown;
+	colno?: unknown;
+	stack?: unknown;
 };
+
+// Bound for free-form attribution strings (source URLs, stack traces);
+// matches ERROR_REPORT_FIELD_LIMIT in webview/lib/desktop-client.ts.
+const ERROR_REPORT_FIELD_LIMIT = 500;
 
 function captureDesktopError(
 	ctx: SidecarContext,
@@ -385,6 +394,24 @@ export function createFetchHandler(
 				if (typeof report.transportState === "string") {
 					context.transportState = report.transportState.slice(0, 30);
 				}
+				if (typeof report.sourceUrl === "string" && report.sourceUrl.trim()) {
+					context.sourceUrl = report.sourceUrl.slice(
+						0,
+						ERROR_REPORT_FIELD_LIMIT,
+					);
+				}
+				if (
+					typeof report.lineno === "number" &&
+					Number.isFinite(report.lineno)
+				) {
+					context.lineno = report.lineno;
+				}
+				if (typeof report.colno === "number" && Number.isFinite(report.colno)) {
+					context.colno = report.colno;
+				}
+				if (typeof report.stack === "string" && report.stack.trim()) {
+					context.stack = report.stack.slice(0, ERROR_REPORT_FIELD_LIMIT);
+				}
 				captureDesktopError(
 					ctx,
 					operation,
@@ -431,6 +458,11 @@ function createWebSocketHandler(ctx: SidecarContext) {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
 			});
+			// Replay a pending mismatch so webviews that connect (or reload)
+			// after detection still prompt the user to update and restart.
+			if (ctx.hubBuildMismatch) {
+				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
+			}
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
 			let request: DesktopTransportRequest;
@@ -462,10 +494,11 @@ function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
-			// OAuth logins are interactive: if the connection that started one
-			// goes away (webview reload, transport drop), cancel it so the
-			// abandoned browser flow can never persist credentials later.
+			// Browser OAuth flows are interactive: if the connection that started
+			// one goes away (webview reload, transport drop), cancel its callback
+			// wait so the sidecar cannot retain an abandoned authorization attempt.
 			cancelProviderOAuthLoginsForOwner(ws);
+			cancelMcpOAuthAuthorizationsForOwner(ws);
 		},
 	};
 }

@@ -46,7 +46,7 @@ describe("desktop tray", () => {
 		let eventHandler: MenuEventHandler | undefined;
 		const pendingBatches: unknown[][] = [
 			["new-session", "open-settings", "unexpected"],
-			["open-settings"],
+			["open-settings", "zoom-in", "zoom-out", "zoom-reset"],
 		];
 		mocks.listen.mockImplementation(
 			async (_eventName: string, handler: MenuEventHandler) => {
@@ -82,6 +82,9 @@ describe("desktop tray", () => {
 				["new-session"],
 				["open-settings"],
 				["open-settings"],
+				["zoom-in"],
+				["zoom-out"],
+				["zoom-reset"],
 			]),
 		);
 		unsubscribe();

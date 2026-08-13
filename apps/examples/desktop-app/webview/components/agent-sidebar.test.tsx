@@ -31,6 +31,7 @@ function makeThread(project: string, index: number): SessionThread {
 		provider: "cline",
 		model: "test-model",
 		status: "completed",
+		isScheduled: false,
 	};
 }
 
@@ -142,9 +143,10 @@ describe("AgentSidebar session organization", () => {
 	it("filters scheduled sessions without changing their titles", async () => {
 		const scheduled = {
 			...makeThread("scheduled", 1),
-			source: "hub-schedule",
+			source: "core",
+			isScheduled: true,
 		};
-		const regular = makeThread("regular", 1);
+		const regular = { ...makeThread("regular", 1), source: "core" };
 
 		await act(async () => {
 			root.render(

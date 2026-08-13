@@ -1,13 +1,12 @@
 "use client";
 
+import { type AppZoomAction, isAppZoomAction } from "@/lib/app-font-size";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
 export const DESKTOP_MENU_ACTION_PENDING_EVENT = "desktop-menu-action-pending";
 const TRAY_STATUS_REFRESH_INTERVAL_MS = 5_000;
 
-export type DesktopMenuAction =
-	| "new-session"
-	| "open-settings";
+export type DesktopMenuAction = "new-session" | "open-settings" | AppZoomAction;
 
 type ProcessContext = {
 	runningSessionCount?: unknown;
@@ -19,7 +18,8 @@ type ProcessContext = {
 function isDesktopMenuAction(value: unknown): value is DesktopMenuAction {
 	return (
 		value === "new-session" ||
-		value === "open-settings"
+		value === "open-settings" ||
+		isAppZoomAction(value)
 	);
 }
 

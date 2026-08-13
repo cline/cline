@@ -191,8 +191,7 @@ export function isChatModel(model: ProviderModel): boolean {
 		(model.outputModalities === undefined ||
 			model.outputModalities.includes("text") ||
 			model.outputModalities.includes("image") ||
-			model.outputModalities.includes("video") ||
-			model.outputModalities.includes("audio"))
+			model.outputModalities.includes("video"))
 	);
 }
 
@@ -297,8 +296,51 @@ export function fetchProviderCatalog(options?: {
 	return promise;
 }
 
+type ProviderCatalogInvalidationListener = () => void;
+const providerCatalogInvalidationListeners =
+	new Set<ProviderCatalogInvalidationListener>();
+
+/**
+ * Notifies when the provider catalog cache is invalidated (credentials
+ * saved, providers toggled, OAuth completed) so long-lived consumers — e.g.
+ * the chat pane's "connect a model" notice — can refetch instead of showing
+ * stale connection state until they happen to remount.
+ */
+export function subscribeToProviderCatalogInvalidation(
+	listener: ProviderCatalogInvalidationListener,
+): () => void {
+	providerCatalogInvalidationListeners.add(listener);
+	return () => providerCatalogInvalidationListeners.delete(listener);
+}
+
 export function invalidateProviderCatalogCache(): void {
 	providerCatalogCache = null;
+	// Credentials may have just changed: a pane remounting off the snapshot
+	// must not act on the old keys, so drop it until a fresh load lands.
+	providerCatalogSnapshot = null;
+	for (const listener of providerCatalogInvalidationListeners) {
+		listener();
+	}
+}
+
+// "+ new chat" remounts the chat pane, which otherwise blocks its first
+// paint on a full catalog fetch. The last successful load is kept here (not
+// in the pane module) so credential changes invalidate it with the cache.
+export type ProviderCatalogSnapshot = {
+	credentials: Record<string, { apiKey: string }>;
+	contextWindows: Record<string, Record<string, number>>;
+};
+
+let providerCatalogSnapshot: ProviderCatalogSnapshot | null = null;
+
+export function readProviderCatalogSnapshot(): ProviderCatalogSnapshot | null {
+	return providerCatalogSnapshot;
+}
+
+export function writeProviderCatalogSnapshot(
+	snapshot: ProviderCatalogSnapshot,
+): void {
+	providerCatalogSnapshot = snapshot;
 }
 
 export function notifyModeSettingsChanged(mode: ProviderMode): void {

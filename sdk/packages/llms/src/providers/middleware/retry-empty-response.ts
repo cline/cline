@@ -32,6 +32,23 @@
 // into the final finish part, so a turn that took three requests reports
 // three requests' worth of usage.
 //
+// The same buffer-until-proven window also covers a second transient
+// failure mode: the attempt's stream REJECTING with a network interruption
+// before the model produced anything (see `isTransientNetworkError`).
+// Production telemetry on the SDK arch shows these as the dominant
+// network-class run killer — `terminated: SocketError: other side closed
+// (UND_ERR_SOCKET)`, `terminated: BodyTimeoutError`, `terminated: read
+// ECONNRESET`, `fetch failed: HeadersTimeoutError`. The AI SDK's own retry
+// only guards request *initiation* (it re-runs `doStream()` when that call
+// rejects with a retryable APICallError); once the stream has started, a
+// body death escapes `postToApi`'s error wrapping and rejects the stream
+// raw, killing the run — a failure the legacy extension's first-chunk retry
+// loop absorbed silently. Retrying here is safe for the same reason the
+// empty retry is: nothing has been emitted yet, so a discarded attempt is
+// invisible to the consumer. A failure AFTER output has flowed still passes
+// through unchanged (resuming mid-content would require deduplicating
+// already-delivered text), and a user abort is never retried.
+//
 // Safety properties:
 //   * A tool-call-only turn counts as content, so it is never retried.
 //   * Unsupported-but-real output (custom parts, reasoning files, sources,
@@ -42,6 +59,12 @@
 //     producing anything.
 //   * Turns that finish with an error or hit the token limit are passed
 //     through unchanged (retrying wouldn't help and could mask the cause).
+//   * Provider-reported in-band `error` parts accept the attempt and pass
+//     through — they are business errors, not transport failures.
+//   * A successfully retried failure never reaches `streamText`, so no
+//     `onError`/`captureSdkError`/`task.provider_api_error` fires for it;
+//     an exhausted or non-retryable failure rejects the stream exactly as
+//     an unwrapped one does today, leaving the reporting path unchanged.
 
 import type {
 	LanguageModelV4Middleware,
@@ -59,8 +82,14 @@ interface RetryLogger {
 export interface RetryEmptyResponseOptions {
 	/** Total attempts including the first (so `3` means up to 2 retries). */
 	maxAttempts?: number;
-	/** Delay before each retry, in milliseconds. */
+	/** Delay before each empty-response retry, in milliseconds. */
 	retryDelayMs?: number;
+	/**
+	 * Delay before the first network-interruption retry, in milliseconds;
+	 * doubles for each subsequent one (2s → 4s with the defaults, matching
+	 * the legacy extension's backoff).
+	 */
+	networkRetryDelayMs?: number;
 	logger?: RetryLogger;
 }
 
@@ -68,6 +97,86 @@ export interface RetryEmptyResponseOptions {
 export const DEFAULT_EMPTY_RESPONSE_MAX_ATTEMPTS = 3;
 /** Default delay before a retry. */
 export const DEFAULT_EMPTY_RESPONSE_RETRY_DELAY_MS = 250;
+/** Default delay before the first network-interruption retry. */
+export const DEFAULT_NETWORK_RETRY_DELAY_MS = 2_000;
+
+const MAX_CAUSE_DEPTH = 8;
+
+/**
+ * Error codes of transient transport interruptions, from the runtimes this
+ * package runs under: undici (Node fetch — the VS Code extension host),
+ * plain Node/Bun sockets, and Bun's fetch (CLI, desktop sidecar).
+ */
+const TRANSIENT_NETWORK_ERROR_CODES = new Set([
+	"UND_ERR_SOCKET",
+	"UND_ERR_BODY_TIMEOUT",
+	"UND_ERR_HEADERS_TIMEOUT",
+	"UND_ERR_CONNECT_TIMEOUT",
+	"ECONNRESET",
+	"EPIPE",
+	"ETIMEDOUT",
+	"ConnectionClosed",
+]);
+
+/**
+ * Node's fetch wraps every mid-body termination in `TypeError("terminated")`
+ * (socket-level cause attached) and connection failures in
+ * `TypeError("fetch failed")`; WebKit says "failed to fetch".
+ */
+const NETWORK_TYPE_ERROR_MESSAGES = new Set([
+	"terminated",
+	"fetch failed",
+	"failed to fetch",
+]);
+
+/**
+ * Whether an error (anywhere in its `cause` chain) identifies a transient
+ * transport interruption — the connection died or timed out underneath a
+ * request the provider never rejected. An abort anywhere in the chain
+ * vetoes the match: cancelled requests surface the same socket vocabulary,
+ * and a user cancel must never be retried. Everything else — HTTP business
+ * errors, context-window errors, provider-reported payloads — does not
+ * match.
+ */
+export function isTransientNetworkError(error: unknown): boolean {
+	let aborted = false;
+	let transient = false;
+	let current: unknown = error;
+	const seen = new Set<unknown>();
+	for (
+		let depth = 0;
+		depth < MAX_CAUSE_DEPTH &&
+		current != null &&
+		typeof current === "object" &&
+		!seen.has(current);
+		depth++
+	) {
+		seen.add(current);
+		const candidate = current as {
+			name?: unknown;
+			message?: unknown;
+			code?: unknown;
+			cause?: unknown;
+		};
+		if (
+			candidate.name === "AbortError" ||
+			candidate.name === "ResponseAborted"
+		) {
+			aborted = true;
+		}
+		if (
+			(current instanceof TypeError &&
+				typeof candidate.message === "string" &&
+				NETWORK_TYPE_ERROR_MESSAGES.has(candidate.message.toLowerCase())) ||
+			(typeof candidate.code === "string" &&
+				TRANSIENT_NETWORK_ERROR_CODES.has(candidate.code))
+		) {
+			transient = true;
+		}
+		current = candidate.cause;
+	}
+	return transient && !aborted;
+}
 
 /**
  * Finish reasons that indicate a "normal" completion where an empty body is a
@@ -137,8 +246,23 @@ function withAggregatedUsage(
 	return { ...finish, usage };
 }
 
-function sleep(ms: number): Promise<void> {
-	return new Promise((resolve) => setTimeout(resolve, ms));
+/** Sleep that resolves early (without throwing) when the signal aborts. */
+function sleep(ms: number, signal?: AbortSignal): Promise<void> {
+	return new Promise((resolve) => {
+		if (ms <= 0 || signal?.aborted) {
+			resolve();
+			return;
+		}
+		const onAbort = () => {
+			clearTimeout(timer);
+			resolve();
+		};
+		const timer = setTimeout(() => {
+			signal?.removeEventListener("abort", onAbort);
+			resolve();
+		}, ms);
+		signal?.addEventListener("abort", onAbort, { once: true });
+	});
 }
 
 /**
@@ -157,11 +281,16 @@ export function createRetryEmptyResponseMiddleware(
 		0,
 		options.retryDelayMs ?? DEFAULT_EMPTY_RESPONSE_RETRY_DELAY_MS,
 	);
+	const networkRetryDelayMs = Math.max(
+		0,
+		options.networkRetryDelayMs ?? DEFAULT_NETWORK_RETRY_DELAY_MS,
+	);
 	const logger = options.logger;
 
 	return {
 		specificationVersion: "v4",
-		wrapStream: async ({ doStream, model }) => {
+		wrapStream: async ({ doStream, params, model }) => {
+			const abortSignal = params.abortSignal;
 			// Kick off the first attempt eagerly, matching normal doStream timing.
 			const firstResult = await doStream();
 
@@ -169,6 +298,10 @@ export function createRetryEmptyResponseMiddleware(
 				async start(controller) {
 					let result: LanguageModelV4StreamResult = firstResult;
 					const discardedUsage: LanguageModelV4Usage[] = [];
+					// Counted separately from the shared attempt number so the
+					// first network retry always waits `networkRetryDelayMs`,
+					// regardless of any empty-response retries that came first.
+					let networkRetries = 0;
 
 					for (let attempt = 1; ; attempt++) {
 						const reader = result.stream.getReader();
@@ -176,6 +309,8 @@ export function createRetryEmptyResponseMiddleware(
 						const buffered: LanguageModelV4StreamPart[] = [];
 						let accepted = false;
 						let pendingFinish: FinishPart | null = null;
+						let streamFailure: unknown;
+						let streamFailed = false;
 
 						try {
 							while (true) {
@@ -213,10 +348,59 @@ export function createRetryEmptyResponseMiddleware(
 								}
 							}
 						} catch (error) {
-							controller.error(error);
-							return;
+							streamFailed = true;
+							streamFailure = error;
 						} finally {
 							reader.releaseLock();
+						}
+
+						if (streamFailed) {
+							const canRetryFailure =
+								// Only a pre-content death is retried; once
+								// output has flowed, resuming would replay
+								// text the consumer already saw.
+								!accepted &&
+								attempt < maxAttempts &&
+								abortSignal?.aborted !== true &&
+								isTransientNetworkError(streamFailure);
+							if (!canRetryFailure) {
+								controller.error(streamFailure);
+								return;
+							}
+							if (pendingFinish) {
+								discardedUsage.push(pendingFinish.usage);
+							}
+							const delayMs = networkRetryDelayMs * 2 ** networkRetries;
+							networkRetries++;
+							logger?.log?.(
+								"Transient network interruption before any model output; retrying",
+								{
+									severity: "warn",
+									provider: model.provider,
+									modelId: model.modelId,
+									attempt,
+									maxAttempts,
+									retryDelayMs: delayMs,
+									error:
+										streamFailure instanceof Error
+											? streamFailure.message
+											: String(streamFailure),
+								},
+							);
+							await sleep(delayMs, abortSignal);
+							if (abortSignal?.aborted) {
+								// The user cancelled during backoff: surface
+								// the abort instead of re-dialing.
+								controller.error(abortSignal.reason ?? streamFailure);
+								return;
+							}
+							try {
+								result = await doStream();
+							} catch (error) {
+								controller.error(error);
+								return;
+							}
+							continue;
 						}
 
 						if (accepted) {

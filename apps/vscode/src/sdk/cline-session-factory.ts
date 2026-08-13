@@ -961,6 +961,10 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		...(baseUrl !== undefined ? { baseUrl } : {}),
 		...(apiLine !== undefined ? { apiLine } : {}),
 		...(knownModels && Object.keys(knownModels).length > 0 ? { knownModels } : {}),
+		// Mirror the user's Max Output Tokens for consumers that build handlers
+		// straight from providerConfig — notably the compaction summarizer, which
+		// otherwise falls back to a small default output cap (CLINE-2911).
+		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
 		fetch,
 	}
 

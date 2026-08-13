@@ -48,6 +48,12 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	logger?: BasicLogger;
+	/**
+	 * Notifies the owning process of an authenticated `/shutdown` request before
+	 * the server begins its memoized close. The daemon uses this to route HTTP,
+	 * signals, and fatal errors through one shutdown coordinator.
+	 */
+	onShutdownRequested?: () => void | Promise<void>;
 }
 
 export interface HubWebSocketServer {
@@ -55,7 +61,18 @@ export interface HubWebSocketServer {
 	port: number;
 	url: string;
 	authToken: string;
+	/**
+	 * Starts the memoized two-phase close. Runtime/session teardown is exposed
+	 * separately so daemon telemetry can remain available until it completes,
+	 * even when the listener close is stalled by the runtime.
+	 */
+	beginClose(): HubWebSocketServerClose;
 	close(): Promise<void>;
+}
+
+export interface HubWebSocketServerClose {
+	transportStopped: Promise<void>;
+	closed: Promise<void>;
 }
 
 export interface EnsureHubWebSocketServerOptions

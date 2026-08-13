@@ -24,10 +24,13 @@ import {
 	SessionStatus,
 } from "@cline/ui";
 import { Conversation, Message } from "@cline/ui/components/agent-chat";
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import { buildToolSummary } from "@cline/ui/components/agent-chat/tool-summary";
 
 for (const specifier of [
 	"@cline/ui/components.css",
 	"@cline/ui/components/markdown.css",
+	"@cline/ui/theme/palette.css",
 	"@cline/ui/theme/scoped-tokens.css",
 ]) {
 	if (!existsSync(fileURLToPath(import.meta.resolve(specifier)))) {
@@ -37,6 +40,16 @@ for (const specifier of [
 
 const css = import.meta.resolve("@cline/ui/components/agent-chat.css");
 const tokens = import.meta.resolve("@cline/ui/theme/tokens.css");
+const summary = buildToolSummary({
+	toolName: "read_files",
+	input: { files: [{ path: "src/app.tsx", start_line: 10, end_line: 80 }] },
+});
+if (summary.label !== "Read file app.tsx (10–80)" || summary.kind !== "read") {
+	throw new Error("tool-summary subpath returned an unexpected summary");
+}
+if (typeof ToolFileDiff !== "function") {
+	throw new Error("tool-diff subpath did not export ToolFileDiff");
+}
 if (
 	!AgentApprovalCard ||
 	!AgentAskQuestion ||
@@ -201,6 +214,8 @@ try {
 			"--ignore-scripts",
 			archive,
 			"react@19.2.4",
+			"react-dom@19.2.4",
+			"@pierre/diffs@1.3.2",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],
@@ -224,6 +239,8 @@ try {
 			"--no-fund",
 			archive,
 			"react@18.3.1",
+			"react-dom@18.3.1",
+			"@pierre/diffs@1.3.2",
 			"tailwindcss@4.2.0",
 			"@tailwindcss/cli@4.2.0",
 		],

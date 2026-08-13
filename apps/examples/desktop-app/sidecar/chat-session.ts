@@ -14,7 +14,9 @@ import {
 	type ClineCoreStartConfig,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
+	getCoreBuiltinToolCatalog,
 	projectSessionCompactionState,
+	readGlobalSettings,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -23,7 +25,7 @@ import {
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { Message } from "@cline/llms";
-import { buildClineSystemPrompt } from "@cline/shared";
+import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -137,6 +139,63 @@ async function expandRuntimeSlashCommand(
 	} finally {
 		service.stop();
 	}
+}
+
+type TeamPromptAvailability = {
+	/** Session mode as stored in config; anything but plan/yolo counts as act. */
+	mode?: unknown;
+	disabledTools?: ReadonlySet<string>;
+};
+
+export function rewriteDesktopTeamPrompt(
+	prompt: string,
+	availability: TeamPromptAvailability = {},
+): string {
+	const match = /^\/team\b([\s\S]*)$/i.exec(prompt.trim());
+	if (!match) return prompt;
+	const task = match[1]?.trim();
+	if (!task) {
+		throw new Error(
+			"Usage: /team <task description>. Starts a team of agents for the given task.",
+		);
+	}
+	const disabledTools =
+		availability.disabledTools ??
+		new Set(readGlobalSettings().disabledTools ?? []);
+	if (disabledTools.has("teams")) {
+		throw new Error(
+			"Agent teams are disabled. Enable the Teams tool in Customizations → Tools.",
+		);
+	}
+	// The runtime resolves tool availability from the mode's preset, so a
+	// preset without team tools must reject /team here rather than send the
+	// model an instruction it cannot act on.
+	const mode =
+		availability.mode === "plan" || availability.mode === "yolo"
+			? availability.mode
+			: "act";
+	const teamsAvailable = getCoreBuiltinToolCatalog({ mode }).some(
+		(entry) => entry.id === "teams" && entry.defaultEnabled,
+	);
+	if (!teamsAvailable) {
+		throw new Error(`Agent teams are not available in ${mode} mode.`);
+	}
+	return formatUserCommandBlock(
+		`spawn a team of agents for the following task: ${task}`,
+		"team",
+	);
+}
+
+async function resolveDesktopRuntimePrompt(
+	ctx: SidecarContext,
+	workspacePath: string | undefined,
+	prompt: string,
+	mode?: unknown,
+): Promise<string> {
+	return rewriteDesktopTeamPrompt(
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		{ mode },
+	);
 }
 
 function hasActiveWorkspaceTurn(session: LiveSession): boolean {
@@ -379,16 +438,6 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		systemPrompt: config.systemPrompt ?? config.system_prompt ?? "",
 		maxIterations: config.maxIterations ?? config.max_iterations,
 		enableTools: config.enableTools ?? config.enable_tools ?? true,
-		enableSpawnAgent:
-			config.enableSpawn ??
-			config.enableSpawnAgent ??
-			config.enable_spawn ??
-			false,
-		enableAgentTeams:
-			config.enableTeams ??
-			config.enableAgentTeams ??
-			config.enable_teams ??
-			false,
 		...(thinking !== undefined ? { thinking } : {}),
 		...(reasoningEffort ? { reasoningEffort } : {}),
 		...(thinkingBudgetTokens !== undefined ? { thinkingBudgetTokens } : {}),
@@ -882,12 +931,13 @@ async function handleSend(
 	if (session?.transitioningProvider) {
 		throw new Error("A provider switch is already in progress");
 	}
-	// Dispatch the expanded instructions, but keep the raw `/command` token as
-	// the session's display prompt.
-	const expandedPrompt = await expandRuntimeSlashCommand(
+	// Dispatch the expanded or rewritten instructions, but keep the raw
+	// `/command` token as the session's display prompt.
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
 		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
 		prompt,
+		request.config?.mode ?? session?.config?.mode,
 	);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
@@ -955,7 +1005,7 @@ async function handleSend(
 			}
 			await manager.send({
 				sessionId,
-				prompt: expandedPrompt,
+				prompt: runtimePrompt,
 				delivery: "queue",
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -966,7 +1016,23 @@ async function handleSend(
 				sessionId,
 				ok: true,
 				queued: true,
-				promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
+				// Response snapshot only — deliberately not routed through
+				// applyPendingPrompts. The list was taken at enqueue time and
+				// can already be stale when this response is written (the
+				// runtime may have drained the prompt meanwhile, e.g. the
+				// coerced first prompt of a fresh session); overwriting the
+				// event-maintained session.promptsInQueue and rebroadcasting
+				// prompts_in_queue_state here would resurrect a phantom queue
+				// entry for every connected webview.
+				promptsInQueue: prompts
+					.map(mapPendingPrompt)
+					.filter((item) => item.id)
+					.map(({ id, prompt, steer, attachmentCount }) => ({
+						id,
+						prompt,
+						steer,
+						attachmentCount,
+					})),
 			};
 		}
 
@@ -979,7 +1045,7 @@ async function handleSend(
 		try {
 			result = await manager.send({
 				sessionId,
-				prompt: expandedPrompt,
+				prompt: runtimePrompt,
 				delivery,
 				userImages: request.attachments?.userImages,
 				userFiles,
@@ -1453,18 +1519,19 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
+	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
-	// through handleSend, so expand a leading slash command here too.
-	const expandedPrompt = await expandRuntimeSlashCommand(
+	// through handleSend, so resolve slash commands here too.
+	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
-		readWorkspacePath(ctx.liveSessions.get(sessionId)?.config) ??
-			ctx.workspaceRoot,
+		readWorkspacePath(sessionConfig) ?? ctx.workspaceRoot,
 		prompt,
+		sessionConfig?.mode,
 	);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
-		prompt: expandedPrompt,
+		prompt: runtimePrompt,
 	});
 	return {
 		sessionId,

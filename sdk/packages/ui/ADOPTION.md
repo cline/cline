@@ -13,6 +13,7 @@ styles or adopting desktop product structure.
 
 The theme provides:
 
+- Cline-owned Slate, Violet, Ruby, Green, Amber, and Sky solid/alpha palettes
 - Light and dark semantic colors
 - Standard shadcn token names
 - Typography families, sizes, weights, line heights, and letter spacing
@@ -44,6 +45,28 @@ Each application continues to own:
 
 This boundary gives Cline products a shared visual and interaction language
 without turning `@cline/ui` into a second agent runtime.
+
+The boundary is about runtime coupling, not about keeping the package small.
+When more than one product needs the same presentation behavior, the goal is
+to extract it here as a shared module rather than let each app grow its own
+copy — that is the direction `@cline/ui` is headed, and more shared modules
+are expected over time. Two exist today:
+
+- `@cline/ui/components/agent-chat/tool-summary` — pure, framework-free
+  functions (`buildToolSummary`, `buildGroupedToolLabel`, and the underlying
+  parsers) that turn a raw `{ toolName, input, result }` payload into the
+  labels, per-item details, diff counts, and before/after texts every surface
+  should show. `unknown` in, data out — no React, no icons, no dependency on
+  `@cline/core` or transport events.
+- `@cline/ui/components/agent-chat/tool-diff` — `ToolFileDiff`, a thin
+  wrapper over [`@pierre/diffs`](https://github.com/pierrecomputer/pierre)
+  (optional peer dependency) that renders a tool-summary file item as a
+  syntax-highlighted, theme-aware diff with consistent defaults.
+
+Shared modules like these keep read/edit/command rows identical across
+products while consumers still own their message schemas, icon assets, and
+overall rendering. Before hand-rolling presentation logic in an app, check
+whether it belongs here instead.
 
 ## Current status
 
@@ -106,7 +129,7 @@ only the prerequisites for the layer being adopted:
 bun add react@^19 react-dom@^19
 
 # Required for the documented Tailwind-backed theme and Cline fonts
-bun add @fontsource-variable/schibsted-grotesk @fontsource/azeret-mono
+bun add @fontsource-variable/inter @fontsource-variable/geist-mono
 bun add --dev tailwindcss
 ```
 
@@ -135,8 +158,8 @@ from the runtime SDK packages.
 Import fonts and Tailwind before the complete theme:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -159,8 +182,8 @@ Use this when the application wants the shared tokens and utilities but already
 owns document, Markdown, scrollbar, or cursor behavior:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/tokens.css";
 @import "@cline/ui/theme/theme.css";
@@ -410,9 +433,21 @@ Product components should use semantic tokens:
 }
 ```
 
-Use the small `--brand-*` palette and `--primary-emphasis` for branded artwork
-or deliberate emphasis. Normal controls should prefer semantic tokens so they
-continue to work across light, dark, and future theme layers.
+Theme authors can tune the visual hierarchy without rewriting component
+semantics:
+
+```css
+:root,
+.dark {
+  --surface-1: var(--neutral-1);
+  --surface-2: var(--neutral-2);
+  --focus-ring: var(--accent-8);
+}
+```
+
+Use the small `--brand-*` palette only for branded artwork. Normal controls
+should prefer visual/status roles or shadcn semantic tokens so they continue to
+work across light, dark, and future theme layers.
 
 ## Product overrides
 
@@ -443,7 +478,6 @@ Keep the following outside `@cline/ui`:
 - Application routes and information architecture
 - Session, workspace, provider, and sidecar behavior
 - Runtime event normalization and persistence
-- Tool-name classification and raw tool-payload parsing
 - Approval and question request orchestration
 - Product-specific actions and animation
 - Components that have not been proven reusable by multiple products
@@ -481,6 +515,8 @@ Until the package has a stable version, contract changes should:
 - Build every active consumer
 - Include light/dark visual evidence when values change
 - Avoid renaming standard shadcn/Tailwind variables
+- Keep Cline-owned palette values in `palette.css` and author UI through visual
+  or status roles
 - Keep `tokens.css` framework-neutral
 - Keep component props independent of product runtime schemas
 - Keep product-specific layout and orchestration out of the package
@@ -514,6 +550,7 @@ current product contracts should be compared before standardizing them.
 - [Agent-chat components](./components/agent-chat/index.tsx)
 - [Agent-chat styles](./components/agent-chat/agent-chat.css)
 - [Tokens](./theme/tokens.css)
+- [Palette](./theme/palette.css)
 - [Tailwind mappings](./theme/theme.css)
 - [Optional base styles](./theme/base.css)
 - [Complete theme](./theme/index.css)

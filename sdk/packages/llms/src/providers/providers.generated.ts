@@ -128,7 +128,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "aihubmix",
-    "defaultModelId": "kimi-k3",
+    "defaultModelId": "qwen3.8-max",
     "apiKeyEnv": [
       "AIHUBMIX_API_KEY"
     ],
@@ -599,6 +599,25 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
     }
   },
   {
+    "id": "coralbricks",
+    "name": "CoralBricks",
+    "description": "CoralBricks model provider from models.dev",
+    "family": "openai-compatible",
+    "capabilities": [
+      "tools",
+      "reasoning"
+    ],
+    "modelsProviderId": "coralbricks",
+    "defaultModelId": "kimi-k3",
+    "apiKeyEnv": [
+      "CORAL_API_KEY"
+    ],
+    "docsUrl": "https://www.coralbricks.ai/docs",
+    "defaults": {
+      "baseUrl": "https://inference.coralbricks.ai/v1"
+    }
+  },
+  {
     "id": "cortecs",
     "name": "Cortecs",
     "description": "Cortecs model provider from models.dev",
@@ -649,7 +668,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "crossmodel",
-    "defaultModelId": "qwen/qwen3.8-max",
+    "defaultModelId": "x-ai/grok-4.6",
     "apiKeyEnv": [
       "CROSSMODEL_API_KEY"
     ],
@@ -710,7 +729,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "deepseek",
-    "defaultModelId": "deepseek-v4-flash",
+    "defaultModelId": "deepseek-v4-pro",
     "apiKeyEnv": [
       "DEEPSEEK_API_KEY"
     ],
@@ -730,7 +749,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "digitalocean",
-    "defaultModelId": "anthropic-claude-opus-5",
+    "defaultModelId": "qwen3.8-max",
     "apiKeyEnv": [
       "DIGITALOCEAN_ACCESS_TOKEN"
     ],
@@ -794,6 +813,26 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
     "docsUrl": "https://docs.ebtech.com/ai/model-api.html",
     "defaults": {
       "baseUrl": "https://maas-api.ebcloud.com/v1"
+    }
+  },
+  {
+    "id": "edenai",
+    "name": "Eden AI",
+    "description": "Eden AI model provider from models.dev",
+    "family": "openai-compatible",
+    "capabilities": [
+      "tools",
+      "reasoning",
+      "prompt-cache"
+    ],
+    "modelsProviderId": "edenai",
+    "defaultModelId": "anthropic/claude-opus-5",
+    "apiKeyEnv": [
+      "EDENAI_API_KEY"
+    ],
+    "docsUrl": "https://docs.edenai.co",
+    "defaults": {
+      "baseUrl": "https://api.edenai.run/v3"
     }
   },
   {
@@ -866,7 +905,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "fireworks",
-    "defaultModelId": "accounts/fireworks/models/deepseek-v4-flash-0731",
+    "defaultModelId": "accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b",
     "apiKeyEnv": [
       "FIREWORKS_API_KEY"
     ],
@@ -946,7 +985,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "gemini",
-    "defaultModelId": "gemini-3.5-flash-lite",
+    "defaultModelId": "gemini-3.7-flash",
     "apiKeyEnv": [
       "GOOGLE_API_KEY",
       "GOOGLE_GENERATIVE_AI_API_KEY",
@@ -965,7 +1004,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "github-copilot",
-    "defaultModelId": "claude-opus-5",
+    "defaultModelId": "mai-code-1.1-flash",
     "apiKeyEnv": [
       "GITHUB_TOKEN"
     ],
@@ -1061,7 +1100,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "reasoning"
     ],
     "modelsProviderId": "hetzner",
-    "defaultModelId": "Qwen/Qwen3.6-35B-A3B-FP8",
+    "defaultModelId": "DeepSeek-V4-Flash-0731",
     "apiKeyEnv": [
       "HETZNER_API_KEY"
     ],
@@ -1200,7 +1239,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "inceptron",
-    "defaultModelId": "zai-org/GLM-5.2",
+    "defaultModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
     "apiKeyEnv": [
       "INCEPTRON_API_KEY"
     ],
@@ -1335,7 +1374,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "kilo",
-    "defaultModelId": "meta/muse-spark-1.2",
+    "defaultModelId": "google/gemini-3.7-flash",
     "apiKeyEnv": [
       "KILO_API_KEY"
     ],
@@ -1431,7 +1470,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "llmgateway",
-    "defaultModelId": "qwen3.7-flash",
+    "defaultModelId": "gemini-3.7-flash",
     "apiKeyEnv": [
       "LLMGATEWAY_API_KEY"
     ],
@@ -1849,7 +1888,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "nano-gpt",
-    "defaultModelId": "meta/muse-spark-1.2",
+    "defaultModelId": "google/gemini-3.7-flash",
     "apiKeyEnv": [
       "NANO_GPT_API_KEY"
     ],
@@ -1989,7 +2028,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "nvidia",
-    "defaultModelId": "thinkingmachines/inkling",
+    "defaultModelId": "nvidia/nemotron-3.5-lightning-30b-a3b",
     "apiKeyEnv": [
       "NVIDIA_API_KEY"
     ],
@@ -2009,7 +2048,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "ofox",
-    "defaultModelId": "openai/gpt-5.6-luna",
+    "defaultModelId": "bailian/qwen3.8-max",
     "apiKeyEnv": [
       "OFOX_API_KEY"
     ],
@@ -2065,7 +2104,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "opencode",
-    "defaultModelId": "deepseek-v4-flash",
+    "defaultModelId": "gemini-3.7-flash",
     "apiKeyEnv": [
       "OPENCODE_API_KEY"
     ],
@@ -2105,7 +2144,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "openrouter",
-    "defaultModelId": "meta/muse-spark-1.2",
+    "defaultModelId": "google/gemini-3.7-flash",
     "apiKeyEnv": [
       "OPENROUTER_API_KEY"
     ],
@@ -2239,7 +2278,8 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
     "family": "openai-compatible",
     "capabilities": [
       "tools",
-      "reasoning"
+      "reasoning",
+      "prompt-cache"
     ],
     "modelsProviderId": "privatemode-ai",
     "defaultModelId": "kimi-k2.6",
@@ -2301,7 +2341,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "reasoning"
     ],
     "modelsProviderId": "regolo-ai",
-    "defaultModelId": "mistral-small-4-119b",
+    "defaultModelId": "glm5.2",
     "apiKeyEnv": [
       "REGOLO_API_KEY"
     ],
@@ -2321,7 +2361,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "requesty",
-    "defaultModelId": "deepseek-v4-flash-0731",
+    "defaultModelId": "gemini-3.7-flash",
     "apiKeyEnv": [
       "REQUESTY_API_KEY"
     ],
@@ -2494,7 +2534,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "reasoning"
     ],
     "modelsProviderId": "snowflake-cortex",
-    "defaultModelId": "openai-gpt-5.6-luna",
+    "defaultModelId": "claude-opus-5",
     "apiKeyEnv": [
       "SNOWFLAKE_ACCOUNT",
       "SNOWFLAKE_CORTEX_PAT"
@@ -2787,7 +2827,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "tinfoil",
-    "defaultModelId": "glm-5-2",
+    "defaultModelId": "deepseek-v4-flash",
     "apiKeyEnv": [
       "TINFOIL_API_KEY"
     ],
@@ -2937,7 +2977,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "vercel-ai-gateway",
-    "defaultModelId": "meta/muse-spark-1.2",
+    "defaultModelId": "google/gemini-3.7-flash",
     "apiKeyEnv": [
       "AI_GATEWAY_API_KEY"
     ],
@@ -2954,7 +2994,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "vertex",
-    "defaultModelId": "claude-opus-5@default",
+    "defaultModelId": "gemini-3.7-flash",
     "apiKeyEnv": [
       "GOOGLE_VERTEX_PROJECT",
       "GOOGLE_VERTEX_LOCATION",
@@ -2973,7 +3013,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "vivgrid",
-    "defaultModelId": "gpt-5.6-luna",
+    "defaultModelId": "deepseek-v4-flash",
     "apiKeyEnv": [
       "VIVGRID_API_KEY"
     ],
@@ -3032,7 +3072,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "wandb",
-    "defaultModelId": "deepseek-ai/DeepSeek-V4-Flash-0731",
+    "defaultModelId": "nvidia/NVIDIA-Nemotron-3.5-Lightning-30B-A3B",
     "apiKeyEnv": [
       "WANDB_API_KEY"
     ],
@@ -3052,7 +3092,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "prompt-cache"
     ],
     "modelsProviderId": "xai",
-    "defaultModelId": "grok-4.5",
+    "defaultModelId": "grok-4.6",
     "apiKeyEnv": [
       "XAI_API_KEY"
     ],
@@ -3204,7 +3244,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
       "reasoning"
     ],
     "modelsProviderId": "zeldoc",
-    "defaultModelId": "z-code",
+    "defaultModelId": "zdev",
     "apiKeyEnv": [
       "ZELDOC_API_KEY"
     ],

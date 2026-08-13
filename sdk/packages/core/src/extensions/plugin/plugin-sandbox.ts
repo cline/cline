@@ -179,6 +179,39 @@ function resolveBootstrapFromExecutable(): string | undefined {
 }
 
 /**
+ * Pick the bootstrap the sandbox subprocess should run.
+ *
+ * Sibling compiled candidates always match the running host build, so they
+ * win. When the host runs from source (the `.ts` bootstrap exists next to
+ * this module), the sandbox must run that SAME source bootstrap: the
+ * wrapper/executable fallbacks locate compiled bootstraps from a separately
+ * installed CLI package (e.g. a published version in the package-manager
+ * cache), and mixing that code with a source host silently breaks plugin
+ * loading because its module resolution points at the other installation's
+ * layout. Those fallbacks exist only for compiled hosts
+ * (`bun build --compile`) where import.meta points inside the binary and no
+ * sibling file exists on real disk.
+ */
+export function selectBootstrapCandidate(options: {
+	siblingCandidates: string[];
+	sourceBootstrapPath: string;
+	installedCandidates: Array<string | undefined>;
+	exists?: (path: string) => boolean;
+}): { file: string } | { sourcePath: string } {
+	const exists = options.exists ?? existsSync;
+	for (const candidate of options.siblingCandidates) {
+		if (exists(candidate)) return { file: candidate };
+	}
+	if (exists(options.sourceBootstrapPath)) {
+		return { sourcePath: options.sourceBootstrapPath };
+	}
+	for (const candidate of options.installedCandidates) {
+		if (candidate && exists(candidate)) return { file: candidate };
+	}
+	return { sourcePath: options.sourceBootstrapPath };
+}
+
+/**
  * Resolve the bootstrap for the sandbox subprocess.
  *
  * In production (bundled), the compiled `.js` file lives next to this module
@@ -193,19 +226,22 @@ function resolveBootstrap(): { file: string } | { script: string } {
 	// In production, the main bundle is at dist/ and the bootstrap is emitted
 	// under dist/extensions/. Keep the older dist/agents/ fallback for
 	// compatibility with previously built layouts.
-	const candidates = [
-		join(dir, "plugin-sandbox-bootstrap.js"),
-		join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
-		join(dir, "agents", "plugin-sandbox-bootstrap.js"),
-		resolveBootstrapFromWrapper(),
-		resolveBootstrapFromExecutable(),
-	];
-	for (const candidate of candidates.filter(
-		(candidate): candidate is string => typeof candidate === "string",
-	)) {
-		if (existsSync(candidate)) return { file: candidate };
+	const selected = selectBootstrapCandidate({
+		siblingCandidates: [
+			join(dir, "plugin-sandbox-bootstrap.js"),
+			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
+			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		],
+		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		installedCandidates: [
+			resolveBootstrapFromWrapper(),
+			resolveBootstrapFromExecutable(),
+		],
+	});
+	if ("file" in selected) {
+		return selected;
 	}
-	const tsPath = join(dir, "plugin-sandbox-bootstrap.ts");
+	const tsPath = selected.sourcePath;
 	let jitiSpecifier = "jiti";
 	try {
 		jitiSpecifier = requireFromHere.resolve("jiti");

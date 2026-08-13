@@ -1,6 +1,9 @@
 "use client";
 
-import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared/browser";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	formatDisplayUserInput,
+} from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowRight,
@@ -28,6 +31,7 @@ import type { PromptInQueue } from "@/hooks/chat-session/types";
 import { formatCostUsd } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
+import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -60,6 +64,17 @@ type SlashCommand = {
 	description?: string;
 };
 
+type UserInstructionCommand = {
+	id: string;
+	name: string;
+	description?: string;
+	kind?: "skill" | "workflow";
+};
+
+type UserInstructionConfigResponse = {
+	runtimeCommands?: UserInstructionCommand[];
+};
+
 const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{
 		name: "fork",
@@ -67,6 +82,35 @@ const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+// Last known user commands, kept across composer instances so reopening the
+// slash menu paints instantly (stale-while-revalidate); the fetch that
+// follows still picks up newly installed skills and workflows.
+let cachedSlashCommands: SlashCommand[] | null = null;
+
+export function buildUserInstructionSlashCommands(
+	response: UserInstructionConfigResponse,
+): SlashCommand[] {
+	const commands = Array.isArray(response.runtimeCommands)
+		? response.runtimeCommands
+		: [];
+	const seen = new Set(BUILTIN_SLASH_COMMANDS.map((command) => command.name));
+	return commands.flatMap((command) => {
+		const name = command.name;
+		if (!name || seen.has(name)) {
+			return [];
+		}
+		seen.add(name);
+		return [
+			{
+				name,
+				description:
+					command.description?.trim() ||
+					`${command.kind === "skill" ? "Skill" : "Workflow"} command`,
+			},
+		];
+	});
+}
 
 const FALLBACK_PROVIDER_MODELS: Record<string, string[]> = {
 	cline: [CLINE_DEFAULT_MODEL_ID],
@@ -259,6 +303,8 @@ type ChatInputBarProps = {
 	mode: "act" | "plan";
 	thinking: ChatSessionConfig["thinking"];
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	gitBranch: string | null;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -267,6 +313,8 @@ type ChatInputBarProps = {
 	onReasoningChange: (
 		next: Pick<ChatSessionConfig, "thinking" | "reasoningEffort">,
 	) => void;
+	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
+	onSwitchGitBranch: (branch: string) => Promise<boolean>;
 	onSend: (prompt: string) => void;
 	onAbort: () => void;
 	promptsInQueue: PromptInQueue[];
@@ -289,7 +337,7 @@ type ChatInputBarProps = {
 	};
 };
 
-export function ChatInputBar({
+function ChatInputBarImpl({
 	variant = "conversation",
 	status,
 	provider,
@@ -419,11 +467,10 @@ export function ChatInputBar({
 		: null;
 	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
-		BUILTIN_SLASH_COMMANDS,
+		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-	const slashCommandsLoadedRef = useRef(false);
 	useEffect(() => {
 		let cancelled = false;
 		let loadId = 0;
@@ -632,18 +679,22 @@ export function ChatInputBar({
 		}
 	}, [modelSupportsReasoning, onReasoningChange, reasoningEffort, thinking]);
 
+	// Focus the composer on mount/variant change and when text is injected
+	// from outside (quick actions, queue undo). Deliberately NOT on every
+	// keystroke: refocusing an already-focused textarea per keypress causes
+	// caret flicker and forced layout while typing.
 	useEffect(() => {
 		const input = promptInputRef.current;
-		if (!input) return;
+		if (!input || document.activeElement === input) return;
+		// The textarea is controlled, so its live value mirrors promptInput;
+		// reading it here keeps keystrokes out of this effect's dependencies.
 		if (
 			variant === "conversation" ||
-			(variant === "welcome" &&
-				promptInput.trim().length > 0 &&
-				document.activeElement !== input)
+			(variant === "welcome" && input.value.trim().length > 0)
 		) {
 			input.focus();
 		}
-	}, [promptInput, variant]);
+	}, [variant]);
 
 	useEffect(() => {
 		setCursorIndex((prev) => Math.min(prev, promptInput.length));
@@ -745,35 +796,25 @@ export function ChatInputBar({
 		}
 	}, [slashOpen]);
 
-	// Lazily load workflow commands from the sidecar the first time the slash
-	// menu opens, then merge with the built-in commands.
+	// Reload user commands whenever the slash menu opens so newly installed or
+	// edited skills and workflows are reflected without remounting the chat UI.
 	useEffect(() => {
-		if (!slashOpen || slashCommandsLoadedRef.current) {
+		if (!slashOpen) {
 			return;
 		}
-		slashCommandsLoadedRef.current = true;
 		let cancelled = false;
-		setSlashLoading(true);
+		// Only show the loading row when there is nothing cached to show.
+		setSlashLoading(cachedSlashCommands === null);
 		desktopClient
-			.invoke<{
-				workflows?: Array<{ id: string; name: string }>;
-			}>("list_user_instruction_configs")
-			.then((response: { workflows?: Array<{ id: string; name: string }> }) => {
+			.invoke<UserInstructionConfigResponse>("list_user_instruction_configs")
+			.then((response) => {
 				if (cancelled) return;
-				const workflows = Array.isArray(response?.workflows)
-					? response.workflows
-					: [];
-				const workflowCommands: SlashCommand[] = workflows.map(
-					(w: { id: string; name: string }) => ({
-						name: w.name.toLowerCase().replace(/\s+/g, "-"),
-						description: "Workflow command",
-					}),
-				);
-				const builtinNames = new Set(BUILTIN_SLASH_COMMANDS.map((c) => c.name));
-				const dedupedWorkflows = workflowCommands.filter(
-					(c) => !builtinNames.has(c.name),
-				);
-				setSlashCommands([...BUILTIN_SLASH_COMMANDS, ...dedupedWorkflows]);
+				const next = [
+					...BUILTIN_SLASH_COMMANDS,
+					...buildUserInstructionSlashCommands(response),
+				];
+				cachedSlashCommands = next;
+				setSlashCommands(next);
 			})
 			.catch(() => {
 				// Keep built-in commands on error.
@@ -823,19 +864,37 @@ export function ChatInputBar({
 		[activeSlash, promptInput, setPromptInput],
 	);
 
+	// Queued prompts are stored in their runtime form (a /team command is
+	// persisted as its <user_command> envelope), so fold them back to the
+	// slash form for display and editing. Saving an edit re-resolves the
+	// slash form through the sidecar, so the round trip is lossless.
+	const displayPromptsInQueue = useMemo(
+		() =>
+			promptsInQueue.map((item) => ({
+				...item,
+				prompt: formatDisplayUserInput(item.prompt),
+			})),
+		[promptsInQueue],
+	);
+
 	return (
 		<div
 			className={cn(
 				"w-full min-w-0 max-w-full bg-card",
 				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "border-t border-border bg-card/95 backdrop-blur-sm",
+					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
+					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 			)}
 		>
 			{/* Input area */}
-			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
+			<div
+				className={cn(
+					"px-4 py-3",
+					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+				)}
+			>
 				<AgentPromptQueue
-					items={promptsInQueue}
+					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
 					onRemove={onRemovePromptInQueue}
 					onSteer={onSteerPromptInQueue}
@@ -848,7 +907,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{filteredSlashCommands.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{slashLoading
 										? "Loading commands..."
 										: "No matching commands"}
@@ -859,10 +918,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === slashSelectedIndex}
 											className={cn(
-												"flex w-full flex-col rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"flex w-full flex-col rounded-md px-3 py-2 text-left text-sm ",
 												index === slashSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={cmd.name}
 											id={`slash-command-option-${index}`}
@@ -894,7 +953,7 @@ export function ChatInputBar({
 							role="listbox"
 						>
 							{mentionFiles.length === 0 ? (
-								<div className="px-3 py-2 text-xs text-muted-foreground">
+								<div className="px-3 py-2 text-sm text-muted-foreground">
 									{mentionLoading ? "Searching files..." : "No matching files"}
 								</div>
 							) : (
@@ -903,10 +962,10 @@ export function ChatInputBar({
 										<button
 											aria-selected={index === mentionSelectedIndex}
 											className={cn(
-												"block w-full rounded-md px-3 py-2 text-left text-xs transition-colors",
+												"block w-full rounded-md px-3 py-2 text-left text-sm ",
 												index === mentionSelectedIndex
-													? "bg-accent text-foreground"
-													: "text-muted-foreground hover:bg-accent hover:text-foreground",
+													? "bg-surface-hover text-foreground"
+													: "text-muted-foreground hover:bg-surface-hover hover:text-foreground",
 											)}
 											key={filePath}
 											id={`mention-file-option-${index}`}
@@ -926,12 +985,25 @@ export function ChatInputBar({
 							)}
 						</div>
 					)}
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
 					<div
 						className={cn(
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome" &&
-								"rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+							variant === "welcome"
+								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
+								: "min-h-24 rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
 						)}
+						onMouseDown={(event) => {
+							const target = event.target;
+							if (
+								target instanceof HTMLElement &&
+								target.closest("button, input, textarea")
+							) {
+								return;
+							}
+							event.preventDefault();
+							promptInputRef.current?.focus();
+						}}
 					>
 						{speechInputProcessing && (
 							<output
@@ -962,6 +1034,7 @@ export function ChatInputBar({
 							aria-haspopup="listbox"
 							className={cn(
 								"field-sizing-content flex-1 resize-none overflow-y-auto bg-transparent text-sm leading-5 text-foreground placeholder:text-muted-foreground outline-none",
+								variant === "welcome" && "self-start",
 							)}
 							onChange={(e) => {
 								setPromptInput(e.target.value);
@@ -976,6 +1049,15 @@ export function ChatInputBar({
 							}
 							onBlur={() => setPromptInputFocused(false)}
 							onFocus={() => setPromptInputFocused(true)}
+							onPaste={(e) => {
+								const images = imageFilesFromClipboard(e.clipboardData);
+								if (images.length > 0) {
+									// Attach the image instead of pasting its fallback
+									// text representation (e.g. a file path or URL).
+									e.preventDefault();
+									onAttachFiles(images);
+								}
+							}}
 							onKeyDown={(e) => {
 								// Slash command menu takes priority when open.
 								if (slashOpen && filteredSlashCommands.length > 0) {
@@ -1036,6 +1118,11 @@ export function ChatInputBar({
 									setDismissedMentionKey(mentionKey);
 									return;
 								}
+								if (e.key === "Escape" && canAbort) {
+									e.preventDefault();
+									onAbort();
+									return;
+								}
 								if (e.key === "Enter" && !e.shiftKey) {
 									e.preventDefault();
 									if (canSend) {
@@ -1066,7 +1153,12 @@ export function ChatInputBar({
 							}}
 							value={promptInput}
 						/>
-						<div className="flex shrink-0 items-center gap-1">
+						<div
+							className={cn(
+								"flex shrink-0 items-center gap-1",
+								variant === "conversation" && "self-end",
+							)}
+						>
 							<SpeechInput
 								allowUnavailableClick={!transcriptionTarget}
 								key={
@@ -1108,12 +1200,11 @@ export function ChatInputBar({
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"inline-grid size-7 shrink-0 place-items-center p-0 text-background transition-colors hover:bg-primary/80",
-										variant === "welcome"
-											? "rounded-md bg-foreground"
-											: "rounded-full bg-foreground",
+										"inline-grid size-7 shrink-0 place-items-center bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
+										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
+									title="Stop the agent (Esc)"
 									type="button"
 								>
 									<CircleStop className="size-2" />
@@ -1122,11 +1213,14 @@ export function ChatInputBar({
 								<button
 									aria-label="Send message"
 									className={cn(
-										"inline-grid size-7 shrink-0 place-items-center bg-transparent p-0 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50",
-										variant === "welcome" ? "rounded-md" : "rounded-full",
+										"inline-grid size-7 shrink-0 place-items-center p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+										variant === "welcome"
+											? "rounded-md bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+											: "rounded-full bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
+									title="Send (Enter)"
 									type="button"
 								>
 									<ArrowRight className="size-4" />
@@ -1139,13 +1233,13 @@ export function ChatInputBar({
 					<div className="mt-2 flex flex-wrap gap-1.5">
 						{attachments.map((attachment) => (
 							<span
-								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-xs text-foreground"
+								className="inline-flex items-center gap-1 rounded-full border border-border bg-muted px-2 py-1 text-sm text-foreground"
 								key={attachment.id}
 							>
 								{attachment.isImage ? "image:" : "file:"} {attachment.name}
 								<button
 									aria-label={`Remove ${attachment.name}`}
-									className="rounded-sm p-0.5 text-muted-foreground hover:bg-accent hover:text-foreground"
+									className="rounded-sm p-0.5 text-muted-foreground hover:bg-surface-hover hover:text-foreground"
 									onClick={() => onRemoveAttachment(attachment.id)}
 									type="button"
 								>
@@ -1158,11 +1252,11 @@ export function ChatInputBar({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-3 py-2 text-[11px] text-muted-foreground">
+			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
-						className="rounded-md p-0 pl-1.5 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
 					>
@@ -1184,7 +1278,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "plan"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "plan"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -1199,7 +1293,7 @@ export function ChatInputBar({
 						<button
 							aria-pressed={mode === "act"}
 							className={cn(
-								"rounded px-2 py-1 transition-colors",
+								"rounded px-2 py-1 ",
 								mode === "act"
 									? "bg-background text-foreground shadow-xs"
 									: "hover:text-foreground",
@@ -1235,6 +1329,7 @@ export function ChatInputBar({
 						<PopoverContent
 							align="end"
 							className="w-72 space-y-1 p-2"
+							forceMount
 							onOpenAutoFocus={(event) => {
 								event.preventDefault();
 								requestAnimationFrame(() => thinkingSliderRef.current?.focus());
@@ -1341,6 +1436,11 @@ export function ChatInputBar({
 		</div>
 	);
 }
+
+// Memoized: the chat pane re-renders on every stream flush (message deltas,
+// status, usage); the composer only cares about the props it receives, which
+// the pane keeps referentially stable.
+export const ChatInputBar = memo(ChatInputBarImpl);
 
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
@@ -1510,26 +1610,38 @@ const ModelSelector = memo(function ModelSelector({
 		});
 	}, []);
 
-	useEffect(() => {
-		setLastSelection((prev) => {
-			if (!normalizedProvider || !model) {
-				return prev;
+	// The remembered selection (what new sessions default to) is only written
+	// from the explicit picker handlers below. Mirroring every provider/model
+	// prop change here would also capture passive changes — most notably
+	// opening an existing session, whose config drives these props — silently
+	// replacing the user's chosen default with whatever model that session
+	// happened to use.
+	const rememberSelection = useCallback(
+		(providerId: string, modelId: string | undefined) => {
+			const normalizedId = normalizeProviderId(providerId);
+			if (!normalizedId) {
+				return;
 			}
-			if (
-				prev.lastProvider === normalizedProvider &&
-				prev.lastModelByProvider[normalizedProvider] === model
-			) {
-				return prev;
-			}
-			return {
-				lastProvider: normalizedProvider,
-				lastModelByProvider: {
-					...prev.lastModelByProvider,
-					[normalizedProvider]: model,
-				},
-			};
-		});
-	}, [model, normalizedProvider]);
+			setLastSelection((prev) => {
+				if (
+					prev.lastProvider === normalizedId &&
+					(!modelId || prev.lastModelByProvider[normalizedId] === modelId)
+				) {
+					return prev;
+				}
+				return {
+					lastProvider: normalizedId,
+					lastModelByProvider: modelId
+						? {
+								...prev.lastModelByProvider,
+								[normalizedId]: modelId,
+							}
+						: prev.lastModelByProvider,
+				};
+			});
+		},
+		[],
+	);
 
 	useEffect(() => {
 		try {
@@ -1590,17 +1702,13 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
-			if (
-				rememberedModel &&
-				providerModelIds.includes(rememberedModel) &&
-				rememberedModel !== model
-			) {
-				onModelChange(rememberedModel);
-				return;
-			}
-			const firstModel = providerModelIds[0];
-			if (firstModel && firstModel !== model) {
-				onModelChange(firstModel);
+			const nextModel =
+				rememberedModel && providerModelIds.includes(rememberedModel)
+					? rememberedModel
+					: providerModelIds[0];
+			rememberSelection(value, nextModel);
+			if (nextModel && nextModel !== model) {
+				onModelChange(nextModel);
 			}
 		},
 		[
@@ -1608,8 +1716,16 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			rememberSelection,
 			visibleProviderModels,
 		],
+	);
+	const handleModelSelect = useCallback(
+		(value: string) => {
+			rememberSelection(resolvedProvider, value);
+			onModelChange(value);
+		},
+		[onModelChange, rememberSelection, resolvedProvider],
 	);
 	const renderProviderSelect = (
 		triggerClassName: string,
@@ -1641,7 +1757,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || modelsForProvider.length === 0}
 			emptyText="No models found."
 			onValueChange={(value) => {
-				onModelChange(value);
+				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
 			options={modelsForProvider.map((value) => ({ label: value, value }))}
@@ -1683,12 +1799,12 @@ const ModelSelector = memo(function ModelSelector({
 	}
 
 	return (
-		<div className="relative min-w-0 shrink-0 text-[11px]">
+		<div className="relative min-w-0 shrink-0 text-sm">
 			<button
 				aria-expanded={mobileOpen}
 				aria-haspopup="dialog"
 				aria-label="Model and provider"
-				className="hidden size-7 items-center justify-center rounded-md text-foreground transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
+				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
 				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
@@ -1707,19 +1823,19 @@ const ModelSelector = memo(function ModelSelector({
 					/>
 					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
-								"w-full max-w-none justify-between text-xs",
+								"w-full max-w-none justify-between text-sm",
 								true,
 							)}
 						</div>
@@ -1778,7 +1894,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 			<PopoverTrigger asChild>
 				<Button
 					aria-label={`Context window: ${totalTokens.toLocaleString()} of ${contextWindow.toLocaleString()} tokens used (${percent}%)`}
-					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-accent opacity-65 hover:opacity-100"
+					className="size-7 shrink-0 p-0 text-muted-foreground data-[state=open]:bg-surface-hover opacity-65 hover:opacity-100"
 					id="token-usage"
 					size="icon-sm"
 					type="button"
@@ -1800,10 +1916,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className={cn(
-								"transition-[stroke,stroke-dashoffset] duration-200",
-								ringColorClass,
-							)}
+							className={cn("", ringColorClass)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1826,20 +1939,20 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 				<div className="px-3 py-3">
 					<div className="flex items-center justify-between gap-4 text-sm">
 						<span className="text-muted-foreground">Context window</span>
-						<span className="font-mono text-xs text-foreground">
+						<span className="font-mono text-sm text-foreground">
 							{contextUsageLabel}
 						</span>
 					</div>
 					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							className="h-full shrink-0 bg-primary transition-[width] duration-120"
 							data-token-kind="uncached-input"
 							style={{ width: segmentWidth(uncachedInputTokens) }}
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
 							data-token-kind="cached-input"
 							style={{
 								backgroundImage:
@@ -1849,7 +1962,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
 							data-token-kind="output"
 							style={{
 								backgroundImage:
@@ -1858,7 +1971,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							}}
 						/>
 					</div>
-					<div className="mt-3 space-y-2 text-xs">
+					<div className="mt-3 space-y-2 text-sm">
 						<div className="flex items-center justify-between gap-4">
 							<span className="text-muted-foreground">Input tokens</span>
 							<span className="font-mono text-foreground">

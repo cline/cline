@@ -759,6 +759,24 @@ export function formatMessagesForAiSdk(
 		if (message.role === "user" && pendingAssistantImages.length > 0) {
 			messageParts.push(...takePendingAssistantImages());
 		}
+
+		// A message whose parts are all empty text is effectively empty: the AI SDK
+		// strips empty text parts before sending, and providers like Vercel reject
+		// the resulting `content: []` ("user message must have content").
+		if (
+			messageParts.length > 0 &&
+			messageParts.every(
+				(part) =>
+					part.type === "text" &&
+					typeof part.text === "string" &&
+					part.text.trim().length === 0,
+			)
+		) {
+			messageParts.splice(0, messageParts.length, {
+				type: "text",
+				text: EMPTY_CONTENT_TEXT,
+			});
+		}
 		if (messageParts.length > 0) {
 			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}

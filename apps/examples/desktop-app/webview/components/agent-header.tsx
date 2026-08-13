@@ -9,11 +9,11 @@ import {
 	Clock3,
 	CornerUpLeft,
 	Loader2,
-	MoreVertical,
+	MoreHorizontal,
 	Plus,
 	Trash2,
 } from "lucide-react";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, memo, useEffect, useMemo, useState } from "react";
 import type { ChatSessionStatus } from "@/lib/chat-schema";
 import {
 	agentEntryState,
@@ -62,7 +62,7 @@ type AgentHeaderProps = {
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
 	workspace?: {
-		currentBranch: string;
+		currentBranch: string | null;
 		workspaceRoot: string;
 		workspaces: string[];
 		onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
@@ -73,7 +73,7 @@ type AgentHeaderProps = {
 	};
 };
 
-export function AgentHeader({
+function AgentHeaderImpl({
 	title,
 	canEditTitle,
 	renamingTitle,
@@ -212,22 +212,50 @@ export function AgentHeader({
 								{threadTitle}
 							</button>
 						)}
-						{workspace ? (
-							<WorkspaceSelector
-								className="text-xs text-muted-foreground disabled:opacity-100"
-								currentBranch={workspace.currentBranch}
-								disabled
-								onListGitBranches={workspace.onListGitBranches}
-								onPickWorkspaceDirectory={workspace.onPickWorkspaceDirectory}
-								onRefreshWorkspaces={workspace.onRefreshWorkspaces}
-								onSwitchGitBranch={workspace.onSwitchGitBranch}
-								onSwitchWorkspace={workspace.onSwitchWorkspace}
-								placement="bottom"
-								workspaces={workspace.workspaces}
-								workspaceRoot={workspace.workspaceRoot}
-							/>
+						{showSessionActions ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										aria-label="Session actions"
+										className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+										id="show-more-btn"
+										size="icon-sm"
+										type="button"
+										variant="ghost"
+									>
+										<MoreHorizontal className="size-3" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start" className="w-44">
+									<DropdownMenuItem
+										className="text-destructive focus:text-destructive"
+										disabled={!canDeleteSession || deletingSession}
+										onClick={triggerDeleteSession}
+									>
+										<Trash2 className="size-4" />
+										<span>
+											{deletingSession ? "Deleting..." : "Delete session"}
+										</span>
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
 						) : null}
 					</div>
+					{workspace ? (
+						<WorkspaceSelector
+							className="text-xs text-muted-foreground disabled:opacity-100"
+							currentBranch={workspace.currentBranch}
+							disabled
+							onListGitBranches={workspace.onListGitBranches}
+							onPickWorkspaceDirectory={workspace.onPickWorkspaceDirectory}
+							onRefreshWorkspaces={workspace.onRefreshWorkspaces}
+							onSwitchGitBranch={workspace.onSwitchGitBranch}
+							onSwitchWorkspace={workspace.onSwitchWorkspace}
+							placement="bottom"
+							workspaces={workspace.workspaces}
+							workspaceRoot={workspace.workspaceRoot}
+						/>
+					) : null}
 				</div>
 			</div>
 
@@ -272,7 +300,7 @@ export function AgentHeader({
 					) : (
 						<Button
 							aria-label="New session"
-							className="hidden flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+							className="hidden items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
 							variant="ghost"
@@ -280,37 +308,16 @@ export function AgentHeader({
 							<Plus className="size-4" />
 						</Button>
 					)}
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button
-								aria-label="Session actions"
-								className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-								id="show-more-btn"
-								variant="ghost"
-								size="icon-sm"
-								type="button"
-							>
-								<MoreVertical className="size-3" />
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="start" className="w-44">
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								disabled={!canDeleteSession || deletingSession}
-								onClick={triggerDeleteSession}
-							>
-								<Trash2 className="size-4" />
-								<span>
-									{deletingSession ? "Deleting..." : "Delete session"}
-								</span>
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
 				</div>
 			) : null}
 		</header>
 	);
 }
+
+// Memoized: the header sits above the streaming conversation and would
+// otherwise re-render on every stream flush; its props are kept
+// referentially stable by the chat pane.
+export const AgentHeader = memo(AgentHeaderImpl);
 
 /**
  * Route from a child agent run back to the session that spawned it, in the
@@ -337,7 +344,7 @@ function SubagentSessionBadge({
 	return (
 		<Button
 			aria-label={hint}
-			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+			className="h-7 shrink-0 gap-1 rounded-md text-xs font-normal text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 			disabled={!onOpenParentSession}
 			id="subagent-session-badge"
 			onClick={() => void onOpenParentSession?.(parentSession.sessionId)}
@@ -562,7 +569,7 @@ function AgentRosterRow({
 	return (
 		<li>
 			<button
-				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-accent/60"
+				className="flex w-full min-w-0 items-start gap-2 px-3 py-2 text-left transition-colors hover:bg-surface-hover"
 				onClick={onSelect}
 				title="Open this agent's session"
 				type="button"

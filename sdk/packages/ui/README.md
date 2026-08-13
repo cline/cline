@@ -27,8 +27,9 @@ Use `@cline/ui@next` only for deliberate previews. Monorepo consumers use
 
 | Import | Contents | Runtime requirement |
 | --- | --- | --- |
-| `@cline/ui` | Agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
+| `@cline/ui` | Button, icon-button, agent ask-question, approval-card, Aurora, hero-heading, prompt-queue, quick-action, search-combobox, and session-status React primitives | React 18.3 or 19 and Tailwind v4 |
 | `@cline/ui/components.css` | Styles, namespaced Tailwind mappings, and source registration for the root React primitives | Tailwind v4 and theme tokens |
+| `@cline/ui/theme/palette.css` | Cline-owned light/dark solid and alpha color scales | CSS |
 | `@cline/ui/theme/tokens.css` | Light/dark custom properties only | CSS |
 | `@cline/ui/theme/scoped-tokens.css` | Light/dark custom properties scoped to `.cline-ui-theme` | CSS |
 | `@cline/ui/theme/theme.css` | Tailwind v4 semantic mapping and dark variant | Tailwind v4 |
@@ -51,6 +52,23 @@ their utilities are emitted without changing generic host utility names.
 
 `AgentQuickActions` renders prompt shortcuts and reports selection to the host.
 
+`Button` and `IconButton` share `fill`, `surface`, and `ghost` variants across
+accent, neutral, and destructive tones. Both default to `type="button"` so they
+are safe inside forms. `IconButton` requires an accessible `aria-label`, and
+both components support Radix-style composition through `asChild`.
+
+```tsx
+import { Button, IconButton } from "@cline/ui";
+
+<Button size="sm" tone="accent" variant="fill">
+	Continue
+</Button>;
+
+<IconButton aria-label="Close" size="sm">
+	<CloseIcon />
+</IconButton>;
+```
+
 `AgentAurora` fills its nearest positioned ancestor, which must have resolved
 dimensions.
 
@@ -67,22 +85,22 @@ errors, and response transport.
 actions to the host.
 
 The token entry point has no React, Tailwind, font-package, or desktop runtime
-dependency. Apps provide Schibsted Grotesk and Azeret Mono themselves, which
+dependency. Apps provide Inter and Geist Mono themselves, which
 lets each bundler control font loading and asset emission.
 
-`tokens.css` is the canonical token source; `scoped-tokens.css` and the internal
-component Tailwind mapping are generated from it and `theme.css`. Contributors
-change the source theme files and run `bun run generate:theme`; tests and CI
-reject drift in either generated output. Consumers may import either public
-token entry point.
+`palette.css` and `tokens.css` are the canonical theme sources;
+`scoped-tokens.css` and the internal component Tailwind mapping are generated
+from them and `theme.css`. Contributors change the source theme files and run
+`bun run generate:theme`; tests and CI reject drift in either generated output.
+Consumers may import either public token entry point.
 
 ## Theme usage
 
 For a Tailwind v4 app, import framework and consumer dependencies first:
 
 ```css
-@import "@fontsource-variable/schibsted-grotesk";
-@import "@fontsource/azeret-mono/latin.css";
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
 @import "tailwindcss";
 @import "@cline/ui/theme/index.css";
 ```
@@ -117,8 +135,23 @@ The theme follows the standard shadcn semantic contract (`--background`,
 sidebar surfaces) and Tailwind theme names. This means shadcn components and
 normal Tailwind utilities inherit Cline defaults without custom adapters.
 
-Brand artwork may use the small extension set (`--primary-emphasis` and the
-`--brand-*` palette). Product controls should prefer semantic variables.
+Theme authors work through three layers:
+
+1. Cline-owned 12-step solid and alpha palettes: Slate as `--neutral-*`,
+   Violet as `--accent-*`, Ruby as `--error-*`, Green as `--success-*`, Amber
+   as `--warning-*`, and Sky as `--info-*`.
+2. Readable visual roles such as `--surface-1`, `--text-2`, `--border-1`, and
+   `--success-surface`.
+3. Stable shadcn compatibility variables consumed by components.
+
+Prefer visual or status roles when authoring new framework-neutral component
+CSS. Continue using standard shadcn names in shadcn-compatible components.
+Tailwind exposes the role and compatibility layers, but intentionally does not
+register every raw palette step. Brand artwork may use the separate
+`--brand-*` colors.
+
+The palette values are derived from Radix Colors 3.0.0 under the included MIT
+license; `@cline/ui` does not depend on Radix Colors at runtime.
 
 ## Agent-chat usage
 

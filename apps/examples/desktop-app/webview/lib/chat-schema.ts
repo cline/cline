@@ -14,8 +14,6 @@ export const ChatSessionConfigSchema = z.object({
 	thinking: z.boolean().optional(),
 	reasoningEffort: z.enum(["low", "medium", "high", "xhigh"]).optional(),
 	enableTools: z.boolean(),
-	enableSpawn: z.boolean().optional(),
-	enableTeams: z.boolean().optional(),
 	autoApproveTools: z.boolean().optional(),
 	missionStepInterval: z.number().int().positive().optional(),
 	missionTimeIntervalMs: z.number().int().positive().optional(),

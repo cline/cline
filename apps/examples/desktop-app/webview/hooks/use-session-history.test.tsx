@@ -83,6 +83,43 @@ afterEach(async () => {
 	vi.restoreAllMocks();
 });
 
+describe("useSessionHistory session mapping", () => {
+	it("maps nested Core schedule provenance onto sidebar threads", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("scheduled-session"),
+					source: "core",
+					metadata: {
+						sessionHistoryOrigin: {
+							mode: "automation",
+							trigger: "hub-schedule",
+						},
+					},
+				},
+				{
+					...sessionRow("regular-session"),
+					source: "core",
+					metadata: { sessionHistoryOrigin: { mode: "user" } },
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(
+			current.threads.find((thread) => thread.id === "scheduled-session"),
+		).toMatchObject({ source: "core", isScheduled: true });
+		expect(
+			current.threads.find((thread) => thread.id === "regular-session"),
+		).toMatchObject({ source: "core", isScheduled: false });
+	});
+});
+
 describe("useSessionHistory refresh coalescing", () => {
 	it("reuses an in-flight refresh that already covers the requested limit", async () => {
 		await act(async () => {
