@@ -495,6 +495,31 @@ describe("SdkTaskHistory", () => {
 		)
 	})
 
+	it("keeps metadata written while the artifact folder was being measured", async () => {
+		const { history, updateSession } = makeHistory([
+			makeSessionRecord("task-1", {
+				status: "running",
+				metadata: { size: 2048, tokensIn: 10 },
+				messagesPath: "/tmp/cline/sessions/task-1/task-1.messages.json",
+			}),
+		])
+		// A usage update commits while the measurement is in flight. Metadata is persisted as a
+		// whole object, so caching the size off the pre-measurement snapshot would revert it.
+		vi.mocked(getFolderSize.loose).mockImplementation(async () => {
+			await updateSession("task-1", { metadata: { size: 2048, tokensIn: 99 } })
+			return 6144 as never
+		})
+
+		await expect(history.findHistoryItem("task-1")).resolves.toMatchObject({ id: "task-1", size: 6144 })
+
+		expect(updateSession).toHaveBeenLastCalledWith(
+			"task-1",
+			expect.objectContaining({
+				metadata: expect.objectContaining({ size: 6144, tokensIn: 99 }),
+			}),
+		)
+	})
+
 	it("falls back to the cached size when a live session's artifacts are unreadable", async () => {
 		vi.mocked(getFolderSize.loose).mockRejectedValue(new Error("unreadable"))
 		const { history, updateSession } = makeHistory([

@@ -735,13 +735,22 @@ export class SdkTaskHistory {
 	}
 
 	private async cacheTaskSize(host: VscodeSessionHost, record: SessionHistoryRecord, size: number): Promise<void> {
-		if (!Number.isFinite(size) || size < 0 || metadataNumber(record.metadata, "size") === size) {
+		if (!Number.isFinite(size) || size < 0) {
+			return
+		}
+
+		// Metadata is persisted as a whole object, so this write has to merge onto the freshest
+		// record available: `record` was read before the (async) folder measurement, and for a
+		// live task a usage update can land in that gap — persisting the pre-measurement
+		// snapshot would roll its token/cost totals back.
+		const current = (await host.get(record.sessionId).catch(() => undefined)) ?? record
+		if (metadataNumber(current.metadata, "size") === size) {
 			return
 		}
 
 		await host.update(record.sessionId, {
 			metadata: {
-				...(record.metadata ?? {}),
+				...(current.metadata ?? {}),
 				size,
 			},
 		})
