@@ -11,8 +11,5 @@ import { join } from "node:path";
 const isolatedRoot = mkdtempSync(join(tmpdir(), "cline-cli-vitest-"));
 process.env.CLINE_DIR = join(isolatedRoot, ".cline");
 process.env.CLINE_DATA_DIR = join(isolatedRoot, "data");
-process.env.CLINE_HUB_DISCOVERY_PATH = join(
-	isolatedRoot,
-	"hub-discovery.json",
-);
+process.env.CLINE_HUB_DISCOVERY_PATH = join(isolatedRoot, "hub-discovery.json");
 process.env.CLINE_NO_AUTO_UPDATE = "1";

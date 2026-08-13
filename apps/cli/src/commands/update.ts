@@ -386,8 +386,7 @@ async function otherCliClientsAttached(): Promise<boolean> {
 				.sessions ?? [];
 		return sessionRecords.some(
 			(session) =>
-				Array.isArray(session?.participants) &&
-				session.participants.length > 0,
+				Array.isArray(session?.participants) && session.participants.length > 0,
 		);
 	} finally {
 		await client.dispose().catch(() => undefined);
@@ -406,7 +405,10 @@ export async function applyDeferredUpdate(
 		// Short-lived commands can reach exit before the startup version check
 		// resolves; give it a brief grace so one-shot-only usage still updates.
 		if (pendingAutoUpdateCheck) {
-			await Promise.race([pendingAutoUpdateCheck, sleep(UPDATE_CHECK_EXIT_GRACE_MS)]);
+			await Promise.race([
+				pendingAutoUpdateCheck,
+				sleep(UPDATE_CHECK_EXIT_GRACE_MS),
+			]);
 		}
 		pending = pendingAutoUpdate;
 	}
