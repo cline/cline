@@ -295,6 +295,13 @@ export type AgentModelEvent =
 	  };
 
 export interface AgentModel {
+	/**
+	 * Whether text deltas may contain executable inline-XML tool invocations.
+	 * This is an adapter-owned capability and must not be derived from request data.
+	 * Marked readonly so third-party AgentModel implementations cannot mutate the
+	 * gate after construction; the field is opt-in and defaults to undefined/false.
+	 */
+	readonly supportsInlineXmlToolCalls?: boolean;
 	stream: (
 		request: AgentModelRequest,
 	) => AsyncIterable<AgentModelEvent> | Promise<AsyncIterable<AgentModelEvent>>;

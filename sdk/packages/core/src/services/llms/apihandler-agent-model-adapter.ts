@@ -122,11 +122,28 @@ export type ApiHandlerSource =
 
 /**
  * Build an `AgentModel` that delegates to a registered `ApiHandler`.
+ *
+ * `capabilities.supportsInlineXmlToolCalls` opts the adapter into the
+ * inline-XML recovery flow used by the agent runtime. The handler itself
+ * decides whether to set the flag — typically by inspecting its provider
+ * ID / model ID at construction time. The runtime reads the flag off the
+ * returned `AgentModel`; it does not derive the flag from request data.
  */
 export function createAgentModelFromApiHandler(
 	source: ApiHandlerSource,
+	capabilities: {
+		/**
+		 * Whether the wrapped handler's transport emits inline-XML tool
+		 * invocations in its text stream rather than structured tool-call
+		 * events. Default `false`. The runtime fail-closes when this is
+		 * not explicitly `true`.
+		 */
+		readonly supportsInlineXmlToolCalls?: boolean;
+	} = {},
 ): AgentModel {
 	return {
+		supportsInlineXmlToolCalls:
+			capabilities.supportsInlineXmlToolCalls === true,
 		async *stream(request: AgentModelRequest): AsyncGenerator<AgentModelEvent> {
 			let sawFinish = false;
 			let sawToolCall = false;

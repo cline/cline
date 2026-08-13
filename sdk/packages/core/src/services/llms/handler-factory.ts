@@ -222,6 +222,15 @@ export function createAgentModelFromConfig(
 	// contract the runtime expects. The handler is built lazily (via
 	// `createHandlerAsync`) on the first stream so that providers registered
 	// with `registerAsyncHandler` resolve correctly.
+	//
+	// Inline-XML tool-call recovery is opt-in: it is enabled only when the
+	// resolved model explicitly carries the capability. The current
+	// default is fail-closed — no provider is auto-enabled — because the
+	// capability is adapter-owned and depends on whether a given handler
+	// emits structured tool-call events or only text containing inline
+	// markup. Callers that know their handler emits inline-XML markup
+	// should construct the model directly via
+	// `createAgentModelFromApiHandler(source, { supportsInlineXmlToolCalls: true })`.
 	if (
 		hasRegisteredHandler(
 			normalizeProviderId(normalizedProviderConfig.providerId),
