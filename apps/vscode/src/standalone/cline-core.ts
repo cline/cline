@@ -26,6 +26,7 @@ import { initializeContext } from "./vscode-context"
 
 let globalLockManager: SqliteLockManager | undefined
 let globalCoreConnection: CoreConnection | undefined
+let shutdownPromise: Promise<void> | undefined
 
 async function main() {
 	// Remove the per-spawn secret before initialization can launch provider or
@@ -117,10 +118,17 @@ async function main() {
 		globalLockManager.touchInstance()
 
 		if (coreConnectionToken) {
-			globalCoreConnection = await connectCoreToHostBridge(webviewProvider.controller, {
-				token: coreConnectionToken,
-				instanceId: coreInstanceId!,
-			})
+			globalCoreConnection = await connectCoreToHostBridge(
+				webviewProvider.controller,
+				{
+					token: coreConnectionToken,
+					instanceId: coreInstanceId!,
+				},
+				(error) => {
+					log(`Active core connection failed: ${error.message}`)
+					void shutdownGracefully(globalLockManager, 1)
+				},
+			)
 		}
 
 		log("All services started successfully")
@@ -130,8 +138,7 @@ async function main() {
 	} catch (err) {
 		log(`FATAL ERROR during startup: ${err}`)
 		log(`Cleaning up and shutting down...`)
-		await shutdownGracefully(globalLockManager)
-		process.exit(1)
+		await shutdownGracefully(globalLockManager, 1)
 	}
 }
 
@@ -253,7 +260,12 @@ async function requestHostBridgeShutdown(): Promise<void> {
  * 3. Tearing down services
  * 4. Exiting the process
  */
-async function shutdownGracefully(lockManager?: SqliteLockManager) {
+function shutdownGracefully(lockManager?: SqliteLockManager, exitCode = 0): Promise<void> {
+	shutdownPromise ??= performShutdown(lockManager, exitCode)
+	return shutdownPromise
+}
+
+async function performShutdown(lockManager?: SqliteLockManager, exitCode = 0) {
 	try {
 		globalCoreConnection?.close()
 		globalCoreConnection = undefined
@@ -296,7 +308,7 @@ async function shutdownGracefully(lockManager?: SqliteLockManager) {
 		log(`Error during graceful shutdown: ${error}`)
 	} finally {
 		// Step 4: Exit the process
-		process.exit(0)
+		process.exit(exitCode)
 	}
 }
 

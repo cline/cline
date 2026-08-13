@@ -41,11 +41,16 @@ message CoreConnectionRequest {
 
 message CoreConnectionResponse {
   string request_id = 1;
+  // Logical reassembled payload. The core sends message_json_chunk instead;
+  // the host reconstructs this field only after all bounded chunks arrive.
   optional string message_json = 2;
   optional string error = 3;
   // Ends this request. A streaming response may carry its final payload in one
   // message and then send a payload-free completed response.
   bool completed = 4;
+  optional bytes message_json_chunk = 5;
+  // Marks the final chunk of one logical response payload.
+  bool message_json_complete = 6;
 }
 
 message CoreConnectionCancel {
