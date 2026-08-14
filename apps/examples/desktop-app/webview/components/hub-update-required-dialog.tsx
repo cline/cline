@@ -107,8 +107,8 @@ export function HubUpdateRequiredDialog() {
 									? ` (core ${mismatch.hubCoreVersion})`
 									: ""}
 								, which was left running because it is still serving active
-								sessions. Your work is unaffected - the Hub is replaced with the
-								newer build once those sessions end.
+								sessions. Your work is unaffected - the newer build takes over
+								the next time Cline starts after those sessions end.
 							</>
 						) : (
 							<>

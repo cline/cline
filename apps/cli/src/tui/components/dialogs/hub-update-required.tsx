@@ -41,8 +41,8 @@ export function HubUpdateRequiredContent(
 						running because it is still serving active sessions.
 					</text>
 					<text selectable>
-						Your work is unaffected. The Hub is replaced with the newer build
-						once those sessions end.
+						Your work is unaffected. The newer build takes over the next time
+						Cline starts after those sessions end.
 					</text>
 				</box>
 				<text fg={palette.muted}>Press Esc to dismiss</text>
