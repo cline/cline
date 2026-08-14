@@ -929,8 +929,20 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-// Live participants disappear on disconnect; session status may remain stale.
-function hasActiveHubSessions(payload: unknown): boolean {
+/**
+ * Whether any client is attached to a session on the hub - the one signal
+ * that cannot go stale, because participants are live socket subscriptions
+ * the hub drops the moment a client's connection closes.
+ *
+ * Deliberately NOT based on session status: a client that dies without
+ * stopping its session leaves the hub-side runtime behind in a non-terminal
+ * status forever, and counting those "ghost" sessions as busy pins an
+ * outdated hub as "serving sessions" until the machine reboots. The cost of
+ * ignoring status is that a participant-less background run executing at the
+ * exact moment of a hub swap dies with the old hub - rare, and its next
+ * scheduled tick runs normally on the replacement.
+ */
+export function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
