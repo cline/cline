@@ -62,10 +62,6 @@ export function HubUpdateRequiredDialog() {
 
 	const mismatchKey = mismatch ? mismatchKeyOf(mismatch) : null;
 	const open = mismatchKey !== null && mismatchKey !== dismissedKey;
-	// This app is already the newer build: the Hub is behind because it is
-	// serving sessions, so there is nothing to install and the dialog is
-	// informational.
-	const hubIsOutdated = mismatch?.reason === "outdated_hub";
 
 	const handleUpdateAndRestart = useCallback(async () => {
 		setPhase("updating");
@@ -83,6 +79,14 @@ export function HubUpdateRequiredDialog() {
 		setPhase("idle");
 	}, []);
 
+	// `outdated_hub` is purely informational: this app is already the newer
+	// build, nothing is asked of the user, and the Hub is replaced on its own
+	// once its sessions end. Interrupting with a modal to say "ignore me"
+	// helps nobody, so that reason renders nothing.
+	if (mismatch?.reason === "outdated_hub") {
+		return null;
+	}
+
 	return (
 		<AlertDialog
 			open={open}
@@ -94,58 +98,38 @@ export function HubUpdateRequiredDialog() {
 		>
 			<AlertDialogContent>
 				<AlertDialogHeader>
-					<AlertDialogTitle>
-						{hubIsOutdated
-							? "Cline is finishing an update"
-							: "Cline Hub was updated"}
-					</AlertDialogTitle>
+					<AlertDialogTitle>Cline Hub was updated</AlertDialogTitle>
 					<AlertDialogDescription>
-						{hubIsOutdated ? (
-							<>
-								Part of Cline is still running the previous version
-								{mismatch?.hubCoreVersion
-									? ` (${mismatch.hubCoreVersion})`
-									: ""}{" "}
-								so your active sessions are not interrupted. Everything keeps
-								working, and no action is needed - the update finishes on its
-								own the next time Cline starts after those sessions are done.
-							</>
-						) : (
-							<>
-								Another Cline installation updated the shared Cline Hub
-								{mismatch?.hubCoreVersion
-									? ` (core ${mismatch.hubCoreVersion})`
-									: ""}
-								, and it no longer matches this app. Update and restart Cline
-								Code to stay in sync with the running Hub.
-							</>
-						)}
+						Another Cline installation updated the shared Cline Hub
+						{mismatch?.hubCoreVersion
+							? ` (core ${mismatch.hubCoreVersion})`
+							: ""}
+						, and it no longer matches this app. Update and restart Cline Code
+						to stay in sync with the running Hub.
 					</AlertDialogDescription>
-					{updateHint && !hubIsOutdated ? (
+					{updateHint ? (
 						<AlertDialogDescription>{updateHint}</AlertDialogDescription>
 					) : null}
 				</AlertDialogHeader>
 				<AlertDialogFooter>
 					<AlertDialogCancel disabled={phase !== "idle"}>
-						{hubIsOutdated ? "Got it" : "Later"}
+						Later
 					</AlertDialogCancel>
-					{hubIsOutdated ? null : (
-						<AlertDialogAction
-							disabled={phase !== "idle"}
-							onClick={(event) => {
-								event.preventDefault();
-								void handleUpdateAndRestart();
-							}}
-						>
-							{phase === "restarting"
-								? "Restarting…"
-								: phase === "updating"
-									? "Checking for updates…"
-									: updateHint
-										? "Try again"
-										: "Update and restart"}
-						</AlertDialogAction>
-					)}
+					<AlertDialogAction
+						disabled={phase !== "idle"}
+						onClick={(event) => {
+							event.preventDefault();
+							void handleUpdateAndRestart();
+						}}
+					>
+						{phase === "restarting"
+							? "Restarting…"
+							: phase === "updating"
+								? "Checking for updates…"
+								: updateHint
+									? "Try again"
+									: "Update and restart"}
+					</AlertDialogAction>
 				</AlertDialogFooter>
 			</AlertDialogContent>
 		</AlertDialog>
