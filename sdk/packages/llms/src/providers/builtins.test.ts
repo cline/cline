@@ -228,6 +228,25 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("registers ElevenLabs Scribe v2 as a dedicated transcription provider", async () => {
+		await expect(getProvider("elevenlabs")).resolves.toMatchObject({
+			id: "elevenlabs",
+			name: "ElevenLabs",
+			baseUrl: "https://api.elevenlabs.io/v1",
+			defaultModelId: "scribe_v2",
+			client: "fetch",
+		});
+		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
+			scribe_v2: expect.objectContaining({
+				id: "scribe_v2",
+				modalities: {
+					input: ["audio"],
+					output: ["text"],
+				},
+			}),
+		});
+	});
+
 	it("merges generated provider specs with handwritten built-in overrides", async () => {
 		const generatedIds = new Set(
 			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
