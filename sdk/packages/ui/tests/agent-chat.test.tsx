@@ -79,14 +79,24 @@ describe("@cline/ui agent chat primitives", () => {
 
 		const trigger = container.querySelector("button");
 		const panelId = trigger?.getAttribute("aria-controls");
+		const panel = document.getElementById(panelId ?? "");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-		expect(document.getElementById(panelId ?? "")).toBeNull();
+		expect(panel?.getAttribute("data-state")).toBe("closed");
+		expect(panel?.getAttribute("aria-hidden")).toBe("true");
+		expect(panel?.hasAttribute("inert")).toBe(true);
+		expect(panel?.textContent).not.toContain("Inspect the shared contract");
 
 		await act(async () => trigger?.click());
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
-		expect(document.getElementById(panelId ?? "")?.textContent).toContain(
-			"Inspect the shared contract",
-		);
+		expect(panel?.getAttribute("data-state")).toBe("open");
+		expect(panel?.getAttribute("aria-hidden")).toBe("false");
+		expect(panel?.hasAttribute("inert")).toBe(false);
+		expect(panel?.textContent).toContain("Inspect the shared contract");
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(panel?.getAttribute("data-state")).toBe("closed");
+		expect(panel?.textContent).toContain("Inspect the shared contract");
 	});
 
 	it("renders non-expandable tool activity as static content", async () => {
@@ -139,17 +149,19 @@ describe("@cline/ui agent chat primitives", () => {
 
 		const trigger = container.querySelector("button");
 		const panelId = trigger?.getAttribute("aria-controls");
+		const panel = document.getElementById(panelId ?? "");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-		expect(document.getElementById(panelId ?? "")).toBeNull();
+		expect(panel?.getAttribute("data-state")).toBe("closed");
+		expect(panel?.hasAttribute("inert")).toBe(true);
 		expect(
 			container.querySelector(".cline-chat-disclosure-icon"),
 		).not.toBeNull();
 
 		await act(async () => trigger?.click());
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
-		expect(document.getElementById(panelId ?? "")?.textContent).toContain(
-			"theme.css",
-		);
+		expect(panel?.getAttribute("data-state")).toBe("open");
+		expect(panel?.hasAttribute("inert")).toBe(false);
+		expect(panel?.textContent).toContain("theme.css");
 	});
 
 	it("hides the disclosure chevron on request while keeping the row clickable", async () => {
