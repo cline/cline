@@ -33,16 +33,17 @@ export function HubUpdateRequiredContent(
 	if (hubIsOutdated) {
 		return (
 			<box flexDirection="column" paddingX={1} gap={1}>
-				<text fg="yellow">Cline Hub is running an older build</text>
+				<text fg="yellow">Cline is finishing an update</text>
 				<box flexDirection="column">
 					<text selectable>
-						This CLI is newer than the shared Cline Hub
-						{hubCoreVersion ? ` (core ${hubCoreVersion})` : ""}, which was left
-						running because it is still serving active sessions.
+						Part of Cline is still running the previous version
+						{hubCoreVersion ? ` (${hubCoreVersion})` : ""} so your active
+						sessions are not interrupted.
 					</text>
 					<text selectable>
-						Your work is unaffected. The newer build takes over the next time
-						Cline starts after those sessions end.
+						Everything keeps working, and no action is needed — the update
+						finishes on its own the next time you start Cline after those
+						sessions are done.
 					</text>
 				</box>
 				<text fg={palette.muted}>Press Esc to dismiss</text>

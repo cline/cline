@@ -96,19 +96,19 @@ export function HubUpdateRequiredDialog() {
 				<AlertDialogHeader>
 					<AlertDialogTitle>
 						{hubIsOutdated
-							? "Cline Hub is running an older build"
+							? "Cline is finishing an update"
 							: "Cline Hub was updated"}
 					</AlertDialogTitle>
 					<AlertDialogDescription>
 						{hubIsOutdated ? (
 							<>
-								This app is newer than the shared Cline Hub
+								Part of Cline is still running the previous version
 								{mismatch?.hubCoreVersion
-									? ` (core ${mismatch.hubCoreVersion})`
-									: ""}
-								, which was left running because it is still serving active
-								sessions. Your work is unaffected - the newer build takes over
-								the next time Cline starts after those sessions end.
+									? ` (${mismatch.hubCoreVersion})`
+									: ""}{" "}
+								so your active sessions are not interrupted. Everything keeps
+								working, and no action is needed - the update finishes on its
+								own the next time Cline starts after those sessions are done.
 							</>
 						) : (
 							<>

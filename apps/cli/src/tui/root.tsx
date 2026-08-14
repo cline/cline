@@ -602,7 +602,7 @@ function App(props: TuiProps) {
 				}
 				showToast(
 					reason === "outdated_hub"
-						? "Hub stays on the older build while sessions are active; the next Cline start after they end picks up the new one. No action needed."
+						? "Cline finishes updating the next time it starts. No action needed."
 						: "Hub still differs from this CLI. Run 'cline update' and restart when convenient.",
 					"info",
 				);
