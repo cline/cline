@@ -738,19 +738,38 @@ export async function runCli(): Promise<void> {
 
 	let startupTarget = ctx.startupTarget;
 	let resumeSessionId: string | undefined;
+
 	if (args.id !== undefined) {
 		const sessionId = args.id.trim();
+
 		if (!sessionId) {
 			writeErr("--id requires <session-id>");
 			process.exitCode = 1;
 			return;
 		}
+
 		resumeSessionId = sessionId;
-		startupTarget = "chat";
+
+		const hasHeadlessInput =
+			Boolean(args.prompt) ||
+			args.outputMode === "json" ||
+			stdinHasPipedInput();
+
+		if (hasHeadlessInput) {
+			startupTarget = undefined;
+			args = {
+				...args,
+				interactive: false,
+			};
+		} else {
+			startupTarget = "chat";
+		}
+
 		process.env.CLINE_HOOK_AGENT_RESUME = "1";
 	} else {
 		delete process.env.CLINE_HOOK_AGENT_RESUME;
 	}
+
 	if (startupTarget) {
 		args = {
 			...args,
@@ -804,7 +823,12 @@ export async function runCli(): Promise<void> {
 	}
 	setCurrentOutputMode(args.outputMode);
 
-	if (args.outputMode === "json" && (args.interactive || !args.prompt)) {
+	const hasPipedInput = stdinHasPipedInput();
+
+	if (
+		args.outputMode === "json" &&
+		(args.interactive || (!args.prompt && !hasPipedInput))
+	) {
 		writeErr(
 			"JSON output mode requires a prompt argument or piped stdin (interactive mode is unsupported)",
 		);
@@ -1157,7 +1181,13 @@ export async function runCli(): Promise<void> {
 					await runZen(pipedEffectivePrompt, config, userInstructionService);
 					return;
 				}
-				await runAgent(pipedEffectivePrompt, config, userInstructionService);
+				if (resumeSessionId) {
+					await runAgent(pipedEffectivePrompt, config, userInstructionService, {
+						resumeSessionId,
+					});
+				} else {
+					await runAgent(pipedEffectivePrompt, config, userInstructionService);
+				}
 				return;
 			}
 		}
@@ -1232,7 +1262,13 @@ export async function runCli(): Promise<void> {
 			return;
 		}
 
-		await runAgent(effectivePrompt, config, userInstructionService);
+		if (resumeSessionId) {
+			await runAgent(effectivePrompt, config, userInstructionService, {
+				resumeSessionId,
+			});
+		} else {
+			await runAgent(effectivePrompt, config, userInstructionService);
+		}
 		// Exit once agent is done in non-interactive mode
 		return;
 	} finally {

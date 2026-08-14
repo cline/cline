@@ -7,6 +7,7 @@ const sessionManagerMocks = vi.hoisted(() => ({
 	stop: vi.fn(),
 	dispose: vi.fn(),
 	abort: vi.fn(),
+	readMessages: vi.fn(),
 	getAccumulatedUsage: vi.fn(),
 }));
 
@@ -152,6 +153,8 @@ describe("runAgent", () => {
 		sessionManagerMocks.dispose.mockResolvedValue(undefined);
 		sessionManagerMocks.abort.mockReset();
 		sessionManagerMocks.abort.mockResolvedValue(undefined);
+		sessionManagerMocks.readMessages.mockReset();
+		sessionManagerMocks.readMessages.mockResolvedValue([]);
 		sessionManagerMocks.getAccumulatedUsage.mockReset();
 		hookMocks.runtimeHooks.shutdown.mockReset();
 		hookMocks.runtimeHooks.shutdown.mockResolvedValue(undefined);
@@ -246,6 +249,87 @@ describe("runAgent", () => {
 		);
 		expect(startInput?.localRuntime).not.toHaveProperty(
 			"userInstructionService",
+		);
+	});
+
+	it("loads prior messages when resuming a headless session", async () => {
+		const startedAt = new Date("2026-03-22T00:00:00.000Z");
+		const endedAt = new Date("2026-03-22T00:00:01.000Z");
+		const priorMessages = [
+			{ role: "user", content: [{ type: "text", text: "previous" }] },
+		];
+		sessionManagerMocks.readMessages.mockResolvedValue(priorMessages);
+		sessionManagerMocks.start.mockResolvedValue({
+			sessionId: "session-123",
+			manifestPath: "/tmp/manifest.json",
+			messagesPath: "/tmp/messages.json",
+			manifest: {
+				session_id: "session-123",
+			},
+			result: {
+				text: "ok",
+				usage: {
+					inputTokens: 1,
+					outputTokens: 1,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+					totalCost: undefined,
+				},
+				messages: [],
+				toolCalls: [],
+				iterations: 1,
+				finishReason: "completed",
+				model: {
+					id: "gemini",
+					provider: "openrouter",
+					info: {},
+				},
+				startedAt,
+				endedAt,
+				durationMs: 1000,
+			},
+		});
+
+		const { runAgent } = await import("./run-agent");
+
+		await expect(
+			runAgent(
+				"Continue the previous task",
+				{
+					cwd: process.cwd(),
+					enableAgentTeams: false,
+					enableSpawnAgent: false,
+					enableTools: [],
+					execution: {
+						maxConsecutiveMistakes: 3,
+					},
+					logger: undefined,
+					mode: "act",
+					modelId: "google/gemini-3-flash-preview",
+					outputMode: "json",
+					providerId: "openrouter",
+					systemPrompt: "system",
+					thinking: false,
+					toolPolicies: { "*": { autoApprove: true } },
+					verbose: false,
+					workspaceRoot: process.cwd(),
+				} as never,
+				undefined,
+				{ resumeSessionId: "session-123" },
+			),
+		).resolves.toBeUndefined();
+
+		expect(sessionManagerMocks.readMessages).toHaveBeenCalledWith(
+			"session-123",
+		);
+		expect(sessionManagerMocks.start).toHaveBeenCalledWith(
+			expect.objectContaining({
+				initialMessages: priorMessages,
+				prompt: "prompt",
+				config: expect.objectContaining({
+					sessionId: "session-123",
+				}),
+			}),
 		);
 	});
 

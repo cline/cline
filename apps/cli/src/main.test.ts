@@ -576,6 +576,106 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
+	it("keeps --id with a positional prompt in headless json mode", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+
+		runtimeMocks.runAgent.mockClear();
+		runtimeMocks.runInteractive.mockClear();
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+		process.exitCode = undefined;
+
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--json",
+			"--id",
+			"session-123",
+			"Continue the previous task",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+
+		expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+
+		const call = runtimeMocks.runAgent.mock.calls[0];
+
+		expect(call[0]).toBe("Continue the previous task");
+		expect(call[1]).toEqual(
+			expect.objectContaining({
+				outputMode: "json",
+			}),
+		);
+		expect(call[2]).toBeDefined();
+		expect(call[3]).toEqual({
+			resumeSessionId: "session-123",
+		});
+	});
+
+	it("keeps --id with piped stdin headless and resumes the session", async () => {
+		Object.defineProperty(process.stdin, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: false,
+			configurable: true,
+		});
+
+		runtimeMocks.runAgent.mockClear();
+		runtimeMocks.runInteractive.mockClear();
+		mockState.runAgentImports = 0;
+		mockState.runInteractiveImports = 0;
+		process.exitCode = undefined;
+
+		vi.mocked(fstatSync).mockReturnValue({
+			isFIFO: () => true,
+			isFile: () => false,
+		} as ReturnType<typeof fstatSync>);
+
+		vi.spyOn(process.stdin, Symbol.asyncIterator).mockImplementation(
+			async function* (): AsyncGenerator<Buffer, undefined> {
+				yield Buffer.from("Continue the previous task");
+			},
+		);
+
+		process.argv = ["bun", "src/index.ts", "--json", "--id", "session-123"];
+
+		try {
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+
+			expect(runtimeMocks.runInteractive).not.toHaveBeenCalled();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+
+			const call = runtimeMocks.runAgent.mock.calls[0];
+
+			expect(call[0]).toBe("Continue the previous task");
+			expect(call[1]).toEqual(
+				expect.objectContaining({
+					outputMode: "json",
+				}),
+			);
+			expect(call[2]).toBeDefined();
+			expect(call[3]).toEqual({
+				resumeSessionId: "session-123",
+			});
+		} finally {
+			vi.restoreAllMocks();
+		}
+	});
+
 	it("rejects a single bare positional prompt token", async () => {
 		const consoleError = vi
 			.spyOn(console, "error")
