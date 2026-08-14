@@ -851,7 +851,7 @@ export const GENERATED_PROVIDER_SPECS: readonly BuiltinSpec[] = [
 		family: "openai-compatible",
 		capabilities: ["tools", "reasoning", "prompt-cache"],
 		modelsProviderId: "hyper",
-		defaultModelId: "deepseek-v4-flash-0731",
+		defaultModelId: "deepseek-v4-pro-0813",
 		apiKeyEnv: ["HYPER_API_KEY"],
 		docsUrl: "https://hyper.charm.land",
 		defaults: {

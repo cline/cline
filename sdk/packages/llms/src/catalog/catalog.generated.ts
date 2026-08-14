@@ -14,7 +14,7 @@ export const GENERATED_PROVIDER_MODELS: {
   version: number
   providers: Record<string, Record<string, ModelInfo>>
 } = {
-  version: 1786732039692,
+  version: 1786732960562,
   providers: {
   "302ai": {
     "claude-opus-4-7": {
@@ -14554,8 +14554,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "deepseek-ai/DeepSeek-V4-Pro-0813": {
       "id": "deepseek-ai/DeepSeek-V4-Pro-0813",
       "name": "Deepseek V4 Pro 0813",
-      "contextWindow": 1000000,
-      "maxInputTokens": 1000000,
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
       "maxTokens": 262144,
       "capabilities": [
         "tools",
@@ -19702,9 +19702,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5795,
-        "output": 2.44,
-        "cacheRead": 0.0976,
+        "input": 0.5605,
+        "output": 2.36,
+        "cacheRead": 0.0944,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -36268,7 +36268,8 @@ export const GENERATED_PROVIDER_MODELS: {
           "values": [
             "low",
             "medium",
-            "high"
+            "high",
+            "xhigh"
           ]
         }
       ],
@@ -42245,6 +42246,38 @@ export const GENERATED_PROVIDER_MODELS: {
     }
   },
   "hyper": {
+    "deepseek-v4-pro-0813": {
+      "id": "deepseek-v4-pro-0813",
+      "name": "DeepSeek V4 Pro 0813",
+      "contextWindow": 1048576,
+      "maxInputTokens": 1048576,
+      "maxTokens": 262144,
+      "capabilities": [
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature",
+        "prompt-cache"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "high",
+            "xhigh"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 1.437216,
+        "output": 4.311648,
+        "cacheRead": 0.047907,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-08-14",
+      "family": "deepseek-thinking"
+    },
     "deepseek-v4-flash-0731": {
       "id": "deepseek-v4-flash-0731",
       "name": "DeepSeek V4 Flash 0731",
@@ -52951,41 +52984,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-11",
       "family": "nemotron"
     },
-    "bytedance-seed/seed-2.0-lite": {
-      "id": "bytedance-seed/seed-2.0-lite",
-      "name": "ByteDance Seed: Seed-2.0-Lite",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.25,
-        "output": 2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-10",
-      "family": "seed"
-    },
     "openai/gpt-5.4": {
       "id": "openai/gpt-5.4",
       "name": "GPT-5.4",
@@ -53134,41 +53132,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "bytedance-seed/seed-2.0-mini": {
-      "id": "bytedance-seed/seed-2.0-mini",
-      "name": "ByteDance Seed: Seed-2.0-Mini",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none",
-            "minimal",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-26",
-      "family": "seed"
     },
     "qwen/qwen3.5-flash-02-23": {
       "id": "qwen/qwen3.5-flash-02-23",
@@ -53525,7 +53488,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
@@ -53580,6 +53543,76 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.5,
         "output": 3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
+    },
+    "bytedance-seed/seed-2.0-lite": {
+      "id": "bytedance-seed/seed-2.0-lite",
+      "name": "Seed 2.0 Lite",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.25,
+        "output": 2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
+    },
+    "bytedance-seed/seed-2.0-mini": {
+      "id": "bytedance-seed/seed-2.0-mini",
+      "name": "Seed 2.0 Mini",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "effort",
+          "values": [
+            "none",
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.4,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -54936,8 +54969,8 @@ export const GENERATED_PROVIDER_MODELS: {
     "z-ai/glm-4.6": {
       "id": "z-ai/glm-4.6",
       "name": "GLM-4.6",
-      "contextWindow": 202752,
-      "maxInputTokens": 202752,
+      "contextWindow": 204800,
+      "maxInputTokens": 204800,
       "maxTokens": 131072,
       "capabilities": [
         "tools",
@@ -54956,9 +54989,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.5,
-        "output": 2,
-        "cacheRead": 0.1,
+        "input": 0.55,
+        "output": 2.2,
+        "cacheRead": 0.11,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-30",
@@ -89911,7 +89944,7 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "DeepSeek V4 Flash Latest",
       "contextWindow": 1048576,
       "maxInputTokens": 1048576,
-      "maxTokens": 262144,
+      "maxTokens": 131072,
       "capabilities": [
         "tools",
         "reasoning",
@@ -89933,9 +89966,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.079996,
-        "output": 0.252,
-        "cacheRead": 0.0252,
+        "input": 0.0798,
+        "output": 0.1596,
+        "cacheRead": 0.01596,
         "cacheWrite": 0
       },
       "releaseDate": "2026-08-01",
@@ -92409,9 +92442,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5795,
-        "output": 2.44,
-        "cacheRead": 0.0976,
+        "input": 0.5605,
+        "output": 2.36,
+        "cacheRead": 0.0944,
         "cacheWrite": 0
       },
       "releaseDate": "2026-04-21",
@@ -93243,43 +93276,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-03-11",
       "family": "nemotron"
     },
-    "bytedance-seed/seed-2.0-lite": {
-      "id": "bytedance-seed/seed-2.0-lite",
-      "name": "Seed-2.0-Lite",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.25,
-        "output": 2,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-03-10",
-      "family": "seed"
-    },
     "openai/gpt-5.4": {
       "id": "openai/gpt-5.4",
       "name": "GPT-5.4",
@@ -93430,43 +93426,6 @@ export const GENERATED_PROVIDER_MODELS: {
           "text"
         ]
       }
-    },
-    "bytedance-seed/seed-2.0-mini": {
-      "id": "bytedance-seed/seed-2.0-mini",
-      "name": "Seed-2.0-Mini",
-      "contextWindow": 262144,
-      "maxInputTokens": 262144,
-      "maxTokens": 131072,
-      "capabilities": [
-        "images",
-        "video",
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "toggle"
-        },
-        {
-          "type": "effort",
-          "values": [
-            "minimal",
-            "low",
-            "medium",
-            "high"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 0.1,
-        "output": 0.4,
-        "cacheRead": 0,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-02-26",
-      "family": "seed"
     },
     "google/gemini-3.1-flash-image-preview": {
       "id": "google/gemini-3.1-flash-image-preview",
@@ -93848,15 +93807,14 @@ export const GENERATED_PROVIDER_MODELS: {
       "name": "Qwen3.5 397B-A17B",
       "contextWindow": 262144,
       "maxInputTokens": 262144,
-      "maxTokens": 262144,
+      "maxTokens": 65536,
       "capabilities": [
         "images",
         "video",
         "tools",
         "reasoning",
         "structured_output",
-        "temperature",
-        "prompt-cache"
+        "temperature"
       ],
       "reasoningOptions": [
         {
@@ -93864,9 +93822,9 @@ export const GENERATED_PROVIDER_MODELS: {
         }
       ],
       "pricing": {
-        "input": 0.5,
-        "output": 3.6,
-        "cacheRead": 0.3,
+        "input": 0.39,
+        "output": 2.34,
+        "cacheRead": 0,
         "cacheWrite": 0
       },
       "releaseDate": "2026-02-15",
@@ -93902,6 +93860,80 @@ export const GENERATED_PROVIDER_MODELS: {
       "pricing": {
         "input": 0.5,
         "output": 3,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
+    },
+    "bytedance-seed/seed-2.0-lite": {
+      "id": "bytedance-seed/seed-2.0-lite",
+      "name": "Seed 2.0 Lite",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.25,
+        "output": 2,
+        "cacheRead": 0,
+        "cacheWrite": 0
+      },
+      "releaseDate": "2026-02-14",
+      "family": "seed"
+    },
+    "bytedance-seed/seed-2.0-mini": {
+      "id": "bytedance-seed/seed-2.0-mini",
+      "name": "Seed 2.0 Mini",
+      "contextWindow": 262144,
+      "maxInputTokens": 262144,
+      "maxTokens": 131072,
+      "capabilities": [
+        "images",
+        "video",
+        "tools",
+        "reasoning",
+        "structured_output",
+        "temperature"
+      ],
+      "reasoningOptions": [
+        {
+          "type": "toggle"
+        },
+        {
+          "type": "effort",
+          "values": [
+            "minimal",
+            "low",
+            "medium",
+            "high"
+          ]
+        }
+      ],
+      "pricing": {
+        "input": 0.1,
+        "output": 0.4,
         "cacheRead": 0,
         "cacheWrite": 0
       },
@@ -95358,9 +95390,9 @@ export const GENERATED_PROVIDER_MODELS: {
       ],
       "reasoningOptions": [],
       "pricing": {
-        "input": 0.5,
-        "output": 2,
-        "cacheRead": 0.1,
+        "input": 0.55,
+        "output": 2.2,
+        "cacheRead": 0.11,
         "cacheWrite": 0
       },
       "releaseDate": "2025-09-30",
