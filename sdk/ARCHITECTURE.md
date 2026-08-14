@@ -404,6 +404,25 @@ Design implications:
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
 
+Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
+reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
+through `PluginSandboxOptions.idleTimeoutMs` or
+`CLINE_PLUGIN_IDLE_TIMEOUT_MS`), and the next plugin call starts and
+reinitializes it transparently. Pending requests are associated with the child
+generation that owns them so an old process exiting cannot reject work sent to
+its replacement. The bootstrap also exits when its parent IPC channel
+disconnects. The parent is the single authority for idle shutdown so competing
+deadlines cannot terminate a child while the parent is dispatching new work.
+
+Design implications:
+
+- sandbox process count scales with recently active sessions, not every session
+  observed since hub startup
+- eviction never interrupts an in-flight plugin call
+- in-process plugin state is ephemeral across idle eviction; durable plugin
+  state belongs in persistent storage
+- a sandbox must never outlive its owning hub process
+
 ## Architectural Constraints
 
 ### Keep `agents` Stateless
