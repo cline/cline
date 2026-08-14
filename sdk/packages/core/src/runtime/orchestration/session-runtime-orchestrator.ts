@@ -46,7 +46,9 @@ import {
 	type MessageWithMetadata,
 	type ModelInfo,
 	mergeModelOptions,
+	modelSupportsToolCalling,
 	type ToolCallRecord,
+	usesImageGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
@@ -845,7 +847,14 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const tools = Array.from(mergedToolsByName.values());
+		const dedicatedImageGeneration = usesImageGenerationOperation(
+			modelInfo ?? {},
+		);
+		const toolCallingDisabled =
+			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+		const tools = toolCallingDisabled
+			? []
+			: Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -873,6 +882,7 @@ export class SessionRuntime {
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
+			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);

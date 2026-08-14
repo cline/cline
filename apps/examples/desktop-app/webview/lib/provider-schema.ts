@@ -1,16 +1,23 @@
+import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "@cline/shared/browser";
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	operation?: ModelOperation;
+	operationModes?: ModelOperationMode[];
 	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
-	supportsStreamingTranscription?: boolean;
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
 }
 
-export type ModelModality = "text" | "image" | "audio" | "video" | "pdf";
+export type { ModelModality, ModelOperation, ModelOperationMode };
 
 export type ProviderConfigFieldType =
 	| "text"

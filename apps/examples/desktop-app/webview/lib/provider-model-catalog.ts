@@ -26,12 +26,7 @@ export type TranscriptionModelTarget = {
 };
 
 export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
-	return (
-		model.inputModalities?.length === 1 &&
-		model.inputModalities[0] === "audio" &&
-		model.outputModalities?.length === 1 &&
-		model.outputModalities[0] === "text"
-	);
+	return model.operation === "transcription";
 }
 
 export function supportsAudio(model: ProviderModel): boolean {
@@ -68,7 +63,7 @@ export function selectTranscriptionModel(
 				providerName: provider.name,
 				modelId: model.id,
 				modelName: model.name,
-				supportsStreaming: model.supportsStreamingTranscription === true,
+				supportsStreaming: model.operationModes?.includes("streaming") === true,
 			}
 		: null;
 }

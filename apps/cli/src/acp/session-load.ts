@@ -103,6 +103,31 @@ function translateProjectedHistoricalMessage(
 				);
 				break;
 			}
+			case "media": {
+				const media = block.media;
+				if (media.modality === "image" && media.source.type === "base64") {
+					updates.push({
+						sessionUpdate:
+							message.role === "user"
+								? "user_message_chunk"
+								: "agent_message_chunk",
+						content: {
+							type: "image",
+							data: media.source.data,
+							mimeType: media.mediaType,
+						},
+					});
+				} else {
+					updates.push({
+						sessionUpdate: "agent_message_chunk",
+						content: {
+							type: "text",
+							text: `[Generated ${media.modality}: ${media.mediaType}]`,
+						},
+					});
+				}
+				break;
+			}
 			case "tool_use": {
 				updates.push({
 					sessionUpdate: "tool_call",

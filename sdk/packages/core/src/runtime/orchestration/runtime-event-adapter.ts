@@ -28,6 +28,8 @@
  *                        accumulated } (per delta)
  *   reasoning deltas → content_start { contentType:"reasoning",
  *                        reasoning, redacted } (per delta)
+ *   assistant-media   → content_end { contentType:"media", media }
+ *                        at the original stream position
  *   assistant-message → one content_end { contentType:"text", text }
  *                        if any text parts; one
  *                        content_end { contentType:"reasoning", reasoning }
@@ -213,6 +215,14 @@ export class RuntimeEventAdapter {
 						contentType: "reasoning",
 						reasoning: event.text,
 						redacted: event.redacted === true,
+					},
+				];
+			case "assistant-media":
+				return [
+					{
+						type: "content_end",
+						contentType: "media",
+						media: event.media,
 					},
 				];
 			case "assistant-message":

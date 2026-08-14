@@ -142,6 +142,10 @@ describe("createAgentModelFromConfig", () => {
 						contextWindow: 1_000_000,
 						maxInputTokens: 1_000_000,
 						maxTokens: 65_536,
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
 						capabilities: [
 							"tools",
 							"reasoning",
@@ -180,6 +184,10 @@ describe("createAgentModelFromConfig", () => {
 			contextWindow: 1_000_000,
 			maxInputTokens: 1_000_000,
 			maxOutputTokens: 65_536,
+			modalities: {
+				input: ["text", "image"],
+				output: ["text", "image"],
+			},
 			capabilities: expect.arrayContaining([
 				"text",
 				"tools",
@@ -582,7 +590,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;
