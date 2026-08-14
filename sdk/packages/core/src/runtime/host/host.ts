@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import { captureSdkError } from "@cline/shared";
 import type { ClineCoreOptions } from "../../cline-core/types";
 import {
@@ -199,6 +200,14 @@ export async function createRuntimeHost(
 			cwd: options.hub?.cwd,
 		});
 		if (hubUrl) {
+			// #region agent log
+			try {
+				appendFileSync(
+					"/opt/cursor/logs/debug.log",
+					`${JSON.stringify({ hypothesisId: "E", location: "runtime/host/host.ts:createRuntimeHost", message: "selected discovered hub runtime", data: { selectedHub: true }, timestamp: Date.now() })}\n`,
+				);
+			} catch {}
+			// #endregion
 			options.logger?.log("Using discovered local hub runtime host", {
 				url: hubUrl,
 			});
@@ -238,6 +247,14 @@ export async function createRuntimeHost(
 				});
 			}
 		}
+		// #region agent log
+		try {
+			appendFileSync(
+				"/opt/cursor/logs/debug.log",
+				`${JSON.stringify({ hypothesisId: "E", location: "runtime/host/host.ts:createRuntimeHost", message: "selected local fallback and prewarm", data: { selectedHub: false }, timestamp: Date.now() })}\n`,
+			);
+		} catch {}
+		// #endregion
 		prewarmLocalHubIfNeeded(configuredMode, options);
 		options.logger?.log("Falling back to local runtime host", {
 			reason: "compatible_hub_unavailable",

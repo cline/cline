@@ -1,3 +1,4 @@
+import { appendFileSync } from "node:fs";
 import {
 	createSessionId,
 	type HubClientRegistration,
@@ -991,31 +992,61 @@ async function recoverSupersededLocalHubUrl(
 ): Promise<string | undefined> {
 	const supersededPath = `${owner.discoveryPath}.superseded`;
 	const superseded = await readHubDiscovery(supersededPath);
+	// #region agent log
+	try {
+		appendFileSync(
+			"/opt/cursor/logs/debug.log",
+			`${JSON.stringify({ hypothesisId: "A", location: "hub/client/index.ts:recoverSupersededLocalHubUrl", message: "read superseded discovery", data: { hasRecord: !!superseded, hasUrl: !!superseded?.url, hasAuthToken: !!superseded?.authToken }, timestamp: Date.now() })}\n`,
+		);
+	} catch {}
+	// #endregion
 	if (!superseded?.url || !superseded.authToken) {
 		return undefined;
 	}
 	const compatible = await probeCompatibleHubUrl(superseded.url, {
 		authToken: superseded.authToken,
 	});
+	// #region agent log
+	try {
+		appendFileSync(
+			"/opt/cursor/logs/debug.log",
+			`${JSON.stringify({ hypothesisId: "B", location: "hub/client/index.ts:recoverSupersededLocalHubUrl", message: "probed superseded hub", data: { status: compatible.status }, timestamp: Date.now() })}\n`,
+		);
+	} catch {}
+	// #endregion
 	if (compatible.status !== "compatible") {
 		return undefined;
 	}
-	if (
-		!(await verifyHubConnection(compatible.url, {
-			workspaceRoot: options.workspaceRoot,
-			cwd: options.cwd,
-			authToken: superseded.authToken,
-		}))
-	) {
+	const verified = await verifyHubConnection(compatible.url, {
+		workspaceRoot: options.workspaceRoot,
+		cwd: options.cwd,
+		authToken: superseded.authToken,
+	});
+	// #region agent log
+	try {
+		appendFileSync(
+			"/opt/cursor/logs/debug.log",
+			`${JSON.stringify({ hypothesisId: "C", location: "hub/client/index.ts:recoverSupersededLocalHubUrl", message: "verified authenticated hub connection", data: { verified }, timestamp: Date.now() })}\n`,
+		);
+	} catch {}
+	// #endregion
+	if (!verified) {
 		return undefined;
 	}
-	if (
-		await localHubHasNoActiveSessions(
-			compatible.url,
-			superseded.authToken,
-			options,
-		)
-	) {
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		compatible.url,
+		superseded.authToken,
+		options,
+	);
+	// #region agent log
+	try {
+		appendFileSync(
+			"/opt/cursor/logs/debug.log",
+			`${JSON.stringify({ hypothesisId: "D", location: "hub/client/index.ts:recoverSupersededLocalHubUrl", message: "checked shielded hub activity", data: { hasNoActiveSessions }, timestamp: Date.now() })}\n`,
+		);
+	} catch {}
+	// #endregion
+	if (hasNoActiveSessions) {
 		return undefined;
 	}
 
@@ -1027,6 +1058,14 @@ async function recoverSupersededLocalHubUrl(
 	try {
 		await writeHubDiscovery(owner.discoveryPath, repaired);
 		await clearHubDiscovery(supersededPath);
+		// #region agent log
+		try {
+			appendFileSync(
+				"/opt/cursor/logs/debug.log",
+				`${JSON.stringify({ hypothesisId: "D", location: "hub/client/index.ts:recoverSupersededLocalHubUrl", message: "restored shielded discovery", data: { repaired: true }, timestamp: Date.now() })}\n`,
+			);
+		} catch {}
+		// #endregion
 	} catch {
 		// Attaching is still safe with the verified token. Keep the recovery
 		// record so a later launch can retry repairing live discovery.
