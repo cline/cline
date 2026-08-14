@@ -788,10 +788,12 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		vi.resetModules();
 	});
 
-	it("restores shielded discovery and attaches while the old Hub is active", async () => {
+	it("restores shielded discovery while a participant is attached", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		MockWebSocket.commandPayloads.set("session.list", {
-			sessions: [{ status: "running", participants: [] }],
+			sessions: [
+				{ status: "idle", participants: [{ clientId: "old-cli" }] },
+			],
 		});
 		const discoveryPath = "/tmp/hub-discovery.json";
 		const oldRecord = {
@@ -850,10 +852,10 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		);
 	});
 
-	it("leaves an idle shielded Hub for the normal replacement path", async () => {
+	it("leaves a participant-less running Hub for normal replacement", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		MockWebSocket.commandPayloads.set("session.list", {
-			sessions: [{ status: "completed", participants: [] }],
+			sessions: [{ status: "running", participants: [] }],
 		});
 		const discoveryPath = "/tmp/hub-discovery.json";
 		const oldRecord = {
@@ -1435,5 +1437,46 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		).resolves.toBeUndefined();
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("hasActiveHubSessions", () => {
+	const payload = (sessions: unknown[]) => ({ sessions });
+
+	it("is busy while any participant is attached, regardless of status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{
+						status: "completed",
+						participants: [{ clientId: "old-cli" }],
+					},
+				]),
+			),
+		).toBe(true);
+	});
+
+	it("is idle without participants, including non-terminal sessions", async () => {
+		const { hasActiveHubSessions } = await import(".");
+
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
+					{ status: "running" },
+				]),
+			),
+		).toBe(false);
+	});
+
+	it("ignores malformed session-list payloads", async () => {
+		const { hasActiveHubSessions } = await import(".");
+
+		expect(hasActiveHubSessions(undefined)).toBe(false);
+		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
 	});
 });
