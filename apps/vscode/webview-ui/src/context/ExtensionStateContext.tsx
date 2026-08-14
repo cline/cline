@@ -299,6 +299,7 @@ export const ExtensionStateContextProvider: React.FC<{
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
 		useAutoCondense: true,
 		compactionStrategy: "basic",
+		webSearchEnabled: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
 		favoritedModelIds: [],

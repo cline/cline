@@ -118,6 +118,7 @@ export interface ExtensionState {
 	mcpResponsesCollapsed?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
+	webSearchEnabled?: boolean
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	favoritedModelIds: string[]
