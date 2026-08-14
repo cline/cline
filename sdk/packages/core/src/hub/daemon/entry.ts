@@ -37,6 +37,34 @@ export const hubDaemonReady = new Promise<void>((resolve, reject) => {
 // readiness promise. Keep startup failures handled by the fatal path below.
 void hubDaemonReady.catch(() => undefined);
 
+const HUB_STARTUP_BIND_RETRY_WINDOW_MS = 5_000;
+const HUB_STARTUP_BIND_RETRY_DELAY_MS = 250;
+
+function isAddressInUseError(error: unknown): boolean {
+	return (
+		error instanceof Error &&
+		(error as Error & { code?: string }).code === "EADDRINUSE"
+	);
+}
+
+async function startHubWebSocketServerWithBindRetry(
+	bindDeadline: number,
+	options: Parameters<typeof startHubWebSocketServer>[0],
+): Promise<Awaited<ReturnType<typeof startHubWebSocketServer>>> {
+	for (;;) {
+		try {
+			return await startHubWebSocketServer(options);
+		} catch (error) {
+			if (!isAddressInUseError(error) || Date.now() >= bindDeadline) {
+				throw error;
+			}
+			await new Promise((resolve) =>
+				setTimeout(resolve, HUB_STARTUP_BIND_RETRY_DELAY_MS),
+			);
+		}
+	}
+}
+
 function parseArgs(argv: string[]): {
 	cwd: string;
 	host?: string;
@@ -198,9 +226,14 @@ async function main(): Promise<void> {
 		shutdownFatal("unhandledRejection", reason);
 	});
 
+	// A hub being retired can keep the port bound for a couple of seconds
+	// after acking shutdown (its watchdog force-exits below the 3s retire
+	// poll). Spawning into that window must wait the port out instead of
+	// dying with EADDRINUSE and leaving clients with no hub at all.
+	const bindDeadline = Date.now() + HUB_STARTUP_BIND_RETRY_WINDOW_MS;
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
-		server = await startHubWebSocketServer({
+		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
 			onShutdownRequested: () => {
 				void requestOrQueueShutdown({
 					reason: "authenticated HTTP shutdown request",

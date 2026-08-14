@@ -101,6 +101,11 @@ export {
 } from "./providers/billing";
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
+export {
+	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
+	supportsModelTool,
+} from "./providers/model-tools";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";
 export {
 	type OpenAICodexRequestHeaderContext,
@@ -109,4 +114,12 @@ export {
 	type ResolveProviderRequestHeadersInput,
 	resolveProviderRequestHeaders,
 } from "./providers/request-headers";
+export {
+	type ClineProvider,
+	type ClineProviderOptions,
+	type ClineWebSearchInput,
+	type ClineWebSearchOptions,
+	type ClineWebSearchResult,
+	createCline,
+} from "./providers/vendors/cline";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";

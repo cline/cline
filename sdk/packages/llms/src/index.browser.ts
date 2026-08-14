@@ -33,6 +33,11 @@ export {
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
 export {
+	type ModelToolSupportInput,
+	providerManifestSupportsModelTool,
+	supportsModelTool,
+} from "./providers/model-tools";
+export {
 	type OpenAICodexRequestHeaderContext,
 	type ProviderRequestHeaderClientContext,
 	type ProviderRequestHeaderLayers,

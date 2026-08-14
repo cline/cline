@@ -7,6 +7,7 @@ import type {
 	NodeHubClient,
 	ToolApprovalResult,
 } from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 
 export type JsonRecord = Record<string, unknown>;
 
@@ -49,7 +50,7 @@ export type PromptInQueue = {
 
 export type LiveSession = {
 	config: JsonRecord;
-	messages: unknown[];
+	messages: MessageWithMetadata[];
 	promptsInQueue: PromptInQueue[];
 	busy: boolean;
 	startedAt: number;

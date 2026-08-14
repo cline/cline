@@ -37,11 +37,11 @@ export class SessionVersioningError extends Error {
 
 export interface SessionCheckpointRestoreContext {
 	sourceSession: SessionRecord;
-	sourceMessages?: LlmsProviders.Message[];
+	sourceMessages?: LlmsProviders.MessageWithMetadata[];
 	sourceSnapshot: CoreSessionSnapshot;
 	plan: CheckpointRestorePlan;
 	restoredCheckpointMetadata?: CheckpointMetadata;
-	initialMessages: LlmsProviders.Message[];
+	initialMessages: LlmsProviders.MessageWithMetadata[];
 	restoreMessages: boolean;
 	restoreWorkspace: boolean;
 	checkpointRunCount: number;
@@ -50,7 +50,7 @@ export interface SessionCheckpointRestoreContext {
 export interface SessionCheckpointRestoreResult<TStartResult = unknown> {
 	sessionId?: string;
 	startResult?: TStartResult;
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 	sourceSnapshot: CoreSessionSnapshot;
 	restoredSnapshot?: CoreSessionSnapshot;
@@ -67,7 +67,7 @@ export interface SessionCheckpointRestoreInput<
 	restore?: RestoreSessionInput["restore"];
 	start?: TRestoreStartInput;
 	getSession(sessionId: string): Promise<SessionRecord | undefined>;
-	readMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readMessages(sessionId: string): Promise<LlmsProviders.MessageWithMetadata[]>;
 	buildStartInput?: (
 		context: SessionCheckpointRestoreContext,
 		start: TRestoreStartInput,
@@ -177,7 +177,7 @@ export class SessionVersioningService {
 			messages: sourceMessages,
 		});
 		let restoredCheckpointMetadata: CheckpointMetadata | undefined;
-		let initialMessages: LlmsProviders.Message[] = [];
+		let initialMessages: LlmsProviders.MessageWithMetadata[] = [];
 		let startInput: TStartInput | undefined;
 		let messageRestoreOperations:
 			| {

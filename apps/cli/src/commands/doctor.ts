@@ -7,6 +7,7 @@ import {
 	listActiveConnectors,
 	probeHubServer,
 	readHubDiscovery,
+	readSupersededHubDiscovery,
 	resolveClineDataDir,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
@@ -384,6 +385,12 @@ async function clearHubStartupArtifacts(
 		await clearHubDiscovery(owner.discoveryPath);
 		clearedDiscovery = 1;
 	}
+	if (options?.clearDiscovery) {
+		// The set-aside copy the npm postinstall shield leaves behind. Once
+		// doctor has deliberately stopped everything, keeping it risks a much
+		// later launch SIGTERMing whatever process has recycled its pid.
+		clearPathIfExists(`${owner.discoveryPath}.superseded`);
+	}
 	return {
 		startupLocks: clearedStartupLocks,
 		discovery: clearedDiscovery,
@@ -411,7 +418,25 @@ function resolveCliHubOwnerContext() {
 
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	// The npm postinstall shield sets the discovery record aside (see
+	// readSupersededHubDiscovery) while an older hub finishes serving its
+	// sessions. Without the fallback, doctor cannot see that hub, classifies
+	// the live daemon as stale, and its "run doctor fix" advice kills the
+	// sessions the shield exists to protect.
+	const recorded = await readHubDiscovery(owner.discoveryPath);
+	// The set-aside record carries only url/token/pid; widen so the two
+	// sources read uniformly below.
+	const discovery:
+		| {
+				url?: string;
+				authToken?: string;
+				pid?: number;
+				port?: number;
+				coreVersion?: string;
+		  }
+		| undefined = recorded?.url
+		? recorded
+		: readSupersededHubDiscovery(owner.discoveryPath);
 	const health = discovery?.url
 		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;

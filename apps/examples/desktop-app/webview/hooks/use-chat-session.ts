@@ -2158,7 +2158,6 @@ export function useChatSession() {
 				config,
 			})) as {
 				sessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const nextSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2166,12 +2165,13 @@ export function useChatSession() {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: nextSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: nextSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -2453,7 +2453,6 @@ export function useChatSession() {
 			})) as {
 				sessionId?: string;
 				forkedFromSessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const newSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2464,12 +2463,13 @@ export function useChatSession() {
 				typeof payload.forkedFromSessionId === "string"
 					? payload.forkedFromSessionId
 					: activeSessionId;
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: newSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: newSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
 		[config, postSession, status],

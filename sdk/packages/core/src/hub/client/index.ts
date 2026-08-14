@@ -984,6 +984,32 @@ export async function localHubHasNoActiveSessions(
 	}
 }
 
+async function recoverSupersededLocalHubUrl(
+	owner: HubOwnerContext,
+	options: LocalHubResolutionOptions,
+): Promise<string | undefined> {
+	const supersededPath = `${owner.discoveryPath}.superseded`;
+	const superseded = await readHubDiscovery(supersededPath);
+	if (!superseded?.url || !superseded.authToken) {
+		return undefined;
+	}
+	const compatible = await probeCompatibleHubUrl(superseded.url, {
+		authToken: superseded.authToken,
+	});
+	if (compatible.status !== "compatible") {
+		return undefined;
+	}
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		compatible.url,
+		superseded.authToken,
+		options,
+	);
+	if (hasNoActiveSessions) {
+		return undefined;
+	}
+	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
+}
+
 export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
@@ -995,7 +1021,7 @@ export async function resolveCompatibleLocalHubUrl(
 	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
-		return undefined;
+		return await recoverSupersededLocalHubUrl(owner, options);
 	}
 	const compatible = await probeCompatibleHubUrl(record.url, {
 		authToken: record.authToken,

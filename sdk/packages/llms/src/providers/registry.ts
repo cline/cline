@@ -29,6 +29,13 @@ function cloneManifest(
 	return {
 		...manifest,
 		models: manifest.models.map((model) => ({ ...model })),
+		modelToolCapabilities: manifest.modelToolCapabilities?.map(
+			(capability) => ({
+				...capability,
+				routes: capability.routes?.map((route) => ({ ...route })),
+				excludeRoutes: capability.excludeRoutes?.map((route) => ({ ...route })),
+			}),
+		),
 		capabilities: manifest.capabilities
 			? [...manifest.capabilities]
 			: undefined,
