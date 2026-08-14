@@ -35,6 +35,10 @@ describe("providerSettingsRegistry", () => {
 			),
 		).toEqual({
 			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
 			providerId: "gemini",
 			providerName: "Google Gemini",
 			signupUrl: "https://aistudio.google.com/apikey",
@@ -156,6 +160,16 @@ describe("providerSettingsRegistry", () => {
 			providerId: "deepseek",
 			providerName: "DeepSeek",
 			signupUrl: "https://www.deepseek.com/",
+		})
+		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
+			providerId: "gemini",
+			providerName: "Gemini",
+			signupUrl: "https://aistudio.google.com/apikey",
 		})
 		expect(getFallbackGenericProviderSettings("minimax")).toEqual({
 			allowsCustomIds: false,
