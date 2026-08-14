@@ -28,6 +28,10 @@ describe("models-dev-catalog", () => {
 						reasoning: true,
 						reasoning_options: [{ type: "effort", values: ["medium", "high"] }],
 						cost: { cache_read: 1 },
+						modalities: {
+							input: ["text", "audio"],
+							output: ["text"],
+						},
 					},
 				},
 			},
@@ -97,6 +101,10 @@ describe("models-dev-catalog", () => {
 			docsUrl: "https://platform.openai.com/docs/models",
 			capabilities: ["tools", "reasoning", "prompt-cache"],
 		});
+		expect(providerModels["openai-native"]["gpt-test"].modalities).toEqual({
+			input: ["text", "audio"],
+			output: ["text"],
+		});
 		expect(providerSpecs.poolside).toMatchObject({
 			id: "poolside",
 			family: "openai-compatible",
@@ -121,6 +129,124 @@ describe("models-dev-catalog", () => {
 		expect(
 			providerModels["openai-native"]?.["gpt-test"]?.reasoningOptions,
 		).toEqual([{ type: "effort", values: ["medium", "high"] }]);
+	});
+
+	it("keeps non-tool transcription models without admitting other specialized audio models", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			groq: {
+				id: "groq",
+				name: "Groq",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"whisper-large-v3": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"gpt-realtime-whisper": {
+						name: "GPT Realtime Whisper",
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+					"speech-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["audio"] },
+					},
+					"multimodal-audio-model": {
+						tool_call: false,
+						modalities: { input: ["text", "audio"], output: ["text"] },
+					},
+					"tool-capable-audio-chat": {
+						tool_call: true,
+						modalities: {
+							input: ["text", "audio"],
+							output: ["text", "audio"],
+						},
+					},
+					"embedding-model": {
+						tool_call: false,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels.groq).toMatchObject({
+			"whisper-large-v3": {
+				modalities: { input: ["audio"], output: ["text"] },
+			},
+			"gpt-realtime-whisper": {
+				capabilities: ["transcription-streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			},
+			"tool-capable-audio-chat": {
+				capabilities: ["tools"],
+				modalities: {
+					input: ["text", "audio"],
+					output: ["text", "audio"],
+				},
+			},
+		});
+		expect(providerModels.groq).not.toHaveProperty("embedding-model");
+		expect(providerModels.groq).not.toHaveProperty("speech-model");
+		expect(providerModels.groq).not.toHaveProperty("multimodal-audio-model");
+		expect(
+			normalizeModelsDevProviderSpecs(
+				{
+					groq: {
+						id: "groq",
+						name: "Groq",
+						models: {
+							"speech-model": {
+								tool_call: false,
+								modalities: { input: ["text"], output: ["audio"] },
+							},
+							"chat-model": {
+								tool_call: true,
+								modalities: { input: ["text"], output: ["text"] },
+							},
+						},
+					},
+				},
+				providerModels,
+			).groq.defaultModelId,
+		).toBe("chat-model");
+	});
+
+	it("keeps non-tool transcription only for providers supported by the runtime transport", () => {
+		const providerModels = normalizeModelsDevProviderModels({
+			groq: {
+				id: "groq",
+				name: "Groq",
+				models: {
+					"whisper-large-v3": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+			greenpt: {
+				id: "greenpt",
+				name: "GreenPT",
+				npm: "@ai-sdk/openai-compatible",
+				models: {
+					"chat-model": {
+						tool_call: true,
+						modalities: { input: ["text"], output: ["text"] },
+					},
+					"green-s": {
+						tool_call: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				},
+			},
+		});
+
+		expect(providerModels.groq).toHaveProperty("whisper-large-v3");
+		expect(providerModels.greenpt).toHaveProperty("chat-model");
+		expect(providerModels.greenpt).not.toHaveProperty("green-s");
 	});
 
 	it("normalizes Cline recommended clinePass models as a generated provider source", () => {
@@ -650,6 +776,34 @@ describe("models-dev-catalog", () => {
 				getGeneratedModelsForProvider(providerId)["MiniMax-M3"]?.capabilities,
 			).toEqual(expect.arrayContaining(["images", "video"]));
 		}
+	});
+
+	it("ships transcription models, excludes non-tool speech, and preserves tool-capable audio models", () => {
+		expect(
+			getGeneratedModelsForProvider("groq")["whisper-large-v3"]?.modalities,
+		).toEqual({
+			input: ["audio"],
+			output: ["text"],
+		});
+		expect(
+			getGeneratedModelsForProvider("poe")["elevenlabs/elevenlabs-v2.5-turbo"]
+				?.capabilities,
+		).toContain("tools");
+		expect(
+			getGeneratedModelsForProvider("groq")["canopylabs/orpheus-v1-english"],
+		).toBeUndefined();
+		expect(getGeneratedModelsForProvider("greenpt")["green-s"]).toBeUndefined();
+		expect(
+			getGeneratedModelsForProvider("alibaba")["qwen3-asr-flash"],
+		).toBeUndefined();
+		expect(
+			getGeneratedModelsForProvider("stepfun")["stepaudio-2.5-asr"],
+		).toBeUndefined();
+		expect(
+			getGeneratedModelsForProvider("vercel-ai-gateway")[
+				"openai/gpt-realtime-whisper"
+			]?.capabilities,
+		).toContain("transcription-streaming");
 	});
 
 	it("fetches and normalizes models.dev payload", async () => {
