@@ -200,6 +200,7 @@
 
 .cline-markdown [data-streamdown="code-block-body"] {
 	overflow-x: auto;
+	overflow-y: hidden;
 	border-radius: 0.5rem;
 	background: var(--card);
 	font-size: 0.8125rem;
