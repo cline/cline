@@ -1,15 +1,45 @@
+// @vitest-environment jsdom
+
+import { act } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, vi } from "vitest";
 import { MemoizedMarkdown } from "./markdown";
 
+Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
+
 describe("MemoizedMarkdown", () => {
-	test("uses outline icons for code block actions", () => {
-		const html = renderToStaticMarkup(
-			<MemoizedMarkdown content={`\`\`\`text\ncopy me\n\`\`\``} />,
+	test("uses outline icons for code block copy states", async () => {
+		const writeText = vi.fn().mockResolvedValue(undefined);
+		Object.defineProperty(navigator, "clipboard", {
+			configurable: true,
+			value: { writeText },
+		});
+		const container = document.createElement("div");
+		const root = createRoot(container);
+
+		await act(async () => {
+			root.render(<MemoizedMarkdown content={`\`\`\`text\ncopy me\n\`\`\``} />);
+		});
+
+		const copyButton = container.querySelector<HTMLButtonElement>(
+			'[data-streamdown="code-block-copy-button"]',
+		);
+		expect(copyButton?.querySelector(".lucide-copy")).not.toBeNull();
+		expect(copyButton?.querySelector("svg")?.getAttribute("stroke-width")).toBe(
+			"2",
 		);
 
-		expect(html).toContain('class="lucide lucide-copy"');
-		expect(html).toContain('stroke-width="2"');
+		await act(async () => {
+			copyButton?.click();
+			await Promise.resolve();
+		});
+
+		expect(writeText).toHaveBeenCalledOnce();
+		expect(writeText.mock.calls[0]?.[0].trim()).toBe("copy me");
+		expect(copyButton?.querySelector(".lucide-check")).not.toBeNull();
+
+		await act(async () => root.unmount());
 	});
 
 	test("renders structured GFM content and blocks remote images", () => {
