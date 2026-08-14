@@ -6,6 +6,7 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type { ModelTool, ModelToolName } from "./model-tools";
 import type {
 	ModelReasoningOption,
 	ReasoningEffort,
@@ -58,6 +59,20 @@ export type GatewayModelRoute =
 			modelId: string;
 			requiredCapability?: GatewayModelCapability;
 	  };
+
+/**
+ * A provider-executed model tool exposed for matching models.
+ *
+ * Omitted `routes` means the tool is supported by every model on the provider.
+ * Exclusion routes take precedence so mixed transports such as Vertex can
+ * disable a tool for one model family while retaining a provider-level default.
+ */
+export interface GatewayModelToolCapability {
+	name: ModelToolName;
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
 export interface GatewayProviderRouting {
 	promptCache?: {
 		format: GatewayPromptCacheFormat;
@@ -115,6 +130,7 @@ export interface GatewayProviderManifest {
 	description?: string;
 	defaultModelId: string;
 	models: readonly GatewayModelDefinition[];
+	modelToolCapabilities?: readonly GatewayModelToolCapability[];
 	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];
 	api?: string;
@@ -171,6 +187,8 @@ export interface GatewayStreamRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools?: readonly AgentToolDefinition[];
+	/** Provider-executed tools requested independently of runtime tools. */
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	/**
@@ -212,6 +230,7 @@ export interface GatewayProviderRegistration {
 
 export interface GatewayModelHandleOptions {
 	tools?: readonly AgentToolDefinition[];
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	metadata?: Record<string, unknown>;

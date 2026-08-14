@@ -1,7 +1,17 @@
-import { RotateCcw } from "lucide-react";
+import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
+import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import {
+	DEFAULT_APP_FONT_SIZE,
+	isAppFontSize,
+	MAX_APP_FONT_SIZE,
+	MIN_APP_FONT_SIZE,
+	readStoredAppFontSize,
+	setStoredAppFontSize,
+	subscribeToAppFontSize,
+} from "@/lib/app-font-size";
 import {
 	APP_ICONS,
 	type AppIconId,
@@ -57,6 +67,7 @@ export {
 type GlobalSettingsResponse = {
 	telemetryOptOut: boolean;
 	autoUpdateEnabled: boolean;
+	tools?: Partial<Record<"web_search", { enabled: boolean }>>;
 };
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
@@ -502,6 +513,10 @@ function GeneralSettingsContent() {
 		if (typeof window === "undefined") return "violet";
 		return readStoredHubAccent();
 	});
+	const [fontSize, setFontSize] = useState(() => {
+		if (typeof window === "undefined") return DEFAULT_APP_FONT_SIZE;
+		return readStoredAppFontSize();
+	});
 	const [appIcon, setAppIcon] = useState<AppIconId>(() => {
 		if (typeof window === "undefined") return DEFAULT_APP_ICON;
 		return readStoredAppIcon();
@@ -516,25 +531,36 @@ function GeneralSettingsContent() {
 	const [autoUpdateLoading, setAutoUpdateLoading] = useState(true);
 	const [autoUpdateSaving, setAutoUpdateSaving] = useState(false);
 	const [autoUpdateError, setAutoUpdateError] = useState<string | null>(null);
+	const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+	const [webSearchLoading, setWebSearchLoading] = useState(true);
+	const [webSearchSaving, setWebSearchSaving] = useState(false);
+	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+
+	useEffect(() => subscribeToAppFontSize(setFontSize), []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
 		setTelemetryError(null);
 		setAutoUpdateLoading(true);
 		setAutoUpdateError(null);
+		setWebSearchLoading(true);
+		setWebSearchError(null);
 		try {
 			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
 				"get_global_settings",
 			);
 			setTelemetryOptOut(settings.telemetryOptOut);
 			setAutoUpdateEnabled(settings.autoUpdateEnabled);
+			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setTelemetryError(message);
 			setAutoUpdateError(message);
+			setWebSearchError(message);
 		} finally {
 			setTelemetryLoading(false);
 			setAutoUpdateLoading(false);
+			setWebSearchLoading(false);
 		}
 	}, []);
 
@@ -585,6 +611,26 @@ function GeneralSettingsContent() {
 		}
 	};
 
+	const updateWebSearchEnabled = async (nextValue: boolean) => {
+		const previousValue = webSearchEnabled;
+		setWebSearchEnabled(nextValue);
+		setWebSearchSaving(true);
+		setWebSearchError(null);
+		try {
+			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+				"set_web_search_enabled",
+				{ web_search_enabled: nextValue },
+			);
+			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setWebSearchEnabled(previousValue);
+			setWebSearchError(message);
+		} finally {
+			setWebSearchSaving(false);
+		}
+	};
+
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
 		setTheme(setStoredHubTheme(nextTheme));
@@ -592,6 +638,16 @@ function GeneralSettingsContent() {
 
 	const updateAccent = (nextAccent: HubAccent) => {
 		setAccent(setStoredHubAccent(nextAccent));
+	};
+
+	const updateFontSizePreference = (nextFontSize: number) => {
+		if (isAppFontSize(nextFontSize)) {
+			setFontSize(setStoredAppFontSize(nextFontSize));
+		}
+	};
+
+	const updateFontSize = ([nextFontSize]: number[]) => {
+		updateFontSizePreference(nextFontSize);
 	};
 
 	const updateAppIcon = async (nextIcon: AppIconId) => {
@@ -640,6 +696,53 @@ function GeneralSettingsContent() {
 						checked={theme === "dark"}
 						onCheckedChange={updateTheme}
 					/>
+				</div>
+				<div className="flex items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">Font size</p>
+						<p className="text-sm text-muted-foreground">
+							Adjust the size of text and interface elements throughout the app.
+						</p>
+					</div>
+					<div className="flex w-64 shrink-0 items-center gap-3 max-[720px]:w-full">
+						<Button
+							aria-label="Decrease font size"
+							className="size-7"
+							disabled={fontSize === MIN_APP_FONT_SIZE}
+							onClick={() => updateFontSizePreference(fontSize - 1)}
+							size="icon"
+							type="button"
+							variant="outline"
+						>
+							<Minus />
+						</Button>
+						<Slider
+							aria-label="Font size"
+							aria-valuetext={`${fontSize} pixels`}
+							max={MAX_APP_FONT_SIZE}
+							min={MIN_APP_FONT_SIZE}
+							onValueChange={updateFontSize}
+							step={1}
+							value={[fontSize]}
+						/>
+						<Button
+							aria-label="Increase font size"
+							className="size-7"
+							disabled={fontSize === MAX_APP_FONT_SIZE}
+							onClick={() => updateFontSizePreference(fontSize + 1)}
+							size="icon"
+							type="button"
+							variant="outline"
+						>
+							<Plus />
+						</Button>
+						<output
+							aria-label="Selected font size"
+							className="w-10 shrink-0 text-right font-mono text-sm tabular-nums text-foreground"
+						>
+							{fontSize}px
+						</output>
+					</div>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
@@ -716,6 +819,28 @@ function GeneralSettingsContent() {
 							</button>
 						))}
 					</div>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Web search
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Let the model search the web when the selected provider and model
+							support it. Applies to new sessions.
+						</p>
+						{webSearchError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update web search setting: {webSearchError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Web search"
+						checked={webSearchEnabled}
+						disabled={webSearchLoading || webSearchSaving}
+						onCheckedChange={(checked) => void updateWebSearchEnabled(checked)}
+					/>
 				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">

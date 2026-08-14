@@ -9,6 +9,8 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+#[cfg(target_os = "macos")]
+use tauri::menu::{Menu, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{
     menu::{MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
@@ -24,6 +26,12 @@ const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
+#[cfg(any(target_os = "macos", test))]
+const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
+#[cfg(any(target_os = "macos", test))]
+const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
+#[cfg(any(target_os = "macos", test))]
+const VIEW_ZOOM_RESET_MENU_ID: &str = "view-zoom-reset";
 const DESKTOP_MENU_ACTION_PENDING_EVENT: &str = "desktop-menu-action-pending";
 
 #[derive(Default)]
@@ -808,6 +816,101 @@ fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
     }
 }
 
+#[cfg(any(target_os = "macos", test))]
+fn application_menu_action(menu_id: &str) -> Option<&'static str> {
+    match menu_id {
+        VIEW_ZOOM_IN_MENU_ID => Some("zoom-in"),
+        VIEW_ZOOM_OUT_MENU_ID => Some("zoom-out"),
+        VIEW_ZOOM_RESET_MENU_ID => Some("zoom-reset"),
+        _ => None,
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn setup_application_menu(app: &tauri::App) -> tauri::Result<()> {
+    let menu = Menu::default(app.handle())?;
+    let zoom_in = MenuItem::with_id(app, VIEW_ZOOM_IN_MENU_ID, "Zoom In", true, None::<&str>)?;
+    let zoom_out = MenuItem::with_id(
+        app,
+        VIEW_ZOOM_OUT_MENU_ID,
+        "Zoom Out",
+        true,
+        Some("CmdOrCtrl+-"),
+    )?;
+    let zoom_reset = MenuItem::with_id(
+        app,
+        VIEW_ZOOM_RESET_MENU_ID,
+        "Actual Size",
+        true,
+        Some("CmdOrCtrl+0"),
+    )?;
+    let separator = PredefinedMenuItem::separator(app)?;
+
+    let mut view_menu = None;
+    for item in menu.items()? {
+        if let MenuItemKind::Submenu(submenu) = item {
+            if submenu.text()? == "View" {
+                view_menu = Some(submenu);
+                break;
+            }
+        }
+    }
+
+    if let Some(view_menu) = view_menu {
+        view_menu.prepend_items(&[&zoom_in, &zoom_out, &zoom_reset, &separator])?;
+    } else {
+        let view_menu =
+            Submenu::with_items(app, "View", true, &[&zoom_in, &zoom_out, &zoom_reset])?;
+        menu.append(&view_menu)?;
+    }
+
+    app.set_menu(menu)?;
+    set_macos_menu_key_equivalent("View", "Zoom In", "+")?;
+    app.on_menu_event(|app, event| {
+        if let Some(action) = application_menu_action(event.id().as_ref()) {
+            queue_desktop_menu_action(app, action);
+        }
+    });
+    Ok(())
+}
+
+#[cfg(target_os = "macos")]
+fn set_macos_menu_key_equivalent(
+    menu_title: &str,
+    item_title: &str,
+    key_equivalent: &str,
+) -> tauri::Result<()> {
+    use objc2::MainThreadMarker;
+    use objc2_app_kit::{NSApplication, NSEventModifierFlags};
+    use objc2_foundation::NSString;
+
+    let missing = |description: &str| {
+        std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("native menu item not found: {description}"),
+        )
+    };
+    let mtm = MainThreadMarker::new()
+        .ok_or_else(|| std::io::Error::other("native menu setup must run on the main thread"))?;
+    let app = NSApplication::sharedApplication(mtm);
+    let main_menu = app.mainMenu().ok_or_else(|| missing("main menu"))?;
+    let menu_item = main_menu
+        .itemWithTitle(&NSString::from_str(menu_title))
+        .ok_or_else(|| missing(menu_title))?;
+    let submenu = menu_item
+        .submenu()
+        .ok_or_else(|| missing(&format!("{menu_title} submenu")))?;
+    let item = submenu
+        .itemWithTitle(&NSString::from_str(item_title))
+        .ok_or_else(|| missing(item_title))?;
+
+    // Tauri 2.11's accelerator parser cannot represent the `+` character.
+    // Set the AppKit key equivalent directly so the menu displays and handles ⌘+.
+    item.setKeyEquivalent(&NSString::from_str(key_equivalent));
+    item.setKeyEquivalentModifierMask(NSEventModifierFlags::Command);
+    Ok(())
+}
+
 fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let status = MenuItem::new(app, "Status: Healthy", false, None::<&str>)?;
     let running_sessions = MenuItem::new(app, "0 sessions running", false, None::<&str>)?;
@@ -906,6 +1009,8 @@ fn main() {
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopMenuActionState::default())
         .setup(|app| {
+            #[cfg(target_os = "macos")]
+            setup_application_menu(app)?;
             setup_tray_icon(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
@@ -982,6 +1087,23 @@ mod tests {
 
         assert_eq!(state.drain(), vec!["new-session", "open-settings"]);
         assert!(state.drain().is_empty());
+    }
+
+    #[test]
+    fn application_menu_ids_map_to_zoom_actions() {
+        assert_eq!(
+            application_menu_action(VIEW_ZOOM_IN_MENU_ID),
+            Some("zoom-in")
+        );
+        assert_eq!(
+            application_menu_action(VIEW_ZOOM_OUT_MENU_ID),
+            Some("zoom-out")
+        );
+        assert_eq!(
+            application_menu_action(VIEW_ZOOM_RESET_MENU_ID),
+            Some("zoom-reset")
+        );
+        assert_eq!(application_menu_action("unknown"), None);
     }
 
     #[test]

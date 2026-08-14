@@ -557,6 +557,11 @@ function toApiStreamChunk(
 			// The legacy ApiStream contract has no file chunk type; generated
 			// files are only representable on the AgentModelEvent path.
 			return undefined;
+		case "tool-result":
+			// Model-tool activity is available through the AgentModel/AgentRuntime
+			// event path. The legacy ApiStream contract has no observational tool
+			// event that would not imply caller-owned execution.
+			return undefined;
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {

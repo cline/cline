@@ -455,9 +455,10 @@ describe("hub server startup", () => {
 		expect(payload.buildId).toBe(resolveHubBuildId());
 	});
 
-	it("does not reuse managed discovery from a different build", async () => {
+	it("does not reuse managed discovery from an older build", async () => {
 		const owner = createInMemoryHubOwnerContext("hub-server-test-stale-build");
 		vi.stubEnv("CLINE_HUB_BUILD_ID", "old-build");
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
 		try {
 			const stale = await startHubWebSocketServer({
 				owner,
@@ -469,6 +470,7 @@ describe("hub server startup", () => {
 			servers.add(stale);
 
 			vi.stubEnv("CLINE_HUB_BUILD_ID", "new-build");
+			vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "2000");
 			const result = await ensureHubWebSocketServer({
 				owner,
 				host: "127.0.0.1",
@@ -481,6 +483,43 @@ describe("hub server startup", () => {
 			expect(result.action).toBe("started");
 			expect(result.url).not.toBe(stale.url);
 			servers.add(requireServer(result.server));
+		} finally {
+			vi.unstubAllEnvs();
+			await clearHubDiscovery(owner.discoveryPath);
+		}
+	});
+
+	/**
+	 * Two builds that differ only by an opaque id carry nothing that says which
+	 * came first. Retiring on that basis is what let two installations shut each
+	 * other's Hub down in a loop, so an unorderable peer is attached to and the
+	 * build-mismatch watcher raises it with the user instead.
+	 */
+	it("reuses managed discovery from a build it cannot order itself against", async () => {
+		const owner = createInMemoryHubOwnerContext("hub-server-test-unordered");
+		vi.stubEnv("CLINE_HUB_BUILD_ID", "other-build");
+		try {
+			const other = await startHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+			servers.add(other);
+
+			vi.stubEnv("CLINE_HUB_BUILD_ID", "current-build");
+			const result = await ensureHubWebSocketServer({
+				owner,
+				host: "127.0.0.1",
+				port: 0,
+				pathname: "/hub",
+				allowPortFallback: true,
+				runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+			});
+
+			expect(result.action).toBe("reuse");
+			expect(result.url).toBe(other.url);
 		} finally {
 			vi.unstubAllEnvs();
 			await clearHubDiscovery(owner.discoveryPath);

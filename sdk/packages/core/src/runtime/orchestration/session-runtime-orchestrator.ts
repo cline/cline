@@ -1105,6 +1105,9 @@ export class SessionRuntime {
 			case "tool-started": {
 				this.toolStartedAt.set(event.toolCall.toolCallId, new Date());
 				this.toolInputs.set(event.toolCall.toolCallId, event.toolCall.input);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Loop-detection inspection: identical consecutive
 				// tool-call signatures trip the tracker. On "soft"
 				// verdict we append a recovery notice; on "hard"
@@ -1139,6 +1142,7 @@ export class SessionRuntime {
 				const record: ToolCallRecord = {
 					id: event.toolCall.toolCallId,
 					name: event.toolCall.toolName,
+					execution: event.toolCall.execution,
 					input,
 					output:
 						resultPart?.type === "tool-result" ? resultPart.output : undefined,
@@ -1151,6 +1155,9 @@ export class SessionRuntime {
 					endedAt,
 				};
 				this.currentRunToolCalls.push(record);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Per-turn success/failure bookkeeping for MistakeTracker.
 				if (isError) {
 					this.currentTurnFailedTools += 1;

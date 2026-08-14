@@ -74,7 +74,7 @@ describe("checkManagedHubBuildMismatch", () => {
 		});
 	});
 
-	it("does not prompt for an older or unordered hub build (it gets replaced instead)", async () => {
+	it("reports an older hub build as outdated rather than a client update", async () => {
 		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
 		mockDiscovery({
 			record: liveRecord,
@@ -91,10 +91,15 @@ describe("checkManagedHubBuildMismatch", () => {
 			"./managed-hub-build-watcher"
 		);
 
-		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+		await expect(checkManagedHubBuildMismatch()).resolves.toMatchObject({
+			reason: "outdated_hub",
+		});
 	});
 
-	it("does not prompt for a legacy hub without build metadata", async () => {
+	// A Hub carrying no ordering metadata cannot be placed relative to this
+	// build, and updating this client is what supplies the missing metadata, so
+	// it stays a client-update prompt.
+	it("prompts to update the client for a legacy hub without build metadata", async () => {
 		mockDiscovery({
 			record: liveRecord,
 			probe: {
@@ -108,7 +113,9 @@ describe("checkManagedHubBuildMismatch", () => {
 			"./managed-hub-build-watcher"
 		);
 
-		await expect(checkManagedHubBuildMismatch()).resolves.toBeUndefined();
+		await expect(checkManagedHubBuildMismatch()).resolves.toMatchObject({
+			reason: "build_mismatch",
+		});
 	});
 
 	it("prompts when the hub protocol is not supported by this client", async () => {
@@ -173,6 +180,125 @@ describe("watchManagedHubBuildMismatch", () => {
 		vi.useRealTimers();
 		vi.unstubAllEnvs();
 		vi.resetModules();
+	});
+
+	/**
+	 * An older Hub is normally retired within moments of being seen, so
+	 * reporting the first sighting would flash a dialog about a Hub that is
+	 * already gone. Only a Hub still there on the next check was deliberately
+	 * left running.
+	 */
+	it("reports an outdated hub only once it survives a second check", async () => {
+		vi.useFakeTimers();
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const probeResult: Record<string, unknown> | undefined = {
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => liveRecord),
+				probeHubServer: vi.fn(async () => probeResult),
+			};
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+		});
+		try {
+			// First sighting is held back.
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).not.toHaveBeenCalled();
+
+			// Still there on the next check: the Hub was left in place.
+			await vi.advanceTimersByTimeAsync(1_000);
+			expect(onMismatch).toHaveBeenCalledTimes(1);
+			expect(onMismatch).toHaveBeenLastCalledWith(
+				expect.objectContaining({ reason: "outdated_hub" }),
+			);
+		} finally {
+			stop();
+		}
+	});
+
+	it("never reports an outdated hub that is replaced right after it is seen", async () => {
+		vi.useFakeTimers();
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		let probeResult: Record<string, unknown> | undefined = {
+			protocolVersion: "v1",
+			buildId: "old-build",
+			buildEpochMs: 500,
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-watcher-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => liveRecord),
+				probeHubServer: vi.fn(async () => probeResult),
+			};
+		});
+		const { watchManagedHubBuildMismatch } = await import(
+			"./managed-hub-build-watcher"
+		);
+
+		const onMismatch = vi.fn();
+		const stop = watchManagedHubBuildMismatch({
+			onMismatch,
+			intervalMs: 1_000,
+		});
+		try {
+			await vi.advanceTimersByTimeAsync(1_000);
+			// Replaced by this build before the next check.
+			probeResult = {
+				protocolVersion: "v1",
+				buildId: "current-build",
+				host: "127.0.0.1",
+				port: 59999,
+				url: "ws://127.0.0.1:59999/hub",
+			};
+			await vi.advanceTimersByTimeAsync(3_000);
+			expect(onMismatch).not.toHaveBeenCalled();
+		} finally {
+			stop();
+		}
 	});
 
 	it("fires once per mismatched hub build and re-arms after recovery", async () => {
