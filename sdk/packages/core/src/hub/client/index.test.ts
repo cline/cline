@@ -767,15 +767,6 @@ describe("NodeHubClient", () => {
 });
 
 describe("resolveCompatibleLocalHubUrl", () => {
-	// Reset the module registry *before* each test so the `vi.doMock(...)`
-	// calls below register against a fresh `./client` module graph. Without
-	// this, the static `import { NodeHubClient } from "../client"` at the top
-	// of the file has already cached `./client` (and its real `./discovery`
-	// + `./workspace` bindings) before any test runs, so `vi.doMock` never
-	// takes effect for the dynamic `await import(".")`. That cache
-	// contamination causes the test to hit the real discovery/probe code
-	// path and fail locally whenever a stray hub daemon is listening on
-	// the default port (passes in CI only because no daemon is running).
 	beforeEach(() => {
 		MockWebSocket.reset();
 		vi.resetModules();
@@ -788,13 +779,9 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		vi.resetModules();
 	});
 
-	it("restores shielded discovery while a participant is attached", async () => {
+	async function resolveShieldedHub(sessions: unknown[]) {
 		vi.stubGlobal("WebSocket", MockWebSocket);
-		MockWebSocket.commandPayloads.set("session.list", {
-			sessions: [
-				{ status: "idle", participants: [{ clientId: "old-cli" }] },
-			],
-		});
+		MockWebSocket.commandPayloads.set("session.list", { sessions });
 		const discoveryPath = "/tmp/hub-discovery.json";
 		const oldRecord = {
 			hubId: "old-hub",
@@ -808,8 +795,6 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			startedAt: new Date().toISOString(),
 			updatedAt: new Date().toISOString(),
 		};
-		const writeHubDiscoveryMock = vi.fn(async () => undefined);
-		const clearHubDiscoveryMock = vi.fn(async () => undefined);
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
 				ownerId: "hub-test",
@@ -830,78 +815,27 @@ describe("resolveCompatibleLocalHubUrl", () => {
 					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
 				),
 				probeHubServer: vi.fn(async () => oldRecord),
-				writeHubDiscovery: writeHubDiscoveryMock,
-				clearHubDiscovery: clearHubDiscoveryMock,
 			};
 		});
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
+		return { oldRecord, resolved: await resolveCompatibleLocalHubUrl() };
+	}
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(oldRecord.url);
-		expect(writeHubDiscoveryMock).toHaveBeenCalledWith(
-			discoveryPath,
-			expect.objectContaining({
-				hubId: "old-hub",
-				buildId: "old-build",
-				authToken: "old-token",
-				url: oldRecord.url,
-			}),
-		);
-		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
-			`${discoveryPath}.superseded`,
-		);
+	it("uses a shielded Hub while a participant is attached", async () => {
+		const { oldRecord, resolved } = await resolveShieldedHub([
+			{ status: "idle", participants: [{ clientId: "old-cli" }] },
+		]);
+
+		expect(resolved).toBe(oldRecord.url);
 	});
 
-	it("leaves a participant-less running Hub for normal replacement", async () => {
-		vi.stubGlobal("WebSocket", MockWebSocket);
-		MockWebSocket.commandPayloads.set("session.list", {
-			sessions: [{ status: "running", participants: [] }],
-		});
-		const discoveryPath = "/tmp/hub-discovery.json";
-		const oldRecord = {
-			hubId: "old-hub",
-			protocolVersion: "v1",
-			buildId: "old-build",
-			authToken: "old-token",
-			host: "127.0.0.1",
-			port: 59999,
-			url: "ws://127.0.0.1:59999/hub",
-			pid: 12345,
-			startedAt: new Date().toISOString(),
-			updatedAt: new Date().toISOString(),
-		};
-		const writeHubDiscoveryMock = vi.fn(async () => undefined);
-		const clearHubDiscoveryMock = vi.fn(async () => undefined);
-		vi.doMock("../discovery/workspace", () => ({
-			resolveProductionHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath,
-			}),
-			resolveSharedHubOwnerContext: () => ({
-				ownerId: "hub-test",
-				discoveryPath,
-			}),
-		}));
-		vi.doMock("../discovery", async () => {
-			const actual =
-				await vi.importActual<typeof import("../discovery")>("../discovery");
-			return {
-				...actual,
-				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async (path: string) =>
-					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
-				),
-				probeHubServer: vi.fn(async () => oldRecord),
-				writeHubDiscovery: writeHubDiscoveryMock,
-				clearHubDiscovery: clearHubDiscoveryMock,
-			};
-		});
+	it("replaces a participant-less running Hub", async () => {
+		const { resolved } = await resolveShieldedHub([
+			{ status: "running", participants: [] },
+		]);
 
-		const { resolveCompatibleLocalHubUrl } = await import(".");
-
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
-		expect(writeHubDiscoveryMock).not.toHaveBeenCalled();
-		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+		expect(resolved).toBeUndefined();
 	});
 
 	it("does not clear discovery on transient probe failure", async () => {
@@ -1437,46 +1371,5 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		).resolves.toBeUndefined();
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
-	});
-});
-
-describe("hasActiveHubSessions", () => {
-	const payload = (sessions: unknown[]) => ({ sessions });
-
-	it("is busy while any participant is attached, regardless of status", async () => {
-		const { hasActiveHubSessions } = await import(".");
-
-		expect(
-			hasActiveHubSessions(
-				payload([
-					{
-						status: "completed",
-						participants: [{ clientId: "old-cli" }],
-					},
-				]),
-			),
-		).toBe(true);
-	});
-
-	it("is idle without participants, including non-terminal sessions", async () => {
-		const { hasActiveHubSessions } = await import(".");
-
-		expect(
-			hasActiveHubSessions(
-				payload([
-					{ status: "running", participants: [] },
-					{ status: "pending", participants: [] },
-					{ status: "idle", participants: [] },
-					{ status: "running" },
-				]),
-			),
-		).toBe(false);
-	});
-
-	it("ignores malformed session-list payloads", async () => {
-		const { hasActiveHubSessions } = await import(".");
-
-		expect(hasActiveHubSessions(undefined)).toBe(false);
-		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
 	});
 });

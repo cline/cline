@@ -18,12 +18,10 @@ import {
 	clearHubDiscovery,
 	getManagedHubCompatibility,
 	type HubOwnerContext,
-	type HubServerDiscoveryRecord,
 	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveHubBuildId,
-	writeHubDiscovery,
 } from "../discovery";
 import {
 	resolveProductionHubOwnerContext,
@@ -931,14 +929,8 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-/**
- * Whether any client is attached to a session on the hub.
- *
- * Participants are live socket subscriptions removed when a connection
- * closes. Session status is deliberately ignored because a killed client can
- * leave a participant-less session in a non-terminal status indefinitely.
- */
-export function hasActiveHubSessions(payload: unknown): boolean {
+// Live participants disappear on disconnect; session status may remain stale.
+function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
@@ -954,11 +946,11 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 	});
 }
 
-async function localHubHasNoActiveSessions(
+async function localHubHasActiveSessions(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
-): Promise<boolean> {
+): Promise<boolean | undefined> {
 	const client = new NodeHubClient({
 		url,
 		authToken,
@@ -974,9 +966,9 @@ async function localHubHasNoActiveSessions(
 			undefined,
 			{ timeoutMs: HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS },
 		);
-		return !hasActiveHubSessions(reply.payload);
+		return hasActiveHubSessions(reply.payload);
 	} catch {
-		return false;
+		return undefined;
 	} finally {
 		await client.dispose().catch(() => undefined);
 	}
@@ -997,34 +989,13 @@ async function recoverSupersededLocalHubUrl(
 	if (compatible.status !== "compatible") {
 		return undefined;
 	}
-	const verified = await verifyHubConnection(compatible.url, {
-		workspaceRoot: options.workspaceRoot,
-		cwd: options.cwd,
-		authToken: superseded.authToken,
-	});
-	if (!verified) {
-		return undefined;
-	}
-	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+	const hasActiveSessions = await localHubHasActiveSessions(
 		compatible.url,
 		superseded.authToken,
 		options,
 	);
-	if (hasNoActiveSessions) {
+	if (!hasActiveSessions) {
 		return undefined;
-	}
-
-	const repaired: HubServerDiscoveryRecord = {
-		...superseded,
-		url: compatible.url,
-		updatedAt: new Date().toISOString(),
-	};
-	try {
-		await writeHubDiscovery(owner.discoveryPath, repaired);
-		await clearHubDiscovery(supersededPath);
-	} catch {
-		// Attaching is still safe with the verified token. Keep the recovery
-		// record so a later launch can retry repairing live discovery.
 	}
 	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
 }
