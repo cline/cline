@@ -198,7 +198,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"us.anthropic.claude-sonnet-4-6",
@@ -212,7 +212,7 @@ describe("createBedrockProviderModule", () => {
 			config({ apiKey: "bedrock-api-key" }),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"eu.anthropic.claude-sonnet-4-6",
@@ -233,7 +233,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("anthropic.claude-sonnet-4-6");
+		module.operations.language("anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"us.anthropic.claude-sonnet-4-6",
@@ -248,7 +248,7 @@ describe("createBedrockProviderModule", () => {
 			}),
 		);
 
-		module.model("global.anthropic.claude-sonnet-4-6");
+		module.operations.language("global.anthropic.claude-sonnet-4-6");
 
 		expect(bedrockModelMock).toHaveBeenCalledWith(
 			"global.anthropic.claude-sonnet-4-6",

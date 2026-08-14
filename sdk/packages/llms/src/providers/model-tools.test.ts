@@ -31,6 +31,27 @@ describe("supportsModelTool", () => {
 		);
 	});
 
+	it("offers OpenAI image generation to language models, not dedicated image operations", () => {
+		expect(
+			supportsModelTool(
+				{ providerId: "openai-native", modelId: "gpt-5.4" },
+				"image_generation",
+			),
+		).toBe(true);
+		expect(
+			supportsModelTool(
+				{ providerId: "openai-native", modelId: "gpt-image-2" },
+				"image_generation",
+			),
+		).toBe(false);
+		expect(
+			supportsModelTool(
+				{ providerId: "openai", modelId: "gpt-5.4" },
+				"image_generation",
+			),
+		).toBe(false);
+	});
+
 	it("excludes known and unregistered Claude routes from Vertex", () => {
 		expect(
 			supportsModelTool(

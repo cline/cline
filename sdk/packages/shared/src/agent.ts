@@ -5,6 +5,7 @@
  *
  */
 
+import type { GeneratedMedia } from "./llms/media";
 import type { ModelInfo } from "./llms/model-info";
 import type {
 	ToolApprovalRequest,
@@ -46,6 +47,11 @@ export interface AgentFilePart {
 	content: string;
 }
 
+export interface AgentMediaPart {
+	type: "media";
+	media: GeneratedMedia;
+}
+
 export interface AgentToolCallPart {
 	type: "tool-call";
 	toolCallId: string;
@@ -83,6 +89,7 @@ export type AgentMessagePart =
 	| AgentReasoningPart
 	| AgentImagePart
 	| AgentFilePart
+	| AgentMediaPart
 	| AgentToolCallPart
 	| AgentToolResultPart;
 
@@ -265,6 +272,7 @@ export type ProviderErrorClass = "context_window_exceeded" | "unknown";
 
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
+	| { type: "media"; media: GeneratedMedia }
 	| {
 			type: "reasoning-delta";
 			text: string;
@@ -290,18 +298,6 @@ export type AgentModelEvent =
 			output: unknown;
 			isError?: boolean;
 			execution: ModelToolExecution;
-	  }
-	| {
-			/**
-			 * A model-generated file (e.g. an image from an image-output
-			 * model). `data` is base64-encoded file data (or a URL for
-			 * URL-referenced files). Runtimes assemble it into the assistant
-			 * message (`AgentImagePart` for `image/*`, `AgentFilePart`
-			 * otherwise) so a file-only turn is not treated as empty.
-			 */
-			type: "file";
-			data: string;
-			mediaType: string;
 	  }
 	| {
 			type: "usage";
@@ -562,6 +558,12 @@ export type AgentRuntimeEvent =
 			accumulatedText: string;
 			redacted?: boolean;
 			metadata?: unknown;
+	  }
+	| {
+			type: "assistant-media";
+			snapshot: AgentRuntimeStateSnapshot;
+			iteration: number;
+			media: GeneratedMedia;
 	  }
 	| {
 			type: "assistant-message";

@@ -3,7 +3,6 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import type { ToolSet } from "ai";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
@@ -40,15 +39,52 @@ export async function createOpenAIProviderModule(
 	const isChatGptOAuth = isChatGptOAuthBaseUrl(config.baseUrl);
 	return {
 		buildModelTools: (tools) => {
-			const result: ToolSet = {};
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
 			for (const tool of tools) {
-				if (tool.name === "web_search") {
-					result.web_search = provider.tools.webSearch();
+				switch (tool.name) {
+					case "web_search":
+						result.web_search = { tool: provider.tools.webSearch() };
+						break;
+					case "image_generation":
+						result.image_generation = {
+							tool: provider.tools.imageGeneration({
+								outputFormat: tool.outputFormat ?? "png",
+							}),
+							projectResult: (output) => {
+								const record =
+									output && typeof output === "object" && !Array.isArray(output)
+										? (output as Record<string, unknown>)
+										: undefined;
+								if (
+									typeof record?.result !== "string" ||
+									record.result.length === 0
+								) {
+									throw new Error(
+										"OpenAI image generation tool returned no supported image output",
+									);
+								}
+								return {
+									media: [
+										{
+											modality: "image",
+											mediaType: `image/${tool.outputFormat ?? "png"}`,
+											source: { type: "base64", data: record.result },
+										},
+									],
+								};
+							},
+						};
+						break;
 				}
 			}
 			return result;
 		},
-		model: (modelId) => provider.responses(modelId),
+		operations: {
+			language: (modelId) => provider.responses(modelId),
+			imageGeneration: (modelId) => provider.image(modelId),
+		},
 		buildStreamConfig: (request) => ({
 			...(!isChatGptOAuth &&
 			request.maxTokens !== undefined &&

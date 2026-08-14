@@ -1504,7 +1504,7 @@ export async function handleCommand(
 		const diagnostics = {
 			providerId: selection?.providerId,
 			modelId: selection?.modelId,
-			transport: route?.kind,
+			transport: route?.transport,
 			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
 		};
 		emitDesktopDebugLog(
@@ -1572,7 +1572,7 @@ export async function handleCommand(
 		const diagnostics = {
 			providerId: selection?.providerId,
 			modelId: selection?.modelId,
-			transport: route?.kind,
+			transport: route?.transport,
 			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
 			mediaType,
 			audioBytes: decodedBytes,
