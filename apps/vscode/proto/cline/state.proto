@@ -287,6 +287,8 @@ message Settings {
   optional OpenRouterModelInfo plan_mode_cline_pass_model_info = 184;
   optional string act_mode_cline_pass_model_id = 185;
   optional OpenRouterModelInfo act_mode_cline_pass_model_info = 186;
+  optional string default_backend_name = 187;
+  optional string named_api_backends = 188;
 }
 
 message State {
@@ -429,6 +431,11 @@ message UpdateSettingsRequest {
   optional bool worktrees_enabled = 40;
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
+  optional string default_backend_name = 45;
+  // JSON-encoded NamedApiBackend[] (see shared/api.ts). Kept as a plain string
+  // rather than a repeated message, matching how other object-shaped settings
+  // (e.g. browser_settings' underlying toggles) already cross this boundary.
+  optional string named_api_backends_json = 46;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

@@ -4,7 +4,7 @@ import { WorkspaceRoot } from "@shared/multi-root/types"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
 import { AutoApprovalSettings } from "./AutoApprovalSettings"
-import { ApiConfiguration } from "./api"
+import { ApiConfiguration, NamedApiBackend } from "./api"
 import { BrowserSettings } from "./BrowserSettings"
 import { ClineFeatureSetting } from "./ClineFeatureSetting"
 import { BannerCardData } from "./cline/banner"
@@ -44,6 +44,10 @@ export interface ExtensionState {
 	browserSettings: BrowserSettings
 	remoteBrowserHost?: string
 	preferredLanguage?: string
+	/** Label for the currently-live apiConfiguration, addressable by name mid-conversation (see multichat). */
+	defaultBackendName?: string
+	/** Additional saved backends addressable by name mid-conversation (see multichat). */
+	namedApiBackends?: NamedApiBackend[]
 	mode: Mode
 	clineMessages: ClineMessage[]
 	checkpointRestoreInput?: {
@@ -199,6 +203,12 @@ export interface ClineMessage {
 	conversationHistoryIndex?: number
 	conversationHistoryDeletedRange?: [number, number] // for when conversation history is truncated for API requests
 	modelInfo?: ClineMessageModelInfo
+	/**
+	 * Multichat: name of the backend (see NamedApiBackend) that produced this
+	 * message, stamped at emission time. Undefined for messages not authored by
+	 * a named backend (e.g. user messages). Drives per-backend color coding.
+	 */
+	backendName?: string
 }
 
 export type ClineAsk =

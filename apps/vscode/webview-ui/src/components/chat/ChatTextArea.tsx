@@ -10,6 +10,7 @@ import type React from "react"
 import { forwardRef, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
 import DynamicTextArea from "react-textarea-autosize"
 import styled from "styled-components"
+import BackendPickerMenu, { type BackendMenuItem } from "@/components/chat/BackendPickerMenu"
 import ContextMenu from "@/components/chat/ContextMenu"
 import { CHAT_CONSTANTS } from "@/components/chat/chat-view/constants"
 import SlashCommandMenu from "@/components/chat/SlashCommandMenu"
@@ -225,6 +226,8 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			remoteConfigSettings,
 			navigateToSettingsModelPicker,
 			mcpServers,
+			defaultBackendName,
+			namedApiBackends,
 		} = useExtensionState()
 		const [isTextAreaFocused, setIsTextAreaFocused] = useState(false)
 		const [isDraggingOver, setIsDraggingOver] = useState(false)
@@ -233,6 +236,12 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 		const [selectedSlashCommandsIndex, setSelectedSlashCommandsIndex] = useState(0)
 		const [slashCommandsQuery, setSlashCommandsQuery] = useState("")
 		const slashCommandsMenuContainerRef = useRef<HTMLDivElement>(null)
+
+		// Multichat: Tab (on an empty input) opens a picker of configured backends —
+		// see SdkMultichatCoordinator for the "<name>, ..." trigger this inserts.
+		const [showBackendMenu, setShowBackendMenu] = useState(false)
+		const [selectedBackendIndex, setSelectedBackendIndex] = useState(0)
+		const backendMenuContainerRef = useRef<HTMLDivElement>(null)
 
 		const [thumbnailsHeight, setThumbnailsHeight] = useState(0)
 		const [textAreaBaseHeight, setTextAreaBaseHeight] = useState<number | undefined>(undefined)
@@ -293,6 +302,16 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			]
 		}, [gitCommits])
 
+		const backendMenuItems: BackendMenuItem[] = useMemo(() => {
+			const trimmedDefault = (defaultBackendName ?? "").trim()
+			return [
+				...(trimmedDefault ? [{ name: trimmedDefault, isCurrent: true }] : []),
+				...(namedApiBackends ?? [])
+					.filter((backend) => backend.name.trim() && backend.name.trim() !== trimmedDefault)
+					.map((backend) => ({ name: backend.name.trim(), isCurrent: false })),
+			]
+		}, [defaultBackendName, namedApiBackends])
+
 		useEffect(() => {
 			const handleClickOutside = (event: MouseEvent) => {
 				if (contextMenuContainerRef.current && !contextMenuContainerRef.current.contains(event.target as Node)) {
@@ -327,6 +346,22 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				document.removeEventListener("mousedown", handleClickOutsideSlashMenu)
 			}
 		}, [showSlashCommandsMenu])
+
+		useEffect(() => {
+			const handleClickOutsideBackendMenu = (event: MouseEvent) => {
+				if (backendMenuContainerRef.current && !backendMenuContainerRef.current.contains(event.target as Node)) {
+					setShowBackendMenu(false)
+				}
+			}
+
+			if (showBackendMenu) {
+				document.addEventListener("mousedown", handleClickOutsideBackendMenu)
+			}
+
+			return () => {
+				document.removeEventListener("mousedown", handleClickOutsideBackendMenu)
+			}
+		}, [showBackendMenu])
 
 		const handleMentionSelect = useCallback(
 			(type: ContextMenuOptionType, value?: string) => {
@@ -458,6 +493,24 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 			},
 			[setInputValue, slashCommandsQuery, cursorPosition],
 		)
+		const handleBackendSelect = useCallback(
+			(name: string) => {
+				setShowBackendMenu(false)
+				const prefix = `${name}, `
+				setInputValue(prefix)
+				setCursorPosition(prefix.length)
+				setIntendedCursorPosition(prefix.length)
+
+				setTimeout(() => {
+					if (textAreaRef.current) {
+						textAreaRef.current.blur()
+						textAreaRef.current.focus()
+					}
+				}, 0)
+			},
+			[setInputValue],
+		)
+
 		const handleKeyDown = useCallback(
 			(event: React.KeyboardEvent<HTMLTextAreaElement>) => {
 				const isSelectAllShortcut =
@@ -521,6 +574,47 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 						}
 						return
 					}
+				}
+				if (showBackendMenu) {
+					if (event.key === "Escape") {
+						event.preventDefault()
+						setShowBackendMenu(false)
+						return
+					}
+					if (event.key === "ArrowUp" || event.key === "ArrowDown") {
+						event.preventDefault()
+						setSelectedBackendIndex((prevIndex) => {
+							if (backendMenuItems.length === 0) {
+								return prevIndex
+							}
+							const direction = event.key === "ArrowUp" ? -1 : 1
+							return (prevIndex + direction + backendMenuItems.length) % backendMenuItems.length
+						})
+						return
+					}
+					if ((event.key === "Enter" || event.key === "Tab") && selectedBackendIndex !== -1) {
+						event.preventDefault()
+						const item = backendMenuItems[selectedBackendIndex]
+						if (item) {
+							handleBackendSelect(item.name)
+						} else {
+							setShowBackendMenu(false)
+						}
+						return
+					}
+					return
+				}
+				if (
+					event.key === "Tab" &&
+					!showSlashCommandsMenu &&
+					!showContextMenu &&
+					inputValue.trim() === "" &&
+					backendMenuItems.length > 0
+				) {
+					event.preventDefault()
+					setSelectedBackendIndex(0)
+					setShowBackendMenu(true)
+					return
 				}
 				if (showContextMenu) {
 					if (event.key === "Escape") {
@@ -678,6 +772,10 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 				slashCommandsQuery,
 				handleSlashCommandsSelect,
 				sendingDisabled,
+				showBackendMenu,
+				selectedBackendIndex,
+				backendMenuItems,
+				handleBackendSelect,
 			],
 		)
 
@@ -1437,6 +1535,18 @@ const ChatTextArea = forwardRef<HTMLTextAreaElement, ChatTextAreaProps>(
 								remoteWorkflowToggles={remoteWorkflowToggles}
 								selectedIndex={selectedSlashCommandsIndex}
 								setSelectedIndex={setSelectedSlashCommandsIndex}
+							/>
+						</div>
+					)}
+
+					{showBackendMenu && (
+						<div ref={backendMenuContainerRef}>
+							<BackendPickerMenu
+								items={backendMenuItems}
+								onMouseDown={handleMenuMouseDown}
+								onSelect={handleBackendSelect}
+								selectedIndex={selectedBackendIndex}
+								setSelectedIndex={setSelectedBackendIndex}
 							/>
 						</div>
 					)}
