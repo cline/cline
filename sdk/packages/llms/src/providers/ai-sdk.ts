@@ -31,6 +31,10 @@ import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
 import {
+	EmbeddedReasoningTagParser,
+	shouldStripEmbeddedReasoningTags,
+} from "./middleware/strip-embedded-reasoning-tags";
+import {
 	isAnthropicCompatibleModel,
 	isCerebrasProvider,
 	modelSupportsImageInput,
@@ -1002,6 +1006,47 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	const embeddedReasoningParser = shouldStripEmbeddedReasoningTags(
+		request.providerId,
+		request.modelId,
+	)
+		? new EmbeddedReasoningTagParser()
+		: undefined;
+
+	const emitParsedTextDelta = function* (text: string) {
+		if (!embeddedReasoningParser) {
+			yield { type: "text-delta" as const, text };
+			return;
+		}
+		for (const chunk of embeddedReasoningParser.push(text)) {
+			if (chunk.kind === "text") {
+				yield { type: "text-delta" as const, text: chunk.text };
+				continue;
+			}
+			yield {
+				type: "reasoning-delta" as const,
+				text: chunk.text,
+				redacted: chunk.redacted,
+			};
+		}
+	};
+
+	const flushEmbeddedReasoningParser = function* () {
+		if (!embeddedReasoningParser) {
+			return;
+		}
+		for (const chunk of embeddedReasoningParser.flush()) {
+			if (chunk.kind === "text") {
+				yield { type: "text-delta" as const, text: chunk.text };
+				continue;
+			}
+			yield {
+				type: "reasoning-delta" as const,
+				text: chunk.text,
+				redacted: chunk.redacted,
+			};
+		}
+	};
 
 	try {
 		if (stream.fullStream) {
@@ -1012,7 +1057,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.delta as string | undefined);
 					if (text) {
-						yield { type: "text-delta", text };
+						yield* emitParsedTextDelta(text);
 					}
 					continue;
 				}
@@ -1026,6 +1071,10 @@ async function* emitAiSdkEvents(
 						yield {
 							type: "reasoning-delta",
 							text,
+							redacted:
+								(part as { redacted?: boolean }).redacted === true
+									? true
+									: undefined,
 							metadata: extractGoogleThoughtMetadata(part),
 						};
 					}
@@ -1212,9 +1261,10 @@ async function* emitAiSdkEvents(
 			}
 		} else if (stream.textStream) {
 			for await (const text of stream.textStream) {
-				yield { type: "text-delta", text };
+				yield* emitParsedTextDelta(text);
 			}
 		}
+		yield* flushEmbeddedReasoningParser();
 	} catch (error) {
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
