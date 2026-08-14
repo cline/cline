@@ -3,11 +3,13 @@ import { existsSync, readFileSync, readlinkSync, rmSync } from "node:fs";
 import { dirname, join } from "node:path";
 import {
 	clearHubDiscovery,
+	createHubServerUrl,
 	ensureFileExists,
 	listActiveConnectors,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	resolveHubEndpointOptions,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	stopLocalHubServerGracefully,
@@ -412,9 +414,25 @@ function resolveCliHubOwnerContext() {
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	const owner = resolveCliHubOwnerContext();
 	const discovery = await readHubDiscovery(owner.discoveryPath);
-	const health = discovery?.url
+	let health = discovery?.url
 		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;
+	if (!health?.url) {
+		// No usable discovery record does not mean no hub: an updater's
+		// postinstall can set the record aside while the daemon keeps serving
+		// its sessions. Without this probe, that live hub is classified as a
+		// stale daemon and `cline doctor fix` kills it out from under its
+		// clients — the exact failure doctor exists to repair.
+		const endpoint = resolveHubEndpointOptions();
+		const fallbackUrl = createHubServerUrl(
+			endpoint.host,
+			endpoint.port,
+			endpoint.pathname,
+		);
+		health = await probeHubServer(fallbackUrl, {
+			authToken: discovery?.authToken,
+		}).catch(() => undefined);
+	}
 	const current = health ?? discovery;
 	const hubUptime = formatHubUptimeFromStartedAt(health?.startedAt);
 	const listeningPids = listListeningPids(current?.port);

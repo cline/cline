@@ -928,6 +928,58 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 }
 
 /**
+ * How long an interactive CLI session must have gone without an update before
+ * a non-terminal, participant-less record is read as a crash leftover rather
+ * than live work. Anything genuinely alive updates its record far more often
+ * than this; the floor exists so a client mid-reconnect (whose participation
+ * was just pruned and is about to be re-added) is never mistaken for a corpse.
+ */
+const ABANDONED_INTERACTIVE_SESSION_MIN_AGE_MS = 60_000;
+
+function sessionMetadataSource(record: {
+	metadata?: unknown;
+}): string | undefined {
+	const metadata = record.metadata;
+	if (!metadata || typeof metadata !== "object") {
+		return undefined;
+	}
+	const source = (metadata as { source?: unknown }).source;
+	return typeof source === "string" ? source : undefined;
+}
+
+/**
+ * An interactive CLI session is driven exclusively by an attached client, so
+ * a non-terminal one with a confirmed-empty participant list is a crash
+ * leftover, not live work: the hub prunes a registered client's participation
+ * when its socket closes, but nothing ever moves the session's status to a
+ * terminal state. Without this reading, one SIGKILLed TUI pins the hub as
+ * "serving sessions" forever. Zen (`cline-cli-zen`), schedules, connectors,
+ * and sessions without a source never match — those legitimately run inside
+ * the hub with nobody attached.
+ */
+function isAbandonedInteractiveSession(
+	record: {
+		participants?: unknown;
+		metadata?: unknown;
+		updatedAt?: unknown;
+	},
+	now: number,
+): boolean {
+	if (sessionMetadataSource(record) !== "cli") {
+		return false;
+	}
+	if (!Array.isArray(record.participants) || record.participants.length > 0) {
+		return false;
+	}
+	const updatedAt =
+		typeof record.updatedAt === "number" ? record.updatedAt : Number.NaN;
+	return (
+		Number.isFinite(updatedAt) &&
+		now - updatedAt >= ABANDONED_INTERACTIVE_SESSION_MIN_AGE_MS
+	);
+}
+
+/**
  * Whether the session list carries work that stopping the hub would destroy.
  *
  * Counting must err busy only for sessions that are genuinely alive. A client
@@ -936,7 +988,10 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
  * treating every non-terminal status as busy pins the hub as "serving
  * sessions" forever.
  */
-export function hasActiveHubSessions(payload: unknown): boolean {
+export function hasActiveHubSessions(
+	payload: unknown,
+	now: number = Date.now(),
+): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
@@ -950,15 +1005,20 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 		const record = session as {
 			status?: unknown;
 			participants?: unknown;
+			metadata?: unknown;
+			updatedAt?: unknown;
 		};
 		// Someone is attached: stopping the hub cuts their connection.
 		if (Array.isArray(record.participants) && record.participants.length > 0) {
 			return true;
 		}
 		// A turn may be executing inside the hub with nobody attached
-		// (headless and scheduled runs); stopping the hub kills it mid-turn.
+		// (headless, zen, scheduled, and connector runs); stopping the hub
+		// kills it mid-turn. An interactive CLI session whose client died is
+		// the exception: nothing will ever finish it, so it must not keep the
+		// hub alive (see isAbandonedInteractiveSession).
 		if (record.status === "running" || record.status === "pending") {
-			return true;
+			return !isAbandonedInteractiveSession(record, now);
 		}
 		// An idle session with a confirmed-empty participant list is persisted,
 		// resumable state, not live work. Hubs too old to report participants

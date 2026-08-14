@@ -76,6 +76,15 @@ vi.mock("@cline/core", () => ({
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
 	listActiveConnectors: mockListActiveConnectors,
+	resolveHubEndpointOptions: vi.fn(() => ({
+		host: "127.0.0.1",
+		port: 25463,
+		pathname: "/hub",
+	})),
+	createHubServerUrl: vi.fn(
+		(host: string, port: number, pathname: string) =>
+			`ws://${host}:${port}${pathname}`,
+	),
 }));
 
 vi.mock("../connectors/common", () => ({
@@ -182,6 +191,71 @@ describe("runDoctorCommand", () => {
 						hubStartupLocks: [],
 						staleCliPids: [50190],
 						staleSidecarPids: [],
+					},
+		);
+	});
+
+	// An updater's postinstall can set the discovery record aside while the
+	// daemon keeps serving its sessions. Doctor must find that hub through the
+	// default endpoint instead of classifying it as a stale daemon and telling
+	// the user to kill it.
+	it("does not report a live recordless hub as a stale daemon", async () => {
+		const cwd = "/workspace";
+		mockReadHubDiscovery.mockResolvedValue(undefined);
+		mockProbeHubServer.mockImplementation(async (url: string) =>
+			url === "ws://127.0.0.1:25463/hub"
+				? {
+						url: "ws://127.0.0.1:25463/hub",
+						port: 25463,
+						pid: 50174,
+						coreVersion: "0.0.73",
+					}
+				: undefined,
+		);
+		mockSpawnSync.mockImplementation((command: string, args?: string[]) => {
+			if (command === "lsof") {
+				return { status: 0, stdout: "50174\n" };
+			}
+			if (
+				command === "pgrep" &&
+				Array.isArray(args) &&
+				args[2] === "--cline-hub-daemon"
+			) {
+				return {
+					status: 0,
+					stdout:
+						"50174 /usr/lib/node_modules/cline/bin/.cline --cline-hub-daemon --cwd /workspace",
+				};
+			}
+			return { status: 1, stdout: "" };
+		});
+
+		const output: string[] = [];
+		const code = await runDoctorCommand(
+			{ cwd, json: true },
+			{
+				writeln: (text) => {
+					output.push(text ?? "");
+				},
+				writeErr: () => {},
+			},
+		);
+
+		expect(code).toBe(0);
+		expect(mockProbeHubServer).toHaveBeenCalledWith(
+			"ws://127.0.0.1:25463/hub",
+			{
+				authToken: undefined,
+			},
+		);
+		expect(JSON.parse(output[0] || "")).toMatchObject(
+			process.platform === "win32"
+				? { hubHealthy: true, staleHubPids: [] }
+				: {
+						hubHealthy: true,
+						hubUrl: "ws://127.0.0.1:25463/hub",
+						listeningPids: [50174],
+						staleHubPids: [],
 					},
 		);
 	});

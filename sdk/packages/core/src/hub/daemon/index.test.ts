@@ -443,6 +443,59 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("repairs the discovery record when deferring to a busy hub found by port probe", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			localHubHasNoActiveSessions.mockResolvedValue(false);
+			// The record names the busy hub, but the authenticated probe of the
+			// recorded URL fails transiently, so the ensure falls through to the
+			// expected-endpoint probe. The same shape arises when an updater's
+			// postinstall set the record aside: the hub is only reachable
+			// through the port probe, which carries no auth token of its own.
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+				pid: 12345,
+			});
+			probeHubServer.mockResolvedValueOnce(undefined);
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				coreVersion: "0.0.73",
+				host: "127.0.0.1",
+				port: 25463,
+			});
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+
+			await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			// The deferred hub must be persisted for other clients: without a
+			// record they resolve no hub at all and silently fall back to a
+			// local runtime, and the build-mismatch watcher can never report
+			// why an older hub is still running.
+			expect(writeHubDiscovery).toHaveBeenCalledWith(
+				"/tmp/hub-discovery.json",
+				expect.objectContaining({
+					url: "ws://127.0.0.1:25463/hub",
+					authToken: "busy-token",
+					buildId: "old-build",
+					coreVersion: "0.0.73",
+					pid: 12345,
+				}),
+			);
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
 	it("reuses a healthy hub from a newer build without retiring it", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {

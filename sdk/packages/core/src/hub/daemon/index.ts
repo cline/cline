@@ -353,6 +353,37 @@ export interface DetachedHubResolution {
 	authToken: string;
 }
 
+/**
+ * Discovery record for a live hub reconstructed from its probe metadata and a
+ * token that just verified against it. Written when the hub is healthy but
+ * the on-disk record is missing or unusable — without it, every follow-up
+ * client resolves no hub at all and silently falls back to a local runtime,
+ * and the build-mismatch watcher (which starts from the record) can never
+ * tell the user why.
+ */
+function buildRepairedHubDiscoveryRecord(
+	probe: HubServerProbeRecord,
+	authToken: string,
+	fallbackPid?: number,
+): HubServerDiscoveryRecord {
+	return {
+		hubId: probe.hubId ?? `repaired-${probe.port}`,
+		protocolVersion: probe.protocolVersion,
+		minClientProtocolVersion: probe.minClientProtocolVersion,
+		maxClientProtocolVersion: probe.maxClientProtocolVersion,
+		capabilities: probe.capabilities,
+		coreVersion: probe.coreVersion,
+		buildId: probe.buildId,
+		authToken,
+		host: probe.host,
+		port: probe.port,
+		url: probe.url,
+		pid: probe.pid ?? fallbackPid,
+		startedAt: probe.startedAt ?? new Date().toISOString(),
+		updatedAt: new Date().toISOString(),
+	};
+}
+
 async function ensureDetachedHubServerLocked(
 	owner: HubOwnerContext,
 	workspaceRoot: string,
@@ -453,22 +484,11 @@ async function ensureDetachedHubServerLocked(
 				) {
 					continue;
 				}
-				const repaired: HubServerDiscoveryRecord = {
-					hubId: expected.hubId ?? `repaired-${expected.port}`,
-					protocolVersion: expected.protocolVersion,
-					minClientProtocolVersion: expected.minClientProtocolVersion,
-					maxClientProtocolVersion: expected.maxClientProtocolVersion,
-					capabilities: expected.capabilities,
-					coreVersion: expected.coreVersion,
-					buildId: expected.buildId,
-					authToken: token,
-					host: expected.host,
-					port: expected.port,
-					url: expected.url,
-					pid: expected.pid ?? discovered?.pid,
-					startedAt: expected.startedAt ?? new Date().toISOString(),
-					updatedAt: new Date().toISOString(),
-				};
+				const repaired = buildRepairedHubDiscoveryRecord(
+					expected,
+					token,
+					discovered?.pid,
+				);
 				try {
 					await writeHubDiscovery(owner.discoveryPath, repaired);
 				} catch {
@@ -502,6 +522,23 @@ async function ensureDetachedHubServerLocked(
 					typeof candidate === "string" && candidate.trim().length > 0,
 			)) {
 				if (await verifyHubConnection(expected.url, { authToken: token })) {
+					// This branch is only reached when the on-disk record was
+					// missing or unusable. Persist the deferred hub so other
+					// clients resolve it instead of silently falling back to a
+					// local runtime, and so the build-mismatch watcher can
+					// report why an older hub is still running.
+					try {
+						await writeHubDiscovery(
+							owner.discoveryPath,
+							buildRepairedHubDiscoveryRecord(
+								expectedForRetirement,
+								token,
+								discovered?.pid,
+							),
+						);
+					} catch {
+						// Best-effort repair; attaching still works either way.
+					}
 					return rememberIfManaged({ url: expected.url, authToken: token });
 				}
 			}

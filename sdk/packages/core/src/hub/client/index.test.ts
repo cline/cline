@@ -1355,6 +1355,101 @@ describe("hasActiveHubSessions", () => {
 		).toBe(true);
 	});
 
+	// The session a SIGKILLed TUI leaves behind: non-terminal, source "cli",
+	// participants pruned by the hub when the socket closed, and a record
+	// nothing will ever update again. Nothing can finish it, so it must not
+	// keep the hub alive forever.
+	it("is idle for an abandoned interactive CLI session", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		const now = 1_000_000_000;
+		const abandoned = {
+			status: "running",
+			participants: [],
+			metadata: { source: "cli" },
+			updatedAt: now - 5 * 60_000,
+		};
+		expect(hasActiveHubSessions(payload([abandoned]), now)).toBe(false);
+		expect(
+			hasActiveHubSessions(payload([{ ...abandoned, status: "pending" }]), now),
+		).toBe(false);
+	});
+
+	// A client mid-reconnect looks momentarily identical to a crash leftover
+	// (participants pruned, status still running). The staleness floor keeps
+	// the busy reading until the record has been quiet for a while.
+	it("is busy for a recently updated interactive session with nobody attached", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		const now = 1_000_000_000;
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{
+						status: "running",
+						participants: [],
+						metadata: { source: "cli" },
+						updatedAt: now - 10_000,
+					},
+				]),
+				now,
+			),
+		).toBe(true);
+	});
+
+	// Zen, scheduled, and connector runs legitimately execute inside the hub
+	// with nobody attached; only interactive CLI sessions get the carve-out.
+	it("is busy for non-interactive hub-hosted work with nobody attached", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		const now = 1_000_000_000;
+		const base = {
+			status: "running",
+			participants: [],
+			updatedAt: now - 60 * 60_000,
+		};
+		expect(
+			hasActiveHubSessions(
+				payload([{ ...base, metadata: { source: "cline-cli-zen" } }]),
+				now,
+			),
+		).toBe(true);
+		expect(
+			hasActiveHubSessions(payload([{ ...base, metadata: {} }]), now),
+		).toBe(true);
+		expect(hasActiveHubSessions(payload([base]), now)).toBe(true);
+	});
+
+	// A running session that still lists a participant keeps the conservative
+	// reading even when stale: the hub prunes registered clients on socket
+	// close, so a listed participant may genuinely be attached.
+	it("is busy for a stale interactive session that still lists a participant", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		const now = 1_000_000_000;
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{
+						status: "running",
+						participants: [{ clientId: "tui" }],
+						metadata: { source: "cli" },
+						updatedAt: now - 60 * 60_000,
+					},
+				]),
+				now,
+			),
+		).toBe(true);
+	});
+
+	// Hubs that omit updatedAt give no staleness evidence; stay busy.
+	it("is busy for an interactive session without an updatedAt timestamp", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [], metadata: { source: "cli" } },
+				]),
+			),
+		).toBe(true);
+	});
+
 	// The session a crashed client leaves behind: idle, nobody attached. It is
 	// resumable persisted state, and counting it would pin the hub as busy
 	// forever.
