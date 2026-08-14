@@ -17,6 +17,7 @@ import {
 	ToolActivityContent,
 	ToolActivityTrigger,
 } from "../components/agent-chat";
+import { getInertAttributeValue } from "../components/agent-chat/disclosure";
 
 let container: HTMLDivElement;
 let root: Root;
@@ -40,6 +41,13 @@ async function render(element: React.ReactNode) {
 }
 
 describe("@cline/ui agent chat primitives", () => {
+	it("uses the inert prop form supported by each React major", () => {
+		expect(getInertAttributeValue(false, "18.3.1")).toBe("");
+		expect(getInertAttributeValue(false, "19.2.4")).toBe(true);
+		expect(getInertAttributeValue(true, "18.3.1")).toBeUndefined();
+		expect(getInertAttributeValue(true, "19.2.4")).toBeUndefined();
+	});
+
 	it("marks message roles without requiring a runtime message schema", async () => {
 		await render(
 			<Message from="assistant">
@@ -83,7 +91,7 @@ describe("@cline/ui agent chat primitives", () => {
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(panel?.getAttribute("data-state")).toBe("closed");
 		expect(panel?.getAttribute("aria-hidden")).toBe("true");
-		expect(panel?.hasAttribute("inert")).toBe(true);
+		expect(panel?.getAttribute("inert")).toBe("");
 		expect(panel?.textContent).not.toContain("Inspect the shared contract");
 
 		await act(async () => trigger?.click());
@@ -96,6 +104,7 @@ describe("@cline/ui agent chat primitives", () => {
 		await act(async () => trigger?.click());
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(panel?.getAttribute("data-state")).toBe("closed");
+		expect(panel?.getAttribute("inert")).toBe("");
 		expect(panel?.textContent).toContain("Inspect the shared contract");
 	});
 
@@ -152,7 +161,7 @@ describe("@cline/ui agent chat primitives", () => {
 		const panel = document.getElementById(panelId ?? "");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		expect(panel?.getAttribute("data-state")).toBe("closed");
-		expect(panel?.hasAttribute("inert")).toBe(true);
+		expect(panel?.getAttribute("inert")).toBe("");
 		expect(
 			container.querySelector(".cline-chat-disclosure-icon"),
 		).not.toBeNull();

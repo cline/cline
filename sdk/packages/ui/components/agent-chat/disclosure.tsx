@@ -2,6 +2,7 @@
 
 import {
 	type HTMLAttributes,
+	version as reactVersion,
 	useCallback,
 	useEffect,
 	useId,
@@ -46,6 +47,17 @@ export function useDisclosureState({
 
 export type DisclosureContentPresentation = "panel" | "rail";
 
+type InertAttributeValue = boolean | "" | undefined;
+
+export function getInertAttributeValue(
+	isOpen: boolean,
+	version = reactVersion,
+): InertAttributeValue {
+	if (isOpen) return undefined;
+	const majorVersion = Number.parseInt(version, 10);
+	return majorVersion >= 19 ? true : "";
+}
+
 export type DisclosureContentProps = Omit<
 	HTMLAttributes<HTMLDivElement>,
 	"hidden" | "id"
@@ -71,6 +83,10 @@ export function DisclosureContent({
 		if (isOpen) setHasOpened(true);
 	}, [isOpen]);
 	const shouldRenderContent = !lazyContent || isOpen || hasOpened;
+	// React 18 treats `inert` as an unknown string attribute and drops boolean
+	// `true`, while React 19 models it as a boolean and drops an empty string.
+	// Select the form understood by the consumer's React runtime.
+	const inert = getInertAttributeValue(isOpen);
 
 	return (
 		<div
@@ -78,7 +94,7 @@ export function DisclosureContent({
 			className="cline-chat-disclosure-content-motion"
 			data-state={isOpen ? "open" : "closed"}
 			id={panelId}
-			inert={!isOpen ? true : undefined}
+			inert={inert as boolean | undefined}
 		>
 			<div className="cline-chat-disclosure-content-motion-inner">
 				{shouldRenderContent ? (
