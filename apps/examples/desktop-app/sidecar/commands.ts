@@ -8,6 +8,7 @@ import type {
 	CoreSettingsSnapshot,
 	ProviderCapability,
 	ProviderClient,
+	ProviderConfig,
 	ProviderProtocol,
 	SaveProviderSettingsActionRequest,
 } from "@cline/core";
@@ -15,6 +16,7 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	captureAuthRefreshSoftFailure,
+	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
@@ -34,16 +36,20 @@ import {
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
+	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
+	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
 } from "@cline/core";
+import { resolveAudioTranscriptionRoute } from "@cline/llms";
 import {
 	CLINE_DEFAULT_MODEL_ID,
 	getClineEnvironmentConfig,
+	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 	readHubScheduleMode,
@@ -51,6 +57,7 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
+import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -108,6 +115,66 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
+type DesktopDebugLogLevel = "debug" | "info" | "error";
+
+function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
+	if (!value) return undefined;
+	try {
+		const url = new URL(value);
+		url.username = "";
+		url.password = "";
+		url.search = "";
+		url.hash = "";
+		return url.toString();
+	} catch {
+		return "[invalid URL]";
+	}
+}
+
+function sanitizeDiagnosticFailure(
+	error: unknown,
+	providerConfig: ProviderConfig | undefined,
+): string {
+	let message = error instanceof Error ? error.message : String(error);
+	const sanitizedBaseUrl = sanitizeDiagnosticUrl(providerConfig?.baseUrl);
+	if (providerConfig?.baseUrl && sanitizedBaseUrl) {
+		message = message.replaceAll(providerConfig.baseUrl, sanitizedBaseUrl);
+	}
+	const secrets = [
+		providerConfig?.apiKey,
+		providerConfig?.accessToken,
+		...Object.values(providerConfig?.headers ?? {}),
+	];
+	for (const secret of secrets) {
+		const value = secret?.trim();
+		if (value) {
+			message = message.replaceAll(value, "[redacted]");
+		}
+	}
+	return message;
+}
+
+function emitDesktopDebugLog(
+	ctx: SidecarContext,
+	level: DesktopDebugLogLevel,
+	message: string,
+	metadata?: Record<string, unknown>,
+): void {
+	if (level === "error") {
+		ctx.logger?.error?.(message, metadata);
+	} else if (level === "info") {
+		ctx.logger?.log(message, metadata);
+	} else {
+		ctx.logger?.debug(message, metadata);
+	}
+	broadcastEvent(ctx, "desktop_debug_log", {
+		scope: "voice-input",
+		level,
+		message,
+		timestamp: new Date().toISOString(),
+		metadata,
+	});
+}
 
 // Strict allowlist: the opener hands the URL to the OS protocol handler, so
 // anything broader (file:, custom app schemes) would let webview content
@@ -1422,6 +1489,142 @@ export async function handleCommand(
 			String(args?.provider ?? ""),
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
+	}
+	if (command === "create_streaming_transcription_session") {
+		const manager = new ProviderSettingsManager();
+		const selection = manager.getVoiceInputSettings();
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveAudioTranscriptionRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			transport: route?.kind,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"debug",
+			"Creating streaming transcription session",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const session = await createConfiguredStreamingTranscriptionSession(
+				manager,
+				{ expiresAfterSeconds: 300 },
+			);
+			emitDesktopDebugLog(
+				ctx,
+				"debug",
+				"Streaming transcription session created",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					expiresAt: session.expiresAt,
+				},
+			);
+			return session;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(
+				ctx,
+				"error",
+				"Streaming transcription session setup failed",
+				{
+					...diagnostics,
+					durationMs: Date.now() - startedAt,
+					failure,
+				},
+			);
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "transcribe_audio") {
+		const audioBase64 = String(args?.audioBase64 ?? "");
+		const mediaType = String(args?.mediaType ?? "").trim() || undefined;
+		if (!isCanonicalBase64(audioBase64)) {
+			throw new Error("recorded audio must be canonical base64");
+		}
+		const decodedBytes =
+			Math.floor((audioBase64.length * 3) / 4) -
+			(audioBase64.endsWith("==") ? 2 : audioBase64.endsWith("=") ? 1 : 0);
+		if (decodedBytes > MAX_RECORDED_AUDIO_BYTES) {
+			throw new Error(
+				`recorded audio exceeds the ${MAX_RECORDED_AUDIO_BYTES} byte limit`,
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const selection = manager.getVoiceInputSettings();
+		const providerConfig = selection
+			? manager.getProviderConfig(selection.providerId, {
+					includeKnownModels: false,
+				})
+			: undefined;
+		const route = providerConfig
+			? resolveAudioTranscriptionRoute(providerConfig)
+			: undefined;
+		const diagnostics = {
+			providerId: selection?.providerId,
+			modelId: selection?.modelId,
+			transport: route?.kind,
+			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
+			mediaType,
+			audioBytes: decodedBytes,
+		};
+		emitDesktopDebugLog(
+			ctx,
+			"debug",
+			"Starting audio transcription",
+			diagnostics,
+		);
+		const startedAt = Date.now();
+		try {
+			const result = await transcribeConfiguredVoiceInput(manager, {
+				audio: Buffer.from(audioBase64, "base64"),
+				mediaType,
+			});
+			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
+				...diagnostics,
+				durationMs: Date.now() - startedAt,
+				transcriptCharacters: result.text.length,
+				language: result.language,
+			});
+			return result;
+		} catch (error) {
+			const failure = sanitizeDiagnosticFailure(error, providerConfig);
+			emitDesktopDebugLog(ctx, "error", "Audio transcription failed", {
+				...diagnostics,
+				durationMs: Date.now() - startedAt,
+				failure,
+			});
+			throw new Error(failure, { cause: error });
+		}
+	}
+	if (command === "save_voice_input_settings") {
+		const providerId = String(args?.provider ?? "").trim();
+		const modelId = String(args?.model ?? "").trim();
+		if (Boolean(providerId) !== Boolean(modelId)) {
+			throw new Error(
+				"voice input provider and model must both be set or both be cleared",
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const result = await saveVoiceInputSettings(
+			manager,
+			providerId && modelId ? { providerId, modelId } : undefined,
+		);
+		emitDesktopDebugLog(ctx, "info", "Voice input settings saved", {
+			providerId: result.voiceInput?.providerId,
+			modelId: result.voiceInput?.modelId,
+			configured: Boolean(result.voiceInput),
+		});
+		return result;
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
