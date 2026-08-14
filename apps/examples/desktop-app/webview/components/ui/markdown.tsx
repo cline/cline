@@ -1,4 +1,5 @@
 import { cjk } from "@streamdown/cjk";
+import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { isValidElement, memo, useState } from "react";
 import {
@@ -23,6 +24,7 @@ import {
 import { markdownCodeHighlighter } from "./markdown-highlighter";
 
 const streamdownPlugins = { cjk, code: markdownCodeHighlighter };
+const streamdownIcons = { CheckIcon, CopyIcon };
 const streamdownControls = {
 	code: { copy: true, download: false },
 	mermaid: false,
@@ -312,6 +314,7 @@ export const MemoizedMarkdown = memo(
 			controls={streamdownControls}
 			dir="auto"
 			isAnimating={streaming}
+			icons={streamdownIcons}
 			lineNumbers={false}
 			mode={streaming ? "streaming" : "static"}
 			normalizeHtmlIndentation

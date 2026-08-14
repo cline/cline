@@ -3,6 +3,15 @@ import { describe, expect, test } from "vitest";
 import { MemoizedMarkdown } from "./markdown";
 
 describe("MemoizedMarkdown", () => {
+	test("uses outline icons for code block actions", () => {
+		const html = renderToStaticMarkup(
+			<MemoizedMarkdown content={`\`\`\`text\ncopy me\n\`\`\``} />,
+		);
+
+		expect(html).toContain('class="lucide lucide-copy"');
+		expect(html).toContain('stroke-width="2"');
+	});
+
 	test("renders structured GFM content and blocks remote images", () => {
 		const html = renderToStaticMarkup(
 			<MemoizedMarkdown
