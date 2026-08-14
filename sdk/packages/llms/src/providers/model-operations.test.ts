@@ -1,12 +1,36 @@
 import type { GatewayProviderManifest } from "@cline/shared";
 import { describe, expect, it } from "vitest";
 import {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	BUILTIN_TRANSCRIPTION_TRANSPORTS,
 	builtinProviderSupportsModelOperation,
 	normalizeBuiltinModelOperationModalities,
 	providerManifestSupportsModelOperation,
 } from "./model-operations";
 
 describe("model operation capabilities", () => {
+	it("keeps every declared transcription transport paired with a capability", () => {
+		for (const [providerId, descriptor] of Object.entries(
+			BUILTIN_TRANSCRIPTION_TRANSPORTS,
+		)) {
+			const capability = BUILTIN_MODEL_OPERATION_CAPABILITIES[providerId]?.find(
+				(candidate) => candidate.operation === "transcription",
+			);
+			expect(capability?.modes).toEqual(descriptor.modes);
+		}
+		for (const [providerId, capabilities] of Object.entries(
+			BUILTIN_MODEL_OPERATION_CAPABILITIES,
+		)) {
+			if (
+				capabilities.some(
+					(capability) => capability.operation === "transcription",
+				)
+			) {
+				expect(BUILTIN_TRANSCRIPTION_TRANSPORTS).toHaveProperty(providerId);
+			}
+		}
+	});
+
 	it("routes verified native image transports and fails closed for aliases", () => {
 		const imageModel = {
 			modelId: "gpt-image-2",
@@ -44,6 +68,57 @@ describe("model operation capabilities", () => {
 				family: "qwen-image",
 			}),
 		).toBe(false);
+	});
+
+	it("requires explicit image transport support even for compatible providers", () => {
+		const imageModel = {
+			modelId: "fal-ai/flux-pro",
+			operation: "image-generation" as const,
+			modalities: { input: ["text"] as const, output: ["image"] as const },
+		};
+
+		expect(
+			builtinProviderSupportsModelOperation({
+				providerId: "digitalocean",
+				...imageModel,
+			}),
+		).toBe(true);
+		expect(
+			builtinProviderSupportsModelOperation({
+				providerId: "unverified-openai-compatible",
+				...imageModel,
+			}),
+		).toBe(false);
+	});
+
+	it("matches transcription execution modes against provider transports", () => {
+		const transcriptionModel = {
+			modelId: "whisper-large-v3",
+			operation: "transcription" as const,
+			modalities: { input: ["audio"] as const, output: ["text"] as const },
+		};
+
+		expect(
+			builtinProviderSupportsModelOperation({
+				providerId: "groq",
+				operationModes: ["batch"],
+				...transcriptionModel,
+			}),
+		).toBe(true);
+		expect(
+			builtinProviderSupportsModelOperation({
+				providerId: "groq",
+				operationModes: ["streaming"],
+				...transcriptionModel,
+			}),
+		).toBe(false);
+		expect(
+			builtinProviderSupportsModelOperation({
+				providerId: "vercel-ai-gateway",
+				operationModes: ["streaming"],
+				...transcriptionModel,
+			}),
+		).toBe(true);
 	});
 
 	it("constrains catalog modalities to the executable transport subset", () => {

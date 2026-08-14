@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
 	createMediaBudgetState,
 	GeneratedMediaSchema,
-	generatedMediaSourceUrl,
 	imageBase64DecodedByteLength,
 	imageBase64LengthForDecodedBytes,
 	isCanonicalBase64,
@@ -13,33 +12,31 @@ import {
 
 describe("generated media", () => {
 	it("validates stable inline, remote, and artifact sources", () => {
-		const inline = GeneratedMediaSchema.parse({
-			id: "media_inline",
-			modality: "image",
-			mediaType: "image/png",
-			source: { type: "base64", data: "aGVsbG8=" },
-			sizeBytes: 5,
-		});
-		const remote = GeneratedMediaSchema.parse({
-			id: "media_remote",
-			modality: "audio",
-			mediaType: "audio/mpeg",
-			source: { type: "url", url: "https://example.com/result.mp3" },
-		});
-		const artifact = GeneratedMediaSchema.parse({
-			id: "media_artifact",
-			modality: "video",
-			mediaType: "video/mp4",
-			source: { type: "artifact", artifactId: "artifact_123" },
-		});
-
-		expect(generatedMediaSourceUrl(inline)).toBe(
-			"data:image/png;base64,aGVsbG8=",
-		);
-		expect(generatedMediaSourceUrl(remote)).toBe(
-			"https://example.com/result.mp3",
-		);
-		expect(generatedMediaSourceUrl(artifact)).toBeUndefined();
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_inline",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+				sizeBytes: 5,
+			}),
+		).toMatchObject({ source: { type: "base64" } });
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_remote",
+				modality: "audio",
+				mediaType: "audio/mpeg",
+				source: { type: "url", url: "https://example.com/result.mp3" },
+			}),
+		).toMatchObject({ source: { type: "url" } });
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_artifact",
+				modality: "video",
+				mediaType: "video/mp4",
+				source: { type: "artifact", artifactId: "artifact_123" },
+			}),
+		).toMatchObject({ source: { type: "artifact" } });
 	});
 
 	it("rejects unsafe remote sources", () => {

@@ -70,27 +70,6 @@ export function generatedMediaModalityFromMediaType(
 	return modalityForMediaType(mediaType);
 }
 
-/** Resolve inline and remote media to a browser-renderable URL. */
-export function generatedMediaSourceUrl(
-	media: GeneratedMedia,
-): string | undefined {
-	switch (media.source.type) {
-		case "base64":
-			return `data:${media.mediaType};base64,${media.source.data}`;
-		case "url":
-			try {
-				const protocol = new URL(media.source.url).protocol;
-				return protocol === "http:" || protocol === "https:"
-					? media.source.url
-					: undefined;
-			} catch {
-				return undefined;
-			}
-		case "artifact":
-			return undefined;
-	}
-}
-
 export const SUPPORTED_IMAGE_MEDIA_TYPES = [
 	"image/png",
 	"image/jpeg",

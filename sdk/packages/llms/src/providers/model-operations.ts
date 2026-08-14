@@ -2,8 +2,10 @@ import type {
 	GatewayModelDefinition,
 	GatewayModelOperationCapability,
 	GatewayProviderManifest,
+	GatewayProviderMetadata,
 	ModelModalities,
 	ModelOperation,
+	ModelOperationMode,
 } from "@cline/shared";
 import { modelRouteMatches } from "./model-facts";
 
@@ -18,6 +20,32 @@ const IMAGE_GENERATION_OPERATION: GatewayModelOperationCapability = {
 	outputModalities: ["image"],
 };
 
+interface BuiltinTranscriptionOperation {
+	transport: NonNullable<GatewayProviderMetadata["transcriptionTransport"]>;
+	modes: readonly ModelOperationMode[];
+}
+
+export const BUILTIN_TRANSCRIPTION_TRANSPORTS = {
+	"openai-native": {
+		transport: "openai-compatible",
+		modes: ["batch"],
+	},
+	"vercel-ai-gateway": {
+		transport: "vercel-ai-gateway",
+		modes: ["batch", "streaming"],
+	},
+	elevenlabs: { transport: "elevenlabs", modes: ["batch"] },
+	evroc: { transport: "openai-compatible", modes: ["batch"] },
+	groq: { transport: "openai-compatible", modes: ["batch"] },
+	mistral: { transport: "openai-compatible", modes: ["batch"] },
+	nearai: { transport: "openai-compatible", modes: ["batch"] },
+	"privatemode-ai": {
+		transport: "openai-compatible",
+		modes: ["batch"],
+	},
+	scaleway: { transport: "openai-compatible", modes: ["batch"] },
+} as const satisfies Readonly<Record<string, BuiltinTranscriptionOperation>>;
+
 /**
  * Built-in transports that have an explicitly verified non-text operation.
  *
@@ -26,7 +54,7 @@ const IMAGE_GENERATION_OPERATION: GatewayModelOperationCapability = {
  * `/images/generations` transport. New providers opt in here only after their
  * concrete adapter implements the operation.
  */
-export const BUILTIN_MODEL_OPERATION_CAPABILITIES: Readonly<
+const BUILTIN_MEDIA_OPERATION_CAPABILITIES: Readonly<
 	Record<string, readonly GatewayModelOperationCapability[]>
 > = {
 	"openai-native": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
@@ -40,6 +68,46 @@ export const BUILTIN_MODEL_OPERATION_CAPABILITIES: Readonly<
 	cline: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
 	"cline-pass": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
 };
+
+/**
+ * Executable operation declarations keyed by provider ID.
+ *
+ * Transcription capabilities are derived from the transport declaration so a
+ * provider cannot accidentally advertise models without a matching executor,
+ * or register an executor that the catalog filters out.
+ */
+export const BUILTIN_MODEL_OPERATION_CAPABILITIES: Readonly<
+	Record<string, readonly GatewayModelOperationCapability[]>
+> = Object.fromEntries(
+	[
+		...new Set([
+			...Object.keys(BUILTIN_MEDIA_OPERATION_CAPABILITIES),
+			...Object.keys(BUILTIN_TRANSCRIPTION_TRANSPORTS),
+		]),
+	].map((providerId) => {
+		const transcription = (
+			BUILTIN_TRANSCRIPTION_TRANSPORTS as Readonly<
+				Record<string, BuiltinTranscriptionOperation>
+			>
+		)[providerId];
+		return [
+			providerId,
+			[
+				...(BUILTIN_MEDIA_OPERATION_CAPABILITIES[providerId] ?? []),
+				...(transcription
+					? [
+							{
+								operation: "transcription" as const,
+								modes: transcription.modes,
+								inputModalities: ["audio" as const],
+								outputModalities: ["text" as const],
+							},
+						]
+					: []),
+			],
+		] as const;
+	}),
+);
 
 export function resolveModelOperation(model: {
 	operation?: ModelOperation;
@@ -62,6 +130,7 @@ function includesAll<T>(
 interface OperationModelDescriptor {
 	id: string;
 	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
 	modalities?: ModelModalities;
 	capabilities?: readonly string[];
 	metadata?: GatewayModelDefinition["metadata"];
@@ -96,13 +165,16 @@ function capabilityMatchesModel(
 ): boolean {
 	const operation = resolveModelOperation(model);
 	const outputModalities =
-		operation === "language"
-			? model.modalities?.output
-			: model.modalities?.output.filter((modality) => modality !== "text");
+		operation === "image-generation" ||
+		operation === "speech-generation" ||
+		operation === "video-generation"
+			? model.modalities?.output.filter((modality) => modality !== "text")
+			: model.modalities?.output;
 	if (!capabilityRoutesMatchModel(capability, model)) {
 		return false;
 	}
 	return (
+		includesAll(capability.modes, model.operationModes) &&
 		includesAll(capability.inputModalities, model.modalities?.input) &&
 		includesAll(capability.outputModalities, outputModalities)
 	);
@@ -137,6 +209,7 @@ export function normalizeBuiltinModelOperationModalities(input: {
 	providerId: string;
 	modelId: string;
 	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
 	modalities?: ModelModalities;
 	family?: string;
 	capabilities?: readonly string[];
@@ -145,6 +218,7 @@ export function normalizeBuiltinModelOperationModalities(input: {
 	const model: OperationModelDescriptor = {
 		id: input.modelId,
 		operation: input.operation,
+		operationModes: input.operationModes,
 		modalities: input.modalities,
 		capabilities: input.capabilities,
 		metadata: input.family ? { family: input.family } : undefined,
@@ -190,7 +264,12 @@ export function providerManifestSupportsModelOperation(
 	>,
 	model: Pick<
 		GatewayModelDefinition,
-		"id" | "operation" | "modalities" | "capabilities" | "metadata"
+		| "id"
+		| "operation"
+		| "operationModes"
+		| "modalities"
+		| "capabilities"
+		| "metadata"
 	>,
 ): boolean {
 	return operationCapabilitiesSupportModel(
@@ -204,6 +283,7 @@ export function builtinProviderSupportsModelOperation(input: {
 	providerId: string;
 	modelId: string;
 	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
 	modalities?: ModelModalities;
 	family?: string;
 	capabilities?: readonly string[];
@@ -212,6 +292,7 @@ export function builtinProviderSupportsModelOperation(input: {
 	return operationCapabilitiesSupportModel(capabilities, {
 		id: input.modelId,
 		operation: input.operation,
+		operationModes: input.operationModes,
 		modalities: input.modalities,
 		capabilities: input.capabilities,
 		metadata: input.family ? { family: input.family } : undefined,

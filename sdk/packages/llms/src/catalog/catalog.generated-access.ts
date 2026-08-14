@@ -4,7 +4,10 @@ import {
 } from "../providers/model-operations";
 import { GENERATED_PROVIDER_MODELS } from "./catalog.generated";
 import { sortModelsByReleaseDate } from "./catalog-live";
-import { resolveCatalogModelOperation } from "./model-operation";
+import {
+	resolveCatalogModelOperation,
+	resolveCatalogModelOperationModes,
+} from "./model-operation";
 import type { ModelInfo } from "./types";
 
 let sortedGeneratedProviderModelsCache:
@@ -22,10 +25,14 @@ function normalizeGeneratedModels(
 	return Object.fromEntries(
 		Object.entries(models).flatMap(([modelId, model]) => {
 			const operation = resolveCatalogModelOperation(model);
+			const operationModes =
+				model.operationModes ??
+				resolveCatalogModelOperationModes(modelId, model);
 			const modalities = normalizeBuiltinModelOperationModalities({
 				providerId,
 				modelId,
 				operation,
+				operationModes,
 				modalities: model.modalities,
 				family: model.family,
 				capabilities: model.capabilities,
@@ -33,12 +40,14 @@ function normalizeGeneratedModels(
 			const normalized = {
 				...model,
 				operation,
+				...(operationModes ? { operationModes } : {}),
 				...(modalities ? { modalities } : {}),
 			};
 			return builtinProviderSupportsModelOperation({
 				providerId,
 				modelId,
 				operation: normalized.operation,
+				operationModes: normalized.operationModes,
 				modalities: normalized.modalities,
 				family: normalized.family,
 				capabilities: normalized.capabilities,

@@ -410,9 +410,7 @@ describe("anthropic-compatible routing helpers", () => {
 			"us.anthropic.claude-future-9-20990101-v1:0",
 		];
 		for (const modelId of unknownClaudeIds) {
-			expect(resolveClaudeThinkingEra(modelId), modelId).toBe(
-				"unknown-claude",
-			);
+			expect(resolveClaudeThinkingEra(modelId), modelId).toBe("unknown-claude");
 		}
 
 		const nonClaudeIds = ["custom/anthropic-alias", "gpt-5.4", undefined];

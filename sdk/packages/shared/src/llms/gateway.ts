@@ -10,6 +10,7 @@ import type {
 	ModelModalities,
 	ModelModality,
 	ModelOperation,
+	ModelOperationMode,
 } from "./model-info";
 import type { ModelTool, ModelToolName } from "./model-tools";
 import type {
@@ -89,6 +90,7 @@ export interface GatewayModelToolCapability {
 /** A provider transport capable of executing a matching model operation. */
 export interface GatewayModelOperationCapability {
 	operation: ModelOperation;
+	modes?: readonly ModelOperationMode[];
 	inputModalities?: readonly ModelModality[];
 	outputModalities?: readonly ModelModality[];
 	routes?: readonly GatewayModelRoute[];
@@ -130,6 +132,11 @@ export interface GatewayProviderMetadata {
 	 * generic OpenAI-compatible adapter exposes.
 	 */
 	imageTransport?: "openrouter";
+	/** Provider-owned implementation used for the transcription operation. */
+	transcriptionTransport?:
+		| "openai-compatible"
+		| "vercel-ai-gateway"
+		| "elevenlabs";
 	/**
 	 * Successful JSON responses are wrapped by the provider before reaching
 	 * the protocol adapter. `success-data` represents `{ success, data }`.
@@ -153,6 +160,7 @@ export interface GatewayModelDefinition {
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
 	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
 	modalities?: ModelModalities;
 	capabilities?: readonly GatewayModelCapability[];
 	reasoningOptions?: readonly ModelReasoningOption[];

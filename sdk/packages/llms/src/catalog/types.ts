@@ -22,6 +22,8 @@ export {
 	type ModelModality,
 	ModelModalitySchema,
 	type ModelOperation,
+	type ModelOperationMode,
+	ModelOperationModeSchema,
 	ModelOperationSchema,
 	type ModelPricing,
 	ModelPricingSchema,

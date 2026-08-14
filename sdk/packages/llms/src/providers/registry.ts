@@ -32,6 +32,7 @@ function cloneManifest(
 		modelOperationCapabilities: manifest.modelOperationCapabilities?.map(
 			(capability) => ({
 				...capability,
+				modes: capability.modes ? [...capability.modes] : undefined,
 				inputModalities: capability.inputModalities
 					? [...capability.inputModalities]
 					: undefined,

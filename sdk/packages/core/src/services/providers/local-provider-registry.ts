@@ -14,6 +14,9 @@ import {
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
+	ModelModalitiesSchema,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -54,6 +57,9 @@ export const StoredModelEntrySchema = z
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		operation: ModelOperationSchema.optional(),
+		operationModes: z.array(ModelOperationModeSchema).optional(),
+		modalities: ModelModalitiesSchema.optional(),
 		inputPrice: OptionalNonNegativeFiniteNumberSchema,
 		outputPrice: OptionalNonNegativeFiniteNumberSchema,
 		cacheReadsPrice: OptionalNonNegativeFiniteNumberSchema,
@@ -222,6 +228,7 @@ export function toProviderModel(
 		| "capabilities"
 		| "thinkingConfig"
 		| "operation"
+		| "operationModes"
 		| "modalities"
 	>,
 ): ProviderModel {
@@ -236,6 +243,7 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		operationModes: info.operationModes,
 		inputModalities: info.modalities?.input,
 		outputModalities: info.modalities?.output,
 	};
@@ -353,6 +361,13 @@ function toStoredModelInfo(
 			? { temperature: model.temperature }
 			: {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.operation !== undefined ? { operation: model.operation } : {}),
+		...(model?.operationModes !== undefined
+			? { operationModes: model.operationModes }
+			: {}),
+		...(model?.modalities !== undefined
+			? { modalities: model.modalities }
+			: {}),
 		...(hasPricing
 			? {
 					pricing: {

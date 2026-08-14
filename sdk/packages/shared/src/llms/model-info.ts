@@ -106,6 +106,18 @@ export const ModelOperationSchema = z.enum([
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
 
+/**
+ * Execution modes supported by a non-language model operation.
+ *
+ * The operation selects the provider transport; the mode describes how that
+ * transport is consumed. Keeping this separate from generic model
+ * capabilities prevents transcription-specific flags from spreading through
+ * otherwise modality-agnostic clients.
+ */
+export const ModelOperationModeSchema = z.enum(["batch", "streaming"]);
+
+export type ModelOperationMode = z.infer<typeof ModelOperationModeSchema>;
+
 interface ImageOutputModelDescriptor {
 	operation?: ModelOperation;
 	modalities?: ModelModalities;
@@ -173,6 +185,7 @@ export const ModelInfoSchema = z.object({
 	maxInputTokens: z.number().optional(),
 	capabilities: z.array(ModelCapabilitySchema).optional(),
 	operation: ModelOperationSchema.optional(),
+	operationModes: z.array(ModelOperationModeSchema).optional(),
 	modalities: ModelModalitiesSchema.optional(),
 	reasoningOptions: z.array(ModelReasoningOptionSchema).optional(),
 	apiFormat: ApiFormatSchema.optional(),

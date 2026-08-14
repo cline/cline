@@ -154,10 +154,13 @@ event payload and `source` field.
 Model modalities and provider operations are separate facts. Modalities describe
 values a model accepts or produces; the explicit operation selects the provider
 transport. Language models keep the normal agent loop even when they can emit
-media, while `operation: "image-generation"` selects `generateImage`. Specialized
-operations fail closed unless the provider manifest and adapter both implement
-them, so an OpenAI-compatible chat endpoint never implies an image, audio, or
-video endpoint.
+media, while `operation: "image-generation"` selects `generateImage` and
+`operation: "transcription"` selects a declared speech-to-text transport.
+Operation-specific execution variants such as recorded and realtime
+transcription live in `operationModes`, not in the generic capability list.
+Specialized operations fail closed unless the provider manifest and adapter
+both implement them, so an OpenAI-compatible chat endpoint never implies an
+image, audio, transcription, or video endpoint.
 
 Generated media crosses package boundaries as follows:
 
@@ -177,9 +180,11 @@ Generated media crosses package boundaries as follows:
    `assistant.media`, preserving the same media ID, and clients deduplicate live
    and hydrated content by that ID.
 5. Web clients share `GeneratedMediaContent` from `@cline/ui` for image, audio,
-   video, file, and unavailable-artifact rendering. CLI and ACP clients provide
-   transport-appropriate materialization or fallback output without changing the
-   canonical message.
+   video, file, and unavailable-source rendering. Inline bytes are exposed only
+   through short-lived browser-owned object URLs; remote and artifact sources
+   require a client-owned trusted resolver. CLI and ACP clients provide
+   transport-appropriate materialization or fallback output without changing
+   the canonical message.
 
 Image-edit inference is intentionally local: when a dedicated image model accepts
 image input and the current user message has no explicit image, only an image on
@@ -440,6 +445,25 @@ Design implications:
 
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
+
+Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
+reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
+through `PluginSandboxOptions.idleTimeoutMs` or
+`CLINE_PLUGIN_IDLE_TIMEOUT_MS`), and the next plugin call starts and
+reinitializes it transparently. Pending requests are associated with the child
+generation that owns them so an old process exiting cannot reject work sent to
+its replacement. The bootstrap also exits when its parent IPC channel
+disconnects. The parent is the single authority for idle shutdown so competing
+deadlines cannot terminate a child while the parent is dispatching new work.
+
+Design implications:
+
+- sandbox process count scales with recently active sessions, not every session
+  observed since hub startup
+- eviction never interrupts an in-flight plugin call
+- in-process plugin state is ephemeral across idle eviction; durable plugin
+  state belongs in persistent storage
+- a sandbox must never outlive its owning hub process
 
 ## Architectural Constraints
 

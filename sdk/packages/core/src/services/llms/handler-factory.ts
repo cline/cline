@@ -181,6 +181,7 @@ function toGatewayConfiguredModel(
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
 		operation: model.operation,
+		operationModes: model.operationModes,
 		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,

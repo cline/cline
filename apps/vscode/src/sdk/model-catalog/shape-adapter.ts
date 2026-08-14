@@ -40,6 +40,7 @@
  * | description | `sdk.description` if string | omitted (undefined) |
  * | capabilities | `sdk.capabilities` preserved verbatim | omitted (undefined) |
  * | modalities | `sdk.modalities` preserved after validation | omitted (undefined) |
+ * | operation modes | `sdk.operationModes` preserved after validation | omitted (undefined) |
  *
  * The full SDK capability list is preserved on `ModelInfo.capabilities` in
  * addition to the boolean projections above. The booleans exist for legacy
@@ -85,6 +86,7 @@ const REASONING_CAPABILITY = "reasoning"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
 const MODEL_MODALITIES = new Set(["text", "image", "audio", "video", "pdf"])
 const MODEL_OPERATIONS = new Set(["language", "image-generation", "speech-generation", "video-generation", "transcription"])
+const MODEL_OPERATION_MODES = new Set(["batch", "streaming"])
 
 interface NormalizedPricing {
 	input?: number
@@ -240,6 +242,12 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 			details: { operation },
 		})
 	}
+	const operationModes = readStringArray(input.operationModes)
+	if (operationModes?.some((mode) => !MODEL_OPERATION_MODES.has(mode))) {
+		throw new CatalogShapeError("SDK model-info `operationModes` contains an unsupported mode.", {
+			details: { operationModes },
+		})
+	}
 
 	const result: ModelInfo = {
 		name: rawName ?? id,
@@ -276,6 +284,9 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (operation !== undefined) {
 		result.operation = operation as NonNullable<ModelInfo["operation"]>
+	}
+	if (operationModes !== undefined) {
+		result.operationModes = operationModes as NonNullable<ModelInfo["operationModes"]>
 	}
 
 	return result

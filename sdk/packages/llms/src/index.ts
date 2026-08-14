@@ -129,3 +129,14 @@ export {
 	createCline,
 } from "./providers/vendors/cline";
 export { disposeLangfuseTelemetry } from "./services/langfuse-telemetry";
+export {
+	type AudioTranscriptionRequest,
+	type AudioTranscriptionResult,
+	type AudioTranscriptionRoute,
+	createStreamingAudioTranscriptionSession,
+	DEFAULT_TRANSCRIPTION_TIMEOUT_MS,
+	resolveAudioTranscriptionRoute,
+	type StreamingAudioTranscriptionSession,
+	type StreamingAudioTranscriptionSessionRequest,
+	transcribeAudio,
+} from "./transcription";

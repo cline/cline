@@ -1,5 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { modelHasCapability, modelSupportsToolCalling } from "./model-info";
+import {
+	ModelInfoSchema,
+	modelHasCapability,
+	modelSupportsToolCalling,
+} from "./model-info";
+
+describe("ModelInfoSchema operations", () => {
+	it("preserves an explicit operation and its execution modes", () => {
+		expect(
+			ModelInfoSchema.parse({
+				id: "openai/gpt-realtime-whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			}),
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["streaming"],
+		});
+	});
+
+	it("rejects operation-specific flags from the generic capability list", () => {
+		expect(
+			ModelInfoSchema.safeParse({
+				id: "legacy-realtime-model",
+				capabilities: ["transcription-streaming"],
+			}).success,
+		).toBe(false);
+	});
+});
 
 describe("modelHasCapability", () => {
 	it("reads a populated capability list authoritatively", () => {

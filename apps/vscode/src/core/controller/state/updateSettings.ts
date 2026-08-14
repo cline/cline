@@ -1,4 +1,4 @@
-import { setCompactionStrategyGlobally } from "@cline/core"
+import { setCompactionStrategyGlobally, setModelToolEnabledGlobally } from "@cline/core"
 import { Empty } from "@shared/proto/cline/common"
 import { PlanActMode, McpDisplayMode as ProtoMcpDisplayMode, UpdateSettingsRequest } from "@shared/proto/cline/state"
 import { convertProtoToApiProvider } from "@shared/proto-conversions/models/api-configuration-conversion"
@@ -165,6 +165,11 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 				)
 			}
 			controller.stateManager.setGlobalState("useAutoCondense", request.useAutoCondense)
+		}
+
+		// Update web search setting (stored in the SDK global settings file; applied when the next session is built)
+		if (request.webSearchEnabled !== undefined) {
+			setModelToolEnabledGlobally("web_search", !!request.webSearchEnabled)
 		}
 
 		if (request.compactionStrategy !== undefined) {

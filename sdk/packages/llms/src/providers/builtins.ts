@@ -40,7 +40,10 @@ import {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { normalizeProviderId } from "./ids";
-import { BUILTIN_MODEL_OPERATION_CAPABILITIES } from "./model-operations";
+import {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	BUILTIN_TRANSCRIPTION_TRANSPORTS,
+} from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
@@ -364,12 +367,28 @@ function mergeBuiltinSpecs(
 		(spec) => !overriddenIds.has(spec.id),
 	);
 
-	return [...mergedOverrides, ...generatedOnlySpecs].map((spec) => ({
-		...spec,
-		modelOperationCapabilities:
-			spec.modelOperationCapabilities ??
-			BUILTIN_MODEL_OPERATION_CAPABILITIES[spec.id],
-	}));
+	return [...mergedOverrides, ...generatedOnlySpecs].map((spec) => {
+		const transcription = (
+			BUILTIN_TRANSCRIPTION_TRANSPORTS as Readonly<
+				Record<
+					string,
+					{ transport: GatewayProviderMetadata["transcriptionTransport"] }
+				>
+			>
+		)[spec.id];
+		return {
+			...spec,
+			modelOperationCapabilities:
+				spec.modelOperationCapabilities ??
+				BUILTIN_MODEL_OPERATION_CAPABILITIES[spec.id],
+			metadata: transcription
+				? {
+						...spec.metadata,
+						transcriptionTransport: transcription.transport,
+					}
+				: spec.metadata,
+		};
+	});
 }
 
 function generatedModels(providerId: string): Record<string, ModelInfo> {
@@ -436,6 +455,24 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
 	"meta/muse-spark-1.2-contributor",
 ];
+
+function buildElevenLabsModels(): Record<string, ModelInfo> {
+	return {
+		scribe_v2: {
+			id: "scribe_v2",
+			name: "Scribe v2",
+			description:
+				"ElevenLabs speech recognition model for accurate multilingual transcription",
+			family: "elevenlabs",
+			operation: "transcription",
+			operationModes: ["batch"],
+			modalities: {
+				input: ["audio"],
+				output: ["text"],
+			},
+		},
+	};
+}
 
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint
@@ -549,6 +586,7 @@ function modelInfoToGateway(
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
 		operation: info.operation,
+		operationModes: info.operationModes,
 		modalities: info.modalities,
 		capabilities: [...capabilities],
 		reasoningOptions: info.reasoningOptions,
@@ -1076,6 +1114,18 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: { usageCostDisplay: "subscription" },
 	},
 	{
+		id: "elevenlabs",
+		name: "ElevenLabs",
+		description: "ElevenLabs speech-to-text and audio services",
+		family: "openai-compatible",
+		client: "fetch",
+		defaultModelId: "scribe_v2",
+		apiKeyEnv: ["ELEVENLABS_API_KEY"],
+		modelsFactory: buildElevenLabsModels,
+		docsUrl: "https://elevenlabs.io/docs/overview/capabilities/speech-to-text",
+		defaults: { baseUrl: "https://api.elevenlabs.io/v1" },
+	},
+	{
 		id: "anthropic",
 		name: "Anthropic",
 		description: "Creator of Claude, the AI assistant",
@@ -1318,6 +1368,7 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		modelOperationCapabilities: spec.modelOperationCapabilities?.map(
 			(capability: GatewayModelOperationCapability) => ({
 				...capability,
+				modes: capability.modes ? [...capability.modes] : undefined,
 				inputModalities: capability.inputModalities
 					? [...capability.inputModalities]
 					: undefined,

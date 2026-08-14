@@ -170,7 +170,6 @@ export {
 	type GeneratedMediaSource,
 	GeneratedMediaSourceSchema,
 	generatedMediaModalityFromMediaType,
-	generatedMediaSourceUrl,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ImageMediaLimits,
@@ -223,6 +222,8 @@ export {
 	type ModelModality,
 	ModelModalitySchema,
 	type ModelOperation,
+	type ModelOperationMode,
+	ModelOperationModeSchema,
 	ModelOperationSchema,
 	type ModelPricing,
 	ModelPricingSchema,
@@ -429,6 +430,7 @@ export type {
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
 	ProviderCapabilitySchema,

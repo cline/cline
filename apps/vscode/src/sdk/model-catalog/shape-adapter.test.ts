@@ -38,6 +38,11 @@ describe("adaptSdkModelInfo", () => {
 			)
 		})
 
+		it("throws CatalogShapeError when operation modes are malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", operationModes: "streaming" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", operationModes: ["live"] })).toThrow(CatalogShapeError)
+		})
+
 		it("throws CatalogShapeError when pricing is malformed", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: "cheap" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: "free" } })).toThrow(CatalogShapeError)
@@ -117,6 +122,16 @@ describe("adaptSdkModelInfo", () => {
 				modalities: { input: ["text", "image"], output: ["text", "image"] },
 			})
 			expect(model.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+		})
+
+		it("preserves the SDK operation and execution modes", () => {
+			const model = adaptSdkModelInfo({
+				id: "openai/gpt-realtime-whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+			})
+			expect(model.operation).toBe("transcription")
+			expect(model.operationModes).toEqual(["streaming"])
 		})
 	})
 

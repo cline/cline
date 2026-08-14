@@ -1,6 +1,7 @@
 import {
 	builtinProviderSupportsModelOperation,
 	normalizeBuiltinModelOperationModalities,
+	resolveModelOperation,
 } from "../providers/model-operations";
 import {
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
@@ -11,8 +12,11 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
-import { resolveCatalogModelOperation } from "./model-operation";
-import type { ModelInfo, ModelModality, ModelOperation } from "./types";
+import {
+	resolveCatalogModelOperation,
+	resolveCatalogModelOperationModes,
+} from "./model-operation";
+import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
 	name?: string;
@@ -84,6 +88,7 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
+
 const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/openai": "openai",
 	"@ai-sdk/openai-compatible": "openai-compatible",
@@ -253,20 +258,28 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
+	const hasGeneratedOutput = output.some((modality) => modality !== "text");
+	const isTranscriptionShape =
+		input.length === 1 &&
+		input[0] === "audio" &&
+		output.length === 1 &&
+		output[0] === "text";
+	const hasAudioInput = input.includes("audio");
+	// Ordinary language-model input modalities already have compact capability
+	// projections (images, video, files). Audio has no generic capability flag,
+	// so retain that input shape along with generated output and transcription.
+	if (!hasGeneratedOutput && !isTranscriptionShape && !hasAudioInput) {
+		return undefined;
+	}
 	return { input, output };
 }
 
-function isSpecializedMediaModel(model: ModelsDevModel): boolean {
+function isSpecializedOperationModel(model: ModelInfo): boolean {
 	return (
-		model.modalities?.input?.includes("text") === true &&
-		model.modalities.output?.some((modality) => modality !== "text") === true
+		resolveModelOperation(model) !== "language" ||
+		model.modalities?.output.some((modality) => modality !== "text") === true
 	);
 }
-
-function toModelOperation(model: ModelsDevModel): ModelOperation {
-	return resolveCatalogModelOperation(model);
-}
-
 function isChatModel(model: ModelInfo): boolean {
 	return (
 		(model.modalities === undefined ||
@@ -304,7 +317,8 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
 	const modalities = toModalities(model);
-	const operation = toModelOperation(model);
+	const operation = resolveCatalogModelOperation(model);
+	const operationModes = resolveCatalogModelOperationModes(modelId, model);
 
 	return {
 		id: modelId,
@@ -325,7 +339,8 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
-		operation,
+		...(operation !== "language" ? { operation } : {}),
+		...(operationModes ? { operationModes } : {}),
 		...(modalities !== undefined ? { modalities } : {}),
 	};
 }
@@ -353,6 +368,7 @@ export function normalizeModelsDevProviderModels(
 				providerId: targetProviderId,
 				modelId,
 				operation: rawInfo.operation,
+				operationModes: rawInfo.operationModes,
 				modalities: rawInfo.modalities,
 				family: rawInfo.family,
 				capabilities: rawInfo.capabilities,
@@ -362,12 +378,13 @@ export function normalizeModelsDevProviderModels(
 				...(modalities ? { modalities } : {}),
 			};
 			if (
-				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
+				(model.tool_call !== true && !isSpecializedOperationModel(info)) ||
 				isDeprecatedModel(model) ||
 				!builtinProviderSupportsModelOperation({
 					providerId: targetProviderId,
 					modelId,
 					operation: info.operation,
+					operationModes: info.operationModes,
 					modalities: info.modalities,
 					family: info.family,
 					capabilities: info.capabilities,
