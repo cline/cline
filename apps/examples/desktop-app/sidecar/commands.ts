@@ -36,6 +36,7 @@ import {
 	saveLocalProviderSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
+	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
@@ -1523,6 +1524,13 @@ export async function handleCommand(
 			throw new Error("auto_update_enabled must be a boolean");
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+	if (command === "set_web_search_enabled") {
+		if (typeof args?.web_search_enabled !== "boolean") {
+			throw new Error("web_search_enabled must be a boolean");
+		}
+		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
 	}
 
