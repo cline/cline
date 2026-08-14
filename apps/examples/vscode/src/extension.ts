@@ -28,7 +28,9 @@ import {
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
 	formatDisplayUserInput,
+	isGeneratedMedia,
 	type MessageWithMetadata,
+	validateImageMedia,
 } from "@cline/shared";
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
@@ -438,6 +440,34 @@ export function mapPersistedMessagesToWebviewMessages(
 					});
 					break;
 				}
+				case "image": {
+					const validation = validateImageMedia(
+						typeof part.mediaType === "string" ? part.mediaType : undefined,
+						typeof part.data === "string" ? part.data : "",
+					);
+					if (validation.ok) {
+						blocks.push({
+							id: `${messageKey}:media:${partIndex}`,
+							type: "media",
+							media: {
+								id: `${messageKey}:media:${partIndex}`,
+								modality: "image",
+								mediaType: validation.mediaType,
+								source: { type: "base64", data: validation.base64 },
+							},
+						});
+					}
+					break;
+				}
+				case "media":
+					if (isGeneratedMedia(part.media)) {
+						blocks.push({
+							id: `${messageKey}:media:${partIndex}`,
+							type: "media",
+							media: part.media,
+						});
+					}
+					break;
 				case "thinking":
 				case "reasoning": {
 					const reasoning =
@@ -575,7 +605,7 @@ export function mapPersistedMessagesToWebviewMessages(
 
 		const text = textParts.join("\n");
 		const toolEventList = [...toolEvents.values()];
-		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
+		if (blocks.length === 0) {
 			continue;
 		}
 		const role =
@@ -1490,6 +1520,14 @@ class CoreChatWebviewController implements vscode.Disposable {
 					type: "assistant_delta",
 					text: String(payload?.text ?? ""),
 				});
+				return;
+			case "assistant.media":
+				if (isGeneratedMedia(payload?.media)) {
+					await this.post({
+						type: "assistant_media",
+						media: payload.media,
+					});
+				}
 				return;
 			case "reasoning.delta":
 				await this.post({

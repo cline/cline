@@ -95,7 +95,7 @@ async function streamThroughVendor({
 			model: { id: "test-model", name: "test-model", providerId: "ollama" },
 		} as unknown as GatewayProviderContext,
 	);
-	const model = module.model("test-model");
+	const model = module.operations.language("test-model");
 	const result = await model.doStream({
 		prompt,
 		...(providerOptions ? { providerOptions } : {}),

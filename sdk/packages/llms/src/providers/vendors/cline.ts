@@ -9,11 +9,19 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { type ToolSet, wrapLanguageModel } from "ai";
+import {
+	modelProducesImages,
+	usesImageGenerationOperation,
+} from "@cline/shared";
+import { createOpenRouter } from "@openrouter/ai-sdk-provider";
+import { wrapLanguageModel } from "ai";
 import { z } from "zod";
 import { ensureFetch, resolveApiKey } from "../http";
 import { splitToolImagesMiddleware } from "../middleware/split-tool-images";
-import { withMaxCompletionTokensForReasoningModels } from "./openai-compatible";
+import {
+	createSuccessDataResponseFetch,
+	withMaxCompletionTokensForReasoningModels,
+} from "./openai-compatible";
 import type { ProviderFactoryResult } from "./types";
 
 export interface ClineWebSearchInput {
@@ -223,25 +231,55 @@ function readResponseErrorHandler(
 
 export async function createClineProviderModule(
 	config: GatewayResolvedProviderConfig,
-	_context: GatewayProviderContext,
+	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
-	const cline = createCline({
+	const providerOptions: ClineProviderOptions = {
 		apiKey: await resolveApiKey(config),
 		baseURL: config.baseUrl ?? "https://api.cline.bot/api/v1",
 		headers: config.headers,
 		fetch: config.fetch,
 		onResponseError: readResponseErrorHandler(config),
-	});
+	};
+	const cline = createCline(providerOptions);
+	const openRouter =
+		context.provider.metadata?.imageTransport === "openrouter"
+			? createOpenRouter({
+					apiKey: providerOptions.apiKey,
+					baseURL: providerOptions.baseURL,
+					headers: providerOptions.headers,
+					fetch: createSuccessDataResponseFetch(
+						createClineFetch(providerOptions),
+					),
+					compatibility: "compatible",
+				})
+			: undefined;
 	return {
-		model: (modelId) => cline(modelId),
+		operations: {
+			language: (modelId) =>
+				openRouter &&
+				modelProducesImages(context.model) &&
+				!usesImageGenerationOperation(context.model)
+					? openRouter.chat(modelId)
+					: cline(modelId),
+			...(openRouter
+				? {
+						imageGeneration: (modelId: string) =>
+							openRouter.imageModel(modelId),
+					}
+				: {}),
+		},
 		buildModelTools: (tools) => {
-			const result: ToolSet = {};
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
 			for (const tool of tools) {
 				if (tool.name === "web_search") {
-					result.web_search = cline.tools.webSearch({
-						allowedDomains: tool.allowedDomains,
-						blockedDomains: tool.blockedDomains,
-					});
+					result.web_search = {
+						tool: cline.tools.webSearch({
+							allowedDomains: tool.allowedDomains,
+							blockedDomains: tool.blockedDomains,
+						}),
+					};
 				}
 			}
 			return result;

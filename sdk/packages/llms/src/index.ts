@@ -102,6 +102,12 @@ export {
 export type * from "./providers/gateway";
 export { createGateway, DefaultGateway } from "./providers/gateway";
 export {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	builtinProviderSupportsModelOperation,
+	providerManifestSupportsModelOperation,
+	resolveModelOperation,
+} from "./providers/model-operations";
+export {
 	type ModelToolSupportInput,
 	providerManifestSupportsModelTool,
 	supportsModelTool,
@@ -129,7 +135,6 @@ export {
 	type AudioTranscriptionRoute,
 	createStreamingAudioTranscriptionSession,
 	DEFAULT_TRANSCRIPTION_TIMEOUT_MS,
-	isStreamingTranscriptionModelId,
 	resolveAudioTranscriptionRoute,
 	type StreamingAudioTranscriptionSession,
 	type StreamingAudioTranscriptionSessionRequest,

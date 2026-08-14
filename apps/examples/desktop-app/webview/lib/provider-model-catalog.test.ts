@@ -16,6 +16,7 @@ describe("transcription model selection", () => {
 			isDedicatedTranscriptionModel({
 				id: "whisper",
 				name: "Whisper",
+				operation: "transcription",
 				inputModalities: ["audio"],
 				outputModalities: ["text"],
 			}),
@@ -78,6 +79,7 @@ describe("transcription model selection", () => {
 					{
 						id: "whisper-large-v3",
 						name: "Whisper",
+						operation: "transcription",
 						inputModalities: ["audio"],
 						outputModalities: ["text"],
 					},
@@ -94,6 +96,7 @@ describe("transcription model selection", () => {
 					{
 						id: "whisper-large-v3",
 						name: "Whisper",
+						operation: "transcription",
 						inputModalities: ["audio"],
 						outputModalities: ["text"],
 					},
@@ -128,6 +131,7 @@ describe("transcription model selection", () => {
 				{
 					id: "scribe_v2",
 					name: "Scribe v2",
+					operation: "transcription",
 					inputModalities: ["audio"],
 					outputModalities: ["text"],
 				},
@@ -159,6 +163,7 @@ describe("transcription model selection", () => {
 				{
 					id: "gpt-4o-mini-transcribe",
 					name: "GPT-4o mini Transcribe",
+					operation: "transcription",
 					inputModalities: ["audio"],
 					outputModalities: ["text"],
 				},
@@ -212,7 +217,8 @@ describe("transcription model selection", () => {
 				{
 					id: "openai/gpt-realtime-whisper",
 					name: "GPT Realtime Whisper",
-					supportsStreamingTranscription: true,
+					operation: "transcription",
+					operationModes: ["streaming"],
 					inputModalities: ["audio"],
 					outputModalities: ["text"],
 				},

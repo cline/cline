@@ -6,6 +6,12 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
+import type {
+	ModelModalities,
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "./model-info";
 import type { ModelTool, ModelToolName } from "./model-tools";
 import type {
 	ModelReasoningOption,
@@ -50,6 +56,14 @@ export type GatewayReasoningFormat =
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
+			matcher: "model-operation";
+			operation: ModelOperation;
+	  }
+	| {
+			matcher: "model-output-modality";
+			modality: ModelModality;
+	  }
+	| {
 			matcher: "model-family";
 			family: string;
 			requiredCapability?: GatewayModelCapability;
@@ -69,6 +83,16 @@ export type GatewayModelRoute =
  */
 export interface GatewayModelToolCapability {
 	name: ModelToolName;
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
+/** A provider transport capable of executing a matching model operation. */
+export interface GatewayModelOperationCapability {
+	operation: ModelOperation;
+	modes?: readonly ModelOperationMode[];
+	inputModalities?: readonly ModelModality[];
+	outputModalities?: readonly ModelModality[];
 	routes?: readonly GatewayModelRoute[];
 	excludeRoutes?: readonly GatewayModelRoute[];
 }
@@ -102,6 +126,22 @@ export interface GatewayProviderMetadata {
 	usageCostDisplay?: GatewayUsageCostDisplay;
 	routing?: GatewayProviderRouting;
 	stickySession?: GatewayStickySessionMetadata;
+	/**
+	 * Provider-specific transport used for models whose output includes images.
+	 * OpenRouter-compatible image responses require a richer schema than the
+	 * generic OpenAI-compatible adapter exposes.
+	 */
+	imageTransport?: "openrouter";
+	/** Provider-owned implementation used for the transcription operation. */
+	transcriptionTransport?:
+		| "openai-compatible"
+		| "vercel-ai-gateway"
+		| "elevenlabs";
+	/**
+	 * Successful JSON responses are wrapped by the provider before reaching
+	 * the protocol adapter. `success-data` represents `{ success, data }`.
+	 */
+	responseEnvelope?: "success-data";
 	configFields?: readonly ProviderConfigField[];
 	[key: string]:
 		| JsonValue
@@ -119,6 +159,9 @@ export interface GatewayModelDefinition {
 	contextWindow?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
+	operation?: ModelOperation;
+	operationModes?: readonly ModelOperationMode[];
+	modalities?: ModelModalities;
 	capabilities?: readonly GatewayModelCapability[];
 	reasoningOptions?: readonly ModelReasoningOption[];
 	metadata?: Record<string, JsonValue | undefined>;
@@ -130,6 +173,7 @@ export interface GatewayProviderManifest {
 	description?: string;
 	defaultModelId: string;
 	models: readonly GatewayModelDefinition[];
+	modelOperationCapabilities?: readonly GatewayModelOperationCapability[];
 	modelToolCapabilities?: readonly GatewayModelToolCapability[];
 	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];

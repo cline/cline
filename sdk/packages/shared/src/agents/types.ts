@@ -26,6 +26,7 @@ import type {
 	PluginSetupContext,
 } from "../extensions/contribution-registry";
 import type { HookControl } from "../hooks/contracts";
+import type { GeneratedMedia } from "../llms/media";
 import type { Message, MessageWithMetadata } from "../llms/messages";
 import type { ModelInfo } from "../llms/model-info";
 import { ModelInfoSchema } from "../llms/model-info";
@@ -72,7 +73,7 @@ export type AgentEvent =
 	| AgentDoneEvent
 	| AgentErrorEvent;
 
-export type AgentContentType = "text" | "reasoning" | "tool";
+export type AgentContentType = "text" | "reasoning" | "media" | "tool";
 
 export interface AgentEventMetadata {
 	/** Current ID */
@@ -122,6 +123,8 @@ export interface AgentContentEndEvent extends AgentEventMetadata {
 	text?: string;
 	/** Final reasoning/thinking text generated for this turn */
 	reasoning?: string;
+	/** Generated media returned by the model. */
+	media?: GeneratedMedia;
 	/** Name of the tool that completed */
 	toolName?: string;
 	/** Unique identifier for this tool call */

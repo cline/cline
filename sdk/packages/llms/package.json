@@ -52,6 +52,7 @@
 	"dependencies": {
 		"@ai-sdk/amazon-bedrock": "^5.0.50",
 		"@ai-sdk/anthropic": "^4.0.36",
+		"@ai-sdk/gateway": "^4",
 		"@ai-sdk/google": "^4.0.39",
 		"@ai-sdk/google-vertex": "^5.0.47",
 		"@ai-sdk/mistral": "^4.0.27",
@@ -64,6 +65,7 @@
 		"@cline/shared": "workspace:*",
 		"@jerome-benoit/sap-ai-provider": "4.8.0",
 		"@langfuse/otel": "^4.0.0",
+		"@openrouter/ai-sdk-provider": "^3",
 		"@opentelemetry/api": "^1.9.0",
 		"@opentelemetry/sdk-trace-node": "^2.6.1",
 		"@streamparser/json": "^0.0.21",

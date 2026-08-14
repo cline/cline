@@ -45,7 +45,7 @@ describe("transcribeAudio", () => {
 				baseUrl: "https://ai-gateway.vercel.sh/v1/",
 			}),
 		).toEqual({
-			kind: "vercel-ai-gateway",
+			transport: "vercel-ai-gateway",
 			baseUrl: "https://ai-gateway.vercel.sh/v4/ai",
 			endpoint: "https://ai-gateway.vercel.sh/v4/ai/transcription-model",
 		});
@@ -55,7 +55,7 @@ describe("transcribeAudio", () => {
 				baseUrl: "https://api.elevenlabs.io/v1/",
 			}),
 		).toMatchObject({
-			kind: "elevenlabs",
+			transport: "elevenlabs",
 			endpoint: "https://api.elevenlabs.io/v1/speech-to-text",
 		});
 		expect(
@@ -64,9 +64,28 @@ describe("transcribeAudio", () => {
 				baseUrl: "https://api.groq.com/openai/v1/",
 			}),
 		).toMatchObject({
-			kind: "openai-compatible",
+			transport: "openai-compatible",
 			endpoint: "https://api.groq.com/openai/v1/audio/transcriptions",
 		});
+		expect(
+			resolveAudioTranscriptionRoute({
+				providerId: "custom-audio",
+				routingProviderId: "openai-native",
+				baseUrl: "https://audio.example/v1/",
+			}),
+		).toMatchObject({
+			transport: "openai-compatible",
+			endpoint: "https://audio.example/v1/audio/transcriptions",
+		});
+	});
+
+	it("rejects providers without an explicit transcription transport", () => {
+		expect(() =>
+			resolveAudioTranscriptionRoute({
+				providerId: "openai",
+				baseUrl: "https://compatible.example/v1",
+			}),
+		).toThrow('Provider "openai" does not declare a transcription operation');
 	});
 
 	it("uses provider credentials, endpoint, headers, and the selected model", async () => {
@@ -201,23 +220,6 @@ describe("transcribeAudio", () => {
 			url: "wss://ai-gateway.vercel.sh/v4/ai/transcription-model?ai-model-id=openai%2Fgpt-realtime-whisper",
 			expiresAt: 1_800_000_000,
 		});
-	});
-
-	it("rejects a streaming-only Vercel model on the recorded-audio path", async () => {
-		const fetchImpl = vi.fn<typeof fetch>();
-		await expect(
-			transcribeAudio({
-				providerConfig: {
-					providerId: "vercel-ai-gateway",
-					modelId: "chat-model",
-					apiKey: "gateway-secret",
-					fetch: fetchImpl,
-				},
-				modelId: "openai/gpt-realtime-whisper",
-				audio: new Uint8Array([1, 2, 3]),
-			}),
-		).rejects.toThrow("requires streaming transcription");
-		expect(fetchImpl).not.toHaveBeenCalled();
 	});
 
 	it("uses ElevenLabs' native speech-to-text endpoint", async () => {

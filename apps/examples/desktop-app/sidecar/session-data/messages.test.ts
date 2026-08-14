@@ -26,7 +26,7 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
-	it("preserves each stored message timestamp across projected blocks", async () => {
+	it("uses stored timestamps as a stable integer base for projected blocks", async () => {
 		const sessionId = `timestamp-projection-${Date.now()}`;
 		const userTimestamp = 1_781_041_621_282;
 		const assistantTimestamp = 1_781_041_621_946;
@@ -79,7 +79,7 @@ describe("readSessionMessages", () => {
 			}),
 			expect.objectContaining({
 				id: "assistant-message_tool_use_2",
-				createdAt: assistantTimestamp,
+				createdAt: assistantTimestamp + 1,
 			}),
 		]);
 	});

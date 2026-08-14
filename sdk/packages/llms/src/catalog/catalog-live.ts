@@ -1,4 +1,9 @@
 import {
+	builtinProviderSupportsModelOperation,
+	normalizeBuiltinModelOperationModalities,
+	resolveModelOperation,
+} from "../providers/model-operations";
+import {
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
@@ -7,6 +12,10 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
+import {
+	resolveCatalogModelOperation,
+	resolveCatalogModelOperationModes,
+} from "./model-operation";
 import type { ModelInfo, ModelModality } from "./types";
 
 export interface ModelsDevModel {
@@ -79,22 +88,6 @@ interface SelectedModelsDevProvider {
 
 const DEFAULT_MAX_INPUT_TOKENS = 128_000;
 const DEFAULT_MAX_TOKENS = 4096;
-
-// Non-tool models are only useful to the voice-input catalog when the current
-// runtime can send them through its OpenAI-compatible (or provider-specific)
-// transcription transport. Keep this list intentionally explicit: a provider
-// advertising audio modalities does not imply that its chat base URL exposes
-// POST /audio/transcriptions.
-const TRANSCRIPTION_TRANSPORT_PROVIDER_IDS = new Set([
-	"evroc",
-	"groq",
-	"mistral",
-	"nearai",
-	"openai-native",
-	"privatemode-ai",
-	"scaleway",
-	"vercel-ai-gateway",
-]);
 
 const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/openai": "openai",
@@ -196,34 +189,7 @@ function getSelectedModelsDevProviders(
 	return selected;
 }
 
-function isDedicatedTranscriptionModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.input?.length === 1 &&
-		model.modalities.input[0] === "audio" &&
-		model.modalities.output?.length === 1 &&
-		model.modalities.output[0] === "text"
-	);
-}
-
-function isStreamingTranscriptionModel(
-	modelId: string,
-	model: ModelsDevModel,
-): boolean {
-	if (!isDedicatedTranscriptionModel(model)) {
-		return false;
-	}
-
-	// models.dev exposes modalities but does not currently distinguish batch
-	// transcription from WebSocket-only transcription. Realtime transcription
-	// models consistently carry "realtime" in their canonical model/name.
-	const identity = `${modelId} ${model.name ?? ""}`.toLowerCase();
-	return /(?:^|[/_.-])realtime(?:$|[/_.-])/.test(identity);
-}
-
-function toCapabilities(
-	modelId: string,
-	model: ModelsDevModel,
-): ModelInfo["capabilities"] {
+function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	const capabilities: NonNullable<ModelInfo["capabilities"]> = [];
 	if (model.modalities?.input?.includes("image")) {
 		capabilities.push("images");
@@ -246,9 +212,6 @@ function toCapabilities(
 	if (model.temperature === true) {
 		capabilities.push("temperature");
 	}
-	if (isStreamingTranscriptionModel(modelId, model)) {
-		capabilities.push("transcription-streaming");
-	}
 	if (
 		(model.cost?.cache_read && model.cost?.cache_read >= 0) ||
 		(model.cost?.cache_write && model.cost?.cache_write >= 0)
@@ -266,9 +229,8 @@ const KNOWN_MODEL_MODALITIES = new Set<ModelModality>([
 	"pdf",
 ]);
 
-function toModalities(
-	modalities: ModelsDevModel["modalities"],
-): ModelInfo["modalities"] {
+function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
+	const modalities = model.modalities;
 	if (!modalities) {
 		return undefined;
 	}
@@ -281,13 +243,43 @@ function toModalities(
 			),
 		);
 	const input = normalize(modalities.input);
-	const output = normalize(modalities.output);
-	if (!input.includes("audio") && !output.includes("audio")) {
+	let output = normalize(modalities.output);
+	if (
+		model.family?.trim().toLowerCase() === "gpt-image" &&
+		output.includes("image")
+	) {
+		// models.dev has advertised some GPT Image releases as also producing
+		// text. They are image-endpoint models, so keeping `text` here would route
+		// them through the streaming Responses path instead of `generateImage`.
+		output = output.filter((modality) => modality !== "text");
+	}
+	// A one-sided declaration is incomplete and must not turn an otherwise
+	// usable chat model into an input- or output-incompatible model.
+	if (input.length === 0 || output.length === 0) {
+		return undefined;
+	}
+	const hasGeneratedOutput = output.some((modality) => modality !== "text");
+	const isTranscriptionShape =
+		input.length === 1 &&
+		input[0] === "audio" &&
+		output.length === 1 &&
+		output[0] === "text";
+	const hasAudioInput = input.includes("audio");
+	// Ordinary language-model input modalities already have compact capability
+	// projections (images, video, files). Audio has no generic capability flag,
+	// so retain that input shape along with generated output and transcription.
+	if (!hasGeneratedOutput && !isTranscriptionShape && !hasAudioInput) {
 		return undefined;
 	}
 	return { input, output };
 }
 
+function isSpecializedOperationModel(model: ModelInfo): boolean {
+	return (
+		resolveModelOperation(model) !== "language" ||
+		model.modalities?.output.some((modality) => modality !== "text") === true
+	);
+}
 function isChatModel(model: ModelInfo): boolean {
 	return (
 		(model.modalities === undefined ||
@@ -324,7 +316,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const maxInputTokens = resolveMaxInputTokens(model.limit);
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
-	const modalities = toModalities(model.modalities);
+	const modalities = toModalities(model);
+	const operation = resolveCatalogModelOperation(model);
+	const operationModes = resolveCatalogModelOperationModes(modelId, model);
 
 	return {
 		id: modelId,
@@ -332,8 +326,10 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		contextWindow: rawContextLimit,
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
-		capabilities: toCapabilities(modelId, model),
-		reasoningOptions: model.reasoning_options,
+		capabilities: toCapabilities(model),
+		...(model.reasoning_options !== undefined
+			? { reasoningOptions: model.reasoning_options }
+			: {}),
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,
@@ -343,6 +339,8 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
+		...(operation !== "language" ? { operation } : {}),
+		...(operationModes ? { operationModes } : {}),
 		...(modalities !== undefined ? { modalities } : {}),
 	};
 }
@@ -365,16 +363,36 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
-			const hasSupportedTranscriptionTransport =
-				isDedicatedTranscriptionModel(model) &&
-				TRANSCRIPTION_TRANSPORT_PROVIDER_IDS.has(targetProviderId);
+			const rawInfo = toModelInfo(modelId, model);
+			const modalities = normalizeBuiltinModelOperationModalities({
+				providerId: targetProviderId,
+				modelId,
+				operation: rawInfo.operation,
+				operationModes: rawInfo.operationModes,
+				modalities: rawInfo.modalities,
+				family: rawInfo.family,
+				capabilities: rawInfo.capabilities,
+			});
+			const info = {
+				...rawInfo,
+				...(modalities ? { modalities } : {}),
+			};
 			if (
-				(model.tool_call !== true && !hasSupportedTranscriptionTransport) ||
-				isDeprecatedModel(model)
+				(model.tool_call !== true && !isSpecializedOperationModel(info)) ||
+				isDeprecatedModel(model) ||
+				!builtinProviderSupportsModelOperation({
+					providerId: targetProviderId,
+					modelId,
+					operation: info.operation,
+					operationModes: info.operationModes,
+					modalities: info.modalities,
+					family: info.family,
+					capabilities: info.capabilities,
+				})
 			) {
 				continue;
 			}
-			models[modelId] = toModelInfo(modelId, model);
+			models[modelId] = info;
 		}
 
 		if (Object.keys(models).length > 0) {
