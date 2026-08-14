@@ -232,6 +232,7 @@ export type DefaultToolName =
 	| "apply_patch"
 	| "editor"
 	| "skills"
+	| "monitor"
 	| "ask_question"
 	| "submit_and_exit";
 
@@ -288,6 +289,9 @@ export interface DefaultToolsConfig {
 	 * @default true
 	 */
 	enableSkills?: boolean;
+
+	/** Enable the monitor tool. @default true */
+	enableMonitor?: boolean;
 
 	/**
 	 * Enable the ask_followup_question tool

@@ -53,6 +53,7 @@ describe("default tool presets", () => {
 			"read_files",
 			"run_commands",
 			"editor",
+			"monitor",
 		]);
 	});
 });

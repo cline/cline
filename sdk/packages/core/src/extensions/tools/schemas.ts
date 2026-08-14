@@ -255,6 +255,24 @@ export const SkillsInputSchema = z.object({
 		.describe("Arguments for the skill; use null when omitted"),
 });
 
+/** Schema for the monitor tool input. */
+export const MonitorInputSchema = z.object({
+	duration_seconds: z.coerce
+		.number()
+		.int()
+		.min(1)
+		.max(900)
+		.describe(
+			"How long to wait before returning control, in whole seconds. The maximum is 900 seconds (15 minutes).",
+		),
+	reason: z
+		.string()
+		.min(1)
+		.describe(
+			"A concise description of what is running or what state will be checked after the wait.",
+		),
+});
+
 /**
  * Schema for ask_followup_question tool input
  */
@@ -339,6 +357,9 @@ export type ApplyPatchInput = z.infer<typeof ApplyPatchInputSchema>;
  * Input for the skills tool
  */
 export type SkillsInput = z.infer<typeof SkillsInputSchema>;
+
+/** Input for the monitor tool. */
+export type MonitorInput = z.infer<typeof MonitorInputSchema>;
 
 /**
  * Input for the ask_followup_question tool

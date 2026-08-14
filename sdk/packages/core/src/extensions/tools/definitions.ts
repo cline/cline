@@ -44,6 +44,8 @@ import {
 	EditFileInputSchema,
 	type FetchWebContentInput,
 	FetchWebContentInputSchema,
+	type MonitorInput,
+	MonitorInputSchema,
 	type ReadFileRequest,
 	type ReadFilesInput,
 	ReadFilesInputSchema,
@@ -798,6 +800,55 @@ export function createAskQuestionTool(
 	};
 }
 
+/**
+ * Pause the tool loop while external work progresses. The timer is local and
+ * abortable; the agent checks the external state with its next tool call.
+ */
+export function createMonitorTool(): AgentTool<MonitorInput, string> {
+	return createTool<MonitorInput, string>({
+		name: "monitor",
+		description:
+			"Wait for a bounded period while external work continues, then return control so you can check its state again. " +
+			"Use this after starting or identifying work that is still running, such as CI, a deployment, a background process, or a log-producing job. " +
+			"This tool only waits; after it returns, use the appropriate tool to recheck the actual status. " +
+			"Choose a useful polling interval and provide a concise reason. A single call can wait at most 15 minutes; for longer work, report status and call monitor again if needed.",
+		inputSchema: zodToJsonSchema(MonitorInputSchema),
+		// Margin above the schema maximum lets the timer resolve first.
+		timeoutMs: 905_000,
+		retryable: false,
+		maxRetries: 0,
+		execute: async (input, context) => {
+			const validatedInput = validateWithZod(MonitorInputSchema, input);
+			const durationMs = validatedInput.duration_seconds * 1000;
+
+			return new Promise<string>((resolve) => {
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const finish = (message: string) => {
+					if (timer) clearTimeout(timer);
+					context.signal?.removeEventListener("abort", onAbort);
+					resolve(message);
+				};
+				const onAbort = () =>
+					finish(`Monitor cancelled while waiting: ${validatedInput.reason}`);
+
+				if (context.signal?.aborted) {
+					onAbort();
+					return;
+				}
+
+				context.signal?.addEventListener("abort", onAbort, { once: true });
+				timer = setTimeout(
+					() =>
+						finish(
+							`Waited ${validatedInput.duration_seconds} seconds. Recheck now: ${validatedInput.reason}`,
+						),
+					durationMs,
+				);
+			});
+		},
+	});
+}
+
 export function createSubmitAndExitTool(
 	executor: VerifySubmitExecutor,
 	config: Pick<DefaultToolsConfig, "submitTimeoutMs"> = {},
@@ -884,6 +935,7 @@ export function createDefaultTools(
 		enableApplyPatch = false,
 		enableEditor = true,
 		enableSkills = true,
+		enableMonitor = true,
 		enableAskQuestion = true,
 		enableSubmitAndExit = false,
 		...config
@@ -923,6 +975,10 @@ export function createDefaultTools(
 	// Add skills tool if enabled and executor provided
 	if (enableSkills && executors.skills) {
 		tools.push(createSkillsTool(executors.skills, config));
+	}
+
+	if (enableMonitor) {
+		tools.push(createMonitorTool());
 	}
 
 	const submitExecutor = enableSubmitAndExit ? executors.submit : undefined;

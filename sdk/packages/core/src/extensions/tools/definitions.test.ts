@@ -4,6 +4,7 @@ import {
 	buildRunCommandsDescription,
 	createDefaultTools,
 	createEditorTool,
+	createMonitorTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -13,6 +14,68 @@ import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
+
+describe("monitor tool", () => {
+	it("is enabled by default without an executor", () => {
+		const tools = createDefaultTools({ executors: {} });
+		expect(tools.map((tool) => tool.name)).toContain("monitor");
+	});
+
+	it("can be disabled", () => {
+		const tools = createDefaultTools({
+			executors: {},
+			enableMonitor: false,
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("waits for the requested duration and prompts a recheck", async () => {
+		vi.useFakeTimers();
+		try {
+			const tool = createMonitorTool();
+			const result = tool.execute(
+				{ duration_seconds: 300, reason: "GitHub CI run" },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			);
+
+			await vi.advanceTimersByTimeAsync(300_000);
+			await expect(result).resolves.toBe(
+				"Waited 300 seconds. Recheck now: GitHub CI run",
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("stops promptly when the run is aborted", async () => {
+		const controller = new AbortController();
+		const tool = createMonitorTool();
+		const result = tool.execute(
+			{ duration_seconds: 900, reason: "deployment" },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				signal: controller.signal,
+			},
+		);
+
+		controller.abort();
+		await expect(result).resolves.toBe(
+			"Monitor cancelled while waiting: deployment",
+		);
+	});
+
+	it("rejects waits longer than 15 minutes", async () => {
+		const tool = createMonitorTool();
+		await expect(
+			tool.execute(
+				{ duration_seconds: 901, reason: "CI" },
+				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			),
+		).rejects.toThrow();
+	});
+});
 
 function hasSchemaKey(value: unknown, key: string): boolean {
 	if (Array.isArray(value)) {

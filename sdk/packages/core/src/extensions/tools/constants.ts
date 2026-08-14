@@ -17,6 +17,7 @@ export const DefaultToolNames = {
 	APPLY_PATCH: "apply_patch",
 	EDITOR: "editor",
 	SKILLS: "skills",
+	MONITOR: "monitor",
 	ASK: "ask_question",
 	SUBMIT_AND_EXIT: "submit_and_exit",
 } as const;
@@ -32,6 +33,7 @@ export const ALL_DEFAULT_TOOL_NAMES: DefaultToolName[] = [
 	DefaultToolNames.APPLY_PATCH,
 	DefaultToolNames.EDITOR,
 	DefaultToolNames.SKILLS,
+	DefaultToolNames.MONITOR,
 	DefaultToolNames.ASK,
 	DefaultToolNames.SUBMIT_AND_EXIT,
 ];

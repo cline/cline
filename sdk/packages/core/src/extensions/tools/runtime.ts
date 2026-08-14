@@ -72,6 +72,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		headlessToolNames: ["skills"],
 	},
 	{
+		id: "monitor",
+		description:
+			"Wait up to 15 minutes for external work to progress before checking its state again.",
+		headlessToolNames: ["monitor"],
+	},
+	{
 		id: "ask_question",
 		description:
 			"Ask the user a single clarifying question with 2-5 selectable options.",
@@ -103,6 +109,7 @@ const TOOL_NAME_TO_FLAG: Partial<
 			| "enableApplyPatch"
 			| "enableEditor"
 			| "enableSkills"
+			| "enableMonitor"
 			| "enableAskQuestion"
 			| "enableSubmitAndExit"
 		>
@@ -115,6 +122,7 @@ const TOOL_NAME_TO_FLAG: Partial<
 	apply_patch: "enableApplyPatch",
 	editor: "enableEditor",
 	skills: "enableSkills",
+	monitor: "enableMonitor",
 	ask_question: "enableAskQuestion",
 };
 
@@ -133,6 +141,7 @@ type ResolvedToolFlags = Pick<
 	| "enableApplyPatch"
 	| "enableEditor"
 	| "enableSkills"
+	| "enableMonitor"
 	| "enableAskQuestion"
 	| "enableSubmitAndExit"
 > & {
