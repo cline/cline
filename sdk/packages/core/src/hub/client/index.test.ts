@@ -1388,3 +1388,48 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 });
+
+describe("hasActiveHubSessions", () => {
+	const payload = (sessions: unknown[]) => ({ sessions });
+
+	it("is idle for an empty or malformed list", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(hasActiveHubSessions(payload([]))).toBe(false);
+		expect(hasActiveHubSessions(undefined)).toBe(false);
+		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
+	});
+
+	it("is busy while anyone is attached, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "idle", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "running", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+	});
+
+	// The session a crashed or killed client leaves behind: a non-terminal
+	// status, nobody attached. Participants are live socket subscriptions, so
+	// a dead client cannot appear here - which is exactly why status must not
+	// be consulted: it stays "running" forever and would pin an outdated hub
+	// as busy until the machine reboots.
+	it("is idle for sessions nobody is attached to, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
+					{ status: "completed", participants: [] },
+					{ status: "running" },
+				]),
+			),
+		).toBe(false);
+	});
+});

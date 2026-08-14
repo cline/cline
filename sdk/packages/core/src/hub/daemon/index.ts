@@ -15,6 +15,7 @@ import {
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
+	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
 	verifyHubConnection,
@@ -55,6 +56,13 @@ const retireAttemptsByUrl = new Map<
 	{ count: number; windowStartedAt: number }
 >();
 
+export const __test__ = {
+	/** Retire attempts are module state keyed by URL; clear between cases. */
+	resetRetireAttempts(): void {
+		retireAttemptsByUrl.clear();
+	},
+};
+
 /**
  * Circuit breaker on repeated retirements of the same Hub URL.
  *
@@ -66,12 +74,6 @@ const retireAttemptsByUrl = new Map<
  * socket close. Backing off after a few attempts keeps a future ordering bug to
  * a stale-build prompt instead of an unusable Hub.
  */
-export const __test__ = {
-	resetRetireAttempts(): void {
-		retireAttemptsByUrl.clear();
-	},
-};
-
 function shouldAttemptRetire(url: string, now = Date.now()): boolean {
 	const entry = retireAttemptsByUrl.get(url);
 	if (!entry || now - entry.windowStartedAt > HUB_RETIRE_ATTEMPT_WINDOW_MS) {
@@ -213,14 +215,49 @@ async function retireDiscoveredHub(
 	return retired;
 }
 
+export type HubRetirementOutcome =
+	| "reusable"
+	| "retired"
+	| "deferred_busy"
+	| "failed";
+
+/**
+ * Whether the Hub is currently serving sessions, and so must not be shut down
+ * under them.
+ *
+ * Failing open (treating an unanswerable Hub as idle) preserves the existing
+ * replacement path for a Hub that is wedged or too old to answer the query;
+ * only a Hub that positively reports live sessions is spared.
+ */
+async function hubHasLiveSessions(
+	record: HubServerProbeRecord,
+): Promise<boolean> {
+	try {
+		return !(await localHubHasNoActiveSessions(record.url, record.authToken));
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Retiring a Hub kills its established WebSockets, so a session running on it
+ * dies mid-turn with an abnormal close. Defer instead while it is busy: the
+ * caller attaches to the older Hub, the build-mismatch watcher tells the user a
+ * newer build is waiting, and the swap happens at a boundary they choose.
+ */
 async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
 	discoveryPath: string,
-): Promise<boolean> {
+): Promise<HubRetirementOutcome> {
 	if (isReusableHubRecord(record)) {
-		return true;
+		return "reusable";
 	}
-	return retireDiscoveredHub(record, discoveryPath);
+	if (await hubHasLiveSessions(record)) {
+		return "deferred_busy";
+	}
+	return (await retireDiscoveredHub(record, discoveryPath))
+		? "retired"
+		: "failed";
 }
 
 /**
@@ -422,10 +459,23 @@ async function ensureDetachedHubServerLocked(
 				});
 			}
 			if (healthy?.url) {
-				await retireIncompatibleHub(
+				const outcome = await retireIncompatibleHub(
 					{ ...healthy, authToken: discoveredAuthToken },
 					owner.discoveryPath,
 				);
+				// A busy older Hub is left running, so attach to it rather than
+				// spawning a second daemon that would race it for the port.
+				if (
+					outcome === "deferred_busy" &&
+					(await verifyHubConnection(healthy.url, {
+						authToken: discoveredAuthToken,
+					}))
+				) {
+					return rememberIfManaged({
+						url: healthy.url,
+						authToken: discoveredAuthToken,
+					});
+				}
 			} else {
 				await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 			}
@@ -493,12 +543,32 @@ async function ensureDetachedHubServerLocked(
 				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
-		const retiredExpected = await retireIncompatibleHub(
+		const expectedOutcome = await retireIncompatibleHub(
 			expectedForRetirement,
 			owner.discoveryPath,
 		);
+		if (expectedOutcome === "deferred_busy") {
+			// Same as above: the older Hub is still serving sessions, so attach
+			// with whichever token verifies instead of replacing it.
+			for (const token of [
+				expectedForRetirement.authToken,
+				discovered?.authToken,
+			].filter(
+				(candidate): candidate is string =>
+					typeof candidate === "string" && candidate.trim().length > 0,
+			)) {
+				if (await verifyHubConnection(expected.url, { authToken: token })) {
+					return rememberIfManaged({ url: expected.url, authToken: token });
+				}
+			}
+			if (endpointOverrides.allowPortFallback !== true && endpoint.port !== 0) {
+				throw new Error(
+					`An older Cline Hub is running at ${expectedUrl} and is still serving active sessions, so it was not replaced, but no usable auth token is available to attach to it. Finish those sessions, or run 'cline doctor fix' to stop the hub.`,
+				);
+			}
+		}
 		if (
-			!retiredExpected &&
+			expectedOutcome === "failed" &&
 			endpointOverrides.allowPortFallback !== true &&
 			endpoint.port !== 0
 		) {
@@ -542,12 +612,24 @@ async function ensureDetachedHubServerLocked(
 				nextDiscovery ?? superseded,
 				expectedUrl,
 			);
-			const retiredExpected = await retireIncompatibleHub(
+			const nextOutcome = await retireIncompatibleHub(
 				expectedForRetirement,
 				owner.discoveryPath,
 			);
 			if (
-				!retiredExpected &&
+				nextOutcome === "deferred_busy" &&
+				nextDiscovery?.authToken &&
+				(await verifyHubConnection(nextExpected.url, {
+					authToken: nextDiscovery.authToken,
+				}))
+			) {
+				return rememberIfManaged({
+					url: nextExpected.url,
+					authToken: nextDiscovery.authToken,
+				});
+			}
+			if (
+				nextOutcome === "failed" &&
 				endpointOverrides.allowPortFallback !== true &&
 				endpoint.port !== 0
 			) {
