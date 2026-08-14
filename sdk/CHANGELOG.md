@@ -1,5 +1,16 @@
 # Cline SDK Changelog
 
+## 0.0.75
+
+- Added provider-executed web search. Models that support it can search the web during a turn, and the search calls and their results are persisted in session history so they replay on reload. Off by default; enable the `web_search` model tool in settings
+- Added a dedicated Cline provider for the Cline gateway, replacing the generic OpenAI-compatible path. Extended thinking budgets and other gateway options now reach the wire for both `cline` and `cline-pass`, which had silently stopped applying to `cline-pass`
+- Fixed two Cline installations on different builds shutting each other's Hub daemon down in a loop, killing every live session with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can ever decide to retire the other
+- A newer build no longer replaces a Hub that is serving live sessions — it attaches over the compatible wire protocol and the swap happens once the Hub is idle, instead of the sessions dying mid-handshake
+- Development builds now run their own Hub daemon per build id instead of contending for a single record; production keeps its singleton
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session
+- `cline doctor fix` now reports honestly: processes that survived a kill are separated from ones that appeared while the fix ran, a live parent respawning a daemon is named, and a startup lock held by a running process is reported as held rather than leaked
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board
+
 ## 0.0.74
 
 - Fixed the Claude Code provider being unusable for agentic work: the provider now declares its own native tools instead of receiving Cline's unbridgeable tool definitions, the session is anchored on the workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so user-configured permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings
