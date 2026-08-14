@@ -584,6 +584,18 @@ function App(props: TuiProps) {
 		if (!hubBuildMismatch) return;
 		setHubBuildMismatch(null);
 		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		if (hubBuildMismatch.reason === "outdated_hub") {
+			// This CLI is already the newer build. The Hub is behind only because
+			// retiring it would kill the sessions it is serving, and it is
+			// replaced on its own at the next launch. Nothing is wrong, nothing is
+			// asked, and nothing the user can act on differs - so say nothing, the
+			// same conclusion the desktop surface reached.
+			//
+			// The classification still earns its keep here: it is what stops the
+			// update-and-restart prompt below from firing at someone who has
+			// nothing to update.
+			return;
+		}
 		void dialog
 			.choice<boolean>({
 				content: (ctx: ChoiceContext<boolean>) => (

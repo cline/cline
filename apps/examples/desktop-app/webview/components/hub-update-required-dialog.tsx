@@ -79,6 +79,14 @@ export function HubUpdateRequiredDialog() {
 		setPhase("idle");
 	}, []);
 
+	// `outdated_hub` is purely informational: this app is already the newer
+	// build, nothing is asked of the user, and the Hub is replaced on its own
+	// once its sessions end. Interrupting with a modal to say "ignore me"
+	// helps nobody, so that reason renders nothing.
+	if (mismatch?.reason === "outdated_hub") {
+		return null;
+	}
+
 	return (
 		<AlertDialog
 			open={open}
