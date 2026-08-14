@@ -663,6 +663,172 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("recovers generated images the live stream missed when a queued turn completes", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						// Queued prompts resolve without a turn result; chat_done is
+						// the only completion signal, so the RPC-result image merge
+						// never runs for them.
+						return { ok: true, queued: true, promptsInQueue: [] };
+					}
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "persisted-user",
+							sessionId: current.sessionId,
+							role: "user",
+							content: "Draw a lighthouse",
+							createdAt: 1,
+						},
+						{
+							id: "persisted-assistant",
+							sessionId: current.sessionId,
+							role: "assistant",
+							content: "Here it is.",
+							images: [
+								{
+									id: "persisted-image",
+									data: "aGVsbG8=",
+									mediaType: "image/png",
+								},
+							],
+							createdAt: 2,
+						},
+					];
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		// The live stream delivers the text but the chat_image chunk is lost
+		// (raced subscription, dropped frame, hub version skew).
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Here it is.",
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		await vi.waitFor(() => {
+			const assistant = current.messages.findLast(
+				(message) => message.role === "assistant",
+			);
+			expect(assistant?.images).toEqual([
+				expect.objectContaining({ data: "aGVsbG8=", mediaType: "image/png" }),
+			]);
+		});
+	});
+
+	it("does not duplicate images that already arrived on the live stream", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true, queued: true, promptsInQueue: [] };
+					}
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "persisted-user",
+							sessionId: current.sessionId,
+							role: "user",
+							content: "Draw a lighthouse",
+							createdAt: 1,
+						},
+						{
+							id: "persisted-assistant",
+							sessionId: current.sessionId,
+							role: "assistant",
+							content: "Here it is.",
+							images: [
+								{
+									id: "persisted-image",
+									data: "aGVsbG8=",
+									mediaType: "image/png",
+								},
+							],
+							createdAt: 2,
+						},
+					];
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_image",
+				chunk: JSON.stringify({ data: "aGVsbG8=", mediaType: "image/png" }),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		// Drain the reconcile read before asserting nothing was duplicated.
+		await act(async () => {
+			await Promise.resolve();
+			await Promise.resolve();
+		});
+		const imagesAcrossMessages = current.messages.flatMap(
+			(message) => message.images ?? [],
+		);
+		expect(imagesAcrossMessages).toHaveLength(1);
+		expect(imagesAcrossMessages[0]).toMatchObject({
+			data: "aGVsbG8=",
+			mediaType: "image/png",
+		});
+	});
+
 	it("re-keys the optimistic bubble when the runtime queues the same prompt", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {

@@ -81,9 +81,11 @@ export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cacheReadTokens?: number;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
 		totalCost?: number;
 	};
 	iterations?: number;

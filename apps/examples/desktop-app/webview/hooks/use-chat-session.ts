@@ -556,6 +556,103 @@ export function useChatSession() {
 		[],
 	);
 
+	// Generated images are delivered live as chat_image chunks, but queued
+	// turns — the only kind hub-backed sessions produce, including the first
+	// prompt of a fresh session — settle exclusively through chat_done, so the
+	// send() RPC-result reconciliation (which merges result images) never runs
+	// for them. Text has independent recovery paths; a lost chat_image chunk
+	// (subscription raced a fast turn, dropped frame, hub version skew) had
+	// none — the image existed only in the persisted transcript until the
+	// session was reopened. On turn end, re-read the canonical transcript and
+	// merge any images the live stream missed.
+	const reconcileGeneratedImagesAfterTurn = useCallback(
+		(targetSessionId: string) => {
+			const epochAtSettle = turnEpochRef.current;
+			void (async () => {
+				let historyMessages: ChatMessage[];
+				try {
+					historyMessages = await desktopClient.invoke<ChatMessage[]>(
+						"read_session_messages",
+						{ sessionId: targetSessionId, maxMessages: MAX_MESSAGES },
+					);
+				} catch {
+					// Best-effort recovery; the transcript stays canonical on reload.
+					return;
+				}
+				if (
+					activeSessionIdRef.current !== targetSessionId ||
+					turnEpochRef.current !== epochAtSettle
+				) {
+					return;
+				}
+				const lastUserIndex = historyMessages.findLastIndex(
+					(message) => message.role === "user",
+				);
+				const canonicalImages = historyMessages
+					.slice(lastUserIndex + 1)
+					.filter((message) => message.role === "assistant")
+					.flatMap((message) => message.images ?? []);
+				if (canonicalImages.length === 0) {
+					return;
+				}
+				setMessages((prev) => {
+					const known = new Set(
+						prev
+							.filter((message) => message.sessionId === targetSessionId)
+							.flatMap((message) => message.images ?? [])
+							.map((image) => `${image.mediaType}:${image.data}`),
+					);
+					const missing = canonicalImages.filter(
+						(image) => !known.has(`${image.mediaType}:${image.data}`),
+					);
+					if (missing.length === 0) {
+						return prev;
+					}
+					// Attach to this turn's assistant bubble when one exists. A
+					// bubble from an earlier turn must not adopt the image, so
+					// only accept the trailing assistant message when it follows
+					// the session's last user message.
+					const sessionMessages = prev.filter(
+						(message) => message.sessionId === targetSessionId,
+					);
+					const localLastUserIndex = sessionMessages.findLastIndex(
+						(message) => message.role === "user",
+					);
+					const turnAssistantId =
+						activeAssistantMessageIdRef.current ??
+						sessionMessages
+							.slice(localLastUserIndex + 1)
+							.findLast((message) => message.role === "assistant")?.id;
+					if (turnAssistantId) {
+						const updated = updateMessageById(
+							prev,
+							turnAssistantId,
+							(message) => ({
+								...message,
+								images: [...(message.images ?? []), ...missing],
+							}),
+						);
+						if (updated !== prev) {
+							return updated;
+						}
+					}
+					return sliceMessages([
+						...prev,
+						{
+							id: makeId("assistant"),
+							sessionId: targetSessionId,
+							role: "assistant" as const,
+							content: "",
+							images: missing,
+							createdAt: Date.now(),
+						},
+					]);
+				});
+			})();
+		},
+		[],
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
@@ -1381,6 +1478,7 @@ export function useChatSession() {
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
 				}
+				reconcileGeneratedImagesAfterTurn(listeningSessionId);
 				return;
 			}
 
@@ -1460,6 +1558,7 @@ export function useChatSession() {
 			appendTurnFailureMessage,
 			clearLiveToolRefs,
 			flushPendingStream,
+			reconcileGeneratedImagesAfterTurn,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
 			verifyQueueStillBusy,
