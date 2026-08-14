@@ -10,10 +10,15 @@ import type {
 	GatewayProviderRegistration,
 	GatewayStreamRequest,
 	ITelemetryService,
+	ReasoningEffort,
 } from "@cline/shared";
-import { estimateRequestInputTokens } from "@cline/shared";
+import {
+	estimateRequestInputTokens,
+	ReasoningEffortSchema,
+} from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
 
@@ -33,6 +38,61 @@ function mergeRequestMetadata(
 		...(defaults ?? {}),
 		...(request ?? {}),
 	};
+}
+
+function normalizeReasoningBudgetTokens(value: unknown): number | undefined {
+	return typeof value === "number" && Number.isInteger(value) && value > 0
+		? value
+		: undefined;
+}
+
+function normalizeRequestedReasoning(
+	value: unknown,
+): GatewayStreamRequest["reasoning"] {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+
+	const input = value as Record<string, unknown>;
+	const parsedEffort = ReasoningEffortSchema.safeParse(input.effort);
+	const normalized = {
+		enabled: typeof input.enabled === "boolean" ? input.enabled : undefined,
+		effort: parsedEffort.success ? parsedEffort.data : undefined,
+		budgetTokens: normalizeReasoningBudgetTokens(input.budgetTokens),
+	};
+
+	return normalized.enabled !== undefined ||
+		normalized.effort !== undefined ||
+		normalized.budgetTokens !== undefined
+		? normalized
+		: undefined;
+}
+
+function mergeReasoningOptions(
+	defaults: GatewayStreamRequest["reasoning"],
+	legacy: GatewayStreamRequest["reasoning"],
+	requested: GatewayStreamRequest["reasoning"],
+): GatewayStreamRequest["reasoning"] {
+	if (legacy?.enabled === false || requested?.enabled === false) {
+		return { enabled: false };
+	}
+
+	const merged = {
+		enabled: requested?.enabled ?? legacy?.enabled ?? defaults?.enabled,
+		effort: requested?.effort ?? legacy?.effort ?? defaults?.effort,
+		budgetTokens:
+			requested?.budgetTokens ?? legacy?.budgetTokens ?? defaults?.budgetTokens,
+	};
+	if (
+		merged.enabled === false &&
+		(merged.effort !== undefined || merged.budgetTokens !== undefined)
+	) {
+		merged.enabled = undefined;
+	}
+
+	return Object.values(merged).some((value) => value !== undefined)
+		? merged
+		: undefined;
 }
 
 export interface Gateway {
@@ -59,39 +119,35 @@ class GatewayModelAdapter implements AgentModel {
 	) {}
 
 	stream(request: AgentModelRequest): Promise<AsyncIterable<AgentModelEvent>> {
-		const requestedReasoning = request.options?.reasoning as
-			| {
-					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
-					budgetTokens?: number;
-			  }
-			| undefined;
+		const defaultReasoning = normalizeRequestedReasoning(
+			this.defaults?.reasoning,
+		);
+		const requestedReasoning = normalizeRequestedReasoning(
+			request.options?.reasoning,
+		);
 		const thinking = request.options?.thinking;
 		const reasoningEffort = request.options?.reasoningEffort;
 		const thinkingBudgetTokens = request.options?.thinkingBudgetTokens;
-		const legacyEffort =
-			reasoningEffort === "low" ||
-			reasoningEffort === "medium" ||
-			reasoningEffort === "high"
-				? reasoningEffort
-				: undefined;
+		const parsedLegacyEffort = ReasoningEffortSchema.safeParse(reasoningEffort);
+		const legacyEffort: ReasoningEffort | undefined = parsedLegacyEffort.success
+			? parsedLegacyEffort.data
+			: undefined;
+		const legacyBudgetTokens =
+			normalizeReasoningBudgetTokens(thinkingBudgetTokens);
 		const legacyReasoning:
 			| {
 					enabled?: boolean;
-					effort?: "low" | "medium" | "high";
+					effort?: ReasoningEffort;
 					budgetTokens?: number;
 			  }
 			| undefined =
 			typeof thinking === "boolean" ||
 			legacyEffort !== undefined ||
-			typeof thinkingBudgetTokens === "number"
+			legacyBudgetTokens !== undefined
 				? {
 						enabled: typeof thinking === "boolean" ? thinking : undefined,
 						effort: legacyEffort,
-						budgetTokens:
-							typeof thinkingBudgetTokens === "number"
-								? thinkingBudgetTokens
-								: undefined,
+						budgetTokens: legacyBudgetTokens,
 					}
 				: undefined;
 		return this.gateway.stream({
@@ -100,6 +156,7 @@ class GatewayModelAdapter implements AgentModel {
 			systemPrompt: request.systemPrompt,
 			messages: request.messages,
 			tools: this.defaults?.tools ?? request.tools,
+			modelTools: this.defaults?.modelTools ?? request.modelTools,
 			temperature:
 				(request.options?.temperature as number | undefined) ??
 				this.defaults?.temperature,
@@ -110,8 +167,11 @@ class GatewayModelAdapter implements AgentModel {
 				this.defaults?.metadata,
 				request.options?.metadata as Record<string, unknown> | undefined,
 			),
-			reasoning:
-				requestedReasoning ?? legacyReasoning ?? this.defaults?.reasoning,
+			reasoning: mergeReasoningOptions(
+				defaultReasoning,
+				legacyReasoning,
+				requestedReasoning,
+			),
 			signal: request.signal ?? this.defaults?.signal,
 		});
 	}
@@ -247,6 +307,25 @@ export class DefaultGateway implements Gateway {
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
 		});
+		const unsupportedModelTools = [
+			...new Set(
+				(request.modelTools ?? [])
+					.filter(
+						(tool) =>
+							!providerManifestSupportsModelTool(
+								resolved.provider,
+								resolved.model.id,
+								tool.name,
+							),
+					)
+					.map((tool) => tool.name),
+			),
+		];
+		if (unsupportedModelTools.length > 0) {
+			throw new Error(
+				`Provider "${resolved.provider.id}" model "${resolved.model.id}" does not support model tool(s): ${unsupportedModelTools.join(", ")}.`,
+			);
+		}
 		const providerRecord = await this.registry.createProvider(
 			request.providerId,
 		);

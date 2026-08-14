@@ -52,6 +52,8 @@ export interface AgentToolCallPart {
 	toolName: string;
 	input: unknown;
 	metadata?: unknown;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
 }
 
 export interface AgentToolResultPart {
@@ -59,6 +61,20 @@ export interface AgentToolResultPart {
 	toolCallId: string;
 	toolName: string;
 	output: unknown;
+	isError?: boolean;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
+}
+
+export type ModelToolExecution = "client" | "provider";
+
+/** Observational record for a model tool executed outside AgentRuntime. */
+export interface AgentModelToolActivity {
+	toolCallId: string;
+	toolName: string;
+	execution: ModelToolExecution;
+	input?: unknown;
+	output?: unknown;
 	isError?: boolean;
 }
 
@@ -137,6 +153,8 @@ export interface AgentRuntimeStateSnapshot {
 	pendingToolCalls: readonly string[];
 	usage: AgentUsage;
 	lastError?: string;
+	/** Classification of `lastError` when it came from a provider stream. */
+	lastErrorClass?: ProviderErrorClass;
 }
 
 // =============================================================================
@@ -193,6 +211,8 @@ export interface AgentModelRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools: readonly AgentToolDefinition[];
+	/** Provider-executed tools enabled for this model request. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
 }
@@ -211,6 +231,12 @@ export interface AgentRuntimePrepareTurnContext {
 		info?: ModelInfo;
 	};
 	signal?: AbortSignal;
+	/**
+	 * Set when the previous model request was rejected as exceeding the
+	 * model's context window; asks the prepare-turn pipeline to force a
+	 * compaction rather than trust its token estimates.
+	 */
+	overflowRecovery?: boolean;
 	emitStatusNotice?: (
 		message: string,
 		metadata?: Record<string, unknown>,
@@ -229,6 +255,14 @@ export type AgentModelFinishReason =
 	| "aborted"
 	| "error";
 
+/**
+ * Coarse classification of a provider error, derived from the raw provider
+ * error object before it is flattened into a display string. Shared by the
+ * runtime's recovery policy and telemetry (`error_class`). Extend with new
+ * classes (auth, rate_limit, billing, ...) as consumers need them.
+ */
+export type ProviderErrorClass = "context_window_exceeded" | "unknown";
+
 export type AgentModelEvent =
 	| { type: "text-delta"; text: string }
 	| {
@@ -245,6 +279,29 @@ export type AgentModelEvent =
 			inputText?: string;
 			input?: unknown;
 			metadata?: unknown;
+			/** Set when execution is owned by AI SDK or the model provider. */
+			execution?: ModelToolExecution;
+	  }
+	| {
+			type: "tool-result";
+			toolCallId: string;
+			toolName: import("./llms/model-tools").ModelToolName;
+			input?: unknown;
+			output: unknown;
+			isError?: boolean;
+			execution: ModelToolExecution;
+	  }
+	| {
+			/**
+			 * A model-generated file (e.g. an image from an image-output
+			 * model). `data` is base64-encoded file data (or a URL for
+			 * URL-referenced files). Runtimes assemble it into the assistant
+			 * message (`AgentImagePart` for `image/*`, `AgentFilePart`
+			 * otherwise) so a file-only turn is not treated as empty.
+			 */
+			type: "file";
+			data: string;
+			mediaType: string;
 	  }
 	| {
 			type: "usage";
@@ -254,6 +311,16 @@ export type AgentModelEvent =
 			type: "finish";
 			reason: AgentModelFinishReason;
 			error?: string;
+			errorClass?: ProviderErrorClass;
+			/**
+			 * The model layer already recorded `sdk.error` telemetry for this
+			 * failure at its own error boundary. `error` is a flattened string,
+			 * so this bit carries reporting ownership across the boundary: the
+			 * agent loop skips re-reporting when it is set, and still reports
+			 * failures from model implementations that do not record their own
+			 * telemetry.
+			 */
+			errorReported?: boolean;
 	  };
 
 export interface AgentModel {
@@ -419,6 +486,8 @@ export interface AgentRuntimeConfig {
 	messageModelInfo?: AgentMessage["modelInfo"];
 	model: AgentModel;
 	modelOptions?: Record<string, unknown>;
+	/** Provider-executed tools, separate from locally executed AgentTools. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	tools?: readonly AgentTool<any, any>[];
 	hooks?: Partial<AgentRuntimeHooks>;
@@ -460,7 +529,7 @@ export interface AgentRuntimeConfig {
 }
 
 // =============================================================================
-// Runtime event union (13 variants)
+// Runtime event union
 // =============================================================================
 
 export type AgentRuntimeEvent =
@@ -547,6 +616,8 @@ export type AgentRuntimeEvent =
 			type: "run-failed";
 			snapshot: AgentRuntimeStateSnapshot;
 			error: Error;
+			/** Classification of the provider error that failed the run. */
+			errorClass?: ProviderErrorClass;
 	  };
 
 // =============================================================================

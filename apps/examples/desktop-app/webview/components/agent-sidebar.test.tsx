@@ -31,6 +31,7 @@ function makeThread(project: string, index: number): SessionThread {
 		provider: "cline",
 		model: "test-model",
 		status: "completed",
+		isScheduled: false,
 	};
 }
 
@@ -142,9 +143,10 @@ describe("AgentSidebar session organization", () => {
 	it("filters scheduled sessions without changing their titles", async () => {
 		const scheduled = {
 			...makeThread("scheduled", 1),
-			source: "hub-schedule",
+			source: "core",
+			isScheduled: true,
 		};
-		const regular = makeThread("regular", 1);
+		const regular = { ...makeThread("regular", 1), source: "core" };
 
 		await act(async () => {
 			root.render(
@@ -181,6 +183,45 @@ describe("AgentSidebar session organization", () => {
 
 		expect(sessionIsVisible("scheduled session 1")).toBe(true);
 		expect(sessionIsVisible("regular session 1")).toBe(false);
+	});
+
+	it("defaults to all sources and filters by the selected client source", async () => {
+		const desktop = { ...makeThread("desktop", 1), source: "desktop" };
+		const cli = { ...makeThread("cli", 1), source: "cli" };
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={makeSessionHistory([desktop, cli], vi.fn())}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		expect(sessionIsVisible("desktop session 1")).toBe(true);
+		expect(sessionIsVisible("cli session 1")).toBe(true);
+
+		await click(
+			container.querySelector('[aria-label="Filter sessions"]') as Element,
+		);
+		const cliOption = await vi.waitFor(() => {
+			const option = [
+				...document.querySelectorAll<HTMLElement>('[role="menuitemradio"]'),
+			].find((candidate) => candidate.textContent === "CLI");
+			expect(option).toBeDefined();
+			return option as HTMLElement;
+		});
+		await click(cliOption);
+
+		expect(sessionIsVisible("desktop session 1")).toBe(false);
+		expect(sessionIsVisible("cli session 1")).toBe(true);
 	});
 
 	it("builds the hover overview with branch and secondary metadata last", () => {

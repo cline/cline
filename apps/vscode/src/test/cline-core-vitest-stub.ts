@@ -84,6 +84,28 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 	}
 }
 
+export type ModelToolName = "web_search"
+
+export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+	try {
+		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
+		return settings.tools?.[name]?.enabled === true
+	} catch {
+		return false
+	}
+}
+
+export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolean): void {
+	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
+	if (filePath) {
+		let settings: { tools?: Record<string, { enabled: boolean }> } = {}
+		try {
+			settings = JSON.parse(readFileSync(filePath, "utf8"))
+		} catch {}
+		writeFileSync(filePath, JSON.stringify({ ...settings, tools: { ...settings.tools, [name]: { enabled } } }))
+	}
+}
+
 export function truncateCommandOutput(output: string): string {
 	return output
 }
@@ -102,6 +124,7 @@ export function createShellExecutor() {
 	return async () => ""
 }
 
+export { augmentMcpTimeoutError } from "../../../../sdk/packages/core/src/extensions/mcp/timeout"
 // The real createShellTool, so tests exercise the actual description
 // building and shell classification (getShellKind) rather than a stub that
 // would have to duplicate those invariants.
@@ -114,10 +137,11 @@ export {
 	createApplyPatchExecutor,
 	type PatchFileChange,
 } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch"
-export { PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
+export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.

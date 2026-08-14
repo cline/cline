@@ -45,11 +45,15 @@ function nowMs(): number {
 	return Date.now();
 }
 
-function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
-	const encoded = JSON.stringify({
+export function encodeSidecarEvent(name: string, payload: unknown): string {
+	return JSON.stringify({
 		type: "event",
 		event: { name, payload },
 	});
+}
+
+function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
+	const encoded = encodeSidecarEvent(name, payload);
 	for (const client of ctx.wsClients) {
 		try {
 			client.send(encoded);
@@ -325,6 +329,35 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
+// The runtime's queue drain emits a pending_prompts snapshot (head removed)
+// and a pending_prompt_submitted event for the same prompt back-to-back, and
+// both are translated here into chat_queued_prompt_start — dedupe by prompt
+// id or the UI renders the user message twice.
+function emitQueuedPromptStart(
+	ctx: SidecarContext,
+	sessionId: string,
+	session: LiveSession | undefined,
+	input: {
+		promptId: string;
+		prompt: string;
+		attachmentCount: number;
+		userImages?: string[];
+	},
+): void {
+	if (session) {
+		if (session.lastQueuedPromptStartId === input.promptId) {
+			return;
+		}
+		session.lastQueuedPromptStartId = input.promptId;
+	}
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_queued_prompt_start",
+		serializeQueuedPromptStart(input),
+	);
+}
+
 function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -367,17 +400,12 @@ function handleCoreSessionEvent(
 					previous[0] &&
 					previous[0].id !== mapped[0]?.id
 				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						serializeQueuedPromptStart({
-							promptId: previous[0].id,
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-							userImages: previous[0].userImages,
-						}),
-					);
+					emitQueuedPromptStart(ctx, sessionId, session, {
+						promptId: previous[0].id,
+						prompt: previous[0].prompt,
+						attachmentCount: previous[0].attachmentCount ?? 0,
+						userImages: previous[0].userImages,
+					});
 				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
@@ -386,18 +414,26 @@ function handleCoreSessionEvent(
 		case "pending_prompt_submitted": {
 			const { sessionId, id, prompt, attachmentCount, userImages } =
 				event.payload;
-			markQueuedAttachmentsSubmitted(ctx.liveSessions.get(sessionId), id);
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_queued_prompt_start",
-				serializeQueuedPromptStart({
-					promptId: id,
-					prompt,
-					attachmentCount: attachmentCount ?? 0,
-					userImages,
-				}),
-			);
+			const session = ctx.liveSessions.get(sessionId);
+			markQueuedAttachmentsSubmitted(session, id);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId: id,
+				prompt,
+				attachmentCount: attachmentCount ?? 0,
+				userImages,
+			});
+			// The prompt left the queue; without a fresh snapshot the webview
+			// keeps a stale busy queue and the composer never returns to idle
+			// after the turn completes.
+			if (session) {
+				const remaining = session.promptsInQueue.filter(
+					(item) => item.id !== id,
+				);
+				if (remaining.length !== session.promptsInQueue.length) {
+					session.promptsInQueue = remaining;
+					sendPromptsInQueueSnapshot(ctx, sessionId);
+				}
+			}
 			break;
 		}
 		case "ended": {
@@ -456,6 +492,7 @@ export function createSidecarContext(
 ): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
@@ -466,6 +503,7 @@ export function createSidecarContext(
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 

@@ -50,6 +50,17 @@ export const E2E_MOCK_EDITOR_TOOL_CALL = {
 	},
 }
 
+/** Windows PowerShell diagnostic executed by the real background shell tool. */
+export const E2E_MOCK_POWERSHELL_TOOL_CALL = {
+	id: "call_e2e_powershell_1",
+	name: "run_commands",
+	arguments: {
+		commands: [
+			"Write-Output ('VERSION=' + $PSVersionTable.PSVersion); Write-Output ('PSHOME=' + $PSHOME); Write-Output 'UNICODE=中文'",
+		],
+	},
+}
+
 const edit_request_complete = `I successfully replaced "john" with "cline" in the test.ts file. The change has been completed and the file now contains:
 
 \`\`\`typescript
@@ -64,6 +75,8 @@ export const E2E_MOCK_API_RESPONSES = {
 	EDIT_REQUEST_LEAD_IN: `I'll replace "john" with "cline" in the test.ts file.`,
 	/** Turn-ending text streamed after the SDK reports the editor tool result. */
 	EDIT_REQUEST_COMPLETE: edit_request_complete,
+	POWERSHELL_REQUEST_LEAD_IN: "I'll inspect the PowerShell process used for background execution.",
+	POWERSHELL_REQUEST_COMPLETE: "PowerShell background execution diagnostic completed.",
 }
 
 export const E2E_MOCK_CLINE_RECOMMENDED_MODELS = {

@@ -1,5 +1,6 @@
 "use client";
 
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import {
 	AppWindow,
 	Check,
@@ -7,8 +8,6 @@ import {
 	ChevronRight,
 	Copy,
 	ExternalLink,
-	Minus,
-	Plus,
 	X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -23,7 +22,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/hooks/use-toast";
 import { desktopClient } from "@/lib/desktop-client";
-import type { SessionFileDiff } from "@/lib/session-diff";
+import type { SessionDiffHunk, SessionFileDiff } from "@/lib/session-diff";
 import { cn } from "@/lib/utils";
 import { resolveWorkspaceFilePath } from "@/lib/workspace-paths";
 import { EditorIcon } from "./editor-icons";
@@ -100,7 +99,7 @@ export function DiffView({ fileDiffs, cwd, onClose }: DiffViewProps) {
 					{" "}
 					<button
 						aria-label="Close diff view"
-						className="rounded-md p-1 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
+						className="rounded-md p-1 text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
 						onClick={onClose}
 						type="button"
 					>
@@ -198,7 +197,7 @@ function DiffFileSection({
 
 	return (
 		<div className="border-b border-border">
-			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-accent/50 transition-colors">
+			<div className="group flex w-full items-center gap-2 bg-card/80 px-4 py-2 hover:bg-surface-hover-lighter transition-colors">
 				<button
 					className="flex min-w-0 shrink items-center gap-2 text-left"
 					onClick={onToggle}
@@ -216,7 +215,7 @@ function DiffFileSection({
 				<button
 					aria-label={`Copy file path for ${file.path}`}
 					className={cn(
-						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
+						"shrink-0 rounded-md p-1 text-muted-foreground transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100",
 						copied ? "opacity-100 text-primary" : "opacity-0",
 					)}
 					onClick={() => void handleCopyPath()}
@@ -242,7 +241,7 @@ function DiffFileSection({
 					<DropdownMenuTrigger asChild>
 						<button
 							aria-label={`Open ${file.path} in editor`}
-							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-accent data-[state=open]:text-foreground"
+							className="shrink-0 rounded-md p-1 text-muted-foreground opacity-0 transition-opacity hover:bg-surface-hover hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 disabled:opacity-50 data-[state=open]:opacity-100 data-[state=open]:bg-surface-hover data-[state=open]:text-foreground"
 							disabled={opening}
 							title="Open in editor"
 							type="button"
@@ -285,10 +284,14 @@ function DiffFileSection({
 							No hunk details available.
 						</p>
 					) : (
-						file.hunks.map((hunk) => (
+						// The index disambiguates repeated same-shaped hunks (e.g.
+						// a file created twice with identical contents); hunks
+						// never reorder within a file, so it is a stable key.
+						file.hunks.map((hunk, index) => (
 							<DiffHunk
 								hunk={hunk}
-								key={`${file.path}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
+								key={`${file.path}-${index}-${hunk.oldStart}-${hunk.newStart}-${hunk.old.length}-${hunk.new.length}`}
+								path={file.path}
 							/>
 						))
 					)}
@@ -298,63 +301,24 @@ function DiffFileSection({
 	);
 }
 
-function DiffHunk({ hunk }: { hunk: SessionFileDiff["hunks"][number] }) {
-	const oldLines = hunk.old.length > 0 ? hunk.old.split("\n") : [];
-	const newLines = hunk.new.length > 0 ? hunk.new.split("\n") : [];
-	const oldOccurrences = new Map<string, number>();
-	const oldLineEntries = oldLines.map((line, offset) => {
-		const occurrence = (oldOccurrences.get(line) ?? 0) + 1;
-		oldOccurrences.set(line, occurrence);
-		return {
-			key: `old-${hunk.oldStart + offset}-${occurrence}-${line}`,
-			line,
-			lineNumber: hunk.oldStart + offset,
-		};
-	});
-	const newOccurrences = new Map<string, number>();
-	const newLineEntries = newLines.map((line, offset) => {
-		const occurrence = (newOccurrences.get(line) ?? 0) + 1;
-		newOccurrences.set(line, occurrence);
-		return {
-			key: `new-${hunk.newStart + offset}-${occurrence}-${line}`,
-			line,
-			lineNumber: hunk.newStart + offset,
-		};
-	});
+function DiffHunk({ hunk, path }: { hunk: SessionDiffHunk; path: string }) {
+	// A hunk with no old side that starts at line 1 on both sides carries the
+	// complete new contents (editor `create`, apply_patch Add File). Chat tool
+	// rows render those with complete-file semantics (real line numbers);
+	// everything else is a file fragment, which hides line numbers — see
+	// ToolCallRow in chat-messages.tsx. Matching that keeps both surfaces
+	// visually in agreement.
+	const isCompleteNewContents =
+		hunk.old.length === 0 && hunk.oldStart === 1 && hunk.newStart === 1;
 
 	return (
-		<div className="overflow-x-auto rounded-md border border-border bg-background font-mono text-[11px] leading-5">
-			{oldLineEntries.map((entry) => (
-				<div className="flex bg-destructive/10" key={entry.key}>
-					<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
-						{entry.lineNumber}
-					</span>
-					<span className="flex w-6 shrink-0 items-center justify-center text-destructive">
-						<Minus className="h-2.5 w-2.5" />
-					</span>
-					<span className="min-w-0 flex-1 whitespace-pre px-2 text-destructive/90">
-						{entry.line || " "}
-					</span>
-				</div>
-			))}
-			{newLineEntries.map((entry) => (
-				<div className="flex bg-primary/10" key={entry.key}>
-					<span className="hidden w-12 shrink-0 select-none items-center justify-end border-r border-border px-2 text-muted-foreground/40 sm:flex">
-						{entry.lineNumber}
-					</span>
-					<span className="flex w-6 shrink-0 items-center justify-center text-primary">
-						<Plus className="h-2.5 w-2.5" />
-					</span>
-					<span className="min-w-0 flex-1 whitespace-pre px-2 text-primary">
-						{entry.line || " "}
-					</span>
-				</div>
-			))}
-			{oldLines.length === 0 && newLines.length === 0 && (
-				<div className={cn("px-3 py-2 text-xs text-muted-foreground")}>
-					No line diff content.
-				</div>
-			)}
-		</div>
+		<ToolFileDiff
+			background="var(--background)"
+			className="cline-chat-selectable"
+			fragment={!isCompleteNewContents}
+			newText={hunk.new}
+			oldText={isCompleteNewContents ? undefined : hunk.old}
+			path={path}
+		/>
 	);
 }

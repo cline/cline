@@ -17,6 +17,30 @@ function createSession(sessionId: string): SessionHistoryItem {
 }
 
 describe("desktopAppReducer", () => {
+	it("hands an edited prompt to a fork exactly once", () => {
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, {
+			type: "open-session",
+			session: createSession("forked-session"),
+			initialPromptDraft: "Revise this prompt",
+		});
+
+		expect(
+			state.threads.find((thread) => thread.id === "session_forked-session")
+				?.initialPromptDraft,
+		).toBe("Revise this prompt");
+
+		state = desktopAppReducer(state, {
+			type: "consume-initial-prompt-draft",
+			threadId: "session_forked-session",
+		});
+
+		expect(
+			state.threads.find((thread) => thread.id === "session_forked-session")
+				?.initialPromptDraft,
+		).toBeUndefined();
+	});
+
 	it("keeps both sessions deleted when deletion actions are queued together", () => {
 		let state = createDesktopAppState("welcome", settingsSection);
 		state = desktopAppReducer(state, {

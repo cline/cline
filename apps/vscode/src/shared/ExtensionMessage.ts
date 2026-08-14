@@ -100,6 +100,11 @@ export interface ExtensionState {
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
+	/**
+	 * Which rollout bundle this build is ("legacy" or "next"). Only present for
+	 * bundles built by the combined rollout workflow; undefined for ordinary builds.
+	 */
+	extensionVariant?: "legacy" | "next"
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
@@ -111,9 +116,9 @@ export interface ExtensionState {
 	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
+	webSearchEnabled?: boolean
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
 	favoritedModelIds: string[]

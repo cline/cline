@@ -1,9 +1,14 @@
 import { homedir } from "node:os";
-import { setHomeDirIfUnset } from "@cline/core";
-import { isHubDaemonProcess } from "@cline/shared";
+import {
+	createClineTelemetryServiceConfig,
+	setHomeDirIfUnset,
+	watchManagedHubBuildMismatch,
+} from "@cline/core";
+import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
 import { prewarmWorkspaceMetadata } from "./chat-session";
 import { configureConnectorCliLaunch } from "./connectors";
 import {
+	broadcastEvent,
 	createSidecarContext,
 	disposeSidecarContext,
 	initializeSessionManager,
@@ -12,6 +17,7 @@ import { createDesktopObservability } from "./observability";
 import { resolveWorkspaceRoot } from "./paths";
 import { startServer } from "./server";
 import { ensureLoginShellPath } from "./shell-path";
+import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
 import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
 
 const SHUTDOWN_TIMEOUT_MS = 5_000;
@@ -103,6 +109,13 @@ async function main() {
 			kind,
 			error,
 		});
+		captureSdkError(observability.telemetry, {
+			component: "desktop",
+			operation: `sidecar.${kind}`,
+			error,
+			handled: false,
+			severity: "fatal",
+		});
 		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
 	};
 	process.on("uncaughtException", (error) => {
@@ -121,6 +134,21 @@ async function main() {
 		mode: SIDECAR_MODE,
 	});
 
+	// Another Cline installation (e.g. an updated CLI) can replace the shared
+	// Hub daemon while this app is running. Surface that to the webview so it
+	// can prompt the user to update and restart.
+	watchManagedHubBuildMismatch({
+		onMismatch: (mismatch) => {
+			ctx.hubBuildMismatch = mismatch;
+			observability.logger.log("Managed hub build mismatch detected", {
+				hubBuildId: mismatch.hubBuildId,
+				hubCoreVersion: mismatch.hubCoreVersion,
+				reason: mismatch.reason,
+			});
+			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
+		},
+	});
+
 	// A wildcard bind isn't a dialable address; advertise loopback instead.
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
 	const endpoint = `http://${dialHost}:${port}`;
@@ -136,8 +164,31 @@ async function main() {
 	);
 }
 
+/**
+ * Prints whether the telemetry configuration that was inlined at build time
+ * (see scripts/telemetry-define-args.ts) actually made it into this binary,
+ * then exits. CI runs this against the packaged sidecar and fails the
+ * publish when a release-grade build reports `"enabled":false` or an
+ * unusable OTLP endpoint, so a regression in the build-time inlining can
+ * never ship silently again.
+ */
+function runTelemetrySelfcheck(): void {
+	const report = buildTelemetrySelfcheckReport(
+		createClineTelemetryServiceConfig(),
+	);
+	process.stdout.write(`${JSON.stringify(report)}\n`);
+}
+
 async function runEntrypoint(): Promise<void> {
-	if (isHubDaemonProcess()) {
+	// Before the daemon-sentinel claim: the selfcheck only inspects build-time
+	// config and must not consume the sentinel or start anything.
+	if (process.argv.includes("--telemetry-selfcheck")) {
+		runTelemetrySelfcheck();
+		return;
+	}
+	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
+	// from handing it to every process they spawn.
+	if (claimHubDaemonProcess()) {
 		await import("@cline/core/hub/daemon-entry");
 		return;
 	}
@@ -148,6 +199,13 @@ runEntrypoint().catch(async (error) => {
 	const message = error instanceof Error ? error.message : String(error);
 	activeObservability?.logger.error?.("Desktop sidecar process failed", {
 		error,
+	});
+	captureSdkError(activeObservability?.telemetry, {
+		component: "desktop",
+		operation: "sidecar.startup",
+		error,
+		handled: false,
+		severity: "fatal",
 	});
 	await activeObservability?.dispose();
 	process.stderr.write(`${message}\n`);

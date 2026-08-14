@@ -1,5 +1,101 @@
 # Cline CLI Changelog
 
+## 3.0.54
+
+- Fixed the Claude Code provider being unusable for agentic work: the provider now runs its own native tools instead of receiving tool definitions it cannot bridge, the session is anchored on your workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so your permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings (from SDK v0.0.74)
+- Fixed truncated tool-call JSON being silently "repaired" into wrong arguments — a payload with an unterminated string is now rejected rather than getting an invented terminator (from SDK v0.0.74)
+- Fixed strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts (from SDK v0.0.74)
+- Fixed a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough (from SDK v0.0.74)
+- Managed Hub daemons now upgrade directionally: when another Cline install ships a newer Hub build, the CLI attaches to the newer daemon and prompts you to update and restart instead of the two installs repeatedly retiring each other's daemons. Yolo and sandbox sessions, which never attach to the shared Hub, are not interrupted by that prompt (from SDK v0.0.74)
+- Fixed the Hub daemon logging an unhandled `hub server close failed` error and exiting non-zero whenever a client was still connected at shutdown (from SDK v0.0.74)
+- Fixed per-task token totals being inflated roughly 5x on cache-heavy sessions — token telemetry now reports disjoint uncached-input, cache-read, and cache-write buckets instead of re-counting the whole cached conversation on every request (from SDK v0.0.74)
+- Upgrading the CLI now retires an already-running Hub daemon and respawns it on the new code, instead of the upgraded CLI continuing to talk to a daemon executing the previous release
+
+## 3.0.53
+
+- Fixed the CLI reconnecting to a stale Hub daemon after an upgrade. Hub daemons now carry a runtime build fingerprint, so an upgraded CLI retires and respawns a daemon still running older code instead of attaching to it (from SDK v0.0.73)
+- Fixed compaction being silently skipped on reasoning models. The summarizer no longer hardcodes a 1024-token output cap — it honors your max output tokens setting, defaults to 4096 (lowered when the model reports less), and logs a diagnostic when a summary comes back empty (from SDK v0.0.73)
+- Added Fable 5 (`claude-fable-5`) to the Vertex model catalog. Pricing is intentionally omitted because Vertex bills region-dependently, so cost shows as unknown rather than wrong (from SDK v0.0.73)
+- Custom Vertex model IDs are now passed through unchanged, routing Claude-style IDs to the Anthropic-on-Vertex path (from SDK v0.0.73)
+
+## 3.0.52
+
+- Added `cline mcp uninstall` for removing an installed MCP server
+- Schedules now reuse your saved provider settings instead of needing provider configuration of their own
+- Queued messages are legible on light-theme terminals — they were previously rendered in a color that washed out against a light background
+- MCP tool results render as readable text in the TUI instead of escaped JSON, and binary payloads survive being expanded instead of being mangled
+- Malformed tool input/output payloads no longer break rendering — the formatters degrade gracefully instead of throwing
+- Prompts queued during a turn now survive being interrupted: they are preserved across aborts, drained after a turn aborts itself, and the stop is surfaced instead of leaving the queue silently dropped (from SDK v0.0.72)
+- Session context stays durable across aborts and hub restarts, so an interrupted session resumes with the state it had (from SDK v0.0.72)
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely (from SDK v0.0.72)
+- Remote SSE MCP servers surface an OAuth authorization prompt on a 401 instead of failing outright, and pre-registered OAuth clients are supported for setups without dynamic client registration (from SDK v0.0.72)
+- LiteLLM requests route through Chat Completions instead of the Responses API, fixing calls against LiteLLM proxies (from SDK v0.0.72)
+- Network interruptions that happen mid-stream but before any model output are retried instead of failing the turn (from SDK v0.0.72)
+- Vertex ADC token refreshes use the configured fetch, so they work behind proxies and custom transports (from SDK v0.0.72)
+- Checkpoint diffs include files that were untracked when the snapshot was taken, and checkpoints are picked up when git is initialized part-way through a session (from SDK v0.0.72)
+- Scheduled run reports carry execution context — readable headers, schedule metadata, durations, and lifecycle error details (from SDK v0.0.72)
+
+## 3.0.51
+
+- Reasoning effort now applies consistently across providers instead of going through per-provider thinking overrides, including Ollama, and asking for reasoning to be off is respected everywhere (from SDK v0.0.71)
+- `meta/muse-spark-1.2-contributor` is now selectable on the Cline provider, alongside a refreshed model catalog (from SDK v0.0.71)
+- Error telemetry now reports the model that was actually in use for the run (from SDK v0.0.71)
+
+## 3.0.50
+
+- Added user-selectable color themes to the interactive TUI. Pick one with `/theme`, the command palette, or the Theme row in `/settings` — the picker previews each theme live. Built-in themes are Auto (terminal-adaptive, the default), Cline Dark, Cline Light, Tokyo Night, Gruvbox Dark, Nord, Dracula, Catppuccin Mocha, One Dark, Solarized Dark, and Solarized Light. Named themes paint the background, foreground, accents, syntax highlighting, and diff colors, and `CLINE_THEME` overrides the persisted choice at startup
+- The git branch shown below the prompt now updates when you switch branches from another terminal or your editor, instead of showing whatever was checked out when the TUI started
+- Telegram slash commands such as `/clear` now reach the connector command host — the Telegram library was intercepting them and they were silently dropped
+- Racing connector launches no longer collide: an instance is claimed before it opens socket mode, the hub supervises connector processes, and `doctor`/`connect` skip connectors that are already starting. Connector tools are also enabled by default, and the Slack greeting is no longer replayed on reconnect
+- Auto-approval settings are now honored over ACP
+- Plan mode now hard-blocks file-editing shell commands instead of relying on prompting alone — `run_commands` stays available for read-only investigation, but file-manipulation commands, in-place editors (`sed -i`, `perl -i`), redirection to files, mutating git subcommands, package installs, and nested command strings (`sh -c`, `eval`, `sudo`) are rejected, on Windows and PowerShell too (from SDK v0.0.70)
+- A turn that ends with a completed plan is no longer rendered as a failed turn when a plan-blocked command was its only tool call
+- Running out of context is now recovered from instead of failing with a raw provider error: the run force-compacts and retries once, and the cases that genuinely cannot be recovered report why (from SDK v0.0.70)
+- Empty model responses are now retried on every provider, not just Ollama — OpenRouter, Cline, and OpenAI-compatible endpoints previously failed the task outright with "Model returned empty response" (from SDK v0.0.70)
+- Claude 4.6+ and 5.x models are no longer rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id (from SDK v0.0.70)
+- Bedrock prompt caching works again — the provider was sending a cache format Bedrock silently discards, so cache reads and writes were always 0 — and Bedrock foundation models are now routed through geo inference profiles (from SDK v0.0.70)
+- Reasoning models on OpenAI-compatible endpoints now receive `max_completion_tokens` instead of the rejected `max_tokens`, and requests to models without image support substitute the image content instead of failing (from SDK v0.0.70)
+- MiniMax now inherits its default model from models.dev, and the model catalog picked up two new providers, Infomaniak and SCX.ai (from SDK v0.0.70)
+- Upgraded the model layer to AI SDK 7 and switched Ollama to the native AI SDK provider (from SDK v0.0.70)
+- Error telemetry no longer reports the same provider failure twice, and repeated failures from unattended retry loops are rate-limited (from SDK v0.0.70)
+
+## 3.0.49
+
+- `/undo` works again once the agent has used tools — the checkpoint picker counted tool results as user turns, so restore aborted with "Could not find user message for run N"
+- Checkpoints are actually created again; a run-boundary regression meant none were ever recorded in the CLI (from SDK v0.0.69)
+- Checkpoint restore is now a full workspace rewind: files Cline created during the task come back at their checkpoint-time content and files created after the checkpoint are removed, while `.gitignore`d paths (build output, `node_modules`, `.env`) are left alone (from SDK v0.0.69)
+- After a restore, the rewound message is prefilled as plain text instead of the raw `<user_input mode="act">` envelope
+- Ollama's response-start timeout is now 5 minutes instead of 30 seconds, so cold-loading a large local model no longer errors out mid-load (from SDK v0.0.69)
+- Empty Ollama responses are now retried instead of failing the task with "Model returned empty response" (from SDK v0.0.69)
+- Migrated users whose stored Cline model id isn't in the catalog now fall back to the default model instead of sending an unknown model id on every request (from SDK v0.0.69)
+- The ClinePass promo dialog can be dismissed with any key (Enter still opens the subscription page), and it is marked as shown when it appears, so force-quitting no longer replays it on every launch
+- Opening a URL no longer crashes the CLI on hosts without an opener binary (headless Linux without `xdg-open`); WSL2 containers now use `xdg-open`, Windows tries the absolute PowerShell path first, and `cline doctor log` converts Linux paths to `\\wsl$` UNC paths
+- The hub now restarts through the installed wrapper after a Unix self-update, so npm cannot reuse a deleted cached executable
+- ACP: ClinePass is selectable as a provider, organizations can be selected, session resolution and text rendering on session restart are fixed, and agent errors now describe the actual failure
+- Provider errors forwarded through the Vercel AI Gateway now surface the real upstream message instead of a raw Zod dump or `[object Object]` (from SDK v0.0.68)
+- Cline free models and recommended models now show their real display names in the model picker (from SDK v0.0.68)
+- Sessions rooted at the filesystem root (`/`) no longer fail every command (from SDK v0.0.68)
+- On Windows, PowerShell commands now travel over UTF-8 stdin, so non-ASCII commands survive the active code page and long commands are not capped by the command-line limit (from SDK v0.0.68)
+- The live model catalog no longer drops the video input capability (from SDK v0.0.68)
+- Removed the CLI promo code flow
+
+## 3.0.48
+
+- `cline history` now opens inside the existing TUI, with resume and delete actions, instead of rendering a second view in the same process
+- Connector threads (Slack, Discord, Telegram, Linear, Google Chat, WhatsApp) now recover when the session they were bound to is gone — the stale binding is dropped and the turn replays against a new session, instead of failing with "session not found" until `threads.json` is edited by hand
+- `cline --help` now reports the real default `--config` and `--data-dir` paths
+- The per-server `timeout` in `cline_mcp_settings.json` is now honored for `initialize`, `tools/list`, and `tools/call`, so slow MCP servers no longer fail against a hardcoded 5s limit (from SDK v0.0.67)
+- Reasoning controls are now routed from the models.dev catalog across providers, with clamped budgets and correct per-provider encoding (from SDK v0.0.67)
+- OpenRouter now defaults to `anthropic/claude-sonnet-5` (from SDK v0.0.67)
+- Fixed the China and international endpoint toggles being ignored for Qwen, Moonshot, and Z AI (from SDK v0.0.67)
+- Legacy API keys are now migrated for every secret-backed provider (from SDK v0.0.67)
+- Legacy OpenAI Compatible model-info overrides now survive into the seeded `models.json` (from SDK v0.0.67)
+- Fixed auto-compaction state being rejected as stale, which added a redundant summarizer call on every turn past the compaction trigger (from SDK v0.0.67)
+- Fixed checkpoint restores across session resumes (from SDK v0.0.67)
+- Tool calls that pass line numbers as strings (`insert_line`, `read_files` bounds) are now accepted instead of erroring (from SDK v0.0.67)
+- A legacy single-file `.clinerules` no longer aborts the config scan (from SDK v0.0.67)
+- Plugins can now emit telemetry through `ctx.telemetry` (from SDK v0.0.67)
+
 ## 3.0.47
 
 - Free Cline models are now supported end to end: free models show as "(free)", and hitting the free limit renders a dedicated card with the reset time (from SDK v0.0.66)

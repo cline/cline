@@ -10,6 +10,7 @@ import {
 import { setHomeDir } from "@cline/shared/storage";
 import { afterEach, describe, expect, it } from "vitest";
 import { createUserInstructionConfigService } from "../../extensions/config";
+import { PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME } from "../../extensions/tools/command-guard-extension";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
 import type { CoreSessionConfig } from "../../types/config";
 import { DefaultRuntimeBuilder } from "./runtime-builder";
@@ -75,6 +76,28 @@ describe("DefaultRuntimeBuilder", () => {
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names.length).toBeGreaterThan(0);
 		expect(names).not.toContain("spawn_agent");
+	});
+
+	it("derives enabled provider tools without registering a local executor", async () => {
+		const settingsRoot = mkdtempSync(join(tmpdir(), "cline-model-tools-"));
+		tempDirs.push(settingsRoot);
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			settingsRoot,
+			"global-settings.json",
+		);
+		writeFileSync(
+			process.env.CLINE_GLOBAL_SETTINGS_PATH,
+			JSON.stringify({ tools: { web_search: { enabled: true } } }),
+		);
+
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		expect(runtime.modelTools).toEqual([{ name: "web_search" }]);
+		expect(runtime.tools.some((tool) => tool.name === "web_search")).toBe(
+			false,
+		);
 	});
 
 	it("forwards runtime logger for downstream agent creation", async () => {
@@ -206,6 +229,39 @@ Use the review guidance.`,
 		});
 
 		expect(runtime.tools.map((tool) => tool.name)).not.toContain("editor");
+	});
+
+	it("registers the plan-mode command-guard hook only in plan mode", async () => {
+		const planRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+			}),
+		});
+		const actRuntime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig(),
+		});
+
+		const planGuards = (planRuntime.extensions ?? []).filter(
+			(extension) => extension.name === PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME,
+		);
+		expect(planGuards).toHaveLength(1);
+		expect(planGuards[0]?.hooks?.beforeTool).toBeTypeOf("function");
+		expect(
+			(actRuntime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
+	});
+
+	it("does not register the plan-mode command-guard when tools are disabled", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+				enableTools: false,
+			}),
+		});
+
+		expect(
+			(runtime.extensions ?? []).map((extension) => extension.name),
+		).not.toContain(PLAN_MODE_COMMAND_GUARD_EXTENSION_NAME);
 	});
 
 	it("uses yolo preset only when yolo mode is explicit", async () => {
@@ -486,8 +542,7 @@ process.stdin.on("data", (chunk) => {
 			serverPath,
 			`let buffer = "";
 function write(payload) {
-  const body = JSON.stringify(payload);
-  process.stdout.write("Content-Length: " + Buffer.byteLength(body, "utf8") + "\\r\\n\\r\\n" + body);
+  process.stdout.write(JSON.stringify(payload) + "\\n");
 }
 function handle(message) {
   if (message.method === "initialize") {
@@ -504,19 +559,12 @@ function handle(message) {
 }
 process.stdin.on("data", (chunk) => {
   buffer += chunk.toString("utf8");
-  while (true) {
-    const separator = buffer.indexOf("\\r\\n\\r\\n");
-    if (separator < 0) break;
-    const header = buffer.slice(0, separator);
-    const match = header.match(/Content-Length:\\s*(\\d+)/i);
-    if (!match) throw new Error("missing content length");
-    const length = Number(match[1]);
-    const start = separator + 4;
-    const end = start + length;
-    if (buffer.length < end) break;
-    const body = buffer.slice(start, end);
-    buffer = buffer.slice(end);
-    const message = JSON.parse(body);
+  let newline;
+  while ((newline = buffer.indexOf("\\n")) >= 0) {
+    const line = buffer.slice(0, newline).trim();
+    buffer = buffer.slice(newline + 1);
+    if (!line) continue;
+    const message = JSON.parse(line);
     if (message.method === "notifications/initialized") continue;
     handle(message);
   }
@@ -565,7 +613,7 @@ process.stdin.on("data", (chunk) => {
 		writeFileSync(
 			serverPath,
 			`process.stdin.once("data", () => {
-  process.stdout.write("Content-Length: 2\\r\\n\\r\\n{]");
+  process.stdout.write("{]\\n");
 });`,
 			"utf8",
 		);
@@ -577,6 +625,10 @@ process.stdin.on("data", (chunk) => {
 						broken: {
 							command: process.execPath,
 							args: [serverPath],
+							// Keep the test fast: the Content-Length fallback
+							// attempt otherwise waits out the default connect
+							// budget against this silent server.
+							timeout: 1,
 						},
 					},
 				},

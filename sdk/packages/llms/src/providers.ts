@@ -34,6 +34,7 @@ import {
 	type ProviderConfig,
 } from "./providers/types";
 
+export { classifyProviderError } from "./providers/error-classification";
 export {
 	ClineFreeModelLimitError,
 	ClineNotSubscribedError,

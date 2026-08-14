@@ -137,6 +137,29 @@ export function buildThreadStartRequest<TState extends ConnectorThreadState>(
 	};
 }
 
+/** Terminal hub statuses are not reusable for a new connector turn. */
+const TERMINAL_HUB_SESSION_STATUSES = new Set([
+	"completed",
+	"failed",
+	"aborted",
+	"cancelled",
+]);
+
+export function isReusableConnectorSession(
+	session: { sessionId?: string; status?: string } | undefined | null,
+): boolean {
+	if (!session?.sessionId?.trim()) {
+		return false;
+	}
+	const status = session.status?.trim().toLowerCase();
+	if (!status) {
+		// Older hubs omit status; treat presence as reusable and let send-time
+		// session_not_found recovery handle true zombies.
+		return true;
+	}
+	return !TERMINAL_HUB_SESSION_STATUSES.has(status);
+}
+
 export async function getOrCreateSessionId<
 	TState extends ConnectorThreadState,
 >(input: {
@@ -162,7 +185,7 @@ export async function getOrCreateSessionId<
 	const existing = threadState.sessionId?.trim();
 	if (existing) {
 		const existingSession = await input.client.getSession(existing);
-		if (existingSession) {
+		if (isReusableConnectorSession(existingSession)) {
 			await persistMergedThreadState(
 				input.thread,
 				input.bindingsPath,
@@ -204,12 +227,15 @@ export async function getOrCreateSessionId<
 			input.errorLabel,
 		);
 		input.logger.core.log(
-			"Connector thread session missing; starting a new session",
+			existingSession
+				? "Connector thread session is terminal; starting a new session"
+				: "Connector thread session missing; starting a new session",
 			{
 				severity: "warn",
 				transport: input.transport,
 				threadId: input.thread.id,
 				sessionId: existing,
+				...(existingSession?.status ? { status: existingSession.status } : {}),
 			},
 		);
 	}
@@ -281,6 +307,43 @@ export async function getOrCreateSessionId<
 	);
 
 	return sessionId;
+}
+
+/**
+ * Drops a thread's session mapping without touching the runtime session, but
+ * only when it still points at the session the caller observed as stale.
+ *
+ * Used when the hub reports the mapped session no longer exists: the thread
+ * binding may have been recovered concurrently, so a newer session id must
+ * never be cleared by an older failure.
+ */
+export async function forgetThreadSession<
+	TState extends ConnectorThreadState,
+>(input: {
+	thread: Thread<TState>;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	errorLabel: string;
+	expectedSessionId: string;
+}): Promise<boolean> {
+	const threadState = await loadThreadState(
+		input.thread,
+		input.bindingsPath,
+		input.baseStartRequest,
+	);
+	if (threadState.sessionId?.trim() !== input.expectedSessionId.trim()) {
+		return false;
+	}
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...threadState,
+			sessionId: undefined,
+		},
+		input.errorLabel,
+	);
+	return true;
 }
 
 export async function clearSession<TState extends ConnectorThreadState>(input: {

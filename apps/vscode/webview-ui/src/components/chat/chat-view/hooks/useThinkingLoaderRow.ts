@@ -23,6 +23,16 @@ export interface ThinkingLoaderInputs {
 	/** Tail message of lastVisibleRow (last element when it is a group). */
 	lastVisibleMessage: ClineMessage | undefined
 	modifiedMessages: ClineMessage[]
+	/**
+	 * Optimistic override: a turn-starting response RPC (new task or a follow-up sent outside a
+	 * streaming phase) was submitted before the backend published its next TurnState, so the
+	 * replica's turnState is stale (idle/completed/awaiting_*). Shows the loader immediately —
+	 * bypassing the phase gate and the turn-end completion_result guard, both of which describe
+	 * the PREVIOUS turn at this moment — but never while a visible content row is actively
+	 * streaming (no duplicate loaders if the marker briefly overlaps live output). The owner
+	 * clears it once a fresher TurnState arrives.
+	 */
+	forceShow?: boolean
 }
 
 /**
@@ -148,29 +158,58 @@ export function computeIsWaitingForResponse({
  * tail). When the trigger is the current tail message transitioning partial -> non-partial,
  * showing is delayed by THINKING_LOADER_GRACE_MS: at turn end that transition happens just
  * before the phase flips out of "streaming", and an instant loader would flash in and out.
+ *
+ * The grace only ever delays a hidden -> visible transition; it is skipped when:
+ * - the loader is already visible (e.g. below a streaming tool group, where the tail
+ *   finalizing used to blink the visible loader off and back on), or
+ * - `tailCannotEndTurn` is set: the finalized tail is a message kind that never coincides
+ *   with turn end (reasoning — the model always emits content after thinking), so the
+ *   turn-end ambiguity the grace protects against does not apply. Without this, a mid-turn
+ *   reasoning -> tool-call handoff flickered: the reasoning shimmer collapsed, the loader
+ *   stayed hidden for the grace period, popped in, then hid again when the tool row landed.
  */
-export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number | undefined, tailIsPartial: boolean): boolean {
-	const [visible, setVisible] = useState(false)
+export function useDebouncedLoaderVisibility(
+	shouldShow: boolean,
+	tailTs: number | undefined,
+	tailIsPartial: boolean,
+	tailCannotEndTurn = false,
+): boolean {
+	const [debouncedTailTs, setDebouncedTailTs] = useState<number>()
 	const prevTailRef = useRef<{ ts: number | undefined; partial: boolean }>({ ts: undefined, partial: false })
+	const wasVisibleRef = useRef(false)
+	const prevTail = prevTailRef.current
+	const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
+	const graceApplies = !tailCannotEndTurn && !wasVisibleRef.current
+	const waitingForDebounce = graceApplies && (tailJustFinishedStreaming || (tailTs !== undefined && debouncedTailTs === tailTs))
 
 	useEffect(() => {
-		const prevTail = prevTailRef.current
 		prevTailRef.current = { ts: tailTs, partial: tailIsPartial }
 
 		if (!shouldShow) {
-			setVisible(false)
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const tailJustFinishedStreaming = tailTs !== undefined && prevTail.ts === tailTs && prevTail.partial && !tailIsPartial
-		if (!tailJustFinishedStreaming) {
-			setVisible(true)
+		if (!tailJustFinishedStreaming || !graceApplies) {
+			setDebouncedTailTs(undefined)
 			return
 		}
 
-		const timer = setTimeout(() => setVisible(true), THINKING_LOADER_GRACE_MS)
+		setDebouncedTailTs(tailTs)
+		const timer = setTimeout(() => setDebouncedTailTs(undefined), THINKING_LOADER_GRACE_MS)
 		return () => clearTimeout(timer)
 	}, [shouldShow, tailTs, tailIsPartial])
+
+	// Effects run after the browser can paint. Derive ordinary show/hide states directly so an
+	// unambiguous turn start is present in the first render and streaming content removes a stale
+	// loader in that same render. State is only needed to latch the ambiguous partial -> final
+	// transition until its grace timer expires.
+	const visible = shouldShow && !waitingForDebounce
+
+	// Track the previous render's visibility so the grace never hides an already-visible loader.
+	useEffect(() => {
+		wasVisibleRef.current = visible
+	})
 
 	return visible
 }
@@ -181,7 +220,7 @@ export function useDebouncedLoaderVisibility(shouldShow: boolean, tailTs: number
  * anti-flash debounce for tail-finalization triggers.
  */
 export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
-	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages } = inputs
+	const { turnState, lastRawMessage, groupedMessages, lastVisibleRow, lastVisibleMessage, modifiedMessages, forceShow } = inputs
 
 	const isWaitingForResponse = useMemo(
 		() =>
@@ -204,9 +243,16 @@ export function useThinkingLoaderRow(inputs: ThinkingLoaderInputs): boolean {
 		lastRawMessage.partial === true &&
 		lastVisibleMessage?.say !== "reasoning"
 
+	// See ThinkingLoaderInputs.forceShow: show right away for a turn this webview just
+	// started, unless a visible content row is already streaming.
+	const optimisticShow = forceShow === true && lastVisibleMessage?.partial !== true
+
 	return useDebouncedLoaderVisibility(
-		isWaitingForResponse || handoffToReasoningPending,
+		optimisticShow || isWaitingForResponse || handoffToReasoningPending,
 		lastVisibleMessage?.ts,
 		lastVisibleMessage?.partial === true,
+		// A reasoning tail finishing never ends the turn (the model always emits content after
+		// thinking), so skip the anti-flash grace and hand the shimmer straight to the loader.
+		lastVisibleMessage?.say === "reasoning",
 	)
 }

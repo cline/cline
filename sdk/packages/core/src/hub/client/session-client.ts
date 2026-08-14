@@ -29,6 +29,8 @@ export interface HubSessionClientOptions {
 export interface HubSessionRow {
 	sessionId: string;
 	parentSessionId?: string;
+	/** Hub runtime status when the server provided one. */
+	status?: string;
 	metadata?: Record<string, unknown>;
 	messagesPath?: string;
 }
@@ -57,7 +59,7 @@ export interface HubRestoreResponse {
 		manifestPath: string;
 		messagesPath: string;
 	};
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -97,6 +99,7 @@ function extractSessionRow(
 			typeof metadata?.parentSessionId === "string"
 				? metadata.parentSessionId
 				: undefined,
+		status: typeof session.status === "string" ? session.status : undefined,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath
@@ -433,7 +436,9 @@ export class HubSessionClient {
 		return extractSessionRow(reply.payload);
 	}
 
-	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+	async readMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -448,7 +453,9 @@ export class HubSessionClient {
 			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
 		}
 		const messages = reply.payload?.messages;
-		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
+		return Array.isArray(messages)
+			? (messages as LlmsProviders.MessageWithMetadata[])
+			: [];
 	}
 
 	async restore(input: HubRestoreRequest): Promise<HubRestoreResponse> {

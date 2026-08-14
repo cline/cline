@@ -1,18 +1,14 @@
-import type { AgentMode } from "@cline/core";
+import { type AgentMode, projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	formatDisplayUserInput,
-	type Message,
+	type MessageWithMetadata,
 	parseUserInputMode,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
-type PersistedMessage = Message & {
-	metadata?: Record<string, unknown>;
-};
-
-function getDisplayRole(msg: PersistedMessage): string | undefined {
+function getDisplayRole(msg: MessageWithMetadata): string | undefined {
 	const role = msg.metadata?.displayRole;
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
 }
@@ -33,13 +29,29 @@ function stringifyToolResult(
 				return block.text;
 			if (block.type === "file" && typeof block.path === "string")
 				return `Attached file: ${block.path}`;
-			return "";
+			if (block.type === "image") return "[image]";
+			try {
+				return JSON.stringify(block);
+			} catch {
+				return String(block);
+			}
 		})
 		.filter(Boolean)
 		.join("\n");
 }
 
-export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
+function stringifyToolError(content: unknown): string {
+	if (typeof content === "string") return content;
+	try {
+		return JSON.stringify(content) ?? String(content);
+	} catch {
+		return String(content);
+	}
+}
+
+export function hydrateSessionMessages(
+	messages: MessageWithMetadata[],
+): ChatEntry[] {
 	const entries: ChatEntry[] = [];
 	const toolUseMap = new Map<string, number>();
 	// Mode each entry was produced in, recovered from <user_input mode="...">
@@ -49,7 +61,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 	// wrappers on session restarts).
 	let mode: AgentMode | undefined;
 
-	for (const msg of messages as PersistedMessage[]) {
+	for (const { message: msg } of projectSessionMessagesForDisplay(messages)) {
 		const displayRole = getDisplayRole(msg);
 		if (displayRole === "system" || displayRole === "status") {
 			continue;
@@ -107,6 +119,7 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 			if (block.type === "tool_use") {
 				entries.push({
 					kind: "tool_call",
+					toolCallId: block.id,
 					toolName: block.name,
 					inputSummary: formatToolInput(block.name, block.input),
 					rawInput: block.input,
@@ -132,11 +145,16 @@ export function hydrateSessionMessages(messages: Message[]): ChatEntry[] {
 								| string
 								| Array<{ type: string; text?: string; path?: string }>,
 						);
-						entry.result = {
-							outputSummary: resultText.slice(0, 500),
-							rawOutput: block.content,
-							error: block.is_error ? resultText : undefined,
-						};
+						const error = block.is_error
+							? stringifyToolError(block.content)
+							: undefined;
+						entry.result = error
+							? { outputSummary: "", rawOutput: undefined, error }
+							: {
+									outputSummary: resultText.slice(0, 500),
+									rawOutput: block.content,
+									error: undefined,
+								};
 					}
 				}
 			}

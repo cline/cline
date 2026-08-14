@@ -21,7 +21,7 @@ export default defineConfig({
 			"src/core/controller/models/__tests__/resolveModelInfo.test.ts",
 			"src/core/controller/models/__tests__/providerCatalogSmoke.test.ts",
 			"src/core/controller/models/__tests__/refreshClineRecommendedModels.test.ts",
-			"src/core/controller/models/__tests__/refreshGroqModels.test.ts",
+			"src/core/controller/models/__tests__/refreshProviderModels.test.ts",
 			"src/core/controller/models/__tests__/refreshOpenAiModels.test.ts",
 		],
 		environment: "node",

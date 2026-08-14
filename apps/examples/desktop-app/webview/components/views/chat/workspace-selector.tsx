@@ -1,7 +1,14 @@
 "use client";
 
 import { isChatWorkspacePath } from "@cline/shared/browser";
-import { Check, FolderCode, GitBranch, Plus, Search } from "lucide-react";
+import {
+	Check,
+	Folder,
+	FolderCode,
+	GitBranch,
+	Plus,
+	Search,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,7 +18,10 @@ import {
 	TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
-import { normalizeWorkspacePath } from "@/lib/workspace-paths";
+import {
+	looksLikeFolderPath,
+	normalizeWorkspacePath,
+} from "@/lib/workspace-paths";
 
 function formatWorkspacePath(path: string): string {
 	const unixHome = path.match(/^\/Users\/[^/]+\/(.*)$/);
@@ -38,7 +48,8 @@ export function WorkspaceSelector({
 	onCreateGitBranch,
 	disabled = false,
 }: {
-	currentBranch: string;
+	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
+	currentBranch: string | null;
 	workspaceRoot: string;
 	onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
 	workspaces: string[];
@@ -58,6 +69,7 @@ export function WorkspaceSelector({
 	const [pickingWorkspace, setPickingWorkspace] = useState(false);
 	const [showWorkspacePathInput, setShowWorkspacePathInput] = useState(false);
 	const [workspacePathInput, setWorkspacePathInput] = useState("");
+	const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 	const [showCreateBranch, setShowCreateBranch] = useState(false);
 	const [newBranchName, setNewBranchName] = useState("");
 
@@ -76,6 +88,10 @@ export function WorkspaceSelector({
 		() => normalizeWorkspacePath(workspaceRoot),
 		[workspaceRoot],
 	);
+	// Git chrome (branch label, branch list, create-branch) is a developer
+	// affordance; a plain folder shows only folder language. Pending branch
+	// discovery (null) is presented like a plain folder until it resolves.
+	const hasGit = currentBranch !== null && currentBranch !== "no-git";
 
 	const openMenu = async () => {
 		if (disabled) {
@@ -85,6 +101,7 @@ export function WorkspaceSelector({
 		setSearch("");
 		setShowWorkspacePathInput(false);
 		setWorkspacePathInput("");
+		setWorkspaceError(null);
 		setShowCreateBranch(false);
 		setNewBranchName("");
 		setLoadingBranches(true);
@@ -125,19 +142,25 @@ export function WorkspaceSelector({
 		) {
 			return;
 		}
+		setWorkspaceError(null);
 		setSwitchingWorkspace(true);
 		const switched = await onSwitchWorkspace(next);
 		setSwitchingWorkspace(false);
 		if (switched) {
 			setOpen(false);
 			setSearch("");
+			return;
 		}
+		setWorkspaceError(
+			`Couldn't open "${next}". Check that the folder exists and try again.`,
+		);
 	};
 
 	const handleSwitchWorkspacePath = async () => {
 		if (pickingWorkspace || switchingWorkspace) {
 			return;
 		}
+		setWorkspaceError(null);
 		if (onPickWorkspaceDirectory) {
 			setPickingWorkspace(true);
 			try {
@@ -145,10 +168,17 @@ export function WorkspaceSelector({
 				if (picked?.trim()) {
 					await handleWorkspaceSelect(picked.trim());
 				}
+				return;
+			} catch (pickError) {
+				// No usable native picker — fall through to manual path entry.
+				setWorkspaceError(
+					pickError instanceof Error && pickError.message.trim()
+						? pickError.message
+						: "The folder picker could not be opened. Type a folder path instead.",
+				);
 			} finally {
 				setPickingWorkspace(false);
 			}
-			return;
 		}
 		setShowWorkspacePathInput(true);
 		setWorkspacePathInput(workspaceRoot);
@@ -215,8 +245,12 @@ export function WorkspaceSelector({
 					>
 						<Button
 							variant="ghost"
-							aria-label={`Workspace ${workspaceName}, branch ${currentBranch}`}
-							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0"
+							aria-label={
+								hasGit
+									? `Workspace ${workspaceName}, branch ${currentBranch}`
+									: `Folder ${workspaceName}`
+							}
+							className="flex max-w-full min-w-0 items-center gap-1 h-auto px-1 py-0.5 hover:text-foreground transition-colors max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 text-sm"
 							disabled={disabled || switching}
 							id="git-branch-btn"
 							onClick={() => {
@@ -230,21 +264,30 @@ export function WorkspaceSelector({
 								void openMenu();
 							}}
 						>
-							<GitBranch className="size-3" />
+							{hasGit ? (
+								<GitBranch className="size-3" />
+							) : (
+								<Folder className="size-3" />
+							)}
 							<span className="max-w-20 shrink-0 truncate max-[560px]:sr-only">
 								{workspaceName}
 							</span>
-							<span className="shrink-0 text-muted-foreground/60 max-[560px]:sr-only">
-								/
-							</span>
-							<span className="min-w-0 truncate max-[560px]:sr-only">
-								{currentBranch}
-							</span>
+							{hasGit ? (
+								<>
+									<span className="shrink-0 text-muted-foreground/60 max-[560px]:sr-only">
+										/
+									</span>
+									<span className="min-w-0 truncate max-[560px]:sr-only">
+										{currentBranch}
+									</span>
+								</>
+							) : null}
 						</Button>
 					</span>
 				</TooltipTrigger>
 				<TooltipContent align="end" side="top" sideOffset={6}>
-					{workspaceRoot || workspaceName} / {currentBranch}
+					{workspaceRoot || workspaceName}
+					{hasGit ? ` / ${currentBranch}` : ""}
 				</TooltipContent>
 			</Tooltip>
 
@@ -274,7 +317,11 @@ export function WorkspaceSelector({
 									autoFocus
 									value={search}
 									onChange={(e) => setSearch(e.target.value)}
-									placeholder="Search workspaces & branches"
+									placeholder={
+										hasGit
+											? "Search workspaces & branches"
+											: "Search workspaces"
+									}
 									className="flex-1 h-auto border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
 								/>
 							</div>
@@ -291,10 +338,27 @@ export function WorkspaceSelector({
 									<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
 										Workspaces
 									</div>
+									{looksLikeFolderPath(search) && (
+										<Button
+											variant="ghost"
+											disabled={switchingWorkspace}
+											onClick={() => {
+												void handleWorkspaceSelect(search);
+											}}
+											className="mb-0.5 flex h-auto w-full items-center justify-start gap-2 rounded-md p-2 text-left"
+										>
+											<FolderCode className="size-3 shrink-0 text-muted-foreground" />
+											<span className="truncate text-xs text-foreground">
+												Open folder “{search.trim()}”
+											</span>
+										</Button>
+									)}
 									<div className="flex flex-col gap-0.5 max-h-28 overflow-y-auto">
 										{filteredWorkspaces.length === 0 ? (
 											<div className="px-2 py-2 text-xs text-muted-foreground">
-												No workspaces found
+												{looksLikeFolderPath(search)
+													? "Press the option above to open this folder"
+													: "No workspaces found — type a full folder path to add one"}
 											</div>
 										) : (
 											filteredWorkspaces.map((wp) => {
@@ -311,7 +375,9 @@ export function WorkspaceSelector({
 														}}
 														className={cn(
 															"flex items-center justify-between h-auto rounded-md p-2 text-left w-full",
-															isActive ? "bg-accent" : "hover:bg-accent/50",
+															isActive
+																? "bg-surface-hover"
+																: "hover:bg-surface-hover-lighter",
 														)}
 													>
 														<div className="flex items-center gap-2 min-w-0 w-full">
@@ -339,7 +405,7 @@ export function WorkspaceSelector({
 									>
 										{pickingWorkspace
 											? "Opening folder picker..."
-											: "Switch workspace path..."}
+											: "Open folder..."}
 									</Button>
 									{showWorkspacePathInput ? (
 										<div className="mt-1 flex items-center gap-1">
@@ -374,104 +440,113 @@ export function WorkspaceSelector({
 											</Button>
 										</div>
 									) : null}
-								</div>
-
-								{/* Branches section */}
-								<div className="p-1.5">
-									<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-										Branches
-									</div>
-									<div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
-										{filteredBranches.length === 0 ? (
-											<div className="px-2 py-2 text-xs text-muted-foreground">
-												No branches found
-											</div>
-										) : (
-											filteredBranches.map((branch) => (
-												<Button
-													variant="ghost"
-													key={branch}
-													disabled={switching}
-													onClick={() => {
-														void handleSelectBranch(branch);
-													}}
-													className={cn(
-														"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
-														currentBranch === branch
-															? "bg-accent"
-															: "hover:bg-accent/50",
-													)}
-												>
-													<GitBranch className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
-													<div className="flex-1 min-w-0">
-														<div className="flex items-center gap-2">
-															<span className="text-xs font-medium text-foreground truncate">
-																{branch}
-															</span>
-															{currentBranch === branch && (
-																<Check className="h-3 w-3 text-foreground ml-auto shrink-0" />
-															)}
-														</div>
-													</div>
-												</Button>
-											))
-										)}
-									</div>
-								</div>
-
-								{/* Create branch */}
-								<div className="border-t border-border p-1.5">
-									{showCreateBranch ? (
-										<div className="flex flex-col gap-2 p-2">
-											{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-											<Input
-												autoFocus
-												value={newBranchName}
-												onChange={(e) => setNewBranchName(e.target.value)}
-												onKeyDown={(e) => {
-													if (e.key === "Enter") void handleCreateBranch();
-													if (e.key === "Escape") {
-														setShowCreateBranch(false);
-														setNewBranchName("");
-													}
-												}}
-												placeholder="Branch name"
-												className="h-8 text-xs"
-											/>
-											<div className="flex items-center gap-2">
-												<Button
-													onClick={() => void handleCreateBranch()}
-													disabled={!newBranchName.trim() || switching}
-													size="sm"
-													className="flex-1 text-xs"
-												>
-													Create
-												</Button>
-												<Button
-													variant="outline"
-													size="sm"
-													onClick={() => {
-														setShowCreateBranch(false);
-														setNewBranchName("");
-													}}
-													className="flex-1 text-xs text-muted-foreground"
-												>
-													Cancel
-												</Button>
-											</div>
+									{workspaceError && (
+										<div className="mt-1 rounded-md bg-destructive/10 px-2 py-1.5 text-xs text-destructive">
+											{workspaceError}
 										</div>
-									) : (
-										<Button
-											variant="ghost"
-											onClick={() => setShowCreateBranch(true)}
-											size="sm"
-											className="justify-start w-full text-xs text-muted-foreground"
-										>
-											<Plus className="size-3" />
-											Create and checkout new branch...
-										</Button>
 									)}
 								</div>
+
+								{/* Branches section (git repos only) */}
+								{hasGit ? (
+									<div className="p-1.5">
+										<div className="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+											Branches
+										</div>
+										<div className="flex flex-col gap-0.5 max-h-36 overflow-y-auto">
+											{filteredBranches.length === 0 ? (
+												<div className="px-2 py-2 text-xs text-muted-foreground">
+													No branches found
+												</div>
+											) : (
+												filteredBranches.map((branch) => (
+													<Button
+														variant="ghost"
+														key={branch}
+														disabled={switching}
+														onClick={() => {
+															void handleSelectBranch(branch);
+														}}
+														className={cn(
+															"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
+															currentBranch === branch
+																? "bg-surface-hover"
+																: "hover:bg-surface-hover-lighter",
+														)}
+													>
+														<GitBranch className="mt-0.5 size-3 shrink-0 text-muted-foreground" />
+														<div className="flex-1 min-w-0">
+															<div className="flex items-center gap-2">
+																<span className="text-xs font-medium text-foreground truncate">
+																	{branch}
+																</span>
+																{currentBranch === branch && (
+																	<Check className="h-3 w-3 text-foreground ml-auto shrink-0" />
+																)}
+															</div>
+														</div>
+													</Button>
+												))
+											)}
+										</div>
+									</div>
+								) : null}
+
+								{/* Create branch (git repos only) */}
+								{hasGit ? (
+									<div className="border-t border-border p-1.5">
+										{showCreateBranch ? (
+											<div className="flex flex-col gap-2 p-2">
+												{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+												<Input
+													autoFocus
+													value={newBranchName}
+													onChange={(e) => setNewBranchName(e.target.value)}
+													onKeyDown={(e) => {
+														if (e.key === "Enter") void handleCreateBranch();
+														if (e.key === "Escape") {
+															setShowCreateBranch(false);
+															setNewBranchName("");
+														}
+													}}
+													placeholder="Branch name"
+													className="h-8 text-xs"
+												/>
+												<div className="flex items-center gap-2">
+													<Button
+														onClick={() => void handleCreateBranch()}
+														disabled={!newBranchName.trim() || switching}
+														size="sm"
+														className="flex-1 text-xs"
+													>
+														Create
+													</Button>
+													<Button
+														variant="outline"
+														size="sm"
+														onClick={() => {
+															setShowCreateBranch(false);
+															setNewBranchName("");
+														}}
+														className="flex-1 text-xs text-muted-foreground"
+													>
+														Cancel
+													</Button>
+												</div>
+											</div>
+										) : (
+											<Button
+												variant="ghost"
+												onClick={() => setShowCreateBranch(true)}
+												size="sm"
+												className="justify-start w-full text-xs text-muted-foreground"
+											>
+												<Plus className="size-3" />
+												Create and checkout new branch...
+											</Button>
+										)}
+									</div>
+								) : null}
 							</>
 						)}
 					</div>

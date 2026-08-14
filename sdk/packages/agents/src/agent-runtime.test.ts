@@ -9,14 +9,20 @@ import type {
 } from "@cline/shared";
 import {
 	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	resetSdkErrorRateLimiterForTests,
+	SDK_ERROR_TELEMETRY_EVENT,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
 } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { AgentRuntime } from "./index";
+
+beforeEach(() => {
+	resetSdkErrorRateLimiterForTests();
+});
 
 class ScriptedModel implements AgentModel {
 	public readonly requests: AgentModelRequest[] = [];
@@ -101,6 +107,52 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("streams and persists model-tool activity without local execution", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [{ url: "https://example.com" }] },
+				},
+				{ type: "text-delta", text: "It is sunny." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+		const eventTypes: string[] = [];
+		runtime.subscribe((event) => eventTypes.push(event.type));
+
+		const result = await runtime.run("Check the weather");
+
+		expect(model.requests).toHaveLength(1);
+		expect(result.messages.some((message) => message.role === "tool")).toBe(
+			false,
+		);
+		expect(result.messages.at(-1)?.metadata).toEqual({
+			modelToolActivities: [
+				{
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+					output: { results: [{ url: "https://example.com" }] },
+				},
+			],
+		});
+		expect(eventTypes).toContain("tool-started");
+		expect(eventTypes).toContain("tool-finished");
+	});
+
 	it("fails a turn that hits the model output token limit before completion", async () => {
 		const logger = {
 			debug: vi.fn(),
@@ -166,6 +218,194 @@ describe("AgentRuntime", () => {
 		expect(addedMessages.map((message) => message.role)).toEqual(["user"]);
 	});
 
+	it("recovers from a context-window overflow with a forced compaction and one retry", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const overflowEvent: AgentModelEvent = {
+			type: "finish",
+			reason: "error",
+			error: "prompt is too long: 213462 tokens > 200000 maximum",
+			errorClass: "context_window_exceeded",
+		};
+		const model = new ScriptedModel([
+			() => [overflowEvent],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const statusNotices: Array<{ message: string; metadata?: unknown }> = [];
+		const runtime = new AgentRuntime({ model, prepareTurn });
+		runtime.subscribe((event) => {
+			if (event.type === "status-notice") {
+				statusNotices.push({
+					message: event.message,
+					metadata: event.metadata,
+				});
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn).toHaveBeenCalledTimes(2);
+		expect(prepareTurn.mock.calls[0]?.[0].overflowRecovery).toBeUndefined();
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+		// The retried request uses the compacted transcript.
+		expect(model.requests[1]?.messages).toEqual(compactedMessages);
+		expect(statusNotices).toContainEqual(
+			expect.objectContaining({
+				message: "context window exceeded — compacting and retrying",
+				metadata: expect.objectContaining({
+					kind: "context_overflow_recovery",
+				}),
+			}),
+		);
+	});
+
+	it("recovers from an unclassified overflow by classifying the finish message", async () => {
+		// Models that do not classify at their own error boundary (custom
+		// AgentModel implementations, adapters carrying only a flattened
+		// message) must still reach recovery.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+				},
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`Please review ${"lots of context ".repeat(50)}`,
+		);
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("recovered");
+		expect(model.requests).toHaveLength(2);
+		expect(prepareTurn.mock.calls[1]?.[0].overflowRecovery).toBe(true);
+	});
+
+	it("does not treat an unrelated stream failure as an overflow", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "fetch failed: socket closed",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("fetch failed: socket closed");
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with an actionable message when overflow recovery has nothing to compact", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "input is too long for requested model",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"no conversation history to compact",
+		);
+		expect(result.error?.message).toContain(
+			"input is too long for requested model",
+		);
+		// The doomed request is not re-sent.
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("fails with guidance when overflow occurs and no prepare-turn pipeline exists", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(1);
+	});
+
+	it("does not retry a second consecutive overflow in the same run", async () => {
+		const overflow = (): AgentModelEvent[] => [
+			{
+				type: "finish",
+				reason: "error",
+				error: "prompt is too long",
+				errorClass: "context_window_exceeded",
+			},
+		];
+		const model = new ScriptedModel([overflow, overflow]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "x" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const runtime = new AgentRuntime({ model, prepareTurn });
+
+		const result = await runtime.run(
+			`A long request ${"with plenty of transcript ".repeat(30)}`,
+		);
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toContain(
+			"still exceeds the model's context window",
+		);
+		expect(model.requests).toHaveLength(2);
+	});
+
 	it("does not complete or persist history when the model returns no content", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "stop" }],
@@ -178,6 +418,55 @@ describe("AgentRuntime", () => {
 		expect(result.error?.message).toBe("Model returned empty response");
 		expect(result.messages).toHaveLength(1);
 		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("treats a file-only model turn as content, assembling images onto the message", async () => {
+		// A model that answers with only a generated file (e.g. an
+		// image-output model) must not fail as "Model returned empty
+		// response" — the file event is assembled into the assistant message.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "file", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a cat");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "image", image: "aGVsbG8=", mediaType: "image/png" },
+		]);
+	});
+
+	it("preserves non-image generated files as file parts", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Here you go." },
+				{ type: "file", data: "UERGLWRhdGE=", mediaType: "application/pdf" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Make a PDF");
+
+		expect(result.status).toBe("completed");
+		const assistant = result.messages.find(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.content).toEqual([
+			{ type: "text", text: "Here you go." },
+			{
+				type: "file",
+				path: "model-generated-file-2",
+				content: "UERGLWRhdGE=",
+			},
+		]);
 	});
 
 	it("executes a tool call and continues the loop", async () => {
@@ -281,6 +570,13 @@ describe("AgentRuntime", () => {
 					),
 			),
 		).toBe(true);
+		expect(
+			addedMessages.find((message) =>
+				message.content.some(
+					(part) => part.type === "text" && part.text === "steer now",
+				),
+			)?.metadata?.userRunSpan,
+		).toBe(0);
 	});
 
 	it("injects pending user messages before prepareTurn projects the provider request", async () => {
@@ -430,6 +726,7 @@ describe("AgentRuntime", () => {
 						(part) => part.type === "text" && part.text.includes("submit"),
 					),
 				).toBe(true);
+				expect(reminder?.metadata?.userRunSpan).toBe(0);
 				return [
 					{
 						type: "tool-call-delta",
@@ -2042,6 +2339,78 @@ describe("AgentRuntime", () => {
 		expect(telemetry.capture).toHaveBeenCalled();
 	});
 
+	it("does not mirror per-token stream deltas into telemetry.capture", async () => {
+		const { capture, telemetry } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking" },
+				{ type: "reasoning-delta", text: " harder" },
+				{ type: "text-delta", text: "calling tool" },
+				{
+					type: "tool-call-delta",
+					toolCallId: "stream_call",
+					toolName: "streamer",
+					inputText: "{}",
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const observed: string[] = [];
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [
+				{
+					name: "streamer",
+					description: "streams progress updates",
+					inputSchema: { type: "object" },
+					async execute(_input, context) {
+						context.emitUpdate?.({ progress: 1 });
+						context.emitUpdate?.({ progress: 2 });
+						return { done: true };
+					},
+				},
+			],
+		});
+		runtime.subscribe((event) => {
+			observed.push(event.type);
+		});
+
+		const result = await runtime.run("Stream");
+
+		expect(result.status).toBe("completed");
+		// The runtime event stream itself is untouched: listeners still see
+		// every delta/chunk event.
+		expect(observed).toContain("assistant-reasoning-delta");
+		expect(observed).toContain("assistant-text-delta");
+		expect(observed).toContain("tool-updated");
+
+		const agentEvents = capture.mock.calls
+			.map(([payload]) => payload?.event as string)
+			.filter((name) => name?.startsWith("agent."));
+		// Per-token/per-chunk events must not reach telemetry.
+		expect(agentEvents).not.toContain("agent.assistant-reasoning-delta");
+		expect(agentEvents).not.toContain("agent.assistant-text-delta");
+		expect(agentEvents).not.toContain("agent.tool-updated");
+		// Lifecycle and per-message events still do.
+		for (const expected of [
+			"agent.run-started",
+			"agent.message-added",
+			"agent.turn-started",
+			"agent.assistant-message",
+			"agent.tool-started",
+			"agent.tool-finished",
+			"agent.turn-finished",
+			"agent.run-finished",
+		]) {
+			expect(agentEvents).toContain(expected);
+		}
+	});
+
 	it("propagates agent identity including role through snapshots and plugin setup", async () => {
 		const setup = vi.fn(() => undefined);
 		const plugin: AgentRuntimePlugin = {
@@ -2119,6 +2488,97 @@ describe("AgentRuntime", () => {
 			inputTokens: 200,
 			outputTokens: 40,
 			totalCost: 1.0,
+		});
+	});
+});
+
+describe("AgentRuntime sdk.error reporting", () => {
+	function sdkErrorEvents(capture: ReturnType<typeof vi.fn>) {
+		return capture.mock.calls
+			.map(([call]) => call as { event: string; properties?: unknown })
+			.filter((call) => call.event === SDK_ERROR_TELEMETRY_EVENT);
+	}
+
+	it("does not re-report a failure the model layer marked as reported", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "Upstream returned HTTP 429",
+					errorReported: true,
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(sdkErrorEvents(capture)).toHaveLength(0);
+		// The structured lifecycle event still records the failure.
+		expect(capture).toHaveBeenCalledWith(
+			expect.objectContaining({ event: "agent.run-failed" }),
+		);
+	});
+
+	it("reports exactly one sdk.error for custom models that do not record their own telemetry", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// A custom `AgentModel` flattens its failure into the finish event and
+		// never calls `captureSdkError`; without `errorReported` the run loop
+		// must own the report.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "backend unavailable",
+				},
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			messageModelInfo: { id: "claude-fable-5", provider: "anthropic" },
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "backend unavailable",
+			// Model attribution must survive into the event so the warehouse
+			// can answer "which models are hitting this" (dbt coalesces
+			// providerId/modelId into inference_provider/inference_model).
+			providerId: "anthropic",
+			modelId: "claude-fable-5",
+		});
+	});
+
+	it("still reports failures that originate in the run loop itself", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// An empty response is a loop-originated failure no model layer saw.
+		const model = new ScriptedModel([
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		const runtime = new AgentRuntime({ model, telemetry });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).toMatchObject({
+			component: "agents",
+			operation: "agent.run",
+			handled: false,
+			error_message: "Model returned empty response",
 		});
 	});
 });

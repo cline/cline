@@ -272,9 +272,7 @@ const USER_SETTINGS_FIELDS = {
 	shellIntegrationTimeout: { default: 4000 as number },
 	defaultTerminalProfile: { default: "default" as string },
 	hooksEnabled: { default: true as boolean },
-	yoloModeToggled: { default: false as boolean },
-	autoApproveAllToggled: { default: false as boolean },
-	useAutoCondense: { default: false as boolean },
+	useAutoCondense: { default: true as boolean },
 	subagentsEnabled: { default: false as boolean },
 	worktreesEnabled: { default: false as boolean },
 	preferredLanguage: { default: "English" as string },
@@ -282,7 +280,7 @@ const USER_SETTINGS_FIELDS = {
 	focusChainSettings: { default: DEFAULT_FOCUS_CHAIN_SETTINGS as FocusChainSettings },
 	backgroundEditEnabled: { default: false as boolean },
 	optOutOfRemoteConfig: { default: false as boolean },
-	showFeatureTips: { default: true as boolean },
+	showFeatureTips: { default: false as boolean },
 
 	// OpenTelemetry configuration
 	openTelemetryEnabled: { default: true as boolean },

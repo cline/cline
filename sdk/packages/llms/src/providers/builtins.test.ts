@@ -2,11 +2,13 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	CLINE_ENVIRONMENT_ENV,
 	CLINE_ENVIRONMENTS,
+	type GatewayProviderContext,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
+import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
 
 function findClineSpec() {
 	const spec = BUILTIN_SPECS.find((s) => s.id === "cline");
@@ -66,13 +68,133 @@ describe("cline builtin models", () => {
 		expect(models["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 		expect(models["zai/glm-5.1"]).toMatchObject({
 			id: "zai/glm-5.1",
 		});
 		expect(models["z-ai/glm-5.2"]).toBeUndefined();
+	});
+
+	it("includes Vercel-only allowlisted models the OpenRouter catalog lacks", async () => {
+		const models = await getModelsForProvider("cline");
+
+		expect(models["meta/muse-spark-1.2-contributor"]).toMatchObject({
+			id: "meta/muse-spark-1.2-contributor",
+			contextWindow: 1_048_576,
+			pricing: expect.objectContaining({ input: 0.1, output: 0.2 }),
+		});
+	});
+});
+
+describe("baked anthropic catalog reasoning options", () => {
+	// Regression guard for the offline fallback: when the live models.dev
+	// fetch fails, models resolve from the baked catalog. If that catalog
+	// drops reasoningOptions, adaptive-era Claude models fall back to the
+	// manual thinking wire shape and every reasoning request is rejected by
+	// the Anthropic API.
+	it("carries effort options that resolve to adaptive thinking for adaptive-era Claude models", async () => {
+		const models = await getModelsForProvider("anthropic");
+		const adaptiveEraModelIds = [
+			"claude-sonnet-5",
+			"claude-fable-5",
+			"claude-opus-5",
+			"claude-opus-4-8",
+			"claude-opus-4-7",
+			"claude-opus-4-6",
+			"claude-sonnet-4-6",
+		];
+
+		for (const modelId of adaptiveEraModelIds) {
+			const model = models[modelId];
+			expect(model, modelId).toBeDefined();
+			expect(
+				model.reasoningOptions?.some((option) => option.type === "effort"),
+				modelId,
+			).toBe(true);
+
+			const context: GatewayProviderContext = {
+				provider: {
+					id: "anthropic",
+					name: "Anthropic",
+					defaultModelId: modelId,
+					models: [],
+					metadata: {
+						routing: {
+							reasoning: {
+								format: "anthropic-thinking",
+								routes: [{ matcher: "anthropic-compatible" }],
+							},
+						},
+					},
+				},
+				model: {
+					id: modelId,
+					name: model.name,
+					providerId: "anthropic",
+					reasoningOptions: model.reasoningOptions,
+					metadata: model.family ? { family: model.family } : undefined,
+				},
+				config: { providerId: "anthropic" },
+			};
+			expect(
+				resolveAnthropicReasoningRequestPolicy(
+					{
+						providerId: "anthropic",
+						modelId,
+						messages: [],
+						reasoning: { enabled: true },
+					},
+					context,
+				),
+				modelId,
+			).toEqual({ kind: "anthropic-adaptive" });
+		}
+	});
+});
+
+describe("vertex builtin models", () => {
+	it("adds Claude Fable 5 without changing existing Vertex models", async () => {
+		const models = await getModelsForProvider("vertex");
+		expect(models["claude-fable-5"]).toMatchObject({
+			id: "claude-fable-5",
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
+			maxTokens: 128_000,
+		});
+
+		expect(models["claude-sonnet-5@default"]).toBeDefined();
+		// The default comes from the generated (models.dev-derived) provider
+		// spec and rotates as the upstream catalog changes — assert it resolves
+		// to a model in the list rather than pinning a specific id.
+		const provider = await getProvider("vertex");
+		expect(provider.defaultModelId).toBeTruthy();
+		expect(models[provider.defaultModelId ?? ""]).toBeDefined();
+		expect(
+			(await getModelsForProvider("gemini"))["claude-fable-5"],
+		).toBeUndefined();
+	});
+
+	it("drops Anthropic's universal pricing from the Vertex Fable 5 record", async () => {
+		// Vertex bills region-dependently and its US/EU multi-region rates
+		// exceed Anthropic's list price; the overlay must not present a
+		// misleading universal price. No pricing beats wrong pricing.
+		const anthropicFable = (await getModelsForProvider("anthropic"))[
+			"claude-fable-5"
+		];
+		expect(anthropicFable?.pricing).toBeDefined();
+
+		const vertexFable = (await getModelsForProvider("vertex"))[
+			"claude-fable-5"
+		];
+		expect(vertexFable).toBeDefined();
+		expect(vertexFable.pricing).toBeUndefined();
+		// Non-pricing metadata still carries over.
+		expect(vertexFable.capabilities).toEqual(anthropicFable.capabilities);
+		expect(vertexFable.reasoningOptions).toEqual(
+			anthropicFable.reasoningOptions,
+		);
 	});
 });
 
@@ -308,9 +430,7 @@ describe("regional API line base URLs", () => {
 	it("returns undefined for unknown lines and non-regional providers", () => {
 		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
 		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
-		expect(
-			resolveProviderApiLineBaseUrl("anthropic", "china"),
-		).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("anthropic", "china")).toBeUndefined();
 	});
 
 	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {

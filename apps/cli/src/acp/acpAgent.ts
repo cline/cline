@@ -7,6 +7,8 @@ import type {
 	ContentBlock,
 	InitializeRequest,
 	InitializeResponse,
+	LoadSessionRequest,
+	LoadSessionResponse,
 	NewSessionRequest,
 	NewSessionResponse,
 	PromptRequest,
@@ -28,11 +30,12 @@ import {
 	ProviderSettingsManager,
 	SessionSource,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import { isLikelyAuthError, type MessageWithMetadata } from "@cline/shared";
 import { getPersistedProviderApiKey } from "../commands/auth";
 import { resolveSystemPrompt } from "../runtime/prompt";
 import { subscribeToAgentEvents } from "../runtime/session-events";
 import { createCliCore } from "../session/session";
+import { isClineOrgIndividualInferenceSubscriptionErrorMessage } from "../utils/cline-pass-errors";
 import { getCliBuildInfo } from "../utils/common";
 import { randomSessionId, resolveWorkspaceRoot } from "../utils/helpers";
 import type { Config } from "../utils/types";
@@ -43,8 +46,24 @@ import {
 	authenticateAcpProvider,
 	isAcpAuthMethodId,
 } from "./auth";
-import { requestAcpToolApproval } from "./permissions";
 import {
+	AUTO_APPROVE_CONFIG_ID,
+	buildAutoApproveConfigOption,
+	parseAutoApproveValue,
+} from "./auto-approve";
+import {
+	buildOrganizationConfigOption,
+	fetchClineOrganizations,
+	getAcpOrgSubscriptionMessage,
+	ORGANIZATION_CONFIG_ID,
+	PERSONAL_ACCOUNT_VALUE,
+	switchClineOrganization,
+	usesClineAccount,
+} from "./organizations";
+import { requestAcpToolApproval } from "./permissions";
+import { replaySessionHistory } from "./session-load";
+import {
+	describeAgentError,
 	forwardAgentEvent,
 	sendConfigOptionUpdate,
 	sendCurrentModeUpdate,
@@ -61,6 +80,8 @@ interface SessionState {
 	currentProviderId: string;
 	/** Current model id for the session. */
 	currentModelId: string;
+	/** When true, all tool calls are approved without asking the client. */
+	autoApproveTools: boolean;
 	/** Active session manager for the running agent, if any. */
 	sessionManager?: ClineCore;
 	/** Internal session id within the session manager. */
@@ -69,20 +90,34 @@ interface SessionState {
 	abortController?: AbortController;
 	/** Unsubscribe function for the agent event listener. */
 	unsubscribe?: () => void;
+	/**
+	 * Most recent unrecoverable agent error for the in-flight turn.
+	 *
+	 * The runtime reports fatal failures (bad credentials, subscription
+	 * restrictions, provider outages) as an `error` event and still resolves
+	 * `send()` normally, so the message has to be stashed here for `prompt()` to
+	 * turn into an error response.
+	 */
+	fatalError?: Error;
 	/** Messages to inject into the next session manager for conversation continuity. */
-	pendingInitialMessages?: Message[];
+	pendingInitialMessages?: MessageWithMetadata[];
 }
 
 export class AcpAgent implements Agent {
 	private sessions = new Map<string, SessionState>();
 	private readonly conn: AgentSideConnection;
 	private readonly providerSettingsManager = new ProviderSettingsManager();
+	private readonly defaultAutoApproveTools: boolean;
 
 	/** Set after a successful `authenticate` call. */
 	private authResult?: AcpAuthResult;
 
-	constructor(conn: AgentSideConnection) {
+	constructor(
+		conn: AgentSideConnection,
+		options?: { autoApproveTools?: boolean },
+	) {
 		this.conn = conn;
+		this.defaultAutoApproveTools = options?.autoApproveTools ?? false;
 	}
 
 	async initialize(_params: InitializeRequest): Promise<InitializeResponse> {
@@ -109,7 +144,7 @@ export class AcpAgent implements Agent {
 		};
 	}
 
-	async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+	isSessionReady() {
 		// Require authentication unless an API key is provided via env var.
 		if (!this.authResult && !process.env.CLINE_API_KEY) {
 			// Check for valid persisted credentials from a previous session
@@ -119,18 +154,46 @@ export class AcpAgent implements Agent {
 			if (!this.authResult) {
 				throw RequestError.authRequired(
 					undefined,
-					"Call authenticate before creating a session",
+					"Call authenticate before starting a session",
 				);
 			}
 		}
+	}
+
+	availableModes() {
+		return [
+			{
+				id: "plan",
+				name: "Plan",
+				description:
+					"Explore the codebase and plan changes without modifying files",
+			},
+			{
+				id: "act",
+				name: "Act",
+				description: "Make changes to the codebase",
+			},
+		];
+	}
+
+	async newSession(params: NewSessionRequest): Promise<NewSessionResponse> {
+		this.isSessionReady();
 
 		const sessionId = randomSessionId();
 
 		const defaultMode = "act";
 		const providerId =
 			process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
-		const defaultModelId =
-			process.env.CLINE_MODEL ?? "anthropic/claude-sonnet-4.6";
+
+		const providerModels = await Llms.getModelsForProvider(providerId);
+		// Model ids are provider-scoped, so the default must come from the
+		// provider's own catalog: `cline-pass` uses `cline-pass/…` ids that mean
+		// nothing to `cline`, and vice versa.
+		const defaultModelId = await resolveDefaultModelId(
+			providerId,
+			process.env.CLINE_MODEL,
+			providerModels,
+		);
 
 		this.sessions.set(sessionId, {
 			id: sessionId,
@@ -139,9 +202,9 @@ export class AcpAgent implements Agent {
 			currentMode: defaultMode,
 			currentProviderId: providerId,
 			currentModelId: defaultModelId,
+			autoApproveTools: this.defaultAutoApproveTools,
 		});
 
-		const providerModels = await Llms.getModelsForProvider(providerId);
 		const availableModels = Object.entries(providerModels).map(
 			([modelId, info]) => ({
 				modelId,
@@ -150,22 +213,13 @@ export class AcpAgent implements Agent {
 			}),
 		);
 
+		const organizationOption =
+			await this.getOrganizationConfigOption(providerId);
+
 		return {
 			sessionId,
 			modes: {
-				availableModes: [
-					{
-						id: "plan",
-						name: "Plan",
-						description:
-							"Explore the codebase and plan changes without modifying files",
-					},
-					{
-						id: "act",
-						name: "Act",
-						description: "Make changes to the codebase",
-					},
-				],
+				availableModes: this.availableModes(),
 				currentModeId: defaultMode,
 			},
 			models: {
@@ -176,7 +230,84 @@ export class AcpAgent implements Agent {
 				await buildProviderConfigOption(providerId),
 				buildModelConfigOption(defaultModelId, providerModels),
 				buildModeConfigOption(defaultMode),
+				buildAutoApproveConfigOption(this.defaultAutoApproveTools),
+				...(organizationOption ? [organizationOption] : []),
 			],
+		};
+	}
+
+	async loadSession(params: LoadSessionRequest): Promise<LoadSessionResponse> {
+		this.isSessionReady();
+
+		let session = this.sessions.get(params.sessionId);
+		let messages: MessageWithMetadata[];
+
+		if (session?.sessionManager && session.activeSessionId) {
+			// The session is still live in this connection — replay its current
+			// conversation without restarting anything.
+			messages =
+				(await session.sessionManager.readMessages(session.activeSessionId)) ??
+				[];
+		} else {
+			if (!session) {
+				// Provider/model are not persisted per session — a session
+				// loaded on a fresh connection starts from the same defaults
+				// as a new session, with the model resolved against the
+				// provider's own catalog just like newSession.
+				const providerId =
+					process.env.CLINE_PROVIDER ?? this.authResult?.providerId ?? "cline";
+				const providerModels = await Llms.getModelsForProvider(providerId);
+				session = {
+					id: params.sessionId,
+					cwd: params.cwd,
+					mcpServers: params.mcpServers,
+					currentMode: "act",
+					currentProviderId: providerId,
+					currentModelId: await resolveDefaultModelId(
+						providerId,
+						process.env.CLINE_MODEL,
+						providerModels,
+					),
+					autoApproveTools: this.defaultAutoApproveTools,
+				};
+				this.sessions.set(params.sessionId, session);
+			}
+			try {
+				messages =
+					(await this.ensureSessionManager(session, params.sessionId, {
+						resume: true,
+					})) ?? [];
+			} catch (error) {
+				this.sessions.delete(params.sessionId);
+				throw error;
+			}
+		}
+
+		// The ACP spec requires the full conversation to be replayed via
+		// session/update notifications before this request resolves.
+		await replaySessionHistory(this.conn, params.sessionId, messages);
+
+		const providerModels = await Llms.getModelsForProvider(
+			session.currentProviderId,
+		);
+		const availableModels = Object.entries(providerModels).map(
+			([availableModelId, info]) => ({
+				modelId: availableModelId,
+				name: info.name ?? availableModelId,
+				description: info.description,
+			}),
+		);
+
+		return {
+			modes: {
+				availableModes: this.availableModes(),
+				currentModeId: session.currentMode,
+			},
+			models: {
+				availableModels,
+				currentModelId: session.currentModelId,
+			},
+			configOptions: await buildAllConfigOptions(session),
 		};
 	}
 
@@ -193,6 +324,7 @@ export class AcpAgent implements Agent {
 
 		const abortController = new AbortController();
 		session.abortController = abortController;
+		session.fatalError = undefined;
 
 		// If cancel() was already called before prompt() started, bail early.
 		if (abortController.signal.aborted) {
@@ -241,6 +373,17 @@ export class AcpAgent implements Agent {
 		sendSessionInfoUpdate(this.conn, params.sessionId, {
 			updatedAt: new Date().toISOString(),
 		});
+
+		// A cancelled turn always reports `cancelled`: the ACP spec
+		// requires agents to convert abort failures into the cancelled stop reason
+		// so clients don't show cancellations as errors.
+		if (stopReason !== "cancelled") {
+			const fatalError = session.fatalError;
+			session.fatalError = undefined;
+			if (fatalError) {
+				throw toAcpPromptError(fatalError);
+			}
+		}
 
 		return { stopReason };
 	}
@@ -326,16 +469,37 @@ export class AcpAgent implements Agent {
 				// creates a fresh one with the new provider on the next prompt().
 				await this.teardownSessionManager(session);
 
-				// If current model doesn't exist in new provider, reset to first available
+				// Re-resolve the model against the new provider's catalog: keep the
+				// current one when it's offered there too, otherwise fall back to the
+				// provider's declared default rather than whichever model happens to
+				// be listed first (for cline-pass that is an unrelated free model).
 				const providerModels = await Llms.getModelsForProvider(value);
-				const modelIds = Object.keys(providerModels);
-				const fallbackModelId = modelIds[0];
-				if (
-					!modelIds.includes(session.currentModelId) &&
-					fallbackModelId !== undefined
-				) {
-					session.currentModelId = fallbackModelId;
+				session.currentModelId = await resolveDefaultModelId(
+					value,
+					session.currentModelId,
+					providerModels,
+				);
+				break;
+			}
+
+			case ORGANIZATION_CONFIG_ID: {
+				try {
+					await switchClineOrganization({
+						apiKey: this.accountApiKey,
+						providerSettingsManager: this.providerSettingsManager,
+						organizationId: value === PERSONAL_ACCOUNT_VALUE ? null : value,
+					});
+				} catch (error) {
+					const message = describeAgentError(error);
+					throw RequestError.internalError(
+						{ message },
+						`Failed to switch account: ${message}`,
+					);
 				}
+
+				// Restart the backend session so subsequent turns run under the
+				// newly selected account.
+				await this.teardownSessionManager(session);
 				break;
 			}
 
@@ -362,6 +526,18 @@ export class AcpAgent implements Agent {
 				break;
 			}
 
+			case AUTO_APPROVE_CONFIG_ID: {
+				const autoApprove = parseAutoApproveValue(params.value);
+				if (autoApprove === undefined) {
+					throw RequestError.invalidParams(
+						undefined,
+						`Invalid auto-approve value: ${String(params.value)} (must be a boolean)`,
+					);
+				}
+				session.autoApproveTools = autoApprove;
+				break;
+			}
+
 			default:
 				throw RequestError.invalidParams(
 					undefined,
@@ -370,6 +546,12 @@ export class AcpAgent implements Agent {
 		}
 
 		const configOptions = await buildAllConfigOptions(session);
+		const organizationOption = await this.getOrganizationConfigOption(
+			session.currentProviderId,
+		);
+		if (organizationOption) {
+			configOptions.push(organizationOption);
+		}
 		sendConfigOptionUpdate(this.conn, params.sessionId, configOptions);
 		return { configOptions };
 	}
@@ -408,6 +590,25 @@ export class AcpAgent implements Agent {
 			}
 		}
 		this.sessions.clear();
+	}
+
+	private get accountApiKey(): string {
+		return process.env.CLINE_API_KEY ?? this.authResult?.apiKey ?? "";
+	}
+
+	private async getOrganizationConfigOption(
+		providerId: string,
+	): Promise<SessionConfigOption | undefined> {
+		if (!usesClineAccount(providerId)) {
+			return undefined;
+		}
+		const organizations = await fetchClineOrganizations({
+			apiKey: this.accountApiKey,
+			providerSettingsManager: this.providerSettingsManager,
+		});
+		return organizations
+			? buildOrganizationConfigOption(organizations)
+			: undefined;
 	}
 
 	/**
@@ -467,13 +668,17 @@ export class AcpAgent implements Agent {
 	 * Lazily create and start the session manager for this ACP session.
 	 * After the first call the manager persists across prompt() calls so that
 	 * conversation history is maintained.
+	 *
+	 * With `resume: true` the persisted conversation for `acpSessionId` is read
+	 * back through the session manager.
 	 */
 	private async ensureSessionManager(
 		session: SessionState,
 		acpSessionId: string,
-	): Promise<void> {
+		options?: { resume?: boolean },
+	): Promise<MessageWithMetadata[] | undefined> {
 		if (session.sessionManager) {
-			return;
+			return undefined;
 		}
 
 		const config = await this.buildConfig(session);
@@ -482,31 +687,61 @@ export class AcpAgent implements Agent {
 			toolPolicies: config.toolPolicies,
 			capabilities: {
 				requestToolApproval: (request) =>
-					requestAcpToolApproval(this.conn, acpSessionId, request),
+					session.autoApproveTools
+						? Promise.resolve({ approved: true })
+						: requestAcpToolApproval(this.conn, acpSessionId, request),
 			},
 			cwd: config.cwd,
 			workspaceRoot: config.workspaceRoot,
 		});
 
+		let initialMessages: MessageWithMetadata[] | undefined;
+		if (options?.resume) {
+			initialMessages = await sessionManager
+				.readMessages(acpSessionId)
+				.catch(() => undefined);
+
+			if (!initialMessages || initialMessages.length === 0) {
+				await sessionManager
+					.dispose("acp_load_session_not_found")
+					.catch(() => {});
+				throw RequestError.resourceNotFound(acpSessionId);
+			}
+		} else {
+			initialMessages = session.pendingInitialMessages;
+			session.pendingInitialMessages = undefined;
+		}
+
 		session.unsubscribe = subscribeToAgentEvents(
 			sessionManager,
 			(event: AgentEvent) => {
+				// Remember unrecoverable failures so prompt() can fail the turn.
+				if (event.type === "error" && !event.recoverable) {
+					session.fatalError =
+						event.error instanceof Error
+							? event.error
+							: new Error(describeAgentError(event.error));
+				}
 				forwardAgentEvent(this.conn, acpSessionId, event);
 			},
 		);
 
-		const initialMessages = session.pendingInitialMessages;
-		session.pendingInitialMessages = undefined;
-
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
-			config,
+			// Persist the core session under the ACP session id so that
+			// session/load can find the conversation by the id the client holds.
+			config: {
+				...config,
+				modelId: session.currentModelId,
+				sessionId: acpSessionId,
+			},
 			interactive: true,
 			initialMessages,
 		});
 
 		session.sessionManager = sessionManager;
 		session.activeSessionId = started.sessionId;
+		return initialMessages;
 	}
 
 	private async buildConfig(session: SessionState): Promise<Config> {
@@ -558,6 +793,48 @@ export class AcpAgent implements Agent {
 			},
 		};
 	}
+}
+
+async function resolveDefaultModelId(
+	providerId: string,
+	preferredModelId: string | undefined,
+	providerModels: Record<string, unknown>,
+): Promise<string> {
+	const modelIds = Object.keys(providerModels);
+	const preferred = preferredModelId?.trim();
+	if (preferred && modelIds.includes(preferred)) {
+		return preferred;
+	}
+	const providerDefault = (await Llms.getProvider(providerId))?.defaultModelId;
+	if (providerDefault && modelIds.includes(providerDefault)) {
+		return providerDefault;
+	}
+	return modelIds[0] ?? "";
+}
+
+/**
+ * Convert a fatal agent error into a JSON-RPC error for the prompt response.
+ *
+ * Credential/subscription problems map to `auth_required` (-32000) so clients
+ * can offer a re-auth affordance rather than just printing text; everything
+ * else is an internal error.
+ *
+ * Classification goes through the shared CLI helpers, which check the error's
+ * type *and* its name/message. That matters because the runtime re-wraps errors
+ * as it forwards them across the event boundary, so `instanceof` alone fails on
+ * the object ACP actually receives.
+ */
+function toAcpPromptError(error: Error): RequestError {
+	if (isClineOrgIndividualInferenceSubscriptionErrorMessage(error)) {
+		const message = getAcpOrgSubscriptionMessage();
+		return RequestError.internalError({ message }, message);
+	}
+
+	const message = describeAgentError(error);
+	const isAuthProblem = isLikelyAuthError(error);
+	return isAuthProblem
+		? RequestError.authRequired({ message }, message)
+		: RequestError.internalError({ message }, message);
 }
 
 async function buildProviderConfigOption(
@@ -636,6 +913,7 @@ async function buildAllConfigOptions(
 		providerOption,
 		buildModelConfigOption(session.currentModelId, providerModels),
 		buildModeConfigOption(session.currentMode),
+		buildAutoApproveConfigOption(session.autoApproveTools),
 	];
 }
 

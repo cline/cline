@@ -1,6 +1,43 @@
 "use client";
 
+export {
+	Button,
+	type ButtonProps,
+	type ButtonSize,
+	type ButtonTone,
+	buttonVariants,
+	type ButtonVariant,
+	IconButton,
+	iconButtonVariants,
+	type IconButtonProps,
+} from "./button.js";
+export {
+	type AgentApprovalAction,
+	AgentApprovalCard,
+	type AgentApprovalCardProps,
+} from "./agent-approval-card.js";
+export {
+	AgentAskQuestion,
+	type AgentAskQuestionItem,
+	type AgentAskQuestionProps,
+} from "./agent-ask-question.js";
+export { AgentAurora } from "./agent-aurora.js";
 export { AgentHeroHeading } from "./agent-hero-heading.js";
+export {
+	AgentPromptQueue,
+	type AgentPromptQueueItem,
+	type AgentPromptQueueProps,
+} from "./agent-prompt-queue.js";
+export {
+	type AgentQuickAction,
+	AgentQuickActions,
+	type AgentQuickActionsProps,
+} from "./agent-quick-actions.js";
+export {
+	SearchCombobox,
+	type SearchComboboxOption,
+	type SearchComboboxProps,
+} from "./search-combobox.js";
 export {
 	SessionStatus,
 	type SessionStatusProps,

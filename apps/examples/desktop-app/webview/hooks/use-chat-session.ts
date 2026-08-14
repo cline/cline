@@ -18,8 +18,10 @@ import type {
 	AgentChunkEvent,
 	AskQuestionRequestItem,
 	ChatApiResult,
+	ChatSessionCommandResponse,
 	ChatSessionHookEvent,
 	ChatTransportState,
+	ChatUsageEvent,
 	CoreLogChunk,
 	ProcessContext,
 	PromptInQueue,
@@ -185,6 +187,63 @@ function updateMessageById(
 	return changed ? next : messages;
 }
 
+type SessionUsageSummary = {
+	tokensIn: number;
+	tokensOut: number;
+	cacheReadTokens: number;
+	totalCostUsd: number;
+};
+
+type TurnCostTracker = {
+	streamedCostUsd: number;
+};
+
+/**
+ * Read current context usage and cumulative cost from persisted chat messages.
+ *
+ * Each assistant message contains metrics for one model request. The latest
+ * request represents current context-window pressure; summing every request's
+ * input would instead measure lifetime traffic and make the ring saturate even
+ * after context compaction. Cost remains a session-wide sum.
+ */
+function summarizeSessionUsage(
+	messages: ChatMessage[],
+): SessionUsageSummary | undefined {
+	let tokensIn: number | undefined;
+	let tokensOut: number | undefined;
+	let cacheReadTokens: number | undefined;
+	let totalCostUsd = 0;
+	let hasCost = false;
+
+	for (const message of messages) {
+		const meta = message.meta;
+		if (!meta) continue;
+		if (
+			typeof meta.inputTokens === "number" ||
+			typeof meta.outputTokens === "number" ||
+			typeof meta.cacheReadTokens === "number"
+		) {
+			tokensIn = meta.inputTokens ?? 0;
+			tokensOut = meta.outputTokens ?? 0;
+			cacheReadTokens = meta.cacheReadTokens ?? 0;
+		}
+		if (typeof meta.totalCost === "number") {
+			totalCostUsd += meta.totalCost;
+			hasCost = true;
+		}
+	}
+
+	if (tokensIn === undefined && tokensOut === undefined && !hasCost) {
+		return undefined;
+	}
+	return {
+		tokensIn: tokensIn ?? 0,
+		tokensOut: tokensOut ?? 0,
+		cacheReadTokens: cacheReadTokens ?? 0,
+		totalCostUsd,
+	};
+}
+
 // ---------------------------------------------------------------------------
 // Core log dispatcher — avoids repeated if/else chains
 // ---------------------------------------------------------------------------
@@ -195,15 +254,35 @@ const LOG_DISPATCH: Record<string, typeof console.info> = {
 	debug: console.debug,
 };
 
+// Core streams a steady flow of info/debug log chunks during a session.
+// Serializing them through the console on the streaming hot path costs real
+// CPU (DevTools keeps every entry alive), so anything below warn is dropped
+// unless the user opts in via `localStorage.setItem("cline:debug-logs", "1")`.
+let verboseCoreLogs: boolean | undefined;
+
+function shouldLogVerboseCoreLogs(): boolean {
+	if (verboseCoreLogs === undefined) {
+		try {
+			verboseCoreLogs = window.localStorage.getItem("cline:debug-logs") === "1";
+		} catch {
+			verboseCoreLogs = false;
+		}
+	}
+	return verboseCoreLogs;
+}
+
 function dispatchCoreLog(chunk: string): void {
 	let parsed: CoreLogChunk | undefined;
 	try {
 		parsed = JSON.parse(chunk) as CoreLogChunk;
 	} catch {
-		console.info("[core]", chunk);
+		if (shouldLogVerboseCoreLogs()) console.info("[core]", chunk);
 		return;
 	}
 	const level = parsed.level?.trim().toLowerCase() || "info";
+	if (level !== "error" && level !== "warn" && !shouldLogVerboseCoreLogs()) {
+		return;
+	}
 	const message = parsed.message?.trim() || chunk;
 	(LOG_DISPATCH[level] ?? console.info)("[core]", message, parsed.metadata);
 }
@@ -223,6 +302,8 @@ export function useChatSession() {
 	const [toolCalls, setToolCalls] = useState(0);
 	const [tokensIn, setTokensIn] = useState(0);
 	const [tokensOut, setTokensOut] = useState(0);
+	const [cacheReadTokens, setCacheReadTokens] = useState(0);
+	const [totalCostUsd, setTotalCostUsd] = useState(0);
 	const [fileDiffs, setFileDiffs] = useState<SessionFileDiff[]>([]);
 	const [diffSummary, setDiffSummary] =
 		useState<SessionDiffSummary>(EMPTY_DIFF_SUMMARY);
@@ -242,6 +323,15 @@ export function useChatSession() {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	// Optimistic user bubbles whose prompt is still in flight, by message id.
+	// A chat_queued_prompt_start event may only re-key one of these — never a
+	// same-content message left over from an earlier turn (see the handler).
+	const outstandingOptimisticUserIdsRef = useRef<Set<string>>(new Set());
+	// Which optimistic bubble each queued user-message id re-keyed. The re-key
+	// updater consumes the outstanding set on its first run, so StrictMode's
+	// double-invoked updater needs this memo to reach the same result on its
+	// re-run instead of appending a duplicate bubble.
+	const rekeyedOptimisticIdByMessageIdRef = useRef<Record<string, string>>({});
 	const liveToolInputsRef = useRef<Record<string, unknown>>({});
 	const activeSessionIdRef = useRef<string | null>(null);
 	const activeAssistantMessageIdRef = useRef<string | null>(null);
@@ -255,11 +345,37 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
+	const unpersistedCostUsdRef = useRef(0);
+	const lastPersistedCostUsdRef = useRef(0);
+	// Bumped whenever a new turn begins; lets async queue checks detect that
+	// their result is stale because another turn already started.
+	const turnEpochRef = useRef(0);
+	// Epoch at which the current turn reached a terminal status. Hub-projected
+	// chat_session_status events are asynchronous and a stale "running" can
+	// trail chat_done; when no new turn has started since the turn settled
+	// (epoch unchanged), such a "running" must not reopen the turn.
+	const turnSettledEpochRef = useRef(-1);
+	// Last error-level core log per session, used to explain failed turns.
+	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
 		useState<ChatTransportState>(desktopClient.getTransportState());
 	const [chatTransportError, setChatTransportError] = useState<string | null>(
 		desktopClient.getTransportError(),
 	);
+	const persistedUsage = useMemo(
+		() =>
+			sessionId
+				? summarizeSessionUsage(
+						messages.filter((message) => message.sessionId === sessionId),
+					)
+				: undefined,
+		[messages, sessionId],
+	);
+	const persistedTokensIn = persistedUsage?.tokensIn;
+	const persistedTokensOut = persistedUsage?.tokensOut;
+	const persistedCacheReadTokens = persistedUsage?.cacheReadTokens;
+	const persistedTotalCostUsd = persistedUsage?.totalCostUsd;
 	// ---- Ref syncs ----
 
 	useEffect(() => {
@@ -271,6 +387,36 @@ export function useChatSession() {
 	useEffect(() => {
 		messagesRef.current = messages;
 	}, [messages]);
+	useEffect(() => {
+		if (
+			persistedTokensIn === undefined ||
+			persistedTokensOut === undefined ||
+			persistedTotalCostUsd === undefined
+		) {
+			return;
+		}
+		setTokensIn(persistedTokensIn);
+		setTokensOut(persistedTokensOut);
+		setCacheReadTokens(persistedCacheReadTokens ?? 0);
+		// Move newly persisted spend out of the live ledger. Multiple queued turns
+		// may finish before their message metadata is hydrated, so this ledger is
+		// session-wide rather than tied only to the currently active turn.
+		const newlyPersistedCostUsd = Math.max(
+			0,
+			persistedTotalCostUsd - lastPersistedCostUsdRef.current,
+		);
+		unpersistedCostUsdRef.current = Math.max(
+			0,
+			unpersistedCostUsdRef.current - newlyPersistedCostUsd,
+		);
+		lastPersistedCostUsdRef.current = persistedTotalCostUsd;
+		setTotalCostUsd(persistedTotalCostUsd + unpersistedCostUsdRef.current);
+	}, [
+		persistedTokensIn,
+		persistedTokensOut,
+		persistedCacheReadTokens,
+		persistedTotalCostUsd,
+	]);
 	useEffect(() => {
 		promptsInQueueRef.current = promptsInQueue;
 	}, [promptsInQueue]);
@@ -308,15 +454,22 @@ export function useChatSession() {
 	}, []);
 
 	const resetCounters = useCallback(() => {
+		activeTurnCostTrackerRef.current = null;
+		unpersistedCostUsdRef.current = 0;
+		lastPersistedCostUsdRef.current = 0;
 		setToolCalls(0);
 		setTokensIn(0);
 		setTokensOut(0);
+		setCacheReadTokens(0);
+		setTotalCostUsd(0);
 		setFileDiffs([]);
 		setDiffSummary(EMPTY_DIFF_SUMMARY);
 	}, []);
 
 	const setErrorState = useCallback(
 		(msg: string, sid: string | null = null) => {
+			outstandingOptimisticUserIdsRef.current.clear();
+			rekeyedOptimisticIdByMessageIdRef.current = {};
 			setError(msg);
 			setStatus("error");
 			setMessages((prev) =>
@@ -326,22 +479,129 @@ export function useChatSession() {
 		[],
 	);
 
+	// Surfaces a failed turn in the transcript. Some turns (for example the
+	// first prompt of a fresh session, which the runtime consumes from its
+	// queue) never resolve through the send() RPC, so without this the app
+	// fails silently: the user message sits alone with no response and no
+	// explanation. Skips appending when an error for this turn is already
+	// visible so the RPC path and the chat_done stream never double-report.
+	const appendTurnFailureMessage = useCallback(
+		(sid: string, detail: string) => {
+			const description =
+				detail.trim() || lastCoreErrorBySessionRef.current[sid]?.trim() || "";
+			// Deliberately avoids matching a bare "token": provider failures like
+			// "maximum context tokens exceeded" or rate-limit messages are not
+			// credential problems and must not point users at Settings → Models.
+			const looksCredentialRelated =
+				!description ||
+				/unauthorized|401|403|forbidden|api key|credential|authentication|sign in|auth token|access token|invalid token|expired token|token expired/i.test(
+					description,
+				);
+			const content = [
+				description
+					? `The run failed: ${description}`
+					: "The run failed before a response was produced.",
+				looksCredentialRelated
+					? "Check your model connection in Settings → Models (or sign in with Cline), then try again."
+					: "",
+			]
+				.filter(Boolean)
+				.join(" ");
+			setMessages((prev) => {
+				const sessionMessages = prev.filter(
+					(message) => message.sessionId === sid,
+				);
+				const last = sessionMessages[sessionMessages.length - 1];
+				if (last?.role === "error") {
+					return prev;
+				}
+				return sliceMessages([...prev, makeErrorChatMessage(sid, content)]);
+			});
+			setError(content);
+		},
+		[],
+	);
+
+	// Persisted history never contains UI-only error bubbles, so replacing the
+	// transcript with canonical messages wholesale would silently erase a
+	// failure explanation appended from chat_done moments earlier. Re-append
+	// the session's error messages after the canonical history — but only the
+	// ones still at the tail of the transcript (explaining the most recent
+	// turn). Re-pinning every historical error would resurface failures from
+	// long-completed turns at the bottom, out of chronological order, on
+	// every hydration.
+	const applyCanonicalHistory = useCallback(
+		(sid: string, historyMessages: ChatMessage[]) => {
+			setMessages((prev) => {
+				const sessionMessages = prev.filter(
+					(message) => message.sessionId === sid,
+				);
+				let tailErrorStart = sessionMessages.length;
+				while (
+					tailErrorStart > 0 &&
+					sessionMessages[tailErrorStart - 1]?.role === "error"
+				) {
+					tailErrorStart -= 1;
+				}
+				const preservedErrors = sessionMessages.slice(tailErrorStart);
+				if (preservedErrors.length === 0) {
+					return historyMessages;
+				}
+				return sliceMessages([...historyMessages, ...preservedErrors]);
+			});
+		},
+		[],
+	);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		return await desktopClient.invoke<{
-			sessionId?: string;
-			cwd?: string;
-			workspaceRoot?: string;
-			result?: ChatApiResult;
-			ok?: boolean;
-			queued?: boolean;
-			promptsInQueue?: PromptInQueue[];
-			prompt?: PromptInQueue;
-			updated?: boolean;
-			removed?: boolean;
-		}>("chat_session_command", { request: body });
+		const request = { request: body };
+		if (body.action === "send") {
+			return await desktopClient.invoke<ChatSessionCommandResponse>(
+				"chat_session_command",
+				request,
+				{ timeoutMs: null },
+			);
+		}
+		return await desktopClient.invoke<ChatSessionCommandResponse>(
+			"chat_session_command",
+			request,
+		);
 	}, []);
+
+	// Confirms a "still running because prompts are queued" status against the
+	// server. The local queue snapshot can be stale when the dequeue
+	// notification races the turn-completion event, which would otherwise
+	// leave the composer stuck on "Agent is working..." forever.
+	const verifyQueueStillBusy = useCallback(
+		(sid: string) => {
+			const epoch = turnEpochRef.current;
+			void postSession({ action: "pending_prompts", sessionId: sid })
+				.then((payload) => {
+					if (
+						activeSessionIdRef.current !== sid ||
+						turnEpochRef.current !== epoch
+					) {
+						return;
+					}
+					const items = Array.isArray(payload.promptsInQueue)
+						? payload.promptsInQueue
+						: [];
+					setPromptsInQueue(items);
+					if (items.length === 0) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus((current) =>
+							current === "running" ? "completed" : current,
+						);
+					}
+				})
+				.catch(() => {
+					// Keep the last known state on transient transport failures.
+				});
+		},
+		[postSession],
+	);
 
 	const refreshPromptsInQueue = useCallback(
 		async (targetSessionId: string | null) => {
@@ -371,6 +631,7 @@ export function useChatSession() {
 		setPromptsInQueue(value as PromptInQueue[]);
 	}, []);
 
+	const sessionDiffCwd = (config.cwd || config.workspaceRoot || "").trim();
 	const refreshSessionDiffSummary = useCallback(
 		async (targetSessionId: string) => {
 			try {
@@ -378,7 +639,7 @@ export function useChatSession() {
 					"read_session_hooks",
 					{ sessionId: targetSessionId, limit: MAX_MESSAGES },
 				);
-				const diffState = buildSessionDiffState(events);
+				const diffState = buildSessionDiffState(events, sessionDiffCwd);
 				setFileDiffs(diffState.fileDiffs);
 				setDiffSummary(diffState.summary);
 				setToolCalls(
@@ -387,13 +648,11 @@ export function useChatSession() {
 							e.hookEventName === "tool_call" || e.hookName === "tool_call",
 					).length,
 				);
-				setTokensIn(events.reduce((sum, e) => sum + (e.inputTokens ?? 0), 0));
-				setTokensOut(events.reduce((sum, e) => sum + (e.outputTokens ?? 0), 0));
 			} catch {
 				// Ignore in non-Tauri mode.
 			}
 		},
-		[],
+		[sessionDiffCwd],
 	);
 
 	// ---- Message helpers ----
@@ -662,13 +921,13 @@ export function useChatSession() {
 		if (events.length === 0) {
 			return;
 		}
-		const diffState = buildSessionDiffState(events);
+		const diffState = buildSessionDiffState(events, sessionDiffCwd);
 		if (diffState.fileDiffs.length === 0) {
 			return;
 		}
 		setFileDiffs(diffState.fileDiffs);
 		setDiffSummary(diffState.summary);
-	}, [sessionId, messages, fileDiffs.length]);
+	}, [sessionId, messages, fileDiffs.length, sessionDiffCwd]);
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
@@ -827,7 +1086,13 @@ export function useChatSession() {
 			flushPendingStream();
 
 			if (payload.stream === "chat_queued_prompt_start") {
+				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
+				turnEpochRef.current += 1;
+				// A new turn starts now: an error remembered from an earlier turn
+				// must not be attributed to this one if it fails without detail.
+				delete lastCoreErrorBySessionRef.current[listeningSessionId];
 				let parsed: {
+					promptId?: string;
 					prompt?: string;
 					attachmentCount?: number;
 					userImages?: string[];
@@ -865,15 +1130,75 @@ export function useChatSession() {
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("running");
+				// The prompt just left the queue: drop it from the local snapshot
+				// immediately. Waiting for the next server snapshot leaves a
+				// window where turn completion still sees a stale busy queue and
+				// keeps the composer on "Agent is working..." forever.
+				setPromptsInQueue((prev) => {
+					if (prev.length === 0) {
+						return prev;
+					}
+					let index = promptId
+						? prev.findIndex((item) => item.id === promptId)
+						: -1;
+					if (index === -1) {
+						index = prev.findIndex(
+							(item) => item.prompt === userLabel || item.prompt === prompt,
+						);
+					}
+					if (index === -1) {
+						return prev;
+					}
+					const next = [...prev.slice(0, index), ...prev.slice(index + 1)];
+					promptsInQueueRef.current = next;
+					return next;
+				});
 				if (userLabel || userImages.length > 0) {
+					// Computed outside the updater: makeId() inside would mint a
+					// different id on each StrictMode re-invocation.
+					const userMessageId = promptId
+						? `queued_user_${promptId}`
+						: makeId("user");
 					setMessages((prev) => {
-						const userMessageId = promptId
-							? `queued_user_${promptId}`
-							: makeId("user");
 						if (prev.some((message) => message.id === userMessageId)) {
 							return prev;
 						}
 						const images = toChatMessageImages(userImages, userMessageId);
+						// A prompt dispatched while the session was idle already has
+						// an optimistic bubble from the send path; when the runtime
+						// routes that prompt through its queue, this event describes
+						// the same prompt. Re-key the optimistic bubble instead of
+						// rendering the message a second time. Only bubbles whose
+						// prompt is still in flight are eligible — a same-content
+						// message left over from an earlier (e.g. cancelled) turn
+						// must stay distinct from the new submission.
+						// The first run of this updater consumes the outstanding id, so
+						// a StrictMode re-run against the same `prev` must recognize the
+						// bubble it already re-keyed rather than fall through to append.
+						const priorRekeyedId =
+							rekeyedOptimisticIdByMessageIdRef.current[userMessageId];
+						for (let i = prev.length - 1; i >= 0; i--) {
+							const candidate = prev[i];
+							if (candidate.role !== "user") {
+								break;
+							}
+							if (
+								candidate.content === userLabel &&
+								(outstandingOptimisticUserIdsRef.current.has(candidate.id) ||
+									candidate.id === priorRekeyedId)
+							) {
+								outstandingOptimisticUserIdsRef.current.delete(candidate.id);
+								rekeyedOptimisticIdByMessageIdRef.current[userMessageId] =
+									candidate.id;
+								const next = [...prev];
+								next[i] = {
+									...candidate,
+									id: userMessageId,
+									images: images.length > 0 ? images : candidate.images,
+								};
+								return sliceMessages(next);
+							}
+						}
 						return sliceMessages([
 							...prev,
 							{
@@ -893,16 +1218,66 @@ export function useChatSession() {
 			// --- Core log ---
 			if (payload.stream === "chat_core_log") {
 				dispatchCoreLog(payload.chunk);
+				// Remember the latest error so a failed turn can explain itself:
+				// the runtime reports the underlying cause (e.g. an auth failure)
+				// here rather than on the turn-completion event.
+				try {
+					const parsed = JSON.parse(payload.chunk) as CoreLogChunk;
+					if (
+						parsed.level?.trim().toLowerCase() === "error" &&
+						parsed.message?.trim()
+					) {
+						lastCoreErrorBySessionRef.current[payload.sessionId] =
+							parsed.message.trim();
+					}
+				} catch {
+					// Unstructured logs carry no level; nothing to remember.
+				}
 				return;
 			}
 
 			if (payload.stream === "chat_usage") {
-				// Usage is still finalized from the send() response to avoid
-				// double-counting when both stream and response include it.
+				let usage: ChatUsageEvent;
+				try {
+					usage = JSON.parse(payload.chunk) as ChatUsageEvent;
+				} catch {
+					return;
+				}
+				if (typeof usage.inputTokens === "number") {
+					setTokensIn(usage.inputTokens);
+				}
+				if (typeof usage.outputTokens === "number") {
+					setTokensOut(usage.outputTokens);
+				}
+				if (typeof usage.cacheReadTokens === "number") {
+					setCacheReadTokens(usage.cacheReadTokens);
+				}
+				const cost = usage.cost;
+				if (typeof cost === "number") {
+					const tracker = activeTurnCostTrackerRef.current ?? {
+						streamedCostUsd: 0,
+					};
+					tracker.streamedCostUsd += cost;
+					activeTurnCostTrackerRef.current = tracker;
+					unpersistedCostUsdRef.current += cost;
+					setTotalCostUsd((previous) => previous + cost);
+				}
 				return;
 			}
 
 			if (payload.stream === "chat_done") {
+				// The turn is over: any optimistic bubble still registered was
+				// consumed by a direct send and must not be re-keyed by a later
+				// queued prompt that happens to repeat the same text. Clear
+				// inside an updater so that when this event lands in the same
+				// batch as its turn's chat_queued_prompt_start (fast-failing
+				// turns), the re-key updater queued by that event still sees the
+				// registered bubble and runs first. (Idempotent, so safe under
+				// StrictMode's double-invoked updaters.)
+				setMessages((prev) => {
+					outstandingOptimisticUserIdsRef.current.clear();
+					return prev;
+				});
 				clearLiveToolRefs();
 				// Prompts that the runtime consumed from the queue (for example the
 				// first prompt of a fresh session, which is queued while the
@@ -911,13 +1286,27 @@ export function useChatSession() {
 				// signal. Without it the composer stays on "Agent is working..."
 				// forever.
 				let doneReason = "";
+				let doneText = "";
 				try {
-					const parsed = JSON.parse(payload.chunk) as { reason?: string };
+					const parsed = JSON.parse(payload.chunk) as {
+						reason?: string;
+						text?: string;
+					};
 					doneReason = parsed.reason?.trim() ?? "";
+					doneText = typeof parsed.text === "string" ? parsed.text.trim() : "";
 				} catch {
 					// Missing reason still means the turn ended.
 				}
-				setStatus(
+				if (doneReason === "error") {
+					appendTurnFailureMessage(listeningSessionId, doneText);
+				}
+				// The remembered core error belongs to the turn that just ended.
+				// Turn-start events also clear it, but they can be lost across a
+				// transport interruption (websocket events are not replayed), so
+				// clearing on turn end too keeps a stale error from ever being
+				// attributed to a later turn's detail-less failure.
+				delete lastCoreErrorBySessionRef.current[listeningSessionId];
+				const nextStatus: ChatSessionStatus =
 					doneReason === "aborted"
 						? "cancelled"
 						: doneReason === "error"
@@ -927,8 +1316,13 @@ export function useChatSession() {
 								// busy state until the queue drains.
 								promptsInQueueRef.current.length > 0
 								? "running"
-								: "completed",
-				);
+								: "completed";
+				setStatus(nextStatus);
+				if (nextStatus === "running") {
+					verifyQueueStillBusy(listeningSessionId);
+				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
+				}
 				return;
 			}
 
@@ -1005,10 +1399,12 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			appendTurnFailureMessage,
 			clearLiveToolRefs,
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
+			verifyQueueStillBusy,
 		],
 	);
 
@@ -1057,6 +1453,18 @@ export function useChatSession() {
 				if (!nextStatus) {
 					return;
 				}
+				// Status events are projected asynchronously from the hub's
+				// session record and can deliver a stale "running" after the
+				// stream's chat_done already settled the turn. A genuinely new
+				// turn always bumps the epoch (chat_queued_prompt_start) or
+				// goes through the local submit paths, so while the epoch still
+				// equals the settled epoch a "running" here can only be stale.
+				if (
+					nextStatus === "running" &&
+					turnEpochRef.current === turnSettledEpochRef.current
+				) {
+					return;
+				}
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1080,6 +1488,7 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				turnSettledEpochRef.current = turnEpochRef.current;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
 			},
 		);
@@ -1243,6 +1652,9 @@ export function useChatSession() {
 				(hasEarlierPromptSubmission ||
 					Boolean(pendingSessionStart) ||
 					BUSY_STATUSES.has(status));
+			const turnCostTracker: TurnCostTracker | undefined = shouldQueue
+				? undefined
+				: { streamedCostUsd: 0 };
 			const optimisticQueuedPromptId = shouldQueue
 				? makeId("queued_prompt")
 				: null;
@@ -1250,6 +1662,7 @@ export function useChatSession() {
 			const plannedSessionId = activeSessionId ?? makeId("session");
 
 			if (optimisticUserMessageId) {
+				outstandingOptimisticUserIdsRef.current.add(optimisticUserMessageId);
 				addMessage({
 					id: optimisticUserMessageId,
 					sessionId: plannedSessionId,
@@ -1257,12 +1670,20 @@ export function useChatSession() {
 					content: userLabel,
 					createdAt: now,
 				});
+				turnEpochRef.current += 1;
+				// Fresh turn: forget any error remembered from a previous turn so
+				// a detail-less failure of this turn cannot pick it up.
+				delete lastCoreErrorBySessionRef.current[plannedSessionId];
 				activeSessionIdRef.current = plannedSessionId;
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
 				setStatus("starting");
 			} else if (optimisticQueuedPromptId) {
+				// Invalidate any in-flight server queue double-check: its snapshot
+				// predates this prompt and must not wipe the optimistic queue
+				// entry or flip the session to completed.
+				turnEpochRef.current += 1;
 				setPromptsInQueue((prev) => [
 					...prev,
 					{
@@ -1274,6 +1695,12 @@ export function useChatSession() {
 			}
 
 			let sendTask: ReturnType<typeof postSession> | null = null;
+			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
+			// bumps the epoch when the runtime starts consuming a queued prompt,
+			// so a mismatch when the send response arrives means the stream has
+			// already advanced this turn's lifecycle past the snapshot carried
+			// by the response.
+			let turnEpochAtDispatch = turnEpochRef.current;
 			try {
 				if (pendingSessionStart) {
 					try {
@@ -1369,9 +1796,11 @@ export function useChatSession() {
 				}
 				if (!shouldQueue) {
 					activeSessionIdRef.current = activeSessionId;
+					activeTurnCostTrackerRef.current = turnCostTracker ?? null;
 					setStatus("starting");
 				}
 				await precedingPromptDispatch;
+				turnEpochAtDispatch = turnEpochRef.current;
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -1390,7 +1819,24 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (turnEpochRef.current !== turnEpochAtDispatch) {
+						// The runtime already started consuming a queued prompt
+						// (chat_queued_prompt_start bumped the epoch) while this
+						// response was in flight: its queue snapshot predates the
+						// dequeue and its "still queued" status is obsolete.
+						// Applying them would resurrect a phantom queue entry and
+						// could flip a turn that already completed via chat_done
+						// back to "running" — wedging the composer forever. The
+						// stream (chat_queued_prompt_start/chat_done and
+						// prompts_in_queue_state) is authoritative from here on.
+						return;
+					}
 					applyPromptsInQueue(payload.promptsInQueue);
+					if (abortedRef.current) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+						return;
+					}
 					setStatus("running");
 					return;
 				}
@@ -1398,10 +1844,16 @@ export function useChatSession() {
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 					return;
 				}
-				const assistantText = (result?.text ?? "").trim();
+				// On a failed run the runtime reports the error string in
+				// result.text — it is not assistant content and must not be
+				// rendered as an assistant bubble (canonical rehydration would
+				// silently wipe it, leaving the user with a blank chat).
+				const isErrorResult = result?.finishReason === "error";
+				const assistantText = isErrorResult ? "" : (result?.text ?? "").trim();
 				const fallbackAssistantTurn = extractAssistantTurnDataFromRpcMessages(
 					result?.messages,
 				);
@@ -1476,7 +1928,7 @@ export function useChatSession() {
 							{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 						);
 						if (historyMessages.length > 0) {
-							setMessages(historyMessages);
+							applyCanonicalHistory(activeSessionId, historyMessages);
 						}
 					} catch {
 						// Keep optimistic state if hydration read fails.
@@ -1496,7 +1948,7 @@ export function useChatSession() {
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
 					if (historyMessages.length > 0) {
-						setMessages(historyMessages);
+						applyCanonicalHistory(activeSessionId, historyMessages);
 					}
 				} catch {
 					// Keep optimistic state if canonical hydration fails.
@@ -1505,22 +1957,37 @@ export function useChatSession() {
 				// Token / cost bookkeeping
 				const inputTokens = result?.usage?.inputTokens ?? result?.inputTokens;
 				if (typeof inputTokens === "number") {
-					setTokensIn((prev) => prev + inputTokens);
+					setTokensIn(inputTokens);
 				}
 				const outputTokens =
 					result?.usage?.outputTokens ?? result?.outputTokens;
 				if (typeof outputTokens === "number") {
-					setTokensOut((prev) => prev + outputTokens);
+					setTokensOut(outputTokens);
+				}
+				const resultCacheReadTokens =
+					result?.usage?.cacheReadTokens ?? result?.cacheReadTokens;
+				if (typeof resultCacheReadTokens === "number") {
+					setCacheReadTokens(resultCacheReadTokens);
 				}
 				const totalCost =
 					typeof result?.usage?.totalCost === "number"
 						? result.usage.totalCost
 						: undefined;
+				const streamedTurnCostUsd = turnCostTracker?.streamedCostUsd ?? 0;
+				if (activeTurnCostTrackerRef.current === turnCostTracker) {
+					activeTurnCostTrackerRef.current = null;
+				}
+				if (typeof totalCost === "number") {
+					const unstreamedCostUsd = totalCost - streamedTurnCostUsd;
+					unpersistedCostUsdRef.current += unstreamedCostUsd;
+					setTotalCostUsd((previous) => previous + unstreamedCostUsd);
+				}
 				const assistantMessageId = activeAssistantMessageIdRef.current;
 				if (
 					assistantMessageId &&
 					(typeof inputTokens === "number" ||
 						typeof outputTokens === "number" ||
+						typeof resultCacheReadTokens === "number" ||
 						typeof totalCost === "number")
 				) {
 					setMessages((prev) =>
@@ -1536,6 +2003,10 @@ export function useChatSession() {
 									typeof outputTokens === "number"
 										? outputTokens
 										: msg.meta?.outputTokens,
+								cacheReadTokens:
+									typeof resultCacheReadTokens === "number"
+										? resultCacheReadTokens
+										: msg.meta?.cacheReadTokens,
 								totalCost:
 									typeof totalCost === "number"
 										? totalCost
@@ -1551,26 +2022,30 @@ export function useChatSession() {
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
-					if (!resolvedAssistantText) {
-						const toolError = Array.isArray(result?.toolCalls)
-							? result.toolCalls.find((c) => c.error)?.error
-							: undefined;
-						addMessage(
-							makeErrorChatMessage(
-								activeSessionId,
-								toolError?.trim() ||
-									"Runtime turn failed before an assistant response was produced.",
-							),
-						);
-					}
+					// On a failed run result.text is the runtime's error string
+					// (never assistant content — see isErrorResult above), so it
+					// is the best failure detail available. The reporter dedupes
+					// against the chat_done stream path.
+					const runError = (result?.text ?? "").trim();
+					const toolError = Array.isArray(result?.toolCalls)
+						? result.toolCalls.find((c) => c.error)?.error
+						: undefined;
+					appendTurnFailureMessage(
+						activeSessionId,
+						runError || toolError?.trim() || "",
+					);
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
@@ -1597,6 +2072,8 @@ export function useChatSession() {
 		},
 		[
 			addMessage,
+			appendTurnFailureMessage,
+			applyCanonicalHistory,
 			applyPromptsInQueue,
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
@@ -1681,7 +2158,6 @@ export function useChatSession() {
 				config,
 			})) as {
 				sessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const nextSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -1689,12 +2165,13 @@ export function useChatSession() {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: nextSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: nextSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -1754,12 +2231,26 @@ export function useChatSession() {
 		setRawTranscript("");
 		setError(null);
 		resetCounters();
-		setConfig((prev) => ({
-			...prev,
-			sessionId: undefined,
-		}));
+		setConfig((prev) => {
+			// Re-seed the composer from the remembered defaults (the same
+			// source a freshly mounted thread uses) so a reset after viewing
+			// a historical session does not retain that session's
+			// provider/model for the next chat.
+			const initial = getInitialChatConfig();
+			return {
+				...prev,
+				sessionId: undefined,
+				provider: initial.provider,
+				model: initial.model,
+				apiKey:
+					prev.provider === initial.provider ? prev.apiKey : initial.apiKey,
+			};
+		});
 		activeSessionIdRef.current = null;
 		sessionStartPromiseRef.current = null;
+		outstandingOptimisticUserIdsRef.current.clear();
+		rekeyedOptimisticIdByMessageIdRef.current = {};
+		lastCoreErrorBySessionRef.current = {};
 		activeAssistantMessageIdRef.current = null;
 		setActiveAssistantMessageId(null);
 		setHydratedHistorySessionId(null);
@@ -1817,6 +2308,9 @@ export function useChatSession() {
 				msgs: ChatMessage[],
 				sessionStatus: typeof session.status,
 			) => {
+				outstandingOptimisticUserIdsRef.current.clear();
+				rekeyedOptimisticIdByMessageIdRef.current = {};
+				lastCoreErrorBySessionRef.current = {};
 				const mergedMessages = mergeHydratedMessagesWithLive({
 					hydrated: msgs,
 					current: messagesRef.current,
@@ -1936,44 +2430,50 @@ export function useChatSession() {
 		],
 	);
 
-	const forkSession = useCallback(async (): Promise<{
-		newSessionId: string;
-		forkedFromSessionId: string;
-		messages: ChatMessage[];
-	}> => {
-		const activeSessionId = activeSessionIdRef.current;
-		if (!activeSessionId) {
-			throw new Error("No active session to fork.");
-		}
-		if (BUSY_STATUSES.has(status)) {
-			throw new Error("Wait for the current turn to finish before forking.");
-		}
-		const payload = (await postSession({
-			action: "fork",
-			sessionId: activeSessionId,
-			config,
-		})) as {
-			sessionId?: string;
-			forkedFromSessionId?: string;
-			messages?: ChatMessage[];
-		};
-		const newSessionId =
-			typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
-		if (!newSessionId) {
-			throw new Error("Fork did not return a new session id.");
-		}
-		const forkedFromSessionId =
-			typeof payload.forkedFromSessionId === "string"
-				? payload.forkedFromSessionId
-				: activeSessionId;
-		const nextMessages = Array.isArray(payload.messages)
-			? (payload.messages as ChatMessage[])
-			: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
+	const forkSession = useCallback(
+		async (options?: {
+			beforeRunCount?: number;
+		}): Promise<{
+			newSessionId: string;
+			forkedFromSessionId: string;
+			messages: ChatMessage[];
+		}> => {
+			const activeSessionId = activeSessionIdRef.current;
+			if (!activeSessionId) {
+				throw new Error("No active session to fork.");
+			}
+			if (BUSY_STATUSES.has(status)) {
+				throw new Error("Wait for the current turn to finish before forking.");
+			}
+			const payload = (await postSession({
+				action: "fork",
+				sessionId: activeSessionId,
+				config,
+				forkBeforeRunCount: options?.beforeRunCount,
+			})) as {
+				sessionId?: string;
+				forkedFromSessionId?: string;
+			};
+			const newSessionId =
+				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
+			if (!newSessionId) {
+				throw new Error("Fork did not return a new session id.");
+			}
+			const forkedFromSessionId =
+				typeof payload.forkedFromSessionId === "string"
+					? payload.forkedFromSessionId
+					: activeSessionId;
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
 					sessionId: newSessionId,
 					maxMessages: MAX_MESSAGES,
-				});
-		return { newSessionId, forkedFromSessionId, messages: nextMessages };
-	}, [config, postSession, status]);
+				},
+			);
+			return { newSessionId, forkedFromSessionId, messages: nextMessages };
+		},
+		[config, postSession, status],
+	);
 
 	const steerPromptInQueue = useCallback(
 		async (promptId: string) => {
@@ -2036,6 +2536,8 @@ export function useChatSession() {
 			toolCalls,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
+			totalCostUsd,
 			additions: diffSummary.additions,
 			deletions: diffSummary.deletions,
 		}),
@@ -2044,6 +2546,8 @@ export function useChatSession() {
 			diffSummary.deletions,
 			tokensIn,
 			tokensOut,
+			cacheReadTokens,
+			totalCostUsd,
 			toolCalls,
 		],
 	);
