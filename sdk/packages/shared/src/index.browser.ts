@@ -179,6 +179,10 @@ export {
 	ModelInfoSchema,
 	type ModelMetadata,
 	ModelMetadataSchema,
+	type ModelModalities,
+	ModelModalitiesSchema,
+	type ModelModality,
+	ModelModalitySchema,
 	type ModelPricing,
 	ModelPricingSchema,
 	type ModelStatus,
@@ -359,6 +363,7 @@ export type {
 	ProviderSettingsActionRequest,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
 	ProviderCapabilitySchema,
