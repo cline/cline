@@ -1108,7 +1108,7 @@ function ThreadItem({
 
 	return (
 		<ContextMenu>
-			<HoverCard openDelay={250} closeDelay={100}>
+			<HoverCard openDelay={0} closeDelay={100}>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
 						<button
@@ -1153,12 +1153,14 @@ function ThreadItem({
 						<div className="wrap-break-word text-sm font-medium">
 							{overviewTitle}
 						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
-									<span className="text-muted-foreground">{label}</span>
+									<span className="text-muted-foreground" title={label}>
+										{label}
+									</span>
 									<span
-										className="min-w-0 truncate font-mono font-thin text-foreground"
+										className="min-w-0 truncate font-mono text-foreground"
 										title={fullValue}
 									>
 										{value}
@@ -1201,9 +1203,9 @@ export function getSessionOverviewItems(
 		["Model", thread.model],
 		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
 		["Cost", formatCostUsd(thread.totalCostUsd)],
-		["ID", thread.id],
+		// ["ID", thread.id],
 		["Source", thread.source],
-		["Updated", thread.time],
+		// ["Updated", thread.time], // Removed because updated time is visible in the sidebar item.
 	];
 	return items.filter((item): item is [string, string, string?] =>
 		Boolean(item[1]),
