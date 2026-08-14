@@ -13,6 +13,7 @@ export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
 	fetchLiveProviderModels,
 	fetchModelsDevProviderModels,
+	filterImageOutputModels,
 	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,

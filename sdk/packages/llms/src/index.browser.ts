@@ -9,6 +9,7 @@ export type {
 } from "./models";
 export {
 	CODEX_EFFECTIVE_CONTEXT_WINDOW_PERCENT,
+	filterImageOutputModels,
 	filterOpenAICodexModels,
 	getAllProviders,
 	getGeneratedModelsForProvider,

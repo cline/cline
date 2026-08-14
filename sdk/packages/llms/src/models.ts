@@ -7,6 +7,7 @@ export {
 	fetchModelsDevProviderModels,
 	sortModelsByReleaseDate,
 } from "./catalog/catalog-live";
+export { filterImageOutputModels } from "./catalog/model-filters";
 export type { ModelIdAliasRule } from "./catalog/model-id-aliases";
 export {
 	isCanonicalModelIdForAliasRules,
