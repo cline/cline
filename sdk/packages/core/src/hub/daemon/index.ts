@@ -84,8 +84,11 @@ function isReusableHubRecord(record: HubServerProbeRecord): boolean {
  * apps/cli/script/postinstall.mjs). Deliberately bypasses readHubDiscovery —
  * the file is best-effort recovery metadata, not a live record — and stays
  * synchronous so it adds no async boundary to the ensure flow.
+ *
+ * Exported for `cline doctor`, which must not mistake a shielded live hub for
+ * a stale daemon just because its record is set aside.
  */
-function readSupersededHubDiscovery(
+export function readSupersededHubDiscovery(
 	discoveryPath: string,
 ): { url?: string; authToken?: string; pid?: number } | undefined {
 	try {
