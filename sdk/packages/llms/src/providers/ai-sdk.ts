@@ -331,7 +331,7 @@ async function ensureGatewayLangfuseTelemetry(
 	}
 }
 
-function toAiSdkMessages(
+export function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
 	options?: { includeReasoning?: boolean; supportsImages?: boolean },
@@ -356,6 +356,7 @@ function toAiSdkMessages(
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const signature = metadata?.signature;
 				const redactedData = metadata?.redactedData;
+				const openai = metadata?.openai;
 				content.push({
 					type: "reasoning",
 					text: sanitizeSurrogates(part.text),
@@ -368,6 +369,13 @@ function toAiSdkMessages(
 											? { redactedData }
 											: {}),
 									},
+								},
+							}
+						: {}),
+					...(openai && typeof openai === "object" && !Array.isArray(openai)
+						? {
+								providerOptions: {
+									openai: openai as Record<string, unknown>,
 								},
 							}
 						: {}),
@@ -565,10 +573,13 @@ function buildRecoverableToolErrorMetadata(input: {
 	toolName: string;
 }): Record<string, unknown> {
 	return buildToolCallMetadata({
-		metadata: mergeToolCallMetadata(extractGoogleThoughtMetadata(input.part), {
-			inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
-			aiSdkToolError: input.errorMessage,
-		}),
+		metadata: mergeToolCallMetadata(
+			extractProviderThoughtMetadata(input.part),
+			{
+				inputParseError: `Tool call ${input.toolName} was rejected before execution: ${input.errorMessage}`,
+				aiSdkToolError: input.errorMessage,
+			},
+		),
 		request: input.request,
 		context: input.context,
 	});
@@ -921,7 +932,7 @@ function suppressDanglingStreamPromises(
 	}
 }
 
-function extractGoogleThoughtMetadata(
+function extractProviderThoughtMetadata(
 	part: AiSdkStreamPart,
 ): Record<string, unknown> | undefined {
 	const metadata: Record<string, unknown> = {};
@@ -960,6 +971,24 @@ function extractGoogleThoughtMetadata(
 		typeof googleMetadata?.thought_signature === "string"
 	) {
 		metadata.thought_signature = googleMetadata.thought_signature;
+	}
+
+	const openaiMetadata =
+		providerMetadata?.openai && typeof providerMetadata.openai === "object"
+			? (providerMetadata.openai as Record<string, unknown>)
+			: undefined;
+	if (openaiMetadata) {
+		const openai: Record<string, unknown> = {};
+		if (typeof openaiMetadata.itemId === "string") {
+			openai.itemId = openaiMetadata.itemId;
+		}
+		if (typeof openaiMetadata.reasoningEncryptedContent === "string") {
+			openai.reasoningEncryptedContent =
+				openaiMetadata.reasoningEncryptedContent;
+		}
+		if (Object.keys(openai).length > 0) {
+			metadata.openai = openai;
+		}
 	}
 
 	return Object.keys(metadata).length > 0 ? metadata : undefined;
@@ -1002,6 +1031,7 @@ async function* emitAiSdkEvents(
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
+	let pendingReasoningMetadata: Record<string, unknown> | undefined;
 
 	try {
 		if (stream.fullStream) {
@@ -1017,16 +1047,25 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "reasoning-start") {
+					pendingReasoningMetadata = extractProviderThoughtMetadata(part);
+					continue;
+				}
+
 				if (part.type === "reasoning-delta" || part.type === "reasoning") {
 					const text =
 						(part.textDelta as string | undefined) ??
 						(part.text as string | undefined) ??
 						(part.reasoning as string | undefined);
 					if (text) {
+						const metadata = extractProviderThoughtMetadata(part);
 						yield {
 							type: "reasoning-delta",
 							text,
-							metadata: extractGoogleThoughtMetadata(part),
+							metadata:
+								pendingReasoningMetadata || metadata
+									? { ...pendingReasoningMetadata, ...metadata }
+									: undefined,
 						};
 					}
 					continue;
@@ -1096,7 +1135,7 @@ async function* emitAiSdkEvents(
 						input: typeof input === "string" ? undefined : input,
 						inputText,
 						metadata: buildToolCallMetadata({
-							metadata: extractGoogleThoughtMetadata(part),
+							metadata: extractProviderThoughtMetadata(part),
 							request,
 							context,
 						}),
