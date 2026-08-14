@@ -865,15 +865,13 @@ async function probeCompatibleHubUrl(
 		};
 	}
 	if (options?.requireCurrentBuild) {
-		// Managed Hubs: reusable when the build matches or the Hub is a newer
-		// build (another installation upgraded it - attach and let the
-		// build-mismatch watcher prompt the user instead of downgrading it).
+		// Managed Hubs: reusable unless this build is strictly newer than the
+		// Hub's. A Hub that is newer or unorderable is attached over the
+		// compatible wire protocol and left to the build-mismatch watcher to
+		// prompt about, so two installations can never retire each other.
 		const expectedBuildId = resolveHubBuildId();
 		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
-		if (
-			!compatibility.compatible &&
-			!isManagedHubReusable(record, { expectedBuildId })
-		) {
+		if (!compatibility.compatible && !isManagedHubReusable(record)) {
 			return {
 				status:
 					compatibility.reason === "unsupported_protocol"
