@@ -146,6 +146,7 @@ export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 export interface ProviderModel {
 	id: string;
 	name: string;
+	operation?: import("../llms/model-info").ModelOperation;
 	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;

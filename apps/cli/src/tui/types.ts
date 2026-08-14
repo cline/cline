@@ -6,7 +6,7 @@ import type {
 	TeamEvent,
 } from "@cline/core";
 import type {
-	Message,
+	MessageWithMetadata,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
@@ -30,10 +30,11 @@ export type ChatEntry = (
 	| { kind: "user"; text: string }
 	| { kind: "assistant_text"; text: string; streaming: boolean }
 	| {
-			kind: "assistant_image";
+			kind: "assistant_media";
+			modality: "image" | "audio" | "video" | "file";
 			mediaType: string;
 			byteLength: number;
-			path?: string;
+			location?: string;
 	  }
 	| { kind: "reasoning"; text: string; streaming: boolean }
 	| {
@@ -98,7 +99,7 @@ export interface InteractiveTurnResult {
 }
 
 export interface ResumedSessionResult {
-	messages: Message[];
+	messages: MessageWithMetadata[];
 	totalCost?: number;
 	currentContextSize?: number;
 }
@@ -151,7 +152,7 @@ export interface TuiProps {
 	initialPrompt?: string;
 	initialNotice?: CliMigrationNotice;
 	onInitialNoticeShown?: (notice: CliMigrationNotice) => void | Promise<void>;
-	initialMessages?: Message[];
+	initialMessages?: MessageWithMetadata[];
 	loadDeferredInitialMessages?: () => Promise<ResumedSessionResult>;
 	initialRepoStatus?: RepoStatus;
 	workflowSlashCommands?: InteractiveSlashCommand[];
@@ -224,12 +225,18 @@ export interface TuiProps {
 		| undefined
 	>;
 	getCheckpointData: () => Promise<
-		{ messages: Message[]; checkpointHistory: CheckpointEntry[] } | undefined
+		| {
+				messages: MessageWithMetadata[];
+				checkpointHistory: CheckpointEntry[];
+		  }
+		| undefined
 	>;
 	onRestoreCheckpoint: (
 		runCount: number,
 		restoreWorkspace: boolean,
-	) => Promise<{ newSessionId: string; messages: Message[] } | undefined>;
+	) => Promise<
+		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+	>;
 	setToolApprover: (
 		approver:
 			| ((request: ToolApprovalRequest) => Promise<ToolApprovalResult>)

@@ -4,7 +4,7 @@ import {
 	parseCompactionNoticeMetadata,
 } from "../tui/utils/compaction-status";
 import { formatCliErrorMessage } from "./cline-pass-errors";
-import { materializeGeneratedImage } from "./generated-images";
+import { materializeGeneratedMedia } from "./generated-media";
 import { formatToolInput, formatToolOutput, truncate } from "./helpers";
 import {
 	c,
@@ -185,16 +185,26 @@ export function handleEvent(event: AgentEvent, config: Config): void {
 					}
 					shouldPrefixNextTextWithBlankLine = false;
 					break;
-				case "image": {
+				case "media": {
 					closeInlineStreamIfNeeded();
-					const image = event.image;
-					if (!image) break;
-					const saved = materializeGeneratedImage(image);
+					const media = event.media;
+					if (!media) break;
+					const saved = materializeGeneratedMedia(media);
 					if (saved) {
-						write(`${c.dim}[generated image]${c.reset} ${saved.path}\n`);
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} ${saved.path}\n`,
+						);
+					} else if (media.source.type === "url") {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} ${media.source.url}\n`,
+						);
+					} else if (media.source.type === "artifact") {
+						write(
+							`${c.dim}[generated ${media.modality}]${c.reset} artifact:${media.source.artifactId}\n`,
+						);
 					} else {
 						write(
-							`${c.dim}[generated image]${c.reset} ${image.mediaType} could not be saved\n`,
+							`${c.dim}[generated ${media.modality}]${c.reset} ${media.mediaType} could not be saved\n`,
 						);
 					}
 					break;

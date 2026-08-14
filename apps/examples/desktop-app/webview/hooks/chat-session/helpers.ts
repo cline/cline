@@ -1,4 +1,8 @@
-import { createSessionId } from "@cline/shared/browser";
+import {
+	createSessionId,
+	type GeneratedMedia,
+	isGeneratedMedia,
+} from "@cline/shared/browser";
 import type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -59,9 +63,16 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	reasoning: string;
 	reasoningRedacted: boolean;
 	images: Array<{ data: string; mediaType: string }>;
+	media: GeneratedMedia[];
 } {
 	if (!Array.isArray(messages)) {
-		return { text: "", reasoning: "", reasoningRedacted: false, images: [] };
+		return {
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		};
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
@@ -70,6 +81,7 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 		}
 		const reasoningParts: string[] = [];
 		const images: Array<{ data: string; mediaType: string }> = [];
+		const media: GeneratedMedia[] = [];
 		let reasoningRedacted = false;
 		if (Array.isArray(message.content)) {
 			for (const block of message.content) {
@@ -95,6 +107,10 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 					typeof obj.mediaType === "string"
 				) {
 					images.push({ data: obj.data, mediaType: obj.mediaType });
+					continue;
+				}
+				if (obj.type === "media" && isGeneratedMedia(obj.media)) {
+					media.push(obj.media);
 				}
 			}
 		}
@@ -103,9 +119,16 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			reasoning: reasoningParts.join("\n").trim(),
 			reasoningRedacted,
 			images,
+			media,
 		};
 	}
-	return { text: "", reasoning: "", reasoningRedacted: false, images: [] };
+	return {
+		text: "",
+		reasoning: "",
+		reasoningRedacted: false,
+		images: [],
+		media: [],
+	};
 }
 
 export function buildToolPayloadString(options: {

@@ -7,7 +7,7 @@ import type {
 } from "../../runtime/session-events";
 import { formatCliErrorMessage } from "../../utils/cline-pass-errors";
 import { resolveNonCompactionStatusLabel } from "../../utils/events";
-import { materializeGeneratedImage } from "../../utils/generated-images";
+import { materializeGeneratedMedia } from "../../utils/generated-media";
 import {
 	formatToolInput,
 	formatToolOutput,
@@ -206,16 +206,23 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 							closeToolEntry(event);
 							break;
 						}
-						case "image": {
+						case "media": {
 							closeInlineStream();
-							const image = event.image;
-							if (!image) break;
-							const saved = materializeGeneratedImage(image);
+							const media = event.media;
+							if (!media) break;
+							const saved = materializeGeneratedMedia(media);
 							appendEntry({
-								kind: "assistant_image",
-								mediaType: image.mediaType,
-								byteLength: saved?.byteLength ?? 0,
-								path: saved?.path,
+								kind: "assistant_media",
+								modality: media.modality,
+								mediaType: media.mediaType,
+								byteLength: saved?.byteLength ?? media.sizeBytes ?? 0,
+								location:
+									saved?.path ??
+									(media.source.type === "url"
+										? media.source.url
+										: media.source.type === "artifact"
+											? `artifact:${media.source.artifactId}`
+											: undefined),
 							});
 							break;
 						}

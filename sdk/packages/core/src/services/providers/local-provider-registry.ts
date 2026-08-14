@@ -217,12 +217,18 @@ export function toProviderModel(
 	modelId: string,
 	info: Pick<
 		ModelInfo,
-		"name" | "contextWindow" | "capabilities" | "thinkingConfig" | "modalities"
+		| "name"
+		| "contextWindow"
+		| "capabilities"
+		| "thinkingConfig"
+		| "operation"
+		| "modalities"
 	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		operation: info.operation,
 		...(info.contextWindow !== undefined
 			? { contextWindow: info.contextWindow }
 			: {}),

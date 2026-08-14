@@ -149,34 +149,37 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
-### Generated Image Event Flow
+### Generated Media Operation and Event Flow
 
-Image-output capability and image-only execution are separate routing decisions.
-A model whose output modalities contain both `text` and `image` remains a normal
-language-model session: it keeps runtime tools and the configured completion
-policy, and `@cline/llms` calls `streamText`. Only a dedicated image model whose
-output omits `text` bypasses the agent tool loop and calls `generateImage`.
+Model modalities and provider operations are separate facts. Modalities describe
+values a model accepts or produces; the explicit operation selects the provider
+transport. Language models keep the normal agent loop even when they can emit
+media, while `operation: "image-generation"` selects `generateImage`. Specialized
+operations fail closed unless the provider manifest and adapter both implement
+them, so an OpenAI-compatible chat endpoint never implies an image, audio, or
+video endpoint.
 
-Generated images cross package boundaries as follows:
+Generated media crosses package boundaries as follows:
 
-1. `@cline/llms` validates generated image MIME types and base64 payloads. A
-   dedicated model's `generateImage` files become `AgentModelEvent` image events.
-   Mixed language models can produce the same event from AI SDK `file` parts.
-2. OpenAI Responses mixed-output models receive the provider-defined
-   `image_generation` tool alongside Cline runtime tools. Provider-executed tool
-   calls stay internal to the provider; results are correlated by tool-call ID,
-   preliminary previews are coalesced, and the final base64 PNG becomes one image
-   event rather than a user-approval tool call.
-3. `@cline/agents` appends each image event as an image part on the assistant
-   message. The final assistant message is the canonical source for persistence
-   and replay.
-4. `@cline/core`'s runtime event adapter projects assistant image parts as
-   `content_end(image)`. The hub projector publishes `assistant.image`, and hub
-   clients map it back to the canonical runtime image event.
-5. Host adapters render the structured image event while persisted message
-   hydration restores the same image from the assistant transcript. Hosts must
-   deduplicate live and hydration paths rather than publishing a second raw hub
-   image event.
+1. `@cline/llms` validates provider output once and creates canonical
+   `GeneratedMedia` values. The contract carries a stable ID, modality, MIME type,
+   and a discriminated base64, HTTP(S), or artifact source. Current producers emit
+   images; audio, video, and large artifact-backed files use the same contract.
+2. Provider model tools are adapters, not raw AI SDK tools. An adapter owns its
+   native result projection into canonical media. The generic stream layer
+   coalesces preliminary or repeated results, enforces the per-turn media budget,
+   and persists only a compact activity summary rather than duplicating base64 in
+   model-tool metadata.
+3. `@cline/agents` appends media events at their exact stream position in the
+   assistant message. That message is the canonical replay and persistence source;
+   observational provider-tool activity remains display-only metadata.
+4. `@cline/core` projects live media as `content_end(media)`. The hub publishes
+   `assistant.media`, preserving the same media ID, and clients deduplicate live
+   and hydrated content by that ID.
+5. Web clients share `GeneratedMediaContent` from `@cline/ui` for image, audio,
+   video, file, and unavailable-artifact rendering. CLI and ACP clients provide
+   transport-appropriate materialization or fallback output without changing the
+   canonical message.
 
 Image-edit inference is intentionally local: when a dedicated image model accepts
 image input and the current user message has no explicit image, only an image on

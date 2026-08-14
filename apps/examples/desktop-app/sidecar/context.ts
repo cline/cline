@@ -15,7 +15,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import { type AgentEvent, validateImageMedia } from "@cline/shared";
+import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -236,8 +236,8 @@ function handleAgentEvent(
 			if (event.contentType === "text" || event.contentType === "reasoning") {
 				break;
 			}
-			if (event.contentType === "image" && event.image) {
-				emitChunk(ctx, sessionId, "chat_image", JSON.stringify(event.image));
+			if (event.contentType === "media" && event.media) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(event.media));
 				break;
 			}
 			if (event.contentType === "tool") {
@@ -704,27 +704,10 @@ export function handleHubLiveEvent(
 			}
 			return;
 		}
-		case "assistant.image": {
-			const image =
-				event.payload?.image &&
-				typeof event.payload.image === "object" &&
-				!Array.isArray(event.payload.image)
-					? (event.payload.image as Record<string, unknown>)
-					: undefined;
-			const data = typeof image?.data === "string" ? image.data : "";
-			const mediaType =
-				typeof image?.mediaType === "string" ? image.mediaType : undefined;
-			const validation = validateImageMedia(mediaType, data);
-			if (validation.ok) {
-				emitChunk(
-					ctx,
-					sessionId,
-					"chat_image",
-					JSON.stringify({
-						data: validation.base64,
-						mediaType: validation.mediaType,
-					}),
-				);
+		case "assistant.media": {
+			const media = event.payload?.media;
+			if (isGeneratedMedia(media)) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
 			}
 			return;
 		}

@@ -180,6 +180,7 @@ function toGatewayConfiguredModel(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
 		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,

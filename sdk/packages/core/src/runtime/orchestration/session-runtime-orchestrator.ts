@@ -39,7 +39,6 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
-	isDedicatedImageGenerationModel,
 	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
@@ -49,6 +48,7 @@ import {
 	mergeModelOptions,
 	modelSupportsToolCalling,
 	type ToolCallRecord,
+	usesImageGenerationOperation,
 } from "@cline/shared";
 import { filterDisabledTools } from "../../services/global-settings";
 import {
@@ -847,7 +847,7 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const dedicatedImageGeneration = isDedicatedImageGenerationModel(
+		const dedicatedImageGeneration = usesImageGenerationOperation(
 			modelInfo ?? {},
 		);
 		const toolCallingDisabled =
@@ -1115,6 +1115,9 @@ export class SessionRuntime {
 			case "tool-started": {
 				this.toolStartedAt.set(event.toolCall.toolCallId, new Date());
 				this.toolInputs.set(event.toolCall.toolCallId, event.toolCall.input);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Loop-detection inspection: identical consecutive
 				// tool-call signatures trip the tracker. On "soft"
 				// verdict we append a recovery notice; on "hard"
@@ -1149,6 +1152,7 @@ export class SessionRuntime {
 				const record: ToolCallRecord = {
 					id: event.toolCall.toolCallId,
 					name: event.toolCall.toolName,
+					execution: event.toolCall.execution,
 					input,
 					output:
 						resultPart?.type === "tool-result" ? resultPart.output : undefined,
@@ -1161,6 +1165,9 @@ export class SessionRuntime {
 					endedAt,
 				};
 				this.currentRunToolCalls.push(record);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Per-turn success/failure bookkeeping for MistakeTracker.
 				if (isError) {
 					this.currentTurnFailedTools += 1;

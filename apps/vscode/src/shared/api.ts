@@ -1,4 +1,4 @@
-import type { ModelModalities } from "@cline/shared"
+import type { ModelModalities, ModelOperation } from "@cline/shared"
 import { ApiFormat } from "./proto/cline/models"
 import type { ApiHandlerSettings } from "./storage/state-keys"
 
@@ -107,6 +107,8 @@ export interface ModelInfo {
 	capabilities?: readonly string[]
 	/** SDK input/output modalities preserved for runtime model routing. */
 	modalities?: ModelModalities
+	/** SDK provider operation preserved for endpoint routing. */
+	operation?: ModelOperation
 }
 
 export interface OpenAiCompatibleModelInfo extends ModelInfo {

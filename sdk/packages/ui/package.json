@@ -44,6 +44,7 @@
 	"files": [
 		"components.css",
 		"components/button.tsx",
+		"components/generated-media.tsx",
 		"components/agent-chat/agent-chat.css",
 		"components/agent-chat/index.tsx",
 		"components/agent-chat/tool-diff.tsx",
@@ -135,6 +136,7 @@
 		"vitest": "^4.0.18"
 	},
 	"dependencies": {
+		"@cline/shared": "workspace:*",
 		"@radix-ui/react-slot": "1.2.4",
 		"class-variance-authority": "^0.7.1",
 		"clsx": "^2.1.1"

@@ -7,18 +7,29 @@ import type {
 	GatewayProviderFactory,
 	GatewayResolvedProviderConfig,
 	GatewayStreamRequest,
+	GeneratedMedia,
+	ImageMediaValidationFailure,
+	ImageMediaValidationSuccess,
+	MediaBudgetState,
+	ModelToolExecution,
+	ModelToolName,
 	ProviderErrorClass,
 } from "@cline/shared";
 import {
 	type AiSdkFormatterMessage,
 	type AiSdkFormatterPart,
 	captureSdkError,
+	createMediaBudgetState,
 	formatMessagesForAiSdk,
-	isDedicatedImageGenerationModel,
-	isImageGenerationModel,
+	GeneratedMediaSchema,
+	generatedMediaModalityFromMediaType,
+	modelProducesImages,
 	modelSupportsToolCalling,
 	parseJsonStream,
 	sanitizeSurrogates,
+	usesImageGenerationOperation,
+	validateAndReserveBase64Media,
+	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "@cline/shared";
 import {
@@ -26,6 +37,7 @@ import {
 	generateImage,
 	jsonSchema,
 	NoSuchToolError,
+	stepCountIs,
 	streamText,
 	type ToolSet,
 	wrapLanguageModel,
@@ -62,7 +74,9 @@ import type {
 	AiSdkStreamResult,
 	AiSdkStreamTotalUsage,
 	AiSdkStreamUsage,
+	BuiltModelTools,
 	ProviderFactoryResult,
+	ProviderGeneratedMedia,
 } from "./vendors/types";
 
 interface GatewayNormalizedUsage {
@@ -74,8 +88,6 @@ interface GatewayNormalizedUsage {
 	totalCost?: number;
 }
 type ProviderModuleKind = AiSdkProviderOptionsTarget;
-const OPENAI_IMAGE_GENERATION_TOOL_NAME = "image_generation";
-
 type ImageGenerationInput = string | Uint8Array | ArrayBuffer;
 type ImageGenerationPrompt =
 	| string
@@ -101,6 +113,27 @@ function normalizeImageGenerationInput(
 		throw new Error(validation.message);
 	}
 	return `data:${validation.mediaType};base64,${validation.base64}`;
+}
+
+function normalizeGeneratedImageInput(
+	part: Extract<AgentMessage["content"][number], { type: "media" }>,
+): ImageGenerationInput | undefined {
+	if (part.media.modality !== "image") return undefined;
+	switch (part.media.source.type) {
+		case "url":
+			return part.media.source.url;
+		case "artifact":
+			return undefined;
+		case "base64": {
+			const validation = validateImageMedia(
+				part.media.mediaType,
+				part.media.source.data,
+			);
+			return validation.ok
+				? `data:${validation.mediaType};base64,${validation.base64}`
+				: undefined;
+		}
+	}
 }
 
 function resolveImageGenerationPrompt(
@@ -153,81 +186,141 @@ function resolveImageGenerationPrompt(
 	const previousMessage = request.messages[latestUserMessageIndex - 1];
 	if (previousMessage?.role === "assistant") {
 		const firstGeneratedImage = previousMessage.content.find(
-			(part) => part.type === "image",
+			(part) =>
+				part.type === "image" ||
+				(part.type === "media" && part.media.modality === "image"),
 		);
-		if (firstGeneratedImage) {
+		if (firstGeneratedImage?.type === "image") {
 			return {
 				text,
 				images: [normalizeImageGenerationInput(firstGeneratedImage)],
 			};
 		}
+		if (firstGeneratedImage?.type === "media") {
+			const input = normalizeGeneratedImageInput(firstGeneratedImage);
+			if (input) return { text, images: [input] };
+		}
 	}
 	return text;
 }
 
+type GeneratedImageExtraction =
+	| { kind: "accepted"; image: ImageMediaValidationSuccess }
+	| { kind: "rejected"; error: ImageMediaValidationFailure }
+	| { kind: "unsupported" };
+
+function toGeneratedImageMedia(
+	image: ImageMediaValidationSuccess,
+): GeneratedMedia {
+	return {
+		id: `media_${nanoid()}`,
+		modality: "image",
+		mediaType: image.mediaType,
+		source: { type: "base64", data: image.base64 },
+		sizeBytes: image.decodedBytes,
+	};
+}
+
 function extractGeneratedImage(
 	file: unknown,
-): { data: string; mediaType: string } | undefined {
-	if (!file || typeof file !== "object") return undefined;
+	budgetState: MediaBudgetState,
+): GeneratedImageExtraction {
+	if (!file || typeof file !== "object") return { kind: "unsupported" };
 	const record = file as Record<string, unknown>;
 	if (
 		typeof record.mediaType !== "string" ||
 		!record.mediaType.startsWith("image/") ||
 		typeof record.base64 !== "string"
 	) {
-		return undefined;
+		return { kind: "unsupported" };
 	}
 	// Generated images use the same bounded media envelope as attachments and
 	// persisted history. Accepting an image that hydration later drops would
 	// make the live and replayed assistant transcripts disagree.
-	const validation = validateImageMedia(record.mediaType, record.base64);
-	if (!validation.ok) {
-		throw new Error(validation.message);
-	}
-	return {
-		data: validation.base64,
-		mediaType: validation.mediaType,
-	};
-}
-
-function hasOpenAiImageGenerationToolName(part: AiSdkStreamPart): boolean {
-	return (
-		part.toolName === OPENAI_IMAGE_GENERATION_TOOL_NAME ||
-		part.name === OPENAI_IMAGE_GENERATION_TOOL_NAME
+	const validation = validateAndReserveImageMedia(
+		record.mediaType,
+		record.base64,
+		{},
+		budgetState,
 	);
+	if (!validation.ok) {
+		return { kind: "rejected", error: validation };
+	}
+	return { kind: "accepted", image: validation };
 }
 
-function extractOpenAiImageGenerationToolResult(
-	part: AiSdkStreamPart,
-): { data: string; mediaType: string } | undefined {
-	if (part.type !== "tool-result") {
-		return undefined;
-	}
-	const output =
-		part.output &&
-		typeof part.output === "object" &&
-		!Array.isArray(part.output)
-			? (part.output as Record<string, unknown>)
-			: part.result &&
-					typeof part.result === "object" &&
-					!Array.isArray(part.result)
-				? (part.result as Record<string, unknown>)
-				: undefined;
-	if (typeof output?.result !== "string" || output.result.length === 0) {
-		throw new Error(
-			"OpenAI image generation tool returned no supported image output",
+type ProjectedMediaNormalization =
+	| { ok: true; media: GeneratedMedia }
+	| { ok: false; error: string };
+
+function normalizeProjectedModelToolMedia(
+	candidate: ProviderGeneratedMedia,
+	budgetState: MediaBudgetState,
+): ProjectedMediaNormalization {
+	if (candidate.modality === "image" && candidate.source.type === "base64") {
+		const extracted = extractGeneratedImage(
+			{
+				base64: candidate.source.data,
+				mediaType: candidate.mediaType,
+			},
+			budgetState,
 		);
+		if (extracted.kind === "accepted") {
+			return { ok: true, media: toGeneratedImageMedia(extracted.image) };
+		}
+		return {
+			ok: false,
+			error:
+				extracted.kind === "rejected"
+					? extracted.error.message
+					: "Model tool returned unsupported image media",
+		};
 	}
-	const image = extractGeneratedImage({
-		base64: output.result,
-		mediaType: "image/png",
-	});
-	if (!image) {
-		throw new Error(
-			"OpenAI image generation tool returned no supported image output",
+
+	let source = candidate.source;
+	let sizeBytes: number | undefined;
+	if (candidate.source.type === "base64") {
+		const validation = validateAndReserveBase64Media(
+			candidate.source.data,
+			{},
+			budgetState,
 		);
+		if (!validation.ok) {
+			return { ok: false, error: validation.message };
+		}
+		source = { type: "base64", data: validation.base64 };
+		sizeBytes = validation.decodedBytes;
 	}
-	return image;
+
+	const media = {
+		...candidate,
+		id: `media_${nanoid()}`,
+		source,
+		...(sizeBytes !== undefined ? { sizeBytes } : {}),
+	};
+	const parsed = GeneratedMediaSchema.safeParse(media);
+	return parsed.success
+		? { ok: true, media: parsed.data }
+		: { ok: false, error: "Model tool returned invalid generated media" };
+}
+
+interface ActiveProjectedModelToolCall {
+	toolName: ModelToolName;
+	input?: unknown;
+	execution: ModelToolExecution;
+}
+
+interface ProjectedModelToolResult {
+	media: GeneratedMedia[];
+	activityOutput: unknown;
+}
+
+function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
+	return {
+		generatedMediaCount: media.length,
+		mediaTypes: media.map((item) => item.mediaType),
+		byteLength: media.reduce((total, item) => total + (item.sizeBytes ?? 0), 0),
+	};
 }
 
 export function buildAiSdkStreamConfig(
@@ -244,6 +337,47 @@ export function buildAiSdkStreamConfig(
 	};
 }
 
+function buildProviderModelTools(
+	provider: ProviderFactoryResult,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): BuiltModelTools | undefined {
+	if (!request.modelTools?.length) {
+		return undefined;
+	}
+
+	const requestedNames = [
+		...new Set(request.modelTools.map((tool) => tool.name)),
+	];
+	if (!provider.buildModelTools) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" does not implement requested model tool(s): ${requestedNames.join(", ")}.`,
+		);
+	}
+
+	const modelTools = provider.buildModelTools(request.modelTools);
+	const missingNames = requestedNames.filter(
+		(toolName) => !Object.hasOwn(modelTools, toolName),
+	);
+	if (missingNames.length > 0) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" did not build requested model tool(s): ${missingNames.join(", ")}.`,
+		);
+	}
+
+	return modelTools;
+}
+
+function toAiSdkModelToolSet(
+	modelTools: BuiltModelTools | undefined,
+): ToolSet | undefined {
+	if (!modelTools) return undefined;
+	const entries = Object.entries(modelTools).flatMap(([name, adapter]) =>
+		adapter ? [[name, adapter.tool] as const] : [],
+	);
+	return entries.length > 0 ? Object.fromEntries(entries) : undefined;
+}
+
 function buildAiSdkRequestMessages(
 	request: GatewayStreamRequest,
 	context: GatewayProviderContext,
@@ -251,7 +385,13 @@ function buildAiSdkRequestMessages(
 ) {
 	const aiMessages = toAiSdkMessages(request.messages, systemPrompt, {
 		includeReasoning: shouldIncludeReasoningHistory(request, context),
-		supportsImages: modelSupportsImageInput(context),
+		supportedInputModalities:
+			context.model.modalities?.input ??
+			(context.model.capabilities
+				? modelSupportsImageInput(context)
+					? ["text", "image"]
+					: ["text"]
+				: undefined),
 	}) as Array<Record<string, unknown>>;
 
 	if (shouldApplyBedrockCachePoint(request, context)) {
@@ -462,7 +602,10 @@ async function ensureGatewayLangfuseTelemetry(
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
-	options?: { includeReasoning?: boolean; supportsImages?: boolean },
+	options?: {
+		includeReasoning?: boolean;
+		supportedInputModalities?: readonly string[];
+	},
 ) {
 	const includeReasoning = options?.includeReasoning ?? true;
 	const normalizedMessages: AiSdkFormatterMessage[] = [];
@@ -521,6 +664,11 @@ function toAiSdkMessages(
 				continue;
 			}
 
+			if (part.type === "media") {
+				content.push({ type: "media", media: part.media });
+				continue;
+			}
+
 			if (part.type === "tool-call") {
 				const metadata = part.metadata as Record<string, unknown> | undefined;
 				const thoughtSignature =
@@ -569,7 +717,7 @@ function toAiSdkMessages(
 
 	return formatMessagesForAiSdk(systemPrompt, normalizedMessages, {
 		assistantToolCallArgKey: "input",
-		supportsImages: options?.supportsImages,
+		supportedInputModalities: options?.supportedInputModalities,
 	});
 }
 
@@ -1140,7 +1288,7 @@ async function* emitAiSdkEvents(
 	context: GatewayProviderContext,
 	pricingValue?: unknown,
 	capturedError?: { current: CapturedStreamError | undefined },
-	providerImageGenerationToolEnabled = false,
+	modelToolAdapters?: BuiltModelTools,
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
@@ -1149,11 +1297,16 @@ async function* emitAiSdkEvents(
 	let finishUsage: unknown;
 	let finishProviderMetadata: unknown;
 	let streamAborted = false;
-	const openAiImageGenerationToolCallIds = new Set<string>();
-	const openAiImageGenerationToolResults = new Map<
+	let sawVisibleContent = false;
+	const mediaBudget = createMediaBudgetState();
+	const rejectedMediaErrors: string[] = [];
+	const activeProjectedModelToolCalls = new Map<
 		string,
-		{ data: string; mediaType: string }
+		ActiveProjectedModelToolCall
 	>();
+	const projectedModelToolResults = new Map<string, ProjectedModelToolResult>();
+	const pendingProjectedModelToolOutputs = new Map<string, unknown>();
+	const projectedModelToolErrors = new Map<string, string>();
 
 	try {
 		if (stream.fullStream) {
@@ -1164,6 +1317,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.delta as string | undefined);
 					if (text) {
+						sawVisibleContent = true;
 						yield { type: "text-delta", text };
 					}
 					continue;
@@ -1175,6 +1329,7 @@ async function* emitAiSdkEvents(
 						(part.text as string | undefined) ??
 						(part.reasoning as string | undefined);
 					if (text) {
+						sawVisibleContent = true;
 						yield {
 							type: "reasoning-delta",
 							text,
@@ -1185,9 +1340,17 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
-					const image = extractGeneratedImage(part.file);
-					if (image) {
-						yield { type: "image", ...image };
+					const extracted = extractGeneratedImage(part.file, mediaBudget);
+					if (extracted.kind === "accepted") {
+						sawVisibleContent = true;
+						yield {
+							type: "media",
+							media: toGeneratedImageMedia(extracted.image),
+						};
+						continue;
+					}
+					if (extracted.kind === "rejected") {
+						rejectedMediaErrors.push(extracted.error.message);
 						continue;
 					}
 					// Preserve non-image model files on the generic event path.
@@ -1196,65 +1359,74 @@ async function* emitAiSdkEvents(
 						| undefined;
 					const data = file?.base64;
 					if (typeof data === "string" && data.length > 0) {
-						yield {
-							type: "file",
+						const mediaType = file?.mediaType ?? "application/octet-stream";
+						const validation = validateAndReserveBase64Media(
 							data,
-							mediaType: file?.mediaType ?? "application/octet-stream",
+							{},
+							mediaBudget,
+						);
+						if (!validation.ok) {
+							rejectedMediaErrors.push(validation.message);
+							continue;
+						}
+						sawVisibleContent = true;
+						yield {
+							type: "media",
+							media: {
+								id: `media_${nanoid()}`,
+								modality: generatedMediaModalityFromMediaType(mediaType),
+								mediaType,
+								source: { type: "base64", data: validation.base64 },
+								sizeBytes: validation.decodedBytes,
+							},
 						};
 					}
 					continue;
 				}
 
-				if (
-					providerImageGenerationToolEnabled &&
-					part.type === "tool-call" &&
-					part.providerExecuted === true &&
-					hasOpenAiImageGenerationToolName(part)
-				) {
-					const toolCallId = part.toolCallId ?? part.id;
-					if (typeof toolCallId !== "string" || toolCallId.length === 0) {
-						throw new Error(
-							"OpenAI image generation tool call is missing a valid tool-call ID",
-						);
-					}
-					openAiImageGenerationToolCallIds.add(toolCallId);
-					continue;
-				}
-
-				if (
-					providerImageGenerationToolEnabled &&
-					part.type === "tool-result" &&
-					hasOpenAiImageGenerationToolName(part) &&
-					typeof part.toolCallId === "string" &&
-					openAiImageGenerationToolCallIds.has(part.toolCallId)
-				) {
-					// OpenAI can send one or more preliminary image previews before the
-					// final result. Buffer the latest non-preliminary candidate by call ID
-					// and emit once after the stream so provider/SDK variants that omit the
-					// preliminary marker still cannot create duplicate assistant images.
-					if (part.preliminary !== true) {
-						const image = extractOpenAiImageGenerationToolResult(part);
-						if (image) {
-							openAiImageGenerationToolResults.set(part.toolCallId, image);
-						}
-					}
-					continue;
-				}
-
-				if (
-					providerImageGenerationToolEnabled &&
-					part.type === "tool-error" &&
-					hasOpenAiImageGenerationToolName(part) &&
-					typeof part.toolCallId === "string" &&
-					openAiImageGenerationToolCallIds.has(part.toolCallId)
-				) {
-					throw new Error(
-						`OpenAI image generation tool failed: ${extractErrorMessage(part.error)}`,
-					);
-				}
-
 				if (part.type === "tool-call") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					// Provider-executed tools complete inside this inference request. They
+					// must not enter AgentRuntime's local execution/approval loop. The same
+					// applies to provider-defined client tools: streamText executes those
+					// and continues the internal model step before returning control.
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (modelTool) {
+						const explicitToolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined);
+						const adapter = modelToolAdapters?.[modelTool.name];
+						if (adapter?.projectResult && !explicitToolCallId) {
+							throw new Error(
+								`Model tool "${modelTool.name}" call is missing a valid tool-call ID`,
+							);
+						}
+						const toolCallId = explicitToolCallId ?? `model_tool_${nanoid()}`;
+						const execution =
+							part.providerExecuted === true ? "provider" : "client";
+						if (adapter?.projectResult) {
+							activeProjectedModelToolCalls.set(toolCallId, {
+								toolName: modelTool.name,
+								input: part.input ?? part.args,
+								execution,
+							});
+						}
+						yield {
+							type: "tool-call-delta",
+							toolCallId,
+							toolName: modelTool.name,
+							execution,
+							input: part.input ?? part.args,
+						};
+						continue;
+					}
 					sawToolCalls = true;
+					sawVisibleContent = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
 						(part.id as string | undefined) ??
@@ -1266,10 +1438,7 @@ async function* emitAiSdkEvents(
 					yield {
 						type: "tool-call-delta",
 						toolCallId,
-						toolName:
-							(part.toolName as string | undefined) ??
-							(part.name as string | undefined) ??
-							"tool",
+						toolName,
 						input: typeof input === "string" ? undefined : input,
 						inputText,
 						metadata: buildToolCallMetadata({
@@ -1281,7 +1450,96 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "tool-result") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (modelTool) {
+						const explicitToolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined);
+						const adapter = modelToolAdapters?.[modelTool.name];
+						if (adapter?.projectResult && !explicitToolCallId) {
+							throw new Error(
+								`Model tool "${modelTool.name}" result is missing a valid tool-call ID`,
+							);
+						}
+						const toolCallId = explicitToolCallId ?? `model_tool_${nanoid()}`;
+						if (adapter?.projectResult) {
+							if (part.preliminary !== true) {
+								if (!activeProjectedModelToolCalls.has(toolCallId)) {
+									throw new Error(
+										`Model tool "${modelTool.name}" returned a result without a matching call`,
+									);
+								}
+								// Provider SDKs can repeat a terminal tool result. Buffer the
+								// latest value and validate it once so duplicates neither emit
+								// duplicate media nor consume the aggregate media budget twice.
+								pendingProjectedModelToolOutputs.set(
+									toolCallId,
+									part.output ?? part.result,
+								);
+								projectedModelToolErrors.delete(toolCallId);
+							}
+							continue;
+						}
+						if (part.preliminary !== true) {
+							yield {
+								type: "tool-result",
+								toolCallId,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+								output: part.output ?? part.result,
+							};
+						}
+						continue;
+					}
+				}
+
 				if (part.type === "tool-error") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (modelTool) {
+						const explicitToolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined);
+						const adapter = modelToolAdapters?.[modelTool.name];
+						if (adapter?.projectResult && !explicitToolCallId) {
+							throw new Error(
+								`Model tool "${modelTool.name}" error is missing a valid tool-call ID`,
+							);
+						}
+						const toolCallId = explicitToolCallId ?? `model_tool_${nanoid()}`;
+						if (adapter?.projectResult) {
+							pendingProjectedModelToolOutputs.delete(toolCallId);
+							projectedModelToolErrors.set(
+								toolCallId,
+								`Model tool "${modelTool.name}" failed: ${extractErrorMessage(part.error)}`,
+							);
+							continue;
+						}
+						yield {
+							type: "tool-result",
+							toolCallId,
+							toolName: modelTool.name,
+							execution: part.providerExecuted === true ? "provider" : "client",
+							input: part.input ?? part.args,
+							output: { error: extractErrorMessage(part.error) },
+							isError: true,
+						};
+						continue;
+					}
 					sawToolCalls = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
@@ -1289,10 +1547,6 @@ async function* emitAiSdkEvents(
 						`tool_${nanoid()}`;
 					const alreadyEmitted = emittedToolCallIds.has(toolCallId);
 					emittedToolCallIds.add(toolCallId);
-					const toolName =
-						(part.toolName as string | undefined) ??
-						(part.name as string | undefined) ??
-						"tool";
 					const input = (part.input ?? part.args ?? {}) as unknown;
 					const inputText =
 						typeof input === "string" ? input : JSON.stringify(input);
@@ -1350,22 +1604,99 @@ async function* emitAiSdkEvents(
 		streamError = capturedError?.current ?? captureStreamError(error);
 	}
 
+	if (!streamError) {
+		for (const [toolCallId, output] of pendingProjectedModelToolOutputs) {
+			const active = activeProjectedModelToolCalls.get(toolCallId);
+			const adapter = active ? modelToolAdapters?.[active.toolName] : undefined;
+			if (!active || !adapter?.projectResult) continue;
+			try {
+				const projection = adapter.projectResult(output);
+				const media: GeneratedMedia[] = [];
+				const errors: string[] = [];
+				for (const candidate of projection.media) {
+					const normalized = normalizeProjectedModelToolMedia(
+						candidate,
+						mediaBudget,
+					);
+					if (normalized.ok) media.push(normalized.media);
+					else errors.push(normalized.error);
+				}
+				if (media.length === 0) {
+					projectedModelToolErrors.set(
+						toolCallId,
+						errors[0] ??
+							`Model tool "${active.toolName}" returned no supported media`,
+					);
+					continue;
+				}
+				projectedModelToolResults.set(toolCallId, {
+					media,
+					activityOutput:
+						projection.activityOutput ?? summarizeProjectedMedia(media),
+				});
+				projectedModelToolErrors.delete(toolCallId);
+			} catch (error) {
+				projectedModelToolErrors.set(toolCallId, extractErrorMessage(error));
+			}
+		}
+	}
+
 	if (!streamError && !streamAborted) {
-		const missingResult = [...openAiImageGenerationToolCallIds].some(
-			(toolCallId) => !openAiImageGenerationToolResults.has(toolCallId),
-		);
-		if (missingResult) {
-			streamError = captureStreamError(
-				new Error(
-					"OpenAI image generation tool completed without a final image output",
-				),
-			);
+		for (const toolCallId of activeProjectedModelToolCalls.keys()) {
+			if (
+				!projectedModelToolResults.has(toolCallId) &&
+				!projectedModelToolErrors.has(toolCallId)
+			) {
+				const active = activeProjectedModelToolCalls.get(toolCallId);
+				projectedModelToolErrors.set(
+					toolCallId,
+					`Model tool "${active?.toolName ?? "unknown"}" completed without a final result`,
+				);
+			}
 		}
 	}
 
 	if (!streamError) {
-		for (const image of openAiImageGenerationToolResults.values()) {
-			yield { type: "image", ...image };
+		for (const [toolCallId, projection] of projectedModelToolResults) {
+			const active = activeProjectedModelToolCalls.get(toolCallId);
+			if (!active) continue;
+			sawVisibleContent = true;
+			for (const media of projection.media) {
+				yield { type: "media", media };
+			}
+			yield {
+				type: "tool-result",
+				toolCallId,
+				toolName: active.toolName,
+				execution: active.execution,
+				input: active.input,
+				output: projection.activityOutput,
+			};
+		}
+		for (const [toolCallId, error] of projectedModelToolErrors) {
+			const active = activeProjectedModelToolCalls.get(toolCallId);
+			if (!active) continue;
+			yield {
+				type: "tool-result",
+				toolCallId,
+				toolName: active.toolName,
+				execution: active.execution,
+				input: active.input,
+				output: { error },
+				isError: true,
+			};
+		}
+		if (
+			!sawVisibleContent &&
+			(projectedModelToolErrors.size > 0 || rejectedMediaErrors.length > 0)
+		) {
+			streamError = captureStreamError(
+				new Error(
+					projectedModelToolErrors.values().next().value ??
+						rejectedMediaErrors[0] ??
+						"Model returned no supported media",
+				),
+			);
 		}
 	}
 
@@ -1413,6 +1744,10 @@ async function createProviderModule(
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	switch (kind) {
+		case "cline": {
+			const { createClineProviderModule } = await import("./vendors/cline");
+			return createClineProviderModule(config, context);
+		}
 		case "openai": {
 			const { createOpenAIProviderModule } = await import("./vendors/openai");
 			return createOpenAIProviderModule(config, context);
@@ -1499,7 +1834,7 @@ async function createProviderModule(
  *
  * Applied as the *outermost* wrap so each retry re-runs the vendor's full
  * request pipeline, including any vendor-level middleware attached inside
- * `provider.model(...)`. Vendors opt out or tune attempts through
+ * `provider.operations.language(...)`. Vendors opt out or tune attempts through
  * `ProviderFactoryResult.retryEmptyResponses`.
  */
 export function withEmptyResponseRetry(
@@ -1553,7 +1888,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 							: undefined;
 				const providerOptions =
 					context.provider.metadata?.imageTransport === "openrouter" &&
-					isImageGenerationModel(context.model)
+					modelProducesImages(context.model)
 						? {
 								...composedProviderOptions,
 								openrouter: {
@@ -1569,8 +1904,8 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								},
 							}
 						: googleImageProviderKey !== undefined &&
-								isImageGenerationModel(context.model) &&
-								!isDedicatedImageGenerationModel(context.model)
+								modelProducesImages(context.model) &&
+								!usesImageGenerationOperation(context.model)
 							? {
 									...composedProviderOptions,
 									[googleImageProviderKey]: {
@@ -1580,8 +1915,17 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 									},
 								}
 							: composedProviderOptions;
-				if (isDedicatedImageGenerationModel(context.model)) {
-					if (!provider.imageModel) {
+				const modelOperation = context.model.operation ?? "language";
+				if (
+					modelOperation !== "language" &&
+					modelOperation !== "image-generation"
+				) {
+					throw new Error(
+						`Provider "${context.provider.id}" does not implement the "${modelOperation}" model operation`,
+					);
+				}
+				if (usesImageGenerationOperation(context.model)) {
+					if (!provider.operations.imageGeneration) {
 						throw new Error(
 							`Provider "${context.provider.id}" does not support image generation models`,
 						);
@@ -1603,20 +1947,33 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						},
 					});
 					const result = await generateImage({
-						model: provider.imageModel(context.model.id) as never,
+						model: provider.operations.imageGeneration(
+							context.model.id,
+						) as never,
 						prompt,
 						abortSignal: request.signal,
 						providerOptions: providerOptions as never,
 					});
 					let emittedImages = 0;
+					let rejectedImageError: string | undefined;
+					const mediaBudget = createMediaBudgetState();
 					for (const file of result.images) {
-						const image = extractGeneratedImage(file);
-						if (!image) continue;
+						const extracted = extractGeneratedImage(file, mediaBudget);
+						if (extracted.kind === "rejected") {
+							rejectedImageError = extracted.error.message;
+							continue;
+						}
+						if (extracted.kind !== "accepted") continue;
 						emittedImages += 1;
-						yield { type: "image", ...image };
+						yield {
+							type: "media",
+							media: toGeneratedImageMedia(extracted.image),
+						};
 					}
 					if (emittedImages === 0) {
-						throw new Error("Image model returned no supported images");
+						throw new Error(
+							rejectedImageError ?? "Image model returned no supported images",
+						);
 					}
 					if (result.usage) {
 						yield {
@@ -1634,22 +1991,30 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const runtimeTools = toAiSdkTools(request);
 				const externalToolExecutionDisabled =
 					providerDisablesExternalToolExecution(context);
 				const toolCallingDisabled =
 					externalToolExecutionDisabled ||
 					!modelSupportsToolCalling(context.model);
-				const tools = toolCallingDisabled
+				const runtimeTools = toolCallingDisabled
 					? undefined
-					: mergeAiSdkTools(runtimeTools, provider.providerTools);
-				const providerImageGenerationToolEnabled =
-					!toolCallingDisabled &&
-					hasAiSdkTool(
-						provider.providerTools,
-						OPENAI_IMAGE_GENERATION_TOOL_NAME,
-					) &&
-					!hasAiSdkTool(runtimeTools, OPENAI_IMAGE_GENERATION_TOOL_NAME);
+					: toAiSdkTools(request);
+				const activeModelTools = toolCallingDisabled
+					? []
+					: (request.modelTools ?? []).filter(
+							(tool) => !hasAiSdkTool(runtimeTools, tool.name),
+						);
+				const modelToolRequest = {
+					...request,
+					modelTools: activeModelTools,
+				};
+				const modelToolAdapters = buildProviderModelTools(
+					provider,
+					modelToolRequest,
+					context,
+				);
+				const modelTools = toAiSdkModelToolSet(modelToolAdapters);
+				const tools = mergeAiSdkTools(runtimeTools, modelTools);
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
@@ -1677,7 +2042,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				});
 				stream = streamText({
 					model: withEmptyResponseRetry(
-						provider.model(context.model.id),
+						provider.operations.language(context.model.id),
 						provider.retryEmptyResponses,
 						context.logger,
 					) as never,
@@ -1690,6 +2055,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						isEnabled: langfuse,
 					},
 					providerOptions: providerOptions as never,
+					...(provider.executesModelTools && activeModelTools.length
+						? { stopWhen: stepCountIs(8) }
+						: {}),
 					...requestConfig,
 					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {
@@ -1732,11 +2100,11 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 
 				yield* emitAiSdkEvents(
 					stream,
-					request,
+					modelToolRequest,
 					context,
 					context.model.metadata?.pricing,
 					capturedError,
-					providerImageGenerationToolEnabled,
+					modelToolAdapters,
 				);
 			} catch (error) {
 				suppressDanglingStreamPromises(stream);
@@ -1782,6 +2150,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 }
 
 export const createOpenAIProvider = createAiSdkProvider("openai");
+export const createClineProvider = createAiSdkProvider("cline");
 export const createOpenAICompatibleProvider =
 	createAiSdkProvider("openai-compatible");
 export const createAnthropicProvider = createAiSdkProvider("anthropic");

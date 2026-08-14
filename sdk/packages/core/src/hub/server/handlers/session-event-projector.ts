@@ -224,12 +224,12 @@ async function projectAgentEvent(
 					),
 				);
 				break;
-			case "image":
-				if (agentEvent.image) {
+			case "media":
+				if (agentEvent.media) {
 					ctx.publish(
 						ctx.buildEvent(
-							"assistant.image",
-							{ image: agentEvent.image },
+							"assistant.media",
+							{ media: agentEvent.media },
 							sessionId,
 						),
 					);

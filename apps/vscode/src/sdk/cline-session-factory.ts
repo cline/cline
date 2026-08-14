@@ -288,6 +288,7 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(contextWindow !== undefined ? { contextWindow } : {}),
 		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
 		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(modelInfo.operation !== undefined ? { operation: modelInfo.operation } : {}),
 		...(modelInfo.modalities !== undefined ? { modalities: modelInfo.modalities } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
 		...(temperature !== undefined ? { temperature } : {}),

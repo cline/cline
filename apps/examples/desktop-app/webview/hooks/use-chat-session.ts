@@ -23,7 +23,6 @@ import type {
 	ChatTransportState,
 	ChatUsageEvent,
 	CoreLogChunk,
-	ImageDeltaEvent,
 	ProcessContext,
 	PromptInQueue,
 	ReasoningDeltaEvent,
@@ -34,6 +33,7 @@ import type {
 import {
 	type ChatMessage,
 	ChatMessageImageSchema,
+	ChatMessageMediaSchema,
 	type ChatSessionConfig,
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
@@ -67,7 +67,7 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
-	"chat_image",
+	"chat_media",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -1088,58 +1088,43 @@ export function useChatSession() {
 			// observe fully applied text, so drain the buffers first.
 			flushPendingStream();
 
-			if (payload.stream === "chat_image") {
-				let parsed: ImageDeltaEvent;
+			if (payload.stream === "chat_media") {
+				let parsed: unknown;
 				try {
-					parsed = JSON.parse(payload.chunk) as ImageDeltaEvent;
+					parsed = JSON.parse(payload.chunk);
 				} catch {
 					return;
 				}
-				const image = ChatMessageImageSchema.safeParse({
-					id: makeId("generated_image"),
-					data: parsed.data,
-					mediaType: parsed.mediaType,
-				});
-				if (!image.success) {
+				const media = ChatMessageMediaSchema.safeParse(parsed);
+				if (!media.success) {
 					console.warn(
-						"[desktop:chat] Ignoring invalid generated image",
-						image.error.flatten(),
+						"[desktop:chat] Ignoring invalid generated media",
+						media.error.flatten(),
 					);
 					return;
 				}
-				let assistantId = activeAssistantMessageIdRef.current;
-				if (!assistantId) {
-					assistantId = makeId("assistant");
-					addMessage({
-						id: assistantId,
-						sessionId: listeningSessionId,
-						role: "assistant",
-						content: "",
-						images: [image.data],
-						createdAt: chunkCreatedAt(payload),
-					});
-					activeAssistantMessageIdRef.current = assistantId;
-					setActiveAssistantMessageId(assistantId);
-					return;
-				}
-				setMessages((prev) =>
-					updateMessageById(prev, assistantId, (message) => {
-						const images = message.images ?? [];
-						if (
-							images.some(
-								(existing) =>
-									existing.data === image.data.data &&
-									existing.mediaType === image.data.mediaType,
-							)
-						) {
-							return message;
-						}
-						return {
-							...message,
-							images: [...images, image.data],
-						};
-					}),
-				);
+				setMessages((prev) => {
+					if (
+						prev.some((message) =>
+							message.media?.some((item) => item.id === media.data.id),
+						)
+					) {
+						return prev;
+					}
+					return sliceMessages([
+						...prev,
+						{
+							id: `media_${media.data.id}`,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							media: [media.data],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
 				return;
 			}
 
@@ -2029,11 +2014,38 @@ export function useChatSession() {
 						]);
 					});
 				}
+				const fallbackMedia = fallbackAssistantTurn.media;
+				if (fallbackMedia.length > 0) {
+					setMessages((prev) => {
+						const knownIds = new Set(
+							prev.flatMap((message) =>
+								(message.media ?? []).map((media) => media.id),
+							),
+						);
+						const additions = fallbackMedia.filter(
+							(media) => !knownIds.has(media.id),
+						);
+						return additions.length === 0
+							? prev
+							: sliceMessages([
+									...prev,
+									...additions.map((media, index) => ({
+										id: `media_${media.id}`,
+										sessionId: activeSessionId,
+										role: "assistant" as const,
+										content: "",
+										media: [media],
+										createdAt: now + 2 + index,
+									})),
+								]);
+					});
+				}
 				const hasFallbackAssistantTurn =
 					Boolean(resolvedAssistantText) ||
 					Boolean(fallbackAssistantTurn.reasoning) ||
 					fallbackAssistantTurn.reasoningRedacted ||
-					fallbackImages.length > 0;
+					fallbackImages.length > 0 ||
+					fallbackMedia.length > 0;
 				if (!hasFallbackAssistantTurn) {
 					// Recovery: load canonical messages if transport missed result text.
 					try {
@@ -2312,7 +2324,6 @@ export function useChatSession() {
 				config,
 			})) as {
 				sessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const nextSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2320,12 +2331,13 @@ export function useChatSession() {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: nextSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: nextSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -2607,7 +2619,6 @@ export function useChatSession() {
 			})) as {
 				sessionId?: string;
 				forkedFromSessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const newSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2618,12 +2629,13 @@ export function useChatSession() {
 				typeof payload.forkedFromSessionId === "string"
 					? payload.forkedFromSessionId
 					: activeSessionId;
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: newSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: newSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
 		[config, postSession, status],

@@ -124,10 +124,15 @@ describe("handleEvent text formatting", () => {
 		handleEvent(
 			{
 				type: "content_end",
-				contentType: "image",
-				image: {
-					data: Buffer.from("one-shot-image").toString("base64"),
+				contentType: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
 					mediaType: "image/png",
+					source: {
+						type: "base64",
+						data: Buffer.from("one-shot-image").toString("base64"),
+					},
 				},
 			} as AgentEvent,
 			{} as Config,

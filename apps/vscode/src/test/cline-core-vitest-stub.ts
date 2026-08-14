@@ -119,6 +119,7 @@ export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/sr
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
+export { projectSessionMessagesForDisplay } from "../../../../sdk/packages/core/src/session/display-messages"
 
 // Real file-read executor (dependency-light: node:fs/node:path + @cline/shared/storage)
 // so the workspace read override and its tests exercise the actual read semantics.

@@ -18,7 +18,7 @@ import {
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
-import type { Message } from "@cline/llms";
+import type { MessageWithMetadata } from "@cline/llms";
 import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
@@ -282,7 +282,9 @@ export function refreshWorkspaceMetadata(cwd: string): void {
 // Session data helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedChatMessages(sessionId: string): unknown[] | null {
+function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -291,8 +293,8 @@ function readPersistedChatMessages(sessionId: string): unknown[] | null {
 	if (!existsSync(path)) return null;
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8").trim()) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) return parsed;
 		return Array.isArray(parsed.messages) ? parsed.messages : null;
 	} catch {
@@ -669,9 +671,7 @@ async function handleStart(
 		...splitCoreSessionConfig(coreConfig as unknown as ClineCoreStartConfig),
 		source: SessionSource.DESKTOP,
 		interactive: true,
-		...(initialMessages
-			? { initialMessages: initialMessages as Message[] }
-			: {}),
+		...(initialMessages ? { initialMessages } : {}),
 		toolPolicies: resolveToolPolicies(request.config),
 	});
 	const sessionId = startResult.sessionId;
@@ -775,7 +775,7 @@ async function startRebuiltSession(
 	sessionId: string,
 	config: JsonRecord,
 	systemPrompt: string,
-	messages: Message[],
+	messages: MessageWithMetadata[],
 	compactionState: SessionCompactionState | undefined,
 ): Promise<void> {
 	const projectedMessages = compactionState
@@ -1049,7 +1049,7 @@ async function handleSend(
 		});
 		if (session && ownsBusyState) {
 			session.status = "idle";
-			if (result?.messages) session.messages = result.messages as unknown[];
+			if (result?.messages) session.messages = result.messages;
 		}
 		return {
 			sessionId,
@@ -1247,10 +1247,7 @@ async function handleForkUnlocked(
 	let forkMessages =
 		forkBeforeRunCount === undefined
 			? sourceMessages
-			: trimMessagesBeforeUserRun(
-					sourceMessages as Message[],
-					forkBeforeRunCount,
-				);
+			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
 		...(sourceMetadata ?? {}),
 		fork: {
@@ -1305,7 +1302,7 @@ async function handleForkUnlocked(
 	} else {
 		const started = await manager.start({
 			...startInput,
-			initialMessages: forkMessages as Message[],
+			initialMessages: forkMessages,
 		});
 		newSessionId = started.sessionId;
 	}
@@ -1334,7 +1331,6 @@ async function handleForkUnlocked(
 	return {
 		sessionId: newSessionId,
 		forkedFromSessionId: sourceSessionId,
-		messages: forkMessages,
 	};
 }
 
@@ -1420,14 +1416,8 @@ async function handleRestoreCheckpoint(
 		);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
-		let messages: unknown[] = restoredMessages;
-		try {
-			const read = await manager.readMessages(sessionId);
-			if (read?.length > 0) messages = read;
-		} catch {}
 		return {
 			sessionId,
-			messages,
 			restoredCheckpoint: restored.checkpoint,
 		};
 	});

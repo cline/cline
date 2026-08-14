@@ -454,11 +454,15 @@ describe("full path: model output classes through emitAiSdkEvents", () => {
 		// Not retried (a generated file is content)...
 		expect(ollamaDoStreamMock).toHaveBeenCalledTimes(1);
 		// ...and converted, so the assistant message will not be empty.
-		const imageEvent = events.find((event) => event.type === "image");
+		const imageEvent = events.find((event) => event.type === "media");
 		expect(imageEvent).toMatchObject({
-			type: "image",
-			mediaType: "image/png",
-			data: "aGVsbG8=",
+			type: "media",
+			media: {
+				id: expect.any(String),
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
 		});
 	});
 

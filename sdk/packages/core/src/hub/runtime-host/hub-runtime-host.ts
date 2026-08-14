@@ -22,6 +22,7 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
@@ -1431,7 +1432,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@cline/llms").MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1459,7 +1460,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@cline/llms").MessageWithMetadata[])
 			: [];
 	}
 
@@ -1713,17 +1714,14 @@ export class HubRuntimeHost implements RuntimeHost {
 				});
 				return;
 			}
-			case "assistant.image": {
-				const image =
-					event.payload?.image &&
-					typeof event.payload.image === "object" &&
-					!Array.isArray(event.payload.image)
-						? (event.payload.image as Record<string, unknown>)
+			case "assistant.media": {
+				const media =
+					event.payload?.media &&
+					typeof event.payload.media === "object" &&
+					!Array.isArray(event.payload.media)
+						? (event.payload.media as Record<string, unknown>)
 						: undefined;
-				if (
-					typeof image?.data !== "string" ||
-					typeof image.mediaType !== "string"
-				) {
+				if (!isGeneratedMedia(media)) {
 					return;
 				}
 				this.events.emit({
@@ -1732,11 +1730,8 @@ export class HubRuntimeHost implements RuntimeHost {
 						sessionId,
 						event: {
 							type: "content_end",
-							contentType: "image",
-							image: {
-								data: image.data,
-								mediaType: image.mediaType,
-							},
+							contentType: "media",
+							media,
 						},
 					},
 				});

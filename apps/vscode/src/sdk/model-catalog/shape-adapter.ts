@@ -84,6 +84,7 @@ const PROMPT_CACHE_CAPABILITY = "prompt-cache"
 const REASONING_CAPABILITY = "reasoning"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
 const MODEL_MODALITIES = new Set(["text", "image", "audio", "video", "pdf"])
+const MODEL_OPERATIONS = new Set(["language", "image-generation", "speech-generation", "video-generation", "transcription"])
 
 interface NormalizedPricing {
 	input?: number
@@ -233,6 +234,12 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	const capabilities = readStringArray(input.capabilities)
 	const pricing = readPricing(input.pricing)
 	const modalities = readModalities(input.modalities)
+	const operation = input.operation
+	if (operation !== undefined && (typeof operation !== "string" || !MODEL_OPERATIONS.has(operation))) {
+		throw new CatalogShapeError("SDK model-info `operation` is unsupported when present.", {
+			details: { operation },
+		})
+	}
 
 	const result: ModelInfo = {
 		name: rawName ?? id,
@@ -266,6 +273,9 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (modalities !== undefined) {
 		result.modalities = modalities
+	}
+	if (operation !== undefined) {
+		result.operation = operation as NonNullable<ModelInfo["operation"]>
 	}
 
 	return result

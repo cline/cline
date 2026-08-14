@@ -590,7 +590,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;

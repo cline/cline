@@ -45,7 +45,7 @@ function trimLeading(text: string): string {
 	return text.replace(/^\n+/, "");
 }
 
-function formatImageSize(byteLength: number): string {
+function formatMediaSize(byteLength: number): string {
 	if (byteLength <= 0) return "unknown size";
 	if (byteLength < 1024) return `${byteLength} B`;
 	if (byteLength < 1024 * 1024) return `${(byteLength / 1024).toFixed(1)} KiB`;
@@ -658,16 +658,16 @@ export function ChatEntryView(props: {
 			);
 		}
 
-		case "assistant_image":
+		case "assistant_media":
 			return (
 				<box flexDirection="row">
 					<box width={2}>
 						<text fg={accent}>*</text>
 					</box>
 					<text fg={defaultFg} selectable>
-						{entry.path
-							? `Generated image (${entry.mediaType}, ${formatImageSize(entry.byteLength)}): ${entry.path}`
-							: `Generated image (${entry.mediaType}) could not be saved`}
+						{entry.location
+							? `Generated ${entry.modality} (${entry.mediaType}, ${formatMediaSize(entry.byteLength)}): ${entry.location}`
+							: `Generated ${entry.modality} (${entry.mediaType}) could not be saved`}
 					</text>
 				</box>
 			);

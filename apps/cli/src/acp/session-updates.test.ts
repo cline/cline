@@ -10,8 +10,13 @@ describe("forwardAgentEvent", () => {
 
 		forwardAgentEvent(connection, "session-1", {
 			type: "content_end",
-			contentType: "image",
-			image: { data: "aGVsbG8=", mediaType: "image/png" },
+			contentType: "media",
+			media: {
+				id: "generated-1",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
 		} as AgentEvent);
 
 		expect(sessionUpdate).toHaveBeenCalledWith({

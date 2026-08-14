@@ -5,7 +5,7 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { isImageGenerationModel } from "@cline/shared";
+import { modelProducesImages } from "@cline/shared";
 import { createOpenRouter } from "@openrouter/ai-sdk-provider";
 import { wrapLanguageModel } from "ai";
 import { ensureFetch, resolveApiKey } from "../http";
@@ -177,7 +177,9 @@ function isOpenRouterImageGenerationRequest(input: FetchInput): boolean {
 	}
 }
 
-function createSuccessDataResponseFetch(baseFetch: typeof fetch): typeof fetch {
+export function createSuccessDataResponseFetch(
+	baseFetch: typeof fetch,
+): typeof fetch {
 	const responseEnvelopeFetch = (async (requestInput, init) => {
 		const response = await baseFetch(requestInput, init);
 		if (!response.ok || !isOpenRouterImageGenerationRequest(requestInput)) {
@@ -249,7 +251,7 @@ export async function createOpenAICompatibleProviderModule(
 	} as never);
 	const useOpenRouterImageTransport =
 		context.provider.metadata?.imageTransport === "openrouter" &&
-		isImageGenerationModel(context.model);
+		modelProducesImages(context.model);
 	const openRouterFetch =
 		context.provider.metadata?.responseEnvelope === "success-data"
 			? createSuccessDataResponseFetch(ensureFetch(providerFetch))
@@ -287,17 +289,19 @@ export async function createOpenAICompatibleProviderModule(
 		// pattern that classic Cline used in production for years (see
 		// `convertToOpenAiMessages` in `src/core/api/transform/openai-format.ts`
 		// on origin/main).
-		model: (modelId) =>
-			wrapLanguageModel({
-				model: (openRouterImageProvider?.chat(modelId) ??
-					provider(modelId)) as LanguageModelV4,
-				middleware: splitToolImagesMiddleware,
-			}),
-		imageModel: (modelId) =>
-			vercelGateway
-				? vercelGateway.imageModel(modelId)
-				: openRouterImageProvider
-					? openRouterImageProvider.imageModel(modelId)
-					: provider.imageModel(modelId),
+		operations: {
+			language: (modelId) =>
+				wrapLanguageModel({
+					model: (openRouterImageProvider?.chat(modelId) ??
+						provider(modelId)) as LanguageModelV4,
+					middleware: splitToolImagesMiddleware,
+				}),
+			imageGeneration: (modelId) =>
+				vercelGateway
+					? vercelGateway.imageModel(modelId)
+					: openRouterImageProvider
+						? openRouterImageProvider.imageModel(modelId)
+						: provider.imageModel(modelId),
+		},
 	};
 }

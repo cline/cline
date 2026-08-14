@@ -88,25 +88,31 @@ export const ModelModalitiesSchema = z.object({
 
 export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
 
-interface ImageGenerationModelDescriptor {
+/**
+ * Provider operation used to execute a model request.
+ *
+ * Modalities describe the values a model accepts and produces; they do not
+ * identify the provider endpoint. Keeping the operation explicit prevents an
+ * image-output model from being routed to a generic chat or compatible-image
+ * endpoint merely because its catalog advertises an image modality.
+ */
+export const ModelOperationSchema = z.enum([
+	"language",
+	"image-generation",
+	"speech-generation",
+	"video-generation",
+	"transcription",
+]);
+
+export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+interface ImageOutputModelDescriptor {
+	operation?: ModelOperation;
 	modalities?: ModelModalities;
-	family?: string;
-	metadata?: Record<string, unknown>;
 }
 
-function resolveImageGenerationModelFamily(
-	model: ImageGenerationModelDescriptor,
-): string | undefined {
-	const family =
-		model.family ??
-		(typeof model.metadata?.family === "string"
-			? model.metadata.family
-			: undefined);
-	return family?.trim().toLowerCase();
-}
-
-export function isImageGenerationModel(
-	model: ImageGenerationModelDescriptor,
+export function modelProducesImages(
+	model: ImageOutputModelDescriptor,
 ): boolean {
 	return (
 		model.modalities?.input.includes("text") === true &&
@@ -114,15 +120,10 @@ export function isImageGenerationModel(
 	);
 }
 
-export function isDedicatedImageGenerationModel(
-	model: ImageGenerationModelDescriptor,
+export function usesImageGenerationOperation(
+	model: ImageOutputModelDescriptor,
 ): boolean {
-	const output = model.modalities?.output;
-	return (
-		isImageGenerationModel(model) &&
-		(output?.includes("text") !== true ||
-			resolveImageGenerationModelFamily(model) === "gpt-image")
-	);
+	return model.operation === "image-generation";
 }
 
 /**
@@ -171,6 +172,7 @@ export const ModelInfoSchema = z.object({
 	contextWindow: z.number().optional(),
 	maxInputTokens: z.number().optional(),
 	capabilities: z.array(ModelCapabilitySchema).optional(),
+	operation: ModelOperationSchema.optional(),
 	modalities: ModelModalitiesSchema.optional(),
 	reasoningOptions: z.array(ModelReasoningOptionSchema).optional(),
 	apiFormat: ApiFormatSchema.optional(),

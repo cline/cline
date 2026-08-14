@@ -1,4 +1,8 @@
 import {
+	builtinProviderSupportsModelOperation,
+	normalizeBuiltinModelOperationModalities,
+} from "../providers/model-operations";
+import {
 	MODELS_DEV_BLOCKED_PROVIDER_IDS,
 	MODELS_DEV_CURRENT_BUILTIN_PROVIDER_KEYS,
 	resolveGeneratedProviderIdForModelsDevKey,
@@ -7,7 +11,8 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
-import type { ModelInfo, ModelModality } from "./types";
+import { resolveCatalogModelOperation } from "./model-operation";
+import type { ModelInfo, ModelModality, ModelOperation } from "./types";
 
 export interface ModelsDevModel {
 	name?: string;
@@ -88,16 +93,6 @@ const MODELS_DEV_AI_SDK_PROVIDER_FAMILIES = {
 	"@ai-sdk/amazon-bedrock": "bedrock",
 	"@ai-sdk/mistral": "mistral",
 } as const satisfies Record<string, ModelsDevGeneratedProviderSpec["family"]>;
-
-/**
- * These OpenAI-compatible providers expose media models through their chat or
- * responses API, but do not implement the AI SDK image-model endpoint used by
- * `generateImage`. Keep their dedicated media entries out of the catalog until
- * the runtime has a provider-specific transport for them.
- */
-const MODELS_DEV_IMAGE_MODEL_ENDPOINT_UNSUPPORTED_PROVIDER_IDS = new Set([
-	"poe",
-]);
 
 function parseReleaseDate(value: string | undefined): number {
 	if (!value) {
@@ -258,48 +253,18 @@ function toModalities(model: ModelsDevModel): ModelInfo["modalities"] {
 	if (input.length === 0 || output.length === 0) {
 		return undefined;
 	}
-	if (!output.includes("image")) {
-		return undefined;
-	}
 	return { input, output };
 }
 
 function isSpecializedMediaModel(model: ModelsDevModel): boolean {
 	return (
 		model.modalities?.input?.includes("text") === true &&
-		model.modalities.output?.includes("image") === true
+		model.modalities.output?.some((modality) => modality !== "text") === true
 	);
 }
 
-function isDedicatedImageModel(model: ModelsDevModel): boolean {
-	return (
-		model.modalities?.output?.includes("image") === true &&
-		(model.modalities.output.includes("text") !== true ||
-			model.family?.trim().toLowerCase() === "gpt-image")
-	);
-}
-
-function providerSupportsDedicatedImageModels(
-	provider: ModelsDevProviderPayload,
-	targetProviderId: string,
-): boolean {
-	if (
-		MODELS_DEV_IMAGE_MODEL_ENDPOINT_UNSUPPORTED_PROVIDER_IDS.has(
-			targetProviderId,
-		)
-	) {
-		return false;
-	}
-	// Current built-ins without a recognized models.dev SDK package use the
-	// OpenAI-compatible runtime family when their generated spec is normalized.
-	const family = supportedAiSdkProviderFamily(provider) ?? "openai-compatible";
-	return (
-		family === "openai-compatible" ||
-		family === "openai" ||
-		family === "google" ||
-		family === "vertex" ||
-		family === "bedrock"
-	);
+function toModelOperation(model: ModelsDevModel): ModelOperation {
+	return resolveCatalogModelOperation(model);
 }
 
 function isChatModel(model: ModelInfo): boolean {
@@ -339,6 +304,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 	const outputToken = model.limit?.output ?? DEFAULT_MAX_TOKENS;
 	const rawContextLimit = model.limit?.context;
 	const modalities = toModalities(model);
+	const operation = toModelOperation(model);
 
 	return {
 		id: modelId,
@@ -347,7 +313,9 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
 		capabilities: toCapabilities(model),
-		reasoningOptions: model.reasoning_options,
+		...(model.reasoning_options !== undefined
+			? { reasoningOptions: model.reasoning_options }
+			: {}),
 		pricing: {
 			input: model.cost?.input ?? 0,
 			output: model.cost?.output ?? 0,
@@ -357,6 +325,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		status: toStatus(model.status),
 		releaseDate: model.release_date,
 		family: model.family,
+		operation,
 		...(modalities !== undefined ? { modalities } : {}),
 	};
 }
@@ -379,15 +348,34 @@ export function normalizeModelsDevProviderModels(
 
 		const models: Record<string, ModelInfo> = {};
 		for (const [modelId, model] of Object.entries(source.models)) {
+			const rawInfo = toModelInfo(modelId, model);
+			const modalities = normalizeBuiltinModelOperationModalities({
+				providerId: targetProviderId,
+				modelId,
+				operation: rawInfo.operation,
+				modalities: rawInfo.modalities,
+				family: rawInfo.family,
+				capabilities: rawInfo.capabilities,
+			});
+			const info = {
+				...rawInfo,
+				...(modalities ? { modalities } : {}),
+			};
 			if (
-				(isDedicatedImageModel(model) &&
-					!providerSupportsDedicatedImageModels(source, targetProviderId)) ||
 				(model.tool_call !== true && !isSpecializedMediaModel(model)) ||
-				isDeprecatedModel(model)
+				isDeprecatedModel(model) ||
+				!builtinProviderSupportsModelOperation({
+					providerId: targetProviderId,
+					modelId,
+					operation: info.operation,
+					modalities: info.modalities,
+					family: info.family,
+					capabilities: info.capabilities,
+				})
 			) {
 				continue;
 			}
-			models[modelId] = toModelInfo(modelId, model);
+			models[modelId] = info;
 		}
 
 		if (Object.keys(models).length > 0) {

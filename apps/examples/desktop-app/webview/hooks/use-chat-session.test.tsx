@@ -523,28 +523,32 @@ describe("useChatSession", () => {
 			});
 			chatEventHandler?.({
 				sessionId: current.sessionId,
-				stream: "chat_image",
+				stream: "chat_media",
 				chunk: JSON.stringify({
-					data: "aGVsbG8=",
+					id: "generated-1",
+					modality: "image",
 					mediaType: "image/webp",
+					source: { type: "base64", data: "aGVsbG8=" },
 				}),
 				ts: Date.now(),
 				index: 2,
 			});
 		});
 
-		const assistant = current.messages.findLast(
+		const assistantMessages = current.messages.filter(
 			(message) => message.role === "assistant",
 		);
-		expect(assistant).toMatchObject({
-			content: "Here it is.",
-			images: [
-				expect.objectContaining({
-					data: "aGVsbG8=",
-					mediaType: "image/webp",
-				}),
-			],
-		});
+		expect(assistantMessages).toEqual([
+			expect.objectContaining({ content: "Here it is." }),
+			expect.objectContaining({
+				media: [
+					expect.objectContaining({
+						id: "generated-1",
+						mediaType: "image/webp",
+					}),
+				],
+			}),
+		]);
 	});
 
 	it("deduplicates repeated live generated image events", async () => {
@@ -573,28 +577,31 @@ describe("useChatSession", () => {
 		)?.[1] as ((payload: unknown) => void) | undefined;
 
 		await act(async () => {
-			for (const [index, data] of [
-				"aGVsbG8=",
-				"aGVsbG8=",
-				"d29ybGQ=",
+			for (const [index, media] of [
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-2", data: "d29ybGQ=" },
 			].entries()) {
 				chatEventHandler?.({
 					sessionId: current.sessionId,
-					stream: "chat_image",
-					chunk: JSON.stringify({ data, mediaType: "image/webp" }),
+					stream: "chat_media",
+					chunk: JSON.stringify({
+						id: media.id,
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: media.data },
+					}),
 					ts: Date.now(),
 					index: index + 1,
 				});
 			}
 		});
 
-		const assistant = current.messages.findLast(
-			(message) => message.role === "assistant",
-		);
-		expect(assistant?.images?.map((image) => image.data)).toEqual([
-			"aGVsbG8=",
-			"d29ybGQ=",
-		]);
+		expect(
+			current.messages.flatMap((message) =>
+				(message.media ?? []).map((media) => media.id),
+			),
+		).toEqual(["generated-1", "generated-2"]);
 	});
 
 	it("renders generated images returned in the completed RPC result", async () => {

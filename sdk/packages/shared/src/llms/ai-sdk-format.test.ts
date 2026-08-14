@@ -1261,6 +1261,82 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 		expect(JSON.stringify(messages)).not.toContain(hiddenPayload);
 	});
+
+	it("replays canonical assistant media exactly once on the next user turn", () => {
+		const data = "aGVsbG8=";
+		const messages = formatMessagesForAiSdk(undefined, [
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{
+						type: "media",
+						media: {
+							id: "generated-image",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "base64", data },
+						},
+					},
+				],
+			},
+			{ role: "user", content: [{ type: "text", text: "Refine it." }] },
+		]);
+
+		expect(messages).toEqual([
+			{
+				role: "assistant",
+				content: [
+					{ type: "text", text: "I made an image." },
+					{ type: "text", text: "[generated image]" },
+				],
+			},
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "Refine it." },
+					{ type: "file", data, mediaType: "image/png" },
+				],
+			},
+		]);
+		expect(JSON.stringify(messages).split(data)).toHaveLength(2);
+	});
+
+	it("replays supported generated audio and hides it from text-only models", () => {
+		const source = {
+			id: "generated-audio",
+			modality: "audio" as const,
+			mediaType: "audio/mpeg",
+			source: { type: "base64" as const, data: "SUQz" },
+		};
+		const history = [
+			{
+				role: "assistant" as const,
+				content: [{ type: "media" as const, media: source }],
+			},
+			{
+				role: "user" as const,
+				content: [{ type: "text" as const, text: "Continue." }],
+			},
+		];
+
+		const supported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text", "audio"],
+		});
+		const unsupported = formatMessagesForAiSdk(undefined, history, {
+			supportedInputModalities: ["text"],
+		});
+
+		expect(supported.at(-1)?.content).toContainEqual({
+			type: "file",
+			data: "SUQz",
+			mediaType: "audio/mpeg",
+		});
+		expect(JSON.stringify(unsupported)).not.toContain("SUQz");
+		expect(JSON.stringify(unsupported)).toContain(
+			"[generated audio unavailable to this model]",
+		);
+	});
 });
 
 describe("sanitizeSurrogates", () => {
@@ -1456,7 +1532,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1485,7 +1561,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					content: [{ type: "text", text: "Describe it" }],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1504,7 +1580,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 		expect(JSON.stringify(messages)).not.toContain(image);
 	});
 
-	it("keeps user image parts when supportsImages is explicitly true", () => {
+	it("keeps user image parts when image input is explicitly supported", () => {
 		const image = imageData(16);
 		const messages = formatMessagesForAiSdk(
 			undefined,
@@ -1514,7 +1590,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					content: [{ type: "image", image, mediaType: "image/png" }],
 				},
 			],
-			{ supportsImages: true },
+			{ supportedInputModalities: ["text", "image"] },
 		);
 
 		expect(messages).toEqual([
@@ -1545,7 +1621,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([
@@ -1596,7 +1672,7 @@ describe("formatMessagesForAiSdk - models without image support", () => {
 					],
 				},
 			],
-			{ supportsImages: false },
+			{ supportedInputModalities: ["text"] },
 		);
 
 		expect(messages).toEqual([

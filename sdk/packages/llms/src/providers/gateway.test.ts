@@ -12,6 +12,7 @@ import {
 	type AgentMessage,
 	type AgentModelEvent,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
@@ -20,6 +21,7 @@ import {
 } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { normalizeModelsDevProviderModels } from "../catalog/catalog-live";
+import { createOpenAICompatibleProvider } from "./ai-sdk";
 import {
 	createGateway,
 	DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
@@ -65,6 +67,10 @@ const anthropicSpy = vi.fn((modelId: string) => ({
 	family: "anthropic",
 }));
 const googleSpy = vi.fn((modelId: string) => ({ modelId, family: "google" }));
+const nativeWebSearchSpy = vi.fn((options?: unknown) => ({
+	type: "provider-tool",
+	options,
+}));
 const codexExecFactorySpy = vi.fn();
 const codexExecSpy = vi.fn((modelId: string) => ({
 	modelId,
@@ -111,6 +117,7 @@ vi.mock("@ai-sdk/openai", () => ({
 		responses: (modelId: string) => openaiResponsesSpy(modelId),
 		image: (modelId: string) => openaiImageSpy(modelId),
 		tools: {
+			webSearch: (options?: unknown) => nativeWebSearchSpy(options),
 			imageGeneration: (options: unknown) =>
 				openaiImageGenerationToolSpy(options),
 		},
@@ -144,11 +151,21 @@ vi.mock("@openrouter/ai-sdk-provider", () => ({
 }));
 
 vi.mock("@ai-sdk/anthropic", () => ({
-	createAnthropic: () => (modelId: string) => anthropicSpy(modelId),
+	createAnthropic: () =>
+		Object.assign((modelId: string) => anthropicSpy(modelId), {
+			tools: {
+				webSearch_20250305: (options?: unknown) => nativeWebSearchSpy(options),
+			},
+		}),
 }));
 
 vi.mock("@ai-sdk/google", () => ({
-	createGoogleGenerativeAI: () => (modelId: string) => googleSpy(modelId),
+	createGoogleGenerativeAI: () =>
+		Object.assign((modelId: string) => googleSpy(modelId), {
+			tools: {
+				googleSearch: (options?: unknown) => nativeWebSearchSpy(options),
+			},
+		}),
 }));
 
 vi.mock("ai-sdk-provider-codex-cli", () => ({
@@ -215,6 +232,18 @@ const baseMessages: AgentMessage[] = [
 		createdAt: Date.now(),
 	},
 ];
+
+function generatedImageEvent(mediaType: string, data: string) {
+	return expect.objectContaining({
+		type: "media",
+		media: expect.objectContaining({
+			id: expect.any(String),
+			modality: "image",
+			mediaType,
+			source: { type: "base64", data },
+		}),
+	});
+}
 
 async function captureReasoningOptions({
 	providerId,
@@ -307,6 +336,7 @@ describe("sdk-gateway", () => {
 		openRouterImageSpy.mockReset();
 		anthropicSpy.mockReset();
 		googleSpy.mockReset();
+		nativeWebSearchSpy.mockReset();
 		codexExecFactorySpy.mockReset();
 		codexExecSpy.mockReset();
 		googleSpy.mockImplementation((modelId: string) => ({
@@ -532,6 +562,164 @@ describe("sdk-gateway", () => {
 				messages: baseMessages,
 			}),
 		);
+	});
+
+	it("translates portable web_search intent into a native provider tool", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					input: { query: "Cline" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					input: { query: "Cline" },
+					output: { results: [] },
+					providerExecuted: true,
+				},
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+				modelTools: [
+					{
+						name: "web_search",
+						maxUses: 3,
+						allowedDomains: ["cline.bot"],
+					},
+				],
+			}),
+		);
+		expect(events).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "provider",
+				}),
+				expect.objectContaining({
+					type: "tool-result",
+					toolCallId: "search_1",
+					output: { results: [] },
+					execution: "provider",
+				}),
+			]),
+		);
+
+		expect(nativeWebSearchSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				maxUses: 3,
+				allowedDomains: ["cline.bot"],
+			}),
+		);
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: expect.objectContaining({
+					web_search: expect.objectContaining({ type: "provider-tool" }),
+				}),
+			}),
+		);
+	});
+
+	it("rejects model tools not declared by the provider manifest", async () => {
+		const createProvider = vi.fn(() => ({
+			async *stream() {
+				yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+			},
+		}));
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-provider",
+						name: "Custom Provider",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "custom-provider",
+							},
+						],
+					},
+					createProvider,
+				},
+			],
+		});
+
+		await expect(
+			gateway.stream({
+				providerId: "custom-provider",
+				modelId: "alpha",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		).rejects.toThrow(
+			'Provider "custom-provider" model "alpha" does not support model tool(s): web_search.',
+		);
+		expect(createProvider).not.toHaveBeenCalled();
+	});
+
+	it("fails loudly when a declared model tool has no adapter builder", async () => {
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "compatible-with-search",
+						name: "Compatible With Search",
+						defaultModelId: "alpha",
+						models: [
+							{
+								id: "alpha",
+								name: "Alpha",
+								providerId: "compatible-with-search",
+							},
+						],
+						modelToolCapabilities: [{ name: "web_search" }],
+					},
+					defaults: {
+						apiKey: "test-key",
+						baseUrl: "https://example.com/v1",
+					},
+					createProvider: createOpenAICompatibleProvider,
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "compatible-with-search",
+				modelId: "alpha",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "finish",
+				reason: "error",
+				error:
+					'Provider adapter for "compatible-with-search" does not implement requested model tool(s): web_search.',
+			}),
+		);
+		expect(streamTextSpy).not.toHaveBeenCalled();
 	});
 
 	it("keeps custom provider loading lazy until first use", async () => {
@@ -832,10 +1020,133 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
+		expect(events).toContainEqual(generatedImageEvent("image/png", "aGVsbG8="));
+	});
+
+	it("emits validated non-image media on the same canonical stream path", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "file",
+					file: { mediaType: "audio/mpeg", base64: "SUQz" },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
 		expect(events).toContainEqual({
-			type: "image",
-			data: "aGVsbG8=",
-			mediaType: "image/png",
+			type: "media",
+			media: {
+				id: expect.any(String),
+				modality: "audio",
+				mediaType: "audio/mpeg",
+				source: { type: "base64", data: "SUQz" },
+				sizeBytes: 3,
+			},
+		});
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
+	it("rejects invalid non-image media instead of persisting corrupt payloads", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "file",
+					file: { mediaType: "audio/mpeg", base64: "not-base64" },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5-mini",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.some((event) => event.type === "media")).toBe(false);
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: "Generated media must contain valid base64",
+		});
+	});
+
+	it("preserves valid mixed text when a generated image is rejected", async () => {
+		const oversized = "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4);
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "text-delta", textDelta: "The image could not be attached." },
+				{
+					type: "file",
+					file: { mediaType: "image/png", base64: oversized },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual({
+			type: "text-delta",
+			text: "The image could not be attached.",
+		});
+		expect(events.some((event) => event.type === "media")).toBe(false);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
+	it("fails an image-only mixed turn when its only image is rejected", async () => {
+		const oversized = "A".repeat(DEFAULT_MAX_IMAGE_ENCODED_BYTES + 4);
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "file",
+					file: { mediaType: "image/png", base64: oversized },
+				},
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-native", apiKey: "test" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.at(-1)).toMatchObject({
+			type: "finish",
+			reason: "error",
+			error: `Image media exceeds the ${DEFAULT_MAX_IMAGE_ENCODED_BYTES} byte encoded limit`,
 		});
 	});
 
@@ -854,6 +1165,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-test",
 							name: "GPT Image Test",
+							operation: "image-generation",
 							modalities: { input: ["text"], output: ["image"] },
 						},
 					],
@@ -879,7 +1191,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).not.toHaveBeenCalled();
 		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
 		expect(events).toEqual([
-			{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" },
+			generatedImageEvent("image/webp", "aGVsbG8="),
 			{
 				type: "usage",
 				usage: {
@@ -906,6 +1218,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-1.5",
 							name: "GPT Image 1.5",
+							operation: "image-generation",
 							metadata: { family: "gpt-image" },
 							modalities: {
 								input: ["text", "image"],
@@ -930,7 +1243,7 @@ describe("sdk-gateway", () => {
 		expect(streamTextSpy).not.toHaveBeenCalled();
 		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
 		expect(events).toEqual([
-			{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+			generatedImageEvent("image/png", "aGVsbG8="),
 			{ type: "finish", reason: "stop" },
 		]);
 	});
@@ -953,6 +1266,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-test",
 							name: "GPT Image Test",
+							operation: "image-generation",
 							modalities: { input: ["text"], output: ["image"] },
 						},
 					],
@@ -978,6 +1292,44 @@ describe("sdk-gateway", () => {
 		]);
 	});
 
+	it("enforces one aggregate media budget across a dedicated image turn", async () => {
+		const perImageBytes = DEFAULT_MAX_TOTAL_MEDIA_BYTES / 2 + 4;
+		const image = "A".repeat(perImageBytes);
+		generateImageSpy.mockResolvedValue({
+			images: [
+				{ mediaType: "image/png", base64: image },
+				{ mediaType: "image/png", base64: image },
+			],
+		});
+		const gateway = createGateway({
+			providerConfigs: [
+				{
+					providerId: "openai-native",
+					apiKey: "test",
+					models: [
+						{
+							id: "gpt-image-budget-test",
+							name: "GPT Image Budget Test",
+							operation: "image-generation",
+							modalities: { input: ["text"], output: ["image"] },
+						},
+					],
+				},
+			],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "openai-native",
+				modelId: "gpt-image-budget-test",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events.filter((event) => event.type === "media")).toHaveLength(1);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
 	it("passes the first generated image into a follow-up image edit", async () => {
 		generateImageSpy.mockResolvedValue({
 			images: [{ mediaType: "image/png", base64: "ZWRpdGVk" }],
@@ -991,6 +1343,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-edit-test",
 							name: "GPT Image Edit Test",
+							operation: "image-generation",
 							modalities: {
 								input: ["text", "image"],
 								output: ["image"],
@@ -1062,6 +1415,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-edit-test",
 							name: "GPT Image Edit Test",
+							operation: "image-generation",
 							modalities: {
 								input: ["text", "image"],
 								output: ["image"],
@@ -1127,6 +1481,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "gpt-image-edit-test",
 							name: "GPT Image Edit Test",
+							operation: "image-generation",
 							modalities: {
 								input: ["text", "image"],
 								output: ["image"],
@@ -1194,6 +1549,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "openai/gpt-image-test",
 							name: "Gateway Image Test",
+							operation: "image-generation",
 							modalities: { input: ["text"], output: ["image"] },
 						},
 					],
@@ -1213,11 +1569,7 @@ describe("sdk-gateway", () => {
 			expect.objectContaining({ apiKey: "test", baseURL: undefined }),
 		);
 		expect(vercelGatewayImageSpy).toHaveBeenCalledWith("openai/gpt-image-test");
-		expect(events[0]).toEqual({
-			type: "image",
-			data: "aGVsbG8=",
-			mediaType: "image/png",
-		});
+		expect(events[0]).toEqual(generatedImageEvent("image/png", "aGVsbG8="));
 	});
 
 	it("uses the OpenRouter image transport for dedicated Cline image models", async () => {
@@ -1233,6 +1585,7 @@ describe("sdk-gateway", () => {
 						{
 							id: "openai/gpt-image-test",
 							name: "Cline Image Test",
+							operation: "image-generation",
 							modalities: { input: ["text"], output: ["image"] },
 						},
 					],
@@ -1264,7 +1617,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		expect(events).toEqual([
-			{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+			generatedImageEvent("image/png", "aGVsbG8="),
 			{ type: "finish", reason: "stop" },
 		]);
 	});
@@ -1319,11 +1672,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		expect(generateImageSpy).not.toHaveBeenCalled();
-		expect(events).toContainEqual({
-			type: "image",
-			data: "aGVsbG8=",
-			mediaType: "image/png",
-		});
+		expect(events).toContainEqual(generatedImageEvent("image/png", "aGVsbG8="));
 	});
 
 	it("allows mixed image models to return text without an image", async () => {
@@ -1431,6 +1780,7 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
+				modelTools: [{ name: "image_generation", outputFormat: "png" }],
 				tools: [
 					{
 						name: "lookup",
@@ -1455,12 +1805,8 @@ describe("sdk-gateway", () => {
 				}),
 			}),
 		);
-		expect(events).toContainEqual({
-			type: "image",
-			data: "aGVsbG8=",
-			mediaType: "image/png",
-		});
-		expect(events.filter((event) => event.type === "image")).toHaveLength(1);
+		expect(events).toContainEqual(generatedImageEvent("image/png", "aGVsbG8="));
+		expect(events.filter((event) => event.type === "media")).toHaveLength(1);
 		expect(events).toContainEqual(
 			expect.objectContaining({
 				type: "tool-call-delta",
@@ -1468,10 +1814,21 @@ describe("sdk-gateway", () => {
 				toolName: "lookup",
 			}),
 		);
-		expect(events).not.toContainEqual(
+		expect(events).toContainEqual(
 			expect.objectContaining({
 				type: "tool-call-delta",
 				toolCallId: "image_call",
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "image_call",
+				output: {
+					generatedMediaCount: 1,
+					mediaTypes: ["image/png"],
+					byteLength: 5,
+				},
 			}),
 		);
 	});
@@ -1518,6 +1875,7 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
+				modelTools: [{ name: "image_generation", outputFormat: "png" }],
 				tools: [
 					{
 						name: "image_generation",
@@ -1528,9 +1886,7 @@ describe("sdk-gateway", () => {
 			}),
 		);
 
-		expect(openaiImageGenerationToolSpy).toHaveBeenCalledWith({
-			outputFormat: "png",
-		});
+		expect(openaiImageGenerationToolSpy).not.toHaveBeenCalled();
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 			| { tools?: Record<string, unknown> }
 			| undefined;
@@ -1550,7 +1906,7 @@ describe("sdk-gateway", () => {
 				toolName: "image_generation",
 			}),
 		);
-		expect(events.filter((event) => event.type === "image")).toHaveLength(0);
+		expect(events.filter((event) => event.type === "media")).toHaveLength(0);
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
 	});
 
@@ -1597,6 +1953,7 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
+				modelTools: [{ name: "image_generation", outputFormat: "png" }],
 				tools: [
 					{
 						name: "image_generation",
@@ -1614,7 +1971,7 @@ describe("sdk-gateway", () => {
 				toolName: "image_generation",
 			}),
 		);
-		expect(events.filter((event) => event.type === "image")).toHaveLength(0);
+		expect(events.filter((event) => event.type === "media")).toHaveLength(0);
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "tool-calls" });
 	});
 
@@ -1662,7 +2019,7 @@ describe("sdk-gateway", () => {
 				toolName: "image_generation",
 			}),
 		);
-		expect(events.filter((event) => event.type === "image")).toHaveLength(0);
+		expect(events.filter((event) => event.type === "media")).toHaveLength(0);
 	});
 
 	it("fails clearly when an OpenAI image tool call has no ID", async () => {
@@ -1700,14 +2057,15 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
+				modelTools: [{ name: "image_generation", outputFormat: "png" }],
 			}),
 		);
 
-		expect(events.at(-1)).toEqual({
+		expect(events.at(-1)).toMatchObject({
 			type: "finish",
 			reason: "error",
 			error:
-				"OpenAI image generation tool call is missing a valid tool-call ID",
+				'Model tool "image_generation" call is missing a valid tool-call ID',
 			errorClass: "unknown",
 		});
 	});
@@ -1754,6 +2112,7 @@ describe("sdk-gateway", () => {
 				providerId: "openai-native",
 				modelId: "gpt-image-mixed-test",
 				messages: baseMessages,
+				modelTools: [{ name: "image_generation", outputFormat: "png" }],
 			}),
 		);
 
@@ -4191,6 +4550,31 @@ describe("sdk-gateway", () => {
 		expect(call).not.toHaveProperty("maxOutputTokens");
 	});
 
+	it("translates web search into the native OpenAI tool for ChatGPT OAuth", async () => {
+		mockSuccessfulStream();
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "openai-codex" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				messages: baseMessages,
+				modelTools: [{ name: "web_search" }],
+			}),
+		);
+
+		expect(nativeWebSearchSpy).toHaveBeenCalledWith(undefined);
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				tools: expect.objectContaining({
+					web_search: expect.objectContaining({ type: "provider-tool" }),
+				}),
+			}),
+		);
+	});
+
 	it("does not send explicit maxOutputTokens to ChatGPT OAuth", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -5645,7 +6029,7 @@ describe("sdk-gateway", () => {
 		{
 			name: "does not inherit active reasoning through a structured disable",
 			defaults: {
-				reasoning: { effort: "high", budgetTokens: 4096 },
+				reasoning: { effort: "high" as const, budgetTokens: 4096 },
 			},
 			options: {
 				reasoning: { enabled: false },

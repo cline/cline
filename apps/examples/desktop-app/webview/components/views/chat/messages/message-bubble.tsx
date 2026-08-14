@@ -1,5 +1,6 @@
 "use client";
 
+import { GeneratedMediaContent } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -18,7 +19,11 @@ import {
 	UndoIcon,
 } from "lucide-react";
 import { memo, useEffect, useState } from "react";
-import type { ChatMessage, ChatMessageImage } from "@/lib/chat-schema";
+import type {
+	ChatMessage,
+	ChatMessageImage,
+	ChatMessageMedia,
+} from "@/lib/chat-schema";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { ReasoningBlock } from "./reasoning-block";
@@ -62,9 +67,7 @@ function AssistantImageCarousel({
 						aria-label="Previous generated image"
 						className="absolute left-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
 						disabled={safeIndex === 0}
-						onClick={() =>
-							setActiveIndex((index) => Math.max(0, index - 1))
-						}
+						onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}
 						type="button"
 					>
 						<ChevronLeft className="size-4" />
@@ -121,6 +124,27 @@ function MessageImages({
 						src={`data:${image.mediaType};base64,${image.data}`}
 					/>
 				</button>
+			))}
+		</div>
+	);
+}
+
+function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
+	return (
+		<div className="flex max-w-2xl flex-col gap-2">
+			{media.map((item) => (
+				<GeneratedMediaContent
+					classNames={{
+						image:
+							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+						audio: "w-full",
+						video: "max-h-96 max-w-full rounded-lg",
+						file: "text-sm underline",
+						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+					}}
+					key={item.id}
+					media={item}
+				/>
 			))}
 		</div>
 	);
@@ -252,6 +276,8 @@ export const MessageBubble = memo(function MessageBubble({
 						onExpandImage={onExpandImage}
 					/>
 				) : null}
+
+				{message.media?.length ? <MessageMedia media={message.media} /> : null}
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">

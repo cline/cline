@@ -882,6 +882,7 @@ describe("SessionRuntime.run", () => {
 				knownModels: {
 					[modelId]: {
 						id: modelId,
+						operation: "image-generation",
 						capabilities: ["tools", "images"],
 						modalities: {
 							input: ["text", "image"],

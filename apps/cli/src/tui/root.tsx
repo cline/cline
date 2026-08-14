@@ -584,6 +584,15 @@ function App(props: TuiProps) {
 		if (!hubBuildMismatch) return;
 		setHubBuildMismatch(null);
 		const hubCoreVersion = hubBuildMismatch.hubCoreVersion;
+		if (hubBuildMismatch.reason === "outdated_hub") {
+			// Nothing is wrong and nothing is asked of the user, so a modal
+			// would interrupt only to say "ignore me". One quiet note instead.
+			showToast(
+				"Update finishes the next time Cline starts. No action needed.",
+				"info",
+			);
+			return;
+		}
 		void dialog
 			.choice<boolean>({
 				content: (ctx: ChoiceContext<boolean>) => (

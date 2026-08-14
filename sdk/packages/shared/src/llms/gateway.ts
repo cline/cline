@@ -6,7 +6,12 @@ import type {
 import type { BasicLogger } from "../logging/logger";
 import type { ProviderCapability, ProviderConfigField } from "../rpc/runtime";
 import type { ITelemetryService } from "../services/telemetry";
-import type { ModelModalities } from "./model-info";
+import type {
+	ModelModalities,
+	ModelModality,
+	ModelOperation,
+} from "./model-info";
+import type { ModelTool, ModelToolName } from "./model-tools";
 import type {
 	ModelReasoningOption,
 	ReasoningEffort,
@@ -50,6 +55,14 @@ export type GatewayReasoningFormat =
 export type GatewayModelRoute =
 	| { matcher: "anthropic-compatible" }
 	| {
+			matcher: "model-operation";
+			operation: ModelOperation;
+	  }
+	| {
+			matcher: "model-output-modality";
+			modality: ModelModality;
+	  }
+	| {
 			matcher: "model-family";
 			family: string;
 			requiredCapability?: GatewayModelCapability;
@@ -59,6 +72,29 @@ export type GatewayModelRoute =
 			modelId: string;
 			requiredCapability?: GatewayModelCapability;
 	  };
+
+/**
+ * A provider-executed model tool exposed for matching models.
+ *
+ * Omitted `routes` means the tool is supported by every model on the provider.
+ * Exclusion routes take precedence so mixed transports such as Vertex can
+ * disable a tool for one model family while retaining a provider-level default.
+ */
+export interface GatewayModelToolCapability {
+	name: ModelToolName;
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
+/** A provider transport capable of executing a matching model operation. */
+export interface GatewayModelOperationCapability {
+	operation: ModelOperation;
+	inputModalities?: readonly ModelModality[];
+	outputModalities?: readonly ModelModality[];
+	routes?: readonly GatewayModelRoute[];
+	excludeRoutes?: readonly GatewayModelRoute[];
+}
+
 export interface GatewayProviderRouting {
 	promptCache?: {
 		format: GatewayPromptCacheFormat;
@@ -116,6 +152,7 @@ export interface GatewayModelDefinition {
 	contextWindow?: number;
 	maxInputTokens?: number;
 	maxOutputTokens?: number;
+	operation?: ModelOperation;
 	modalities?: ModelModalities;
 	capabilities?: readonly GatewayModelCapability[];
 	reasoningOptions?: readonly ModelReasoningOption[];
@@ -128,6 +165,8 @@ export interface GatewayProviderManifest {
 	description?: string;
 	defaultModelId: string;
 	models: readonly GatewayModelDefinition[];
+	modelOperationCapabilities?: readonly GatewayModelOperationCapability[];
+	modelToolCapabilities?: readonly GatewayModelToolCapability[];
 	capabilities?: readonly ProviderCapability[];
 	env?: readonly ("browser" | "node")[];
 	api?: string;
@@ -184,6 +223,8 @@ export interface GatewayStreamRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools?: readonly AgentToolDefinition[];
+	/** Provider-executed tools requested independently of runtime tools. */
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	/**
@@ -225,6 +266,7 @@ export interface GatewayProviderRegistration {
 
 export interface GatewayModelHandleOptions {
 	tools?: readonly AgentToolDefinition[];
+	modelTools?: readonly ModelTool[];
 	temperature?: number;
 	maxTokens?: number;
 	metadata?: Record<string, unknown>;

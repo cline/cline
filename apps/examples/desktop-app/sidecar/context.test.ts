@@ -300,7 +300,7 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
-	it("relays validated assistant images for attach-only Hub sessions", async () => {
+	it("relays generated media for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
 		);
@@ -317,12 +317,14 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 
 		handleHubLiveEvent(ctx, {
-			event: "assistant.image",
+			event: "assistant.media",
 			sessionId: "session-image",
 			payload: {
-				image: {
-					data: "aGVsbG8=",
+				media: {
+					id: "generated-1",
+					modality: "image",
 					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
 				},
 			},
 		});
@@ -333,10 +335,12 @@ describe("Code sidecar runtime capabilities", () => {
 					name: "chat_event",
 					payload: expect.objectContaining({
 						sessionId: "session-image",
-						stream: "chat_image",
+						stream: "chat_media",
 						chunk: JSON.stringify({
-							data: "aGVsbG8=",
+							id: "generated-1",
+							modality: "image",
 							mediaType: "image/png",
+							source: { type: "base64", data: "aGVsbG8=" },
 						}),
 					}),
 				},
@@ -344,7 +348,7 @@ describe("Code sidecar runtime capabilities", () => {
 		]);
 	});
 
-	it("ignores raw assistant images for locally-owned sessions", async () => {
+	it("ignores raw assistant media for locally-owned sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
 		);
@@ -361,12 +365,14 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 
 		handleHubLiveEvent(ctx, {
-			event: "assistant.image",
+			event: "assistant.media",
 			sessionId: "session-image",
 			payload: {
-				image: {
-					data: "aGVsbG8=",
+				media: {
+					id: "generated-1",
+					modality: "image",
 					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
 				},
 			},
 		});

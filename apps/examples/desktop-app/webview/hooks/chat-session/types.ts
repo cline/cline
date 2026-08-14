@@ -32,11 +32,6 @@ export type ChatUsageEvent = {
 	cost?: number;
 };
 
-export type ImageDeltaEvent = {
-	data?: string;
-	mediaType?: string;
-};
-
 export type ToolCallStartEvent = {
 	toolCallId?: string;
 	toolName?: string;

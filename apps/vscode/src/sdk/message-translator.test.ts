@@ -1,6 +1,6 @@
 import type { CoreSessionEvent } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent } from "@cline/shared"
+import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { getDesktopDir } from "@/utils/path"
@@ -576,7 +576,7 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].partial).toBe(false)
 	})
 
-	it("translates generated image content_end to a displayable data URL", () => {
+	it("translates generated media content_end to the shared media payload", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "agent_event",
@@ -584,8 +584,13 @@ describe("translateSessionEvent — agent_event content_end", () => {
 				sessionId: "session-1",
 				event: {
 					type: "content_end",
-					contentType: "image",
-					image: { data: "aGVsbG8=", mediaType: "image/png" },
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
 				} as AgentEvent,
 			},
 		}
@@ -596,7 +601,14 @@ describe("translateSessionEvent — agent_event content_end", () => {
 				type: "say",
 				say: "text",
 				text: "",
-				images: ["data:image/png;base64,aGVsbG8="],
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
 				partial: false,
 			}),
 		])
@@ -4036,12 +4048,52 @@ describe("tool display paths are relativized to the cwd", () => {
 		]
 
 		const clineMessages = sdkMessagesToClineMessages(messages)
-		const imageMessage = clineMessages.find((message) => message.images?.length)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
 		expect(imageMessage).toEqual(
 			expect.objectContaining({
 				type: "say",
 				say: "text",
-				images: ["data:image/webp;base64,aGVsbG8="],
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
+	})
+
+	it("renders provider model activities through the persisted local-tool path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Bun 1.3.14 is current.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const toolMessage = clineMessages.find((message) => message.say === "tool")
+
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text)).toMatchObject({
+			tool: "webSearch",
+		})
+		expect(clineMessages).toContainEqual(
+			expect.objectContaining({
+				type: "say",
+				text: "Bun 1.3.14 is current.",
 			}),
 		)
 	})

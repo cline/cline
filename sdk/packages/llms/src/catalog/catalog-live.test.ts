@@ -169,7 +169,7 @@ describe("models-dev-catalog", () => {
 		);
 	});
 
-	it("only admits dedicated image models for provider families with an image model factory", () => {
+	it("only admits media models for providers with an explicit operation transport", () => {
 		const providerModels = normalizeModelsDevProviderModels({
 			"extra-router": {
 				id: "extra-router",
@@ -200,7 +200,10 @@ describe("models-dev-catalog", () => {
 				models: {
 					"supported-image": {
 						tool_call: false,
-						modalities: { input: ["text"], output: ["image"] },
+						modalities: {
+							input: ["text", "image", "pdf"],
+							output: ["image", "pdf"],
+						},
 					},
 				},
 			},
@@ -262,17 +265,19 @@ describe("models-dev-catalog", () => {
 			},
 		});
 
-		expect(providerModels["extra-router"]).toHaveProperty("compatible-image");
-		expect(providerModels["extra-router"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-router"]).not.toHaveProperty(
+			"compatible-image",
+		);
+		expect(providerModels["extra-router"]).not.toHaveProperty("mixed-model");
 		expect(providerModels["extra-router"]).toHaveProperty("chat-model");
-		expect(
-			providerModels["extra-router"]?.["mixed-model"]?.capabilities,
-		).toEqual([]);
-		expect(providerModels.xai).toHaveProperty("supported-image");
+		expect(providerModels.xai?.["supported-image"]?.modalities).toEqual({
+			input: ["text", "image"],
+			output: ["image"],
+		});
 		expect(providerModels["extra-anthropic"]).not.toHaveProperty(
 			"unsupported-image",
 		);
-		expect(providerModels["extra-anthropic"]).toHaveProperty("mixed-model");
+		expect(providerModels["extra-anthropic"]).not.toHaveProperty("mixed-model");
 		expect(providerModels["extra-mistral"]).not.toHaveProperty(
 			"unsupported-image",
 		);
@@ -742,6 +747,7 @@ describe("models-dev-catalog", () => {
 					status: "preview",
 					releaseDate: "2026-01-01",
 					family: "gpt",
+					operation: "language",
 				},
 				"gpt-split-limit": {
 					id: "gpt-split-limit",
@@ -759,6 +765,7 @@ describe("models-dev-catalog", () => {
 					status: undefined,
 					releaseDate: undefined,
 					family: "gpt",
+					operation: "language",
 				},
 			},
 			anthropic: {
@@ -778,6 +785,7 @@ describe("models-dev-catalog", () => {
 					status: undefined,
 					releaseDate: "2025-02-01",
 					family: "claude",
+					operation: "language",
 				},
 				"claude-older": {
 					id: "claude-older",
@@ -795,6 +803,7 @@ describe("models-dev-catalog", () => {
 					status: undefined,
 					releaseDate: "2024-02-01",
 					family: "claude",
+					operation: "language",
 				},
 			},
 		});
@@ -833,6 +842,9 @@ describe("models-dev-catalog", () => {
 			getGeneratedModelsForProvider("openai-native")["gpt-image-1.5"]
 				?.modalities?.output,
 		).toEqual(["image"]);
+		expect(
+			getGeneratedModelsForProvider("xai")["grok-imagine-image"]?.modalities,
+		).toEqual({ input: ["text", "image"], output: ["image"] });
 
 		const poeDedicatedImages = Object.values(
 			getGeneratedModelsForProvider("poe"),

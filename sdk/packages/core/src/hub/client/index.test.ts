@@ -15,6 +15,7 @@ class MockWebSocket {
 	static readonly CLOSING = 2;
 	static readonly CLOSED = 3;
 	static instances: MockWebSocket[] = [];
+	static commandPayloads = new Map<string, unknown>();
 
 	readyState = MockWebSocket.CONNECTING;
 	readonly sentFrames: unknown[] = [];
@@ -30,26 +31,28 @@ class MockWebSocket {
 
 	static reset(): void {
 		MockWebSocket.instances = [];
+		MockWebSocket.commandPayloads.clear();
 	}
 
 	send(data: string): void {
 		const frame = JSON.parse(data) as {
 			kind?: string;
-			envelope?: { requestId?: string };
+			envelope?: { requestId?: string; command?: string };
 		};
 		this.sentFrames.push(frame);
 		if (frame.kind === "command" && frame.envelope?.requestId) {
+			const command = frame.envelope.command ?? "client.register";
 			queueMicrotask(() => {
 				this.emit("message", {
 					data: JSON.stringify({
 						kind: "reply",
 						envelope: {
 							version: "v1",
-							command: "client.register",
+							command,
 							requestId: frame.envelope?.requestId,
 							ok: true,
 							clientId: "hub",
-							payload: {},
+							payload: MockWebSocket.commandPayloads.get(command) ?? {},
 						},
 					}),
 				});
@@ -774,6 +777,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 	// path and fail locally whenever a stray hub daemon is listening on
 	// the default port (passes in CI only because no daemon is running).
 	beforeEach(() => {
+		MockWebSocket.reset();
 		vi.resetModules();
 	});
 
@@ -782,6 +786,65 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		vi.unstubAllEnvs();
 		delete process.env.CLINE_HUB_BUILD_ID;
 		vi.resetModules();
+	});
+
+	async function resolveShieldedHub(sessions: unknown[]) {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.list", { sessions });
+		const discoveryPath = "/tmp/hub-discovery.json";
+		const oldRecord = {
+			hubId: "old-hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async (path: string) =>
+					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
+				),
+				probeHubServer: vi.fn(async () => oldRecord),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+		return { oldRecord, resolved: await resolveCompatibleLocalHubUrl() };
+	}
+
+	it("uses a shielded Hub while a participant is attached", async () => {
+		const { oldRecord, resolved } = await resolveShieldedHub([
+			{ status: "idle", participants: [{ clientId: "old-cli" }] },
+		]);
+
+		expect(resolved).toBe(oldRecord.url);
+	});
+
+	it("replaces a participant-less running Hub", async () => {
+		const { resolved } = await resolveShieldedHub([
+			{ status: "running", participants: [] },
+		]);
+
+		expect(resolved).toBeUndefined();
 	});
 
 	it("does not clear discovery on transient probe failure", async () => {
@@ -967,7 +1030,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("returns undefined and keeps discovery when build metadata is missing", async () => {
+	it("attaches and keeps discovery when build metadata is missing", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -1011,7 +1074,13 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		// A Hub carrying no build metadata cannot be ordered against this
+		// build, so it is attached over the compatible wire protocol rather
+		// than retired. Retiring an unorderable peer is what let two installs
+		// shut each other's daemon down in a loop.
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
@@ -1317,5 +1386,50 @@ describe("resolveCompatibleLocalHubUrl", () => {
 			}),
 		).resolves.toBeUndefined();
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("hasActiveHubSessions", () => {
+	const payload = (sessions: unknown[]) => ({ sessions });
+
+	it("is idle for an empty or malformed list", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(hasActiveHubSessions(payload([]))).toBe(false);
+		expect(hasActiveHubSessions(undefined)).toBe(false);
+		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
+	});
+
+	it("is busy while anyone is attached, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "idle", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "running", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+	});
+
+	// The session a crashed or killed client leaves behind: a non-terminal
+	// status, nobody attached. Participants are live socket subscriptions, so
+	// a dead client cannot appear here - which is exactly why status must not
+	// be consulted: it stays "running" forever and would pin an outdated hub
+	// as busy until the machine reboots.
+	it("is idle for sessions nobody is attached to, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
+					{ status: "completed", participants: [] },
+					{ status: "running" },
+				]),
+			),
+		).toBe(false);
 	});
 });
