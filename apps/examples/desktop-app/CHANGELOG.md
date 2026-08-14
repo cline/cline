@@ -1,5 +1,16 @@
 # Cline Code Desktop Changelog
 
+## 0.0.13
+
+- Added an app font size setting. A slider in Settings scales the interface, and your size is applied before the window paints, so launching no longer flashes at the old size first.
+- Models that support it can now search the web during a task. Turn it on with the Web Search toggle in Settings; the searches and their results appear in the transcript and are still there when you reopen the session.
+- Extended thinking budgets reach the provider again on Cline Pass — they had silently stopped applying when the gateway moved off the generic OpenAI-compatible path.
+- Two Cline installs on different builds no longer shut each other's Hub down in a loop, which was killing live sessions with an abnormal disconnect.
+- The app no longer replaces a Hub that is still serving sessions. It attaches to it instead, and the swap happens once that Hub goes idle.
+- The "update required" dialog no longer interrupts when the Hub is only finishing an update on its own. This app is already the newer build, nothing was being asked of you, and the Hub replaces itself once its sessions end.
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session.
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
 ## 0.0.12
 
 - Every tool call now gets its own row in the transcript, with its own icon, status, and expandable detail — no more "Read 3 files · Ran 2 commands" grouping. Commands read like a terminal (`$ bun test`) with their captured output on expand, and edits show their diffs inline, one per hunk.
