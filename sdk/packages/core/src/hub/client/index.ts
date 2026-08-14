@@ -946,11 +946,11 @@ function hasActiveHubSessions(payload: unknown): boolean {
 	});
 }
 
-async function localHubHasActiveSessions(
+async function localHubHasNoActiveSessions(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
-): Promise<boolean | undefined> {
+): Promise<boolean> {
 	const client = new NodeHubClient({
 		url,
 		authToken,
@@ -966,9 +966,9 @@ async function localHubHasActiveSessions(
 			undefined,
 			{ timeoutMs: HUB_RECOVERY_SESSION_LIST_TIMEOUT_MS },
 		);
-		return hasActiveHubSessions(reply.payload);
+		return !hasActiveHubSessions(reply.payload);
 	} catch {
-		return undefined;
+		return false;
 	} finally {
 		await client.dispose().catch(() => undefined);
 	}
@@ -989,12 +989,12 @@ async function recoverSupersededLocalHubUrl(
 	if (compatible.status !== "compatible") {
 		return undefined;
 	}
-	const hasActiveSessions = await localHubHasActiveSessions(
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
 		compatible.url,
 		superseded.authToken,
 		options,
 	);
-	if (!hasActiveSessions) {
+	if (hasNoActiveSessions) {
 		return undefined;
 	}
 	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
