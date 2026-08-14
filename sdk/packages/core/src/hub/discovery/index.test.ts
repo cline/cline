@@ -1,4 +1,4 @@
-import { chmod, mkdir, stat, writeFile } from "node:fs/promises";
+import { chmod, mkdir, rename, rm, stat, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import {
@@ -8,9 +8,11 @@ import {
 	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
+	readHubDiscoveryIncludingSuperseded,
 	resolveHubBuildEpochMs,
 	resolveHubBuildId,
 	resolveHubOwnerContext,
+	SUPERSEDED_HUB_DISCOVERY_SUFFIX,
 	writeHubDiscovery,
 } from ".";
 
@@ -324,5 +326,58 @@ describe("hub discovery", () => {
 		} finally {
 			globalThis.fetch = originalFetch;
 		}
+	});
+
+	it("prefers the live record and falls back to the set-aside superseded copy", async () => {
+		snapshot = captureEnv();
+		delete process.env.CLINE_HUB_DISCOVERY_PATH;
+		process.env.CLINE_DATA_DIR = "/tmp/cline-data";
+
+		const discoveryPath = resolveHubOwnerContext(
+			"superseded-fallback",
+		).discoveryPath;
+		const supersededPath = `${discoveryPath}${SUPERSEDED_HUB_DISCOVERY_SUFFIX}`;
+		const baseRecord = {
+			protocolVersion: "v1",
+			authToken: "test-token",
+			host: "127.0.0.1",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		await mkdir(dirname(discoveryPath), { recursive: true });
+		await rm(supersededPath, { force: true });
+
+		// No record at all: nothing to return.
+		await clearHubDiscovery(discoveryPath);
+		await expect(
+			readHubDiscoveryIncludingSuperseded(discoveryPath),
+		).resolves.toBeUndefined();
+
+		// Shielded window: the live record has been set aside (exactly what the
+		// postinstall does with renameSync), so the fallback must find it.
+		await writeHubDiscovery(discoveryPath, {
+			...baseRecord,
+			hubId: "shielded-hub",
+		});
+		await rename(discoveryPath, supersededPath);
+		await expect(readHubDiscovery(discoveryPath)).resolves.toBeUndefined();
+		expect(
+			(await readHubDiscoveryIncludingSuperseded(discoveryPath))?.hubId,
+		).toBe("shielded-hub");
+
+		// The live record always wins over a stale set-aside copy.
+		await writeHubDiscovery(discoveryPath, {
+			...baseRecord,
+			hubId: "live-hub",
+		});
+		expect(
+			(await readHubDiscoveryIncludingSuperseded(discoveryPath))?.hubId,
+		).toBe("live-hub");
+
+		await clearHubDiscovery(discoveryPath);
+		await rm(supersededPath, { force: true });
 	});
 });

@@ -5,7 +5,7 @@ import {
 	getManagedHubCompatibility,
 	type HubOwnerContext,
 	probeHubServer,
-	readHubDiscovery,
+	readHubDiscoveryIncludingSuperseded,
 	resolveHubBuildId,
 	resolveHubBuildIdentity,
 } from "../discovery";
@@ -79,9 +79,14 @@ export async function checkManagedHubBuildMismatch(): Promise<
 	if (isHubStartupLockHeld(owner.discoveryPath)) {
 		return undefined;
 	}
-	const record = await readHubDiscovery(owner.discoveryPath).catch(
-		() => undefined,
-	);
+	// Fall back to the postinstall shield's set-aside record. After a self-update
+	// shields the record, an older hub left running because it is serving live
+	// sessions is exactly the `outdated_hub` case this watcher reports - but the
+	// hidden record would otherwise make the notice unreachable in the one window
+	// it exists for.
+	const record = await readHubDiscoveryIncludingSuperseded(
+		owner.discoveryPath,
+	).catch(() => undefined);
 	if (!record?.url) {
 		return undefined;
 	}

@@ -23,7 +23,7 @@ function mockDiscovery(options: DiscoveryMockOptions): void {
 		return {
 			...actual,
 			resolveHubBuildId: () => options.expectedBuildId ?? "current-build",
-			readHubDiscovery: vi.fn(async () => options.record),
+			readHubDiscoveryIncludingSuperseded: vi.fn(async () => options.record),
 			probeHubServer: vi.fn(async () => options.probe),
 		};
 	});
@@ -215,7 +215,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			return {
 				...actual,
 				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async () => liveRecord),
+				readHubDiscoveryIncludingSuperseded: vi.fn(async () => liveRecord),
 				probeHubServer: vi.fn(async () => probeResult),
 			};
 		});
@@ -271,7 +271,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			return {
 				...actual,
 				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async () => liveRecord),
+				readHubDiscoveryIncludingSuperseded: vi.fn(async () => liveRecord),
 				probeHubServer: vi.fn(async () => probeResult),
 			};
 		});
@@ -328,7 +328,7 @@ describe("watchManagedHubBuildMismatch", () => {
 			return {
 				...actual,
 				resolveHubBuildId: () => "current-build",
-				readHubDiscovery: vi.fn(async () => liveRecord),
+				readHubDiscoveryIncludingSuperseded: vi.fn(async () => liveRecord),
 				probeHubServer: vi.fn(async () => probeResult),
 			};
 		});

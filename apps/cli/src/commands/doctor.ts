@@ -6,7 +6,7 @@ import {
 	ensureFileExists,
 	listActiveConnectors,
 	probeHubServer,
-	readHubDiscovery,
+	readHubDiscoveryIncludingSuperseded,
 	resolveClineDataDir,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
@@ -411,7 +411,14 @@ function resolveCliHubOwnerContext() {
 
 async function collectDoctorStatus(cwd: string): Promise<DoctorStatus> {
 	const owner = resolveCliHubOwnerContext();
-	const discovery = await readHubDiscovery(owner.discoveryPath);
+	// Fall back to the postinstall shield's set-aside record: during a
+	// self-update the live hub keeps serving sessions while its discovery
+	// record is hidden from pre-3.0.55 updaters. Without this, doctor reads no
+	// record, reports the still-live hub as a stale daemon, and recommends
+	// `doctor fix` — which would kill the hub out from under an attached session.
+	const discovery = await readHubDiscoveryIncludingSuperseded(
+		owner.discoveryPath,
+	);
 	const health = discovery?.url
 		? await probeHubServer(discovery.url, { authToken: discovery.authToken })
 		: undefined;

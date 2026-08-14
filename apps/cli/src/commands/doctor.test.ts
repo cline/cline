@@ -72,7 +72,7 @@ vi.mock("@cline/core", () => ({
 	resolveSharedHubOwnerContext: mockResolveSharedHubOwnerContext,
 	clearHubDiscovery: mockClearHubDiscovery,
 	probeHubServer: mockProbeHubServer,
-	readHubDiscovery: mockReadHubDiscovery,
+	readHubDiscoveryIncludingSuperseded: mockReadHubDiscovery,
 	stopLocalHubServerGracefully: mockStopLocalHubServerGracefully,
 	ensureFileExists: mockEnsureFileExists,
 	listActiveConnectors: mockListActiveConnectors,

@@ -399,6 +399,39 @@ export async function readHubDiscovery(
 	}
 }
 
+/**
+ * Filename suffix the npm postinstall shield uses to set the discovery record
+ * aside during a self-update (see apps/cli/script/postinstall.mjs). Centralized
+ * so every shield-aware reader agrees on where the set-aside record lives.
+ */
+export const SUPERSEDED_HUB_DISCOVERY_SUFFIX = ".superseded";
+
+/**
+ * Read the discovery record, falling back to the set-aside `.superseded` copy
+ * the postinstall shield leaves behind.
+ *
+ * The shield hides the live record from pre-3.0.55 updaters (which would
+ * otherwise restart a hub that is still serving sessions), but the hub itself
+ * keeps running. Read-only consumers on the current build — `cline doctor` and
+ * the build-mismatch watcher — must still be able to see that hub, or they
+ * mistake a live daemon for a stale one (and recommend killing it) and miss the
+ * outdated-hub notice during the exact window it exists for.
+ *
+ * The main record always wins when present; `.superseded` is consulted only
+ * during the shielded window. This never resurrects the record on disk, so the
+ * shield's protection against pre-3.0.55 updaters is preserved.
+ */
+export async function readHubDiscoveryIncludingSuperseded(
+	discoveryPath: string,
+): Promise<HubServerDiscoveryRecord | undefined> {
+	return (
+		(await readHubDiscovery(discoveryPath)) ??
+		(await readHubDiscovery(
+			`${discoveryPath}${SUPERSEDED_HUB_DISCOVERY_SUFFIX}`,
+		))
+	);
+}
+
 export async function writeHubDiscovery(
 	discoveryPath: string,
 	record: HubServerDiscoveryRecord,
