@@ -14,17 +14,22 @@ Bun's `--compile` flag produces a single self-contained executable that includes
 
 ## What Gets Published
 
-Publishing the CLI publishes 7 packages to npm:
+Publishing the CLI publishes 10 packages to npm:
 
 | Package | Description |
 |---|---|
 | `@cline/cli-darwin-arm64` | macOS Apple Silicon binary |
 | `@cline/cli-darwin-x64` | macOS Intel binary |
+| `@cline/cli-darwin-x64-baseline` | macOS Intel baseline binary (no AVX2) |
 | `@cline/cli-linux-arm64` | Linux ARM binary |
 | `@cline/cli-linux-x64` | Linux x64 binary |
+| `@cline/cli-linux-x64-baseline` | Linux x64 baseline binary (no AVX2) |
 | `@cline/cli-windows-x64` | Windows x64 binary |
+| `@cline/cli-windows-x64-baseline` | Windows x64 baseline binary (no AVX2) |
 | `@cline/cli-windows-arm64` | Windows ARM binary |
 | `cline` | Wrapper package (pulls the right binary via `optionalDependencies`) |
+
+The `-baseline` packages are compiled with Bun's `-baseline` targets, which do not require AVX2. Bun's default x64 builds crash with an illegal instruction (SIGILL) on older CPUs (pre-2013, pre-Haswell) and on VMs whose hypervisor does not expose AVX2. The postinstall script and the `bin/cline` resolver detect AVX2 at install/run time (via `bin/baseline.cjs`) and prefer the baseline package when AVX2 is missing.
 
 Each platform package contains a compiled binary and a minimal `package.json` with `os` and `cpu` fields:
 
@@ -57,9 +62,12 @@ The `cline` wrapper package contains no binary -- just the resolver script, post
   "optionalDependencies": {
     "@cline/cli-darwin-arm64": "0.1.0",
     "@cline/cli-darwin-x64": "0.1.0",
+    "@cline/cli-darwin-x64-baseline": "0.1.0",
     "@cline/cli-linux-arm64": "0.1.0",
     "@cline/cli-linux-x64": "0.1.0",
+    "@cline/cli-linux-x64-baseline": "0.1.0",
     "@cline/cli-windows-x64": "0.1.0",
+    "@cline/cli-windows-x64-baseline": "0.1.0",
     "@cline/cli-windows-arm64": "0.1.0"
   }
 }
@@ -141,19 +149,24 @@ User runs: npm i -g cline
   |
   v
 npm installs cline (wrapper package)
-  + optionalDependencies (only the matching platform gets installed):
+  + optionalDependencies (only matching platforms get installed; x64
+    machines get both the default and the -baseline package):
     - @cline/cli-darwin-arm64
     - @cline/cli-darwin-x64
+    - @cline/cli-darwin-x64-baseline
     - @cline/cli-linux-arm64
     - @cline/cli-linux-x64
+    - @cline/cli-linux-x64-baseline
     - @cline/cli-windows-x64
+    - @cline/cli-windows-x64-baseline
     - @cline/cli-windows-arm64
   |
   v
 postinstall script runs:
-  - Detects platform/arch
-  - Finds the installed platform package
-  - Creates a cached hard link for fast startup
+  - Detects platform/arch (and AVX2 support on x64)
+  - Finds the installed platform package, preferring -baseline when
+    AVX2 is missing
+  - Creates a cached hard link for fast startup and verifies it runs
   |
   v
 User runs: cline
@@ -162,8 +175,10 @@ User runs: cline
 bin/cline (Node.js resolver) executes:
   1. Check CLINE_BIN_PATH env var override
   2. Check cached binary at bin/.cline
-  3. Walk up node_modules for the platform package
-  4. Execute the compiled binary
+  3. Walk up node_modules for the platform packages (same AVX2-aware
+     preference order as postinstall)
+  4. Execute the compiled binary; if it fails to start (spawn error or
+     SIGILL at startup), fall through to the next candidate
 ```
 
 ## File Layout
@@ -172,6 +187,7 @@ bin/cline (Node.js resolver) executes:
 apps/cli/
   bin/
     cline                   # Node.js resolver script (npm entry point)
+    baseline.cjs            # AVX2 detection + package preference order
   script/
     build.ts                # Cross-compile for all platforms
     publish-npm.ts          # npm publish orchestration
@@ -184,7 +200,7 @@ From `apps/cli/`:
 
 ```bash
 bun run build:platforms:single  # build only current platform
-bun run build:platforms         # build all 6 platform binaries
+bun run build:platforms         # build all 9 platform binaries
 bun run publish:npm:dry         # preview generated npm package publishing
 ```
 
@@ -197,13 +213,14 @@ Cross-compiles the CLI for all target platforms:
 1. When `--install-native-variants` is passed, pre-installs all platform variants of `@opentui/core` using `bun install --os="*" --cpu="*"` so Bun can resolve native FFI binaries for cross-compilation. Without this, Bun only has the host platform's native binary and cross-compiled builds fail.
 2. Builds SDK packages (`bun run build:sdk`) and the CLI JS bundle (`bun -F @cline/cli build`)
 3. For each target platform:
-   - Runs `bun build --compile --target bun-{os}-{arch}` to create a standalone executable
+   - Runs `bun build --compile --target bun-{os}-{arch}` to create a standalone executable (x64 targets additionally get a `bun-{os}-x64-baseline` build without AVX2)
    - Generates a `package.json` with `os` and `cpu` fields for npm platform filtering
    - Runs a smoke test on the current platform's binary (`cline --version`)
    - Copies the plugin sandbox bootstrap file if present
 
 Flags:
 - `--single` -- build only for the current platform (faster for local testing)
+- `--baseline` -- with `--single`, also build the current platform's baseline (non-AVX2) variant
 - `--install-native-variants` -- allow the script to download all OpenTUI native packages required for cross-platform builds
 - `--skip-install` -- skip re-downloading platform-specific native packages if they're already installed
 - `--skip-sdk-build` -- skip rebuilding SDK packages (if already built)
@@ -213,7 +230,7 @@ Flags:
 Orchestrates publishing all packages to npm:
 
 1. Reads built packages from `dist/`
-2. Publishes all 6 platform packages in parallel (`@cline/cli-darwin-arm64`, etc.)
+2. Publishes all 9 platform packages in parallel (`@cline/cli-darwin-arm64`, etc.)
 3. Generates a clean main package (`cline`) with:
    - `bin.cline` pointing to the resolver script
    - `postinstall` running the binary caching script
@@ -231,13 +248,15 @@ A Node.js script that serves as the entry point when users run `cline`. It finds
 The shebang is `#!/usr/bin/env node` because Node.js is guaranteed to be available wherever npm is. The resolver uses only CommonJS (`require`) and Node.js APIs -- no `bun:` imports or Bun-specific APIs. It then spawns the compiled binary which has Bun embedded.
 
 Resolution chain:
-1. `CLINE_BIN_PATH` env var (for development or custom deployments)
+1. `CLINE_BIN_PATH` env var (for development or custom deployments; no fallback, fails loudly)
 2. `bin/.cline` cached hard link (created by postinstall for fast startup)
-3. Walk up `node_modules` from the script directory to find the platform package
+3. Walk up `node_modules` from the script directory to find the platform packages, trying package names in the AVX2-aware preference order from `bin/baseline.cjs`
+
+If a candidate fails to start (spawn error, or SIGILL from an AVX2 binary on a CPU without AVX2 -- Bun dies at startup before doing any work), the resolver falls through to the next candidate instead of giving up. This covers stale caches, e.g. a container image where `npm install` ran on an AVX2 build host but the image runs on a non-AVX2 host. Ordinary nonzero exits are propagated immediately and never retried, since the child runs the user's actual command.
 
 ## Postinstall (`script/postinstall.mjs`)
 
-Runs after `npm install cline`. Creates a hard link from the platform binary to `bin/.cline` for fast startup on subsequent runs. Falls back to file copy if hard linking fails (NFS, cross-device, network-mounted filesystems).
+Runs after `npm install cline`. Picks the platform package using the AVX2-aware preference order from `bin/baseline.cjs`, creates a hard link from the platform binary to `bin/.cline` for fast startup on subsequent runs, and verifies the cached binary actually runs (`--version`) so a wrong pick (e.g. an AVX2 binary on a non-AVX2 CPU) falls through to the next candidate. Falls back to file copy if hard linking fails (NFS, cross-device, network-mounted filesystems).
 
 The postinstall is defensive: it wraps everything in try/catch and always exits 0 (the `|| true` in the npm script). If postinstall fails, the resolver script has its own fallback logic to find the binary at runtime, so the cached binary is just an optimization.
 
@@ -259,10 +278,13 @@ During development, `bin` in package.json points to `src/index.ts` for `bun link
 When building for a different platform (e.g., compiling for Linux on a Mac), Bun needs the target platform's native binaries for `@opentui/core`. The build script handles this by pre-downloading all platform variants with `bun install --os="*" --cpu="*"`.
 
 ### Version synchronization
-All 7 packages (6 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
+All 10 packages (9 platform + 1 wrapper) must have the same version. The build script reads the version from `apps/cli/package.json`. The publish script verifies that the built package versions match each other and `apps/cli/package.json`.
 
 ### Package naming and scoping
-Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 7 package names.
+Platform packages are published under the `@cline` scope. The generated wrapper package is published as `cline`, so npm trusted publishing must be configured for all 10 package names.
+
+### Baseline (non-AVX2) builds
+The `-baseline` x64 packages carry the same `os`/`cpu` fields as the default x64 packages, so npm installs both on x64 machines and the postinstall/resolver picks at runtime. Detection reads `/proc/cpuinfo` on Linux, `sysctl hw.optional.avx2_0` on macOS, and `IsProcessorFeaturePresent(40)` via PowerShell on Windows (same approach as opencode). Baseline binaries run fine on AVX2 CPUs (just without AVX2 optimizations), so when detection is inconclusive, preferring baseline is the safe direction.
 
 ### postinstall reliability
 The postinstall script runs in diverse environments (CI, Docker, restricted permissions, network-mounted filesystems where hard links fail). It always wraps operations in try/catch and exits 0. The resolver script is the ultimate fallback.
@@ -274,4 +296,4 @@ Windows binaries are `.exe` files. The build script appends `.exe` to the output
 Compiled binaries need to be executable (`chmod 755`). The build script sets this after copying. The postinstall also sets permissions on the cached binary. Some npm packaging steps can strip permissions, so both handle this defensively.
 
 ### Package size
-Each compiled binary is ~30-60MB (Bun runtime + all bundled code + native addons). This is normal for compiled CLI tools. Users only download their platform's variant thanks to `optionalDependencies`.
+Each compiled binary is ~30-60MB (Bun runtime + all bundled code + native addons). This is normal for compiled CLI tools. Users only download their platform's variants thanks to `optionalDependencies` (x64 users get two: the default and the baseline build).

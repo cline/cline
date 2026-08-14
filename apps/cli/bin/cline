@@ -65,11 +65,30 @@ try {
 	// Best effort: fall back to the runtime's default trust on any failure.
 }
 
-function run(target) {
+// Execute a candidate binary. Never returns on success or on an ordinary
+// failure (the child's exit status is propagated). Returns only when the
+// binary failed to start at all (spawn error, or SIGILL from an AVX2
+// binary on a CPU without AVX2 -- Bun dies at startup, before any work)
+// AND a fallback candidate remains; the caller then tries the next one.
+// Ordinary nonzero exits must NOT fall through: the child runs the user's
+// actual command, and retrying would execute it twice.
+function run(target, hasFallback) {
 	const result = childProcess.spawnSync(target, process.argv.slice(2), {
 		stdio: "inherit",
 		env: childEnv,
 	});
+	if (hasFallback && (result.error || result.signal === "SIGILL")) {
+		console.error(
+			"[cline] " +
+				target +
+				" failed to start" +
+				(result.signal === "SIGILL"
+					? " (illegal instruction; this CPU may lack AVX2)"
+					: "") +
+				"; trying fallback binary.",
+		);
+		return;
+	}
 	if (result.error) {
 		console.error(result.error.message);
 		process.exit(1);
@@ -84,17 +103,13 @@ function run(target) {
 	process.exit(1);
 }
 
-// 1. Check env var override
+// 1. Check env var override (explicit choice: no fallback, fail loudly)
 const envPath = process.env.CLINE_BIN_PATH;
 if (envPath) {
-	run(envPath);
+	run(envPath, false);
 }
 
-// 2. Check cached binary
 const cached = path.join(scriptDir, ".cline");
-if (fs.existsSync(cached)) {
-	run(cached);
-}
 
 // 3. Detect platform and architecture
 const platformMap = {
@@ -116,13 +131,24 @@ if (!arch) {
 	arch = os.arch();
 }
 
-const base = "@cline/cli-" + platform + "-" + arch;
 const binary = platform === "windows" ? "cline.exe" : "cline";
 
-// Build fallback chain of package names to try
-const names = [base];
+// Build fallback chain of package names to try. On x64 CPUs without AVX2
+// the default Bun build crashes with SIGILL, so prefer the baseline package.
+let names;
+try {
+	const baseline = require("./baseline.cjs");
+	names = baseline.resolvePlatformPackageNames(platform, arch);
+} catch {
+	names = ["@cline/cli-" + platform + "-" + arch];
+}
 
-function findBinary(startDir) {
+// Collect every existing candidate binary (in preference order) instead of
+// just the first, so a binary that fails to start can fall through to the
+// next installed sibling (e.g. a cached AVX2 binary from an install done on
+// different hardware falling back to the baseline package).
+function findBinaries(startDir) {
+	const found = [];
 	let current = startDir;
 	for (;;) {
 		const modules = path.join(current, "node_modules");
@@ -131,19 +157,27 @@ function findBinary(startDir) {
 				// Scoped package: @cline/cli-darwin-arm64 lives at
 				// node_modules/@cline/cli-darwin-arm64
 				const candidate = path.join(modules, name, "bin", binary);
-				if (fs.existsSync(candidate)) return candidate;
+				if (fs.existsSync(candidate) && found.indexOf(candidate) === -1) {
+					found.push(candidate);
+				}
 			}
 		}
 		const parent = path.dirname(current);
 		if (parent === current) {
-			return undefined;
+			return found;
 		}
 		current = parent;
 	}
 }
 
-const resolved = findBinary(scriptDir);
-if (!resolved) {
+// 2. Cached binary (created by postinstall), then package binaries in
+// preference order.
+const candidates = findBinaries(scriptDir);
+if (fs.existsSync(cached)) {
+	candidates.unshift(cached);
+}
+
+if (candidates.length === 0) {
 	console.error(
 		"Could not find the Cline CLI binary for your platform.\n" +
 			"Your platform: " +
@@ -161,4 +195,13 @@ if (!resolved) {
 	process.exit(1);
 }
 
-run(resolved);
+for (let i = 0; i < candidates.length; i++) {
+	run(candidates[i], i < candidates.length - 1);
+}
+
+// Every candidate failed to start (run() exits the process otherwise).
+console.error(
+	"All Cline CLI binaries failed to start. " +
+		"If this machine's CPU lacks AVX2, reinstall so the baseline binary is selected: npm install -g cline",
+);
+process.exit(1);

@@ -53,22 +53,37 @@ console.log(`Building @cline/cli v${version}`);
 
 const buildOptions = parseBuildOptions(process.argv.slice(2));
 
+// Baseline targets are compiled without AVX2 (Bun's `-baseline` compile
+// targets) so the CLI runs on older x64 CPUs and on VMs whose hypervisor
+// does not expose AVX2. The default x64 builds crash with SIGILL there.
 const allTargets: {
 	os: string;
 	arch: "arm64" | "x64";
+	baseline?: true;
 }[] = [
 	{ os: "linux", arch: "arm64" },
 	{ os: "linux", arch: "x64" },
+	{ os: "linux", arch: "x64", baseline: true },
 	{ os: "darwin", arch: "arm64" },
 	{ os: "darwin", arch: "x64" },
+	{ os: "darwin", arch: "x64", baseline: true },
 	{ os: "win32", arch: "x64" },
+	{ os: "win32", arch: "x64", baseline: true },
 	{ os: "win32", arch: "arm64" },
 ];
 
 const targets = buildOptions.single
-	? allTargets.filter(
-			(item) => item.os === process.platform && item.arch === process.arch,
-		)
+	? allTargets.filter((item) => {
+			if (item.os !== process.platform || item.arch !== process.arch) {
+				return false;
+			}
+			// Baseline builds need extra Bun compile artifacts, so only
+			// include them in --single mode when explicitly requested.
+			if (item.baseline) {
+				return buildOptions.baseline;
+			}
+			return true;
+		})
 	: allTargets;
 
 const opentuiVersion = pkg.dependencies["@opentui/core"];
@@ -164,7 +179,8 @@ function getBunTarget(
 	item: (typeof allTargets)[number],
 ): Bun.Build.CompileTarget {
 	const targetOs = item.os === "win32" ? "windows" : item.os;
-	return `bun-${targetOs}-${item.arch}` as Bun.Build.CompileTarget;
+	const suffix = item.baseline ? "-baseline" : "";
+	return `bun-${targetOs}-${item.arch}${suffix}` as Bun.Build.CompileTarget;
 }
 
 async function buildCompiledBinary(input: {
@@ -225,8 +241,9 @@ async function buildCompiledBinary(input: {
 for (const item of targets) {
 	// npm treats "win32" specially in os field, but for package naming use "windows"
 	const displayOs = item.os === "win32" ? "windows" : item.os;
-	const name = `@cline/cli-${displayOs}-${item.arch}`;
-	const dirName = `cli-${displayOs}-${item.arch}`;
+	const baselineSuffix = item.baseline ? "-baseline" : "";
+	const name = `@cline/cli-${displayOs}-${item.arch}${baselineSuffix}`;
+	const dirName = `cli-${displayOs}-${item.arch}${baselineSuffix}`;
 	const binaryName = item.os === "win32" ? "cline.exe" : "cline";
 	const bunTarget = getBunTarget(item);
 
@@ -283,7 +300,9 @@ for (const item of targets) {
 			{
 				name,
 				version,
-				description: `Cline CLI binary for ${displayOs} ${item.arch}`,
+				description: `Cline CLI binary for ${displayOs} ${item.arch}${
+					item.baseline ? " (baseline build for CPUs without AVX2)" : ""
+				}`,
 				os: [item.os],
 				cpu: [item.arch],
 				...(repository ? { repository } : {}),
