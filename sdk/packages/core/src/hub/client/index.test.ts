@@ -1030,7 +1030,7 @@ describe("resolveCompatibleLocalHubUrl", () => {
 		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 
-	it("returns undefined and keeps discovery when build metadata is missing", async () => {
+	it("attaches and keeps discovery when build metadata is missing", async () => {
 		const clearHubDiscoveryMock = vi.fn();
 		vi.doMock("../discovery/workspace", () => ({
 			resolveProductionHubOwnerContext: () => ({
@@ -1074,7 +1074,13 @@ describe("resolveCompatibleLocalHubUrl", () => {
 
 		const { resolveCompatibleLocalHubUrl } = await import(".");
 
-		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		// A Hub carrying no build metadata cannot be ordered against this
+		// build, so it is attached over the compatible wire protocol rather
+		// than retired. Retiring an unorderable peer is what let two installs
+		// shut each other's daemon down in a loop.
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
 		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
 	});
 

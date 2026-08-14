@@ -1,4 +1,5 @@
 import type {
+	GatewayModelToolCapability,
 	GatewayProviderMetadata,
 	GatewayProviderSettings,
 	ProviderCapability,
@@ -11,6 +12,7 @@ import type {
 } from "../catalog/types";
 
 export type ProviderFamily =
+	| "cline"
 	| "openai"
 	| "openai-compatible"
 	| "anthropic"
@@ -34,6 +36,7 @@ export interface BuiltinSpec {
 	family: ProviderFamily;
 	protocol?: ProviderProtocol;
 	client?: ProviderClient;
+	modelToolCapabilities?: readonly GatewayModelToolCapability[];
 	capabilities?: ProviderCapability[];
 	popular?: number;
 	modelsProviderId?: string;

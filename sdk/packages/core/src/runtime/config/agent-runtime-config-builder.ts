@@ -100,6 +100,7 @@ export function createAgentRuntimeConfig(
 		messageModelInfo,
 		model: input.model,
 		modelOptions,
+		modelTools: agentConfig.modelTools,
 		tools: input.tools,
 		hooks,
 		prepareTurn: input.prepareTurn,

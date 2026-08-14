@@ -122,7 +122,11 @@ vi.mock("../discovery", () => ({
 describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		// The retire circuit breaker is module state keyed by Hub URL, and these
+		// cases all retire the same URL.
+		const { __test__ } = await import(".");
+		__test__.resetRetireAttempts();
 		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));

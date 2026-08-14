@@ -548,6 +548,7 @@ export {
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
 	isAutoUpdateEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
@@ -559,11 +560,13 @@ export {
 	readTuiThemeGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -792,6 +795,10 @@ export {
 	readSessionCheckpointHistory,
 	trimMessagesBeforeUserRun,
 } from "./session/checkpoint-restore";
+export {
+	projectSessionMessagesForDisplay,
+	type SessionDisplayMessage,
+} from "./session/display-messages";
 export {
 	deriveSubsessionStatus,
 	makeSubSessionId,
