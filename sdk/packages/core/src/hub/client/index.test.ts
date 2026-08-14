@@ -1343,43 +1343,28 @@ describe("hasActiveHubSessions", () => {
 				payload([{ status: "idle", participants: [{ clientId: "tui" }] }]),
 			),
 		).toBe(true);
-	});
-
-	it("is busy while a turn may be executing, even with nobody attached", async () => {
-		const { hasActiveHubSessions } = await import(".");
 		expect(
-			hasActiveHubSessions(payload([{ status: "running", participants: [] }])),
-		).toBe(true);
-		expect(
-			hasActiveHubSessions(payload([{ status: "pending", participants: [] }])),
+			hasActiveHubSessions(
+				payload([{ status: "running", participants: [{ clientId: "tui" }] }]),
+			),
 		).toBe(true);
 	});
 
-	// The session a crashed client leaves behind: idle, nobody attached. It is
-	// resumable persisted state, and counting it would pin the hub as busy
-	// forever.
-	it("is idle for an unattached idle session when participants are reported", async () => {
-		const { hasActiveHubSessions } = await import(".");
-		expect(
-			hasActiveHubSessions(payload([{ status: "idle", participants: [] }])),
-		).toBe(false);
-	});
-
-	// Hubs from core < 0.0.75 omit the participants field, so idle cannot be
-	// distinguished from attached-and-waiting; stay conservative there.
-	it("is busy for an idle session from a hub too old to report participants", async () => {
-		const { hasActiveHubSessions } = await import(".");
-		expect(hasActiveHubSessions(payload([{ status: "idle" }]))).toBe(true);
-	});
-
-	it("is idle for terminal sessions", async () => {
+	// The session a crashed or killed client leaves behind: a non-terminal
+	// status, nobody attached. Participants are live socket subscriptions, so
+	// a dead client cannot appear here - which is exactly why status must not
+	// be consulted: it stays "running" forever and would pin an outdated hub
+	// as busy until the machine reboots.
+	it("is idle for sessions nobody is attached to, whatever the status", async () => {
 		const { hasActiveHubSessions } = await import(".");
 		expect(
 			hasActiveHubSessions(
 				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
 					{ status: "completed", participants: [] },
-					{ status: "failed", participants: [] },
-					{ status: "aborted" },
+					{ status: "running" },
 				]),
 			),
 		).toBe(false);

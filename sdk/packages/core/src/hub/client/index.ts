@@ -928,13 +928,17 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 }
 
 /**
- * Whether the session list carries work that stopping the hub would destroy.
+ * Whether any client is attached to a session on the hub - the one signal
+ * that cannot go stale, because participants are live socket subscriptions
+ * the hub drops the moment a client's connection closes.
  *
- * Counting must err busy only for sessions that are genuinely alive. A client
- * that dies without stopping its session leaves the hub-side runtime behind
- * with no participants - and a status that never reaches a terminal state - so
- * treating every non-terminal status as busy pins the hub as "serving
- * sessions" forever.
+ * Deliberately NOT based on session status: a client that dies without
+ * stopping its session leaves the hub-side runtime behind in a non-terminal
+ * status forever, and counting those "ghost" sessions as busy pins an
+ * outdated hub as "serving sessions" until the machine reboots. The cost of
+ * ignoring status is that a participant-less background run executing at the
+ * exact moment of a hub swap dies with the old hub - rare, and its next
+ * scheduled tick runs normally on the replacement.
  */
 export function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
@@ -947,27 +951,8 @@ export function hasActiveHubSessions(payload: unknown): boolean {
 		if (!session || typeof session !== "object") {
 			return false;
 		}
-		const record = session as {
-			status?: unknown;
-			participants?: unknown;
-		};
-		// Someone is attached: stopping the hub cuts their connection.
-		if (Array.isArray(record.participants) && record.participants.length > 0) {
-			return true;
-		}
-		// A turn may be executing inside the hub with nobody attached
-		// (headless and scheduled runs); stopping the hub kills it mid-turn.
-		if (record.status === "running" || record.status === "pending") {
-			return true;
-		}
-		// An idle session with a confirmed-empty participant list is persisted,
-		// resumable state, not live work. Hubs too old to report participants
-		// (core < 0.0.75) get the conservative reading: idle may still mean
-		// someone is attached.
-		if (record.status === "idle") {
-			return !Array.isArray(record.participants);
-		}
-		return false;
+		const record = session as { participants?: unknown };
+		return Array.isArray(record.participants) && record.participants.length > 0;
 	});
 }
 
