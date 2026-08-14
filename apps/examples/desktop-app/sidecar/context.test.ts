@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),

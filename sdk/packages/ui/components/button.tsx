@@ -127,7 +127,12 @@ const preventDisabledActivation: MouseEventHandler<HTMLElement> = (event) => {
 };
 
 function disableComposedChild(children: ReactNode) {
-	if (!isValidElement<{ onClick?: MouseEventHandler; onClickCapture?: MouseEventHandler }>(children)) {
+	if (
+		!isValidElement<{
+			onClick?: MouseEventHandler;
+			onClickCapture?: MouseEventHandler;
+		}>(children)
+	) {
 		return children;
 	}
 
