@@ -40,6 +40,12 @@ const DEFAULT_REQUEST_TIMEOUT_MS = 5_000;
 export const FALLBACK_CLINE_RECOMMENDED_MODELS: ClineRecommendedModelsData = {
 	recommended: [
 		{
+			id: "google/gemini-3.1-flash",
+			name: "Gemini 3.1 Flash",
+			description: "1M context window, fast and strong coding performance",
+			tags: ["NEW"],
+		},
+		{
 			id: "anthropic/claude-opus-4.6",
 			name: "Claude Opus 4.6",
 			description: "Most intelligent model for agents and coding",
