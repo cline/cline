@@ -7,7 +7,10 @@ import {
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { SpeechInput } from "@/components/ai-elements/speech-input";
+import {
+	SpeechInput,
+	type SpeechTranscriptionSource,
+} from "@/components/ai-elements/speech-input";
 import { Button } from "@/components/ui/button";
 import {
 	Popover,
@@ -35,7 +38,6 @@ import {
 } from "@/lib/model-selection";
 import { normalizeProviderId } from "@/lib/provider-id";
 import {
-	isChatModel,
 	loadProviderModelCatalog,
 	loadProviderModels,
 	subscribeToProviderModels,
@@ -44,6 +46,7 @@ import {
 } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
+import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
 import { WorkspaceSelector as WorkspaceSelectorImpl } from "./workspace-selector";
 
 // Memoized: the workspace/branch selector fans out into popovers and lists
@@ -148,13 +151,11 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
-// The composer keeps a steady two-line height whether or not it has focus —
-// resizing on blur made the bottom of the conversation jump around.
-const PROMPT_INPUT_ROWS = 2;
+const PROMPT_INPUT_COLLAPSED_ROWS = 1;
+const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
 const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
-const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
 
 async function blobToBase64(blob: Blob): Promise<string> {
 	const bytes = new Uint8Array(await blob.arrayBuffer());
@@ -363,6 +364,13 @@ function ChatInputBarImpl({
 		draftVersion: number;
 		generation: number;
 	} | null>(null);
+	const speechRecognitionSessionRef = useRef<{
+		start: number;
+		end: number;
+		expectedValue: string;
+		draftVersion: number;
+		generation: number;
+	} | null>(null);
 	const streamingTranscriptRangeRef = useRef<{
 		start: number;
 		end: number;
@@ -387,6 +395,7 @@ function ChatInputBarImpl({
 		}
 		appliedDraftVersionRef.current = promptDraft.version;
 		batchTranscriptSessionRef.current = null;
+		speechRecognitionSessionRef.current = null;
 		streamingTranscriptRangeRef.current = null;
 		setPromptInput(promptDraft.value);
 	}, [promptDraft, setPromptInput]);
@@ -436,7 +445,7 @@ function ChatInputBarImpl({
 	const updateTranscriptionTarget = useCallback(
 		(target: TranscriptionModelTarget | null) => {
 			const identity = target
-				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "media-recorder"}`
+				? `${target.providerId}:${target.modelId}:${target.supportsStreaming ? "streaming" : "auto"}`
 				: "unconfigured";
 			transcriptionTargetStreamsRef.current =
 				target?.supportsStreaming ?? false;
@@ -444,6 +453,7 @@ function ChatInputBarImpl({
 				transcriptionTargetIdentityRef.current = identity;
 				transcriptionGenerationRef.current += 1;
 				batchTranscriptSessionRef.current = null;
+				speechRecognitionSessionRef.current = null;
 				streamingTranscriptRangeRef.current = null;
 			}
 			setTranscriptionTarget(target);
@@ -520,12 +530,28 @@ function ChatInputBarImpl({
 	}, [updateTranscriptionTarget]);
 
 	const handleTranscriptionChange = useCallback(
-		(transcript: string) => {
+		(
+			transcript: string,
+			source: SpeechTranscriptionSource = "media-recorder",
+		) => {
 			const text = transcript.trim();
-			const session = batchTranscriptSessionRef.current;
-			// A batch result belongs to exactly one recording session. Consume the
-			// snapshot even when the result is stale so it cannot be replayed later.
-			batchTranscriptSessionRef.current = null;
+			const session =
+				source === "speech-recognition"
+					? speechRecognitionSessionRef.current
+					: batchTranscriptSessionRef.current;
+
+			if (source === "speech-recognition") {
+				// Browser speech recognition yields final chunks while the microphone
+				// remains open. Keep its insertion cursor alive across those chunks.
+				batchTranscriptSessionRef.current = null;
+			} else {
+				// A completed recording produces one batch result.
+				speechRecognitionSessionRef.current = null;
+				batchTranscriptSessionRef.current = null;
+			}
+			// Each result must belong to the draft captured when recording began.
+			// Batch snapshots are consumed once; browser recognition advances its
+			// cursor after each final chunk.
 			if (!text || !session) return;
 
 			const current = promptInputValueRef.current;
@@ -545,6 +571,15 @@ function ChatInputBarImpl({
 			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
 			const next = `${before}${insertedText}${after}`;
 			const nextCursor = before.length + insertedText.length;
+			if (source === "speech-recognition") {
+				speechRecognitionSessionRef.current = {
+					start: nextCursor,
+					end: nextCursor,
+					expectedValue: next,
+					draftVersion: session.draftVersion,
+					generation: session.generation,
+				};
+			}
 			setPromptInput(next);
 			requestAnimationFrame(() => {
 				const textarea = promptInputRef.current;
@@ -564,6 +599,7 @@ function ChatInputBarImpl({
 
 		if (!active) {
 			batchTranscriptSessionRef.current = null;
+			speechRecognitionSessionRef.current = null;
 			return;
 		}
 		if (wasActive || transcriptionTargetStreamsRef.current) return;
@@ -572,13 +608,18 @@ function ChatInputBarImpl({
 		const input = promptInputRef.current;
 		const start = input?.selectionStart ?? current.length;
 		const end = input?.selectionEnd ?? start;
-		batchTranscriptSessionRef.current = {
+		const session = {
 			start,
 			end,
 			expectedValue: current,
 			draftVersion: latestDraftVersionRef.current,
 			generation: transcriptionGenerationRef.current,
 		};
+		// `auto` chooses browser speech recognition when available and falls back
+		// to MediaRecorder. Capture both session shapes until the result tells us
+		// which transport was selected.
+		batchTranscriptSessionRef.current = session;
+		speechRecognitionSessionRef.current = session;
 	}, []);
 
 	const handleStreamingTranscriptionStart = useCallback(() => {
@@ -724,7 +765,10 @@ function ChatInputBarImpl({
 			: !hasExplicitReasoningSelection && modelSupportsReasoning === false
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
-	const promptInputRows = PROMPT_INPUT_ROWS;
+	const promptInputRows =
+		variant === "welcome" || promptInputFocused
+			? PROMPT_INPUT_EXPANDED_ROWS
+			: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -951,12 +995,17 @@ function ChatInputBarImpl({
 			className={cn(
 				"bg-card",
 				variant === "welcome"
-					? "overflow-visible rounded-xl border border-border/90 bg-card/90 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
-					: "border-t border-border bg-card/95 backdrop-blur-sm",
+					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
+					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 			)}
 		>
 			{/* Input area */}
-			<div className={cn("px-4 py-3", variant === "welcome" && "pb-2 pt-4")}>
+			<div
+				className={cn(
+					"px-4 py-3",
+					variant === "welcome" ? "pb-2 pt-4" : "py-4",
+				)}
+			>
 				<AgentPromptQueue
 					items={displayPromptsInQueue}
 					onEdit={onEditPromptInQueue}
@@ -1049,14 +1098,25 @@ function ChatInputBarImpl({
 							)}
 						</div>
 					)}
+					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
 					<div
 						className={cn(
-							// Focus feedback lands instantly — no transition — so the
-							// border reads as state, not animation.
 							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
-							variant === "welcome" &&
-								"min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0",
+							variant === "welcome"
+								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
+								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
 						)}
+						onMouseDown={(event) => {
+							const target = event.target;
+							if (
+								target instanceof HTMLElement &&
+								target.closest("button, input, textarea")
+							) {
+								return;
+							}
+							event.preventDefault();
+							promptInputRef.current?.focus();
+						}}
 					>
 						{speechInputProcessing && (
 							<output
@@ -1101,6 +1161,8 @@ function ChatInputBarImpl({
 									e.currentTarget.selectionStart ?? promptInput.length,
 								)
 							}
+							onBlur={() => setPromptInputFocused(false)}
+							onFocus={() => setPromptInputFocused(true)}
 							onPaste={(e) => {
 								const images = imageFilesFromClipboard(e.clipboardData);
 								if (images.length > 0) {
@@ -1206,7 +1268,12 @@ function ChatInputBarImpl({
 							}}
 							value={promptInput}
 						/>
-						<div className="flex shrink-0 items-center gap-2">
+						<div
+							className={cn(
+								"flex shrink-0 items-center gap-2",
+								variant === "conversation" && "self-end",
+							)}
+						>
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
@@ -1225,7 +1292,7 @@ function ChatInputBarImpl({
 								allowUnavailableClick={!transcriptionTarget}
 								key={
 									transcriptionTarget
-										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "media-recorder"}`
+										? `${transcriptionTarget.providerId}:${transcriptionTarget.modelId}:${transcriptionTarget.supportsStreaming ? "streaming" : "auto"}`
 										: "unconfigured"
 								}
 								onActiveChange={handleSpeechInputActiveChange}
@@ -1251,9 +1318,7 @@ function ChatInputBarImpl({
 										: handleTranscriptionChange
 								}
 								recordingMode={
-									transcriptionTarget?.supportsStreaming
-										? "streaming"
-										: "media-recorder"
+									transcriptionTarget?.supportsStreaming ? "streaming" : "auto"
 								}
 								title={
 									transcriptionTarget
@@ -1304,7 +1369,7 @@ function ChatInputBarImpl({
 			</div>
 
 			{/* Composer settings */}
-			<div className="flex min-w-0 items-center  justify-between gap-x-3 gap-y-2 border-t border-border px-2 py-2 text-sm text-muted-foreground">
+			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
 						aria-label="Attach files"
@@ -1558,9 +1623,8 @@ const ModelSelector = memo(function ModelSelector({
 				if (cancelled || models.length === 0) {
 					return;
 				}
-				const chatModels = models.filter(isChatModel);
-				const modelIds = chatModels.map((entry) => entry.id);
-				const reasoningModelIds = chatModels
+				const modelIds = models.map((entry) => entry.id);
+				const reasoningModelIds = models
 					.filter((entry) => entry.supportsReasoning)
 					.map((entry) => entry.id);
 				setProviderModels((current) => ({
@@ -1878,10 +1942,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 							strokeWidth="4"
 						/>
 						<circle
-							className={cn(
-								"transition-[stroke,stroke-dashoffset] duration-200",
-								ringColorClass,
-							)}
+							className={cn("", ringColorClass)}
 							cx="11"
 							cy="11"
 							fill="none"
@@ -1911,13 +1972,13 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 					<div className="mt-2 flex h-1 overflow-hidden rounded-full bg-muted">
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary transition-[width] duration-200"
+							className="h-full shrink-0 bg-primary transition-[width] duration-120"
 							data-token-kind="uncached-input"
 							style={{ width: segmentWidth(uncachedInputTokens) }}
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-primary/60 transition-[background,width] duration-120"
 							data-token-kind="cached-input"
 							style={{
 								backgroundImage:
@@ -1927,7 +1988,7 @@ function TokenUsageRing({ usage }: { usage: TokenUsage }) {
 						/>
 						<div
 							aria-hidden="true"
-							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-200"
+							className="h-full shrink-0 bg-blue-500 transition-[background,width] duration-120"
 							data-token-kind="output"
 							style={{
 								backgroundImage:

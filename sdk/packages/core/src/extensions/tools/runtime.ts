@@ -1,3 +1,4 @@
+import { supportsModelTool } from "@cline/llms";
 import type { CoreAgentMode } from "../../types/config";
 import {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
@@ -22,11 +23,18 @@ export interface BuiltinToolAvailabilityContext {
 	enableSpawnAgent?: boolean;
 	enableAgentTeams?: boolean;
 	disabledToolIds?: ReadonlySet<string>;
+	enabledModelToolIds?: ReadonlySet<string>;
 }
 
 type RuntimeToolCatalogEntry = Omit<ToolCatalogEntry, "defaultEnabled">;
 
 const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
+	{
+		id: "web_search",
+		description:
+			"Search the public web using the selected model provider's native search capability.",
+		headlessToolNames: ["web_search"],
+	},
 	{
 		id: "read_files",
 		description:
@@ -166,6 +174,9 @@ function isEntryEnabledByDefault(
 	if (context.disabledToolIds?.has(entryId)) {
 		return false;
 	}
+	if (entryId === "web_search") {
+		return context.enabledModelToolIds?.has(entryId) === true;
+	}
 
 	const { flags } = resolvePresetFlags(context);
 	if (entryId === "spawn_agent") {
@@ -206,7 +217,14 @@ function buildCatalogEntry(
 export function getCoreBuiltinToolCatalog(
 	context: BuiltinToolAvailabilityContext = {},
 ): ToolCatalogEntry[] {
-	return BASE_TOOL_CATALOG.map((entry) => buildCatalogEntry(entry, context));
+	return BASE_TOOL_CATALOG.filter(
+		(entry) =>
+			entry.id !== "web_search" ||
+			supportsModelTool(
+				{ providerId: context.providerId ?? "", modelId: context.modelId },
+				"web_search",
+			),
+	).map((entry) => buildCatalogEntry(entry, context));
 }
 
 export function getCoreDefaultEnabledToolIds(

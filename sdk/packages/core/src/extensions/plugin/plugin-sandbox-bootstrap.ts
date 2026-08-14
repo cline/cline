@@ -16,6 +16,7 @@ import {
 	normalizePluginManifest,
 	type PluginManifest,
 } from "@cline/shared";
+import { installParentDisconnectGuard } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -113,10 +114,7 @@ interface PluginSetupCtx {
  * setters are host concerns and are intentionally no-ops in the sandbox.
  */
 interface PluginTelemetryBridge {
-	capture(input: {
-		event: string;
-		properties?: Record<string, unknown>;
-	}): void;
+	capture(input: { event: string; properties?: Record<string, unknown> }): void;
 	captureRequired(event: string, properties?: Record<string, unknown>): void;
 	recordCounter(
 		name: string,
@@ -886,6 +884,8 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	buildMessages,
 	resolveRuleContent,
 };
+
+installParentDisconnectGuard();
 
 process.on(
 	"message",

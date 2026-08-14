@@ -5,7 +5,11 @@ import {
 	type GatewayProviderContext,
 } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
-import { BUILTIN_SPECS, resolveProviderApiLineBaseUrl } from "./builtins";
+import {
+	BUILTIN_PROVIDER_MANIFESTS_BY_ID,
+	BUILTIN_SPECS,
+	resolveProviderApiLineBaseUrl,
+} from "./builtins";
 import { getModelsForProvider, getProvider } from "./model-registry";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import { resolveAnthropicReasoningRequestPolicy } from "./routing/anthropic-compatible";
@@ -180,15 +184,21 @@ describe("vertex builtin models", () => {
 		// Vertex bills region-dependently and its US/EU multi-region rates
 		// exceed Anthropic's list price; the overlay must not present a
 		// misleading universal price. No pricing beats wrong pricing.
-		const anthropicFable = (await getModelsForProvider("anthropic"))["claude-fable-5"];
+		const anthropicFable = (await getModelsForProvider("anthropic"))[
+			"claude-fable-5"
+		];
 		expect(anthropicFable?.pricing).toBeDefined();
 
-		const vertexFable = (await getModelsForProvider("vertex"))["claude-fable-5"];
+		const vertexFable = (await getModelsForProvider("vertex"))[
+			"claude-fable-5"
+		];
 		expect(vertexFable).toBeDefined();
 		expect(vertexFable.pricing).toBeUndefined();
 		// Non-pricing metadata still carries over.
 		expect(vertexFable.capabilities).toEqual(anthropicFable.capabilities);
-		expect(vertexFable.reasoningOptions).toEqual(anthropicFable.reasoningOptions);
+		expect(vertexFable.reasoningOptions).toEqual(
+			anthropicFable.reasoningOptions,
+		);
 	});
 });
 
@@ -222,6 +232,24 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("declares OpenRouter image transport for Cline-compatible gateways", async () => {
+		await expect(getProvider("cline")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("cline-pass")).resolves.toMatchObject({
+			metadata: {
+				imageTransport: "openrouter",
+				responseEnvelope: "success-data",
+			},
+		});
+		await expect(getProvider("openrouter")).resolves.toMatchObject({
+			metadata: { imageTransport: "openrouter" },
+		});
+	});
+
 	it("registers ElevenLabs Scribe v2 as a dedicated transcription provider", async () => {
 		await expect(getProvider("elevenlabs")).resolves.toMatchObject({
 			id: "elevenlabs",
@@ -233,12 +261,34 @@ describe("built-in provider metadata", () => {
 		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
 			scribe_v2: expect.objectContaining({
 				id: "scribe_v2",
+				operation: "transcription",
+				operationModes: ["batch"],
 				modalities: {
 					input: ["audio"],
 					output: ["text"],
 				},
 			}),
 		});
+		expect(BUILTIN_PROVIDER_MANIFESTS_BY_ID.elevenlabs).toMatchObject({
+			modelOperationCapabilities: [
+				{
+					operation: "transcription",
+					modes: ["batch"],
+				},
+			],
+			metadata: { transcriptionTransport: "elevenlabs" },
+		});
+		expect(BUILTIN_PROVIDER_MANIFESTS_BY_ID["vercel-ai-gateway"]).toMatchObject(
+			{
+				modelOperationCapabilities: expect.arrayContaining([
+					expect.objectContaining({
+						operation: "transcription",
+						modes: ["batch", "streaming"],
+					}),
+				]),
+				metadata: { transcriptionTransport: "vercel-ai-gateway" },
+			},
+		);
 	});
 
 	it("merges generated provider specs with handwritten built-in overrides", async () => {

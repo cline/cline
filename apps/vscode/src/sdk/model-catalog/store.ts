@@ -370,6 +370,14 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 		if (overrides.capabilities.includes("images")) next.supportsImages = true
 		if (overrides.capabilities.includes("prompt-cache")) next.supportsPromptCache = true
 		if (overrides.capabilities.includes("reasoning")) next.supportsReasoning = true
+		// Union into the preserved SDK capability list, but never fabricate
+		// one from overrides alone: a user-authored partial list (e.g. just
+		// ["prompt-cache"]) must stay non-authoritative about capabilities it
+		// does not mention, and SDK checks fail open only when the list is
+		// absent.
+		if (next.capabilities !== undefined) {
+			next.capabilities = [...new Set([...next.capabilities, ...overrides.capabilities])]
+		}
 	}
 	if (overrides.supportsVision !== undefined) next.supportsImages = overrides.supportsVision
 	if (overrides.supportsReasoning !== undefined) next.supportsReasoning = overrides.supportsReasoning

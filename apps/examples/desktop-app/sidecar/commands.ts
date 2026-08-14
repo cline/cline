@@ -39,6 +39,7 @@ import {
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
+	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
@@ -56,6 +57,7 @@ import {
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
+import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -113,8 +115,6 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
-const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
-
 type DesktopDebugLogLevel = "debug" | "info" | "error";
 
 function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
@@ -1504,7 +1504,7 @@ export async function handleCommand(
 		const diagnostics = {
 			providerId: selection?.providerId,
 			modelId: selection?.modelId,
-			transport: route?.kind,
+			transport: route?.transport,
 			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
 		};
 		emitDesktopDebugLog(
@@ -1572,7 +1572,7 @@ export async function handleCommand(
 		const diagnostics = {
 			providerId: selection?.providerId,
 			modelId: selection?.modelId,
-			transport: route?.kind,
+			transport: route?.transport,
 			endpoint: sanitizeDiagnosticUrl(route?.endpoint),
 			mediaType,
 			audioBytes: decodedBytes,
@@ -1727,6 +1727,13 @@ export async function handleCommand(
 			throw new Error("auto_update_enabled must be a boolean");
 		}
 		setAutoUpdateEnabledGlobally(args.auto_update_enabled);
+		return readGlobalSettings();
+	}
+	if (command === "set_web_search_enabled") {
+		if (typeof args?.web_search_enabled !== "boolean") {
+			throw new Error("web_search_enabled must be a boolean");
+		}
+		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
 	}
 

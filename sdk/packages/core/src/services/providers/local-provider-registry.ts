@@ -15,6 +15,8 @@ import {
 	ModelCapabilitySchema,
 	type ModelInfo,
 	ModelModalitiesSchema,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -55,6 +57,8 @@ export const StoredModelEntrySchema = z
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		operation: ModelOperationSchema.optional(),
+		operationModes: z.array(ModelOperationModeSchema).optional(),
 		modalities: ModelModalitiesSchema.optional(),
 		inputPrice: OptionalNonNegativeFiniteNumberSchema,
 		outputPrice: OptionalNonNegativeFiniteNumberSchema,
@@ -219,12 +223,19 @@ export function toProviderModel(
 	modelId: string,
 	info: Pick<
 		ModelInfo,
-		"name" | "contextWindow" | "capabilities" | "thinkingConfig" | "modalities"
+		| "name"
+		| "contextWindow"
+		| "capabilities"
+		| "thinkingConfig"
+		| "operation"
+		| "operationModes"
+		| "modalities"
 	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		operation: info.operation,
 		...(info.contextWindow !== undefined
 			? { contextWindow: info.contextWindow }
 			: {}),
@@ -232,9 +243,7 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
-		...(info.capabilities?.includes("transcription-streaming")
-			? { supportsStreamingTranscription: true }
-			: {}),
+		operationModes: info.operationModes,
 		inputModalities: info.modalities?.input,
 		outputModalities: info.modalities?.output,
 	};
@@ -352,6 +361,10 @@ function toStoredModelInfo(
 			? { temperature: model.temperature }
 			: {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.operation !== undefined ? { operation: model.operation } : {}),
+		...(model?.operationModes !== undefined
+			? { operationModes: model.operationModes }
+			: {}),
 		...(model?.modalities !== undefined
 			? { modalities: model.modalities }
 			: {}),

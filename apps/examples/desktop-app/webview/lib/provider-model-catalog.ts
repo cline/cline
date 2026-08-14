@@ -27,18 +27,29 @@ export type TranscriptionModelTarget = {
 };
 
 export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
-	return (
-		model.inputModalities?.length === 1 &&
-		model.inputModalities[0] === "audio" &&
-		model.outputModalities?.length === 1 &&
-		model.outputModalities[0] === "text"
-	);
+	return model.operation === "transcription";
 }
 
 export function supportsAudio(model: ProviderModel): boolean {
 	return (
 		model.inputModalities?.includes("audio") === true ||
 		model.outputModalities?.includes("audio") === true
+	);
+}
+
+export function filterChatModels(
+	models: ProviderModel[] | undefined,
+): ProviderModel[] {
+	return (models ?? []).filter(isChatModel);
+}
+
+export function isChatModel(model: ProviderModel): boolean {
+	return (
+		model.operation === "image-generation" ||
+		supportsChatModalities({
+			input: model.inputModalities,
+			output: model.outputModalities,
+		})
 	);
 }
 
@@ -61,25 +72,18 @@ export function selectTranscriptionModel(
 				providerName: provider.name,
 				modelId: model.id,
 				modelName: model.name,
-				supportsStreaming: model.supportsStreamingTranscription === true,
+				supportsStreaming: model.operationModes?.includes("streaming") === true,
 			}
 		: null;
 }
 
-export function isChatModel(model: ProviderModel): boolean {
-	return supportsChatModalities({
-		input: model.inputModalities,
-		output: model.outputModalities,
-	});
-}
-
 function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? []).filter(isChatModel).map((model) => model.id);
+	return filterChatModels(models).map((model) => model.id);
 }
 
 function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
-	return (models ?? [])
-		.filter((model) => isChatModel(model) && model.supportsReasoning)
+	return filterChatModels(models)
+		.filter((model) => model.supportsReasoning)
 		.map((model) => model.id);
 }
 
@@ -135,8 +139,9 @@ export function publishProviderModels(
 	models: ProviderModel[],
 ): void {
 	invalidateProviderCatalogCache();
+	const chatModels = filterChatModels(models);
 	for (const listener of providerModelsListeners) {
-		listener(providerId, models);
+		listener(providerId, chatModels);
 	}
 }
 
@@ -239,5 +244,5 @@ export async function loadProviderModels(
 			provider: providerId,
 		},
 	);
-	return payload.models ?? [];
+	return filterChatModels(payload.models);
 }
