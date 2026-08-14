@@ -655,10 +655,13 @@ export {
 } from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
+	type CreateConfiguredStreamingTranscriptionSessionRequest,
+	createConfiguredStreamingTranscriptionSession,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
+	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
@@ -668,6 +671,11 @@ export {
 	resolveLocalClineAuthToken,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	saveVoiceInputSettings,
+	type TranscribeConfiguredVoiceInputRequest,
+	type TranscribeLocalAudioRequest,
+	transcribeConfiguredVoiceInput,
+	transcribeLocalAudio,
 	type UpdateLocalProviderRequest,
 	updateLocalProvider,
 } from "./services/providers/local-provider-service";
@@ -1049,11 +1057,13 @@ export type {
 } from "./types/events";
 export type {
 	ProviderTokenSource,
+	StoredProviderModes,
 	StoredProviderSettings,
 	StoredProviderSettingsEntry,
 } from "./types/provider-settings";
 export {
 	emptyStoredProviderSettings,
+	StoredProviderModesSchema,
 	StoredProviderSettingsEntrySchema,
 	StoredProviderSettingsSchema,
 } from "./types/provider-settings";
