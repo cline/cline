@@ -212,6 +212,7 @@ export {
 	ThinkingConfigSchema,
 } from "./llms/model-info";
 export { mergeModelOptions } from "./llms/model-options";
+export * from "./llms/model-tools";
 export {
 	DEFAULT_REASONING_EFFORT,
 	REASONING_EFFORT_RATIOS,

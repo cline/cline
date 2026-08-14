@@ -1,12 +1,17 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
+	ModelTool,
 } from "@cline/shared";
-import type { CallSettings } from "ai";
+import type { CallSettings, ToolSet } from "ai";
 import type { RetryEmptyResponseOptions } from "../middleware/retry-empty-response";
 
 export interface ProviderFactoryResult {
 	model: (modelId: string) => unknown;
+	/** Translate portable model-tool intent into provider-defined AI SDK tools. */
+	buildModelTools?: (tools: readonly ModelTool[]) => ToolSet;
+	/** AI SDK executes provider-defined client tools and continues model steps. */
+	executesModelTools?: boolean;
 	/**
 	 * Policy for the gateway-level transient-failure retry. Every vendor
 	 * model is wrapped with `createRetryEmptyResponseMiddleware` at the

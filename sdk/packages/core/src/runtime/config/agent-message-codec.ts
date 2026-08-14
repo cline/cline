@@ -14,6 +14,7 @@ import type {
 	ToolUseContent,
 } from "@cline/shared";
 import { EMPTY_CONTENT_TEXT } from "@cline/shared";
+import { toPersistedToolResultContent } from "../../session/persisted-tool-result-content";
 
 export function messageToAgentMessages(
 	message: MessageWithMetadata,
@@ -283,18 +284,11 @@ function agentPartToContentBlock(
 			} satisfies ToolUseContent;
 		}
 		case "tool-result": {
-			const output = part.output;
-			const content =
-				typeof output === "string"
-					? output
-					: Array.isArray(output)
-						? (output as ToolResultContent["content"])
-						: JSON.stringify(output);
 			return {
 				type: "tool_result",
 				tool_use_id: part.toolCallId,
 				name: part.toolName,
-				content,
+				content: toPersistedToolResultContent(part.output),
 				is_error: part.isError,
 			} satisfies ToolResultContent;
 		}
