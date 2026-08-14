@@ -640,10 +640,23 @@ export function ChatEntryView(props: {
 						)}
 					</box>
 					<box flexGrow={1}>
+						{/*
+						 * internalBlockMode="top-level" keeps each markdown block as its
+						 * own renderable. The default coalesced mode merges the whole
+						 * message into one block that is torn down and re-highlighted on
+						 * every streamed chunk, which flashes already-rendered headings
+						 * and links back to raw uncolored markdown while tree-sitter
+						 * re-highlights asynchronously. Top-level blocks are reused by
+						 * token identity, so settled content never re-renders.
+						 * tableOptions preserves the bordered table style that coalesced
+						 * mode used by default (top-level defaults to borderless columns).
+						 */}
 						<markdown
 							content={content}
 							syntaxStyle={getSyntaxStyle(theme, mode)}
 							streaming={entry.streaming}
+							internalBlockMode="top-level"
+							tableOptions={{ style: "grid" }}
 							fg={defaultFg}
 						/>
 					</box>
