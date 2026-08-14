@@ -1507,6 +1507,21 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					})
 					break
 				}
+				case "media": {
+					const media = event.media
+					if (!media) {
+						break
+					}
+					messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "text",
+						text: "",
+						media: [media],
+						partial: false,
+					})
+					break
+				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
@@ -2343,7 +2358,7 @@ export function sdkMessagesToClineMessages(
 				continue
 			}
 
-			for (const block of message.content) {
+			for (const [blockIndex, block] of message.content.entries()) {
 				switch (block.type) {
 					case "text":
 						if (block.text.trim()) {
@@ -2372,6 +2387,37 @@ export function sdkMessagesToClineMessages(
 								),
 							)
 						}
+						break
+					case "image":
+						if (block.data && block.mediaType.startsWith("image/")) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "media",
+										media: {
+											id: `${message.id ?? `history-${sourceIndex}`}:media:${blockIndex}`,
+											modality: "image",
+											mediaType: block.mediaType,
+											source: { type: "base64", data: block.data },
+										},
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "media":
+						clineMessages.push(
+							...agentEventToMessages(
+								{
+									type: "content_end",
+									contentType: "media",
+									media: block.media,
+								} as AgentEvent,
+								state,
+							),
+						)
 						break
 					case "tool_use":
 						// Tool activity after a text block means that text wasn't the

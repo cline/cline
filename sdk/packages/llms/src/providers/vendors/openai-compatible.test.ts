@@ -189,7 +189,7 @@ async function createModel(input: {
 		config({ fetch: input.fetchMock as unknown as typeof fetch }),
 		context(),
 	);
-	return provider.model(input.modelId) as LanguageModelV4;
+	return provider.operations.language(input.modelId) as LanguageModelV4;
 }
 
 async function generate(input: { modelId: string }) {

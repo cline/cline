@@ -806,6 +806,75 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("defaults tool-calling on for dynamic-list models without preserved SDK capabilities", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/custom-model",
+			openRouterApiKey: "openrouter-key",
+			// Dynamic-list picker snapshot: legacy boolean flags but no SDK
+			// capability list. The reconstructed capabilities array must still
+			// carry "tools" — the SDK treats a populated list without it as
+			// "cannot call tools" and silently drops every tool from the session
+			// (the file-edit e2e regression).
+			actModeOpenRouterModelInfo: {
+				name: "Mock Custom Model",
+				contextWindow: 16_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
+		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/no-tools-model",
+			openRouterApiKey: "openrouter-key",
+			actModeOpenRouterModelInfo: {
+				name: "No Tools",
+				supportsPromptCache: true,
+				supportsTools: false,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/no-tools-model"]
+
+		expect(knownModel.capabilities).toContain("prompt-cache")
+		expect(knownModel.capabilities).not.toContain("tools")
+	})
+
+	it("trusts a preserved SDK capability list instead of injecting tools", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/media-model",
+			openRouterApiKey: "openrouter-key",
+			// A capability list preserved from the SDK catalog boundary is
+			// authoritative: when it omits "tools", the session must not
+			// re-enable tool calling.
+			actModeOpenRouterModelInfo: {
+				name: "Media Model",
+				supportsPromptCache: false,
+				capabilities: ["images"],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/media-model"]
+
+		expect(knownModel.capabilities).toContain("images")
+		expect(knownModel.capabilities).not.toContain("tools")
+	})
+
 	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",

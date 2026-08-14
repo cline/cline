@@ -239,9 +239,17 @@ function resolveOpenAiCompatibleMaxTokens(config: ApiConfiguration | undefined, 
 
 function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	const modelInfo = selection.modelInfo
-	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>(
-		(selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>,
-	)
+	// Seed from the SDK capability list preserved at the catalog boundary
+	// (`adaptSdkModelInfo`), then layer user overrides and the legacy boolean
+	// projections on top. The preserved list is the only source that carries
+	// capabilities without a legacy boolean (e.g. `tools`), and the SDK treats
+	// a populated capabilities array as authoritative — reconstructing one
+	// purely from the booleans silently disables everything they don't cover.
+	const preservedCapabilities = modelInfo.capabilities as NonNullable<SdkModelInfo["capabilities"]> | undefined
+	const capabilities = new Set<NonNullable<SdkModelInfo["capabilities"]>[number]>([
+		...(preservedCapabilities ?? []),
+		...((selection.overrides?.capabilities ?? []) as NonNullable<SdkModelInfo["capabilities"]>),
+	])
 	const setCapability = (capability: NonNullable<SdkModelInfo["capabilities"]>[number], enabled: boolean): void => {
 		if (enabled) capabilities.add(capability)
 		else capabilities.delete(capability)
@@ -250,6 +258,16 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	setCapability("prompt-cache", modelInfo.supportsPromptCache)
 	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
 	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
+	if (preservedCapabilities === undefined) {
+		// No authoritative SDK list survived to here (dynamic-list snapshot,
+		// fallback metadata, or a custom model). The array we are rebuilding
+		// from booleans must still carry a definitive tool-calling signal,
+		// because a non-empty capabilities array without "tools" reads as
+		// "cannot call tools" to the SDK runtime. Legacy metadata only models
+		// tool support for OpenAI-compatible entries via `supportsTools`.
+		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
+		setCapability("tools", supportsTools !== false)
+	}
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
 	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
@@ -270,6 +288,9 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(contextWindow !== undefined ? { contextWindow } : {}),
 		...(maxInputTokens !== undefined ? { maxInputTokens } : {}),
 		...(capabilities.size > 0 ? { capabilities: [...capabilities] } : {}),
+		...(modelInfo.operation !== undefined ? { operation: modelInfo.operation } : {}),
+		...(modelInfo.operationModes !== undefined ? { operationModes: [...modelInfo.operationModes] } : {}),
+		...(modelInfo.modalities !== undefined ? { modalities: modelInfo.modalities } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(hasPricing

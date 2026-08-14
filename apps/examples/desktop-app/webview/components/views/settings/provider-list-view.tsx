@@ -26,11 +26,11 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/desktop-client";
+import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import {
 	isDedicatedTranscriptionModel,
 	supportsAudio,
 } from "@/lib/provider-model-catalog";
-import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import type {
 	Provider,
 	ProviderConfigField,
@@ -289,7 +289,9 @@ export function ProviderListContent({
 								{selectedVoiceModels.map((model) => (
 									<option key={model.id} value={model.id}>
 										{model.name}
-										{model.supportsStreamingTranscription ? " (Live)" : ""}
+										{model.operationModes?.includes("streaming")
+											? " (Live)"
+											: ""}
 									</option>
 								))}
 							</select>

@@ -109,6 +109,7 @@ const voiceProviders: Provider[] = [
 			{
 				id: "scribe_v2",
 				name: "Scribe v2",
+				operation: "transcription",
 				inputModalities: ["audio"],
 				outputModalities: ["text"],
 			},
@@ -125,12 +126,14 @@ const voiceProviders: Provider[] = [
 			{
 				id: "whisper-large-v3",
 				name: "Whisper Large v3",
+				operation: "transcription",
 				inputModalities: ["audio"],
 				outputModalities: ["text"],
 			},
 			{
 				id: "whisper-large-v3-turbo",
 				name: "Whisper Large v3 Turbo",
+				operation: "transcription",
 				inputModalities: ["audio"],
 				outputModalities: ["text"],
 			},

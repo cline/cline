@@ -576,6 +576,44 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].partial).toBe(false)
 	})
 
+	it("translates generated media content_end to the shared media payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				partial: false,
+			}),
+		])
+	})
+
 	it("translates tool content_end with error", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
@@ -3999,6 +4037,31 @@ describe("tool display paths are relativized to the cwd", () => {
 		const toolMessage = clineMessages.find((m) => m.say === "tool")
 		expect(toolMessage).toBeDefined()
 		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
 	})
 
 	it("renders provider model activities through the persisted local-tool path", () => {

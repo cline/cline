@@ -91,7 +91,13 @@ const result = await transcribeAudio({
 });
 ```
 
-Models marked with the `transcription-streaming` capability use a live
+Transcription is fail-closed at the provider boundary. Built-in providers
+declare their concrete transport in their manifest; a custom provider must set
+`routingProviderId` to a provider whose transcription transport it explicitly
+reuses. A generic OpenAI-compatible chat configuration does not imply that
+`/audio/transcriptions` exists.
+
+Transcription models whose `operationModes` include `streaming` use a live
 WebSocket instead of the recorded-audio call. The SDK can mint a short-lived,
 transcription-bound browser credential without exposing the provider API key:
 

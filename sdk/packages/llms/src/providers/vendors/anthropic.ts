@@ -4,7 +4,7 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import { type ToolSet, wrapLanguageModel } from "ai";
+import { wrapLanguageModel } from "ai";
 import { resolveApiKey } from "../http";
 import {
 	createMiniMaxThinkingFetch,
@@ -27,29 +27,35 @@ export async function createAnthropicProviderModule(
 	});
 	return {
 		buildModelTools: (tools) => {
-			const result: ToolSet = {};
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
 			for (const tool of tools) {
 				if (tool.name === "web_search") {
-					result.web_search = provider.tools.webSearch_20250305({
-						maxUses: tool.maxUses,
-						allowedDomains: tool.allowedDomains,
-						blockedDomains: tool.blockedDomains,
-						userLocation: tool.userLocation
-							? { type: "approximate", ...tool.userLocation }
-							: undefined,
-					});
+					result.web_search = {
+						tool: provider.tools.webSearch_20250305({
+							maxUses: tool.maxUses,
+							allowedDomains: tool.allowedDomains,
+							blockedDomains: tool.blockedDomains,
+							userLocation: tool.userLocation
+								? { type: "approximate", ...tool.userLocation }
+								: undefined,
+						}),
+					};
 				}
 			}
 			return result;
 		},
-		model: (modelId) => {
-			const model = provider(modelId);
-			return isMiniMax
-				? wrapLanguageModel({
-						model: model as LanguageModelV4,
-						middleware: miniMaxThinkingDisabledMiddleware,
-					})
-				: model;
+		operations: {
+			language: (modelId) => {
+				const model = provider(modelId);
+				return isMiniMax
+					? wrapLanguageModel({
+							model: model as LanguageModelV4,
+							middleware: miniMaxThinkingDisabledMiddleware,
+						})
+					: model;
+			},
 		},
 	};
 }

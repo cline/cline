@@ -3,7 +3,6 @@ import type {
 	GatewayProviderContext,
 	GatewayResolvedProviderConfig,
 } from "@cline/shared";
-import type { ToolSet } from "ai";
 import { resolveApiKey } from "../http";
 import type { ProviderFactoryResult } from "./types";
 
@@ -20,14 +19,19 @@ export async function createGoogleProviderModule(
 	});
 	return {
 		buildModelTools: (tools) => {
-			const result: ToolSet = {};
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
 			for (const tool of tools) {
 				if (tool.name === "web_search") {
-					result.web_search = provider.tools.googleSearch({});
+					result.web_search = { tool: provider.tools.googleSearch({}) };
 				}
 			}
 			return result;
 		},
-		model: (modelId) => provider(modelId),
+		operations: {
+			language: (modelId) => provider(modelId),
+			imageGeneration: (modelId) => provider.image(modelId),
+		},
 	};
 }
