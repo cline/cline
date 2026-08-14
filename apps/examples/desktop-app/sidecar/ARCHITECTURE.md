@@ -141,6 +141,9 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `save_voice_input_settings` | validates and persists the selected transcription provider/model |
+| `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |

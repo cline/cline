@@ -44,6 +44,7 @@ export const GENERATED_PROVIDER_IDS = [
 	"cortecs",
 	"crof",
 	"crossmodel",
+	"crusoe",
 	"daoxe",
 	"databricks",
 	"deepseek",

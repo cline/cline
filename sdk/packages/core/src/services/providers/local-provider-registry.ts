@@ -14,6 +14,7 @@ import {
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
+	ModelModalitiesSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -54,6 +55,7 @@ export const StoredModelEntrySchema = z
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		modalities: ModelModalitiesSchema.optional(),
 		inputPrice: OptionalNonNegativeFiniteNumberSchema,
 		outputPrice: OptionalNonNegativeFiniteNumberSchema,
 		cacheReadsPrice: OptionalNonNegativeFiniteNumberSchema,
@@ -217,7 +219,7 @@ export function toProviderModel(
 	modelId: string,
 	info: Pick<
 		ModelInfo,
-		"name" | "contextWindow" | "capabilities" | "thinkingConfig"
+		"name" | "contextWindow" | "capabilities" | "thinkingConfig" | "modalities"
 	>,
 ): ProviderModel {
 	return {
@@ -230,6 +232,11 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		...(info.capabilities?.includes("transcription-streaming")
+			? { supportsStreamingTranscription: true }
+			: {}),
+		inputModalities: info.modalities?.input,
+		outputModalities: info.modalities?.output,
 	};
 }
 
@@ -345,6 +352,9 @@ function toStoredModelInfo(
 			? { temperature: model.temperature }
 			: {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.modalities !== undefined
+			? { modalities: model.modalities }
+			: {}),
 		...(hasPricing
 			? {
 					pricing: {

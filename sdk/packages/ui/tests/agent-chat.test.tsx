@@ -112,9 +112,7 @@ describe("@cline/ui agent chat primitives", () => {
 			</ToolActivity>,
 		);
 
-		expect(
-			container.querySelector(".cline-chat-tool-progress"),
-		).not.toBeNull();
+		expect(container.querySelector(".cline-chat-tool-progress")).not.toBeNull();
 		expect(container.querySelector("[data-testid='tool-icon']")).toBeNull();
 
 		await render(
@@ -128,9 +126,7 @@ describe("@cline/ui agent chat primitives", () => {
 		);
 
 		expect(container.querySelector(".cline-chat-tool-progress")).toBeNull();
-		expect(
-			container.querySelector("[data-testid='tool-icon']"),
-		).not.toBeNull();
+		expect(container.querySelector("[data-testid='tool-icon']")).not.toBeNull();
 	});
 
 	it("toggles expandable tool details", async () => {

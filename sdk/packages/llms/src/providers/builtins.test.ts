@@ -180,15 +180,21 @@ describe("vertex builtin models", () => {
 		// Vertex bills region-dependently and its US/EU multi-region rates
 		// exceed Anthropic's list price; the overlay must not present a
 		// misleading universal price. No pricing beats wrong pricing.
-		const anthropicFable = (await getModelsForProvider("anthropic"))["claude-fable-5"];
+		const anthropicFable = (await getModelsForProvider("anthropic"))[
+			"claude-fable-5"
+		];
 		expect(anthropicFable?.pricing).toBeDefined();
 
-		const vertexFable = (await getModelsForProvider("vertex"))["claude-fable-5"];
+		const vertexFable = (await getModelsForProvider("vertex"))[
+			"claude-fable-5"
+		];
 		expect(vertexFable).toBeDefined();
 		expect(vertexFable.pricing).toBeUndefined();
 		// Non-pricing metadata still carries over.
 		expect(vertexFable.capabilities).toEqual(anthropicFable.capabilities);
-		expect(vertexFable.reasoningOptions).toEqual(anthropicFable.reasoningOptions);
+		expect(vertexFable.reasoningOptions).toEqual(
+			anthropicFable.reasoningOptions,
+		);
 	});
 });
 
@@ -222,6 +228,25 @@ describe("cline-pass builtin spec", () => {
 });
 
 describe("built-in provider metadata", () => {
+	it("registers ElevenLabs Scribe v2 as a dedicated transcription provider", async () => {
+		await expect(getProvider("elevenlabs")).resolves.toMatchObject({
+			id: "elevenlabs",
+			name: "ElevenLabs",
+			baseUrl: "https://api.elevenlabs.io/v1",
+			defaultModelId: "scribe_v2",
+			client: "fetch",
+		});
+		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
+			scribe_v2: expect.objectContaining({
+				id: "scribe_v2",
+				modalities: {
+					input: ["audio"],
+					output: ["text"],
+				},
+			}),
+		});
+	});
+
 	it("merges generated provider specs with handwritten built-in overrides", async () => {
 		const generatedIds = new Set(
 			GENERATED_PROVIDER_SPECS.map((spec) => spec.id),
@@ -424,9 +449,7 @@ describe("regional API line base URLs", () => {
 	it("returns undefined for unknown lines and non-regional providers", () => {
 		expect(resolveProviderApiLineBaseUrl("zai", undefined)).toBeUndefined();
 		expect(resolveProviderApiLineBaseUrl("zai", "mars")).toBeUndefined();
-		expect(
-			resolveProviderApiLineBaseUrl("anthropic", "china"),
-		).toBeUndefined();
+		expect(resolveProviderApiLineBaseUrl("anthropic", "china")).toBeUndefined();
 	});
 
 	it("keeps the international line consistent with the spec default base URL for zai and moonshot", () => {

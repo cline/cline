@@ -1,5 +1,6 @@
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
+import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
 import { encodeSidecarEvent, sendEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
@@ -319,8 +320,9 @@ export function createFetchHandler(
 	};
 }
 
-function createWebSocketHandler(ctx: SidecarContext) {
+export function createWebSocketHandler(ctx: SidecarContext) {
 	return {
+		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
 			sendEvent(ctx, "host_ready", {
