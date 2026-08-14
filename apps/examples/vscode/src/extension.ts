@@ -8,12 +8,14 @@ import {
 	createConfiguredTelemetryService,
 	createLocalHubScheduleRuntimeHandlers,
 	ensureHubWebSocketServer,
+	getUserRunSpan,
 	type ITelemetryService,
 	Llms,
 	NodeHubClient,
 	type ProviderModel,
 	ProviderSettingsManager,
 	probeHubServer,
+	projectSessionMessagesForDisplay,
 	type RuntimeCapabilities,
 	readHubDiscovery,
 	rememberRecoverableLocalHubUrl,
@@ -25,6 +27,8 @@ import {
 	buildClineSystemPrompt,
 	createClineTelemetryServiceConfig,
 	createClineTelemetryServiceMetadata,
+	formatDisplayUserInput,
+	type MessageWithMetadata,
 } from "@cline/shared";
 import * as vscode from "vscode";
 import { displayName, version } from "../package.json";
@@ -381,40 +385,22 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
-type PersistedMessage = {
-	id?: string;
-	role?: string;
-	content?:
-		| string
-		| Array<
-				| { type: "text"; text: string }
-				| { type: "reasoning"; text: string; redacted?: boolean }
-				| {
-						type: "tool-call";
-						toolCallId: string;
-						toolName: string;
-						input?: unknown;
-				  }
-				| {
-						type: "tool-result";
-						toolCallId: string;
-						toolName: string;
-						output?: unknown;
-						isError?: boolean;
-				  }
-		  >;
-};
-
-function mapPersistedMessagesToWebviewMessages(
-	messages: PersistedMessage[],
+export function mapPersistedMessagesToWebviewMessages(
+	messages: MessageWithMetadata[],
 	checkpointMetadata?: unknown,
 ): WebviewChatMessage[] {
 	const checkpointsByRunCount =
 		readCheckpointEntriesByRunCount(checkpointMetadata);
+	const mapped: WebviewChatMessage[] = [];
+	const toolLocations = new Map<
+		string,
+		{ messageIndex: number; blockIndex: number }
+	>();
 	let userRunCount = 0;
 
-	return messages.flatMap((message, messageIndex) => {
-		const messageKey = message.id ?? messageIndex;
+	for (const entry of projectSessionMessagesForDisplay(messages)) {
+		const { message, sourceIndex } = entry;
+		const messageKey = message.id ?? sourceIndex;
 		const textParts: string[] = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
@@ -423,6 +409,9 @@ function mapPersistedMessagesToWebviewMessages(
 			string,
 			NonNullable<WebviewChatMessage["toolEvents"]>[number]
 		>();
+		const currentToolBlockIndexes = new Map<string, number>();
+		const userRunSpan = getUserRunSpan(message);
+		userRunCount += userRunSpan;
 
 		const parts = Array.isArray(message.content)
 			? message.content
@@ -430,10 +419,16 @@ function mapPersistedMessagesToWebviewMessages(
 				? [{ type: "text" as const, text: message.content.trim() }]
 				: [];
 
-		for (const [partIndex, part] of parts.entries()) {
-			switch (part.type) {
+		for (const [partIndex, rawPart] of parts.entries()) {
+			const part = rawPart as unknown as Record<string, unknown>;
+			const type = typeof part.type === "string" ? part.type : "";
+			switch (type) {
 				case "text": {
-					const text = part.text.trim();
+					const rawText = typeof part.text === "string" ? part.text : "";
+					const text =
+						message.role === "user"
+							? formatDisplayUserInput(rawText).trim()
+							: rawText.trim();
 					if (!text) break;
 					textParts.push(text);
 					blocks.push({
@@ -443,66 +438,135 @@ function mapPersistedMessagesToWebviewMessages(
 					});
 					break;
 				}
+				case "thinking":
 				case "reasoning": {
-					if (!part.text.trim()) break;
-					reasoningParts.push(part.text);
+					const reasoning =
+						type === "thinking"
+							? typeof part.thinking === "string"
+								? part.thinking
+								: ""
+							: typeof part.text === "string"
+								? part.text
+								: "";
+					if (!reasoning.trim()) break;
+					reasoningParts.push(reasoning);
 					blocks.push({
 						id: `${messageKey}:reasoning:${partIndex}`,
 						type: "reasoning",
-						text: part.text,
-						redacted: part.redacted,
+						text: reasoning,
+						redacted: part.redacted === true || undefined,
 					});
 					reasoningRedacted = reasoningRedacted || part.redacted === true;
 					break;
 				}
-				case "tool-call": {
-					const toolEvent = {
-						id: `${messageKey}:${part.toolCallId}`,
-						toolCallId: part.toolCallId,
-						name: part.toolName,
-						text: `Running ${part.toolName}...`,
-						state: "input-available" as const,
-						input: part.input,
-					};
-					toolEvents.set(part.toolCallId, toolEvent);
+				case "redacted_thinking": {
+					reasoningRedacted = true;
 					blocks.push({
-						id: `${messageKey}:tool:${part.toolCallId}`,
-						type: "tool",
-						toolEvent,
+						id: `${messageKey}:reasoning:${partIndex}`,
+						type: "reasoning",
+						text: "[redacted]",
+						redacted: true,
 					});
 					break;
 				}
-				case "tool-result": {
-					const existing = toolEvents.get(part.toolCallId);
+				case "tool_use":
+				case "tool-call": {
+					const toolCallId =
+						(typeof part.id === "string" && part.id) ||
+						(typeof part.toolCallId === "string" && part.toolCallId) ||
+						`${messageKey}:${partIndex}`;
+					const toolName =
+						(typeof part.name === "string" && part.name) ||
+						(typeof part.toolName === "string" && part.toolName) ||
+						"tool";
 					const toolEvent = {
-						id: existing?.id ?? `${messageKey}:${part.toolCallId}`,
-						toolCallId: part.toolCallId,
-						name: part.toolName,
-						text: part.isError
-							? `${part.toolName} failed`
-							: `${part.toolName} completed`,
-						state: part.isError
+						id: `${messageKey}:${toolCallId}`,
+						toolCallId,
+						name: toolName,
+						text: `Running ${toolName}...`,
+						state: "input-available" as const,
+						input: part.input,
+					};
+					toolEvents.set(toolCallId, toolEvent);
+					blocks.push({
+						id: `${messageKey}:tool:${toolCallId}`,
+						type: "tool",
+						toolEvent,
+					});
+					currentToolBlockIndexes.set(toolCallId, blocks.length - 1);
+					toolLocations.set(toolCallId, {
+						messageIndex: mapped.length,
+						blockIndex: blocks.length - 1,
+					});
+					break;
+				}
+				case "tool_result":
+				case "tool-result": {
+					const toolCallId =
+						(typeof part.tool_use_id === "string" && part.tool_use_id) ||
+						(typeof part.toolCallId === "string" && part.toolCallId) ||
+						`${messageKey}:${partIndex}`;
+					const toolName =
+						(typeof part.name === "string" && part.name) ||
+						(typeof part.toolName === "string" && part.toolName) ||
+						"tool";
+					const output = type === "tool_result" ? part.content : part.output;
+					const isError = part.is_error === true || part.isError === true;
+					const currentBlockIndex = currentToolBlockIndexes.get(toolCallId);
+					const existingLocation = toolLocations.get(toolCallId);
+					const existingBlock =
+						currentBlockIndex !== undefined
+							? blocks[currentBlockIndex]
+							: existingLocation
+								? mapped[existingLocation.messageIndex]?.blocks?.[
+										existingLocation.blockIndex
+									]
+								: undefined;
+					const existing =
+						existingBlock?.type === "tool"
+							? existingBlock.toolEvent
+							: undefined;
+					const toolEvent = {
+						id: existing?.id ?? `${messageKey}:${toolCallId}`,
+						toolCallId,
+						name: existing?.name ?? toolName,
+						text: isError
+							? `${existing?.name ?? toolName} failed`
+							: `${existing?.name ?? toolName} completed`,
+						state: isError
 							? ("output-error" as const)
 							: ("output-available" as const),
 						input: existing?.input,
-						output: part.output,
-						error: part.isError ? stringifyContent(part.output) : undefined,
+						output,
+						error: isError ? stringifyContent(output) : undefined,
 					};
-					toolEvents.set(part.toolCallId, toolEvent);
-					const blockId = `${messageKey}:tool:${part.toolCallId}`;
-					const existingBlockIndex = blocks.findIndex(
-						(block) =>
-							block.type === "tool" &&
-							block.toolEvent.toolCallId === part.toolCallId,
-					);
-					if (existingBlockIndex >= 0) {
-						blocks[existingBlockIndex] = {
-							id: blockId,
+					if (currentBlockIndex !== undefined) {
+						blocks[currentBlockIndex] = {
+							...blocks[currentBlockIndex],
 							type: "tool",
 							toolEvent,
 						};
+						toolEvents.set(toolCallId, toolEvent);
+					} else if (existingLocation) {
+						const target = mapped[existingLocation.messageIndex];
+						const targetBlocks = target?.blocks;
+						if (target && targetBlocks) {
+							targetBlocks[existingLocation.blockIndex] = {
+								id: `${target.id}:tool:${toolCallId}`,
+								type: "tool",
+								toolEvent,
+							};
+							target.toolEvents = (target.toolEvents ?? []).map((event) =>
+								event.toolCallId === toolCallId ? toolEvent : event,
+							);
+						}
 					} else {
-						blocks.push({ id: blockId, type: "tool", toolEvent });
+						toolEvents.set(toolCallId, toolEvent);
+						blocks.push({
+							id: `${messageKey}:tool:${toolCallId}`,
+							type: "tool",
+							toolEvent,
+						});
 					}
 					break;
 				}
@@ -512,7 +576,7 @@ function mapPersistedMessagesToWebviewMessages(
 		const text = textParts.join("\n");
 		const toolEventList = [...toolEvents.values()];
 		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
-			return [];
+			continue;
 		}
 		const role =
 			message.role === "user"
@@ -521,22 +585,24 @@ function mapPersistedMessagesToWebviewMessages(
 					? "assistant"
 					: "meta";
 		const checkpoint =
-			role === "user" ? checkpointsByRunCount.get(++userRunCount) : undefined;
+			role === "user" && userRunSpan === 1
+				? checkpointsByRunCount.get(userRunCount)
+				: undefined;
 
-		return [
-			{
-				id: message.id || `history-${messageIndex}`,
-				role,
-				text,
-				reasoning:
-					reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
-				reasoningRedacted: reasoningRedacted || undefined,
-				checkpoint,
-				toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
-				blocks: blocks.length > 0 ? blocks : undefined,
-			},
-		];
-	});
+		mapped.push({
+			id: message.id || `history-${sourceIndex}`,
+			role,
+			text,
+			reasoning:
+				reasoningParts.length > 0 ? reasoningParts.join("\n") : undefined,
+			reasoningRedacted: reasoningRedacted || undefined,
+			checkpoint,
+			toolEvents: toolEventList.length > 0 ? toolEventList : undefined,
+			blocks: blocks.length > 0 ? blocks : undefined,
+		});
+	}
+
+	return mapped;
 }
 
 class CoreChatWebviewController implements vscode.Disposable {
@@ -948,9 +1014,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 			role: "participant",
 			metadata: { source: "vscode-webview" },
 		});
-		const persistedMessages = (await host.readMessages(
-			trimmed,
-		)) as PersistedMessage[];
+		const persistedMessages = await host.readMessages(trimmed);
 		this.startConfig = await this.buildStartConfigFromSession(session);
 		await this.post({ type: "session_started", sessionId: trimmed });
 		await this.post({
@@ -1273,7 +1337,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 				interactive: true,
 				config: forkStartConfig,
 				toolPolicies: createToolPolicies(forkStartConfig),
-				initialMessages: rawMessages as import("@cline/llms").Message[],
+				initialMessages: rawMessages,
 				sessionMetadata: forkMetadata,
 			});
 			const newSessionId = response.sessionId.trim();
@@ -1290,7 +1354,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 				sessionId: newSessionId,
 				status: newSession?.status,
 				messages: mapPersistedMessagesToWebviewMessages(
-					rawMessages as PersistedMessage[],
+					rawMessages,
 					newSession?.metadata?.checkpoint,
 				),
 			});
@@ -1388,7 +1452,7 @@ class CoreChatWebviewController implements vscode.Disposable {
 				providerId: newSession?.provider,
 				modelId: newSession?.model,
 				messages: mapPersistedMessagesToWebviewMessages(
-					(restored.messages ?? []) as PersistedMessage[],
+					restored.messages ?? [],
 					newSession?.metadata?.checkpoint,
 				),
 			});

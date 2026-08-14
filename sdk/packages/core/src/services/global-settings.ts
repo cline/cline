@@ -1,6 +1,13 @@
 import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import type { AgentConfig, AgentTool, ITelemetryService } from "@cline/shared";
+import {
+	type AgentConfig,
+	type AgentTool,
+	type ITelemetryService,
+	MODEL_TOOL_NAMES,
+	type ModelToolName,
+	type ModelToolSettings,
+} from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
 import { z } from "zod";
 import { captureTelemetryOptOut } from "./telemetry/core-events";
@@ -33,6 +40,13 @@ const GlobalCompactionStrategySchema = z
 	.enum(["basic", "agentic"])
 	.catch("agentic");
 
+const ModelToolSettingsSchema = z
+	.partialRecord(
+		z.enum(MODEL_TOOL_NAMES),
+		z.object({ enabled: z.boolean() }).strip(),
+	)
+	.optional();
+
 export type GlobalCompactionStrategy = z.infer<
 	typeof GlobalCompactionStrategySchema
 >;
@@ -54,6 +68,7 @@ export const GlobalSettingsSchema = z
 		toolAutoApprove: z.boolean().optional().catch(undefined),
 		tuiTheme: z.string().optional().catch(undefined),
 		disabledTools: GlobalSettingsStringListSchema.optional(),
+		tools: ModelToolSettingsSchema,
 		disabledPlugins: GlobalSettingsStringListSchema.optional(),
 	})
 	.strip()
@@ -67,6 +82,7 @@ export const GlobalSettingsSchema = z
 			toolAutoApprove?: boolean;
 			tuiTheme?: string;
 			disabledTools?: string[];
+			tools?: ModelToolSettings;
 			disabledPlugins?: string[];
 		} = {
 			autoUpdateEnabled: settings.autoUpdateEnabled,
@@ -89,6 +105,9 @@ export const GlobalSettingsSchema = z
 		}
 		if (settings.disabledTools?.length) {
 			normalized.disabledTools = settings.disabledTools;
+		}
+		if (settings.tools && Object.keys(settings.tools).length > 0) {
+			normalized.tools = settings.tools;
 		}
 		if (settings.disabledPlugins?.length) {
 			normalized.disabledPlugins = settings.disabledPlugins;
@@ -122,6 +141,12 @@ function invalidateSettingsCache(): void {
 function freezeSettings(value: GlobalSettings): GlobalSettings {
 	if (value.disabledTools) {
 		Object.freeze(value.disabledTools);
+	}
+	if (value.tools) {
+		for (const setting of Object.values(value.tools)) {
+			Object.freeze(setting);
+		}
+		Object.freeze(value.tools);
 	}
 	if (value.disabledPlugins) {
 		Object.freeze(value.disabledPlugins);
@@ -302,10 +327,41 @@ export function resolveDisabledPluginPaths(
 }
 
 export function isToolDisabledGlobally(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		return !isModelToolEnabledGlobally(toolName);
+	}
 	return resolveDisabledToolNames().has(toolName);
 }
 
+function isModelToolName(value: string): value is ModelToolName {
+	return (MODEL_TOOL_NAMES as readonly string[]).includes(value);
+}
+
+export function resolveModelToolSettings(): ModelToolSettings {
+	return readGlobalSettings().tools ?? {};
+}
+
+export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+	return resolveModelToolSettings()[name]?.enabled === true;
+}
+
+export function setModelToolEnabledGlobally(
+	name: ModelToolName,
+	enabled: boolean,
+): void {
+	const settings = readGlobalSettings();
+	writeGlobalSettings({
+		...settings,
+		tools: { ...settings.tools, [name]: { enabled } },
+	});
+}
+
 export function toggleDisabledTool(toolName: string): boolean {
+	if (isModelToolName(toolName)) {
+		const disabled = isModelToolEnabledGlobally(toolName);
+		setModelToolEnabledGlobally(toolName, !disabled);
+		return disabled;
+	}
 	const settings = readGlobalSettings();
 	const disabled = new Set(settings.disabledTools ?? []);
 	const wasDisabled = disabled.has(toolName);
@@ -331,14 +387,19 @@ export function setDisabledTools(
 
 	const settings = readGlobalSettings();
 	const disabled = resolveDisabledToolNames(settings.disabledTools);
+	const tools: ModelToolSettings = { ...settings.tools };
 	for (const name of names) {
+		if (isModelToolName(name)) {
+			tools[name] = { enabled: !disabledValue };
+			continue;
+		}
 		if (disabledValue) {
 			disabled.add(name);
 		} else {
 			disabled.delete(name);
 		}
 	}
-	writeGlobalSettings({ ...settings, disabledTools: [...disabled] });
+	writeGlobalSettings({ ...settings, disabledTools: [...disabled], tools });
 }
 
 export function setToolDisabledGlobally(

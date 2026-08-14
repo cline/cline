@@ -52,6 +52,8 @@ export interface AgentToolCallPart {
 	toolName: string;
 	input: unknown;
 	metadata?: unknown;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
 }
 
 export interface AgentToolResultPart {
@@ -59,6 +61,20 @@ export interface AgentToolResultPart {
 	toolCallId: string;
 	toolName: string;
 	output: unknown;
+	isError?: boolean;
+	/** Absent for ordinary AgentRuntime-executed tools. */
+	execution?: ModelToolExecution;
+}
+
+export type ModelToolExecution = "client" | "provider";
+
+/** Observational record for a model tool executed outside AgentRuntime. */
+export interface AgentModelToolActivity {
+	toolCallId: string;
+	toolName: string;
+	execution: ModelToolExecution;
+	input?: unknown;
+	output?: unknown;
 	isError?: boolean;
 }
 
@@ -195,6 +211,8 @@ export interface AgentModelRequest {
 	systemPrompt?: string;
 	messages: readonly AgentMessage[];
 	tools: readonly AgentToolDefinition[];
+	/** Provider-executed tools enabled for this model request. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	signal?: AbortSignal;
 	options?: Record<string, unknown>;
 }
@@ -261,6 +279,17 @@ export type AgentModelEvent =
 			inputText?: string;
 			input?: unknown;
 			metadata?: unknown;
+			/** Set when execution is owned by AI SDK or the model provider. */
+			execution?: ModelToolExecution;
+	  }
+	| {
+			type: "tool-result";
+			toolCallId: string;
+			toolName: import("./llms/model-tools").ModelToolName;
+			input?: unknown;
+			output: unknown;
+			isError?: boolean;
+			execution: ModelToolExecution;
 	  }
 	| {
 			/**
@@ -457,6 +486,8 @@ export interface AgentRuntimeConfig {
 	messageModelInfo?: AgentMessage["modelInfo"];
 	model: AgentModel;
 	modelOptions?: Record<string, unknown>;
+	/** Provider-executed tools, separate from locally executed AgentTools. */
+	modelTools?: readonly import("./llms/model-tools").ModelTool[];
 	// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
 	tools?: readonly AgentTool<any, any>[];
 	hooks?: Partial<AgentRuntimeHooks>;
@@ -498,7 +529,7 @@ export interface AgentRuntimeConfig {
 }
 
 // =============================================================================
-// Runtime event union (13 variants)
+// Runtime event union
 // =============================================================================
 
 export type AgentRuntimeEvent =

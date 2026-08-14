@@ -1,3 +1,4 @@
+import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	type ContentBlock,
 	formatDisplayUserInput,
@@ -30,9 +31,12 @@ export function generateConversationHTML(
 	data: ConversationHistory,
 	fileName: string,
 ): string {
+	const displayMessages = projectSessionMessagesForDisplay(data.messages).map(
+		({ message }) => message,
+	);
 	// Build tool results map
 	const toolResultsMap = new Map<string, ToolResultContent>();
-	data.messages.forEach((msg) => {
+	displayMessages.forEach((msg) => {
 		if (!isStringContent(msg.content)) {
 			msg.content.forEach((block) => {
 				if (block.type === "tool_result") {
@@ -43,7 +47,7 @@ export function generateConversationHTML(
 	});
 
 	// Filter messages (same logic as viewer)
-	const filteredMessages = data.messages.filter((msg) => {
+	const filteredMessages = displayMessages.filter((msg) => {
 		if (msg.role === "assistant") return true;
 		if (isStringContent(msg.content)) {
 			return msg.content.trim().length > 0;

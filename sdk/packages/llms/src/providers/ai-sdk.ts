@@ -21,6 +21,7 @@ import {
 	type CallSettings,
 	jsonSchema,
 	NoSuchToolError,
+	stepCountIs,
 	streamText,
 	type ToolSet,
 	wrapLanguageModel,
@@ -82,6 +83,37 @@ export function buildAiSdkStreamConfig(
 		temperature: request.temperature,
 		...(reasoning ? { reasoning } : {}),
 	};
+}
+
+function buildProviderModelTools(
+	provider: ProviderFactoryResult,
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): ToolSet | undefined {
+	if (!request.modelTools?.length) {
+		return undefined;
+	}
+
+	const requestedNames = [
+		...new Set(request.modelTools.map((tool) => tool.name)),
+	];
+	if (!provider.buildModelTools) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" does not implement requested model tool(s): ${requestedNames.join(", ")}.`,
+		);
+	}
+
+	const modelTools = provider.buildModelTools(request.modelTools);
+	const missingNames = requestedNames.filter(
+		(toolName) => !Object.hasOwn(modelTools, toolName),
+	);
+	if (missingNames.length > 0) {
+		throw new Error(
+			`Provider adapter for "${context.provider.id}" did not build requested model tool(s): ${missingNames.join(", ")}.`,
+		);
+	}
+
+	return modelTools;
 }
 
 function buildAiSdkRequestMessages(
@@ -1021,6 +1053,33 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "tool-call") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					// Provider-executed tools complete inside this inference request. They
+					// must not enter AgentRuntime's local execution/approval loop. The same
+					// applies to provider-defined client tools: streamText executes those
+					// and continues the internal model step before returning control.
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool) {
+							yield {
+								type: "tool-call-delta",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+							};
+						}
+						continue;
+					}
 					sawToolCalls = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
@@ -1033,10 +1092,7 @@ async function* emitAiSdkEvents(
 					yield {
 						type: "tool-call-delta",
 						toolCallId,
-						toolName:
-							(part.toolName as string | undefined) ??
-							(part.name as string | undefined) ??
-							"tool",
+						toolName,
 						input: typeof input === "string" ? undefined : input,
 						inputText,
 						metadata: buildToolCallMetadata({
@@ -1048,7 +1104,59 @@ async function* emitAiSdkEvents(
 					continue;
 				}
 
+				if (part.type === "tool-result") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool && part.preliminary !== true) {
+							yield {
+								type: "tool-result",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+								output: part.output ?? part.result,
+							};
+						}
+						continue;
+					}
+				}
+
 				if (part.type === "tool-error") {
+					const toolName =
+						(part.toolName as string | undefined) ??
+						(part.name as string | undefined) ??
+						"tool";
+					const modelTool = request.modelTools?.find(
+						(tool) => tool.name === toolName,
+					);
+					if (part.providerExecuted === true || modelTool) {
+						if (modelTool) {
+							yield {
+								type: "tool-result",
+								toolCallId:
+									(part.toolCallId as string | undefined) ??
+									(part.id as string | undefined) ??
+									`model_tool_${nanoid()}`,
+								toolName: modelTool.name,
+								execution:
+									part.providerExecuted === true ? "provider" : "client",
+								input: part.input ?? part.args,
+								output: { error: extractErrorMessage(part.error) },
+								isError: true,
+							};
+						}
+						continue;
+					}
 					sawToolCalls = true;
 					const toolCallId =
 						(part.toolCallId as string | undefined) ??
@@ -1056,10 +1164,6 @@ async function* emitAiSdkEvents(
 						`tool_${nanoid()}`;
 					const alreadyEmitted = emittedToolCallIds.has(toolCallId);
 					emittedToolCallIds.add(toolCallId);
-					const toolName =
-						(part.toolName as string | undefined) ??
-						(part.name as string | undefined) ??
-						"tool";
 					const input = (part.input ?? part.args ?? {}) as unknown;
 					const inputText =
 						typeof input === "string" ? input : JSON.stringify(input);
@@ -1161,6 +1265,10 @@ async function createProviderModule(
 	context: GatewayProviderContext,
 ): Promise<ProviderFactoryResult> {
 	switch (kind) {
+		case "cline": {
+			const { createClineProviderModule } = await import("./vendors/cline");
+			return createClineProviderModule(config, context);
+		}
 		case "openai": {
 			const { createOpenAIProviderModule } = await import("./vendors/openai");
 			return createOpenAIProviderModule(config, context);
@@ -1291,9 +1399,14 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 				const langfuse = await ensureGatewayLangfuseTelemetry(
 					config.providerId,
 				);
-				const tools = providerDisablesExternalToolExecution(context)
+				const runtimeTools = providerDisablesExternalToolExecution(context)
 					? undefined
 					: toAiSdkTools(request);
+				const modelTools = buildProviderModelTools(provider, request, context);
+				const tools =
+					runtimeTools || modelTools
+						? { ...runtimeTools, ...modelTools }
+						: undefined;
 				const systemPrompt = resolveAiSdkSystemPrompt(request);
 				const useSystemOption =
 					typeof systemPrompt === "string" && systemPrompt.trim().length > 0;
@@ -1339,6 +1452,9 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 						isEnabled: langfuse,
 					},
 					providerOptions,
+					...(provider.executesModelTools && request.modelTools?.length
+						? { stopWhen: stepCountIs(8) }
+						: {}),
 					...requestConfig,
 					...(portableReasoning ? { reasoning: portableReasoning } : {}),
 					onError: ({ error: streamError }) => {
@@ -1430,6 +1546,7 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 }
 
 export const createOpenAIProvider = createAiSdkProvider("openai");
+export const createClineProvider = createAiSdkProvider("cline");
 export const createOpenAICompatibleProvider =
 	createAiSdkProvider("openai-compatible");
 export const createAnthropicProvider = createAiSdkProvider("anthropic");
