@@ -172,11 +172,11 @@ describe("AgentRuntime", () => {
 		expect(result.status).toBe("failed");
 		expect(result.error?.message).toContain("maximum output token limit");
 		expect(model.requests).toHaveLength(1);
-		expect(result.messages).toHaveLength(2);
-		expect(result.messages.at(-1)).toMatchObject({
-			role: "assistant",
-			content: [{ type: "reasoning", text: "thinking..." }],
-		});
+		// The reasoning-only turn is undeliverable, so it is no longer pushed
+		// into history before the failure — the conversation ends on the
+		// user's message instead of a dangling reasoning-only assistant row.
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
 		expect(logger.log).toHaveBeenCalledWith(
 			"Agent loop caught error",
 			expect.objectContaining({
@@ -184,7 +184,7 @@ describe("AgentRuntime", () => {
 				status: "failed",
 				errorMessage: expect.stringContaining("maximum output token limit"),
 				iteration: 1,
-				assistantContentPartCount: 1,
+				assistantContentPartCount: 0,
 			}),
 		);
 		expect(logger.error).toHaveBeenCalledWith(
@@ -420,6 +420,78 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]?.role).toBe("user");
 	});
 
+	it("fails a reasoning-only turn as an empty response instead of completing silently", async () => {
+		// A turn that streams visible reasoning but produces no final text and
+		// no tool call must NOT complete the run: nothing deliverable exists,
+		// and the stream-level empty-response retry cannot cover this case
+		// (the first reasoning delta accepts the attempt and streams live).
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "I will comply and say C." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Say C.");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+		// The reasoning-only assistant message is not pushed into history.
+		expect(result.messages).toHaveLength(1);
+		expect(result.messages[0]?.role).toBe("user");
+	});
+
+	it("fails a reasoning-only max-tokens turn with the max-tokens diagnostics", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "thinking forever..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Say DONE.");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe(
+			"Model reached the maximum output token limit before completing the turn",
+		);
+	});
+
+	it("fails a whitespace-only text turn as an empty response", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "  \n\t " },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("Model returned empty response");
+	});
+
+	it("still completes a turn that pairs reasoning with final text", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "reasoning-delta", text: "let me think" },
+				{ type: "text-delta", text: "Here is the answer." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("Here is the answer.");
+	});
+});
+
+describe("AgentRuntime", () => {
 	it("treats a file-only model turn as content, assembling images onto the message", async () => {
 		// A model that answers with only a generated file (e.g. an
 		// image-output model) must not fail as "Model returned empty

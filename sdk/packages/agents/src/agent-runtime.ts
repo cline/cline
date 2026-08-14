@@ -405,6 +405,25 @@ function textFromMessage(message: AgentMessage | undefined): string {
 		.join("");
 }
 
+/**
+ * Whether an assistant message carries anything deliverable: final text, a
+ * tool call, or model-generated media. Reasoning parts deliberately do NOT
+ * count — reasoning is commentary about a response, not the response — so a
+ * reasoning-only turn is treated exactly like a fully empty one. The
+ * stream-level empty-response retry middleware cannot cover that case (the
+ * first reasoning delta accepts the attempt and streams live, so the turn
+ * can no longer be discarded and replayed once it turns out to be
+ * reasoning-only); the loop-level check here is the only place left that can
+ * refuse to end the run with nothing shown to the user.
+ */
+function hasDeliverableAssistantContent(message: AgentMessage): boolean {
+	return message.content.some((part) =>
+		part.type === "text"
+			? part.text.trim().length > 0
+			: part.type !== "reasoning",
+	);
+}
+
 function textFromToolMessage(message: AgentMessage | undefined): string {
 	const result = message?.content.find(
 		(part): part is Extract<AgentMessagePart, { type: "tool-result" }> =>
@@ -702,12 +721,20 @@ export class AgentRuntime {
 				if (finishReason === "aborted") {
 					throw this.normalizeAbortError();
 				}
-				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+				if (!hasDeliverableAssistantContent(message)) {
+					// Covers both a fully empty turn and a reasoning-only turn
+					// (visible thinking that concludes, then no final text and no
+					// tool call). Completing the run in either case would end it
+					// with NOTHING shown to the user and nothing actionable in
+					// the conversation — fail loudly instead, preferring the
+					// finish reason's own diagnostics when it carries one.
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					if (finishReason === "max-tokens") {
+						throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
+					}
+					throw new Error("Model returned empty response");
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
