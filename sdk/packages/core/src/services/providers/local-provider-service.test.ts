@@ -766,6 +766,22 @@ describe("addLocalProvider – capabilities", () => {
 		});
 	});
 
+	it("preserves operation routing facts for provider catalog consumers", () => {
+		expect(
+			toProviderModel("realtime-whisper", {
+				name: "Realtime Whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+				modalities: { input: ["audio"], output: ["text"] },
+			}),
+		).toMatchObject({
+			operation: "transcription",
+			operationModes: ["streaming"],
+			inputModalities: ["audio"],
+			outputModalities: ["text"],
+		});
+	});
+
 	it("sets supportsVision and supportsAttachments when capability is 'vision'", async () => {
 		await addLocalProvider(manager, {
 			providerId: "vision-provider",
@@ -893,29 +909,28 @@ describe("audio transcription", () => {
 		LlmsModels.registerModel("audio-provider", "whisper-large-v3", {
 			id: "whisper-large-v3",
 			name: "Whisper Large v3",
+			operation: "transcription",
+			operationModes: ["batch"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
 	});
 
 	afterEach(() => cleanup());
 
-	it("recognizes only dedicated audio-to-text models", () => {
+	it("recognizes only the explicit transcription operation", () => {
 		expect(
 			isDedicatedTranscriptionModel({
-				inputModalities: ["audio"],
-				outputModalities: ["text"],
+				operation: "transcription",
 			}),
 		).toBe(true);
 		expect(
 			isDedicatedTranscriptionModel({
-				inputModalities: ["text"],
-				outputModalities: ["audio"],
+				operation: "speech-generation",
 			}),
 		).toBe(false);
 		expect(
 			isDedicatedTranscriptionModel({
-				inputModalities: ["text", "audio"],
-				outputModalities: ["text"],
+				operation: "language",
 			}),
 		).toBe(false);
 	});
@@ -982,7 +997,8 @@ describe("audio transcription", () => {
 		LlmsModels.registerModel("audio-provider", "realtime-whisper", {
 			id: "realtime-whisper",
 			name: "Realtime Whisper",
-			capabilities: ["transcription-streaming"],
+			operation: "transcription",
+			operationModes: ["streaming"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
 		await saveVoiceInputSettings(manager, {
@@ -1546,6 +1562,8 @@ describe("listLocalProviders", () => {
 		LlmsModels.registerModel("voice-list-provider", "whisper", {
 			id: "whisper",
 			name: "Whisper",
+			operation: "transcription",
+			operationModes: ["batch"],
 			modalities: { input: ["audio"], output: ["text"] },
 		});
 		await saveVoiceInputSettings(manager, {

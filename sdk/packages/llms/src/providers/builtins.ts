@@ -2,6 +2,7 @@ import {
 	CLINE_DEFAULT_MODEL_ID,
 	type GatewayModelCapability,
 	type GatewayModelDefinition,
+	type GatewayModelOperationCapability,
 	type GatewayModelToolCapability,
 	type GatewayProviderManifest,
 	type GatewayProviderMetadata,
@@ -11,7 +12,6 @@ import {
 	type ProviderCapability,
 	type ProviderConfigField,
 } from "@cline/shared";
-import { GENERATED_PROVIDER_MODELS } from "../catalog/catalog.generated";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
 import {
 	isCanonicalModelIdForAliasRules,
@@ -40,6 +40,10 @@ import {
 	isClineOrgIndividualInferenceSubscriptionMessage,
 } from "./errors";
 import { normalizeProviderId } from "./ids";
+import {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	BUILTIN_TRANSCRIPTION_TRANSPORTS,
+} from "./model-operations";
 import { filterOpenAICodexModels } from "./openai-codex-models";
 import { GENERATED_PROVIDER_SPECS } from "./providers.generated";
 import {
@@ -59,6 +63,16 @@ const CLINE_PASS_PROVIDER_ID = "cline-pass";
 const OPENAI_CODEX_DEFAULT_MODEL_ID = "gpt-5.4";
 const NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
 	[{ name: "web_search" }];
+const OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] =
+	[
+		...NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
+		{
+			name: "image_generation",
+			// The Responses API image tool augments language models; dedicated
+			// image models use the separate image-generation operation instead.
+			routes: [{ matcher: "model-operation", operation: "language" }],
+		},
+	];
 const VERTEX_MODEL_TOOL_CAPABILITIES: readonly GatewayModelToolCapability[] = [
 	{
 		name: "web_search",
@@ -353,7 +367,28 @@ function mergeBuiltinSpecs(
 		(spec) => !overriddenIds.has(spec.id),
 	);
 
-	return [...mergedOverrides, ...generatedOnlySpecs];
+	return [...mergedOverrides, ...generatedOnlySpecs].map((spec) => {
+		const transcription = (
+			BUILTIN_TRANSCRIPTION_TRANSPORTS as Readonly<
+				Record<
+					string,
+					{ transport: GatewayProviderMetadata["transcriptionTransport"] }
+				>
+			>
+		)[spec.id];
+		return {
+			...spec,
+			modelOperationCapabilities:
+				spec.modelOperationCapabilities ??
+				BUILTIN_MODEL_OPERATION_CAPABILITIES[spec.id],
+			metadata: transcription
+				? {
+						...spec.metadata,
+						transcriptionTransport: transcription.transport,
+					}
+				: spec.metadata,
+		};
+	});
 }
 
 function generatedModels(providerId: string): Record<string, ModelInfo> {
@@ -366,7 +401,7 @@ function firstGeneratedModelId(providerId: string): string {
 	// default subscription model first — the newest model is not necessarily a
 	// safe default.
 	const generatedModelList = Object.keys(
-		GENERATED_PROVIDER_MODELS.providers[providerId] ?? {},
+		getGeneratedModelsForProvider(providerId),
 	);
 	if (!generatedModelList.length) {
 		return "";
@@ -429,6 +464,8 @@ function buildElevenLabsModels(): Record<string, ModelInfo> {
 			description:
 				"ElevenLabs speech recognition model for accurate multilingual transcription",
 			family: "elevenlabs",
+			operation: "transcription",
+			operationModes: ["batch"],
 			modalities: {
 				input: ["audio"],
 				output: ["text"],
@@ -548,6 +585,9 @@ function modelInfoToGateway(
 		contextWindow: info.contextWindow,
 		maxInputTokens: info.maxInputTokens,
 		maxOutputTokens: info.maxTokens,
+		operation: info.operation,
+		operationModes: info.operationModes,
+		modalities: info.modalities,
 		capabilities: [...capabilities],
 		reasoningOptions: info.reasoningOptions,
 		metadata: Object.keys(metadata).length > 0 ? metadata : undefined,
@@ -635,6 +675,8 @@ function createClineLikeSpec(
 		},
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
+			imageTransport: "openrouter",
+			responseEnvelope: "success-data",
 			...input.metadata,
 		},
 	};
@@ -968,6 +1010,7 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		metadata: {
 			...ANTHROPIC_AND_QWEN_CACHE_ROUTING_METADATA,
 			...OPENROUTER_STICKY_SESSION_METADATA,
+			imageTransport: "openrouter",
 		},
 	},
 	{
@@ -1036,7 +1079,7 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		name: "OpenAI",
 		description: "Creator of GPT and ChatGPT",
 		family: "openai",
-		modelToolCapabilities: NATIVE_WEB_SEARCH_MODEL_TOOL_CAPABILITIES,
+		modelToolCapabilities: OPENAI_NATIVE_MODEL_TOOL_CAPABILITIES,
 		capabilities: ["reasoning"],
 		modelsProviderId: "openai-native",
 		defaultModelId: "gpt-5.4",
@@ -1322,6 +1365,20 @@ export function toManifest(spec: BuiltinSpec): GatewayProviderManifest {
 		defaultModelId:
 			collection.provider.defaultModelId || resolvedModels[0]?.id || "default",
 		models: resolvedModels,
+		modelOperationCapabilities: spec.modelOperationCapabilities?.map(
+			(capability: GatewayModelOperationCapability) => ({
+				...capability,
+				modes: capability.modes ? [...capability.modes] : undefined,
+				inputModalities: capability.inputModalities
+					? [...capability.inputModalities]
+					: undefined,
+				outputModalities: capability.outputModalities
+					? [...capability.outputModalities]
+					: undefined,
+				routes: capability.routes?.map((route) => ({ ...route })),
+				excludeRoutes: capability.excludeRoutes?.map((route) => ({ ...route })),
+			}),
+		),
 		modelToolCapabilities: spec.modelToolCapabilities?.map((capability) => ({
 			...capability,
 			routes: capability.routes?.map((route) => ({ ...route })),

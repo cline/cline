@@ -132,14 +132,9 @@ function stableColor(id: string): string {
 }
 
 export function isDedicatedTranscriptionModel(
-	model: Pick<ProviderModel, "inputModalities" | "outputModalities">,
+	model: Pick<ProviderModel, "operation">,
 ): boolean {
-	return (
-		model.inputModalities?.length === 1 &&
-		model.inputModalities[0] === "audio" &&
-		model.outputModalities?.length === 1 &&
-		model.outputModalities[0] === "text"
-	);
+	return model.operation === "transcription";
 }
 
 function toSortedProviderModels(
@@ -848,7 +843,7 @@ export async function transcribeLocalAudio(
 			`Model "${modelId}" is not a dedicated audio-to-text transcription model`,
 		);
 	}
-	if (model.supportsStreamingTranscription) {
+	if (model.operationModes?.includes("streaming")) {
 		throw new Error(
 			`Model "${modelId}" requires streaming transcription and cannot transcribe a completed recording`,
 		);
@@ -936,7 +931,7 @@ export async function createConfiguredStreamingTranscriptionSession(
 	if (
 		!model ||
 		!isDedicatedTranscriptionModel(model) ||
-		!model.supportsStreamingTranscription
+		!model.operationModes?.includes("streaming")
 	) {
 		throw new Error(
 			`Model "${selection.modelId}" does not support streaming transcription`,

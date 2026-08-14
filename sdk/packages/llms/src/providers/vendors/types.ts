@@ -1,15 +1,38 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
+	GeneratedMedia,
 	ModelTool,
+	ModelToolName,
 } from "@cline/shared";
 import type { CallSettings, ToolSet } from "ai";
 import type { RetryEmptyResponseOptions } from "../middleware/retry-empty-response";
 
+export type ProviderGeneratedMedia = Omit<GeneratedMedia, "id" | "sizeBytes">;
+
+export interface ModelToolResultProjection {
+	media: readonly ProviderGeneratedMedia[];
+	activityOutput?: unknown;
+}
+
+export interface BuiltModelTool {
+	tool: ToolSet[string];
+	/** Project a provider-native tool result into canonical assistant media. */
+	projectResult?: (output: unknown) => ModelToolResultProjection;
+}
+
+export type BuiltModelTools = Partial<Record<ModelToolName, BuiltModelTool>>;
+
 export interface ProviderFactoryResult {
-	model: (modelId: string) => unknown;
+	operations: {
+		language: (modelId: string) => unknown;
+		imageGeneration?: (modelId: string) => unknown;
+		speechGeneration?: (modelId: string) => unknown;
+		videoGeneration?: (modelId: string) => unknown;
+		transcription?: (modelId: string) => unknown;
+	};
 	/** Translate portable model-tool intent into provider-defined AI SDK tools. */
-	buildModelTools?: (tools: readonly ModelTool[]) => ToolSet;
+	buildModelTools?: (tools: readonly ModelTool[]) => BuiltModelTools;
 	/** AI SDK executes provider-defined client tools and continues model steps. */
 	executesModelTools?: boolean;
 	/**

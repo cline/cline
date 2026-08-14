@@ -224,6 +224,17 @@ async function projectAgentEvent(
 					),
 				);
 				break;
+			case "media":
+				if (agentEvent.media) {
+					ctx.publish(
+						ctx.buildEvent(
+							"assistant.media",
+							{ media: agentEvent.media },
+							sessionId,
+						),
+					);
+				}
+				break;
 			case "reasoning":
 				ctx.publish(
 					ctx.buildEvent(

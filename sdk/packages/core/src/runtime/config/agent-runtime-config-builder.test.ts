@@ -202,6 +202,18 @@ describe("createAgentRuntimeConfig", () => {
 		expect(runtimeConfig.systemPrompt).toBe("override");
 	});
 
+	it("can explicitly disable an agent completion policy", () => {
+		const runtimeConfig = createAgentRuntimeConfig({
+			agentConfig: makeAgentConfig({
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			agentId: "a",
+			model: nullModel,
+			completionPolicy: null,
+		});
+		expect(runtimeConfig.completionPolicy).toBeUndefined();
+	});
+
 	it("populates hooks when provided", () => {
 		const beforeRun = vi.fn();
 		const runtimeConfig = createAgentRuntimeConfig({

@@ -94,6 +94,13 @@ function forwardAgentEvent(
 					error: event.error,
 				},
 			});
+			return;
+		}
+		if (event.contentType === "media" && event.media) {
+			ctx.sendToSelectedPeers(sessionId, {
+				type: "assistant_media",
+				media: event.media,
+			});
 		}
 		return;
 	}
