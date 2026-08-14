@@ -22,6 +22,10 @@ export type {
 	ProviderInfo,
 	ProviderProtocol,
 } from "./catalog/types";
+export type {
+	GetModelsForProviderOptions,
+	ProviderModelFilter,
+} from "./providers/model-registry";
 export {
 	getAllProviders,
 	getModelsForProvider,
