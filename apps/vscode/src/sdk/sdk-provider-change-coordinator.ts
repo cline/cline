@@ -15,6 +15,7 @@ import type { VscodeSessionHost } from "./vscode-session-host"
 type StartInput = Parameters<VscodeSessionHost["start"]>[0]
 type InitialMessages = StartInput["initialMessages"]
 type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
+type ActiveSession = NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>
 
 const PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS = 300
 
@@ -65,12 +66,12 @@ export class SdkProviderChangeCoordinator {
 			this.providerFieldsRebuildTimer = undefined
 			const currentMode = this.getCurrentMode()
 			const currentProvider = providerForMode(this.options.stateManager.getApiConfiguration(), currentMode)
-			if (currentProvider !== changedProvider || !this.options.sessions.getActiveSession()) {
+			if (currentProvider !== changedProvider || this.options.sessions.getActiveSession() !== activeSession) {
 				return
 			}
 
 			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${changedProvider}`)
-			this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+			this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
 		}, PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS)
 	}
 
@@ -95,16 +96,16 @@ export class SdkProviderChangeCoordinator {
 			`[SdkController] Active provider changed for ${mode}: ${previousProvider ?? "none"} -> ${nextProvider ?? "none"}`,
 		)
 
-		this.options.rebuilds.request("provider", () => this.restartActiveSessionForProviderChange())
+		this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
 	}
 
 	async restartActiveSessionForProviderChange(): Promise<void> {
 		await this.performRestartActiveSessionForProviderChange()
 	}
 
-	private async performRestartActiveSessionForProviderChange(): Promise<void> {
+	private async performRestartActiveSessionForProviderChange(expectedSession?: ActiveSession): Promise<void> {
 		const activeSession = this.options.sessions.getActiveSession()
-		if (!activeSession) {
+		if (!activeSession || (expectedSession && activeSession !== expectedSession)) {
 			return
 		}
 

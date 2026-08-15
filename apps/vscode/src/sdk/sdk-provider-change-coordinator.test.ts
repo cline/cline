@@ -64,7 +64,8 @@ describe("SdkProviderChangeCoordinator", () => {
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
 
 		expect(options.rebuilds.request).not.toHaveBeenCalled()
-		await vi.runOnlyPendingTimersAsync()
+		vi.runOnlyPendingTimers()
+		await Promise.resolve()
 
 		expect(options.sessionConfigBuilder.build).toHaveBeenCalledWith({ cwd: "/workspace", mode: "act" })
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
@@ -80,9 +81,40 @@ describe("SdkProviderChangeCoordinator", () => {
 		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
 
 		expect(options.rebuilds.request).not.toHaveBeenCalled()
-		await vi.runOnlyPendingTimersAsync()
+		vi.runOnlyPendingTimers()
 
 		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+	})
+
+	it("drops a debounced field restart when the active session is replaced", () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const replacementSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		vi.runOnlyPendingTimers()
+
+		expect(options.rebuilds.request).not.toHaveBeenCalled()
+	})
+
+	it("drops a queued field restart when the active session is replaced", async () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession({ isRunning: true })
+		const replacementSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		vi.runOnlyPendingTimers()
+		const queuedRebuild = vi.mocked(options.rebuilds.request).mock.calls[0]?.[1]
+		expect(queuedRebuild).toBeTypeOf("function")
+
+		options.sessions.getActiveSession.mockReturnValue(replacementSession)
+		await queuedRebuild?.()
+
+		expect(options.sessionConfigBuilder.build).not.toHaveBeenCalled()
+		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 	})
 
 	it("does nothing when fields change for an inactive provider", () => {
@@ -104,7 +136,7 @@ describe("SdkProviderChangeCoordinator", () => {
 
 		expect(options.sessions.replaceActiveSession).not.toHaveBeenCalled()
 		expect(options.rebuilds.request).not.toHaveBeenCalled()
-		await vi.runOnlyPendingTimersAsync()
+		vi.runOnlyPendingTimers()
 
 		expect(options.rebuilds.request).toHaveBeenCalledWith("provider", expect.any(Function))
 	})
@@ -118,7 +150,7 @@ describe("SdkProviderChangeCoordinator", () => {
 		coordinator.handleApiConfigurationChanged({ actModeApiProvider: "anthropic" }, { actModeApiProvider: "deepseek" })
 
 		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
-		await vi.runAllTimersAsync()
+		vi.runAllTimers()
 		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
 	})
 
