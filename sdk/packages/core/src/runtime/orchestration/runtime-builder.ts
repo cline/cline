@@ -24,6 +24,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
+	MonitorRegistry,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -141,6 +142,9 @@ function createBuiltinToolsList(
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
 	telemetry?: ITelemetryService,
+	// Lead-agent only. Sub-agents finish and disappear, so a monitor started by
+	// one would outlive every consumer of its output.
+	monitorRegistry?: MonitorRegistry,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -156,6 +160,8 @@ function createBuiltinToolsList(
 			telemetry,
 			...preset,
 			enableSkills: !!skillsExecutor,
+			enableMonitor: !!monitorRegistry,
+			monitorRegistry,
 			...toolRoutingConfig,
 			executors: {
 				...(skillsExecutor
@@ -480,6 +486,17 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				? [...(extensions ?? config.extensions ?? []), ...injectedExtensions]
 				: (extensions ?? config.extensions);
 
+		// Monitors are session-scoped background processes, so the registry is
+		// created once here and `shutdown` stops everything it started. A host
+		// that cannot interject supplies no notifier and gets no monitor tool.
+		const monitorRegistry =
+			normalized.enableTools && input.monitorNotifier
+				? new MonitorRegistry({
+						notifier: input.monitorNotifier,
+						cwd: config.cwd,
+					})
+				: undefined;
+
 		if (normalized.enableTools) {
 			tools.push(
 				...createBuiltinToolsList(
@@ -492,6 +509,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					undefined,
 					toolExecutors,
 					telemetry ?? config.telemetry,
+					monitorRegistry,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -777,6 +795,9 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);
+				// Background processes must not outlive the session that
+				// started them.
+				monitorRegistry?.dispose();
 				await mcpShutdown?.();
 				if (!userInstructionServiceProvided) {
 					userInstructionService?.stop();

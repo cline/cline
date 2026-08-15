@@ -74,7 +74,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 	{
 		id: "monitor",
 		description:
-			"Wait up to 15 minutes for external work to progress before checking its state again.",
+			"Watch a log, job, or directory in the background and report new output as it arrives.",
 		headlessToolNames: ["monitor"],
 	},
 	{

@@ -47,6 +47,9 @@ describe("default tool presets", () => {
 				skills: async () => "ok",
 				askQuestion: async () => "ok",
 			},
+			// Monitors report asynchronously, so the tool needs a delivery path
+			// the same way the others need an executor.
+			monitorNotifier: () => {},
 		});
 
 		expect(tools.map((tool) => tool.name)).toEqual([
@@ -55,6 +58,14 @@ describe("default tool presets", () => {
 			"editor",
 			"monitor",
 		]);
+	});
+
+	it("omits monitor when the preset enables it but no notifier exists", () => {
+		const tools = createDefaultToolsWithPreset("yolo", {
+			executors: { readFile: async () => "ok" },
+		});
+
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 });
 

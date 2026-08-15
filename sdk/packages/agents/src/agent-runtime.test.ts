@@ -1009,6 +1009,100 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("applies the run_commands policy to monitor, which also runs shell commands", async () => {
+		const executeTool = vi.fn(async () => "started");
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "denied by test",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_monitor",
+					toolName: "monitor",
+					inputText: '{"action":"start"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "approval handled" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "monitor",
+					description: "Watch something in the background",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			// No explicit monitor policy: it inherits the shell tool's.
+			toolPolicies: { run_commands: { autoApprove: false } },
+			requestToolApproval,
+		});
+
+		await runtime.run("Start");
+
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toolName: "monitor",
+				policy: { autoApprove: false },
+			}),
+		);
+	});
+
+	it("prefers an explicit monitor policy over the inherited run_commands one", async () => {
+		const executeTool = vi.fn(async () => "started");
+		const requestToolApproval = vi.fn(async () => ({ approved: true }));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_monitor",
+					toolName: "monitor",
+					inputText: '{"action":"start"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "monitor",
+					description: "Watch something in the background",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			toolPolicies: {
+				run_commands: { autoApprove: false },
+				monitor: { autoApprove: true },
+			},
+			requestToolApproval,
+		});
+
+		await runtime.run("Start");
+
+		expect(requestToolApproval).not.toHaveBeenCalled();
+		expect(executeTool).toHaveBeenCalled();
+	});
+
 	it("applies beforeTool approval policy overrides before executing tools", async () => {
 		const executeTool = vi.fn(async () => ({ echoed: "hi" }));
 		const requestToolApproval = vi.fn(async () => ({

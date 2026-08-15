@@ -41,6 +41,17 @@ export {
 	createFileReadExecutor,
 	type FileReadExecutorOptions,
 } from "./file-read";
+export {
+	formatMonitorNotification,
+	MonitorError,
+	type MonitorNotification,
+	type MonitorNotifier,
+	type MonitorRecord,
+	MonitorRegistry,
+	type MonitorRegistryOptions,
+	type MonitorStartInput,
+	type MonitorStatus,
+} from "./monitor";
 export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,

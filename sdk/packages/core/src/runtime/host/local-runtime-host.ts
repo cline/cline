@@ -20,7 +20,10 @@ import {
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
-import { DefaultToolNames } from "../../extensions/tools";
+import {
+	DefaultToolNames,
+	formatMonitorNotification,
+} from "../../extensions/tools";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -541,6 +544,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					sessionToolExecutors,
 				),
+			// Monitor output arrives between turns, so it rides the same steering
+			// path as a typed interruption: delivered at the next agent iteration
+			// if a turn is running, otherwise starting one. `steer` rather than
+			// `queue` because a monitor firing is news the agent should act on
+			// now, not after whatever else the user lined up.
+			monitorNotifier: (notification) => {
+				this.pendingPromptsController.enqueue(sessionId, {
+					prompt: formatMonitorNotification(notification),
+					delivery: "steer",
+				});
+			},
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(
 					subAgentDeps,

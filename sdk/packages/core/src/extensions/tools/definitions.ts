@@ -18,6 +18,11 @@ import {
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
 import { CommandExitError } from "./executors/bash";
 import {
+	MonitorError,
+	type MonitorRecord,
+	MonitorRegistry,
+} from "./executors/monitor";
+import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
 	MAX_READ_OUTPUT_CHARS,
@@ -801,52 +806,83 @@ export function createAskQuestionTool(
 }
 
 /**
- * Pause the tool loop while external work progresses. The timer is local and
- * abortable; the agent checks the external state with its next tool call.
+ * Watch something in the background without blocking the conversation.
+ *
+ * `start` returns as soon as the process is spawned. Output arrives later as
+ * notifications delivered through the registry's notifier, so the agent keeps
+ * working and is interrupted only when the watched thing actually says
+ * something.
  */
-export function createMonitorTool(): AgentTool<MonitorInput, string> {
+export function createMonitorTool(
+	registry: MonitorRegistry,
+	config: Pick<DefaultToolsConfig, "cwd"> = {},
+): AgentTool<MonitorInput, string> {
 	return createTool<MonitorInput, string>({
 		name: "monitor",
 		description:
-			"Wait for a bounded period while external work continues, then return control so you can check its state again. " +
-			"Use this after starting or identifying work that is still running, such as CI, a deployment, a background process, or a log-producing job. " +
-			"This tool only waits; after it returns, use the appropriate tool to recheck the actual status. " +
-			"Choose a useful polling interval and provide a concise reason. A single call can wait at most 15 minutes; for longer work, report status and call monitor again if needed.",
+			"Watch something in the background and get notified when it produces output, without pausing your work. " +
+			"Use it to tail a log file, poll a PR or CI job, watch a directory, or track a long-running script. " +
+			'action "start" runs a command in the background and returns immediately; every line it prints is delivered to you as a notification while you continue with other work. ' +
+			"Write the command so it keeps running and prints a line only when something meaningful changes — a bare `sleep` or a one-shot command that exits immediately is not a monitor. " +
+			"For polling, loop inside the command and print only on a change. " +
+			'action "list" shows running monitors, and action "stop" ends one by id or name. ' +
+			"Do not start a monitor just to wait; run the check directly instead.",
 		inputSchema: zodToJsonSchema(MonitorInputSchema),
-		// Margin above the schema maximum lets the timer resolve first.
-		timeoutMs: 905_000,
 		retryable: false,
 		maxRetries: 0,
-		execute: async (input, context) => {
+		execute: async (input) => {
 			const validatedInput = validateWithZod(MonitorInputSchema, input);
-			const durationMs = validatedInput.duration_seconds * 1000;
 
-			return new Promise<string>((resolve) => {
-				let timer: ReturnType<typeof setTimeout> | undefined;
-				const finish = (message: string) => {
-					if (timer) clearTimeout(timer);
-					context.signal?.removeEventListener("abort", onAbort);
-					resolve(message);
-				};
-				const onAbort = () =>
-					finish(`Monitor cancelled while waiting: ${validatedInput.reason}`);
-
-				if (context.signal?.aborted) {
-					onAbort();
-					return;
+			try {
+				switch (validatedInput.action) {
+					case "start": {
+						const record = registry.start({
+							name: validatedInput.name?.trim() ?? "",
+							command: validatedInput.command?.trim() ?? "",
+							description: validatedInput.description?.trim() ?? "",
+							cwd: config.cwd,
+						});
+						return (
+							`Started monitor ${record.id} ("${record.name}"): ${record.description}\n` +
+							`Command: ${record.command}\n` +
+							"Output will arrive as notifications. Continue with your other work; " +
+							`stop it with action "stop" and monitor_id ${record.id}.`
+						);
+					}
+					case "list": {
+						const records = registry.list();
+						if (records.length === 0) return "No monitors have been started.";
+						return records.map(formatMonitorRecord).join("\n");
+					}
+					case "stop": {
+						const key =
+							validatedInput.monitor_id?.trim() ||
+							validatedInput.name?.trim() ||
+							"";
+						const record = registry.stop(key);
+						if (!record) return `No monitor found matching "${key}".`;
+						return `Stopped monitor ${record.id} ("${record.name}").`;
+					}
 				}
-
-				context.signal?.addEventListener("abort", onAbort, { once: true });
-				timer = setTimeout(
-					() =>
-						finish(
-							`Waited ${validatedInput.duration_seconds} seconds. Recheck now: ${validatedInput.reason}`,
-						),
-					durationMs,
-				);
-			});
+			} catch (error) {
+				if (error instanceof MonitorError) return error.message;
+				throw error;
+			}
 		},
 	});
+}
+
+function formatMonitorRecord(record: MonitorRecord): string {
+	const parts = [
+		`${record.id} [${record.status}] "${record.name}": ${record.description}`,
+		`  command: ${record.command}`,
+		`  lines delivered: ${record.linesEmitted}`,
+	];
+	if (record.status === "exited" && record.exitCode !== undefined) {
+		parts.push(`  exit code: ${record.exitCode}`);
+	}
+	if (record.error) parts.push(`  error: ${record.error}`);
+	return parts.join("\n");
 }
 
 export function createSubmitAndExitTool(
@@ -977,8 +1013,21 @@ export function createDefaultTools(
 		tools.push(createSkillsTool(executors.skills, config));
 	}
 
+	// A monitor with nowhere to deliver its output is useless, so the tool is
+	// offered only when the host supplies a registry or a notifier — the same
+	// "executor provided" rule the other tools follow.
 	if (enableMonitor) {
-		tools.push(createMonitorTool());
+		const registry =
+			config.monitorRegistry ??
+			(config.monitorNotifier
+				? new MonitorRegistry({
+						notifier: config.monitorNotifier,
+						cwd: config.cwd,
+					})
+				: undefined);
+		if (registry) {
+			tools.push(createMonitorTool(registry, config));
+		}
 	}
 
 	const submitExecutor = enableSubmitAndExit ? executors.submit : undefined;

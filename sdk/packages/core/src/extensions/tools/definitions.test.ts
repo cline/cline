@@ -11,69 +11,120 @@ import {
 	createSkillsTool,
 } from "./definitions";
 import { CommandExitError } from "./executors/bash";
+import { MonitorRegistry } from "./executors/monitor";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
 
 describe("monitor tool", () => {
-	it("is enabled by default without an executor", () => {
+	const context = {
+		agentId: "agent-1",
+		conversationId: "conv-1",
+		iteration: 1,
+	};
+
+	it("is omitted when the host provides no way to deliver output", () => {
 		const tools = createDefaultTools({ executors: {} });
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("is created once a notifier is supplied", () => {
+		const tools = createDefaultTools({
+			executors: {},
+			monitorNotifier: () => {},
+		});
 		expect(tools.map((tool) => tool.name)).toContain("monitor");
 	});
 
-	it("can be disabled", () => {
+	it("can be disabled even with a notifier", () => {
 		const tools = createDefaultTools({
 			executors: {},
+			monitorNotifier: () => {},
 			enableMonitor: false,
 		});
 		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 
-	it("waits for the requested duration and prompts a recheck", async () => {
-		vi.useFakeTimers();
+	it("returns immediately rather than waiting for output", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
 		try {
-			const tool = createMonitorTool();
-			const result = tool.execute(
-				{ duration_seconds: 300, reason: "GitHub CI run" },
-				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
+			const tool = createMonitorTool(registry);
+			const result = await tool.execute(
+				{
+					action: "start",
+					name: "sleeper",
+					command: "sleep 30",
+					description: "a command that outlives the call",
+				},
+				context,
 			);
 
-			await vi.advanceTimersByTimeAsync(300_000);
-			await expect(result).resolves.toBe(
-				"Waited 300 seconds. Recheck now: GitHub CI run",
-			);
+			expect(result).toContain("Started monitor");
+			expect(registry.listRunning()).toHaveLength(1);
 		} finally {
-			vi.useRealTimers();
+			registry.dispose();
 		}
 	});
 
-	it("stops promptly when the run is aborted", async () => {
-		const controller = new AbortController();
-		const tool = createMonitorTool();
-		const result = tool.execute(
-			{ duration_seconds: 900, reason: "deployment" },
-			{
-				agentId: "agent-1",
-				conversationId: "conv-1",
-				iteration: 1,
-				signal: controller.signal,
-			},
-		);
+	it("reports start failures as text the model can act on", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			const start = {
+				action: "start" as const,
+				name: "dupe",
+				command: "sleep 30",
+				description: "watch",
+			};
+			await tool.execute(start, context);
 
-		controller.abort();
-		await expect(result).resolves.toBe(
-			"Monitor cancelled while waiting: deployment",
-		);
+			const second = await tool.execute(start, context);
+			expect(second).toContain("already running");
+			expect(registry.listRunning()).toHaveLength(1);
+		} finally {
+			registry.dispose();
+		}
 	});
 
-	it("rejects waits longer than 15 minutes", async () => {
-		const tool = createMonitorTool();
-		await expect(
-			tool.execute(
-				{ duration_seconds: 901, reason: "CI" },
-				{ agentId: "agent-1", conversationId: "conv-1", iteration: 1 },
-			),
-		).rejects.toThrow();
+	it("lists and stops monitors by name", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			await tool.execute(
+				{
+					action: "start",
+					name: "watcher",
+					command: "sleep 30",
+					description: "watch a thing",
+				},
+				context,
+			);
+
+			expect(await tool.execute({ action: "list" }, context)).toContain(
+				"watcher",
+			);
+			expect(
+				await tool.execute({ action: "stop", name: "watcher" }, context),
+			).toContain("Stopped monitor");
+			expect(registry.listRunning()).toHaveLength(0);
+		} finally {
+			registry.dispose();
+		}
+	});
+
+	it("requires a command to start", async () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const tool = createMonitorTool(registry);
+			await expect(
+				tool.execute(
+					{ action: "start", name: "incomplete", description: "no command" },
+					context,
+				),
+			).rejects.toThrow();
+		} finally {
+			registry.dispose();
+		}
 	});
 });
 

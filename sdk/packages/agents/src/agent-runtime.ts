@@ -166,12 +166,28 @@ function resolveRuntimeConfig(
 	return { ...rest, model, messageModelInfo };
 }
 
+/**
+ * Tools that run shell commands under a different name. A monitor command is
+ * an ordinary shell command that happens to keep running, so it answers to
+ * whatever policy governs `run_commands` unless a host sets one for it
+ * explicitly.
+ */
+const TOOL_POLICY_FALLBACKS: Record<string, string> = {
+	monitor: "run_commands",
+};
+
 function resolveToolPolicy(
 	toolName: string,
 	policies: BaseAgentRuntimeConfig["toolPolicies"],
 ): ToolPolicy {
+	const fallbackName = TOOL_POLICY_FALLBACKS[toolName];
+	const fallback =
+		fallbackName && policies?.[toolName] === undefined
+			? (policies?.[fallbackName] ?? {})
+			: {};
 	return {
 		...(policies?.["*"] ?? {}),
+		...fallback,
 		...(policies?.[toolName] ?? {}),
 	};
 }
