@@ -6,12 +6,18 @@ import {
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
+	ArrowRight,
 	ArrowUp,
 	Brain,
 	CircleStop,
 	Cloud,
 	Cpu,
 	Paperclip,
+	Signal,
+	SignalHigh,
+	SignalLow,
+	SignalMedium,
+	SignalZero,
 	X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -192,23 +198,6 @@ function ReasoningEffortIcon({
 }
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
 const PROMPT_INPUT_WELCOME_ROWS = 3;
-const AUDIO_BASE64_CHUNK_SIZE = 0x8000;
-const MAX_RECORDED_AUDIO_BYTES = 25 * 1024 * 1024;
-
-async function blobToBase64(blob: Blob): Promise<string> {
-	const bytes = new Uint8Array(await blob.arrayBuffer());
-	let binary = "";
-	for (
-		let offset = 0;
-		offset < bytes.length;
-		offset += AUDIO_BASE64_CHUNK_SIZE
-	) {
-		binary += String.fromCharCode(
-			...bytes.subarray(offset, offset + AUDIO_BASE64_CHUNK_SIZE),
-		);
-	}
-	return window.btoa(binary);
-}
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
@@ -383,6 +372,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	environmentId,
 	variant = "conversation",
 	status,
 	provider,
@@ -402,6 +392,8 @@ function ChatInputBarImpl({
 	onModelChange,
 	onModeToggle,
 	onReasoningChange,
+	onListGitBranches,
+	onSwitchGitBranch,
 	onSend,
 	onAbort,
 	promptsInQueue,
@@ -414,7 +406,13 @@ function ChatInputBarImpl({
 	onOpenVoiceInputSettings,
 	summary,
 }: ChatInputBarProps) {
-	const { workspaceRoot } = useWorkspace();
+	const {
+		workspaceRoot,
+		workspaces,
+		refreshWorkspaces: onRefreshWorkspaces,
+		switchWorkspace: onSwitchWorkspace,
+		pickWorkspaceDirectory: onPickWorkspaceDirectory,
+	} = useWorkspace();
 	// Keystrokes only update this local state; the parent page tree is not
 	// re-rendered per keypress. External writers push text in via promptDraft.
 	const [promptInput, setPromptInputState] = useState(promptDraft.value);
@@ -595,12 +593,14 @@ function ChatInputBarImpl({
 			loadProviderModelCatalog()
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
-						setTranscriptionTarget(catalog.modes.voiceInput);
+						updateTranscriptionTarget(
+							catalog.modes?.voiceInput ?? catalog.voiceInput,
+						);
 					}
 				})
 				.catch(() => {
 					if (!cancelled && currentLoadId === loadId) {
-						setTranscriptionTarget(null);
+						updateTranscriptionTarget(null);
 					}
 				});
 		};
@@ -615,6 +615,10 @@ function ChatInputBarImpl({
 			MODE_SETTINGS_CHANGED_EVENT,
 			handleModeSettingsChanged,
 		);
+		window.addEventListener(
+			VOICE_INPUT_SETTINGS_CHANGED_EVENT,
+			loadModeSettings,
+		);
 		return () => {
 			cancelled = true;
 			loadId += 1;
@@ -622,170 +626,9 @@ function ChatInputBarImpl({
 				MODE_SETTINGS_CHANGED_EVENT,
 				handleModeSettingsChanged,
 			);
-		};
-	}, []);
-
-	const handleTranscriptionChange = useCallback(
-		(transcript: string) => {
-			const text = transcript.trim();
-			if (!text) return;
-
-			const current = promptInputValueRef.current;
-			const input = promptInputRef.current;
-			const insertionStart = input?.selectionStart ?? current.length;
-			const insertionEnd = input?.selectionEnd ?? insertionStart;
-			const before = current.slice(0, insertionStart);
-			const after = current.slice(insertionEnd);
-			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
-			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
-			const insertedText = `${leadingSpace}${text}${trailingSpace}`;
-			const next = `${before}${insertedText}${after}`;
-			const nextCursor = before.length + insertedText.length;
-			setPromptInput(next);
-			requestAnimationFrame(() => {
-				const textarea = promptInputRef.current;
-				if (!textarea) return;
-				textarea.focus();
-				textarea.setSelectionRange(nextCursor, nextCursor);
-				setCursorIndex(nextCursor);
-			});
-		},
-		[setPromptInput],
-	);
-
-	const handleStreamingTranscriptionStart = useCallback(() => {
-		const current = promptInputValueRef.current;
-		const input = promptInputRef.current;
-		const start = input?.selectionStart ?? current.length;
-		const end = input?.selectionEnd ?? start;
-		streamingTranscriptRangeRef.current = { start, end };
-	}, []);
-
-	const handleStreamingTranscriptionChange = useCallback(
-		(transcript: string) => {
-			const text = transcript.trim();
-			const range = streamingTranscriptRangeRef.current;
-			if (!text || !range) return;
-
-			const current = promptInputValueRef.current;
-			const before = current.slice(0, range.start);
-			const after = current.slice(range.end);
-			const leadingSpace = before.length > 0 && !/\s$/.test(before) ? " " : "";
-			const trailingSpace = after.length > 0 && !/^\s/.test(after) ? " " : "";
-			const insertion = `${leadingSpace}${text}${trailingSpace}`;
-			const next = `${before}${insertion}${after}`;
-			const nextEnd = range.start + insertion.length;
-			streamingTranscriptRangeRef.current = {
-				start: range.start,
-				end: nextEnd,
-			};
-			setPromptInput(next);
-
-			requestAnimationFrame(() => {
-				const textarea = promptInputRef.current;
-				textarea?.focus();
-				textarea?.setSelectionRange(nextEnd, nextEnd);
-				setCursorIndex(nextEnd);
-			});
-		},
-		[setPromptInput],
-	);
-
-	const handleStreamingTranscriptionEnd = useCallback(() => {
-		streamingTranscriptRangeRef.current = null;
-	}, []);
-
-	const handleStartStreamingTranscription = useCallback(
-		() =>
-			startVercelStreamingTranscription({
-				onTranscript: handleStreamingTranscriptionChange,
-			}),
-		[handleStreamingTranscriptionChange],
-	);
-
-	const handleAudioRecorded = useCallback(
-		async (audioBlob: Blob): Promise<string> => {
-			if (!transcriptionTarget) {
-				throw new Error(
-					"Configure an audio-to-text provider before using speech input",
-				);
-			}
-			if (audioBlob.size > MAX_RECORDED_AUDIO_BYTES) {
-				throw new Error("Recorded audio exceeds the 25 MiB upload limit");
-			}
-			writeDesktopDebugLog({
-				scope: "voice-input",
-				level: "debug",
-				message: "Webview recorded audio and is sending it to the sidecar",
-				timestamp: new Date().toISOString(),
-				metadata: {
-					providerId: transcriptionTarget.providerId,
-					modelId: transcriptionTarget.modelId,
-					mediaType: audioBlob.type,
-					audioBytes: audioBlob.size,
-				},
-			});
-			const audioBase64 = await blobToBase64(audioBlob);
-			const result = await desktopClient.invoke<{ text?: string }>(
-				"transcribe_audio",
-				{
-					audioBase64,
-					mediaType: audioBlob.type,
-				},
-			);
-			const text = result.text?.trim();
-			if (!text) {
-				throw new Error("The transcription provider returned no text");
-			}
-			return text;
-		},
-		[transcriptionTarget],
-	);
-
-	const handleSpeechInputError = useCallback((error: unknown) => {
-		const message =
-			error instanceof Error
-				? error.message
-				: "Check microphone permission and audio provider settings.";
-		writeDesktopDebugLog({
-			scope: "voice-input",
-			level: "error",
-			message: "Speech input failed in the webview",
-			timestamp: new Date().toISOString(),
-			metadata: { failure: message },
-		});
-		toast({
-			variant: "destructive",
-			title: "Speech input failed",
-			description: message,
-		});
-	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-		let loadId = 0;
-		const loadVoiceInput = () => {
-			const currentLoadId = ++loadId;
-			loadProviderModelCatalog()
-				.then((catalog) => {
-					if (!cancelled && currentLoadId === loadId) {
-						updateTranscriptionTarget(catalog.voiceInput);
-					}
-				})
-				.catch(() => {
-					if (!cancelled && currentLoadId === loadId) {
-						updateTranscriptionTarget(null);
-					}
-				});
-		};
-		loadVoiceInput();
-		window.addEventListener(VOICE_INPUT_SETTINGS_CHANGED_EVENT, loadVoiceInput);
-		return () => {
-			cancelled = true;
-			loadId += 1;
 			window.removeEventListener(
 				VOICE_INPUT_SETTINGS_CHANGED_EVENT,
-				loadVoiceInput,
+				loadModeSettings,
 			);
 		};
 	}, [updateTranscriptionTarget]);
@@ -1018,6 +861,8 @@ function ChatInputBarImpl({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
 	useEffect(() => {
 		if (
 			executionTarget === "cloud" &&
@@ -1383,10 +1228,10 @@ function ChatInputBarImpl({
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							"flex gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
-								: "min-h-24 rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
+								? "min-h-16 items-end rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
+								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
 						)}
 						onMouseDown={(event) => {
 							const target = event.target;
@@ -1532,19 +1377,19 @@ function ChatInputBarImpl({
 								)
 							}
 							placeholder={
-							speechInputProcessing
-								? "Transcribing voice input…"
-								: needsCloudRepository
-									? "Choose a repository"
-									: isBusy && variant !== "welcome"
-										? "Agent is working... submit to queue another message"
-										: executionTarget === "cloud"
-											? // Mentions and slash commands are local-only; do not
-												// advertise them in cloud sessions.
-												"Describe what Cline should do in this repository."
-											: variant === "welcome"
-												? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-												: "Enter your question or type / for commands or @ for context"
+								speechInputProcessing
+									? "Transcribing voice input…"
+									: needsCloudRepository
+										? "Choose a repository"
+										: isBusy && variant !== "welcome"
+											? "Agent is working... submit to queue another message"
+											: executionTarget === "cloud"
+												? // Mentions and slash commands are local-only; do not
+													// advertise them in cloud sessions.
+													"Describe what Cline should do in this repository."
+												: variant === "welcome"
+													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+													: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
 							ref={promptInputRef}
@@ -1622,7 +1467,7 @@ function ChatInputBarImpl({
 										: "Configure voice input in Settings → Models"
 								}
 							/>
-							{(!isBusy || canSend) && (
+							{!isBusy || canSend ? (
 								<button
 									aria-label="Send message"
 									className={cn(
@@ -1693,102 +1538,208 @@ function ChatInputBarImpl({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
-						<button
-							aria-pressed={mode === "plan"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "plan"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "plan") onModeToggle();
-							}}
-							type="button"
-						>
-							Plan
-						</button>
-						<button
-							aria-pressed={mode === "act"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "act"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "act") onModeToggle();
-							}}
-							type="button"
-						>
-							Act
-						</button>
+					{executionTarget === "cloud" ? (
+						<span className="truncate text-[11px]" title={cloudContextLabel}>
+							{cloudContextLabel}
+						</span>
+					) : null}
+
+					<div className="ml-auto flex min-w-0 shrink-0 items-center gap-0">
+						{executionTarget === "cloud" ? (
+							<>
+								<ModelSelector
+									allowedProviderIds={CLINE_ONLY_PROVIDER_IDS}
+									autoCorrectModel={!cloudSettingsLocked}
+									isBusy={isBusy}
+									model={model}
+									onModelChange={onModelChange}
+									onModelSupportsReasoningChange={
+										handleModelSupportsReasoningChange
+									}
+									onProviderChange={onProviderChange}
+									persistSelection={false}
+									provider={provider}
+								/>
+								<Select
+									disabled
+									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+								>
+									<SelectTrigger
+										aria-label="Thinking level"
+										className="h-7 border-0"
+										size="sm"
+									>
+										<span className="flex items-center gap-1">
+											{effortLabel}
+											<ReasoningEffortIcon
+												className="size-3"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{EFFORT_LEVELS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</>
+						) : (
+							<>
+								<Popover
+									onOpenChange={setModelSettingsOpen}
+									open={modelSettingsOpen}
+								>
+									<PopoverTrigger asChild>
+										<button
+											aria-label="Model settings"
+											className="flex h-7 max-w-md items-center gap-1 rounded-md px-2 text-[11px] transition-colors hover:bg-accent"
+											type="button"
+										>
+											<span className="truncate text-muted-foreground">
+												{provider}
+											</span>
+											<span className="truncate text-foreground">{model}</span>
+											<ReasoningEffortIcon
+												className="size-3 shrink-0"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</button>
+									</PopoverTrigger>
+									<PopoverContent
+										align="end"
+										className="w-72 space-y-1 p-2"
+										forceMount
+										onOpenAutoFocus={(event) => {
+											event.preventDefault();
+											requestAnimationFrame(() =>
+												thinkingSliderRef.current?.focus(),
+											);
+										}}
+										side="top"
+									>
+										<ModelSelector
+											allowedProviderIds={
+												executionTarget === "cloud"
+													? CLINE_ONLY_PROVIDER_IDS
+													: undefined
+											}
+											autoCorrectModel={!cloudSettingsLocked}
+											isBusy={isBusy}
+											model={model}
+											onModelChange={onModelChange}
+											onModelSupportsReasoningChange={
+												handleModelSupportsReasoningChange
+											}
+											onProviderChange={onProviderChange}
+											persistSelection={executionTarget !== "cloud"}
+											provider={provider}
+											variant="menu"
+										/>
+										<div className="rounded-md px-2 py-1">
+											<div className="flex items-center justify-between text-xs">
+												<span className="text-[10px] text-muted-foreground">
+													Effort
+												</span>
+												<span className="flex items-center gap-1.5 text-[10px] text-foreground">
+													{effortLabel}
+													<ReasoningEffortIcon
+														className="size-3.5"
+														value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+													/>
+												</span>
+											</div>
+											<div className="relative mt-3 h-4">
+												<input
+													aria-label="Effort"
+													aria-valuetext={effortLabel}
+													className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50"
+													disabled={
+														cloudSettingsLocked ||
+														modelSupportsReasoning !== true
+													}
+													max={EFFORT_LEVELS.length - 1}
+													min={0}
+													onChange={(event) => {
+														const option =
+															EFFORT_LEVELS[Number(event.currentTarget.value)];
+														if (option) handleEffortChange(option.value);
+													}}
+													onKeyDown={(event) => {
+														if (
+															event.key !== "ArrowLeft" &&
+															event.key !== "ArrowRight"
+														)
+															return;
+														event.preventDefault();
+														const direction =
+															event.key === "ArrowRight" ? 1 : -1;
+														const nextIndex = Math.min(
+															EFFORT_LEVELS.length - 1,
+															Math.max(0, effortIndex + direction),
+														);
+														const option = EFFORT_LEVELS[nextIndex];
+														if (option) handleEffortChange(option.value);
+													}}
+													ref={thinkingSliderRef}
+													step={1}
+													type="range"
+													value={effortIndex}
+												/>
+												<div
+													aria-hidden="true"
+													className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
+													data-slot="thinking-level-markers"
+												>
+													{EFFORT_LEVELS.map((option) => (
+														<span
+															className="size-1 rounded-full bg-zinc-500 opacity-50"
+															key={option.value}
+														/>
+													))}
+												</div>
+											</div>
+										</div>
+									</PopoverContent>
+								</Popover>
+								<Select
+									disabled={modelSupportsReasoning !== true}
+									onValueChange={handleEffortChange}
+									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+								>
+									<SelectTrigger
+										aria-label="Thinking level"
+										className="h-7 gap-1.5 border-0 px-2 text-sm shadow-none"
+										size="sm"
+									>
+										<span className="flex items-center gap-1">
+											{effortLabel}
+											<ReasoningEffortIcon
+												className="size-3"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{EFFORT_LEVELS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</>
+						)}
 					</div>
-					<div className="min-w-0 shrink-0">
-						<ModelSelector
-							allowedProviderIds={
-								executionTarget === "cloud"
-									? CLINE_ONLY_PROVIDER_IDS
-									: undefined
-							}
-							autoCorrectModel={!cloudSettingsLocked}
-							isBusy={isBusy}
-							model={model}
-							onModelChange={onModelChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onProviderChange={onProviderChange}
-							persistSelection={executionTarget !== "cloud"}
-							provider={provider}
-						/>
-					</div>
-					<Select
-						disabled={cloudSettingsLocked || modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
-							size="sm"
-							title={
-								cloudSettingsLocked
-									? "Thinking level is fixed when a cloud session starts"
-									: modelSupportsReasoning === false
-										? "The selected model does not report reasoning support"
-										: undefined
-							}
-						>
-							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
 				</div>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-0">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
-							<div className="min-w-0 overflow-visible">
-								{executionTarget === "cloud" ? (
-									<span
-										className="inline-flex max-w-48 items-center gap-1.5 truncate text-[11px] text-muted-foreground"
-										title={cloudContextLabel}
-									>
-										<Cloud className="size-3 shrink-0" />
-										<span className="truncate">{cloudContextLabel}</span>
-									</span>
-								) : (
+							{executionTarget !== "cloud" && gitBranch !== undefined ? (
+								<div className="min-w-0 overflow-visible">
 									<WorkspaceSelector
 										currentBranch={gitBranch}
 										disabled
@@ -1800,8 +1751,8 @@ function ChatInputBarImpl({
 										workspaces={workspaces}
 										workspaceRoot={workspaceRoot}
 									/>
-								)}
-							</div>
+								</div>
+							) : null}
 							<TokenUsageRing
 								usage={{
 									contextWindow: modelContextWindow,
@@ -1811,89 +1762,7 @@ function ChatInputBarImpl({
 									totalCost: summary.totalCostUsd,
 								}}
 							/>
-							<div className="rounded-md p-1 px-2">
-								<div className="flex items-center justify-between text-xs">
-									<div className="mb-0.5 text-[10px] text-muted-foreground">
-										Effort
-									</div>
-									<span className="flex items-center gap-1.5 text-foreground text-[10px]">
-										{effortLabel}
-										<ReasoningEffortIcon
-											className="size-3.5"
-											value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-										/>
-									</span>
-								</div>
-								<div className="relative mt-3 h-4">
-									<input
-										aria-label="Effort"
-										aria-valuetext={effortLabel}
-										className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full transition-colors duration-200 ease-out disabled:cursor-not-allowed disabled:opacity-50 [&::-moz-range-thumb]:size-5 [&::-moz-range-thumb]:rounded-full [&::-moz-range-thumb]:border-0 [&::-moz-range-thumb]:bg-foreground [&::-webkit-slider-thumb]:size-5 [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-foreground [&::-webkit-slider-thumb]:shadow-sm [&::-webkit-slider-thumb]:transition-transform [&::-webkit-slider-thumb]:duration-150 [&::-webkit-slider-thumb]:ease-out active:[&::-webkit-slider-thumb]:scale-110"
-										disabled={modelSupportsReasoning !== true}
-										max={EFFORT_LEVELS.length - 1}
-										min={0}
-										onChange={(event) => {
-											const option =
-												EFFORT_LEVELS[Number(event.currentTarget.value)];
-											if (option) handleEffortChange(option.value);
-										}}
-										onKeyDown={(event) => {
-											if (
-												event.key !== "ArrowLeft" &&
-												event.key !== "ArrowRight"
-											) {
-												return;
-											}
-											event.preventDefault();
-											const direction = event.key === "ArrowRight" ? 1 : -1;
-											const nextIndex = Math.min(
-												EFFORT_LEVELS.length - 1,
-												Math.max(0, effortIndex + direction),
-											);
-											const option = EFFORT_LEVELS[nextIndex];
-											if (option) handleEffortChange(option.value);
-										}}
-										step={1}
-										ref={thinkingSliderRef}
-										style={{
-											background: `linear-gradient(to right, var(--primary) 0%, var(--primary) ${(effortIndex / (EFFORT_LEVELS.length - 1)) * 100}%, var(--muted) ${(effortIndex / (EFFORT_LEVELS.length - 1)) * 100}%, var(--muted) 100%)`,
-										}}
-										type="range"
-										value={effortIndex}
-									/>
-									{effortIndex === EFFORT_LEVELS.length - 1 ? (
-										<div
-											aria-hidden="true"
-											className="cline-thinking-slider-shimmer pointer-events-none absolute inset-0 z-20 rounded-full"
-											data-slot="extra-thinking-animation"
-										/>
-									) : null}
-									<div
-										aria-hidden="true"
-										className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
-										data-slot="thinking-level-markers"
-									>
-										{EFFORT_LEVELS.map((option) => (
-											<span
-												className="size-1 rounded-full bg-zinc-500 opacity-50"
-												key={option.value}
-											/>
-										))}
-									</div>
-								</div>
-							</div>
-						</PopoverContent>
-					</Popover>
-					{variant === "conversation" ? (
-						<TokenUsageRing
-							usage={{
-								contextWindow: modelContextWindow,
-								tokensIn: summary.tokensIn,
-								tokensOut: summary.tokensOut,
-								cacheReadTokens: summary.cacheReadTokens ?? 0,
-								totalCost: summary.totalCostUsd,
-							}}
-						/>
+						</div>
 					) : null}
 				</div>
 			</div>

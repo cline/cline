@@ -18,6 +18,7 @@ import {
 	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	isChatProviderModel,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	markLocalProviderEnabled,

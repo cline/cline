@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/sidebar";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import { EnvironmentSelector } from "@/components/views/chat/environment-selector";
+import { RemoteDirectoryPicker } from "@/components/views/chat/remote-directory-picker";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
@@ -81,11 +83,16 @@ import {
 	fetchProviderCatalog,
 	loadProviderModelCatalog,
 	MODE_SETTINGS_CHANGED_EVENT,
-	readProviderCatalogSnapshot,
 	type RealtimeVoiceModelTarget,
+	readProviderCatalogSnapshot,
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
 } from "@/lib/provider-model-catalog";
+import type {
+	RemoteEnvironmentConnectResult,
+	RemoteEnvironmentListResult,
+	RemoteEnvironmentProfile,
+} from "@/lib/remote-environments";
 import {
 	buildSessionAgentActivity,
 	mergeAgentActivity,
@@ -237,6 +244,21 @@ export default function Home() {
 	// provider setup step.
 	const [onboardingInitialStep, setOnboardingInitialStep] =
 		useState<OnboardingStep>("welcome");
+	const [activeRemoteEnvironment, setActiveRemoteEnvironment] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const [remoteEnvironmentProfiles, setRemoteEnvironmentProfiles] = useState<
+		RemoteEnvironmentProfile[]
+	>([]);
+	const [
+		remoteEnvironmentProfilesLoading,
+		setRemoteEnvironmentProfilesLoading,
+	] = useState(true);
+	const [remoteDirectoryPicker, setRemoteDirectoryPicker] =
+		useState<RemoteWorkspaceEnvironment | null>(null);
+	const remoteDirectoryPickerResolverRef = useRef<
+		((path: string | null) => void) | null
+	>(null);
+	const selectLocalDraftWhenChatVisibleRef = useRef(false);
 	const [realtimeVoiceOpen, setRealtimeVoiceOpen] = useState(false);
 	const [realtimeVoiceTarget, setRealtimeVoiceTarget] =
 		useState<RealtimeVoiceModelTarget | null>(null);
@@ -891,14 +913,25 @@ export default function Home() {
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
 									onOpenSessionById={handleOpenSessionById}
+									onPickRemoteWorkspaceDirectory={pickRemoteWorkspaceDirectory}
+									onSelectEnvironment={handleSelectEnvironment}
 									onOpenSetup={handleOpenSetup}
 									onOpenModelSettings={() =>
 										handleSettingsSectionChange("Models")
 									}
 									parentSession={activeParentSession}
+									remoteEnvironment={
+										activeRemoteEnvironment?.id === activeThread.environmentId
+											? activeRemoteEnvironment
+											: null
+									}
 									onOpenVoiceInputSettings={() =>
 										handleSettingsSectionChange("Models")
 									}
+									onOpenVoiceOutputSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
+									onRealtimeBridgeChange={handleRealtimeBridgeChange}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -925,6 +958,15 @@ export default function Home() {
 				</div>
 			) : null}
 			<HubUpdateRequiredDialog />
+			{remoteDirectoryPicker ? (
+				<RemoteDirectoryPicker
+					environmentId={remoteDirectoryPicker.id}
+					homeDir={remoteDirectoryPicker.homeDir}
+					onCancel={() => completeRemoteDirectoryPicker(null)}
+					onSelect={completeRemoteDirectoryPicker}
+					open
+				/>
+			) : null}
 		</AccountProvider>
 	);
 }
@@ -953,10 +995,15 @@ function ChatThreadPane({
 	onNewThread,
 	onOpenSession,
 	onOpenSessionById,
+	onPickRemoteWorkspaceDirectory,
+	onSelectEnvironment,
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
+	remoteEnvironment,
 	onOpenVoiceInputSettings,
+	onOpenVoiceOutputSettings,
+	onRealtimeBridgeChange,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -981,11 +1028,21 @@ function ChatThreadPane({
 		session: SessionHistoryItem,
 		initialPromptDraft?: string,
 	) => void;
-	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
+	onOpenSessionById?: (
+		sessionId: string,
+		environmentId?: string,
+	) => void | Promise<void>;
+	onPickRemoteWorkspaceDirectory: (
+		environment: RemoteWorkspaceEnvironment,
+	) => Promise<string | null>;
+	onSelectEnvironment: (environmentId: string) => Promise<void>;
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	remoteEnvironment: RemoteWorkspaceEnvironment | null;
 	onOpenVoiceInputSettings?: () => void;
+	onOpenVoiceOutputSettings?: () => void;
+	onRealtimeBridgeChange?: (bridge: RealtimeChatBridge) => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1194,7 +1251,13 @@ function ChatThreadPane({
 			lastWorkspace,
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
 		});
-	}, [config.cwd, config.workspaceRoot, config.executionTarget, workspaces]);
+	}, [
+		config.cwd,
+		config.workspaceRoot,
+		config.executionTarget,
+		environmentId,
+		workspaces,
+	]);
 
 	const providerCredentialsRequestRef = useRef(0);
 	const loadProviderCredentials = useCallback(async () => {
@@ -1464,7 +1527,7 @@ function ChatThreadPane({
 
 			return true;
 		},
-		[environmentId, invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
+		[invalidateGitBranch, refreshWorkspaces, setWorkspacePath],
 	);
 
 	const selectChat = useCallback(async (): Promise<boolean> => {
@@ -1476,6 +1539,9 @@ function ChatThreadPane({
 
 	const pickWorkspaceDirectory = useCallback(
 		async (initialPath?: string): Promise<string | null> => {
+			if (remoteEnvironment) {
+				return await onPickRemoteWorkspaceDirectory(remoteEnvironment);
+			}
 			// Resolves to null when the user cancels; rethrows picker failures
 			// (e.g. no zenity/kdialog on Linux) so callers can surface an error
 			// and offer manual path entry instead of a silent no-op.
@@ -2364,6 +2430,7 @@ function ChatThreadPane({
 									isCloudSession ? undefined : handleRestoreCheckpoint
 								}
 								onForkSession={isCloudSession ? undefined : handleForkSession}
+								onOpenVoiceOutputSettings={onOpenVoiceOutputSettings}
 								startingLabel={
 									isCloudSession && !displayedSessionId
 										? provisioningPhase

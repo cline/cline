@@ -45,6 +45,12 @@ export interface SessionThread {
 	isScheduled: boolean;
 }
 
+type SessionHookEvent = {
+	inputTokens?: number;
+	outputTokens?: number;
+	totalCost?: number;
+};
+
 type SessionMessageMeta = {
 	inputTokens?: number;
 	outputTokens?: number;
@@ -262,6 +268,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		session.origin === "cloud" && session.repoUrl?.trim()
 			? session.repoUrl.trim()
 			: (session.workspaceRoot || session.cwd).trim();
+	const usage = session.metadata?.usage;
 	return {
 		id: session.sessionId,
 		origin: session.origin,
@@ -323,6 +330,36 @@ export function formatCostUsd(value?: number): string | null {
 		return `$${value.toFixed(3)}`;
 	}
 	return `$${value.toFixed(2)}`;
+}
+
+function summarizeUsageFromMessages(messages: SessionMessage[]): {
+	inputTokens: number;
+	outputTokens: number;
+	totalCostUsd: number;
+} | null {
+	let inputTokens = 0;
+	let outputTokens = 0;
+	let totalCostUsd = 0;
+	let hasUsage = false;
+
+	for (const message of messages) {
+		const meta = message.meta;
+		if (!meta) continue;
+		if (typeof meta.inputTokens === "number") {
+			inputTokens += meta.inputTokens;
+			hasUsage = true;
+		}
+		if (typeof meta.outputTokens === "number") {
+			outputTokens += meta.outputTokens;
+			hasUsage = true;
+		}
+		if (typeof meta.totalCost === "number") {
+			totalCostUsd += meta.totalCost;
+			hasUsage = true;
+		}
+	}
+
+	return hasUsage ? { inputTokens, outputTokens, totalCostUsd } : null;
 }
 
 function areSessionsEquivalent(
@@ -492,6 +529,10 @@ export function useSessionHistory({
 	// may itself name a batch that was never fetched.
 	const loadedLimitRef = useRef(0);
 	const mayHaveMoreSessionsRef = useRef(false);
+	const usageLoadingRef = useRef<Set<string>>(new Set());
+	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
+		new Map(),
+	);
 	const titleLoadingRef = useRef<Set<string>>(new Set());
 	const messageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),

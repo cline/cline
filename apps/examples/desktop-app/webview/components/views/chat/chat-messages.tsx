@@ -37,8 +37,8 @@ import {
 	groupChatMessages,
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
-import { ChatVideoLightbox } from "./messages/message-media";
 import { MessageBubble } from "./messages/message-bubble";
+import { ChatVideoLightbox } from "./messages/message-media";
 import {
 	formatApprovalTimestamp,
 	ToolApprovalPanel,
@@ -76,6 +76,7 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onOpenVoiceOutputSettings?: () => void;
 	startingLabel?: string;
 	errorAction?: { label: string; url: string };
 };
@@ -108,6 +109,7 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onOpenVoiceOutputSettings,
 	startingLabel = "Thinking...",
 	errorAction,
 }: ChatMessagesProps) {

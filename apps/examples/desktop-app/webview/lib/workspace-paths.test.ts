@@ -18,6 +18,11 @@ import {
 	writeWorkspaceSelectionToWindow,
 } from "./workspace-paths";
 
+const originalLocalStorage = Object.getOwnPropertyDescriptor(
+	window,
+	"localStorage",
+);
+
 describe("workspace paths", () => {
 	beforeEach(() => {
 		const values = new Map<string, string>();
@@ -30,6 +35,12 @@ describe("workspace paths", () => {
 				setItem: (key: string, value: string) => values.set(key, value),
 			},
 		});
+	});
+
+	afterEach(() => {
+		if (originalLocalStorage) {
+			Object.defineProperty(window, "localStorage", originalLocalStorage);
+		}
 	});
 
 	it("recognizes typed folder paths for manual entry", () => {

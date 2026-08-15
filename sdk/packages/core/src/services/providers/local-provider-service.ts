@@ -183,14 +183,9 @@ function stableColor(id: string): string {
 }
 
 export function isDedicatedTranscriptionModel(
-	model: Pick<ProviderModel, "inputModalities" | "outputModalities">,
+	model: Pick<ProviderModel, "operation">,
 ): boolean {
-	return (
-		model.inputModalities?.length === 1 &&
-		model.inputModalities[0] === "audio" &&
-		model.outputModalities?.length === 1 &&
-		model.outputModalities[0] === "text"
-	);
+	return model.operation === "transcription";
 }
 
 export function isSpeechGenerationModel(
@@ -867,6 +862,8 @@ export async function listLocalProviders(
 	providers: ProviderListItem[];
 	settingsPath: string;
 	modes: ProviderModesSettings;
+	/** @deprecated Use modes.voiceInput. */
+	voiceInput?: VoiceInputSelection;
 }> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
@@ -938,13 +935,15 @@ export async function listLocalProviders(
 		);
 	}
 
+	const modes = collectAvailableModeSettings(
+		providers,
+		options.modeSettings ?? state.modes,
+	);
 	return {
 		providers,
 		settingsPath: manager.getFilePath(),
-		modes: collectAvailableModeSettings(
-			providers,
-			options.modeSettings ?? state.modes,
-		),
+		modes,
+		voiceInput: modes.voiceInput,
 	};
 }
 

@@ -9,5 +9,6 @@ export default defineConfig({
 	},
 	test: {
 		environment: "node",
+		setupFiles: [fileURLToPath(new URL("./vitest.setup.ts", import.meta.url))],
 	},
 });

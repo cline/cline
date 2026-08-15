@@ -968,6 +968,7 @@ describe("ChatInputBar", () => {
 					>
 						<ChatInputBar
 							attachments={[]}
+							gitBranch="main"
 							mode="act"
 							model="test-model"
 							onAbort={vi.fn()}
@@ -975,6 +976,10 @@ describe("ChatInputBar", () => {
 							onEditPromptInQueue={vi.fn()}
 							onModeToggle={vi.fn()}
 							onModelChange={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
 							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
@@ -982,6 +987,7 @@ describe("ChatInputBar", () => {
 							onRemoveAttachment={vi.fn()}
 							onSend={vi.fn()}
 							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => false)}
 							onRemovePromptInQueue={vi.fn()}
 							promptDraft={{ version: 0, value: "" }}
 							promptsInQueue={[]}
@@ -1176,6 +1182,8 @@ describe("ChatInputBar", () => {
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);
 
+		const workspaceTrigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
 		expect(workspaceTrigger?.disabled).toBe(true);
 		expect(workspaceTrigger?.className).toContain("max-[560px]:size-7");
 		expect(workspaceTrigger?.textContent).toContain("cline");

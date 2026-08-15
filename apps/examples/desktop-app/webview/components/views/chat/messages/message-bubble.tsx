@@ -15,8 +15,8 @@ import {
 	Copy,
 	Loader2,
 	PencilIcon,
-	Square,
 	SplitIcon,
+	Square,
 	UndoIcon,
 	Volume2,
 } from "lucide-react";
@@ -25,10 +25,11 @@ import type {
 	ChatMessage,
 	ChatMessageImage,
 	ChatMessageMedia,
+	ChatMessageVideo,
 } from "@/lib/chat-schema";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
-import { MessageAudios, MessageImages, MessageVideos } from "./message-media";
+import { MessageAudios, MessageVideos } from "./message-media";
 import { ReasoningBlock } from "./reasoning-block";
 
 function AssistantImageCarousel({
@@ -152,6 +153,8 @@ function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
 		</div>
 	);
 }
+
+export type AssistantSpeechPhase = "generating" | "playing";
 
 // Memoized with id-parameterized callbacks: during streaming only the message
 // object that received a delta changes identity, so all other bubbles skip
@@ -292,6 +295,21 @@ export const MessageBubble = memo(function MessageBubble({
 						images={message.images}
 						isUser={isUser}
 						onExpandImage={onExpandImage}
+					/>
+				) : null}
+
+				{message.videos?.length && message.sessionId ? (
+					<MessageVideos
+						onExpandVideo={onExpandVideo}
+						sessionId={message.sessionId}
+						videos={message.videos}
+					/>
+				) : null}
+
+				{message.audios?.length && message.sessionId ? (
+					<MessageAudios
+						audios={message.audios}
+						sessionId={message.sessionId}
 					/>
 				) : null}
 

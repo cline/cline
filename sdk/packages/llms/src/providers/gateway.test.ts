@@ -100,6 +100,7 @@ vi.mock("ai", () => ({
 		jsonSchema: schema,
 		...(options && typeof options === "object" ? options : {}),
 	}),
+	tool: (definition: unknown) => definition,
 	generateImage: (input: unknown) => generateImageSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
@@ -5518,8 +5519,8 @@ describe("sdk-gateway", () => {
 			}),
 		);
 		if (providerId === "vercel-ai-gateway") {
-			const messageProviderOptions = qwenCall.messages?.[0]?.content[0]
-				?.providerOptions;
+			const messageProviderOptions =
+				qwenCall.messages?.[0]?.content[0]?.providerOptions;
 			expect(messageProviderOptions?.[providerId]).toBeUndefined();
 			expect(qwenCall.providerOptions?.[providerId]).toBeUndefined();
 		}

@@ -45,13 +45,15 @@ export async function createOpenAIProviderModule(
 			for (const tool of tools) {
 				switch (tool.name) {
 					case "web_search":
-						result.web_search = { tool: provider.tools.webSearch() };
+						result.web_search = {
+							tool: provider.tools.webSearch() as never,
+						};
 						break;
 					case "image_generation":
 						result.image_generation = {
 							tool: provider.tools.imageGeneration({
 								outputFormat: tool.outputFormat ?? "png",
-							}),
+							}) as never,
 							projectResult: (output) => {
 								const record =
 									output && typeof output === "object" && !Array.isArray(output)

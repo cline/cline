@@ -58,6 +58,7 @@ export function WelcomeScreen({
 	onRepoUrlChange = () => undefined,
 	onCloudBranchChange = () => undefined,
 	cloudAgentsEnabled = false,
+	environmentSelector,
 }: {
 	active: boolean;
 	body: ReactNode;
@@ -75,6 +76,7 @@ export function WelcomeScreen({
 	onRepoUrlChange?: (repoUrl: string) => void;
 	onCloudBranchChange?: (branch: string) => void;
 	cloudAgentsEnabled?: boolean;
+	environmentSelector?: ReactNode;
 }) {
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
@@ -289,7 +291,7 @@ export function WelcomeScreen({
 				<div
 					className={cn(
 						active
-							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(8rem,26vh,17rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
+							? "mx-auto flex w-full max-w-240 flex-col px-6 pb-32 pt-[clamp(4rem,14vh,9rem)] max-[720px]:px-4 max-[720px]:pb-20 max-[720px]:pt-16"
 							: "contents",
 					)}
 				>
@@ -361,7 +363,9 @@ export function WelcomeScreen({
 
 					<div
 						className={cn(
-							active ? "mt-4 w-full" : "z-20 shrink-0 px-6 pb-6",
+							active
+								? "mt-4 min-w-0 w-full max-w-full"
+								: "z-20 shrink-0 px-6 pb-6",
 							active && showCloudOnboarding && "hidden",
 						)}
 						key="persistent-composer"

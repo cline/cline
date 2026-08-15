@@ -7,7 +7,10 @@ import type {
 	ProviderMode,
 	ProviderModel,
 	ProviderModelsResponse,
+	ProviderModesSettings,
+	RealtimeVoiceModeSettings,
 	VoiceInputSelection,
+	VoiceOutputModeSettings,
 } from "@/lib/provider-schema";
 
 export type ProviderModelCatalog = {
@@ -16,6 +19,11 @@ export type ProviderModelCatalog = {
 	providerModels: Record<string, string[]>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
+	modes: {
+		voiceInput: TranscriptionModelTarget | null;
+		voiceOutput: SpeechGenerationModelTarget | null;
+		realtimeVoice: RealtimeVoiceModelTarget | null;
+	};
 };
 
 export type TranscriptionModelTarget = {
@@ -26,8 +34,65 @@ export type TranscriptionModelTarget = {
 	supportsStreaming: boolean;
 };
 
+export type SpeechGenerationModelTarget = {
+	providerId: string;
+	providerName: string;
+	modelId: string;
+	modelName: string;
+	voice?: string;
+};
+
+export type RealtimeVoiceModelTarget = {
+	providerId: string;
+	providerName: string;
+	modelId: string;
+	modelName: string;
+	supportsTools: boolean;
+	voice?: string;
+};
+
 export function isDedicatedTranscriptionModel(model: ProviderModel): boolean {
-	return model.operation === "transcription";
+	return (
+		model.operation === "transcription" ||
+		(model.inputModalities?.length === 1 &&
+			model.inputModalities[0] === "audio" &&
+			model.outputModalities?.length === 1 &&
+			model.outputModalities[0] === "text")
+	);
+}
+
+export function isSpeechGenerationModel(model: ProviderModel): boolean {
+	return (
+		model.operation === "speech-generation" ||
+		(model.inputModalities?.length === 1 &&
+			model.inputModalities[0] === "text" &&
+			model.outputModalities?.length === 1 &&
+			model.outputModalities[0] === "audio")
+	);
+}
+
+export function isRealtimeVoiceModel(model: ProviderModel): boolean {
+	return (
+		model.inputModalities?.includes("audio") === true &&
+		model.outputModalities?.includes("audio") === true &&
+		/(?:^|[/_.\s-])(realtime|live|voice)(?:$|[/_.\s-])/i.test(
+			`${model.id} ${model.name}`,
+		)
+	);
+}
+
+export function hasRealtimeVoiceTransport(providerId: string): boolean {
+	return ["vercel-ai-gateway", "gemini", "openai-native", "openai"].includes(
+		providerId,
+	);
+}
+
+export function defaultRealtimeVoice(providerId: string): string | undefined {
+	if (providerId === "gemini") return "Kore";
+	if (providerId === "openai" || providerId === "openai-native") {
+		return "alloy";
+	}
+	return undefined;
 }
 
 export function supportsAudio(model: ProviderModel): boolean {
@@ -69,6 +134,56 @@ export function selectTranscriptionModel(
 		: null;
 }
 
+export function selectSpeechGenerationModel(
+	providers: Provider[],
+	selection: VoiceOutputModeSettings | undefined,
+): SpeechGenerationModelTarget | null {
+	if (!selection) return null;
+	const provider = providers.find(
+		(candidate) => candidate.enabled && candidate.id === selection.providerId,
+	);
+	const model = provider?.modelList?.find(
+		(candidate) =>
+			candidate.id === selection.modelId && isSpeechGenerationModel(candidate),
+	);
+	return provider && model
+		? {
+				providerId: provider.id,
+				providerName: provider.name,
+				modelId: model.id,
+				modelName: model.name,
+				voice: selection.voice,
+			}
+		: null;
+}
+
+export function selectRealtimeVoiceModel(
+	providers: Provider[],
+	selection: RealtimeVoiceModeSettings | undefined,
+): RealtimeVoiceModelTarget | null {
+	if (!selection) return null;
+	const provider = providers.find(
+		(candidate) =>
+			candidate.enabled &&
+			candidate.id === selection.providerId &&
+			hasRealtimeVoiceTransport(candidate.id),
+	);
+	const model = provider?.modelList?.find(
+		(candidate) =>
+			candidate.id === selection.modelId && isRealtimeVoiceModel(candidate),
+	);
+	return provider && model
+		? {
+				providerId: provider.id,
+				providerName: provider.name,
+				modelId: model.id,
+				modelName: model.name,
+				supportsTools: model.supportsTools === true,
+				voice: selection.voice?.trim() || defaultRealtimeVoice(provider.id),
+			}
+		: null;
+}
+
 function toModelIds(models: ProviderModel[] | undefined): string[] {
 	return filterChatModels(models).map((model) => model.id);
 }
@@ -81,8 +196,11 @@ function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 
 export function buildProviderModelCatalog(
 	providers: Provider[],
-	voiceInput?: VoiceInputSelection,
+	settings: ProviderModesSettings | VoiceInputSelection = {},
 ): ProviderModelCatalog {
+	const modes: ProviderModesSettings =
+		"providerId" in settings ? { voiceInput: settings } : settings;
+	const voiceInput = selectTranscriptionModel(providers, modes.voiceInput);
 	return {
 		providers,
 		enabledProviderIds: providers
@@ -103,7 +221,12 @@ export function buildProviderModelCatalog(
 				toReasoningModelIds(provider.modelList),
 			]),
 		),
-		voiceInput: selectTranscriptionModel(providers, voiceInput),
+		voiceInput,
+		modes: {
+			voiceInput,
+			voiceOutput: selectSpeechGenerationModel(providers, modes.voiceOutput),
+			realtimeVoice: selectRealtimeVoiceModel(providers, modes.realtimeVoice),
+		},
 	};
 }
 
@@ -114,6 +237,7 @@ export function buildProviderModelCatalog(
 const PROVIDER_CATALOG_CACHE_TTL_MS = 5_000;
 export const VOICE_INPUT_SETTINGS_CHANGED_EVENT =
 	"cline:voice-input-settings-changed";
+export const MODE_SETTINGS_CHANGED_EVENT = "cline:mode-settings-changed";
 
 let providerCatalogCache: {
 	fetchedAt: number;
@@ -222,9 +346,21 @@ export function notifyVoiceInputSettingsChanged(): void {
 	}
 }
 
+export function notifyModeSettingsChanged(mode: string): void {
+	invalidateProviderCatalogCache();
+	if (typeof window !== "undefined") {
+		window.dispatchEvent(
+			new CustomEvent(MODE_SETTINGS_CHANGED_EVENT, { detail: { mode } }),
+		);
+	}
+}
+
 export async function loadProviderModelCatalog(): Promise<ProviderModelCatalog> {
 	const payload = await fetchProviderCatalog();
-	return buildProviderModelCatalog(payload.providers ?? [], payload.voiceInput);
+	return buildProviderModelCatalog(
+		payload.providers ?? [],
+		payload.modes ?? {},
+	);
 }
 
 export async function loadProviderModels(

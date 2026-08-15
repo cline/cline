@@ -24,7 +24,11 @@ export async function createGoogleProviderModule(
 			> = {};
 			for (const tool of tools) {
 				if (tool.name === "web_search") {
-					result.web_search = { tool: provider.tools.googleSearch({}) };
+					result.web_search = {
+						// The provider package and `ai` expose structurally compatible tools,
+						// but patch releases currently disagree on the generic input default.
+						tool: provider.tools.googleSearch({}) as never,
+					};
 				}
 			}
 			return result;

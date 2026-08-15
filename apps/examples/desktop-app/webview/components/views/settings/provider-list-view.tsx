@@ -28,7 +28,10 @@ import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import {
+	hasRealtimeVoiceTransport,
 	isDedicatedTranscriptionModel,
+	isRealtimeVoiceModel,
+	isSpeechGenerationModel,
 	supportsAudio,
 } from "@/lib/provider-model-catalog";
 import type {
@@ -36,7 +39,9 @@ import type {
 	ProviderConfigField,
 	ProviderConfigFieldPrimitive,
 	ProviderSettingsUpdate,
+	RealtimeVoiceModeSettings,
 	VoiceInputSelection,
+	VoiceOutputModeSettings,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 
@@ -132,20 +137,36 @@ export function ProviderListContent({
 	onConfigure,
 	onAddProvider,
 	onVoiceInputChange,
+	onVoiceOutputChange = () => undefined,
+	onRealtimeVoiceChange = () => undefined,
 	selectedProviderId,
 	variant = "page",
 	voiceInput,
 	voiceInputSaving = false,
+	voiceOutput,
+	voiceOutputSaving = false,
+	realtimeVoice,
+	realtimeVoiceSaving = false,
 }: {
 	providers: Provider[];
 	onToggle: (id: string) => void;
 	onConfigure: (id: string) => void;
 	onAddProvider: () => void;
 	onVoiceInputChange: (selection: VoiceInputSelection | undefined) => void;
+	onVoiceOutputChange?: (
+		selection: VoiceOutputModeSettings | undefined,
+	) => void;
+	onRealtimeVoiceChange?: (
+		selection: RealtimeVoiceModeSettings | undefined,
+	) => void;
 	selectedProviderId?: string | null;
 	variant?: "page" | "panel";
 	voiceInput?: VoiceInputSelection;
 	voiceInputSaving?: boolean;
+	voiceOutput?: VoiceOutputModeSettings;
+	voiceOutputSaving?: boolean;
+	realtimeVoice?: RealtimeVoiceModeSettings;
+	realtimeVoiceSaving?: boolean;
 }) {
 	const [providerSearch, setProviderSearch] = useState("");
 	const providerSearchInputRef = useRef<HTMLInputElement>(null);
@@ -161,6 +182,7 @@ export function ProviderListContent({
 			)
 		: providers;
 	const isPanel = variant === "panel";
+	const showModeProviders = !selectedProviderId;
 	const voiceProviders = providers
 		.filter((provider) => provider.enabled)
 		.map((provider) => ({
@@ -172,6 +194,64 @@ export function ProviderListContent({
 		(entry) => entry.provider.id === voiceInput?.providerId,
 	);
 	const selectedVoiceModels = selectedVoiceProvider?.models ?? [];
+	const speechProviders = providers
+		.filter((provider) => provider.enabled)
+		.map((provider) => ({
+			provider,
+			models: (provider.modelList ?? []).filter(isSpeechGenerationModel),
+		}))
+		.filter((entry) => entry.models.length > 0);
+	const selectedSpeechProvider = speechProviders.find(
+		(entry) => entry.provider.id === voiceOutput?.providerId,
+	);
+	const selectedSpeechModels = selectedSpeechProvider?.models ?? [];
+	const realtimeProviders = providers
+		.filter(
+			(provider) => provider.enabled && hasRealtimeVoiceTransport(provider.id),
+		)
+		.map((provider) => ({
+			provider,
+			models: (provider.modelList ?? []).filter(isRealtimeVoiceModel),
+		}))
+		.filter((entry) => entry.models.length > 0);
+	const selectedRealtimeProvider = realtimeProviders.find(
+		(entry) => entry.provider.id === realtimeVoice?.providerId,
+	);
+	const selectedRealtimeModels = selectedRealtimeProvider?.models ?? [];
+	const [voiceDraft, setVoiceDraft] = useState(voiceOutput?.voice ?? "");
+	const [realtimeVoiceDraft, setRealtimeVoiceDraft] = useState(
+		realtimeVoice?.voice ?? "",
+	);
+	useEffect(
+		() => setVoiceDraft(voiceOutput?.voice ?? ""),
+		[voiceOutput?.voice],
+	);
+	useEffect(
+		() => setRealtimeVoiceDraft(realtimeVoice?.voice ?? ""),
+		[realtimeVoice?.voice],
+	);
+	useEffect(() => {
+		const handleFindShortcut = (event: KeyboardEvent) => {
+			if (
+				event.key.toLowerCase() !== "f" ||
+				(!event.metaKey && !event.ctrlKey) ||
+				event.altKey ||
+				event.shiftKey
+			) {
+				return;
+			}
+			event.preventDefault();
+			providerSearchInputRef.current?.focus();
+			providerSearchInputRef.current?.select();
+		};
+		window.addEventListener("keydown", handleFindShortcut);
+		return () => window.removeEventListener("keydown", handleFindShortcut);
+	}, []);
+	const defaultVoiceForProvider = (providerId: string): string | undefined => {
+		if (providerId === "gemini") return "Kore";
+		if (providerId === "elevenlabs") return undefined;
+		return "alloy";
+	};
 
 	return (
 		<ScrollArea className="h-full">
@@ -216,96 +296,301 @@ export function ProviderListContent({
 					</div>
 				</div>
 
-				<div
-					className={cn(
-						"mb-7 border-y py-4",
-						isPanel ? "max-w-none" : "max-w-[42rem]",
-					)}
-				>
-					<div className="mb-3">
-						<h2 className="text-[17px] font-semibold text-foreground">
-							Voice input
-						</h2>
-						<p className="mt-1 text-sm leading-5 text-muted-foreground">
-							Choose the configured audio-to-text model used by the microphone
-							in chat. Streaming models show text live; other models transcribe
-							after recording stops.
-						</p>
-					</div>
-					<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
-						<label className="space-y-1.5 text-sm text-muted-foreground">
-							<span>Provider</span>
-							<select
-								aria-label="Voice input provider"
-								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
-								disabled={voiceInputSaving}
-								onChange={(event) => {
-									const providerId = event.target.value;
-									if (!providerId) {
-										onVoiceInputChange(undefined);
-										return;
-									}
-									const entry = voiceProviders.find(
-										(candidate) => candidate.provider.id === providerId,
-									);
-									const modelId = entry?.models[0]?.id;
-									if (modelId) {
-										onVoiceInputChange({ providerId, modelId });
-									}
-								}}
-								value={selectedVoiceProvider?.provider.id ?? ""}
-							>
-								<option value="">Not configured</option>
-								{voiceProviders.map(({ provider }) => (
-									<option key={provider.id} value={provider.id}>
-										{provider.name}
-									</option>
-								))}
-							</select>
-						</label>
-						<label className="space-y-1.5 text-sm text-muted-foreground">
-							<span>Model</span>
-							<select
-								aria-label="Voice input model"
-								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
-								disabled={!selectedVoiceProvider || voiceInputSaving}
-								onChange={(event) => {
-									if (!selectedVoiceProvider || !event.target.value) return;
-									onVoiceInputChange({
-										providerId: selectedVoiceProvider.provider.id,
-										modelId: event.target.value,
-									});
-								}}
-								value={voiceInput?.modelId ?? ""}
-							>
-								{selectedVoiceModels.length === 0 ? (
-									<option value="">Enable an audio provider first</option>
-								) : null}
-								{selectedVoiceModels.map((model) => (
-									<option key={model.id} value={model.id}>
-										{model.name}
-										{model.operationModes?.includes("streaming")
-											? " (Live)"
-											: ""}
-									</option>
-								))}
-							</select>
-						</label>
-					</div>
-				</div>
+				{showModeProviders ? (
+					<div
+						className={cn(
+							"order-3 col-start-2 row-start-1 row-span-3 h-[80vh] overflow-y-auto border-y py-4 max-[1000px]:col-start-1 max-[1000px]:row-start-4 max-[1000px]:row-span-1 max-[1000px]:mt-8",
+							isPanel ? "max-w-none" : "max-w-[42rem]",
+						)}
+						data-slot="mode-providers"
+					>
+						<div className="mb-6">
+							<h2 className="text-[24px] font-semibold leading-[1.15] text-foreground">
+								Mode Providers
+							</h2>
+							<p className="mt-1 text-sm text-muted-foreground">
+								Configure providers used by voice modes.
+							</p>
+						</div>
 
-				{providerSearchOpen ? (
-					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-2xl")}>
-						<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
-							<Search className="size-4 shrink-0 text-muted-foreground" />
-							<Input
-								aria-label="Search model providers"
-								autoFocus
-								className="h-7 border-0 bg-transparent px-0 text-sm"
-								onChange={(event) => setProviderSearch(event.target.value)}
-								placeholder="Search providers"
-								value={providerSearch}
-							/>
+						<div className="mb-3">
+							<h2 className="text-[17px] font-semibold text-foreground">
+								Voice input
+							</h2>
+							<p className="mt-1 text-sm leading-5 text-muted-foreground">
+								Choose the audio-to-text model used by the microphone in chat.
+							</p>
+						</div>
+						<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
+							<label className="space-y-1.5 text-sm text-muted-foreground">
+								<span>Provider</span>
+								<select
+									aria-label="Voice input provider"
+									className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+									disabled={voiceInputSaving}
+									onChange={(event) => {
+										const providerId = event.target.value;
+										if (!providerId) return onVoiceInputChange(undefined);
+										const modelId = voiceProviders.find(
+											(entry) => entry.provider.id === providerId,
+										)?.models[0]?.id;
+										if (modelId) onVoiceInputChange({ providerId, modelId });
+									}}
+									value={selectedVoiceProvider?.provider.id ?? ""}
+								>
+									<option value="">Not configured</option>
+									{voiceProviders.map(({ provider }) => (
+										<option key={provider.id} value={provider.id}>
+											{provider.name}
+										</option>
+									))}
+								</select>
+							</label>
+							<label className="space-y-1.5 text-sm text-muted-foreground">
+								<span>Model</span>
+								<select
+									aria-label="Voice input model"
+									className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+									disabled={!selectedVoiceProvider || voiceInputSaving}
+									onChange={(event) =>
+										selectedVoiceProvider &&
+										event.target.value &&
+										onVoiceInputChange({
+											providerId: selectedVoiceProvider.provider.id,
+											modelId: event.target.value,
+										})
+									}
+									value={voiceInput?.modelId ?? ""}
+								>
+									{selectedVoiceModels.length === 0 ? (
+										<option value="">Enable an audio provider first</option>
+									) : null}
+									{selectedVoiceModels.map((model) => (
+										<option key={model.id} value={model.id}>
+											{model.name}
+											{model.operationModes?.includes("streaming")
+												? " (Live)"
+												: ""}
+										</option>
+									))}
+								</select>
+							</label>
+						</div>
+
+						<div className="mt-6 border-t pt-5">
+							<div className="mb-3">
+								<h2 className="text-[17px] font-semibold text-foreground">
+									Voice playback
+								</h2>
+								<p className="mt-1 text-sm leading-5 text-muted-foreground">
+									Choose a text-to-audio model and provider voice.
+								</p>
+							</div>
+							<div className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+								<label className="space-y-1.5 text-sm text-muted-foreground">
+									<span>Provider</span>
+									<select
+										aria-label="Voice output provider"
+										className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground"
+										disabled={voiceOutputSaving}
+										onChange={(event) => {
+											const providerId = event.target.value;
+											if (!providerId) return onVoiceOutputChange(undefined);
+											const modelId = speechProviders.find(
+												(entry) => entry.provider.id === providerId,
+											)?.models[0]?.id;
+											if (modelId) {
+												const voice = defaultVoiceForProvider(providerId);
+												onVoiceOutputChange({
+													providerId,
+													modelId,
+													...(voice ? { voice } : {}),
+												});
+											}
+										}}
+										value={selectedSpeechProvider?.provider.id ?? ""}
+									>
+										<option value="">Not configured</option>
+										{speechProviders.map(({ provider }) => (
+											<option key={provider.id} value={provider.id}>
+												{provider.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label className="space-y-1.5 text-sm text-muted-foreground">
+									<span>Model</span>
+									<select
+										aria-label="Voice output model"
+										className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+										disabled={!selectedSpeechProvider || voiceOutputSaving}
+										onChange={(event) =>
+											selectedSpeechProvider &&
+											event.target.value &&
+											onVoiceOutputChange({
+												providerId: selectedSpeechProvider.provider.id,
+												modelId: event.target.value,
+												...(voiceOutput?.voice
+													? { voice: voiceOutput.voice }
+													: {}),
+											})
+										}
+										value={voiceOutput?.modelId ?? ""}
+									>
+										{selectedSpeechModels.length === 0 ? (
+											<option value="">
+												Enable a text-to-audio provider first
+											</option>
+										) : null}
+										{selectedSpeechModels.map((model) => (
+											<option key={model.id} value={model.id}>
+												{model.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label
+									className="space-y-1.5 text-sm text-muted-foreground"
+									htmlFor={voiceOutputInputId}
+								>
+									<span>Voice</span>
+									<Input
+										aria-label="Voice output voice"
+										disabled={!selectedSpeechProvider || voiceOutputSaving}
+										id={voiceOutputInputId}
+										onBlur={() => {
+											if (
+												!selectedSpeechProvider ||
+												!voiceOutput ||
+												voiceDraft.trim() === (voiceOutput.voice ?? "")
+											)
+												return;
+											onVoiceOutputChange({
+												providerId: selectedSpeechProvider.provider.id,
+												modelId: voiceOutput.modelId,
+												...(voiceDraft.trim()
+													? { voice: voiceDraft.trim() }
+													: {}),
+											});
+										}}
+										onChange={(event) => setVoiceDraft(event.target.value)}
+										placeholder={
+											selectedSpeechProvider?.provider.id === "elevenlabs"
+												? "ElevenLabs voice ID"
+												: selectedSpeechProvider?.provider.id === "gemini"
+													? "Kore"
+													: "alloy"
+										}
+										value={voiceDraft}
+									/>
+								</label>
+							</div>
+						</div>
+
+						<div className="mt-6 border-t pt-5">
+							<div className="mb-3">
+								<h2 className="text-[17px] font-semibold text-foreground">
+									Realtime voice
+								</h2>
+								<p className="mt-1 text-sm leading-5 text-muted-foreground">
+									Choose an audio-in/audio-out model for low-latency
+									conversation.
+								</p>
+							</div>
+							<div className="grid grid-cols-3 gap-3 max-[720px]:grid-cols-1">
+								<label className="space-y-1.5 text-sm text-muted-foreground">
+									<span>Provider</span>
+									<select
+										aria-label="Realtime voice provider"
+										className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground"
+										disabled={realtimeVoiceSaving}
+										onChange={(event) => {
+											const providerId = event.target.value;
+											if (!providerId) return onRealtimeVoiceChange(undefined);
+											const modelId = realtimeProviders.find(
+												(entry) => entry.provider.id === providerId,
+											)?.models[0]?.id;
+											if (modelId)
+												onRealtimeVoiceChange({ providerId, modelId });
+										}}
+										value={selectedRealtimeProvider?.provider.id ?? ""}
+									>
+										<option value="">Not configured</option>
+										{realtimeProviders.map(({ provider }) => (
+											<option key={provider.id} value={provider.id}>
+												{provider.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label className="space-y-1.5 text-sm text-muted-foreground">
+									<span>Model</span>
+									<select
+										aria-label="Realtime voice model"
+										className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground disabled:opacity-50"
+										disabled={!selectedRealtimeProvider || realtimeVoiceSaving}
+										onChange={(event) =>
+											selectedRealtimeProvider &&
+											event.target.value &&
+											onRealtimeVoiceChange({
+												providerId: selectedRealtimeProvider.provider.id,
+												modelId: event.target.value,
+												...(realtimeVoice?.voice
+													? { voice: realtimeVoice.voice }
+													: {}),
+											})
+										}
+										value={realtimeVoice?.modelId ?? ""}
+									>
+										{selectedRealtimeModels.length === 0 ? (
+											<option value="">
+												Enable OpenAI, Gemini, or Vercel AI Gateway first
+											</option>
+										) : null}
+										{selectedRealtimeModels.map((model) => (
+											<option key={model.id} value={model.id}>
+												{model.name}
+											</option>
+										))}
+									</select>
+								</label>
+								<label
+									className="space-y-1.5 text-sm text-muted-foreground"
+									htmlFor={realtimeVoiceInputId}
+								>
+									<span>Voice</span>
+									<Input
+										aria-label="Realtime voice name"
+										disabled={!selectedRealtimeProvider || realtimeVoiceSaving}
+										id={realtimeVoiceInputId}
+										onBlur={() => {
+											if (
+												!selectedRealtimeProvider ||
+												!realtimeVoice ||
+												realtimeVoiceDraft.trim() ===
+													(realtimeVoice.voice ?? "")
+											)
+												return;
+											onRealtimeVoiceChange({
+												providerId: selectedRealtimeProvider.provider.id,
+												modelId: realtimeVoice.modelId,
+												...(realtimeVoiceDraft.trim()
+													? { voice: realtimeVoiceDraft.trim() }
+													: {}),
+											});
+										}}
+										onChange={(event) =>
+											setRealtimeVoiceDraft(event.target.value)
+										}
+										placeholder={
+											selectedRealtimeProvider
+												? "Provider default"
+												: "Select a provider first"
+										}
+										value={realtimeVoiceDraft}
+									/>
+								</label>
+							</div>
 						</div>
 					</div>
 				) : null}

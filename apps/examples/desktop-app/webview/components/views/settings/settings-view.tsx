@@ -31,7 +31,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	invalidateProviderCatalogCache,
-	notifyVoiceInputSettingsChanged,
+	notifyModeSettingsChanged,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
 import type {
@@ -42,7 +42,6 @@ import type {
 	ProviderModeSettingsMap,
 	ProviderModesSettings,
 	ProviderSettingsUpdate,
-	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import {
 	type HubAccent,
@@ -89,7 +88,22 @@ let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
 } | null = null;
-let voiceInputCache: VoiceInputSelection | undefined;
+let modeSettingsCache: ProviderModesSettings = {};
+
+function removeProviderModes(
+	modes: ProviderModesSettings,
+	providerId: string,
+): { modes: ProviderModesSettings; removed: ProviderMode[] } {
+	const next = { ...modes };
+	const removed: ProviderMode[] = [];
+	for (const mode of Object.keys(next) as ProviderMode[]) {
+		if (next[mode]?.providerId === providerId) {
+			delete next[mode];
+			removed.push(mode);
+		}
+	}
+	return { modes: next, removed };
+}
 
 // -----------------------------------------------------------
 // Component
@@ -127,10 +141,11 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
-	const [voiceInput, setVoiceInput] = useState<VoiceInputSelection | undefined>(
-		() => voiceInputCache,
-	);
-	const [voiceInputSaving, setVoiceInputSaving] = useState(false);
+	const [modeSettings, setModeSettings] =
+		useState<ProviderModesSettings>(modeSettingsCache);
+	const [savingModes, setSavingModes] = useState<
+		Partial<Record<ProviderMode, boolean>>
+	>({});
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -163,7 +178,7 @@ export function SettingsView({
 			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
 		) {
 			setProviders(providerCatalogCache.providers);
-			setVoiceInput(voiceInputCache);
+			setModeSettings(modeSettingsCache);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return;
@@ -176,8 +191,11 @@ export function SettingsView({
 				"list_provider_catalog",
 			);
 			setProvidersWithCache(payload.providers);
-			voiceInputCache = payload.voiceInput;
-			setVoiceInput(payload.voiceInput);
+			const modes =
+				payload.modes ??
+				(payload.voiceInput ? { voiceInput: payload.voiceInput } : {});
+			modeSettingsCache = modes;
+			setModeSettings(modes);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -239,14 +257,17 @@ export function SettingsView({
 						return p;
 					}
 					const nextEnabled = !p.enabled;
-					const clearsVoiceInput =
-						!nextEnabled && voiceInput?.providerId === id;
+					const updatedModes = nextEnabled
+						? { modes: modeSettings, removed: [] }
+						: removeProviderModes(modeSettings, id);
 					void persistProviderSettings(id, { enabled: nextEnabled }).then(
 						(saved) => {
-							if (saved && clearsVoiceInput) {
-								voiceInputCache = undefined;
-								setVoiceInput(undefined);
-								notifyVoiceInputSettingsChanged();
+							if (saved && updatedModes.removed.length > 0) {
+								modeSettingsCache = updatedModes.modes;
+								setModeSettings(updatedModes.modes);
+								for (const mode of updatedModes.removed) {
+									notifyModeSettingsChanged(mode);
+								}
 							}
 						},
 					);
@@ -254,27 +275,31 @@ export function SettingsView({
 				}),
 			);
 		},
-		[persistProviderSettings, setProvidersWithCache, voiceInput],
+		[persistProviderSettings, setProvidersWithCache, modeSettings],
 	);
 
-	const updateVoiceInput = useCallback(
-		async (selection: VoiceInputSelection | undefined) => {
-			setVoiceInputSaving(true);
+	const updateModeSettings = useCallback(
+		async <Mode extends ProviderMode>(
+			mode: Mode,
+			settings: ProviderModeSettingsMap[Mode] | undefined,
+		) => {
+			setSavingModes((current) => ({ ...current, [mode]: true }));
 			try {
 				const result = await desktopClient.invoke<{
-					voiceInput?: VoiceInputSelection;
-				}>("save_voice_input_settings", {
-					provider: selection?.providerId,
-					model: selection?.modelId,
+					modes: ProviderModesSettings;
+				}>("save_mode_settings", {
+					mode,
+					settings,
 				});
-				voiceInputCache = result.voiceInput;
-				setVoiceInput(result.voiceInput);
-				notifyVoiceInputSettingsChanged();
+				const modes = result.modes ?? {};
+				modeSettingsCache = modes;
+				setModeSettings(modes);
+				notifyModeSettingsChanged(mode);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				window.alert(`Failed to save voice input settings: ${message}`);
+				window.alert(`Failed to save ${mode} settings: ${message}`);
 			} finally {
-				setVoiceInputSaving(false);
+				setSavingModes((current) => ({ ...current, [mode]: false }));
 			}
 		},
 		[],
@@ -471,14 +496,24 @@ export function SettingsView({
 				onAddProvider={openAddProvider}
 				onConfigure={openProviderDetail}
 				onToggle={toggleProvider}
-				onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
+				onRealtimeVoiceChange={(settings) =>
+					void updateModeSettings("realtimeVoice", settings)
+				}
+				onVoiceInputChange={(settings) =>
+					void updateModeSettings("voiceInput", settings)
+				}
+				onVoiceOutputChange={(settings) =>
+					void updateModeSettings("voiceOutput", settings)
+				}
 				providers={providers}
 				realtimeVoice={modeSettings.realtimeVoice}
 				realtimeVoiceSaving={savingModes.realtimeVoice}
 				selectedProviderId={selectedProvider.id}
 				variant="panel"
-				voiceInput={voiceInput}
-				voiceInputSaving={voiceInputSaving}
+				voiceInput={modeSettings.voiceInput}
+				voiceInputSaving={savingModes.voiceInput}
+				voiceOutput={modeSettings.voiceOutput}
+				voiceOutputSaving={savingModes.voiceOutput}
 			/>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
@@ -506,10 +541,22 @@ export function SettingsView({
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
 			onToggle={toggleProvider}
-			onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
+			onRealtimeVoiceChange={(settings) =>
+				void updateModeSettings("realtimeVoice", settings)
+			}
+			onVoiceInputChange={(settings) =>
+				void updateModeSettings("voiceInput", settings)
+			}
+			onVoiceOutputChange={(settings) =>
+				void updateModeSettings("voiceOutput", settings)
+			}
 			providers={providers}
-			voiceInput={voiceInput}
-			voiceInputSaving={voiceInputSaving}
+			realtimeVoice={modeSettings.realtimeVoice}
+			realtimeVoiceSaving={savingModes.realtimeVoice}
+			voiceInput={modeSettings.voiceInput}
+			voiceInputSaving={savingModes.voiceInput}
+			voiceOutput={modeSettings.voiceOutput}
+			voiceOutputSaving={savingModes.voiceOutput}
 		/>
 	);
 

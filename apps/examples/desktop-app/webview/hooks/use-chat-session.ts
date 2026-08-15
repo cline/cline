@@ -55,6 +55,7 @@ import {
 	type SessionHistoryStatus,
 } from "@/lib/session-history";
 import {
+	LOCAL_WORKSPACE_ENVIRONMENT_ID,
 	normalizeWorkspacePath,
 	readWorkspaceSelectionFromWindow,
 	registerHostHomeDirectory,
@@ -714,16 +715,30 @@ export function useChatSession(environmentId: string) {
 
 	// ---- Data fetching ----
 
-	const postSession = useCallback(async (body: Record<string, unknown>) => {
-		const request = { request: body };
-		const config =
-			body.config && typeof body.config === "object"
-				? (body.config as Record<string, unknown>)
-				: undefined;
-		const isLongRunningCommand =
-			body.action === "send" ||
-			(body.action === "start" && config?.executionTarget === "cloud");
-		if (isLongRunningCommand) {
+	const postSession = useCallback(
+		async (body: Record<string, unknown>) => {
+			const bodyConfig =
+				body.config &&
+				typeof body.config === "object" &&
+				!Array.isArray(body.config)
+					? (body.config as Record<string, unknown>)
+					: {};
+			const request = {
+				request: {
+					...body,
+					config: { ...bodyConfig, environmentId },
+				},
+			};
+			const isLongRunningCommand =
+				body.action === "send" ||
+				(body.action === "start" && bodyConfig.executionTarget === "cloud");
+			if (isLongRunningCommand) {
+				return await desktopClient.invoke<ChatSessionCommandResponse>(
+					"chat_session_command",
+					request,
+					{ timeoutMs: null },
+				);
+			}
 			return await desktopClient.invoke<ChatSessionCommandResponse>(
 				"chat_session_command",
 				request,
@@ -814,7 +829,7 @@ export function useChatSession(environmentId: string) {
 				// Ignore in non-Tauri mode.
 			}
 		},
-		[sessionDiffCwd],
+		[environmentId, sessionDiffCwd],
 	);
 
 	// ---- Message helpers ----
@@ -2012,7 +2027,6 @@ export function useChatSession(environmentId: string) {
 			addMessage,
 			clearAbortFallbackTimeout,
 			discardPendingStream,
-			environmentId,
 			resetCounters,
 			setErrorState,
 			startSession,
@@ -2487,10 +2501,7 @@ export function useChatSession(environmentId: string) {
 					fallbackAssistantTurn.reasoningRedacted ||
 					fallbackImages.length > 0 ||
 					fallbackMedia.length > 0;
-				if (
-					!hasFallbackAssistantTurn &&
-					config.executionTarget !== "cloud"
-				) {
+				if (!hasFallbackAssistantTurn && config.executionTarget !== "cloud") {
 					// Recovery: load canonical messages if transport missed result text.
 					// Cloud sessions hydrate through the snapshot path below instead.
 					try {
@@ -2536,45 +2547,42 @@ export function useChatSession(environmentId: string) {
 								messages: historyMessages,
 								preserveUnmatchedLive: true,
 							});
-						} else if (
-							!hasFallbackAssistantTurn ||
-							hasCanonicalAssistantTurn
-						) {
-						const assistantIndex = historyMessages.findLastIndex(
-							(message) => message.role === "assistant",
-						);
-						const canonicalMessages =
-							assistantIndex >= 0 && hasFallbackAssistantTurn
-								? historyMessages.map((message, index) => {
-										if (index !== assistantIndex) return message;
-										const existingImages = message.images ?? [];
-										const missingImages = fallbackImages.filter(
-											(image) =>
-												!existingImages.some(
-													(candidate) =>
-														candidate.data === image.data &&
-														candidate.mediaType === image.mediaType,
-												),
-										);
-										return {
-											...message,
-											content: message.content || resolvedAssistantText,
-											reasoning:
-												message.reasoning ||
-												fallbackAssistantTurn.reasoning ||
-												undefined,
-											reasoningRedacted:
-												message.reasoningRedacted ||
-												fallbackAssistantTurn.reasoningRedacted ||
-												undefined,
-											images:
-												missingImages.length > 0
-													? [...existingImages, ...missingImages]
-													: message.images,
-										};
-									})
-								: historyMessages;
-						applyCanonicalHistory(activeSessionId, canonicalMessages);
+						} else if (!hasFallbackAssistantTurn || hasCanonicalAssistantTurn) {
+							const assistantIndex = historyMessages.findLastIndex(
+								(message) => message.role === "assistant",
+							);
+							const canonicalMessages =
+								assistantIndex >= 0 && hasFallbackAssistantTurn
+									? historyMessages.map((message, index) => {
+											if (index !== assistantIndex) return message;
+											const existingImages = message.images ?? [];
+											const missingImages = fallbackImages.filter(
+												(image) =>
+													!existingImages.some(
+														(candidate) =>
+															candidate.data === image.data &&
+															candidate.mediaType === image.mediaType,
+													),
+											);
+											return {
+												...message,
+												content: message.content || resolvedAssistantText,
+												reasoning:
+													message.reasoning ||
+													fallbackAssistantTurn.reasoning ||
+													undefined,
+												reasoningRedacted:
+													message.reasoningRedacted ||
+													fallbackAssistantTurn.reasoningRedacted ||
+													undefined,
+												images:
+													missingImages.length > 0
+														? [...existingImages, ...missingImages]
+														: message.images,
+											};
+										})
+									: historyMessages;
+							applyCanonicalHistory(activeSessionId, canonicalMessages);
 						}
 					}
 				} catch {
@@ -2752,7 +2760,7 @@ export function useChatSession(environmentId: string) {
 				setError(errorMessage(error));
 			}
 		},
-		[environmentId],
+		[],
 	);
 
 	const approveToolApproval = useCallback(
@@ -2834,7 +2842,6 @@ export function useChatSession(environmentId: string) {
 			clearAbortFallbackTimeout,
 			clearLiveToolRefs,
 			config,
-			environmentId,
 			postSession,
 			refreshPromptsInQueue,
 			refreshSessionDiffSummary,
@@ -2885,7 +2892,7 @@ export function useChatSession(environmentId: string) {
 			// source a freshly mounted thread uses) so a reset after viewing
 			// a historical session does not retain that session's
 			// provider/model for the next chat.
-			const initial = getInitialChatConfig();
+			const initial = getInitialChatConfig(environmentId);
 			return {
 				...prev,
 				sessionId: undefined,
@@ -2924,13 +2931,16 @@ export function useChatSession(environmentId: string) {
 		postSession,
 		resetCounters,
 		clearLiveToolRefs,
+		environmentId,
 	]);
 
 	const hydrateSession = useCallback(
 		async (session: SessionHistoryItem) => {
-			if (session.environmentId !== environmentId) {
+			const sessionEnvironmentId =
+				session.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID;
+			if (sessionEnvironmentId !== environmentId) {
 				throw new Error(
-					`Session ${session.sessionId} belongs to environment ${session.environmentId}, not ${environmentId}.`,
+					`Session ${session.sessionId} belongs to environment ${sessionEnvironmentId}, not ${environmentId}.`,
 				);
 			}
 			const requestId = hydrationRequestIdRef.current + 1;
@@ -3029,6 +3039,7 @@ export function useChatSession(environmentId: string) {
 							action: "attach",
 							sessionId: session.sessionId,
 							config: {
+								environmentId,
 								executionTarget: session.origin === "cloud" ? "cloud" : "local",
 								repoUrl: session.repoUrl,
 								provider: session.provider,
@@ -3171,7 +3182,7 @@ export function useChatSession(environmentId: string) {
 			);
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
-		[config, environmentId, postSession, status],
+		[config, postSession, status],
 	);
 
 	const steerPromptInQueue = useCallback(

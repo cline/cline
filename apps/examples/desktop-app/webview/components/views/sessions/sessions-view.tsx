@@ -146,13 +146,38 @@ function sessionFilterDetails(
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.origin === "cloud" ? "location:cloud" : undefined,
-		thread.pinned ? "favorite:yes" : undefined,
-		workspace ? `workspace:${workspace}` : undefined,
-		thread.status ? `status:${thread.status}` : undefined,
-		thread.provider ? `provider:${thread.provider}` : undefined,
-		thread.model ? `model:${thread.model}` : undefined,
-	].filter((detail): detail is string => Boolean(detail));
+		thread.pinned
+			? { key: "favorite:yes", category: "Favorites", label: "Favorites" }
+			: undefined,
+		workspace
+			? {
+					key: `workspace:${workspace}`,
+					category: "Workspaces",
+					label: workspace,
+				}
+			: undefined,
+		thread.status
+			? {
+					key: `status:${thread.status}`,
+					category: "Statuses",
+					label: thread.status,
+				}
+			: undefined,
+		thread.provider
+			? {
+					key: `provider:${thread.provider}`,
+					category: "Providers",
+					label: thread.provider,
+				}
+			: undefined,
+		thread.model
+			? {
+					key: `model:${thread.model}`,
+					category: "Models",
+					label: thread.model,
+				}
+			: undefined,
+	].filter((detail): detail is SessionFilterDetail => Boolean(detail));
 }
 
 function sortTimestamp(session?: SessionHistoryItem) {

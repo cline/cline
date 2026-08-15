@@ -302,6 +302,8 @@ export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
 	modes: ProviderModesSettings;
+	/** @deprecated Use modes.voiceInput. */
+	voiceInput?: VoiceInputSelection;
 }
 
 export interface ProviderModelsResponse {

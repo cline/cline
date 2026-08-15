@@ -2,6 +2,7 @@ import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
 } from "@cline/shared";
+import { isClineProvider } from "@cline/shared";
 import { buildAnthropicProviderOptions } from "./anthropic-compatible";
 import { buildCompatibleProviderOptions } from "./generic-compatible";
 import { withoutPortableReasoning } from "./portable-reasoning";
@@ -77,7 +78,9 @@ export function composeAiSdkProviderOptions(
 		withoutPortableReasoning(request),
 		context,
 	);
-	const providerOptionsKey = toProviderOptionsKey(normalizedRequest.providerId);
+	const providerOptionsKey = isClineProvider(normalizedRequest.providerId)
+		? "cline"
+		: toProviderOptionsKey(normalizedRequest.providerId);
 	const matchInput: ProviderOptionMatchInput = {
 		request: normalizedRequest,
 		context,

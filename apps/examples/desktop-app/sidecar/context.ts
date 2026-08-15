@@ -568,13 +568,13 @@ export async function disposeSidecarContext(
 		cleanup.push(cloudSessionManager.dispose());
 	}
 
-	for (const binding of ctx.runtimeBindings.values()) {
+	for (const binding of ctx.runtimeBindings?.values() ?? []) {
 		binding.unsubscribeSessionEvents();
 		cleanup.push(binding.hubClient.dispose());
 		cleanup.push(binding.sessionManager.dispose(reason));
 	}
-	ctx.runtimeBindings.clear();
-	ctx.sessionEnvironmentIds.clear();
+	ctx.runtimeBindings?.clear();
+	ctx.sessionEnvironmentIds?.clear();
 	if (ctx.remoteEnvironments) {
 		cleanup.push(ctx.remoteEnvironments.dispose());
 		ctx.remoteEnvironments = null;
@@ -710,6 +710,7 @@ export function handleHubLiveEvent(
 		sessionId?: string;
 		payload?: Record<string, unknown>;
 	},
+	options: { relayRawAssistantText?: boolean } = {},
 ): void {
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
@@ -721,7 +722,14 @@ export function handleHubLiveEvent(
 	}
 
 	switch (event.event) {
-		case "assistant.delta":
+		case "assistant.delta": {
+			if (options.relayRawAssistantText) {
+				const text =
+					typeof event.payload?.text === "string" ? event.payload.text : "";
+				if (text) emitChunk(ctx, sessionId, "chat_text", text);
+			}
+			return;
+		}
 		case "assistant.image":
 		case "assistant.video":
 		case "assistant.audio":

@@ -2393,7 +2393,11 @@ export class CloudSessionManager {
 			}
 			return;
 		}
-		handleHubLiveEvent(this.ctx, { ...event, sessionId: outerSessionId });
+		handleHubLiveEvent(
+			this.ctx,
+			{ ...event, sessionId: outerSessionId },
+			{ relayRawAssistantText: true },
+		);
 	}
 
 	private handleApprovalRequested(
