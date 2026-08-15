@@ -480,7 +480,10 @@ export function normalizeModelsDevProviderSpecs(
  * the call signature is required, so Bun- and DOM-typed environments both
  * satisfy it.
  */
-export type CatalogFetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+export type CatalogFetcher = (
+	input: string | URL | Request,
+	init?: RequestInit,
+) => Promise<Response>;
 
 async function fetchModelsDevPayload(
 	url: string,
