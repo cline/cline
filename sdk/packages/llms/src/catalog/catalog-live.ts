@@ -474,9 +474,17 @@ export function normalizeModelsDevProviderSpecs(
 	return providerSpecs;
 }
 
+/**
+ * The minimal fetch capability the catalog needs. Callers may pass the global
+ * fetch or any compatible wrapper (for example one that adds a timeout); only
+ * the call signature is required, so Bun- and DOM-typed environments both
+ * satisfy it.
+ */
+export type CatalogFetcher = (input: string | URL | Request, init?: RequestInit) => Promise<Response>;
+
 async function fetchModelsDevPayload(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<ModelsDevPayload> {
 	const response = await fetcher(url);
 	if (!response.ok) {
@@ -490,7 +498,7 @@ async function fetchModelsDevPayload(
 
 export async function fetchModelsDevProviderModels(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	return normalizeModelsDevProviderModels(
 		await fetchModelsDevPayload(url, fetcher),
@@ -499,7 +507,7 @@ export async function fetchModelsDevProviderModels(
 
 export async function fetchModelsDevCatalog(
 	url: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<{
 	providerModels: Record<string, Record<string, ModelInfo>>;
 	providerSpecs: Record<string, ModelsDevGeneratedProviderSpec>;
@@ -514,7 +522,7 @@ export async function fetchModelsDevCatalog(
 
 export async function fetchLiveProviderModels(
 	modelsDevUrl: string,
-	fetcher: typeof fetch = fetch,
+	fetcher: CatalogFetcher = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
 	// Promise.allSettled keeps the catalog sources independent: one failing
