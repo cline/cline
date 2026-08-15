@@ -259,8 +259,8 @@ let container: HTMLDivElement;
 let root: Root;
 let current: ChatSessionHook;
 
-function HookHarness() {
-	current = useChatSession();
+function HookHarness({ environmentId = "local" }: { environmentId?: string }) {
+	current = useChatSession(environmentId);
 	return null;
 }
 
@@ -274,7 +274,11 @@ beforeEach(async () => {
 	subscribeMock.mockClear();
 	invokeMock.mockImplementation(async (command: string) => {
 		if (command === "get_process_context") {
-			return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+			return {
+				environmentId: "local",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+			};
 		}
 		return [];
 	});
@@ -1621,6 +1625,23 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("rejects hydration for a session owned by another environment", async () => {
+		await expect(
+			current.hydrateSession({
+				sessionId: "remote-session",
+				environmentId: "pi-server",
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/home/pi/project",
+				workspaceRoot: "/home/pi/project",
+				startedAt: "2026-07-31T00:00:00.000Z",
+			}),
+		).rejects.toThrow("belongs to environment pi-server, not local");
+		expect(current.sessionId).toBeNull();
+		expect(current.config.environmentId).toBe("local");
+	});
+
 	it("preserves consecutive queued costs while the preceding turn is persisted", async () => {
 		type SendResponse = {
 			ok: true;
@@ -1827,6 +1848,7 @@ describe("useChatSession", () => {
 		await act(async () => {
 			await current.hydrateSession({
 				sessionId: hydratedSessionId,
+				environmentId: "local",
 				status: "completed",
 				provider: "cline",
 				model: "test-model",
@@ -1842,6 +1864,21 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+		expect(invokeMock).toHaveBeenCalledWith("read_session_messages", {
+			environmentId: "local",
+			sessionId: hydratedSessionId,
+			maxMessages: 800,
+		});
+		expect(invokeMock).toHaveBeenCalledWith(
+			"chat_session_command",
+			expect.objectContaining({
+				request: expect.objectContaining({
+					action: "attach",
+					config: expect.objectContaining({ environmentId: "local" }),
+					sessionId: hydratedSessionId,
+				}),
+			}),
+		);
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
@@ -2755,18 +2792,26 @@ describe("useChatSession", () => {
 	it("falls back to process context when the remembered workspace is stale", async () => {
 		await act(async () => root.unmount());
 		window.localStorage.setItem(
-			"cline.code.workspace-selection.v1",
+			"cline.code.workspace-selection.v2",
 			JSON.stringify({
-				lastWorkspace: "/workspace/deleted",
-				workspaces: ["/workspace/deleted"],
+				environments: {
+					local: {
+						lastWorkspace: "/workspace/deleted",
+						workspaces: ["/workspace/deleted"],
+					},
+				},
 			}),
 		);
 		invokeMock.mockImplementation(async (command: string) => {
 			if (command === "get_process_context") {
-				return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				return {
+					environmentId: "local",
+					cwd: "/workspace/cline",
+					workspaceRoot: "/workspace/cline",
+				};
 			}
 			if (command === "validate_workspace_directory") {
-				return { valid: false };
+				return { environmentId: "local", valid: false };
 			}
 			return [];
 		});
@@ -2778,16 +2823,74 @@ describe("useChatSession", () => {
 			expect(current.config.cwd).toBe("/workspace/cline");
 		});
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "local",
 			path: "/workspace/deleted",
+		});
+	});
+
+	it("binds process context and remembered workspace to the requested remote environment", async () => {
+		await act(async () => root.unmount());
+		window.localStorage.setItem(
+			"cline.code.workspace-selection.v2",
+			JSON.stringify({
+				environments: {
+					local: {
+						lastWorkspace: "/Users/local/project",
+						workspaces: ["/Users/local/project"],
+					},
+					"pi-server": {
+						lastWorkspace: "/home/pi/project",
+						workspaces: ["/home/pi/project"],
+					},
+				},
+			}),
+		);
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					expect(args).toEqual({ environmentId: "pi-server" });
+					return {
+						environmentId: "pi-server",
+						activeEnvironmentId: "another-host",
+						cwd: "/home/pi",
+						workspaceRoot: "/home/pi",
+					};
+				}
+				if (command === "validate_workspace_directory") {
+					return { environmentId: "pi-server", valid: true };
+				}
+				return [];
+			},
+		);
+		root = createRoot(container);
+		await act(async () =>
+			root.render(<HookHarness environmentId="pi-server" />),
+		);
+
+		await vi.waitFor(() => {
+			expect(current.config).toMatchObject({
+				environmentId: "pi-server",
+				cwd: "/home/pi/project",
+				workspaceRoot: "/home/pi/project",
+			});
+		});
+		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "pi-server",
+			path: "/home/pi/project",
 		});
 	});
 
 	it("applies a remembered workspace that becomes available while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -2798,25 +2901,32 @@ describe("useChatSession", () => {
 				return await contextResponse;
 			}
 			if (command === "validate_workspace_directory") {
-				return { valid: true };
+				return { environmentId: "local", valid: true };
 			}
 			return [];
 		});
 		root = createRoot(container);
 		await act(async () => root.render(<HookHarness />));
 		await vi.waitFor(() => {
-			expect(invokeMock).toHaveBeenCalledWith("get_process_context");
+			expect(invokeMock).toHaveBeenCalledWith("get_process_context", {
+				environmentId: "local",
+			});
 		});
 		window.localStorage.setItem(
-			"cline.code.workspace-selection.v1",
+			"cline.code.workspace-selection.v2",
 			JSON.stringify({
-				lastWorkspace: "/workspace/remembered",
-				workspaces: ["/workspace/remembered"],
+				environments: {
+					local: {
+						lastWorkspace: "/workspace/remembered",
+						workspaces: ["/workspace/remembered"],
+					},
+				},
 			}),
 		);
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});
@@ -2828,6 +2938,7 @@ describe("useChatSession", () => {
 			expect(current.config.cwd).toBe("/workspace/remembered");
 		});
 		expect(invokeMock).toHaveBeenCalledWith("validate_workspace_directory", {
+			environmentId: "local",
 			path: "/workspace/remembered",
 		});
 	});
@@ -2835,9 +2946,14 @@ describe("useChatSession", () => {
 	it("preserves a workspace selected while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -2855,6 +2971,7 @@ describe("useChatSession", () => {
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});
@@ -2867,9 +2984,14 @@ describe("useChatSession", () => {
 	it("preserves a chat selection while process context is loading", async () => {
 		await act(async () => root.unmount());
 		let resolveContext:
-			| ((value: { cwd: string; workspaceRoot: string }) => void)
+			| ((value: {
+					environmentId: string;
+					cwd: string;
+					workspaceRoot: string;
+			  }) => void)
 			| undefined;
 		const contextResponse = new Promise<{
+			environmentId: string;
 			cwd: string;
 			workspaceRoot: string;
 		}>((resolve) => {
@@ -2887,6 +3009,7 @@ describe("useChatSession", () => {
 
 		await act(async () => {
 			resolveContext?.({
+				environmentId: "local",
 				cwd: "/workspace/default",
 				workspaceRoot: "/workspace/default",
 			});

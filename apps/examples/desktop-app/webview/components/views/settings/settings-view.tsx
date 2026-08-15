@@ -64,6 +64,7 @@ import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -533,6 +534,8 @@ export function SettingsView({
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (

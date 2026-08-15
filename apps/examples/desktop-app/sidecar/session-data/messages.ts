@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -336,6 +336,7 @@ export async function readSessionMessages(
 	/** Explicit authoritative source for remote sessions; bypasses local disk. */
 	sourceMessages?: unknown[],
 ): Promise<unknown[]> {
+	const isRemoteRead = sourceMessages !== undefined;
 	const persisted = sourceMessages
 		? undefined
 		: (readPersistedChatMessages(sessionId) ??
@@ -358,7 +359,11 @@ export async function readSessionMessages(
 	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	// Remote artifacts belong to the SSH host. Never decorate them with a
+	// same-id local session's live transcript or checkpoint metadata.
+	const checkpointsByRunCount = isRemoteRead
+		? new Map<number, StoredCheckpointEntry>()
+		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
@@ -601,6 +606,30 @@ export async function readSessionMessages(
 					images.push({
 						id: `${messageIdBase}_image_${blockIdx}`,
 						...image,
+					});
+				}
+				continue;
+			}
+			if (blockType === "video") {
+				const mediaType = trimNonEmptyString(record.mediaType);
+				const path = trimNonEmptyString(record.path);
+				if (mediaType && path) {
+					videos.push({
+						id: `${messageIdBase}_video_${blockIdx}`,
+						mediaType,
+						artifactName: basename(path),
+					});
+				}
+				continue;
+			}
+			if (blockType === "audio") {
+				const mediaType = trimNonEmptyString(record.mediaType);
+				const path = trimNonEmptyString(record.path);
+				if (mediaType && path) {
+					audios.push({
+						id: `${messageIdBase}_audio_${blockIdx}`,
+						mediaType,
+						artifactName: basename(path),
 					});
 				}
 				continue;

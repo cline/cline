@@ -297,7 +297,8 @@ export function WelcomeScreen({
 						<div className="cline-view-enter">
 							<AgentHeroHeading />
 
-							<div className="mt-11 flex min-w-0 items-center">
+							<div className="mt-11 flex min-w-0 items-center gap-2">
+								{environmentSelector}
 								<WelcomeWorkspaceControls
 									cloudBranch={cloudBranch}
 									cloudControlsHidden={showCloudOnboarding}

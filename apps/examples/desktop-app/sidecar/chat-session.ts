@@ -15,13 +15,17 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	ProviderSettingsManager,
 	projectSessionCompactionState,
 	readGlobalSettings,
+	resolveProviderApiKeyFromSettings,
+	RuntimeOAuthTokenManager,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
 	splitCoreSessionConfig,
+	toProviderConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
@@ -33,7 +37,13 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import { getCloudSessionManager } from "./cloud-sessions";
-import { emitChunk, nowMs, sendEvent } from "./context";
+import {
+	emitChunk,
+	findSessionRuntimeBinding,
+	getSessionRuntimeBinding,
+	nowMs,
+	sendEvent,
+} from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
@@ -41,6 +51,7 @@ import type {
 	JsonRecord,
 	LiveSession,
 	PromptInQueue,
+	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
 
@@ -365,6 +376,7 @@ function createLiveSession(
 	overrides?: Partial<LiveSession>,
 ): LiveSession {
 	return {
+		environmentId: overrides?.environmentId,
 		config,
 		messages: overrides?.messages ?? [],
 		promptsInQueue: overrides?.promptsInQueue ?? [],
@@ -651,9 +663,86 @@ function applyPendingPrompts(
 	}));
 }
 
-function getSessionManager(ctx: SidecarContext): ClineCore {
-	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
-	return ctx.sessionManager;
+function readEnvironmentId(config: JsonRecord | undefined): string | undefined {
+	const value = config?.environmentId ?? config?.environment_id;
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function readExplicitSystemPrompt(config: JsonRecord): string {
+	const value = config.systemPrompt ?? config.system_prompt;
+	return typeof value === "string" ? value : "";
+}
+
+/**
+ * A remote Hub intentionally has its own HOME and provider settings. Send the
+ * selected desktop provider configuration over the authenticated SSH tunnel so
+ * a normal signed-in desktop session can make model requests on the host. The
+ * refresh token is omitted: v0 uses the current access/API token and never
+ * writes the desktop's reusable OAuth credential to the remote settings file.
+ */
+async function withRemoteProviderCredentials(
+	config: JsonRecord,
+): Promise<JsonRecord> {
+	const providerId = String(config.provider ?? config.providerId ?? "").trim();
+	if (!providerId) return config;
+
+	const manager = new ProviderSettingsManager();
+	const settings = manager.getProviderSettings(providerId);
+	if (!settings) return config;
+	const modelId = String(
+		config.model ?? config.modelId ?? settings.model ?? "",
+	).trim();
+	const storedConfig = {
+		...toProviderConfig(
+			{
+				...settings,
+				...(modelId ? { model: modelId } : {}),
+			},
+			{ includeKnownModels: false },
+		),
+	};
+	delete storedConfig.refreshToken;
+	const explicitProviderConfig =
+		config.providerConfig && typeof config.providerConfig === "object"
+			? (config.providerConfig as JsonRecord)
+			: undefined;
+	const explicitApiKey = String(config.apiKey ?? config.api_key ?? "").trim();
+	const oauth = explicitApiKey
+		? null
+		: await new RuntimeOAuthTokenManager({
+				providerSettingsManager: manager,
+			}).resolveProviderApiKey({ providerId });
+	const apiKey =
+		explicitApiKey ||
+		oauth?.apiKey ||
+		resolveProviderApiKeyFromSettings(manager, providerId) ||
+		String(storedConfig.apiKey ?? "").trim();
+
+	return {
+		...config,
+		...(apiKey ? { apiKey } : {}),
+		...(!config.baseUrl && storedConfig.baseUrl
+			? { baseUrl: storedConfig.baseUrl }
+			: {}),
+		...(!config.headers && storedConfig.headers
+			? { headers: storedConfig.headers }
+			: {}),
+		providerConfig: {
+			...storedConfig,
+			...(explicitProviderConfig ?? {}),
+			providerId,
+			...(modelId ? { modelId } : {}),
+		},
+	};
+}
+
+function getSessionManager(
+	ctx: SidecarContext,
+	sessionId?: string,
+	config?: JsonRecord,
+): ClineCore {
+	return getSessionRuntimeBinding(ctx, sessionId, readEnvironmentId(config))
+		.sessionManager;
 }
 
 // ---------------------------------------------------------------------------
@@ -665,20 +754,34 @@ async function handleStart(
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
-	const manager = getSessionManager(ctx);
-	const systemPrompt = await resolveSystemPrompt(request.config);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		undefined,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	const config =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(request.config)
+			: request.config;
+	// Workspace discovery must happen where the files live. Local desktop
+	// sessions keep the eager prompt path; SSH sessions leave a blank prompt for
+	// the remote Hub's LocalRuntimeHost bootstrap to compose from remote metadata.
+	const systemPrompt =
+		binding.kind === "ssh"
+			? readExplicitSystemPrompt(config)
+			: await resolveSystemPrompt(config);
 	const requestedSessionId = String(
-		request.config.sessionId ?? request.config.session_id ?? "",
+		config.sessionId ?? config.session_id ?? "",
 	).trim();
 	const initialMessages =
-		Array.isArray(request.config.initialMessages) &&
-		request.config.initialMessages.length > 0
-			? request.config.initialMessages
+		Array.isArray(config.initialMessages) && config.initialMessages.length > 0
+			? config.initialMessages
 			: requestedSessionId
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
 	const coreConfig: JsonRecord = {
-		...buildCoreSessionConfig(request.config),
+		...buildCoreSessionConfig(config),
 		systemPrompt,
 		...(initialMessages ? { initialMessages } : {}),
 	};
@@ -707,8 +810,14 @@ async function handleStart(
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
 	const session = createLiveSession(
-		{ ...request.config, cwd, workspaceRoot },
 		{
+			...config,
+			cwd,
+			workspaceRoot,
+			environmentId: binding.environmentId,
+		},
+		{
+			environmentId: binding.environmentId,
 			messages: initialMessages,
 			prompt: initialMessages
 				? derivePromptFromMessages(initialMessages)
@@ -720,7 +829,13 @@ async function handleStart(
 		},
 	);
 	ctx.liveSessions.set(sessionId, session);
-	return { sessionId, cwd, workspaceRoot };
+	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+	return {
+		sessionId,
+		cwd,
+		workspaceRoot,
+		environmentId: binding.environmentId,
+	};
 }
 
 async function handleAttach(
@@ -732,7 +847,18 @@ async function handleAttach(
 		throw new Error("sessionId is required");
 	}
 
-	const manager = getSessionManager(ctx);
+	const preferredEnvironmentId = readEnvironmentId(request.config);
+	// An explicit environment is a hard routing boundary. Falling through to
+	// another connected host can attach a same-id session from the wrong machine.
+	const binding = preferredEnvironmentId
+		? getSessionRuntimeBinding(ctx, sessionId, preferredEnvironmentId)
+		: await findSessionRuntimeBinding(ctx, sessionId);
+	if (!binding) {
+		throw new Error(
+			`Session ${sessionId} not found in a connected environment`,
+		);
+	}
+	const manager = binding.sessionManager;
 	const session = await manager.get(sessionId);
 	if (!session) {
 		throw new Error(`Session ${sessionId} not found`);
@@ -743,13 +869,12 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
-	if (ctx.hubClient) {
-		await ctx.hubClient.command("session.attach", { sessionId }, sessionId);
-	}
-	const attachedConfig: JsonRecord = {
+	await binding.hubClient.command("session.attach", { sessionId }, sessionId);
+	const baseAttachedConfig: JsonRecord = {
 		...(existing?.config ?? {}),
 		...(request.config ?? {}),
 		sessionId,
+		environmentId: binding.environmentId,
 		provider: session.provider || existing?.config.provider || "",
 		model: session.model || existing?.config.model || "",
 		cwd:
@@ -763,9 +888,14 @@ async function handleAttach(
 			String(request.config?.workspaceRoot ?? "").trim() ||
 			String(existing?.config.workspaceRoot ?? "").trim(),
 	};
+	const attachedConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(baseAttachedConfig)
+			: baseAttachedConfig;
 	ctx.liveSessions.set(
 		sessionId,
 		createLiveSession(attachedConfig, {
+			environmentId: binding.environmentId,
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
 			status: session.status,
@@ -785,9 +915,11 @@ async function handleAttach(
 			consumedAttachmentFiles: existing?.consumedAttachmentFiles,
 		}),
 	);
+	ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
 
 	return {
 		sessionId,
+		environmentId: binding.environmentId,
 		status: session.status,
 		provider: session.provider,
 		model: session.model,
@@ -840,11 +972,20 @@ async function startRebuiltSession(
 
 async function rebuildSessionForProviderChange(
 	ctx: SidecarContext,
-	manager: ClineCore,
+	binding: SessionRuntimeBinding,
 	sessionId: string,
 	previousConfig: JsonRecord,
 	nextConfig: JsonRecord,
 ): Promise<void> {
+	const manager = binding.sessionManager;
+	const effectivePreviousConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(previousConfig)
+			: previousConfig;
+	const effectiveNextConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(nextConfig)
+			: nextConfig;
 	const [messages, compactionState, previousSystemPrompt, nextSystemPrompt] =
 		await Promise.all([
 			manager.readMessages(sessionId),
@@ -856,8 +997,12 @@ async function rebuildSessionForProviderChange(
 				});
 				return undefined;
 			}),
-			resolveSystemPrompt(previousConfig),
-			resolveSystemPrompt(nextConfig),
+			binding.kind === "ssh"
+				? readExplicitSystemPrompt(effectivePreviousConfig)
+				: resolveSystemPrompt(effectivePreviousConfig),
+			binding.kind === "ssh"
+				? readExplicitSystemPrompt(effectiveNextConfig)
+				: resolveSystemPrompt(effectiveNextConfig),
 		]);
 
 	await manager.stop(sessionId);
@@ -866,7 +1011,7 @@ async function rebuildSessionForProviderChange(
 		await startRebuiltSession(
 			manager,
 			sessionId,
-			nextConfig,
+			effectiveNextConfig,
 			nextSystemPrompt,
 			messages,
 			compactionState,
@@ -877,7 +1022,7 @@ async function rebuildSessionForProviderChange(
 		// persistence failure cannot leave runtime and cached state diverged.
 		await manager.updateSessionConnection(
 			sessionId,
-			buildSessionConnectionUpdate(nextConfig),
+			buildSessionConnectionUpdate(effectiveNextConfig),
 		);
 	} catch (replacementError) {
 		try {
@@ -887,14 +1032,14 @@ async function rebuildSessionForProviderChange(
 			await startRebuiltSession(
 				manager,
 				sessionId,
-				previousConfig,
+				effectivePreviousConfig,
 				previousSystemPrompt,
 				messages,
 				compactionState,
 			);
 			await manager.updateSessionConnection(
 				sessionId,
-				buildSessionConnectionUpdate(previousConfig),
+				buildSessionConnectionUpdate(effectivePreviousConfig),
 			);
 		} catch (rollbackError) {
 			throw new AggregateError(
@@ -919,8 +1064,13 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
-	const manager = getSessionManager(ctx);
 	const session = ctx.liveSessions.get(sessionId);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
 	);
@@ -937,7 +1087,8 @@ async function handleSend(
 	// `/command` token as the session's display prompt.
 	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
-		readWorkspacePath(session?.config ?? request.config) ?? ctx.workspaceRoot,
+		readWorkspacePath(session?.config ?? request.config) ??
+			ctx.localWorkspaceRoot,
 		prompt,
 		request.config?.mode ?? session?.config?.mode,
 	);
@@ -974,7 +1125,7 @@ async function handleSend(
 			if (providerChanged && session) {
 				await rebuildSessionForProviderChange(
 					ctx,
-					manager,
+					binding,
 					sessionId,
 					session.config,
 					nextConfig,
@@ -997,6 +1148,14 @@ async function handleSend(
 			}
 		}
 
+		if (
+			binding.kind === "ssh" &&
+			(request.attachments?.userFiles?.length ?? 0) > 0
+		) {
+			throw new Error(
+				"File attachments are not available in the SSH proof of concept yet. Images and text prompts are supported.",
+			);
+		}
 		const userFiles = materializeUserFiles(
 			sessionId,
 			request.attachments?.userFiles,
@@ -1141,7 +1300,7 @@ async function handleStop(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	await getSessionManager(ctx).stop(sessionId);
+	await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.busy = false;
@@ -1156,7 +1315,10 @@ async function handleAbort(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	await getSessionManager(ctx).abort(sessionId, "user_abort");
+	await getSessionManager(ctx, sessionId, request.config).abort(
+		sessionId,
+		"user_abort",
+	);
 	const session = ctx.liveSessions.get(sessionId);
 	if (session) {
 		session.busy = false;
@@ -1178,7 +1340,7 @@ async function handleFork(
 	) {
 		throw new Error("forkBeforeRunCount must be a positive integer");
 	}
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sourceSessionId, request.config);
 	const liveSourceSession = ctx.liveSessions.get(sourceSessionId);
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -1230,10 +1392,18 @@ async function handleForkUnlocked(
 	sourceSession: SessionRecord | undefined,
 	restoreWorkspacePath?: string,
 ): Promise<unknown> {
-	const manager = getSessionManager(ctx);
-	const sourceMessages =
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(request.config),
+	);
+	const manager = binding.sessionManager;
+	let sourceMessages =
 		readPersistedChatMessages(sourceSessionId) ??
 		ctx.liveSessions.get(sourceSessionId)?.messages;
+	if (!sourceMessages?.length && binding.kind === "ssh") {
+		sourceMessages = await manager.readMessages(sourceSessionId);
+	}
 	if (!sourceMessages?.length) {
 		throw new Error(`No messages found for session ${sourceSessionId}`);
 	}
@@ -1243,10 +1413,11 @@ async function handleForkUnlocked(
 			? (sourceSession.metadata as JsonRecord)
 			: undefined) ?? readSessionMetadata(sourceSessionId);
 	const liveConfig = ctx.liveSessions.get(sourceSessionId)?.config;
-	const forkConfig: JsonRecord = {
+	const baseForkConfig: JsonRecord = {
 		...(liveConfig ?? {}),
 		...(request.config ?? {}),
 		sessionId: undefined,
+		environmentId: binding.environmentId,
 		provider:
 			sourceSession?.provider ||
 			liveConfig?.provider ||
@@ -1276,6 +1447,10 @@ async function handleForkUnlocked(
 			request.config?.cwd ||
 			"",
 	};
+	const forkConfig =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(baseForkConfig)
+			: baseForkConfig;
 	const checkpointMetadata =
 		sourceMetadata?.checkpoint !== undefined
 			? { checkpoints: sourceMetadata.checkpoint }
@@ -1296,7 +1471,10 @@ async function handleForkUnlocked(
 			...checkpointMetadata,
 		},
 	};
-	const systemPrompt = await resolveSystemPrompt(forkConfig);
+	const systemPrompt =
+		binding.kind === "ssh"
+			? readExplicitSystemPrompt(forkConfig)
+			: await resolveSystemPrompt(forkConfig);
 	const startInput = {
 		...splitCoreSessionConfig(
 			buildCoreSessionConfig({
@@ -1357,12 +1535,14 @@ async function handleForkUnlocked(
 	ctx.liveSessions.set(
 		newSessionId,
 		createLiveSession(forkConfig, {
+			environmentId: binding.environmentId,
 			messages: forkMessages,
 			prompt: derivePromptFromMessages(forkMessages),
 			title: readSessionMetadataTitle(sourceSessionId),
 			status: "idle",
 		}),
 	);
+	ctx.sessionEnvironmentIds.set(newSessionId, binding.environmentId);
 	sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 	sendPromptsInQueueSnapshot(ctx, newSessionId);
 	return {
@@ -1384,10 +1564,11 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await getSessionManager(ctx).stop(sessionId);
+			await getSessionManager(ctx, sessionId, request.config).stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
+		ctx.sessionEnvironmentIds.delete(sessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 	}
 	return { sessionId: request.sessionId, ok: true };
@@ -1406,14 +1587,25 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
-	const config = request.config;
-	if (!config) throw new Error("config is required to restore a checkpoint");
+	const requestedConfig = request.config;
+	if (!requestedConfig)
+		throw new Error("config is required to restore a checkpoint");
 	const cwd =
-		(typeof config.cwd === "string" && config.cwd.trim()) ||
-		(typeof config.workspaceRoot === "string" && config.workspaceRoot.trim()) ||
+		(typeof requestedConfig.cwd === "string" && requestedConfig.cwd.trim()) ||
+		(typeof requestedConfig.workspaceRoot === "string" &&
+			requestedConfig.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
-	const manager = getSessionManager(ctx);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sourceSessionId,
+		readEnvironmentId(requestedConfig),
+	);
+	const manager = binding.sessionManager;
+	const config =
+		binding.kind === "ssh"
+			? await withRemoteProviderCredentials(requestedConfig)
+			: requestedConfig;
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
@@ -1424,7 +1616,10 @@ async function handleRestoreCheckpoint(
 				...splitCoreSessionConfig(
 					buildCoreSessionConfig({
 						...config,
-						systemPrompt: await resolveSystemPrompt(config),
+						systemPrompt:
+							binding.kind === "ssh"
+								? readExplicitSystemPrompt(config)
+								: await resolveSystemPrompt(config),
 					}) as unknown as ClineCoreStartConfig,
 				),
 				source: SessionSource.DESKTOP,
@@ -1446,12 +1641,14 @@ async function handleRestoreCheckpoint(
 		ctx.liveSessions.set(
 			sessionId,
 			createLiveSession(config, {
+				environmentId: binding.environmentId,
 				messages: restoredMessages,
 				prompt: derivePromptFromMessages(restoredMessages),
 				title: readSessionMetadataTitle(sourceSessionId),
 				status: "idle",
 			}),
 		);
+		ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {
@@ -1467,9 +1664,11 @@ async function handlePendingPrompts(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const prompts = await getSessionManager(ctx).pendingPrompts.list({
+	const prompts = await getSessionManager(
+		ctx,
 		sessionId,
-	});
+		request.config,
+	).pendingPrompts.list({ sessionId });
 	return {
 		sessionId,
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, prompts),
@@ -1484,7 +1683,7 @@ async function handleSteerPrompt(
 	const promptId = request.promptId?.trim();
 	if (!sessionId || !promptId)
 		throw new Error("sessionId and promptId are required");
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sessionId, request.config);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
@@ -1516,7 +1715,7 @@ async function handleUpdatePendingPrompt(
 	// through handleSend, so resolve slash commands here too.
 	const runtimePrompt = await resolveDesktopRuntimePrompt(
 		ctx,
-		readWorkspacePath(sessionConfig) ?? ctx.workspaceRoot,
+		readWorkspacePath(sessionConfig) ?? ctx.localWorkspaceRoot,
 		prompt,
 		sessionConfig?.mode,
 	);
@@ -1542,7 +1741,7 @@ async function handleRemovePendingPrompt(
 	if (!sessionId || !promptId) {
 		throw new Error("sessionId and promptId are required");
 	}
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sessionId, request.config);
 	const result = await manager.pendingPrompts.delete({
 		sessionId,
 		promptId,

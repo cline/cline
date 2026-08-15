@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { handleCommand } from "./commands";
+import { createSidecarContext } from "./context";
 import {
 	buildMcpServersResponse,
 	shouldProbeMcpServerAfterUpsert,
@@ -23,7 +24,7 @@ function createContext(workspaceRoot: string): SidecarContext {
 		unsubscribeSessionEvents: null,
 		cloudSessionManager: null,
 		hubBuildMismatch: null,
-	};
+	} as unknown as SidecarContext;
 }
 
 describe("desktop MCP settings", () => {

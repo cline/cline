@@ -28,8 +28,10 @@ import type {
 	PendingAskQuestion,
 	PendingToolApproval,
 	PromptInQueue,
+	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 const hubClientInitialization = new WeakMap<
@@ -501,9 +503,11 @@ export function createSidecarContext(
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
+		runtimeBindings: new Map(),
+		sessionEnvironmentIds: new Map(),
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
@@ -518,9 +522,6 @@ export async function disposeSidecarContext(
 ): Promise<void> {
 	const cleanup: Array<Promise<unknown>> = [];
 	const approvalCleanup: Array<Promise<unknown>> = [];
-
-	ctx.unsubscribeSessionEvents?.();
-	ctx.unsubscribeSessionEvents = null;
 
 	for (const [sessionId, session] of ctx.liveSessions) {
 		discardAllTrackedAttachments(sessionId, session);
@@ -567,16 +568,16 @@ export async function disposeSidecarContext(
 		cleanup.push(cloudSessionManager.dispose());
 	}
 
-	const hubClient = ctx.hubClient;
-	ctx.hubClient = null;
-	if (hubClient) {
-		cleanup.push(hubClient.dispose());
+	for (const binding of ctx.runtimeBindings.values()) {
+		binding.unsubscribeSessionEvents();
+		cleanup.push(binding.hubClient.dispose());
+		cleanup.push(binding.sessionManager.dispose(reason));
 	}
-
-	const sessionManager = ctx.sessionManager;
-	ctx.sessionManager = null;
-	if (sessionManager) {
-		cleanup.push(sessionManager.dispose(reason));
+	ctx.runtimeBindings.clear();
+	ctx.sessionEnvironmentIds.clear();
+	if (ctx.remoteEnvironments) {
+		cleanup.push(ctx.remoteEnvironments.dispose());
+		ctx.remoteEnvironments = null;
 	}
 
 	const results = [...approvalResults, ...(await Promise.allSettled(cleanup))];
@@ -724,30 +725,18 @@ export function handleHubLiveEvent(
 		case "assistant.image":
 		case "assistant.video":
 		case "assistant.audio":
+		case "reasoning.delta":
+		case "tool.started":
+		case "tool.finished":
 			// HubRuntimeHost already projects these into the canonical Core event
 			// stream consumed by handleCoreSessionEvent. Relaying the raw Hub copy
-			// too duplicates the assistant output.
+			// too duplicates assistant output and tool activity.
 			return;
 		case "assistant.media": {
 			const media = event.payload?.media;
 			if (isGeneratedMedia(media)) {
 				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
 			}
-			return;
-		}
-		case "reasoning.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			const redacted = event.payload?.redacted === true;
-			if (!text && !redacted) {
-				return;
-			}
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_reasoning",
-				JSON.stringify({ text, redacted }),
-			);
 			return;
 		}
 		case "usage.updated": {
@@ -830,48 +819,6 @@ export function handleHubLiveEvent(
 			});
 			return;
 		}
-		case "tool.started": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_start",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					input: event.payload?.input,
-				}),
-			);
-			return;
-		}
-		case "tool.finished": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_end",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					output: event.payload?.output,
-					error:
-						typeof event.payload?.error === "string"
-							? event.payload.error
-							: undefined,
-				}),
-			);
-			return;
-		}
 		case "run.started":
 		case "session.attached":
 		case "session.updated": {
@@ -949,8 +896,8 @@ export async function initializeSessionManager(
 		telemetry: ctx.telemetry,
 		hub: {
 			strategy: "require-hub",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
 			displayName: "Code App sidecar",
 		},
@@ -961,24 +908,186 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
+	let hubClient: NodeHubClient;
 	try {
-		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+		hubClient = await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
 	} catch (error) {
 		unsubscribe();
 		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
 		throw error;
 	}
 
-	ctx.sessionManager = sessionManager;
-	ctx.unsubscribeSessionEvents = unsubscribe;
+	ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		kind: "local",
+		workspaceRoot: ctx.localWorkspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+	});
+}
+
+export function getRuntimeBinding(
+	ctx: SidecarContext,
+	environmentId = ctx.activeEnvironmentId,
+): SessionRuntimeBinding {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	if (!binding) {
+		throw new Error(`Environment ${environmentId} is not connected.`);
+	}
+	return binding;
+}
+
+export function getSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId?: string,
+	requestedEnvironmentId?: string,
+): SessionRuntimeBinding {
+	const environmentId =
+		requestedEnvironmentId?.trim() ||
+		(sessionId ? ctx.liveSessions.get(sessionId)?.environmentId : undefined) ||
+		(sessionId ? ctx.sessionEnvironmentIds.get(sessionId) : undefined) ||
+		ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+export async function findSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	preferredEnvironmentId?: string,
+): Promise<SessionRuntimeBinding | undefined> {
+	const knownEnvironmentId =
+		preferredEnvironmentId?.trim() ||
+		ctx.liveSessions.get(sessionId)?.environmentId ||
+		ctx.sessionEnvironmentIds.get(sessionId);
+	const candidates = [
+		...(knownEnvironmentId
+			? [ctx.runtimeBindings.get(knownEnvironmentId)]
+			: []),
+		...ctx.runtimeBindings.values(),
+	].filter(
+		(binding, index, all): binding is SessionRuntimeBinding =>
+			Boolean(binding) && all.indexOf(binding) === index,
+	);
+	for (const binding of candidates) {
+		try {
+			if (await binding.sessionManager.get(sessionId)) {
+				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				return binding;
+			}
+		} catch {
+			// A disconnected environment must not prevent another runtime from
+			// resolving the session.
+		}
+	}
+	return undefined;
+}
+
+async function disposeRuntimeBinding(
+	binding: SessionRuntimeBinding,
+	reason: string,
+): Promise<void> {
+	try {
+		binding.unsubscribeSessionEvents();
+	} catch {
+		// Continue disposing the Hub clients even if an event source has already
+		// torn down its subscription.
+	}
+	await Promise.allSettled([
+		binding.hubClient.dispose(),
+		binding.sessionManager.dispose(reason),
+	]);
+}
+
+export async function connectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	connection: NonNullable<SessionRuntimeBinding["remote"]>,
+): Promise<SessionRuntimeBinding> {
+	const environmentId = connection.profile.id;
+	const existing = ctx.runtimeBindings.get(environmentId);
+	const sessionManager = await ClineCore.create({
+		clientName: "cline-code",
+		backendMode: "remote",
+		capabilities: createSidecarRuntimeCapabilities(ctx),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
+		remote: {
+			endpoint: connection.endpoint,
+			authToken: connection.authToken,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+			clientType: "code-sidecar-ssh",
+			displayName: `Code App (${connection.profile.name})`,
+		},
+	});
+	let unsubscribe: (() => void) | undefined;
+	let hubClient: NodeHubClient | undefined;
+	try {
+		unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			handleCoreSessionEvent(ctx, event);
+		});
+		hubClient = new NodeHubClient({
+			url: connection.endpoint,
+			authToken: connection.authToken,
+			clientType: "code-sidecar-ssh-observer",
+			displayName: `Code App observer (${connection.profile.name})`,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+		});
+		await hubClient.connect();
+		hubClient.subscribe((event) => handleHubLiveEvent(ctx, event));
+	} catch (error) {
+		try {
+			unsubscribe?.();
+		} catch {
+			// Best effort; the failed runtime still needs to be disposed below.
+		}
+		const disposals: Promise<unknown>[] = [
+			sessionManager.dispose("code_sidecar_remote_initialization_failed"),
+		];
+		if (hubClient) disposals.push(hubClient.dispose());
+		await Promise.allSettled(disposals);
+		throw error;
+	}
+
+	const binding: SessionRuntimeBinding = {
+		environmentId,
+		kind: "ssh",
+		workspaceRoot: connection.workspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+		remote: connection,
+	};
+	ctx.runtimeBindings.set(environmentId, binding);
+	ctx.activeEnvironmentId = environmentId;
+	if (existing) {
+		await disposeRuntimeBinding(existing, "code_sidecar_remote_reconnect");
+	}
+	return binding;
+}
+
+export async function disconnectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	environmentId: string,
+): Promise<void> {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	if (binding?.kind === "ssh") {
+		ctx.runtimeBindings.delete(environmentId);
+		await disposeRuntimeBinding(binding, "code_sidecar_remote_disconnect");
+	}
+	if (ctx.activeEnvironmentId === environmentId) {
+		ctx.activeEnvironmentId = LOCAL_ENVIRONMENT_ID;
+	}
 }
 
 export async function ensureSharedHubClient(
 	ctx: SidecarContext,
 	preferredUrl?: string,
 ): Promise<NodeHubClient> {
-	if (ctx.hubClient) {
-		return ctx.hubClient;
+	const existing = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+	if (existing) {
+		return existing;
 	}
 	const pending = hubClientInitialization.get(ctx);
 	if (pending) {
@@ -990,8 +1099,8 @@ export async function ensureSharedHubClient(
 			preferredUrl?.trim() ||
 			(await ensureCompatibleLocalHubUrl({
 				strategy: "require-hub",
-				workspaceRoot: ctx.workspaceRoot,
-				cwd: ctx.workspaceRoot,
+				workspaceRoot: ctx.localWorkspaceRoot,
+				cwd: ctx.localWorkspaceRoot,
 			}));
 		if (!url) {
 			throw new Error("Unable to start or connect to the shared Cline Hub.");
@@ -1001,15 +1110,14 @@ export async function ensureSharedHubClient(
 			url,
 			clientType: "code-sidecar-observer",
 			displayName: "Code App observer",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 		});
 		try {
 			await client.connect();
 			client.subscribe((event) => {
 				handleHubLiveEvent(ctx, event);
 			});
-			ctx.hubClient = client;
 			return client;
 		} catch (error) {
 			await client.dispose().catch(() => undefined);

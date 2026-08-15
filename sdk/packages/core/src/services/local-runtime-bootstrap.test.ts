@@ -117,6 +117,95 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it.each([
+		{ label: "missing", systemPrompt: undefined },
+		{ label: "blank", systemPrompt: " \n\t" },
+	])("builds the default system prompt from execution-host workspace context when the prompt is $label", async ({
+		systemPrompt,
+	}) => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const workspaceRoot = mkdtempSync(
+			join(tmpdir(), "remote-bootstrap-prompt-"),
+		);
+		const input = createStartInput();
+		const config = input.config as Omit<
+			typeof input.config,
+			"mode" | "systemPrompt"
+		> & {
+			mode: "act" | "plan";
+			rules?: string;
+			systemPrompt?: string;
+		};
+		config.cwd = workspaceRoot;
+		config.workspaceRoot = workspaceRoot;
+		if (systemPrompt === undefined) {
+			delete config.systemPrompt;
+		} else {
+			config.systemPrompt = systemPrompt;
+		}
+		config.mode = "plan";
+		config.rules = "# Remote Rule\n\nOnly inspect the execution host.";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-remote-prompt",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.systemPrompt).toContain(
+			`1. Platform: ${process.platform}`,
+		);
+		expect(bootstrap.config.systemPrompt).toContain(
+			`4. Working Directory: ${workspaceRoot}`,
+		);
+		expect(bootstrap.config.systemPrompt).toContain(
+			"# Workspace Configuration",
+		);
+		expect(bootstrap.config.systemPrompt).toContain(workspaceRoot);
+		expect(bootstrap.config.systemPrompt).toContain(
+			"Only inspect the execution host.",
+		);
+		expect(bootstrap.config.systemPrompt).toContain("# Plan Mode");
+		expect(bootstrap.runtimeBuilderInput.config.systemPrompt).toBe(
+			bootstrap.config.systemPrompt,
+		);
+	});
+
+	it("preserves an explicit system prompt exactly", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const input = createStartInput();
+		const explicitPrompt = "  Use the caller-owned prompt verbatim.  \n";
+		input.config.systemPrompt = explicitPrompt;
+		const config = input.config as typeof input.config & { rules?: string };
+		config.rules = "This rule belongs only in a generated prompt.";
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			sessionId: "sess-explicit-prompt",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.config.systemPrompt).toBe(explicitPrompt);
+	});
+
 	it("filters globally disabled plugin tools before extension setup", async () => {
 		vi.resetModules();
 		resetModulesAfterEach = true;

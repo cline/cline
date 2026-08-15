@@ -42,6 +42,12 @@ export interface SessionHistoryItem {
 	model: string;
 	cwd: string;
 	workspaceRoot: string;
+	environmentId: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+	};
 	parentSessionId?: string;
 	isSubagent?: boolean;
 	prompt?: string;
