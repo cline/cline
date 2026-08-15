@@ -19,6 +19,7 @@ function thread(
 		provider: "cline",
 		model: "test-model",
 		status: "completed",
+		isScheduled: false,
 		...overrides,
 	};
 }

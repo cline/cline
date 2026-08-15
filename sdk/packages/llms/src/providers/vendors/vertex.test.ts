@@ -171,7 +171,7 @@ describe("createVertexProviderModule", () => {
 			context(modelId),
 		);
 
-		expect(result.model(modelId)).toEqual({
+		expect(result.operations.language(modelId)).toEqual({
 			provider: expectedProvider,
 			modelId,
 		});

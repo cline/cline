@@ -2,7 +2,31 @@ import { describe, expect, it } from "vitest";
 import { readSessionMessages } from "./messages";
 
 describe("readSessionMessages", () => {
-	it("preserves each stored message timestamp across projected blocks", async () => {
+	it("continues past malformed persisted entries", async () => {
+		const sessionId = `malformed-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [null, 42, { role: "assistant", content: "Still here" }],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "assistant",
+				content: "Still here",
+			}),
+		]);
+	});
+
+	it("uses stored timestamps as a stable integer base for projected blocks", async () => {
 		const sessionId = `timestamp-projection-${Date.now()}`;
 		const userTimestamp = 1_781_041_621_282;
 		const assistantTimestamp = 1_781_041_621_946;
@@ -55,7 +79,7 @@ describe("readSessionMessages", () => {
 			}),
 			expect.objectContaining({
 				id: "assistant-message_tool_use_2",
-				createdAt: assistantTimestamp,
+				createdAt: assistantTimestamp + 1,
 				meta: expect.objectContaining({ toolCallId: "tool-use" }),
 			}),
 		]);
@@ -179,7 +203,7 @@ describe("readSessionMessages", () => {
 		]);
 
 		const projected = (await readSessionMessages(
-			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			{ liveSessions } as unknown as Parameters<typeof readSessionMessages>[0],
 			sessionId,
 		)) as Array<Record<string, unknown>>;
 
@@ -223,7 +247,7 @@ describe("readSessionMessages", () => {
 		]);
 
 		const projected = (await readSessionMessages(
-			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			{ liveSessions } as unknown as Parameters<typeof readSessionMessages>[0],
 			sessionId,
 		)) as Array<Record<string, unknown>>;
 
@@ -252,6 +276,117 @@ describe("readSessionMessages", () => {
 			role: "user",
 			content: "Second visible prompt",
 			meta: { runCount: 5 },
+		});
+	});
+
+	it("projects provider model activities through the ordinary tool payload", async () => {
+		const sessionId = `provider-tool-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "assistant-search",
+							role: "assistant",
+							content: "Bun 1.3.14 is current.",
+							metadata: {
+								modelToolActivities: [
+									{
+										toolCallId: "search-1",
+										toolName: "web_search",
+										execution: "provider",
+										input: { query: "latest Bun release" },
+										output: { answer: "1.3.14" },
+									},
+								],
+							},
+						},
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as unknown as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+		)) as Array<Record<string, unknown>>;
+
+		expect(projected).toHaveLength(2);
+		expect(projected[0]).toMatchObject({
+			role: "tool",
+			meta: {
+				toolName: "web_search",
+				hookEventName: "history_tool_result",
+			},
+		});
+		expect(JSON.parse(String(projected[0]?.content))).toMatchObject({
+			toolName: "web_search",
+			input: { query: "latest Bun release" },
+			result: '{"answer":"1.3.14"}',
+		});
+		expect(projected[1]).toMatchObject({
+			role: "assistant",
+			content: "Bun 1.3.14 is current.",
+		});
+		const sorted = [...projected].sort((left, right) => {
+			const time = Number(left.createdAt) - Number(right.createdAt);
+			return time || String(left.id).localeCompare(String(right.id));
+		});
+		expect(sorted.map((message) => message.role)).toEqual([
+			"tool",
+			"assistant",
+		]);
+		expect(Number(projected[0]?.createdAt)).toBeLessThan(
+			Number(projected[1]?.createdAt),
+		);
+	});
+
+	it("keeps the absolute run anchor for a truncated tool-only provider turn", async () => {
+		const sessionId = `provider-tool-run-anchor-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{ role: "user", content: "First prompt" },
+						{ role: "assistant", content: "First response" },
+						{ role: "user", content: "Second prompt" },
+						{
+							id: "tool-only-assistant",
+							role: "assistant",
+							content: [],
+							metadata: {
+								modelToolActivities: [
+									{
+										toolCallId: "search-tool-only",
+										toolName: "web_search",
+										execution: "provider",
+										input: { query: "latest Bun" },
+										output: "Bun 1.3.14",
+									},
+								],
+							},
+						},
+					],
+				},
+			],
+		]);
+
+		const projected = (await readSessionMessages(
+			{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+			sessionId,
+			1,
+		)) as Array<Record<string, unknown>>;
+
+		expect(projected).toHaveLength(1);
+		expect(projected[0]).toMatchObject({
+			role: "tool",
+			meta: {
+				runCount: 2,
+				toolName: "web_search",
+				hookEventName: "history_tool_result",
+			},
 		});
 	});
 });

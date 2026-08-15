@@ -5,6 +5,7 @@ import {
 	NodeHubClient,
 	ProviderSettingsManager,
 } from "@cline/core";
+import type { MessageWithMetadata } from "@cline/llms";
 import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
@@ -2084,7 +2085,7 @@ export class CloudSessionManager {
 		}
 		const live =
 			this.ctx.liveSessions.get(record.id) ?? recordToLiveSession(record);
-		live.messages = messages;
+		live.messages = messages as MessageWithMetadata[];
 		this.ctx.liveSessions.set(record.id, live);
 		return messages;
 	}

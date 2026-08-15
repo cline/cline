@@ -1,14 +1,68 @@
 import { describe, expect, it } from "vitest";
 import {
 	createMediaBudgetState,
+	GeneratedMediaSchema,
 	imageBase64DecodedByteLength,
 	imageBase64LengthForDecodedBytes,
 	isCanonicalBase64,
+	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "./media";
 
-describe("image media validation", () => {
+describe("generated media", () => {
+	it("validates stable inline, remote, and artifact sources", () => {
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_inline",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+				sizeBytes: 5,
+			}),
+		).toMatchObject({ source: { type: "base64" } });
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_remote",
+				modality: "audio",
+				mediaType: "audio/mpeg",
+				source: { type: "url", url: "https://example.com/result.mp3" },
+			}),
+		).toMatchObject({ source: { type: "url" } });
+		expect(
+			GeneratedMediaSchema.parse({
+				id: "media_artifact",
+				modality: "video",
+				mediaType: "video/mp4",
+				source: { type: "artifact", artifactId: "artifact_123" },
+			}),
+		).toMatchObject({ source: { type: "artifact" } });
+	});
+
+	it("rejects unsafe remote sources", () => {
+		expect(
+			GeneratedMediaSchema.safeParse({
+				id: "unsafe",
+				modality: "file",
+				mediaType: "text/html",
+				source: { type: "url", url: "javascript:alert(1)" },
+			}).success,
+		).toBe(false);
+	});
+
+	it("rejects media whose modality disagrees with its MIME type", () => {
+		expect(
+			GeneratedMediaSchema.safeParse({
+				id: "mismatch",
+				modality: "audio",
+				mediaType: "image/png",
+				source: { type: "base64", data: "aGVsbG8=" },
+			}).success,
+		).toBe(false);
+	});
+});
+
+describe("media validation", () => {
 	it("accepts raw canonical base64 for supported image types", () => {
 		const result = validateImageMedia("image/png", "aGVsbG8=");
 
@@ -114,5 +168,31 @@ describe("image media validation", () => {
 		expect(isCanonicalBase64("QUJDRA==")).toBe(true);
 		expect(isCanonicalBase64("not-base64")).toBe(false);
 		expect(isCanonicalBase64("")).toBe(false);
+	});
+
+	it("validates non-image base64 and shares the aggregate media budget", () => {
+		const state = createMediaBudgetState();
+		const audio = validateAndReserveBase64Media(
+			" aGVsbG8= ",
+			{ maxTotalMediaBytes: 12 },
+			state,
+		);
+		const video = validateAndReserveBase64Media(
+			"QUJDRA==",
+			{ maxTotalMediaBytes: 12 },
+			state,
+		);
+
+		expect(audio).toEqual({
+			ok: true,
+			base64: "aGVsbG8=",
+			encodedBytes: 8,
+			decodedBytes: 5,
+		});
+		expect(video).toMatchObject({ ok: false, reason: "total_limit" });
+		expect(state.totalEncodedBytes).toBe(8);
+		expect(
+			validateAndReserveBase64Media("not-base64", {}, state),
+		).toMatchObject({ ok: false, reason: "invalid_base64" });
 	});
 });

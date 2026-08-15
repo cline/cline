@@ -100,6 +100,19 @@ export function ToolFileDiff({
 				{
 					"--diffs-light-bg": background,
 					"--diffs-dark-bg": background,
+					// @pierre/diffs declares `color-scheme: light dark` on its
+					// shadow :host, so its light-dark() token colors follow the
+					// browser's preferred scheme — not the host app's
+					// class-based theme — leaving e.g. near-black light-palette
+					// text on a dark app surface. Inheriting the app's
+					// color-scheme (flipped by `.dark` in the @cline/ui theme)
+					// keeps the syntax palette in lockstep with the app theme.
+					// Skipped when a caller pins an explicit themeType, which
+					// pierre implements as its own :host color-scheme rule.
+					...(resolvedOptions.themeType === "system" ||
+					resolvedOptions.themeType === undefined
+						? { colorScheme: "inherit" }
+						: {}),
 				} as CSSProperties
 			}
 		/>

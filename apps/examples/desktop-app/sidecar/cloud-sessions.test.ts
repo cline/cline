@@ -1406,7 +1406,7 @@ describe("CloudSessionManager", () => {
 		});
 		await manager.list();
 		await manager.attach("ses-outer");
-		const previous = [{ role: "assistant", content: "keep me" }];
+		const previous = [{ role: "assistant" as const, content: "keep me" }];
 		const live = ctx.liveSessions.get("ses-outer");
 		if (live) live.messages = previous;
 		hub.commandHook = (command) => {
