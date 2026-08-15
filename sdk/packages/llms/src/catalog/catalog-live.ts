@@ -12,6 +12,10 @@ import {
 	fetchClineRecommendedModelsPayload,
 	normalizeClineRecommendedProviderModels,
 } from "./catalog-cline-recommended";
+
+export type { CatalogFetcher } from "./catalog-cline-recommended";
+
+import type { CatalogFetcher } from "./catalog-cline-recommended";
 import {
 	resolveCatalogModelOperation,
 	resolveCatalogModelOperationModes,
@@ -473,17 +477,6 @@ export function normalizeModelsDevProviderSpecs(
 
 	return providerSpecs;
 }
-
-/**
- * The minimal fetch capability the catalog needs. Callers may pass the global
- * fetch or any compatible wrapper (for example one that adds a timeout); only
- * the call signature is required, so Bun- and DOM-typed environments both
- * satisfy it.
- */
-export type CatalogFetcher = (
-	input: string | URL | Request,
-	init?: RequestInit,
-) => Promise<Response>;
 
 async function fetchModelsDevPayload(
 	url: string,
