@@ -344,11 +344,11 @@ export async function readSessionMessages(
 			// directory — it lives beside the root session's artifacts — so opening a
 			// subagent session has to resolve the path recorded on its row.
 			readChildSessionMessages(sessionId));
-	const messages =
-		sourceMessages ??
+	const messages = (sourceMessages ??
 		(persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []));
+			: (ctx.liveSessions.get(sessionId)?.messages ??
+				[]))) as MessageWithMetadata[];
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(

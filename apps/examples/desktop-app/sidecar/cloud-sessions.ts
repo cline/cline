@@ -490,11 +490,7 @@ export class CloudSessionApi {
 			createdSessionId = sessionId;
 			settlePost();
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(
-					sessionId,
-					creationAuthToken,
-					controller.signal,
-				);
+				await this.waitUntilReady(sessionId, controller.signal);
 			}
 			return {
 				sessionId,
@@ -518,28 +514,19 @@ export class CloudSessionApi {
 				// This POST is settled; record that before waiting on peers so
 				// two failing peers cannot deadlock waiting on each other.
 				settlePost();
-				// Wait for every other in-flight POST for this repo/model/org
-				// (earlier AND later — a later peer's record is listed before
-				// its POST returns) to settle and record its claim; only then
-				// can an unclaimed listed record be safely adopted. Re-snapshot
-				// until stable so creates that started mid-wait are covered.
+				// Let known peer POSTs record their claims before recovery lists.
 				const awaited = new Set<number>([sequence]);
 				while (true) {
 					const pending = [...peers.entries()].filter(
 						([peerSequence]) => !awaited.has(peerSequence),
 					);
-					if (pending.length === 0) {
-						break;
-					}
+					if (pending.length === 0) break;
 					for (const [peerSequence] of pending) {
 						awaited.add(peerSequence);
 					}
 					await Promise.allSettled(pending.map(([, settled]) => settled));
 				}
 				const requestedBranch = input.branch?.trim();
-				// The blocking create can run for ~10 minutes; the token captured
-				// at its start may have expired since. Prefer a fresh token for
-				// the recovery list, falling back to the captured one.
 				const recoveryToken =
 					(await this.options.getAuthToken().catch(() => undefined))?.trim() ||
 					creationAuthToken;
@@ -552,24 +539,28 @@ export class CloudSessionApi {
 						(session) =>
 							session.repoContext.repoUrl === input.repoUrl &&
 							session.metadata.modelId === input.modelId &&
-							// The backend may resolve an omitted branch to the repo default,
-							// so only require a match when we asked for a specific one.
 							(!requestedBranch ||
 								session.repoContext.branch === requestedBranch) &&
-							// Generous slack for client-vs-server clock skew. The
-							// claim set (process-wide) plus the peer wait above
-							// prevent adopting another in-process request's
-							// session; the timeout/5xx recovery gate keeps this
-							// from matching identical-config sessions created by
-							// other devices in the window.
 							Date.parse(session.createdAt) >= requestedAt - 60_000,
 					)
 					.sort(
 						(left, right) =>
 							Date.parse(right.createdAt) - Date.parse(left.createdAt),
 					);
+				// A peer can register while auth or the list request is awaiting.
+				// If so, let it claim any row already present in this snapshot.
+				const latePeers = [...peers.entries()].filter(
+					([peerSequence]) => !awaited.has(peerSequence),
+				);
+				await Promise.allSettled(latePeers.map(([, settled]) => settled));
 				const recovered = this.claimFirstUnclaimed(candidates);
 				if (recovered) {
+					if (
+						recovered.status === "provisioning" ||
+						!recovered.sandboxUrl?.trim()
+					) {
+						await this.waitUntilReady(recovered.id, controller.signal);
+					}
 					return {
 						sessionId: recovered.id,
 						sandboxUrl: recovered.sandboxUrl,
@@ -590,7 +581,6 @@ export class CloudSessionApi {
 
 	private async waitUntilReady(
 		sessionId: string,
-		authToken: string,
 		signal: AbortSignal,
 	): Promise<void> {
 		while (!signal.aborted) {
@@ -599,7 +589,6 @@ export class CloudSessionApi {
 				| undefined;
 			try {
 				result = await this.status(sessionId, {
-					authToken,
 					signal: AbortSignal.any([
 						signal,
 						AbortSignal.timeout(REQUEST_TIMEOUT_MS),
@@ -2583,7 +2572,7 @@ export function getCloudSessionManager(
 	const environment = getClineEnvironmentConfig();
 	const providerSettingsManager = new ProviderSettingsManager();
 	const getAuthToken = () =>
-		resolveFreshClineAuthToken(providerSettingsManager);
+		resolveFreshClineAuthToken(providerSettingsManager, ctx);
 	const api = new CloudSessionApi({
 		apiBaseUrl: environment.apiBaseUrl,
 		appBaseUrl: environment.appBaseUrl,
