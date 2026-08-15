@@ -77,6 +77,56 @@ describe("ProviderSettingsManager", () => {
 		);
 	});
 
+	it("persists voice input selection independently of the chat provider", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-provider-settings-"),
+		);
+		tempDirs.push(tempDir);
+		const filePath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath });
+
+		manager.saveProviderSettings(
+			{
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				apiKey: "chat-key",
+			},
+			{ setLastUsed: true },
+		);
+		manager.setVoiceInputSettings({
+			providerId: "elevenlabs",
+			modelId: "scribe_v2",
+		});
+
+		const reloaded = new ProviderSettingsManager({ filePath });
+		expect(reloaded.getVoiceInputSettings()).toEqual({
+			providerId: "elevenlabs",
+			modelId: "scribe_v2",
+		});
+		const persisted = JSON.parse(readFileSync(filePath, "utf8")) as Record<
+			string,
+			unknown
+		>;
+		expect(persisted).toMatchObject({
+			modes: {
+				voiceInput: {
+					providerId: "elevenlabs",
+					modelId: "scribe_v2",
+				},
+			},
+		});
+		expect(persisted).not.toHaveProperty("voiceInput");
+		expect(reloaded.getLastUsedProviderSettings()?.provider).toBe("anthropic");
+
+		reloaded.setVoiceInputSettings(undefined);
+		expect(
+			new ProviderSettingsManager({ filePath }).getVoiceInputSettings(),
+		).toBe(undefined);
+		expect(JSON.parse(readFileSync(filePath, "utf8"))).toMatchObject({
+			modes: {},
+		});
+	});
+
 	it("writes atomically, leaving no temp file behind", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-provider-settings-"),
@@ -556,6 +606,7 @@ describe("ProviderSettingsManager", () => {
 		const manager = new ProviderSettingsManager({ filePath });
 		expect(manager.read()).toEqual({
 			version: 1,
+			modes: {},
 			providers: {},
 		});
 	});

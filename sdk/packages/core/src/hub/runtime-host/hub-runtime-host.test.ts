@@ -839,6 +839,7 @@ describe("HubRuntimeHost", () => {
 					version: 1;
 					event:
 						| "assistant.finished"
+						| "assistant.media"
 						| "reasoning.finished"
 						| "agent.done"
 						| "run.completed";
@@ -882,6 +883,19 @@ describe("HubRuntimeHost", () => {
 		});
 		onEvent?.({
 			version: 1,
+			event: "assistant.media",
+			sessionId: "sess-1",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+		onEvent?.({
+			version: 1,
 			event: "reasoning.finished",
 			sessionId: "sess-1",
 			payload: { reasoning: "thought" },
@@ -910,6 +924,21 @@ describe("HubRuntimeHost", () => {
 					type: "agent_event",
 					payload: expect.objectContaining({
 						event: { type: "content_end", contentType: "text", text: "hello" },
+					}),
+				}),
+				expect.objectContaining({
+					type: "agent_event",
+					payload: expect.objectContaining({
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media: {
+								id: "generated-1",
+								modality: "image",
+								mediaType: "image/png",
+								source: { type: "base64", data: "aGVsbG8=" },
+							},
+						},
 					}),
 				}),
 				expect.objectContaining({

@@ -31,7 +31,6 @@ async function renderWelcomeScreen({
 	workspaceRoot,
 	workspaces,
 	gitBranch = "main",
-	onStartChat = vi.fn(),
 	selectChat = vi.fn(async () => true),
 	onListGitBranches = vi.fn(async () => ({
 		current: "main",
@@ -41,7 +40,6 @@ async function renderWelcomeScreen({
 	workspaceRoot: string;
 	workspaces: string[];
 	gitBranch?: string | null;
-	onStartChat?: (prompt: string) => void;
 	selectChat?: () => Promise<boolean>;
 	onListGitBranches?: () => Promise<{
 		current: string;
@@ -67,9 +65,7 @@ async function renderWelcomeScreen({
 					composer={null}
 					gitBranch={gitBranch}
 					onListGitBranches={onListGitBranches}
-					onStartChat={onStartChat}
 					onSwitchGitBranch={vi.fn(async () => true)}
-					quickActions={[]}
 				/>
 			</WorkspaceProvider>,
 		);
@@ -90,60 +86,122 @@ async function clickButton(text: string, last = false): Promise<void> {
 }
 
 describe("WelcomeScreen", () => {
-	it("starts chat with the selected quick-action prompt", async () => {
-		const onStartChat = vi.fn();
-		await renderWelcomeScreen({
-			onStartChat,
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
+	// Prompt suggestions (quick-action cards, including "Review changes") are
+	// temporarily disabled while we improve them; see welcome-chat.tsx.
+	// Re-enable these tests when the suggestions come back.
+	//
+	// it("starts chat with the selected quick-action prompt", async () => {
+	// 	const onStartChat = vi.fn();
+	// 	await renderWelcomeScreen({
+	// 		onStartChat,
+	// 		workspaceRoot: "/projects/project-1",
+	// 		workspaces: ["/projects/project-1"],
+	// 	});
+	//
+	// 	await clickButton("Check for build errors");
+	//
+	// 	expect(onStartChat).toHaveBeenCalledWith(
+	// 		"Check this project for build errors and help me fix any failures.",
+	// 	);
+	// });
+	//
+	// it("shows code-centric suggestions only inside a git repository", async () => {
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: "main",
+	// 		workspaceRoot: "/projects/project-1",
+	// 		workspaces: ["/projects/project-1"],
+	// 	});
+	//
+	// 	expect(container.textContent).toContain("Review changes");
+	// 	expect(container.textContent).toContain("Check for build errors");
+	// 	expect(container.textContent).not.toContain("Summarize this folder");
+	// });
+	//
+	// it("offers general-purpose suggestions for a plain (non-git) folder", async () => {
+	// 	const onStartChat = vi.fn();
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: "no-git",
+	// 		onStartChat,
+	// 		workspaceRoot: "/home/beatrix/recipes",
+	// 		workspaces: ["/home/beatrix/recipes"],
+	// 	});
+	//
+	// 	// No developer vocabulary for a documents folder.
+	// 	expect(container.textContent).not.toContain("Review changes");
+	// 	expect(container.textContent).not.toContain("build errors");
+	// 	expect(container.textContent).toContain("Summarize this folder");
+	// 	expect(container.textContent).toContain("Organize these files");
+	// 	expect(container.textContent).toContain("Draft a document");
+	//
+	// 	await clickButton("Summarize this folder");
+	// 	expect(onStartChat).toHaveBeenCalledWith(
+	// 		"Look through the files in this folder and give me a plain-language summary of what's here.",
+	// 	);
+	// });
+	//
+	// it("shows no suggestions for a folder while branch discovery is pending", async () => {
+	// 	// Initial load and workspace switches report null until the folder is
+	// 	// classified; guessing a card set here would misclassify git repos.
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: null,
+	// 		workspaceRoot: "/projects/project-1",
+	// 		workspaces: ["/projects/project-1"],
+	// 	});
+	//
+	// 	expect(container.textContent).not.toContain("Review changes");
+	// 	expect(container.textContent).not.toContain("Check for build errors");
+	// 	expect(container.textContent).not.toContain("Summarize this folder");
+	// 	expect(container.textContent).not.toContain("Draft a document");
+	// });
+	//
+	// it("resolves pending branch discovery to the matching card set", async () => {
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: null,
+	// 		workspaceRoot: "/projects/project-1",
+	// 		workspaces: ["/projects/project-1"],
+	// 	});
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: "main",
+	// 		workspaceRoot: "/projects/project-1",
+	// 		workspaces: ["/projects/project-1"],
+	// 	});
+	//
+	// 	expect(container.textContent).toContain("Review changes");
+	// 	expect(container.textContent).toContain("Check for build errors");
+	// 	expect(container.textContent).not.toContain("Summarize this folder");
+	// });
+	//
+	// it("offers folderless suggestions even while branch state is pending", async () => {
+	// 	// Switching to "Just chat" resets branch discovery to pending; the
+	// 	// chat cards never depend on git state, so they show immediately.
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: null,
+	// 		workspaceRoot: "",
+	// 		workspaces: [],
+	// 	});
+	//
+	// 	expect(container.textContent).toContain("Draft a document");
+	// 	expect(container.textContent).toContain("Research a topic");
+	// 	expect(container.textContent).toContain("Plan something");
+	// });
+	//
+	// it("offers folderless suggestions when no workspace is selected", async () => {
+	// 	await renderWelcomeScreen({
+	// 		gitBranch: "no-git",
+	// 		workspaceRoot: "",
+	// 		workspaces: [],
+	// 	});
+	//
+	// 	expect(container.textContent).not.toContain("Review changes");
+	// 	expect(container.textContent).not.toContain("Summarize this folder");
+	// 	expect(container.textContent).toContain("Draft a document");
+	// 	expect(container.textContent).toContain("Research a topic");
+	// 	expect(container.textContent).toContain("Plan something");
+	// });
 
-		await clickButton("Check for build errors");
-
-		expect(onStartChat).toHaveBeenCalledWith(
-			"Check this project for build errors and help me fix any failures.",
-		);
-	});
-
-	it("shows code-centric suggestions only inside a git repository", async () => {
+	it("does not render prompt suggestions while they are disabled", async () => {
 		await renderWelcomeScreen({
 			gitBranch: "main",
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-
-		expect(container.textContent).toContain("Review changes");
-		expect(container.textContent).toContain("Check for build errors");
-		expect(container.textContent).not.toContain("Summarize this folder");
-	});
-
-	it("offers general-purpose suggestions for a plain (non-git) folder", async () => {
-		const onStartChat = vi.fn();
-		await renderWelcomeScreen({
-			gitBranch: "no-git",
-			onStartChat,
-			workspaceRoot: "/home/beatrix/recipes",
-			workspaces: ["/home/beatrix/recipes"],
-		});
-
-		// No developer vocabulary for a documents folder.
-		expect(container.textContent).not.toContain("Review changes");
-		expect(container.textContent).not.toContain("build errors");
-		expect(container.textContent).toContain("Summarize this folder");
-		expect(container.textContent).toContain("Organize these files");
-		expect(container.textContent).toContain("Draft a document");
-
-		await clickButton("Summarize this folder");
-		expect(onStartChat).toHaveBeenCalledWith(
-			"Look through the files in this folder and give me a plain-language summary of what's here.",
-		);
-	});
-
-	it("shows no suggestions for a folder while branch discovery is pending", async () => {
-		// Initial load and workspace switches report null until the folder is
-		// classified; guessing a card set here would misclassify git repos.
-		await renderWelcomeScreen({
-			gitBranch: null,
 			workspaceRoot: "/projects/project-1",
 			workspaces: ["/projects/project-1"],
 		});
@@ -152,51 +210,6 @@ describe("WelcomeScreen", () => {
 		expect(container.textContent).not.toContain("Check for build errors");
 		expect(container.textContent).not.toContain("Summarize this folder");
 		expect(container.textContent).not.toContain("Draft a document");
-	});
-
-	it("resolves pending branch discovery to the matching card set", async () => {
-		await renderWelcomeScreen({
-			gitBranch: null,
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-		await renderWelcomeScreen({
-			gitBranch: "main",
-			workspaceRoot: "/projects/project-1",
-			workspaces: ["/projects/project-1"],
-		});
-
-		expect(container.textContent).toContain("Review changes");
-		expect(container.textContent).toContain("Check for build errors");
-		expect(container.textContent).not.toContain("Summarize this folder");
-	});
-
-	it("offers folderless suggestions even while branch state is pending", async () => {
-		// Switching to "Just chat" resets branch discovery to pending; the
-		// chat cards never depend on git state, so they show immediately.
-		await renderWelcomeScreen({
-			gitBranch: null,
-			workspaceRoot: "",
-			workspaces: [],
-		});
-
-		expect(container.textContent).toContain("Draft a document");
-		expect(container.textContent).toContain("Research a topic");
-		expect(container.textContent).toContain("Plan something");
-	});
-
-	it("offers folderless suggestions when no workspace is selected", async () => {
-		await renderWelcomeScreen({
-			gitBranch: "no-git",
-			workspaceRoot: "",
-			workspaces: [],
-		});
-
-		expect(container.textContent).not.toContain("Review changes");
-		expect(container.textContent).not.toContain("Summarize this folder");
-		expect(container.textContent).toContain("Draft a document");
-		expect(container.textContent).toContain("Research a topic");
-		expect(container.textContent).toContain("Plan something");
 	});
 
 	it("renders every known project in the opened workspace menu", async () => {

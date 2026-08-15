@@ -12,6 +12,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -42,6 +43,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
@@ -198,6 +200,7 @@ export default function Home() {
 	useEffect(() => {
 		syncHubTheme();
 		syncHubAccent();
+		syncAppFontSize();
 		return watchSystemHubTheme();
 	}, []);
 
@@ -306,6 +309,11 @@ export default function Home() {
 						break;
 					case "open-settings":
 						handleViewChange("settings");
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action);
 						break;
 				}
 			}),
@@ -457,6 +465,9 @@ export default function Home() {
 										handleSettingsSectionChange("Models")
 									}
 									parentSession={activeParentSession}
+									onOpenVoiceInputSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -481,6 +492,7 @@ export default function Home() {
 					/>
 				</div>
 			) : null}
+			<HubUpdateRequiredDialog />
 		</AccountProvider>
 	);
 }
@@ -506,6 +518,7 @@ function ChatThreadPane({
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
+	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -527,6 +540,7 @@ function ChatThreadPane({
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1500,6 +1514,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1616,9 +1631,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
-					quickActions={[]}
 				/>
 			</div>
 			<AlertDialog

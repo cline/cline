@@ -4,6 +4,7 @@
  * Unified streaming response types that all providers yield.
  * This provides a consistent interface regardless of the underlying provider.
  */
+import type { GeneratedMedia } from "@cline/shared";
 
 /**
  * The main stream type - an async generator that yields chunks
@@ -15,6 +16,7 @@ export type ApiStream = AsyncGenerator<ApiStreamChunk> & { id?: string };
  */
 export type ApiStreamChunk =
 	| ApiStreamTextChunk
+	| ApiStreamMediaChunk
 	| ApiStreamReasoningChunk
 	| ApiStreamUsageChunk
 	| ApiStreamToolCallsChunk
@@ -31,6 +33,16 @@ export interface ApiStreamTextChunk {
 	id: string;
 	/** Thought signature (used by Gemini) */
 	signature?: string;
+}
+
+/**
+ * Model-generated media content chunk.
+ */
+export interface ApiStreamMediaChunk {
+	type: "media";
+	media: GeneratedMedia;
+	/** Response ID associated with this chunk */
+	id: string;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { accessSync, constants as fsConstants } from "node:fs";
+import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
 import type { GatewayResolvedProviderConfig } from "@cline/shared";
@@ -97,21 +97,46 @@ export async function createClaudeCodeProviderModule(
 			{ cause: error },
 		);
 	}
-	const options = readOptions(config);
-	const defaultSettings =
-		(options.defaultSettings as Record<string, unknown> | undefined) ?? {};
+	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	const defaultSettings: Record<string, unknown> = {
+		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
+	};
 	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
 		const executable = resolveClaudeExecutable();
 		if (executable !== undefined) {
-			options.defaultSettings = {
-				...defaultSettings,
-				pathToClaudeCodeExecutable: executable,
-			};
+			defaultSettings.pathToClaudeCodeExecutable = executable;
 		}
 	}
-	const provider = createClaudeCode(options);
+	// Hosts forward the workspace root as a top-level `cwd` option (e.g.
+	// @cline/core's buildGatewayProviderOptions). Anchor the spawned agent
+	// session there; otherwise it inherits the host process cwd (`/` in GUI
+	// extension hosts) and refuses writes outside it. Guard on existence:
+	// the provider hard-fails settings validation for missing directories.
+	if (
+		defaultSettings.cwd === undefined &&
+		typeof workspaceCwd === "string" &&
+		workspaceCwd.length > 0 &&
+		existsSync(workspaceCwd)
+	) {
+		defaultSettings.cwd = workspaceCwd;
+	}
+	// The provider defaults settingSources to [] — the session would read
+	// neither ~/.claude/settings.json nor project .claude/settings.json, so
+	// user-configured permission rules silently never apply.
+	if (defaultSettings.settingSources === undefined) {
+		defaultSettings.settingSources = ["user", "project"];
+	}
+	// Cline has no interactive permission prompt wired into the CLI session
+	// (no canUseTool), so anything not pre-approved is denied outright. In
+	// default mode that means every file write fails. acceptEdits
+	// auto-approves file edits under cwd while leaving command execution
+	// gated by the user's own Claude settings (loaded via settingSources).
+	if (defaultSettings.permissionMode === undefined) {
+		defaultSettings.permissionMode = "acceptEdits";
+	}
+	const provider = createClaudeCode({ ...options, defaultSettings });
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -134,7 +159,7 @@ export async function createOpenAICodexProviderModule(
 	}
 	const provider = createCodexExec(readOptions(config));
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -183,7 +208,7 @@ export async function createOpenCodeProviderModule(
 		return createOpencode(readOptions(config));
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -198,10 +223,12 @@ export async function createDifyProviderModule(
 		...readOptions(config),
 	});
 	return {
-		model: (modelId) =>
-			provider(modelId, {
-				apiKey,
-			}),
+		operations: {
+			language: (modelId) =>
+				provider(modelId, {
+					apiKey,
+				}),
+		},
 	};
 }
 
@@ -298,8 +325,6 @@ async function withSapServiceKey<T>(
 	process.env.AICORE_SERVICE_KEY = serviceKey;
 	try {
 		return await fn();
-	} catch (error) {
-		throw error;
 	} finally {
 		restoreSapServiceKey(previous);
 		releaseQueue();
@@ -368,7 +393,9 @@ export async function createSapAiCoreProviderModule(
 		},
 	});
 	return {
-		model: (modelId) =>
-			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		operations: {
+			language: (modelId) =>
+				wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		},
 	};
 }

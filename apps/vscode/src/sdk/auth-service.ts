@@ -28,6 +28,7 @@ import { getRequestRegistry, type StreamingResponseHandler } from "@/core/contro
 import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { openAiCodexOAuthManager } from "@/integrations/openai-codex/oauth"
+import { LogoutReason } from "@/services/auth/types"
 import { BannerService } from "@/services/banner/BannerService"
 import { buildBasicClineHeaders } from "@/services/EnvUtils"
 import { featureFlagsService } from "@/services/feature-flags"
@@ -70,13 +71,9 @@ export interface ClineAccountOrganization {
 	roles: string[]
 }
 
-/** Logout reason for telemetry */
-export enum LogoutReason {
-	USER_INITIATED = "user_initiated",
-	CROSS_WINDOW_SYNC = "cross_window_sync",
-	ERROR_RECOVERY = "error_recovery",
-	UNKNOWN = "unknown",
-}
+// Single source for the logout-reason vocabulary; re-exported here so SDK-side
+// callers (SdkController, extension.ts) keep importing it from this module.
+export { LogoutReason }
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -375,8 +372,12 @@ export class AuthService {
 			}
 		}
 
-		// Verify the token is still valid (not past expiry)
-		if (expiresAt && Date.now() / 1000 >= expiresAt) {
+		// Verify the token is still valid (not past expiry). Re-read the expiry:
+		// a successful refresh above replaces _clineAuthInfo, and the expiry
+		// captured before it belongs to the old token — which has already passed
+		// whenever the process sat idle beyond token lifetime.
+		const currentExpiresAt = this._clineAuthInfo.expiresAt
+		if (currentExpiresAt && Date.now() / 1000 >= currentExpiresAt) {
 			return null
 		}
 
@@ -407,6 +408,9 @@ export class AuthService {
 				}
 				const newCredentials = await this.resolveValidClineCredentials(currentInfo, { forceRefresh: true })
 				if (!newCredentials) {
+					// null means the refresh token was rejected (transient failures
+					// throw). The SDK resolver already emitted user.auth_logged_out
+					// (reason=token_invalid) for this — don't double-report here.
 					sdkDebug("[SdkAuthService] refreshAccessToken: refresh returned null — clearing credentials")
 					this._clineAuthInfo = null
 					this._authenticated = false
@@ -962,8 +966,24 @@ export class AuthService {
 				startedAt: creds.sessionStartedAtMs,
 			}
 
-			const validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
+			let validCredentials: OAuthCredentials | null
+			try {
+				validCredentials = await this.resolveValidClineCredentials(restoredAuthInfo)
+			} catch (error) {
+				// The resolver throws only on transient failures (network,
+				// timeout, 5xx) — stored credentials stay untouched and the next
+				// refresh recovers automatically, so this is not a logout. The
+				// SDK already books it as user.auth_refresh_soft_failure; only
+				// the in-memory state is reset for this session.
+				Logger.error("[SdkAuthService] Transient failure refreshing stored session on restore:", error)
+				this._authenticated = false
+				this._clineAuthInfo = null
+				return
+			}
 			if (!validCredentials) {
+				// null means the stored refresh token was rejected. The SDK
+				// resolver already emitted user.auth_logged_out
+				// (reason=token_invalid) for this — don't double-report here.
 				this._authenticated = false
 				this._clineAuthInfo = null
 				clearClineCredentials()
@@ -1012,7 +1032,11 @@ export class AuthService {
 				Logger.error("[SdkAuthService] Banner update failed after restore", error)
 			})
 		} catch (error) {
+			// Unexpected failure outside the credential refresh (reading or
+			// writing providers.json, pushing auth state, …). Transient refresh
+			// failures are handled above and never reach this reason.
 			Logger.error("[SdkAuthService] Error restoring auth token:", error)
+			telemetryService.captureAuthLoggedOut("cline", LogoutReason.RESTORE_ERROR)
 			this._authenticated = false
 			this._clineAuthInfo = null
 		}

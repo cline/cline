@@ -243,7 +243,12 @@ describe("Code sidecar runtime capabilities", () => {
 			config: {},
 			messages: [],
 			promptsInQueue: [
-				{ id: "prompt-1", prompt: "hi there", steer: false, attachmentCount: 0 },
+				{
+					id: "prompt-1",
+					prompt: "hi there",
+					steer: false,
+					attachmentCount: 0,
+				},
 			],
 			busy: false,
 			startedAt: Date.now(),
@@ -293,6 +298,86 @@ describe("Code sidecar runtime capabilities", () => {
 						"chat_queued_prompt_start",
 			),
 		).toHaveLength(2);
+	});
+
+	it("relays generated media for attach-only Hub sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.media",
+			sessionId: "session-image",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			expect.objectContaining({
+				event: {
+					name: "chat_event",
+					payload: expect.objectContaining({
+						sessionId: "session-image",
+						stream: "chat_media",
+						chunk: JSON.stringify({
+							id: "generated-1",
+							modality: "image",
+							mediaType: "image/png",
+							source: { type: "base64", data: "aGVsbG8=" },
+						}),
+					}),
+				},
+			}),
+		]);
+	});
+
+	it("ignores raw assistant media for locally-owned sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: false,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "assistant.media",
+			sessionId: "session-image",
+			payload: {
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([]);
 	});
 
 	it("resolves askQuestion through the websocket request/response protocol", async () => {

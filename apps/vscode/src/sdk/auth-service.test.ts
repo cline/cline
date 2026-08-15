@@ -8,6 +8,7 @@
 // - Streaming subscription management
 // - workos: prefix handling
 
+import path from "node:path"
 import { getValidClineCredentials, type ITelemetryService, type OAuthCredentials } from "@cline/core"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import { AuthService, type ClineAuthInfo, LogoutReason } from "./auth-service"
@@ -363,6 +364,51 @@ describe("AuthService", () => {
 			const token = await authService.getAuthToken()
 			expect(token).toBeNull()
 		})
+
+		it("returns the refreshed token when an already-expired token refreshes successfully", async () => {
+			// Regression test: the process sat idle past token expiry (e.g. across
+			// a laptop suspend), so the refresh happens after expiresAt has passed.
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // already expired
+			})
+			testAccess(authService)._authenticated = true
+			vi.mocked(getValidClineCredentials).mockResolvedValue(createTestOAuthCredentials())
+
+			const token = await authService.getAuthToken()
+			expect(token).toBe("workos:oauth-access-token")
+		})
+
+		it("does not emit its own logout event when the refresh token is rejected mid-session", async () => {
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // expired → forces refresh
+			})
+			testAccess(authService)._authenticated = true
+			// null models an invalid-grant rejection; transient failures throw.
+			// The SDK resolver owns the user.auth_logged_out (token_invalid)
+			// event for this case — the adapter must stay silent or the event
+			// double-counts (see the boundary test below with the real resolver).
+			vi.mocked(getValidClineCredentials).mockResolvedValue(null)
+
+			const token = await authService.getAuthToken()
+
+			expect(token).toBeNull()
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
+		})
+
+		it("still rejects a token that comes back from refresh already expired", async () => {
+			testAccess(authService)._clineAuthInfo = createTestAuthInfo({
+				expiresAt: Math.floor(Date.now() / 1000) - 100, // already expired
+			})
+			testAccess(authService)._authenticated = true
+			vi.mocked(getValidClineCredentials).mockResolvedValue({
+				...createTestOAuthCredentials(),
+				expires: Date.now() - 1000, // refresh returned an expired token (ms)
+			})
+
+			const token = await authService.getAuthToken()
+			expect(token).toBeNull()
+		})
 	})
 
 	describe("createAuthRequest()", () => {
@@ -564,6 +610,8 @@ describe("AuthService", () => {
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
 			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			// The SDK resolver owns the token_invalid event — no adapter emission.
+			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
 		})
 	})
 
@@ -591,6 +639,93 @@ describe("AuthService", () => {
 
 			expect(testAccess(authService)._authenticated).toBe(false)
 			expect(testAccess(authService)._clineAuthInfo).toBeNull()
+			// Startup with nothing stored is not a logout — no event.
+			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
+		})
+
+		it("reports nothing when refreshing the stored session fails transiently", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
+			})
+			// The resolver throws only on transient failures (network/timeout/5xx);
+			// stored credentials are kept and the next refresh recovers, so an
+			// offline startup must not book as a logout. (The SDK reports these
+			// as user.auth_refresh_soft_failure.)
+			vi.mocked(getValidClineCredentials).mockRejectedValue(new Error("fetch failed"))
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(mockProviderSettings.get("cline")?.auth).toBeDefined()
+			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
+		})
+
+		it("reports restore_error when restore fails outside the credential refresh", async () => {
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: { accessToken: "workos:stale", refreshToken: "stale-refresh", accountId: "user-123" },
+			})
+			vi.mocked(getValidClineCredentials).mockResolvedValue(createTestOAuthCredentials())
+			vi.spyOn(authService, "sendAuthStatusUpdate").mockRejectedValue(new Error("state push failed"))
+
+			await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledTimes(1)
+			expect(mockCaptureAuthLoggedOut).toHaveBeenCalledWith("cline", LogoutReason.RESTORE_ERROR)
+		})
+
+		it("emits exactly one auth_logged_out — from the SDK resolver — when the stored refresh token is rejected", async () => {
+			// Boundary test: run the REAL getValidClineCredentials (the module
+			// mock normally hides its telemetry) so a reintroduced adapter-side
+			// emission would surface as a second event here. The specifier is a
+			// variable so tsc doesn't pull the SDK sources into this project's
+			// program (same reason the @cline/core vitest stub is tsc-excluded);
+			// vitest resolves it at runtime.
+			const realClineAuthModulePath = path.resolve(import.meta.dirname, "../../../../sdk/packages/core/src/auth/cline.ts")
+			const { getValidClineCredentials: realGetValidClineCredentials } = (await import(
+				/* @vite-ignore */ realClineAuthModulePath
+			)) as { getValidClineCredentials: typeof getValidClineCredentials }
+			vi.mocked(getValidClineCredentials).mockImplementation(realGetValidClineCredentials as never)
+			// The resolver refreshes over global fetch; reject the refresh token.
+			vi.stubGlobal(
+				"fetch",
+				vi.fn(
+					async () =>
+						new Response(JSON.stringify({ error: "invalid_grant", error_description: "refresh expired" }), {
+							status: 401,
+							headers: { "Content-Type": "application/json" },
+						}),
+				),
+			)
+			mockProviderSettings.set("cline", {
+				provider: "cline",
+				auth: {
+					accessToken: "workos:stale",
+					refreshToken: "stale-refresh",
+					accountId: "user-123",
+					expiresAt: Date.now() - 1000, // expired → forces refresh
+				},
+			})
+
+			try {
+				await authService.restoreRefreshTokenAndRetrieveAuthInfo()
+			} finally {
+				vi.unstubAllGlobals()
+			}
+
+			expect(testAccess(authService)._authenticated).toBe(false)
+			expect(mockProviderSettings.get("cline")?.auth).toBeUndefined()
+			// Exactly one user.auth_logged_out in total: the SDK resolver's
+			// token_invalid (on the SDK telemetry instance) and nothing from
+			// the adapter (on the app telemetry service).
+			const sdkLogoutEvents = vi
+				.mocked(mockSdkTelemetry.capture)
+				.mock.calls.filter(([input]) => input.event === "user.auth_logged_out")
+			expect(sdkLogoutEvents).toHaveLength(1)
+			expect(sdkLogoutEvents[0][0].properties).toMatchObject({ reason: LogoutReason.TOKEN_INVALID })
+			expect(mockCaptureAuthLoggedOut).not.toHaveBeenCalled()
 		})
 	})
 
@@ -599,6 +734,8 @@ describe("AuthService", () => {
 			expect(LogoutReason.USER_INITIATED).toBe("user_initiated")
 			expect(LogoutReason.CROSS_WINDOW_SYNC).toBe("cross_window_sync")
 			expect(LogoutReason.ERROR_RECOVERY).toBe("error_recovery")
+			expect(LogoutReason.TOKEN_INVALID).toBe("token_invalid")
+			expect(LogoutReason.RESTORE_ERROR).toBe("restore_error")
 			expect(LogoutReason.UNKNOWN).toBe("unknown")
 		})
 	})

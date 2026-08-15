@@ -23,6 +23,7 @@ export {
 } from "../services/telemetry/OpenTelemetryProvider";
 export * from "./client";
 export * from "./client/connect";
+export * from "./client/managed-hub-build-watcher";
 export * from "./client/session-client";
 export * from "./client/ui-client";
 export * from "./daemon";
