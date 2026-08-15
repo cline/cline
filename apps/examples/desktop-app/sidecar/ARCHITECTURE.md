@@ -141,6 +141,9 @@ Supported commands:
 | `chat_session_command` | shared Hub through `ClineCore` |
 | `list_provider_catalog` | `ProviderSettingsManager` + `listLocalProviders` |
 | `list_provider_models` | `getLocalProviderModels` |
+| `save_voice_input_settings` | validates and persists the selected transcription provider/model |
+| `create_streaming_transcription_session` | mints a short-lived, transcription-bound browser token without exposing provider credentials |
+| `transcribe_audio` | configured voice input selection + provider credentials |
 | `save_provider_settings` | `saveLocalProviderSettings` |
 | `add_provider` | `addLocalProvider` |
 | `run_provider_oauth_login` | `loginLocalProvider` |
@@ -151,6 +154,8 @@ Supported commands:
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession` |
 | `list_mcp_servers` | Direct file I/O |
+| `authorize_mcp_server_oauth` | Explicit Connect action → cancellable `authorizeMcpServerOAuth` + system browser |
+| `cancel_mcp_server_oauth` | Cancel the pending MCP OAuth callback wait |
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
 | `get_git_branch` | async `execFile("git", ...)` |

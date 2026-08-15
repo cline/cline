@@ -1,5 +1,74 @@
 # Cline Code Desktop Changelog
 
+## 0.0.13
+
+- Added an app font size setting. A slider in Settings scales the interface, and your size is applied before the window paints, so launching no longer flashes at the old size first.
+- Models that support it can now search the web during a task. Turn it on with the Web Search toggle in Settings; the searches and their results appear in the transcript and are still there when you reopen the session.
+- Extended thinking budgets reach the provider again on Cline Pass — they had silently stopped applying when the gateway moved off the generic OpenAI-compatible path.
+- Two Cline installs on different builds no longer shut each other's Hub down in a loop, which was killing live sessions with an abnormal disconnect.
+- The app no longer replaces a Hub that is still serving sessions. It attaches to it instead, and the swap happens once that Hub goes idle.
+- The "update required" dialog no longer interrupts when the Hub is only finishing an update on its own. This app is already the newer build, nothing was being asked of you, and the Hub replaces itself once its sessions end.
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session.
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
+## 0.0.12
+
+- Every tool call now gets its own row in the transcript, with its own icon, status, and expandable detail — no more "Read 3 files · Ran 2 commands" grouping. Commands read like a terminal (`$ bun test`) with their captured output on expand, and edits show their diffs inline, one per hunk.
+- Running tool rows are highlighted in brand violet and settle to gray when they finish; errors stay red.
+- File diffs — both in chat rows and the diff panel — now render through a shared syntax-highlighted renderer that follows the app's theme instead of the browser's.
+- Refreshed session transcript layout, message surfaces, and composer, with new Inter and Geist Mono typography.
+- The thinking indicator now stays up during quiet stretches of a turn, such as while tool arguments are streaming, so the turn no longer looks frozen.
+- Message actions (copy, fork, timestamp) no longer crowd the message text, and expanded panels render at full opacity instead of faded.
+- On the welcome screen the chat input is centered and top-aligned, and prompt suggestions are temporarily hidden.
+- The first turn of a fresh session no longer wedges the composer on "Agent is working…" forever.
+- Scheduled runs no longer appear in the session sidebar and history list.
+- Reconnecting to a stale managed Cline Hub daemon is fixed. When another Cline install ships a newer Hub, the app now prompts to update and restart — and stages the app update first, so it no longer relaunches into the same version and immediately re-prompts.
+- The Hub daemon now shuts down cleanly instead of exiting with an error when a client is still connected.
+- The Claude Code provider is usable for agentic work again: sessions are anchored on the workspace folder, your `~/.claude` and project settings are loaded, and file edits under the workspace are allowed instead of every write being refused with no approval prompt.
+- Truncated tool-call JSON is now rejected instead of being silently "repaired" into wrong arguments.
+- Fixed strict providers (seen on Vercel with kimi-k3) rejecting a turn with "user message must have content" when a message held only empty text.
+- Fixed a mid-turn crash on streamed tool calls with non-zero indexes, hit through LiteLLM's Anthropic passthrough.
+- Compaction now respects your Max Output Tokens setting instead of a hardcoded 1024-token cap — reasoning models were spending the entire budget thinking, so no summary arrived and compaction was skipped every time.
+- Vertex AI: added Fable 5 and custom model IDs, and the global-region picker no longer hides models from the live catalog.
+
+## 0.0.11
+
+- Images can now be pasted straight from the clipboard into the composer.
+- Opening a folder that isn't a git repo no longer shows git jargon, and the welcome suggestions now adapt to what's actually in the folder instead of assuming a code project.
+- The folder picker now reports failures instead of doing nothing, and offers a manual path entry as a fallback.
+- Opening an existing session no longer overwrites the model you had selected.
+- The diff panel now resolves file paths against the session's working directory, so diffs open correctly for sessions rooted outside the app's own directory.
+- `/team` prompts now run through the core runtime.
+- Failed turns surface their error in the transcript instead of leaving the chat blank.
+- Plugins left behind as empty install directories are no longer listed as installed, and plugin settings and contributions are now managed centrally with atomic toggles.
+- Fixed a startup script-load error, and webview errors are now attributed to the source URL that caused them.
+- Signing out is handled as a normal state rather than surfacing as a command error.
+- Native-feel and performance polish: the browser context menu is suppressed on app chrome (kept for text fields and selections), UI chrome is no longer text-selectable while chat content still is, inner scrollers no longer rubber-band the window, Settings/Sessions/Onboarding/Diff load lazily, the composer no longer flickers the caret on every keystroke, slash commands are cached across menu opens, and Escape closes the provider/model picker.
+- Tool output no longer nests its own scrollbar.
+- Prompts queued during a turn now survive being interrupted — they're preserved across aborts, drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped. Queued turns that fail are reported as failures.
+- Session context stays durable across aborts and hub restarts.
+- A hung MCP server no longer takes down session creation, and stdio servers that were never configured get a 30-second initialize budget instead of blocking indefinitely.
+- Remote SSE MCP servers surface an OAuth authorization prompt on a 401 instead of failing outright.
+- LiteLLM requests route through Chat Completions instead of the Responses API.
+- Network interruptions mid-stream but before any model output are retried instead of failing the turn.
+- Checkpoints are picked up when git is initialized part-way through a session, and checkpoint diffs include files that were untracked when the snapshot was taken.
+- Scheduled run reports carry execution context — schedule metadata, durations, and lifecycle error details.
+
+## 0.0.10
+
+- Remote MCP servers can now authenticate with OAuth from Settings → MCP — authorize a server, see its auth status, and cancel or retry a pending authorization. Servers that require a pre-registered OAuth client (client ID/secret) instead of dynamic registration are now supported, and stored tokens are invalidated when a server's client configuration changes.
+- MCP errors are now shown on the individual server rather than as a page-level error, and a server with invalid configuration is surfaced with its error instead of silently disappearing from the list.
+- Failed turns no longer fail silently. Sending a message with no model credentials — or any queued turn that fails — now shows an error in the transcript, enriched with the underlying cause and a pointer to Settings → Models.
+- Fixed the first message of a chat (and some queued messages) rendering twice.
+- Fixed the composer getting stuck on "Agent is working…" after a turn already finished.
+- New "Connect a model" notice on the welcome screen when no provider has credentials, with one click to onboarding or model settings. It reacts live as you add credentials, and correctly recognizes Bedrock/Vertex and keyless local endpoints as already connected.
+- Added "Get an API key" links for popular providers in onboarding and Settings → Models, plus a link to the Cline dashboard from the Cline API key form.
+- The onboarding welcome step now explains what Cline is.
+- The stop button is now actually visible and clickable, Esc stops the current turn, and new shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for settings.
+- Reasoning controls now resolve consistently across AI SDK providers, including Ollama, so effort levels and thinking on/off are honored wherever the provider supports them.
+- Vertex AI: credential refreshes now use the configured fetch, fixing ADC authentication behind proxies and custom networking.
+- Refreshed the bundled provider and model catalog.
+
 ## 0.0.9
 
 - Cline Code now ships as a single universal macOS download that runs natively on both Apple Silicon and Intel — no more picking the right architecture. Existing per-architecture installs migrate to it automatically on their next update.

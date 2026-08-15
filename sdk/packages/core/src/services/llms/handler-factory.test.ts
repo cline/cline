@@ -142,6 +142,10 @@ describe("createAgentModelFromConfig", () => {
 						contextWindow: 1_000_000,
 						maxInputTokens: 1_000_000,
 						maxTokens: 65_536,
+						modalities: {
+							input: ["text", "image"],
+							output: ["text", "image"],
+						},
 						capabilities: [
 							"tools",
 							"reasoning",
@@ -180,6 +184,10 @@ describe("createAgentModelFromConfig", () => {
 			contextWindow: 1_000_000,
 			maxInputTokens: 1_000_000,
 			maxOutputTokens: 65_536,
+			modalities: {
+				input: ["text", "image"],
+				output: ["text", "image"],
+			},
 			capabilities: expect.arrayContaining([
 				"text",
 				"tools",
@@ -257,6 +265,79 @@ describe("createAgentModelFromConfig", () => {
 							region: "us-west-2",
 							authentication: "profile",
 							profile: "dev-profile",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("forwards the workspace cwd as a Claude Code gateway provider option", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+						cwd: "/home/user/project/packages/app",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project/packages/app",
+						}),
+					}),
+				],
+			}),
+		);
+	});
+
+	it("falls back to the workspace root when no cwd is set for Claude Code", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "claude-code",
+				modelId: "sonnet",
+				systemPrompt: "",
+				tools: [],
+				extensionContext: {
+					workspace: {
+						rootPath: "/home/user/project",
+					},
+				},
+				providerConfig: {
+					providerId: "claude-code",
+					modelId: "sonnet",
+				},
+			},
+			undefined,
+		);
+
+		expect(gatewayMock.createGateway).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				providerConfigs: [
+					expect.objectContaining({
+						providerId: "claude-code",
+						options: expect.objectContaining({
+							cwd: "/home/user/project",
 						}),
 					}),
 				],
@@ -509,7 +590,9 @@ describe("createAgentModelFromConfig", () => {
 		const provider = await createSapAiCoreProviderModule(
 			gatewayConfig?.providerConfigs[0] as never,
 		);
-		const model = provider.model("anthropic--claude-4.6-sonnet") as {
+		const model = provider.operations.language(
+			"anthropic--claude-4.6-sonnet",
+		) as {
 			config?: {
 				destination?: Record<string, unknown>;
 				deploymentConfig?: Record<string, unknown>;

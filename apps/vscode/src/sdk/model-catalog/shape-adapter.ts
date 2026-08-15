@@ -13,6 +13,7 @@
  *   contextWindow?: number,
  *   maxTokens?: number,
  *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
+ *   modalities?: { input: string[], output: string[] },
  *   pricing?: { input?, output?, cacheRead?, cacheWrite? },
  *   description?: string,
  *   releaseDate?: string,        // not mapped — see "Unmapped SDK fields" below
@@ -37,11 +38,19 @@
  * | cacheReadsPrice | `sdk.pricing.cacheRead` if finite number | omitted (undefined) |
  * | cacheWritesPrice | `sdk.pricing.cacheWrite` if finite number | omitted (undefined) |
  * | description | `sdk.description` if string | omitted (undefined) |
+ * | capabilities | `sdk.capabilities` preserved verbatim | omitted (undefined) |
+ * | modalities | `sdk.modalities` preserved after validation | omitted (undefined) |
+ * | operation modes | `sdk.operationModes` preserved after validation | omitted (undefined) |
+ *
+ * The full SDK capability list is preserved on `ModelInfo.capabilities` in
+ * addition to the boolean projections above. The booleans exist for legacy
+ * consumers; the preserved list is what flows back to the SDK runtime via
+ * `toSdkModelInfo`, so capabilities without a boolean projection (`tools`,
+ * `structured_output`, and any capability added by a future catalog) survive
+ * the boundary round-trip.
  *
  * Unmapped SDK fields intentionally dropped here: `releaseDate`, `family`,
- * `status`, and capabilities other than `images`/`vision`/`prompt-cache`/
- * `reasoning` (for example `tools`, `streaming`, `structured_output`,
- * `temperature`).
+ * `status`.
  *
  * Extension-only fields not populated by this adapter: `thinkingConfig`,
  * `tiers`, `temperature`, `apiFormat`, `supportsGlobalEndpoint`, and local
@@ -75,6 +84,9 @@ const IMAGE_CAPABILITIES = new Set(["images", "vision"])
 const PROMPT_CACHE_CAPABILITY = "prompt-cache"
 const REASONING_CAPABILITY = "reasoning"
 const PRICING_KEYS = ["input", "output", "cacheRead", "cacheWrite"] as const
+const MODEL_MODALITIES = new Set(["text", "image", "audio", "video", "pdf"])
+const MODEL_OPERATIONS = new Set(["language", "image-generation", "speech-generation", "video-generation", "transcription"])
+const MODEL_OPERATION_MODES = new Set(["batch", "streaming"])
 
 interface NormalizedPricing {
 	input?: number
@@ -136,6 +148,36 @@ function readPricing(value: unknown): NormalizedPricing | undefined {
 	return result
 }
 
+function readModalities(value: unknown): NonNullable<ModelInfo["modalities"]> | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+	if (!isPlainObject(value)) {
+		throw new CatalogShapeError("SDK model-info `modalities` must be an object when present.", {
+			details: { receivedType: typeof value },
+		})
+	}
+
+	const readList = (key: "input" | "output") => {
+		const raw = value[key]
+		if (!Array.isArray(raw)) {
+			throw new CatalogShapeError(`SDK model-info \`modalities.${key}\` must be an array when present.`, {
+				details: { key, receivedType: typeof raw },
+			})
+		}
+		for (const modality of raw) {
+			if (typeof modality !== "string" || !MODEL_MODALITIES.has(modality)) {
+				throw new CatalogShapeError(`SDK model-info \`modalities.${key}\` contains an unsupported modality.`, {
+					details: { key, modality },
+				})
+			}
+		}
+		return [...raw] as NonNullable<ModelInfo["modalities"]>[typeof key]
+	}
+
+	return { input: readList("input"), output: readList("output") }
+}
+
 /**
  * Adapt an SDK model-info shape into the extension's {@link ModelInfo} shape.
  *
@@ -193,6 +235,19 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 
 	const capabilities = readStringArray(input.capabilities)
 	const pricing = readPricing(input.pricing)
+	const modalities = readModalities(input.modalities)
+	const operation = input.operation
+	if (operation !== undefined && (typeof operation !== "string" || !MODEL_OPERATIONS.has(operation))) {
+		throw new CatalogShapeError("SDK model-info `operation` is unsupported when present.", {
+			details: { operation },
+		})
+	}
+	const operationModes = readStringArray(input.operationModes)
+	if (operationModes?.some((mode) => !MODEL_OPERATION_MODES.has(mode))) {
+		throw new CatalogShapeError("SDK model-info `operationModes` contains an unsupported mode.", {
+			details: { operationModes },
+		})
+	}
 
 	const result: ModelInfo = {
 		name: rawName ?? id,
@@ -206,6 +261,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 
 	if (capabilities) {
+		result.capabilities = capabilities
 		result.supportsImages = capabilities.some((capability) => IMAGE_CAPABILITIES.has(capability))
 		if (capabilities.includes(REASONING_CAPABILITY)) {
 			result.supportsReasoning = true
@@ -222,6 +278,15 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (rawDescription !== undefined) {
 		result.description = rawDescription
+	}
+	if (modalities !== undefined) {
+		result.modalities = modalities
+	}
+	if (operation !== undefined) {
+		result.operation = operation as NonNullable<ModelInfo["operation"]>
+	}
+	if (operationModes !== undefined) {
+		result.operationModes = operationModes as NonNullable<ModelInfo["operationModes"]>
 	}
 
 	return result

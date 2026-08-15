@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeDesktopDebugLog } from "./desktop-client";
 
 type SentDesktopRequest = {
 	id: string;
@@ -97,6 +98,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.clearAllTimers();
 	vi.useRealTimers();
 	globalThis.WebSocket = originalWebSocket;
@@ -239,6 +241,62 @@ describe("DesktopClient command deadlines", () => {
 		expect(fetchMock).not.toHaveBeenCalled();
 	});
 
+	it("forwards bounded source attribution for uncaught errors", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("Unexpected token '<'");
+		error.name = "SyntaxError";
+		error.stack = `SyntaxError: Unexpected token '<'\n${"x".repeat(600)}`;
+
+		desktopClient.reportError({
+			operation: "webview.uncaught_error",
+			error,
+			handled: false,
+			sourceUrl: `tauri://localhost/_vercel/insights/script.js?${"q".repeat(600)}`,
+			lineno: 1,
+			colno: 1,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		const body = JSON.parse(String(fetchMock.mock.calls[0]?.[1]?.body)) as {
+			sourceUrl: string;
+			stack: string;
+		};
+		expect(body).toMatchObject({
+			operation: "webview.uncaught_error",
+			errorType: "SyntaxError",
+			errorMessage: "Unexpected token '<'",
+			handled: false,
+			lineno: 1,
+			colno: 1,
+		});
+		expect(body.sourceUrl).toHaveLength(500);
+		expect(
+			body.sourceUrl.startsWith("tauri://localhost/_vercel/insights/script.js"),
+		).toBe(true);
+		expect(body.stack).toHaveLength(500);
+	});
+
+	it("omits source attribution fields when they are not provided", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const error = new Error("plain failure");
+		error.stack = undefined;
+
+		desktopClient.reportError({
+			operation: "webview.uncaught_error",
+			error,
+			handled: false,
+		});
+
+		await vi.waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
+		const body = JSON.parse(
+			String(fetchMock.mock.calls[0]?.[1]?.body),
+		) as Record<string, unknown>;
+		expect("sourceUrl" in body).toBe(false);
+		expect("lineno" in body).toBe(false);
+		expect("colno" in body).toBe(false);
+		expect("stack" in body).toBe(false);
+	});
+
 	it("removes an unbounded request when WebSocket.send throws", async () => {
 		const { desktopClient } = await import("./desktop-client");
 		const invocation = desktopClient.invoke(
@@ -258,5 +316,49 @@ describe("DesktopClient command deadlines", () => {
 				}
 			).pending.size,
 		).toBe(0);
+	});
+});
+
+describe("writeDesktopDebugLog", () => {
+	it.each([
+		"debug",
+		"info",
+		"error",
+	] as const)("prints valid %s sidecar diagnostics with a static format string", (level) => {
+		const consoleSpy = vi.spyOn(console, level).mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level,
+			message: "Starting audio transcription",
+			timestamp: "2026-07-28T00:00:00.000Z",
+			metadata: {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			},
+		});
+
+		expect(consoleSpy).toHaveBeenCalledWith(
+			"%s %o",
+			"[desktop:voice-input] Starting audio transcription",
+			expect.objectContaining({
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			}),
+		);
+	});
+
+	it("ignores malformed debug events", () => {
+		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "verbose",
+			message: "invalid",
+		});
+
+		expect(debugSpy).not.toHaveBeenCalled();
 	});
 });

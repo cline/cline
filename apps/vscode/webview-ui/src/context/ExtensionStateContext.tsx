@@ -297,9 +297,9 @@ export const ExtensionStateContextProvider: React.FC<{
 		welcomeViewCompleted: false,
 		onboardingModels: undefined,
 		mcpResponsesCollapsed: false, // Default value (expanded), will be overwritten by extension state
-		yoloModeToggled: false,
 		useAutoCondense: true,
 		compactionStrategy: "basic",
+		webSearchEnabled: false,
 		subagentsEnabled: false,
 		worktreesEnabled: { user: true, featureFlag: false },
 		favoritedModelIds: [],

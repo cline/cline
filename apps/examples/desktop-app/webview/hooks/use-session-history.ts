@@ -12,6 +12,7 @@ import type {
 } from "@/lib/session-history";
 import {
 	getSessionMetadataGitBranch,
+	getSessionMetadataIsScheduled,
 	getSessionMetadataPinned,
 	getSessionMetadataTitle,
 	getSessionSource,
@@ -37,6 +38,7 @@ export interface SessionThread {
 	totalCostUsd?: number;
 	status: SessionHistoryStatus;
 	pinned?: boolean;
+	isScheduled: boolean;
 }
 
 type SessionHookEvent = {
@@ -261,6 +263,7 @@ function toThread(session: SessionHistoryItem): SessionThread {
 		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
 		pinned: getSessionMetadataPinned(session.metadata),
+		isScheduled: getSessionMetadataIsScheduled(session.metadata),
 	};
 }
 
@@ -358,6 +361,8 @@ function areSessionsEquivalent(
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
 			a.prompt !== b.prompt ||
+			getSessionMetadataIsScheduled(a.metadata) !==
+				getSessionMetadataIsScheduled(b.metadata) ||
 			getSessionMetadataGitBranch(a.metadata) !==
 				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
@@ -399,7 +404,8 @@ function areThreadsEquivalent(
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
-			a.pinned !== b.pinned
+			a.pinned !== b.pinned ||
+			a.isScheduled !== b.isScheduled
 		) {
 			return false;
 		}
@@ -1288,9 +1294,6 @@ export function useSessionHistory({
 		async (threadId: string) => {
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
-				console.error(
-					`[webview:delete] invoke delete_chat_session sessionId=${threadId}`,
-				);
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
@@ -1300,9 +1303,6 @@ export function useSessionHistory({
 					typeof deleteResult === "boolean"
 						? deleteResult
 						: deleteResult.deleted === true;
-				console.error(
-					`[webview:delete] invoke result sessionId=${threadId} deleted=${deleted}`,
-				);
 				if (!deleted) {
 					throw new Error(
 						"The session could not be removed from local history.",

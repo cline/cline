@@ -15,7 +15,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import type { AgentEvent } from "@cline/shared";
+import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -45,11 +45,15 @@ function nowMs(): number {
 	return Date.now();
 }
 
-function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
-	const encoded = JSON.stringify({
+export function encodeSidecarEvent(name: string, payload: unknown): string {
+	return JSON.stringify({
 		type: "event",
 		event: { name, payload },
 	});
+}
+
+function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
+	const encoded = encodeSidecarEvent(name, payload);
 	for (const client of ctx.wsClients) {
 		try {
 			client.send(encoded);
@@ -230,6 +234,10 @@ function handleAgentEvent(
 			// so forwarding it as another chat_text/chat_reasoning chunk duplicates
 			// the live UI while persisted history remains correct after hydration.
 			if (event.contentType === "text" || event.contentType === "reasoning") {
+				break;
+			}
+			if (event.contentType === "media" && event.media) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(event.media));
 				break;
 			}
 			if (event.contentType === "tool") {
@@ -418,6 +426,18 @@ function handleCoreSessionEvent(
 				attachmentCount: attachmentCount ?? 0,
 				userImages,
 			});
+			// The prompt left the queue; without a fresh snapshot the webview
+			// keeps a stale busy queue and the composer never returns to idle
+			// after the turn completes.
+			if (session) {
+				const remaining = session.promptsInQueue.filter(
+					(item) => item.id !== id,
+				);
+				if (remaining.length !== session.promptsInQueue.length) {
+					session.promptsInQueue = remaining;
+					sendPromptsInQueueSnapshot(ctx, sessionId);
+				}
+			}
 			break;
 		}
 		case "ended": {
@@ -487,6 +507,7 @@ export function createSidecarContext(
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 
@@ -680,6 +701,13 @@ export function handleHubLiveEvent(
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			if (text) {
 				emitChunk(ctx, sessionId, "chat_text", text);
+			}
+			return;
+		}
+		case "assistant.media": {
+			const media = event.payload?.media;
+			if (isGeneratedMedia(media)) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
 			}
 			return;
 		}
