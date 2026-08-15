@@ -41,7 +41,7 @@ export const PLAYWRIGHT_MCP_ARGS = [
 	"--caps",
 	"vision",
 	"--snapshot-mode",
-	"none",
+	"full",
 	"--image-responses",
 	"allow",
 	"--viewport-size",
@@ -149,7 +149,17 @@ function backgroundOnlyReason(detail: string): {
 } {
 	return {
 		skip: true,
-		reason: `Blocked background-only macOS computer use: ${detail} Use targeted accessibility or process-targeted input instead. If foreground control is essential, explain why and ask the user to restart Cline with ${COMPUTER_USE_ALLOW_FOREGROUND_ENV}=true.`,
+		reason: `Blocked background-only macOS computer use: ${detail} Use direct accessibility actions such as set_value or perform_action instead. If foreground control is essential, explain why and ask the user to restart Cline with ${COMPUTER_USE_ALLOW_FOREGROUND_ENV}=true.`,
+	};
+}
+
+function blockedPeekabooCapabilityReason(detail: string): {
+	skip: true;
+	reason: string;
+} {
+	return {
+		skip: true,
+		reason: `Blocked Peekaboo capability: ${detail} Use Cline's bounded tools instead.`,
 	};
 }
 
@@ -164,12 +174,29 @@ export function enforcePeekabooBackgroundPolicy(
 	input: unknown,
 	allowForeground = false,
 ): { skip: true; reason: string } | undefined {
-	if (allowForeground || !toolName.startsWith(computerUseDesktopToolPrefix)) {
+	if (!toolName.startsWith(computerUseDesktopToolPrefix)) {
 		return undefined;
 	}
 
 	const name = toolName.slice(computerUseDesktopToolPrefix.length);
 	const args = inputRecord(input);
+
+	// These arguments expand the allowlisted image tool into nested AI or an
+	// arbitrary filesystem write. Keep them blocked even in foreground mode.
+	if (name === "image" && hasInputTarget(args, ["question"])) {
+		return blockedPeekabooCapabilityReason(
+			"image.question invokes Peekaboo's nested AI analysis.",
+		);
+	}
+	if ((name === "image" || name === "see") && hasInputTarget(args, ["path"])) {
+		return blockedPeekabooCapabilityReason(
+			`${name}.path writes a screenshot to an arbitrary filesystem path.`,
+		);
+	}
+
+	if (allowForeground) {
+		return undefined;
+	}
 
 	if (args.foreground === true || args.background === false) {
 		return backgroundOnlyReason(
@@ -220,36 +247,55 @@ export function enforcePeekabooBackgroundPolicy(
 				`${name} moves the real macOS pointer and cannot run unobtrusively in the background.`,
 			);
 		case "click":
-			if (!hasInputTarget(args, ["on", "query", "snapshot", "pid"])) {
+			if (
+				!hasInputTarget(args, ["on"]) ||
+				!hasInputTarget(args, ["snapshot"])
+			) {
 				return backgroundOnlyReason(
-					"click has no element, snapshot, or process target and could affect the user's current app.",
+					"click requires both an accessibility element target and the snapshot that produced it.",
 				);
 			}
 			break;
 		case "type":
-			if (
-				!hasInputTarget(args, ["on", "snapshot", "app", "pid", "window_id"])
-			) {
-				return backgroundOnlyReason(
-					"typing has no element, snapshot, app, process, or window target and could type into the user's current app.",
-				);
-			}
-			break;
 		case "hotkey":
 		case "paste":
-			if (!hasInputTarget(args, ["app", "pid", "window_id"])) {
-				return backgroundOnlyReason(
-					`${name} has no app, process, or window target and could affect the user's current app.`,
-				);
-			}
-			break;
+			return backgroundOnlyReason(
+				`${name} sends keyboard events to a process's current focused element, which may not be the element the model inspected.`,
+			);
 		case "scroll":
-			if (!hasInputTarget(args, ["on", "snapshot"])) {
+			if (
+				!hasInputTarget(args, ["on"]) ||
+				!hasInputTarget(args, ["snapshot"])
+			) {
 				return backgroundOnlyReason(
-					"scroll has no element or snapshot target and would affect the current pointer location.",
+					"scroll requires both an accessibility element target and the snapshot that produced it.",
 				);
 			}
 			break;
+		case "image":
+			if (args.capture_focus !== "background") {
+				return backgroundOnlyReason(
+					"image must explicitly set capture_focus='background' so capture cannot activate its target app.",
+				);
+			}
+			if (args.format !== "data") {
+				return backgroundOnlyReason(
+					"image must use format='data' so the bounded capture is returned directly instead of written to disk.",
+				);
+			}
+			if (
+				typeof args.max_dimension === "number" &&
+				args.max_dimension > 1_568
+			) {
+				return backgroundOnlyReason(
+					"image max_dimension must be 1,568 pixels or less to preserve the model's coordinate space.",
+				);
+			}
+			break;
+		case "dialog":
+			return backgroundOnlyReason(
+				"dialog commands auto-focus the target application. Use inspect_ui to inspect dialogs without taking focus.",
+			);
 	}
 
 	return undefined;
@@ -328,7 +374,7 @@ const plugin: AgentPlugin = {
 				"When a task involves a web page or URL, use the computer-use-browser Playwright MCP tools.",
 				"When a task involves a native application, operating-system UI, browser chrome, or a system dialog, use the computer-use-desktop MCP tools.",
 				"Prefer the browser tools over desktop coordinates for content inside a web page.",
-				"The browser backend runs headed, isolated Chrome; inspect the page after each meaningful action and close it when the browser task is complete.",
+				"The browser backend runs headed, isolated Chrome and returns accessibility snapshots for semantic interaction; use screenshots when visual context is needed, inspect the page after each meaningful action, and close it when the browser task is complete.",
 				...(backend === "peekaboo"
 					? [
 							"Call permissions before the first desktop action.",
@@ -338,10 +384,16 @@ const plugin: AgentPlugin = {
 										"Foreground macOS control was explicitly enabled for this Cline process. Prefer background actions and ask immediately before taking focus or moving the real pointer.",
 									]
 								: [
-										"Keep macOS desktop work in the background. Do not focus, switch, launch, relaunch, or unhide apps; focus windows; switch Spaces; move the real pointer; request foreground input; or send untargeted keyboard input.",
-										"Use app list to find already-running apps, then inspect_ui or see and use element-ID click, set_value, perform_action, targeted type/hotkey/paste, or targeted scroll. Always include an app, process, window, element, or snapshot target as appropriate.",
+										"Keep macOS desktop work in the background. Do not focus, switch, launch, relaunch, or unhide apps; focus windows; switch Spaces; move the real pointer; request foreground input; mutate dialogs; or send keyboard events.",
+										"Use app list to find already-running apps, then inspect_ui or see and use set_value or perform_action. Element clicks and scrolls must include both an element target and the snapshot that produced it. Image captures must use capture_focus='background', format='data', and max_dimension no greater than 1,568.",
 									]),
-							"Prefer inspect_ui or see followed by element-ID actions; use set_value for editable accessibility elements and raw coordinates only when accessibility data is insufficient.",
+							...(foregroundComputerUseAllowed
+								? [
+										"Prefer inspect_ui or see followed by element-ID actions; use set_value for editable accessibility elements and raw coordinates only when accessibility data is insufficient.",
+									]
+								: [
+										"Prefer inspect_ui or see followed by direct accessibility actions. Raw coordinates and synthesized keyboard input are unavailable in background-only mode.",
+									]),
 							"After changing the UI, use inspect_ui or see again to verify the result.",
 							"Do not use Peekaboo's agent, analyze, browser, capture, or clipboard tools.",
 						]

@@ -1,14 +1,22 @@
 import { describe, expect, test } from "bun:test";
 import {
+	callTool,
 	claimSnapshot,
+	DEFAULT_POST_ACTION_SETTLE_MS,
 	DEFAULT_SNAPSHOT_TTL_MS,
 	describeEnvironment,
+	fitScreenshotDimensions,
 	interpolatePointerPath,
 	invalidateSnapshotsForDisplay,
+	MAX_POST_ACTION_SETTLE_MS,
+	MAX_SCREENSHOT_EDGE_PX,
+	MAX_SCREENSHOT_PIXELS,
 	MAX_SNAPSHOT_TTL_MS,
 	MIN_SNAPSHOT_TTL_MS,
 	movePointer,
+	POST_ACTION_SETTLE_ENV_VAR,
 	parsePngDimensions,
+	resolvePostActionSettleMs,
 	resolveSnapshotTtlMs,
 	SNAPSHOT_TTL_ENV_VAR,
 	SNAPSHOT_TTL_MS,
@@ -16,6 +24,14 @@ import {
 	screenshotPointToDesktop,
 	validateSnapshot,
 } from "./server.mjs";
+
+function pngWithDimensions(width: number, height: number): Buffer {
+	const png = Buffer.alloc(24);
+	Buffer.from("89504e470d0a1a0a", "hex").copy(png);
+	png.writeUInt32BE(width, 16);
+	png.writeUInt32BE(height, 20);
+	return png;
+}
 
 describe("portable computer-use snapshot TTL configuration", () => {
 	test("uses the plugin-wide environment variable name", () => {
@@ -36,6 +52,45 @@ describe("portable computer-use snapshot TTL configuration", () => {
 	test("uses the default for invalid overrides", () => {
 		expect(resolveSnapshotTtlMs("not-a-number")).toBe(DEFAULT_SNAPSHOT_TTL_MS);
 		expect(resolveSnapshotTtlMs("")).toBe(DEFAULT_SNAPSHOT_TTL_MS);
+	});
+});
+
+describe("portable computer-use post-action settling", () => {
+	test("uses the plugin-wide environment variable name and a short default", () => {
+		expect(POST_ACTION_SETTLE_ENV_VAR).toBe(
+			"CLINE_COMPUTER_USE_POST_ACTION_SETTLE_MS",
+		);
+		expect(DEFAULT_POST_ACTION_SETTLE_MS).toBe(500);
+	});
+
+	test("accepts, disables, and clamps environment overrides", () => {
+		expect(resolvePostActionSettleMs("750")).toBe(750);
+		expect(resolvePostActionSettleMs("0")).toBe(0);
+		expect(resolvePostActionSettleMs("999999")).toBe(MAX_POST_ACTION_SETTLE_MS);
+		expect(resolvePostActionSettleMs("invalid")).toBe(
+			DEFAULT_POST_ACTION_SETTLE_MS,
+		);
+	});
+});
+
+describe("portable computer-use screenshot sizing", () => {
+	test("preserves screenshots already inside the model-safe budget", () => {
+		expect(fitScreenshotDimensions(1280, 720)).toEqual({
+			width: 1280,
+			height: 720,
+		});
+	});
+
+	test("downscales Retina captures by both edge and pixel limits", () => {
+		const fitted = fitScreenshotDimensions(4112, 2658);
+
+		expect(Math.max(fitted.width, fitted.height)).toBeLessThanOrEqual(
+			MAX_SCREENSHOT_EDGE_PX,
+		);
+		expect(fitted.width * fitted.height).toBeLessThanOrEqual(
+			MAX_SCREENSHOT_PIXELS,
+		);
+		expect(fitted.width / fitted.height).toBeCloseTo(4112 / 2658, 2);
 	});
 });
 
@@ -127,12 +182,90 @@ describe("portable computer-use environment detection", () => {
 });
 
 test("reads PNG dimensions from the IHDR header", () => {
-	const png = Buffer.alloc(24);
-	Buffer.from("89504e470d0a1a0a", "hex").copy(png);
-	png.writeUInt32BE(1920, 16);
-	png.writeUInt32BE(1080, 20);
+	const png = pngWithDimensions(1920, 1080);
 
 	expect(parsePngDimensions(png)).toEqual({ width: 1920, height: 1080 });
+});
+
+describe("portable computer-use tool transaction", () => {
+	test("captures, consumes once, acts, settles, and returns a resized capture", async () => {
+		const screenshotStore = new Map();
+		const captureStore = new Map();
+		const waits: number[] = [];
+		const robotCalls: unknown[][] = [];
+		let captures = 0;
+		let ids = 0;
+		const monitor = {
+			id: () => 7,
+			name: () => "Retina",
+			x: () => 100,
+			y: () => 50,
+			width: () => 2056,
+			height: () => 1329,
+			scaleFactor: () => 2,
+			rotation: () => 0,
+			frequency: () => 60,
+			isPrimary: () => true,
+			captureImage: async () => {
+				captures += 1;
+				return { toPng: async () => pngWithDimensions(4112, 2658) };
+			},
+		};
+		const runtime = {
+			captureStore,
+			snapshotStore: screenshotStore,
+			loadScreenshots: async () => ({ Monitor: { all: () => [monitor] } }),
+			loadRobot: async () => ({
+				moveMouse: (x: number, y: number) => robotCalls.push(["move", x, y]),
+				mouseClick: (button: string, double: boolean) =>
+					robotCalls.push(["click", button, double]),
+			}),
+			resizeScreenshot: async (
+				_png: Buffer,
+				dimensions: { width: number; height: number },
+			) => pngWithDimensions(dimensions.width, dimensions.height),
+			now: () => 1_000,
+			randomUUID: () => `snapshot-${++ids}`,
+			wait: async (milliseconds: number) => {
+				waits.push(milliseconds);
+			},
+			snapshotTtlMs: 60_000,
+			postActionSettleMs: 350,
+		};
+
+		const observed = await callTool("computer_screenshot", {}, runtime);
+		const observation = JSON.parse(observed.content[0]?.text ?? "{}");
+		expect(observation.snapshot_id).toBe("snapshot-1");
+		expect(observation.capture.pixel_width).toBeLessThan(4112);
+		expect(captures).toBe(1);
+
+		const action = await callTool(
+			"computer_click",
+			{
+				snapshot_id: observation.snapshot_id,
+				x: Math.floor(observation.capture.pixel_width / 2),
+				y: Math.floor(observation.capture.pixel_height / 2),
+			},
+			runtime,
+		);
+		const actionResult = JSON.parse(action.content[0]?.text ?? "{}");
+		expect(robotCalls[0]?.[0]).toBe("move");
+		expect(robotCalls[1]).toEqual(["click", "left", false]);
+		expect(waits).toEqual([350]);
+		expect(captures).toBe(2);
+		expect(actionResult.consumed_snapshot_id).toBe("snapshot-1");
+		expect(actionResult.snapshot_id).toBe("snapshot-2");
+		expect(screenshotStore.has("snapshot-1")).toBe(false);
+		expect(screenshotStore.has("snapshot-2")).toBe(true);
+
+		await expect(
+			callTool(
+				"computer_click",
+				{ snapshot_id: "snapshot-1", x: 1, y: 1 },
+				runtime,
+			),
+		).rejects.toThrow("already-consumed snapshot");
+	});
 });
 
 describe("portable computer-use snapshot guards", () => {

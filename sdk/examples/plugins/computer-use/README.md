@@ -27,7 +27,8 @@ Peekaboo's accessibility inspection and semantic element actions.
 
 ## Routing
 
-- Web pages and URLs use Playwright in headed, isolated Chrome.
+- Web pages and URLs use Playwright's accessibility snapshots first, with
+  screenshots available for visual context, in headed, isolated Chrome.
 - Native applications, browser chrome, and system dialogs use the desktop
   backend.
 - macOS desktop tasks use Peekaboo by default.
@@ -50,10 +51,14 @@ use the pixel backend instead of Peekaboo.
 
 Peekaboo desktop control is background-only by default. The plugin blocks app
 and window focus, foreground input, Space switches, real-pointer movement, and
-keyboard or scroll actions that do not identify a target. Prefer `see` or
-`inspect_ui`, then use element IDs with `click`, `set_value`, or
-`perform_action`; targeted `type`, `hotkey`, `paste`, and `scroll` are also
-allowed.
+process-targeted keyboard delivery, because a process target does not identify
+which field currently owns keyboard focus. Prefer `see` or `inspect_ui`, then
+use `set_value` or `perform_action` on accessibility elements. Element clicks
+and scrolls require both an element and its originating snapshot. Image capture
+must use `capture_focus: "background"`, `format: "data"`, and a
+`max_dimension` no greater than 1,568. All dialog commands are blocked because
+Peekaboo auto-focuses their target; `inspect_ui` can inspect dialogs without
+that focus path.
 
 Some applications do not accept background input. If foreground control is
 essential, explain why and get the user's approval first. The user can then
@@ -75,7 +80,8 @@ backend and use both during tasks that cross the browser/desktop boundary.
 On macOS, the plugin exposes Peekaboo's bounded native UI tools, including
 `permissions`, `see`, `inspect_ui`, `click`, `type`, `app`, and `window`.
 Nested AI, browser, video capture, and clipboard tools are blocked by a
-fail-closed allowlist.
+fail-closed allowlist. The allowlisted capture tools cannot invoke nested AI or
+write to an arbitrary path.
 
 On Windows, Linux/X11, or macOS with the portable override, it exposes:
 
@@ -92,7 +98,11 @@ On Windows, Linux/X11, or macOS with the portable override, it exposes:
 
 Pointer coordinates are pixels relative to the selected display screenshot.
 The server converts Retina/HiDPI image coordinates to logical desktop
-coordinates before sending input.
+coordinates before sending input. Captures larger than 1,568 pixels on an edge
+or 1.15 megapixels are resized locally before they reach the model, and the
+coordinate mapping uses the resized dimensions. This prevents provider-side
+image resizing from silently changing the action coordinate space and reduces
+image-token cost.
 
 The following snapshot guard applies to the portable backend:
 `computer_screenshot` returns a `snapshot_id` valid for 60 seconds by default.
@@ -101,6 +111,17 @@ geometry, and returns a fresh screenshot with the next `snapshot_id`. This
 enforces an observe → one action → observe loop. Set
 `CLINE_COMPUTER_USE_SNAPSHOT_TTL_MS` to override the timeout between 5,000
 and 300,000 milliseconds.
+
+After each portable desktop action, the server waits 500 milliseconds before
+capturing the result so common animations and window transitions can settle.
+Set `CLINE_COMPUTER_USE_POST_ACTION_SETTLE_MS` between 0 and 5,000 to tune or
+disable that delay.
+
+Desktop control runs in the user's signed-in desktop session; unlike a virtual
+machine or container, it is not isolated from personal applications and data.
+Use a dedicated OS account or virtual machine for unattended or untrusted
+workloads. Playwright's isolated browser context separates browser storage, but
+the headed browser window still runs on the local desktop.
 
 Auto-approving computer-use tools grants Cline unattended browser, mouse, and
 keyboard control. Keep approval prompts enabled for sensitive or destructive

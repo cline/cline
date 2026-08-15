@@ -18,6 +18,13 @@ export const DEFAULT_SNAPSHOT_TTL_MS = 60_000;
 export const MIN_SNAPSHOT_TTL_MS = 5_000;
 export const MAX_SNAPSHOT_TTL_MS = 300_000;
 export const SNAPSHOT_TTL_ENV_VAR = "CLINE_COMPUTER_USE_SNAPSHOT_TTL_MS";
+export const DEFAULT_POST_ACTION_SETTLE_MS = 500;
+export const MIN_POST_ACTION_SETTLE_MS = 0;
+export const MAX_POST_ACTION_SETTLE_MS = 5_000;
+export const POST_ACTION_SETTLE_ENV_VAR =
+	"CLINE_COMPUTER_USE_POST_ACTION_SETTLE_MS";
+export const MAX_SCREENSHOT_EDGE_PX = 1_568;
+export const MAX_SCREENSHOT_PIXELS = 1_150_000;
 
 export function resolveSnapshotTtlMs(value) {
 	if (value === undefined || value.trim() === "") {
@@ -36,6 +43,50 @@ export function resolveSnapshotTtlMs(value) {
 export const SNAPSHOT_TTL_MS = resolveSnapshotTtlMs(
 	process.env[SNAPSHOT_TTL_ENV_VAR],
 );
+
+export function resolvePostActionSettleMs(value) {
+	if (value === undefined || value.trim() === "") {
+		return DEFAULT_POST_ACTION_SETTLE_MS;
+	}
+	const parsed = Number(value);
+	if (!Number.isFinite(parsed)) {
+		return DEFAULT_POST_ACTION_SETTLE_MS;
+	}
+	return Math.min(
+		MAX_POST_ACTION_SETTLE_MS,
+		Math.max(MIN_POST_ACTION_SETTLE_MS, Math.round(parsed)),
+	);
+}
+
+export const POST_ACTION_SETTLE_MS = resolvePostActionSettleMs(
+	process.env[POST_ACTION_SETTLE_ENV_VAR],
+);
+
+export function fitScreenshotDimensions(
+	width,
+	height,
+	maxEdge = MAX_SCREENSHOT_EDGE_PX,
+	maxPixels = MAX_SCREENSHOT_PIXELS,
+) {
+	if (
+		![width, height, maxEdge, maxPixels].every(
+			(value) => Number.isFinite(value) && value > 0,
+		)
+	) {
+		throw new Error(
+			"Screenshot dimensions and limits must be positive numbers.",
+		);
+	}
+	const scale = Math.min(
+		1,
+		maxEdge / Math.max(width, height),
+		Math.sqrt(maxPixels / (width * height)),
+	);
+	return {
+		width: Math.max(1, Math.floor(width * scale)),
+		height: Math.max(1, Math.floor(height * scale)),
+	};
+}
 
 const tools = [
 	{
@@ -413,6 +464,37 @@ async function loadScreenshots() {
 	return screenshots;
 }
 
+async function resizeScreenshot(png, dimensions) {
+	const imported = await import("sharp");
+	const sharp = imported.default ?? imported;
+	return Buffer.from(
+		await sharp(png)
+			.resize(dimensions.width, dimensions.height, { fit: "fill" })
+			.png()
+			.toBuffer(),
+	);
+}
+
+function defaultWait(milliseconds) {
+	return new Promise((resolveWait) => setTimeout(resolveWait, milliseconds));
+}
+
+function createRuntime(overrides = {}) {
+	return {
+		captureStore: captureByDisplay,
+		snapshotStore: snapshots,
+		loadRobot,
+		loadScreenshots,
+		resizeScreenshot,
+		now: Date.now,
+		randomUUID,
+		wait: defaultWait,
+		snapshotTtlMs: SNAPSHOT_TTL_MS,
+		postActionSettleMs: POST_ACTION_SETTLE_MS,
+		...overrides,
+	};
+}
+
 function toDisplay(monitor) {
 	return {
 		id: String(monitor.id()),
@@ -428,8 +510,8 @@ function toDisplay(monitor) {
 	};
 }
 
-async function getDisplayRecords() {
-	const { Monitor } = await loadScreenshots();
+async function getDisplayRecords(runtime) {
+	const { Monitor } = await runtime.loadScreenshots();
 	return Monitor.all()
 		.map((monitor) => ({ monitor, display: toDisplay(monitor) }))
 		.sort(
@@ -438,8 +520,8 @@ async function getDisplayRecords() {
 		);
 }
 
-async function selectDisplay(displayId) {
-	const records = await getDisplayRecords();
+async function selectDisplay(displayId, runtime) {
+	const records = await getDisplayRecords(runtime);
 	if (records.length === 0) {
 		throw new Error("No displays are available to capture.");
 	}
@@ -455,13 +537,13 @@ async function selectDisplay(displayId) {
 	return record;
 }
 
-async function selectSnapshotDisplay(snapshot) {
-	const records = await getDisplayRecords();
+async function selectSnapshotDisplay(snapshot, runtime) {
+	const records = await getDisplayRecords(runtime);
 	const selected = records.find(
 		({ display }) => display.id === snapshot.display.id,
 	);
 	if (!selected) {
-		snapshots.delete(snapshot.id);
+		runtime.snapshotStore.delete(snapshot.id);
 		throw new Error(
 			`Snapshot '${snapshot.id}' display is no longer available. Take a new computer_screenshot before acting.`,
 		);
@@ -469,9 +551,19 @@ async function selectSnapshotDisplay(snapshot) {
 	return selected;
 }
 
-async function captureDisplay(selected) {
+async function captureDisplay(selected, runtime) {
 	const image = await selected.monitor.captureImage();
-	const png = Buffer.from(await image.toPng());
+	const originalPng = Buffer.from(await image.toPng());
+	const originalDimensions = parsePngDimensions(originalPng);
+	const targetDimensions = fitScreenshotDimensions(
+		originalDimensions.width,
+		originalDimensions.height,
+	);
+	const png =
+		targetDimensions.width === originalDimensions.width &&
+		targetDimensions.height === originalDimensions.height
+			? originalPng
+			: await runtime.resizeScreenshot(originalPng, targetDimensions);
 	const dimensions = parsePngDimensions(png);
 	const capture = {
 		pixel_width: dimensions.width,
@@ -479,21 +571,21 @@ async function captureDisplay(selected) {
 		scale_x: dimensions.width / selected.display.width,
 		scale_y: dimensions.height / selected.display.height,
 	};
-	const createdAt = Date.now();
-	for (const [id, existing] of snapshots) {
-		if (createdAt - existing.created_at_ms > SNAPSHOT_TTL_MS) {
-			snapshots.delete(id);
+	const createdAt = runtime.now();
+	for (const [id, existing] of runtime.snapshotStore) {
+		if (createdAt - existing.created_at_ms > runtime.snapshotTtlMs) {
+			runtime.snapshotStore.delete(id);
 		}
 	}
-	invalidateSnapshotsForDisplay(snapshots, selected.display.id);
+	invalidateSnapshotsForDisplay(runtime.snapshotStore, selected.display.id);
 	const snapshot = {
-		id: randomUUID(),
+		id: runtime.randomUUID(),
 		display: selected.display,
 		capture,
 		created_at_ms: createdAt,
 	};
-	captureByDisplay.set(selected.display.id, capture);
-	snapshots.set(snapshot.id, snapshot);
+	runtime.captureStore.set(selected.display.id, capture);
+	runtime.snapshotStore.set(snapshot.id, snapshot);
 	return { png, snapshot };
 }
 
@@ -534,7 +626,7 @@ function textResult(value) {
 	};
 }
 
-function screenshotResult(snapshot, png, value = {}) {
+function screenshotResult(snapshot, png, snapshotTtlMs, value = {}) {
 	return {
 		content: [
 			{
@@ -543,7 +635,7 @@ function screenshotResult(snapshot, png, value = {}) {
 					{
 						...value,
 						snapshot_id: snapshot.id,
-						snapshot_expires_in_ms: SNAPSHOT_TTL_MS,
+						snapshot_expires_in_ms: snapshotTtlMs,
 						display: snapshot.display,
 						capture: snapshot.capture,
 						coordinate_space:
@@ -577,12 +669,17 @@ function errorResult(error) {
 	};
 }
 
-async function consumeSnapshot(args) {
+async function consumeSnapshot(args, runtime) {
 	const snapshotId = requiredString(args, "snapshot_id");
-	const snapshot = claimSnapshot(snapshots, snapshotId);
-	invalidateSnapshotsForDisplay(snapshots, snapshot.display.id);
-	const selected = await selectSnapshotDisplay(snapshot);
-	validateSnapshot(snapshot, selected.display);
+	const snapshot = claimSnapshot(runtime.snapshotStore, snapshotId);
+	invalidateSnapshotsForDisplay(runtime.snapshotStore, snapshot.display.id);
+	const selected = await selectSnapshotDisplay(snapshot, runtime);
+	validateSnapshot(
+		snapshot,
+		selected.display,
+		runtime.now(),
+		runtime.snapshotTtlMs,
+	);
 	return { ...selected, snapshot };
 }
 
@@ -597,24 +694,31 @@ function pointFromSnapshot(snapshot, args, xKey = "x", yKey = "y") {
 	);
 }
 
-async function postActionResult(selected, consumedSnapshotId, value) {
-	const { snapshot, png } = await captureDisplay(selected);
-	return screenshotResult(snapshot, png, {
+async function postActionResult(selected, consumedSnapshotId, value, runtime) {
+	if (runtime.postActionSettleMs > 0) {
+		await runtime.wait(runtime.postActionSettleMs);
+	}
+	const { snapshot, png } = await captureDisplay(selected, runtime);
+	return screenshotResult(snapshot, png, runtime.snapshotTtlMs, {
 		...value,
 		consumed_snapshot_id: consumedSnapshotId,
 	});
 }
 
-async function callTool(name, rawArgs) {
+export async function callTool(name, rawArgs, runtimeOverrides = {}) {
+	const runtime = createRuntime(runtimeOverrides);
 	const args = asObject(rawArgs);
 
 	switch (name) {
 		case "computer_environment": {
-			const environment = describeEnvironment();
+			const environment = describeEnvironment(
+				runtimeOverrides.platform,
+				runtimeOverrides.env,
+			);
 			const availability = { input: true, screenshots: true };
 			const errors = [];
 			try {
-				await loadRobot();
+				await runtime.loadRobot();
 			} catch (error) {
 				availability.input = false;
 				errors.push(
@@ -622,7 +726,7 @@ async function callTool(name, rawArgs) {
 				);
 			}
 			try {
-				await loadScreenshots();
+				await runtime.loadScreenshots();
 			} catch (error) {
 				availability.screenshots = false;
 				errors.push(
@@ -632,19 +736,25 @@ async function callTool(name, rawArgs) {
 			return textResult({ ...environment, availability, errors });
 		}
 		case "computer_list_displays": {
-			const records = await getDisplayRecords();
+			const records = await getDisplayRecords(runtime);
 			return textResult({ displays: records.map(({ display }) => display) });
 		}
 		case "computer_screenshot": {
-			const selected = await selectDisplay(optionalString(args, "display_id"));
-			const { snapshot, png } = await captureDisplay(selected);
-			return screenshotResult(snapshot, png);
+			const selected = await selectDisplay(
+				optionalString(args, "display_id"),
+				runtime,
+			);
+			const { snapshot, png } = await captureDisplay(selected, runtime);
+			return screenshotResult(snapshot, png, runtime.snapshotTtlMs);
 		}
 		case "computer_cursor_position": {
-			const robot = await loadRobot();
+			const robot = await runtime.loadRobot();
 			const position = robot.getMousePos();
-			const selected = await selectDisplay(optionalString(args, "display_id"));
-			const capture = captureByDisplay.get(selected.display.id);
+			const selected = await selectDisplay(
+				optionalString(args, "display_id"),
+				runtime,
+			);
+			const capture = runtime.captureStore.get(selected.display.id);
 			const scaleX = capture?.scale_x || selected.display.scale_factor || 1;
 			const scaleY = capture?.scale_y || selected.display.scale_factor || 1;
 			return textResult({
@@ -657,14 +767,19 @@ async function callTool(name, rawArgs) {
 			});
 		}
 		case "computer_move": {
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			const point = pointFromSnapshot(selected.snapshot, args);
 			movePointer(robot, point, args.smooth === true);
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				global_logical: point,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					global_logical: point,
+				},
+				runtime,
+			);
 		}
 		case "computer_click": {
 			const button = optionalString(args, "button") ?? "left";
@@ -675,25 +790,30 @@ async function callTool(name, rawArgs) {
 			if (clicks !== 1 && clicks !== 2) {
 				throw new Error("clicks must be 1 or 2.");
 			}
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			const point = pointFromSnapshot(selected.snapshot, args);
 			robot.moveMouse(point.x, point.y);
 			robot.mouseClick(button, clicks === 2);
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				global_logical: point,
-				button,
-				clicks,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					global_logical: point,
+					button,
+					clicks,
+				},
+				runtime,
+			);
 		}
 		case "computer_drag": {
 			const button = optionalString(args, "button") ?? "left";
 			if (!["left", "right", "middle"].includes(button)) {
 				throw new Error("button must be left, right, or middle.");
 			}
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			const start = pointFromSnapshot(
 				selected.snapshot,
 				args,
@@ -708,12 +828,17 @@ async function callTool(name, rawArgs) {
 			} finally {
 				robot.mouseToggle("up", button);
 			}
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				start_global_logical: start,
-				end_global_logical: end,
-				button,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					start_global_logical: start,
+					end_global_logical: end,
+					button,
+				},
+				runtime,
+			);
 		}
 		case "computer_scroll": {
 			const deltaX = args.delta_x ?? 0;
@@ -721,27 +846,37 @@ async function callTool(name, rawArgs) {
 			if (!Number.isInteger(deltaX) || !Number.isInteger(deltaY)) {
 				throw new Error("delta_x and delta_y must be integers.");
 			}
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			const point = pointFromSnapshot(selected.snapshot, args);
 			robot.moveMouse(point.x, point.y);
 			robot.scrollMouse(deltaX, deltaY);
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				global_logical: point,
-				delta_x: deltaX,
-				delta_y: deltaY,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					global_logical: point,
+					delta_x: deltaX,
+					delta_y: deltaY,
+				},
+				runtime,
+			);
 		}
 		case "computer_type": {
 			const text = requiredString(args, "text");
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			robot.typeString(text);
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				characters: [...text].length,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					characters: [...text].length,
+				},
+				runtime,
+			);
 		}
 		case "computer_key": {
 			const key = requiredString(args, "key");
@@ -758,14 +893,19 @@ async function callTool(name, rawArgs) {
 			) {
 				throw new Error("modifiers contains an unsupported value.");
 			}
-			const robot = await loadRobot();
-			const selected = await consumeSnapshot(args);
+			const robot = await runtime.loadRobot();
+			const selected = await consumeSnapshot(args, runtime);
 			robot.keyTap(key, modifiers);
-			return postActionResult(selected, selected.snapshot.id, {
-				ok: true,
-				key,
-				modifiers,
-			});
+			return postActionResult(
+				selected,
+				selected.snapshot.id,
+				{
+					ok: true,
+					key,
+					modifiers,
+				},
+				runtime,
+			);
 		}
 		default:
 			throw new Error(`Unknown tool: ${name}`);

@@ -40,8 +40,23 @@ export const MIN_SNAPSHOT_TTL_MS: number;
 export const MAX_SNAPSHOT_TTL_MS: number;
 export const SNAPSHOT_TTL_ENV_VAR: string;
 export const SNAPSHOT_TTL_MS: number;
+export const DEFAULT_POST_ACTION_SETTLE_MS: number;
+export const MIN_POST_ACTION_SETTLE_MS: number;
+export const MAX_POST_ACTION_SETTLE_MS: number;
+export const POST_ACTION_SETTLE_ENV_VAR: string;
+export const POST_ACTION_SETTLE_MS: number;
+export const MAX_SCREENSHOT_EDGE_PX: number;
+export const MAX_SCREENSHOT_PIXELS: number;
 
 export function resolveSnapshotTtlMs(value: string | undefined): number;
+export function resolvePostActionSettleMs(value: string | undefined): number;
+
+export function fitScreenshotDimensions(
+	width: number,
+	height: number,
+	maxEdge?: number,
+	maxPixels?: number,
+): { width: number; height: number };
 
 export function describeEnvironment(
 	platform?: string,
@@ -103,5 +118,37 @@ export function validateSnapshot(
 	now?: number,
 	ttl?: number,
 ): Snapshot;
+
+export interface PortableRuntimeOverrides {
+	captureStore?: Map<string, CaptureGeometry>;
+	snapshotStore?: Map<string, Snapshot>;
+	loadRobot?: () => Promise<Record<string, (...args: never[]) => unknown>>;
+	loadScreenshots?: () => Promise<{ Monitor: { all(): unknown[] } }>;
+	resizeScreenshot?: (
+		png: Buffer,
+		dimensions: { width: number; height: number },
+	) => Promise<Buffer>;
+	now?: () => number;
+	randomUUID?: () => string;
+	wait?: (milliseconds: number) => Promise<unknown>;
+	snapshotTtlMs?: number;
+	postActionSettleMs?: number;
+	platform?: string;
+	env?: Record<string, string | undefined>;
+}
+
+export function callTool(
+	name: string,
+	args?: unknown,
+	runtimeOverrides?: PortableRuntimeOverrides,
+): Promise<{
+	isError?: boolean;
+	content: Array<{
+		type: string;
+		text?: string;
+		data?: string;
+		mimeType?: string;
+	}>;
+}>;
 
 export function main(): Promise<void>;

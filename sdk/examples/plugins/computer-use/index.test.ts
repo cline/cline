@@ -31,6 +31,7 @@ describe("computer-use routing", () => {
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--isolated");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("--image-responses");
 		expect(PLAYWRIGHT_MCP_ARGS).toContain("vision");
+		expect(PLAYWRIGHT_MCP_ARGS).toContain("full");
 	});
 
 	test("configures Peekaboo for deterministic local capture", () => {
@@ -178,13 +179,72 @@ describe("Peekaboo tool policy", () => {
 		}
 	});
 
-	test("blocks input without a background target", () => {
+	test("blocks raw or insufficiently scoped background input", () => {
 		for (const [name, input] of [
 			["click", { coords: "100,200" }],
+			["click", { on: "elem_1" }],
 			["type", { text: "hello" }],
+			["type", { on: "elem_1", snapshot: "snapshot-1", text: "hello" }],
 			["hotkey", { keys: "cmd,k" }],
+			["hotkey", { app: "Slack", keys: "cmd,k" }],
 			["paste", { text: "hello" }],
+			["paste", { pid: 123, text: "hello" }],
 			["scroll", { direction: "down" }],
+			["scroll", { on: "elem_4", direction: "down" }],
+		] as const) {
+			const result = enforcePeekabooBackgroundPolicy(
+				`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
+				input,
+			);
+			expect(result?.skip).toBe(true);
+			expect(result?.reason).toContain("background-only macOS");
+		}
+	});
+
+	test("allows direct background accessibility actions and safe captures", () => {
+		for (const [name, input] of [
+			["click", { on: "elem_1", snapshot: "snapshot-1" }],
+			["set_value", { on: "elem_2", value: "hello" }],
+			["perform_action", { on: "elem_3", action: "AXPress" }],
+			["scroll", { on: "elem_4", snapshot: "snapshot-1", direction: "down" }],
+			[
+				"image",
+				{
+					app_target: "Slack",
+					capture_focus: "background",
+					format: "data",
+					max_dimension: 1500,
+				},
+			],
+		] as const) {
+			expect(
+				enforcePeekabooBackgroundPolicy(
+					`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
+					input,
+				),
+			).toBeUndefined();
+		}
+	});
+
+	test("blocks background capture focus and dialog mutation bypasses", () => {
+		for (const [name, input] of [
+			["image", { app_target: "Slack" }],
+			["image", { app_target: "Slack", capture_focus: "foreground" }],
+			[
+				"image",
+				{ app_target: "Slack", capture_focus: "background", format: "png" },
+			],
+			[
+				"image",
+				{
+					app_target: "Slack",
+					capture_focus: "background",
+					format: "data",
+					max_dimension: 2000,
+				},
+			],
+			["dialog", { action: "list", app: "Slack" }],
+			["dialog", { action: "click", app: "Slack", button: "Save" }],
 		] as const) {
 			expect(
 				enforcePeekabooBackgroundPolicy(
@@ -193,27 +253,27 @@ describe("Peekaboo tool policy", () => {
 				),
 			).toEqual({
 				skip: true,
-				reason: expect.stringContaining("no "),
+				reason: expect.stringContaining("background-only macOS"),
 			});
 		}
 	});
 
-	test("allows targeted background accessibility and input actions", () => {
+	test("blocks nested image AI and filesystem writes even in foreground mode", () => {
 		for (const [name, input] of [
-			["click", { on: "elem_1", snapshot: "snapshot-1" }],
-			["set_value", { on: "elem_2", value: "hello" }],
-			["perform_action", { on: "elem_3", action: "AXPress" }],
-			["type", { app: "Slack", text: "hello" }],
-			["hotkey", { window_id: 42, keys: "cmd,k" }],
-			["paste", { pid: 123, text: "hello" }],
-			["scroll", { on: "elem_4", direction: "down" }],
+			["image", { question: "What is visible?", capture_focus: "background" }],
+			["image", { path: "/tmp/capture.png", capture_focus: "background" }],
+			["see", { app_target: "Slack", path: "/tmp/capture.png" }],
 		] as const) {
 			expect(
 				enforcePeekabooBackgroundPolicy(
 					`${COMPUTER_USE_DESKTOP_SERVER_NAME}__${name}`,
 					input,
+					true,
 				),
-			).toBeUndefined();
+			).toEqual({
+				skip: true,
+				reason: expect.stringContaining("Blocked Peekaboo capability"),
+			});
 		}
 	});
 
