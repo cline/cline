@@ -80,6 +80,7 @@ describe("readSessionMessages", () => {
 			expect.objectContaining({
 				id: "assistant-message_tool_use_2",
 				createdAt: assistantTimestamp + 1,
+				meta: expect.objectContaining({ toolCallId: "tool-use" }),
 			}),
 		]);
 	});

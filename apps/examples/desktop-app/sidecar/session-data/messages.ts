@@ -333,17 +333,21 @@ export async function readSessionMessages(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
+	/** Explicit authoritative source for remote sessions; bypasses local disk. */
+	sourceMessages?: unknown[],
 ): Promise<unknown[]> {
-	const persisted =
-		readPersistedChatMessages(sessionId) ??
-		// A child agent's transcript is not stored under its own session
-		// directory — it lives beside the root session's artifacts — so opening a
-		// subagent session has to resolve the path recorded on its row.
-		readChildSessionMessages(sessionId);
+	const persisted = sourceMessages
+		? undefined
+		: (readPersistedChatMessages(sessionId) ??
+			// A child agent's transcript is not stored under its own session
+			// directory — it lives beside the root session's artifacts — so opening a
+			// subagent session has to resolve the path recorded on its row.
+			readChildSessionMessages(sessionId));
 	const messages =
-		persisted && persisted.length > 0
+		sourceMessages ??
+		(persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+			: (ctx.liveSessions.get(sessionId)?.messages ?? []));
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
@@ -517,6 +521,7 @@ export async function readSessionMessages(
 					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
+						...(toolUseId ? { toolCallId: toolUseId } : {}),
 						hookEventName: "history_tool_use",
 					},
 				});
@@ -547,6 +552,7 @@ export async function readSessionMessages(
 								? (target.meta as JsonRecord)
 								: {}),
 							toolName,
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						};
 					}
@@ -560,6 +566,7 @@ export async function readSessionMessages(
 						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
 					});

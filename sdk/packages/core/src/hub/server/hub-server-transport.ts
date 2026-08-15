@@ -24,6 +24,7 @@ import {
 } from "../../settings";
 import type { CoreSessionEvent } from "../../types/events";
 import {
+	handleApprovalListPending,
 	handleApprovalRespond,
 	requestToolApproval as requestToolApprovalHandler,
 	resolvePendingApproval,
@@ -397,6 +398,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":
 				return await handleApprovalRespond(this.ctx, envelope);
+			case "approval.list_pending":
+				return handleApprovalListPending(this.ctx, envelope);
 			case "capability.respond":
 				return handleCapabilityRespond(this.ctx, envelope);
 			case "capability.progress":

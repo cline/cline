@@ -586,6 +586,35 @@ function GeneralSettingsContent() {
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
 	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
+	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
+	// The gate the composer actually uses. It can diverge from the stored
+	// setting when the CLINE_CODE_CLOUD_AGENTS env override is set; without
+	// surfacing that, the toggle silently appears to do nothing.
+	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
+		boolean | null
+	>(null);
+	// Hard-wired on for the preview. If rollout control is ever needed,
+	// gate this on a PostHog flag exposed through the sidecar's
+	// get_feature_flags command (the sidecar's remote-flag evaluation
+	// plumbing was removed with the old rollout gate; see the git history
+	// of sidecar/feature-flags.ts for the hardened version).
+	const cloudSessionsSettingVisible = true;
+
+	const refreshCloudSessionsEffective = useCallback(async () => {
+		try {
+			const flags = await desktopClient.invoke<{ cloudAgents?: boolean }>(
+				"get_feature_flags",
+			);
+			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+		} catch {
+			setCloudSessionsEffective(null);
+		}
+	}, []);
 
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
 
@@ -596,24 +625,50 @@ function GeneralSettingsContent() {
 		setAutoUpdateError(null);
 		setWebSearchLoading(true);
 		setWebSearchError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setTelemetryError(message);
-			setAutoUpdateError(message);
-			setWebSearchError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
-			setWebSearchLoading(false);
-		}
-	}, []);
+		setCloudSessionsLoading(true);
+		setCloudSessionsError(null);
+		// Independent backends: load them concurrently so one slow call cannot
+		// hold the other's toggle in its loading state.
+		await Promise.all([
+			(async () => {
+				try {
+					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+						"get_global_settings",
+					);
+					setTelemetryOptOut(settings.telemetryOptOut);
+					setAutoUpdateEnabled(settings.autoUpdateEnabled);
+					setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setTelemetryError(message);
+					setAutoUpdateError(message);
+					setWebSearchError(message);
+				} finally {
+					setTelemetryLoading(false);
+					setAutoUpdateLoading(false);
+					setWebSearchLoading(false);
+				}
+			})(),
+			(async () => {
+				try {
+					const desktopSettings = await desktopClient.invoke<{
+						cloudSessionsEnabled: boolean;
+					}>("get_desktop_settings");
+					setCloudSessionsEnabled(
+						Boolean(desktopSettings.cloudSessionsEnabled),
+					);
+				} catch (error) {
+					setCloudSessionsError(
+						error instanceof Error ? error.message : String(error),
+					);
+				} finally {
+					setCloudSessionsLoading(false);
+				}
+			})(),
+			refreshCloudSessionsEffective(),
+		]);
+	}, [refreshCloudSessionsEffective]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -679,6 +734,26 @@ function GeneralSettingsContent() {
 			setWebSearchError(message);
 		} finally {
 			setWebSearchSaving(false);
+		}
+	};
+
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudSessionsEnabled;
+		setCloudSessionsEnabled(nextValue);
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
+		try {
+			const settings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
+			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+			await refreshCloudSessionsEffective();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setCloudSessionsEnabled(previousValue);
+			setCloudSessionsError(message);
+		} finally {
+			setCloudSessionsSaving(false);
 		}
 	};
 
@@ -916,6 +991,46 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				{cloudSessionsSettingVisible ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+								Cloud sessions
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+									Preview
+								</span>
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Run Cline on your GitHub repositories in secure cloud sandboxes.
+								Adds a Cloud option to the new-session composer. Requires a
+								Cline account with GitHub connected.
+							</p>
+							{cloudSessionsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+							{cloudSessionsEffective !== null &&
+							!cloudSessionsLoading &&
+							cloudSessionsEffective !== cloudSessionsEnabled ? (
+								<p className="mt-2 text-xs text-muted-foreground">
+									Cloud sessions are currently{" "}
+									{cloudSessionsEffective ? "enabled" : "disabled"} by the
+									CLINE_CODE_CLOUD_AGENTS environment override, which takes
+									precedence over this setting.
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Cloud sessions"
+							checked={cloudSessionsEnabled}
+							disabled={cloudSessionsLoading || cloudSessionsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudSessionsEnabled(checked)
+							}
+						/>
+					</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>

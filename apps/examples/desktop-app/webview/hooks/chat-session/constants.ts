@@ -19,6 +19,8 @@ export const OAUTH_MANAGED_PROVIDERS = new Set([
 
 export const DEFAULT_CHAT_CONFIG: ChatSessionConfig = {
 	sessionId: undefined,
+	executionTarget: "local",
+	repoUrl: undefined,
 	workspaceRoot: "",
 	cwd: "",
 	provider: "cline",

@@ -48,6 +48,9 @@ export function discoverChatSessions(
 	const out: JsonRecord[] = [];
 	const store = new SqliteSessionStore();
 	for (const [sessionId, session] of ctx.liveSessions.entries()) {
+		if (session.config.executionTarget === "cloud") {
+			continue;
+		}
 		if (!session.busy && !session.prompt && session.messages.length === 0) {
 			continue;
 		}
