@@ -14,9 +14,9 @@ import type {
 } from "@cline/core";
 import {
 	addLocalProvider,
+	ClientSettingsManager,
 	ClineAccountService,
-	captureAuthRefreshSoftFailure,
-	createConfiguredStreamingTranscriptionSession,
+	createConfiguredModeSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
@@ -27,6 +27,7 @@ import {
 	normalizeOAuthProvider,
 	ProviderSettingsManager,
 	parseMcpServerRegistration,
+	parseProviderModeSettings,
 	probeMcpServerConnection,
 	readGlobalSettings,
 	resolveMcpServerRegistration,
@@ -34,11 +35,13 @@ import {
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
+	saveModeSettings,
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
 	setModelToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
+	synthesizeConfiguredVoiceOutput,
 	transcribeConfiguredVoiceInput,
 	updateLocalProvider,
 	updateMcpSettingsFileSync,
@@ -50,6 +53,10 @@ import {
 	isCanonicalBase64,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
+	ProviderModeSchema,
+	ProviderSessionModeSchema,
+	REALTIME_CLINE_AGENT_INSTRUCTIONS,
+	REALTIME_CLINE_TOOLS,
 	readHubScheduleMode,
 } from "@cline/shared";
 import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
@@ -126,6 +133,18 @@ import { pickWorkspaceDirectory } from "./workspace-picker";
 // a synchronous exec (git, folder picker, editor discovery) freezes the whole
 // app until the child exits.
 const execFileAsync = promisify(execFile);
+const MAX_GENERATED_SPEECH_BYTES = 25 * 1024 * 1024;
+const MAX_SPEECH_TEXT_CHARACTERS = 10_000;
+const desktopClientSettingsManager = new ClientSettingsManager({
+	clientId: "desktop",
+});
+
+function createDesktopProviderSettingsManager(): ProviderSettingsManager {
+	const manager = new ProviderSettingsManager();
+	desktopClientSettingsManager.initializeModesIfMissing(manager.read().modes);
+	return manager;
+}
+
 type DesktopDebugLogLevel = "debug" | "info" | "error";
 
 function sanitizeDiagnosticUrl(value: string | undefined): string | undefined {
@@ -1511,9 +1530,12 @@ export async function handleCommand(
 
 	// ── Provider management ────────────────────────────────────────────
 	if (command === "list_provider_catalog") {
-		const manager = new ProviderSettingsManager();
+		const manager = createDesktopProviderSettingsManager();
 		await ensureCustomProvidersLoaded(manager);
-		return await listLocalProviders(manager, { isClinePassEnabled: true });
+		return await listLocalProviders(manager, {
+			isClinePassEnabled: true,
+			modeSettings: desktopClientSettingsManager.read().modes,
+		});
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
@@ -1522,9 +1544,32 @@ export async function handleCommand(
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
 	}
+	if (command === "create_mode_session") {
+		const mode = ProviderSessionModeSchema.parse(args?.mode);
+		const manager = createDesktopProviderSettingsManager();
+		return mode === "realtimeVoice"
+			? await createConfiguredModeSession(
+					manager,
+					{
+						mode,
+						expiresAfterSeconds: 300,
+						realtimeSessionConfig: {
+							instructions: REALTIME_CLINE_AGENT_INSTRUCTIONS,
+							tools: [...REALTIME_CLINE_TOOLS],
+						},
+					},
+					desktopClientSettingsManager,
+				)
+			: await createConfiguredModeSession(
+					manager,
+					{ mode, expiresAfterSeconds: 300 },
+					desktopClientSettingsManager,
+				);
+	}
 	if (command === "create_streaming_transcription_session") {
-		const manager = new ProviderSettingsManager();
-		const selection = manager.getVoiceInputSettings();
+		const manager = createDesktopProviderSettingsManager();
+		const selection =
+			desktopClientSettingsManager.getModeSettings("voiceInput");
 		const providerConfig = selection
 			? manager.getProviderConfig(selection.providerId, {
 					includeKnownModels: false,
@@ -1547,9 +1592,10 @@ export async function handleCommand(
 		);
 		const startedAt = Date.now();
 		try {
-			const session = await createConfiguredStreamingTranscriptionSession(
+			const session = await createConfiguredModeSession(
 				manager,
-				{ expiresAfterSeconds: 300 },
+				{ mode: "voiceInput", expiresAfterSeconds: 300 },
+				desktopClientSettingsManager,
 			);
 			emitDesktopDebugLog(
 				ctx,
@@ -1591,8 +1637,9 @@ export async function handleCommand(
 				`recorded audio exceeds the ${MAX_RECORDED_AUDIO_BYTES} byte limit`,
 			);
 		}
-		const manager = new ProviderSettingsManager();
-		const selection = manager.getVoiceInputSettings();
+		const manager = createDesktopProviderSettingsManager();
+		const selection =
+			desktopClientSettingsManager.getModeSettings("voiceInput");
 		const providerConfig = selection
 			? manager.getProviderConfig(selection.providerId, {
 					includeKnownModels: false,
@@ -1617,10 +1664,14 @@ export async function handleCommand(
 		);
 		const startedAt = Date.now();
 		try {
-			const result = await transcribeConfiguredVoiceInput(manager, {
-				audio: Buffer.from(audioBase64, "base64"),
-				mediaType,
-			});
+			const result = await transcribeConfiguredVoiceInput(
+				manager,
+				{
+					audio: Buffer.from(audioBase64, "base64"),
+					mediaType,
+				},
+				desktopClientSettingsManager,
+			);
 			emitDesktopDebugLog(ctx, "debug", "Audio transcription completed", {
 				...diagnostics,
 				durationMs: Date.now() - startedAt,
@@ -1637,6 +1688,43 @@ export async function handleCommand(
 			});
 			throw new Error(failure, { cause: error });
 		}
+	}
+	if (command === "synthesize_speech") {
+		const text = String(args?.text ?? "").trim();
+		if (!text) throw new Error("speech text is required");
+		if (text.length > MAX_SPEECH_TEXT_CHARACTERS) {
+			throw new Error(
+				`speech text exceeds the ${MAX_SPEECH_TEXT_CHARACTERS} character limit`,
+			);
+		}
+		const manager = createDesktopProviderSettingsManager();
+		const result = await synthesizeConfiguredVoiceOutput(
+			manager,
+			{ text },
+			desktopClientSettingsManager,
+		);
+		if (result.audio.byteLength > MAX_GENERATED_SPEECH_BYTES) {
+			throw new Error(
+				`generated speech exceeds the ${MAX_GENERATED_SPEECH_BYTES} byte limit`,
+			);
+		}
+		return {
+			audioBase64: Buffer.from(result.audio).toString("base64"),
+			mediaType: result.mediaType,
+		};
+	}
+	if (command === "save_mode_settings") {
+		const mode = ProviderModeSchema.parse(args?.mode);
+		const settings =
+			args?.settings == null
+				? undefined
+				: parseProviderModeSettings(mode, args.settings);
+		const manager = createDesktopProviderSettingsManager();
+		return await saveModeSettings(
+			manager,
+			{ mode, settings },
+			desktopClientSettingsManager,
+		);
 	}
 	if (command === "save_voice_input_settings") {
 		const providerId = String(args?.provider ?? "").trim();

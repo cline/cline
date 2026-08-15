@@ -4,6 +4,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
 	ProviderCatalogResponse,
+	ProviderMode,
 	ProviderModel,
 	ProviderModelsResponse,
 	VoiceInputSelection,
@@ -85,7 +86,10 @@ export function buildProviderModelCatalog(
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [

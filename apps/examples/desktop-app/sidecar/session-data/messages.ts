@@ -351,7 +351,7 @@ export async function readSessionMessages(
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
-		messages.slice(start),
+		messages.slice(start) as MessageWithMetadata[],
 	).map((entry) => ({
 		message: entry.message,
 		sourceIndex: start + entry.sourceIndex,
@@ -466,6 +466,16 @@ export async function readSessionMessages(
 
 		const textParts: string[] = [];
 		const images: Array<{ id: string; mediaType: string; data: string }> = [];
+		const videos: Array<{
+			id: string;
+			mediaType: string;
+			artifactName: string;
+		}> = [];
+		const audios: Array<{
+			id: string;
+			mediaType: string;
+			artifactName: string;
+		}> = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -629,6 +639,44 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
+		if (videos.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.videos = videos;
+			} else {
+				out.push({
+					id: `${messageIdBase}_videos`,
+					sessionId,
+					role,
+					content: "",
+					videos,
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
+		if (audios.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.audios = audios;
+			} else {
+				out.push({
+					id: `${messageIdBase}_audios`,
+					sessionId,
+					role,
+					content: "",
+					audios,
 					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});

@@ -55,6 +55,7 @@ function BashOutput(props: { fullText: string; theme: ResolvedTheme }) {
 
 	if (!expanded) {
 		return (
+			// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse expands optional output.
 			<box
 				flexDirection="column"
 				paddingLeft={2}
@@ -75,6 +76,7 @@ function BashOutput(props: { fullText: string; theme: ResolvedTheme }) {
 	}
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse collapses output.
 		<box
 			flexDirection="column"
 			paddingLeft={2}
@@ -160,6 +162,7 @@ function EditOutput(props: {
 	const diffPalette = props.theme.diff;
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse toggles the diff.
 		<box
 			flexDirection="column"
 			paddingLeft={2}
@@ -216,6 +219,7 @@ function ApplyPatchOutput(props: {
 	const diffPalette = props.theme.diff;
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse toggles the diff.
 		<box
 			flexDirection="column"
 			paddingLeft={2}
@@ -263,6 +267,7 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 			: displayText;
 
 		return (
+			// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse expands long output.
 			<box
 				flexDirection="column"
 				paddingLeft={2}
@@ -278,6 +283,7 @@ function GenericOutput(props: { outputSummary: string; fullText?: string }) {
 	}
 
 	return (
+		// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse collapses output.
 		<box
 			flexDirection="column"
 			paddingLeft={2}
@@ -304,6 +310,7 @@ export function ToolOutput(props: ToolOutputProps) {
 		const showDetail =
 			errorExpanded && presentation.detail !== presentation.summary.trim();
 		return (
+			// biome-ignore lint/a11y/noStaticElementInteractions: OpenTUI box is a terminal renderable, not a DOM element; mouse toggles error details.
 			<box
 				flexDirection="column"
 				paddingLeft={2}

@@ -172,6 +172,13 @@ Supported commands:
 | `upsert_mcp_server` | Direct file I/O |
 | `delete_mcp_server` | Direct file I/O |
 | `get_git_branch` | async `execFile("git", ...)` |
+
+Realtime mode sessions expose only one browser-callable tool, `run_cline`, when
+the selected realtime model supports tool calling. The webview implements that
+tool by sending the request through the active Cline chat session and returning
+its persisted result to the realtime provider for playback. Cline remains the
+owner of workspace context, agent tools, MCP, approvals, and session history;
+provider credentials remain in the sidecar.
 | `list_git_branches` | async `execFile("git", ...)` |
 | `checkout_git_branch` | async `execFile("git", ...)` |
 | `search_workspace_files` | `getFileIndex` |

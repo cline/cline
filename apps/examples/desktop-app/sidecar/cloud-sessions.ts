@@ -8,6 +8,7 @@ import {
 import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
+	type MessageWithMetadata,
 } from "@cline/shared";
 import {
 	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
@@ -2084,7 +2085,7 @@ export class CloudSessionManager {
 		}
 		const live =
 			this.ctx.liveSessions.get(record.id) ?? recordToLiveSession(record);
-		live.messages = messages;
+		live.messages = messages as MessageWithMetadata[];
 		this.ctx.liveSessions.set(record.id, live);
 		return messages;
 	}

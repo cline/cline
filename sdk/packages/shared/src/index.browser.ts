@@ -169,6 +169,7 @@ export {
 	validateImageMedia,
 } from "./llms/media";
 export type {
+	AudioContent,
 	ContentBlock,
 	FileContent,
 	ImageContent,
@@ -182,10 +183,17 @@ export type {
 	ToolDefinition,
 	ToolResultContent,
 	ToolUseContent,
+	VideoContent,
 } from "./llms/messages";
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	isAudioGenerationModel,
+	isDedicatedAudioGenerationModel,
+	isDedicatedImageGenerationModel,
+	isDedicatedVideoGenerationModel,
+	isImageGenerationModel,
+	isVideoGenerationModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -301,6 +309,7 @@ export {
 } from "./prompt/format";
 export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
+export { REALTIME_CLINE_AGENT_INSTRUCTIONS } from "./realtime-voice";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {
 	AnthropicModel,
@@ -377,19 +386,38 @@ export type {
 	ProviderConfigFieldPrimitive,
 	ProviderConfigFieldType,
 	ProviderListItem,
+	ProviderMode,
 	ProviderModel,
+	ProviderModelModeSettings,
 	ProviderModelsResponse,
+	ProviderModeSession,
+	ProviderModeSessionMap,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
+	ProviderSessionMode,
 	ProviderSettingsActionRequest,
+	RealtimeProviderTransport,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	RealtimeVoiceSessionConfig,
 	RuntimeLoggerConfig,
 	SaveProviderSettingsActionRequest,
+	StreamingVoiceInputModeSession,
+	VoiceInputModeSettings,
 	VoiceInputSelection,
+	VoiceOutputModeSettings,
 } from "./rpc/runtime";
 export {
+	PROVIDER_MODE_IDS,
+	PROVIDER_SESSION_MODE_IDS,
 	ProviderCapabilitySchema,
 	ProviderClientSchema,
+	ProviderModeSchema,
 	ProviderProtocolSchema,
+	ProviderSessionModeSchema,
 } from "./rpc/runtime";
 export type {
 	TeamProgressCounts,

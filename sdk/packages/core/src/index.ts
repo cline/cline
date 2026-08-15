@@ -655,23 +655,34 @@ export {
 } from "./services/providers/local-provider-registry";
 export {
 	addLocalProvider,
+	type CreateConfiguredModeSessionRequest,
 	type CreateConfiguredStreamingTranscriptionSessionRequest,
+	createConfiguredModeSession,
 	createConfiguredStreamingTranscriptionSession,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
 	isDedicatedTranscriptionModel,
+	isRealtimeVoiceModel,
+	isSpeechGenerationModel,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
 	loginLocalProvider,
 	markLocalProviderEnabled,
 	normalizeOAuthProvider,
+	type ProviderModeSettingsStore,
 	refreshProviderModelsFromSource,
 	resolveLocalClineAuthToken,
+	type SaveModeSettingsRequest,
+	type SynthesizeConfiguredVoiceOutputRequest,
+	type SynthesizeLocalSpeechRequest,
 	saveLocalProviderOAuthCredentials,
 	saveLocalProviderSettings,
+	saveModeSettings,
 	saveVoiceInputSettings,
+	synthesizeConfiguredVoiceOutput,
+	synthesizeLocalSpeech,
 	type TranscribeConfiguredVoiceInputRequest,
 	type TranscribeLocalAudioRequest,
 	transcribeConfiguredVoiceInput,
@@ -685,6 +696,11 @@ export {
 	type ProviderConfigFieldRequirement,
 	type ProviderConfigFields,
 } from "./services/providers/provider-config-fields";
+export {
+	ClientSettingsManager,
+	type ClientSettingsManagerOptions,
+	type StoredClientSettings,
+} from "./services/storage/client-settings-manager";
 export {
 	type MigrateLegacyProviderSettingsOptions,
 	type MigrateLegacyProviderSettingsResult,
@@ -865,16 +881,20 @@ export {
 } from "./settings";
 export type {
 	ChatMessage,
+	ChatMessageAudio,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionConfig,
 	ChatSessionStatus,
 	ChatSummary,
 	ChatViewState,
 } from "./types/chat-schema";
 export {
+	ChatMessageAudioSchema,
 	ChatMessageImageSchema,
 	ChatMessageRoleSchema,
 	ChatMessageSchema,
+	ChatMessageVideoSchema,
 	ChatSessionConfigSchema,
 	ChatSessionStatusSchema,
 	ChatSummarySchema,
@@ -1063,9 +1083,12 @@ export type {
 } from "./types/provider-settings";
 export {
 	emptyStoredProviderSettings,
+	parseProviderModeSettings,
 	StoredProviderModesSchema,
 	StoredProviderSettingsEntrySchema,
 	StoredProviderSettingsSchema,
+	VoiceInputModeSettingsSchema,
+	VoiceOutputModeSettingsSchema,
 } from "./types/provider-settings";
 export type {
 	SessionHistoryMetadata,

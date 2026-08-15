@@ -23,5 +23,11 @@ export type {
 	StoredProviderSettings,
 	StoredProviderSettingsEntry,
 } from "./provider-settings";
+export {
+	ProviderModeSettingsSchemas,
+	parseProviderModeSettings,
+	VoiceInputModeSettingsSchema,
+	VoiceOutputModeSettingsSchema,
+} from "./provider-settings";
 export type { SessionRecord, SessionRef } from "./sessions";
 export type { ArtifactStore, SessionStore, TeamStore } from "./storage";

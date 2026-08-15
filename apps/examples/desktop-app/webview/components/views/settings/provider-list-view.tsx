@@ -20,7 +20,7 @@ import {
 	Star,
 	X,
 } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -147,8 +147,10 @@ export function ProviderListContent({
 	voiceInput?: VoiceInputSelection;
 	voiceInputSaving?: boolean;
 }) {
-	const [providerSearchOpen, setProviderSearchOpen] = useState(false);
 	const [providerSearch, setProviderSearch] = useState("");
+	const providerSearchInputRef = useRef<HTMLInputElement>(null);
+	const voiceOutputInputId = useId();
+	const realtimeVoiceInputId = useId();
 	const enabledProviderCount = providers.filter(
 		(provider) => provider.enabled,
 	).length;
@@ -175,14 +177,17 @@ export function ProviderListContent({
 		<ScrollArea className="h-full">
 			<div
 				className={cn(
-					"py-10 max-[720px]:px-4 max-[720px]:py-5",
+					"grid gap-x-8 py-10 max-[720px]:px-4 max-[720px]:py-5",
+					showModeProviders
+						? "grid-cols-2 max-[1000px]:grid-cols-1"
+						: "grid-cols-1",
 					isPanel ? "px-8" : "px-18 max-[1200px]:px-8",
 				)}
 			>
 				<div
 					className={cn(
-						"mb-8 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
-						isPanel ? "max-w-none" : "max-w-2xl",
+						"order-1 mb-4 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
 					)}
 				>
 					<div className="min-w-0">
@@ -200,16 +205,6 @@ export function ProviderListContent({
 						</p>
 					</div>
 					<div className="flex shrink-0 items-center gap-2 max-[860px]:justify-start">
-						<Button
-							aria-label="Search providers"
-							className="size-8 rounded-md"
-							onClick={() => setProviderSearchOpen((open) => !open)}
-							size="icon-sm"
-							type="button"
-							variant={providerSearchOpen ? "default" : "secondary"}
-						>
-							<Search className="size-4" />
-						</Button>
 						<Button
 							className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
 							onClick={onAddProvider}
@@ -317,57 +312,83 @@ export function ProviderListContent({
 
 				<div
 					className={cn(
-						"overflow-hidden",
-						isPanel ? "max-w-none" : "max-w-2xl",
+						"order-2 col-start-1 row-start-2 mb-4",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
 					)}
 				>
-					{filteredProviders.length === 0 ? (
-						<div className="border-b px-2 py-6 text-base text-muted-foreground">
-							No providers match "{providerSearch.trim()}".
-						</div>
-					) : null}
-					{filteredProviders.map((prov) => (
-						<div
-							className={cn(
-								"flex min-h-11 items-center gap-4 border-b px-2 py-2 hover:bg-surface-hover-lighter",
-								selectedProviderId === prov.id && "bg-surface-hover",
-							)}
-							key={prov.id}
-						>
-							<button
-								className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => onConfigure(prov.id)}
-								type="button"
-							>
-								<div className="flex min-w-0 flex-1 items-baseline gap-2">
-									<p className="truncate text-lg font-semibold text-foreground">
-										{prov.name}
-									</p>
-									<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
-										{prov.id}
-									</p>
+					<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
+						<Search className="size-4 shrink-0 text-muted-foreground" />
+						<Input
+							aria-label="Search model providers"
+							className="h-7 border-0 bg-transparent px-0 text-sm"
+							onChange={(event) => setProviderSearch(event.target.value)}
+							placeholder="Search providers"
+							ref={providerSearchInputRef}
+							value={providerSearch}
+						/>
+					</div>
+				</div>
+
+				<div
+					className={cn(
+						"order-2 col-start-1 row-start-3 overflow-hidden rounded-md border shadow-inner",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
+					<ScrollArea aria-label="Model provider list" className="h-[80vh]">
+						<div>
+							{filteredProviders.length === 0 ? (
+								<div className="border-b px-2 py-6 text-[15px] text-muted-foreground">
+									No providers match "{providerSearch.trim()}".
 								</div>
-								<p className="shrink-0 text-[15px] text-muted-foreground">
-									{prov.models === null
-										? "Models load on demand"
-										: `${prov.models} model${prov.models !== 1 ? "s" : ""}`}
-								</p>
-							</button>
-							<Switch
-								aria-label={`Toggle ${prov.name}`}
-								checked={prov.enabled}
-								onCheckedChange={() => onToggle(prov.id)}
-							/>
-							<button
-								aria-label={`Configure ${prov.name}`}
-								className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground  hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								onClick={() => onConfigure(prov.id)}
-								type="button"
-							>
-								<ChevronRight className="size-4" />
-							</button>
+							) : null}
+							{filteredProviders.map((prov) => (
+								<div
+									className={cn(
+										"flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-surface-hover-lighter",
+										selectedProviderId === prov.id && "bg-surface-hover",
+									)}
+									key={prov.id}
+								>
+									<button
+										className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										onClick={() => onConfigure(prov.id)}
+										type="button"
+									>
+										<div className="flex min-w-0 flex-1 items-baseline gap-2">
+											<p className="truncate text-[17px] font-semibold text-foreground">
+												{prov.name}
+											</p>
+											<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
+												{prov.id}
+											</p>
+										</div>
+										<p className="shrink-0 text-[15px] text-muted-foreground">
+											{prov.models === null
+												? "Models load on demand"
+												: `${prov.models} model${prov.models !== 1 ? "s" : ""}`}
+										</p>
+									</button>
+									<Switch
+										aria-label={`Toggle ${prov.name}`}
+										checked={prov.enabled}
+										onCheckedChange={() => onToggle(prov.id)}
+									/>
+									<button
+										aria-label={`Configure ${prov.name}`}
+										className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+										onClick={() => onConfigure(prov.id)}
+										type="button"
+									>
+										<ChevronRight className="size-4" />
+									</button>
+								</div>
+							))}
 						</div>
-					))}
+					</ScrollArea>
+					<div className="border-t bg-muted/60 px-3 py-1.5 text-center text-xs text-muted-foreground">
+						Scroll to view more providers
+					</div>
 				</div>
 			</div>
 		</ScrollArea>

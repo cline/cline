@@ -1,4 +1,6 @@
+import { randomUUID } from "node:crypto";
 import { readdirSync } from "node:fs";
+import { mkdir, rename, rm, writeFile } from "node:fs/promises";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type * as LlmsProviders from "@cline/llms";
@@ -138,6 +140,57 @@ import {
 	readPersistedMessagesFile,
 	replaySubagentHookEvent,
 } from "./runtime-host-support";
+
+function generatedArtifactExtension(
+	kind: "video" | "audio",
+	mediaType: string,
+): string {
+	switch (mediaType.toLowerCase()) {
+		case "video/webm":
+			return "webm";
+		case "video/quicktime":
+			return "mov";
+		case "video/mpeg":
+			return "mpeg";
+		case "audio/wav":
+		case "audio/wave":
+		case "audio/x-wav":
+			return "wav";
+		case "audio/aac":
+			return "aac";
+		case "audio/mp4":
+		case "audio/m4a":
+		case "audio/x-m4a":
+			return "m4a";
+		case "audio/webm":
+			return "weba";
+		case "audio/flac":
+			return "flac";
+		case "audio/ogg":
+		case "audio/opus":
+			return "ogg";
+		default:
+			return kind === "audio" ? "mp3" : "mp4";
+	}
+}
+
+async function storeSessionGeneratedArtifact(
+	sessionDir: string,
+	artifact: { kind: "video" | "audio"; data: string; mediaType: string },
+): Promise<{ path: string }> {
+	const artifactsDir = join(sessionDir, "artifacts");
+	await mkdir(artifactsDir, { recursive: true });
+	const filename = `${artifact.kind}-${Date.now()}-${randomUUID()}.${generatedArtifactExtension(artifact.kind, artifact.mediaType)}`;
+	const path = join(artifactsDir, filename);
+	const temporaryPath = `${path}.tmp`;
+	try {
+		await writeFile(temporaryPath, Buffer.from(artifact.data, "base64"));
+		await rename(temporaryPath, path);
+	} finally {
+		await rm(temporaryPath, { force: true }).catch(() => undefined);
+	}
+	return { path };
+}
 
 const MAX_SCAN_LIMIT = 5000;
 
@@ -696,6 +749,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 			hookErrorMode: configWithProvider.hookErrorMode,
 			initialMessages: bootstrap.effectiveInput.initialMessages,
 			userFileContentLoader: loadUserFileContent,
+			storeGeneratedArtifact: (artifact) =>
+				storeSessionGeneratedArtifact(sessionDir, artifact),
 			toolPolicies: bootstrap.toolPolicies,
 			requestToolApproval: bootstrap.requestToolApproval
 				? async (request) => {

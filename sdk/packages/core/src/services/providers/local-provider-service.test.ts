@@ -1503,6 +1503,21 @@ describe("listLocalProviders", () => {
 
 	afterEach(() => cleanup());
 
+	it("includes text-to-image models in the chat model set", () => {
+		expect(
+			isChatProviderModel({
+				inputModalities: ["text"],
+				outputModalities: ["image"],
+			}),
+		).toBe(true);
+		expect(
+			isChatProviderModel({
+				inputModalities: ["audio"],
+				outputModalities: ["image"],
+			}),
+		).toBe(false);
+	});
+
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {
 			providerId: "list-provider-a",

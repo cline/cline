@@ -189,7 +189,30 @@ function getSelectedModelsDevProviders(
 	return selected;
 }
 
-function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
+function isStreamingTranscriptionModel(
+	modelId: string,
+	model: ModelsDevModel,
+): boolean {
+	const isDedicatedTranscriptionModel =
+		model.modalities?.input?.length === 1 &&
+		model.modalities.input[0] === "audio" &&
+		model.modalities.output?.length === 1 &&
+		model.modalities.output[0] === "text";
+	if (!isDedicatedTranscriptionModel) {
+		return false;
+	}
+
+	// models.dev exposes modalities but does not currently distinguish batch
+	// transcription from WebSocket-only transcription. Realtime transcription
+	// models consistently carry "realtime" in their canonical model/name.
+	const identity = `${modelId} ${model.name ?? ""}`.toLowerCase();
+	return /(?:^|[/_.-])realtime(?:$|[/_.-])/.test(identity);
+}
+
+function toCapabilities(
+	modelId: string,
+	model: ModelsDevModel,
+): ModelInfo["capabilities"] {
 	const capabilities: NonNullable<ModelInfo["capabilities"]> = [];
 	if (model.modalities?.input?.includes("image")) {
 		capabilities.push("images");
@@ -211,6 +234,9 @@ function toCapabilities(model: ModelsDevModel): ModelInfo["capabilities"] {
 	}
 	if (model.temperature === true) {
 		capabilities.push("temperature");
+	}
+	if (isStreamingTranscriptionModel(modelId, model)) {
+		capabilities.push("transcription-streaming");
 	}
 	if (
 		(model.cost?.cache_read && model.cost?.cache_read >= 0) ||
@@ -326,7 +352,7 @@ function toModelInfo(modelId: string, model: ModelsDevModel): ModelInfo {
 		contextWindow: rawContextLimit,
 		maxInputTokens,
 		maxTokens: Math.floor(outputToken),
-		capabilities: toCapabilities(model),
+		capabilities: toCapabilities(modelId, model),
 		...(model.reasoning_options !== undefined
 			? { reasoningOptions: model.reasoning_options }
 			: {}),

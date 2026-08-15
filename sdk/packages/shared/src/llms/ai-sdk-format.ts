@@ -60,6 +60,16 @@ export type AiSdkFormatterPart =
 			content: string;
 	  }
 	| {
+			type: "video";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
+			type: "audio";
+			path?: string;
+			mediaType: string;
+	  }
+	| {
 			type: "tool-call";
 			toolCallId: string;
 			toolName: string;

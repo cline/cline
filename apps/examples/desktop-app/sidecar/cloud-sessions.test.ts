@@ -1,5 +1,5 @@
 import { HubTransportError } from "@cline/core";
-import type { HubEventEnvelope } from "@cline/shared";
+import type { HubEventEnvelope, MessageWithMetadata } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
@@ -1406,7 +1406,9 @@ describe("CloudSessionManager", () => {
 		});
 		await manager.list();
 		await manager.attach("ses-outer");
-		const previous = [{ role: "assistant", content: "keep me" }];
+		const previous: MessageWithMetadata[] = [
+			{ role: "assistant", content: "keep me" },
+		];
 		const live = ctx.liveSessions.get("ses-outer");
 		if (live) live.messages = previous;
 		hub.commandHook = (command) => {

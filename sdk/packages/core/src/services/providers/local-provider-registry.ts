@@ -243,6 +243,7 @@ export function toProviderModel(
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		supportsTools: info.capabilities?.includes("tools"),
 		operationModes: info.operationModes,
 		inputModalities: info.modalities?.input,
 		outputModalities: info.modalities?.output,

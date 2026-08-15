@@ -211,6 +211,11 @@ const NATIVE_COMMANDS = new Set([
 	"restart_to_apply_update",
 	"check_for_update_now",
 	"set_app_icon",
+	"list_avatars",
+	"get_selected_avatar",
+	"set_selected_avatar",
+	"set_avatar_enabled",
+	"handle_avatar_overlay_action",
 	"drain_desktop_menu_actions",
 	"set_tray_status",
 ]);

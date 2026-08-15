@@ -135,6 +135,16 @@ Desktop transport envelope:
 ## Data + Storage
 
 - Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
+- Desktop avatar packages live under `~/.cline/avatars/<avatar-name>/`. Each package
+  contains a v2 `spritesheet.webp` (or PNG) and either an `avatar.json` or
+  `pet.json` manifest with
+  `id`, `displayName`, `description`, `spriteVersionNumber: 2`, and
+  `spritesheetPath`. If both manifests exist, `avatar.json` takes precedence.
+  The bundled Cline Bot avatar is selected and enabled by default, with Mom also
+  available as a bundled option.
+  Visibility and the selected installed avatar are configured independently under
+  **Settings → General → Desktop avatar**; both values are stored in
+  `~/.cline/avatars/selected.json`.
 - Canonical replay/export artifact: `<sessionId>.messages.json`.
 - `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.

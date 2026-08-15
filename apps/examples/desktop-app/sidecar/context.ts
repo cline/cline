@@ -720,14 +720,14 @@ export function handleHubLiveEvent(
 	}
 
 	switch (event.event) {
-		case "assistant.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			if (text) {
-				emitChunk(ctx, sessionId, "chat_text", text);
-			}
+		case "assistant.delta":
+		case "assistant.image":
+		case "assistant.video":
+		case "assistant.audio":
+			// HubRuntimeHost already projects these into the canonical Core event
+			// stream consumed by handleCoreSessionEvent. Relaying the raw Hub copy
+			// too duplicates the assistant output.
 			return;
-		}
 		case "assistant.media": {
 			const media = event.payload?.media;
 			if (isGeneratedMedia(media)) {

@@ -41,6 +41,24 @@ export interface AgentImagePart {
 	mediaType?: string;
 }
 
+export interface AgentVideoPart {
+	type: "video";
+	mediaType: string;
+	/** Base64 bytes for stateless runtimes; persistent hosts replace this with path. */
+	data?: string;
+	/** Absolute path to a host-persisted generated-video artifact. */
+	path?: string;
+}
+
+export interface AgentAudioPart {
+	type: "audio";
+	mediaType: string;
+	/** Base64 bytes for stateless runtimes; persistent hosts replace this with path. */
+	data?: string;
+	/** Absolute path to a host-persisted generated-audio artifact. */
+	path?: string;
+}
+
 export interface AgentFilePart {
 	type: "file";
 	path: string;
@@ -88,6 +106,8 @@ export type AgentMessagePart =
 	| AgentTextPart
 	| AgentReasoningPart
 	| AgentImagePart
+	| AgentVideoPart
+	| AgentAudioPart
 	| AgentFilePart
 	| AgentMediaPart
 	| AgentToolCallPart
@@ -502,6 +522,11 @@ export interface AgentRuntimeConfig {
 	requestToolApproval?: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult> | ToolApprovalResult;
+	storeGeneratedArtifact?: (artifact: {
+		kind: "video" | "audio";
+		data: string;
+		mediaType: string;
+	}) => Promise<{ path: string }>;
 	/**
 	 * Optional host-owned request projection hook invoked before each model call.
 	 *

@@ -15,8 +15,10 @@ import {
 	Copy,
 	Loader2,
 	PencilIcon,
+	Square,
 	SplitIcon,
 	UndoIcon,
+	Volume2,
 } from "lucide-react";
 import { memo, useEffect, useState } from "react";
 import type {
@@ -26,6 +28,7 @@ import type {
 } from "@/lib/chat-schema";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
+import { MessageAudios, MessageImages, MessageVideos } from "./message-media";
 import { ReasoningBlock } from "./reasoning-block";
 
 function AssistantImageCarousel({
@@ -160,6 +163,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming = false,
 	onCopyMessage,
 	onExpandImage,
+	onExpandVideo,
 	onEditMessage,
 	editDisabled = false,
 	editPending = false,
@@ -173,6 +177,11 @@ export const MessageBubble = memo(function MessageBubble({
 	forkDisabled = false,
 	forkPending = false,
 	forkError,
+	onSpeakMessage,
+	speechAvailable = false,
+	speechSettingsLoaded = false,
+	speechState,
+	speechTargetLabel,
 	isLastAssistantMessage = false,
 	reasoningContent,
 	reasoningRedacted,
@@ -184,6 +193,7 @@ export const MessageBubble = memo(function MessageBubble({
 	isStreaming?: boolean;
 	onCopyMessage?: (messageId: string, content: string) => void | Promise<void>;
 	onExpandImage?: (image: ChatMessageImage) => void;
+	onExpandVideo?: (video: ChatMessageVideo) => void;
 	onEditMessage?: (
 		messageId: string,
 		content: string,
@@ -204,6 +214,11 @@ export const MessageBubble = memo(function MessageBubble({
 	forkDisabled?: boolean;
 	forkPending?: boolean;
 	forkError?: string;
+	onSpeakMessage?: (messageId: string, content: string) => void | Promise<void>;
+	speechAvailable?: boolean;
+	speechSettingsLoaded?: boolean;
+	speechState?: AssistantSpeechPhase;
+	speechTargetLabel?: string;
 	isLastAssistantMessage?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
@@ -221,7 +236,7 @@ export const MessageBubble = memo(function MessageBubble({
 		!isStreaming &&
 		!isError &&
 		Boolean(displayContent.trim()) &&
-		Boolean(onCopyMessage || onForkSession);
+		Boolean(onCopyMessage || onForkSession || onSpeakMessage);
 	const shouldRenderUserActions =
 		isUser &&
 		Boolean(
@@ -235,7 +250,10 @@ export const MessageBubble = memo(function MessageBubble({
 		Boolean(restoreError) ||
 		Boolean(editError);
 	const keepAssistantActionsVisible =
-		isLastAssistantMessage || forkPending || Boolean(forkError);
+		isLastAssistantMessage ||
+		forkPending ||
+		Boolean(forkError) ||
+		Boolean(speechState);
 
 	const messageDate = new Date(message.createdAt);
 	const hasValidMessageDate = !Number.isNaN(messageDate.getTime());
@@ -368,6 +386,44 @@ export const MessageBubble = memo(function MessageBubble({
 								<Check className="h-3 w-3" />
 							) : (
 								<Copy className="h-3 w-3" />
+							)}
+						</MessageAction>
+					) : null}
+					{onSpeakMessage ? (
+						<MessageAction
+							disabled={!speechSettingsLoaded}
+							label={
+								speechState === "generating"
+									? "Cancel speech generation"
+									: speechState === "playing"
+										? "Stop speaking assistant message"
+										: speechAvailable
+											? "Speak assistant message"
+											: "Configure voice output"
+							}
+							onClick={() => void onSpeakMessage(message.id, displayContent)}
+							title={
+								!speechSettingsLoaded
+									? "Loading voice output settings"
+									: speechState === "generating"
+										? "Cancel speech generation"
+										: speechState === "playing"
+											? "Stop speaking"
+											: speechTargetLabel
+												? `Speak with ${speechTargetLabel}`
+												: "Configure voice output in Settings → Models"
+							}
+						>
+							{speechState ? (
+								<Square
+									className={
+										speechState === "generating"
+											? "size-3 animate-pulse"
+											: "size-3"
+									}
+								/>
+							) : (
+								<Volume2 className="size-3" />
 							)}
 						</MessageAction>
 					) : null}

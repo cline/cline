@@ -24,6 +24,7 @@ import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { openExternalUrl } from "@/lib/desktop-client";
@@ -36,6 +37,7 @@ import {
 	groupChatMessages,
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
+import { ChatVideoLightbox } from "./messages/message-media";
 import { MessageBubble } from "./messages/message-bubble";
 import {
 	formatApprovalTimestamp,
@@ -44,6 +46,7 @@ import {
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { useAssistantSpeech } from "./messages/use-assistant-speech";
 import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
@@ -183,12 +186,22 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const [expandedVideo, setExpandedVideo] = useState<{
+		sessionId: string;
+		video: ChatMessageVideo;
+	} | null>(null);
+	const assistantSpeech = useAssistantSpeech({
+		sessionId,
+		onOpenVoiceOutputSettings,
+	});
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
 		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
+	const visibleExpandedVideo =
+		expandedVideo?.sessionId === sessionId ? expandedVideo : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
@@ -233,17 +246,18 @@ function ChatMessagesImpl({
 	}, [sessionId]);
 
 	useEffect(() => {
-		if (!visibleExpandedImage) {
+		if (!visibleExpandedImage && !visibleExpandedVideo) {
 			return;
 		}
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				setExpandedImage(null);
+				setExpandedVideo(null);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [visibleExpandedImage]);
+	}, [visibleExpandedImage, visibleExpandedVideo]);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
@@ -442,6 +456,12 @@ function ChatMessagesImpl({
 		},
 		[sessionId],
 	);
+	const handleExpandVideo = useCallback(
+		(video: ChatMessageVideo) => {
+			if (sessionId) setExpandedVideo({ sessionId, video });
+		},
+		[sessionId],
+	);
 
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
@@ -525,6 +545,7 @@ function ChatMessagesImpl({
 											message={message}
 											runCount={userRunCountByMessage.get(message)}
 											onExpandImage={handleExpandImage}
+											onExpandVideo={handleExpandVideo}
 											onCopyMessage={handleCopyMessage}
 											onEditMessage={
 												onEditMessage ? requestEditMessage : undefined
@@ -569,6 +590,19 @@ function ChatMessagesImpl({
 											}
 											forkPending={forkingMessageId === message.id}
 											forkError={forkErrors[message.id]}
+											onSpeakMessage={assistantSpeech.speak}
+											speechAvailable={Boolean(assistantSpeech.target)}
+											speechSettingsLoaded={assistantSpeech.settingsLoaded}
+											speechState={
+												assistantSpeech.state?.messageId === message.id
+													? assistantSpeech.state.phase
+													: undefined
+											}
+											speechTargetLabel={
+												assistantSpeech.target
+													? `${assistantSpeech.target.providerName} / ${assistantSpeech.target.modelName}`
+													: undefined
+											}
 											reasoningContent={reasoningContent}
 											reasoningRedacted={reasoningMessages.some(
 												(reasoningMessage) =>
@@ -680,6 +714,13 @@ function ChatMessagesImpl({
 				<ChatImageLightbox
 					image={visibleExpandedImage}
 					onClose={() => setExpandedImage(null)}
+				/>
+			) : null}
+			{visibleExpandedVideo ? (
+				<ChatVideoLightbox
+					onClose={() => setExpandedVideo(null)}
+					sessionId={visibleExpandedVideo.sessionId}
+					video={visibleExpandedVideo.video}
 				/>
 			) : null}
 			<AlertDialog

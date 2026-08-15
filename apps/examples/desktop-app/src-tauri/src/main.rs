@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use base64::Engine;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::fs;
@@ -14,17 +15,24 @@ use tauri::menu::{Menu, MenuItemKind, PredefinedMenuItem, Submenu};
 use tauri::{
     menu::{MenuBuilder, MenuItem},
     tray::TrayIconBuilder,
-    Emitter, Manager, RunEvent, State, WindowEvent,
+    Emitter, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder, WindowEvent,
 };
 use tauri_plugin_updater::UpdaterExt;
 
 const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
 const UPDATE_CHECK_INTERVAL: Duration = Duration::from_secs(2 * 60 * 60);
 const MAIN_WINDOW_LABEL: &str = "main";
+const AVATAR_OVERLAY_WINDOW_LABEL: &str = "avatar-overlay";
+const DEFAULT_AVATAR_ID: &str = "cline-bot";
+const AVATAR_CHANGED_EVENT: &str = "avatar-changed";
+const AVATAR_SHOWN_EVENT: &str = "avatar-shown";
+const AVATAR_COLLAPSED_WIDTH: f64 = 144.0;
+const AVATAR_COLLAPSED_HEIGHT: f64 = 156.0;
 const TRAY_ICON_ID: &str = "cline-code";
 const TRAY_OPEN_MENU_ID: &str = "tray-open";
 const TRAY_NEW_SESSION_MENU_ID: &str = "tray-new-session";
 const TRAY_SETTINGS_MENU_ID: &str = "tray-settings";
+const TRAY_TOGGLE_AVATAR_MENU_ID: &str = "tray-toggle-avatar";
 const TRAY_QUIT_MENU_ID: &str = "tray-quit";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_IN_MENU_ID: &str = "view-zoom-in";
@@ -66,6 +74,45 @@ struct TrayMenuState {
 struct AppContext {
     launch_cwd: String,
     workspace_root: String,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "camelCase")]
+struct AvatarManifest {
+    id: String,
+    display_name: String,
+    description: String,
+    sprite_version_number: u8,
+    spritesheet_path: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct AvatarOption {
+    id: String,
+    display_name: String,
+    description: String,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SelectedAvatar {
+    id: String,
+    display_name: String,
+    description: String,
+    sprite_url: String,
+    enabled: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct SelectedAvatarPreference {
+    id: String,
+    #[serde(default = "default_avatar_enabled")]
+    enabled: bool,
+}
+
+fn default_avatar_enabled() -> bool {
+    true
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -460,6 +507,14 @@ fn spawn_desktop_backend_process(context: &AppContext) -> Result<Child, String> 
         ));
     };
 
+    // The debug shell launches a compiled Bun sidecar, so it does not inherit
+    // Bun's `--conditions=development` signal. Mark it explicitly; otherwise
+    // the sidecar discovers the production hub and can execute sessions with
+    // an installed SDK instead of the sources in this checkout.
+    if cfg!(debug_assertions) && std::env::var_os("CLINE_BUILD_ENV").is_none() {
+        command.env("CLINE_BUILD_ENV", "development");
+    }
+
     command
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
@@ -806,6 +861,284 @@ fn show_main_window(app: &tauri::AppHandle) {
     let _ = window.set_focus();
 }
 
+fn avatars_root() -> Result<PathBuf, String> {
+    let home = std::env::var("HOME").map_err(|_| "HOME is not set".to_string())?;
+    Ok(PathBuf::from(home).join(".cline").join("avatars"))
+}
+
+fn avatar_manifest_path(avatar_dir: &Path) -> Option<PathBuf> {
+    ["avatar.json", "pet.json"]
+        .into_iter()
+        .map(|file_name| avatar_dir.join(file_name))
+        .find(|path| path.is_file())
+}
+
+fn read_custom_avatars() -> Vec<(AvatarManifest, PathBuf)> {
+    let Ok(root) = avatars_root() else {
+        return Vec::new();
+    };
+    let Ok(entries) = fs::read_dir(root) else {
+        return Vec::new();
+    };
+    let mut avatars = Vec::new();
+    for entry in entries.flatten() {
+        let Ok(file_type) = entry.file_type() else {
+            continue;
+        };
+        if !file_type.is_dir() {
+            continue;
+        }
+        let Some(manifest_path) = avatar_manifest_path(&entry.path()) else {
+            continue;
+        };
+        let Ok(body) = fs::read(manifest_path) else {
+            continue;
+        };
+        let Ok(manifest) = serde_json::from_slice::<AvatarManifest>(&body) else {
+            continue;
+        };
+        if manifest.sprite_version_number != 2
+            || manifest.id.trim().is_empty()
+            || manifest.display_name.trim().is_empty()
+        {
+            continue;
+        }
+        let Ok(avatar_dir) = entry.path().canonicalize() else {
+            continue;
+        };
+        let Ok(sprite_path) = avatar_dir.join(&manifest.spritesheet_path).canonicalize() else {
+            continue;
+        };
+        if sprite_path.is_file() && sprite_path.starts_with(&avatar_dir) {
+            avatars.push((manifest, sprite_path));
+        }
+    }
+    avatars.sort_by(|(left, _), (right, _)| left.display_name.cmp(&right.display_name));
+    avatars
+}
+
+fn avatar_preference() -> SelectedAvatarPreference {
+    let Ok(root) = avatars_root() else {
+        return SelectedAvatarPreference {
+            id: DEFAULT_AVATAR_ID.to_string(),
+            enabled: true,
+        };
+    };
+    fs::read(root.join("selected.json"))
+        .ok()
+        .and_then(|body| serde_json::from_slice::<SelectedAvatarPreference>(&body).ok())
+        .unwrap_or_else(|| SelectedAvatarPreference {
+            id: DEFAULT_AVATAR_ID.to_string(),
+            enabled: true,
+        })
+}
+
+fn write_avatar_preference(preference: &SelectedAvatarPreference) -> Result<(), String> {
+    let root = avatars_root()?;
+    fs::create_dir_all(&root)
+        .map_err(|error| format!("failed creating avatar directory: {error}"))?;
+    let mut body = serde_json::to_vec_pretty(preference)
+        .map_err(|error| format!("failed encoding avatar preference: {error}"))?;
+    body.push(b'\n');
+    fs::write(root.join("selected.json"), body)
+        .map_err(|error| format!("failed saving avatar preference: {error}"))
+}
+
+#[tauri::command]
+fn list_avatars() -> Vec<AvatarOption> {
+    let mut avatars = vec![
+        AvatarOption {
+            id: DEFAULT_AVATAR_ID.to_string(),
+            display_name: "Cline Bot".to_string(),
+            description: "A cheerful compact Cline avatar with expressive black oval eyes."
+                .to_string(),
+        },
+        AvatarOption {
+            id: "mom".to_string(),
+            display_name: "Mom".to_string(),
+            description: "A serene celestial oracle desktop companion.".to_string(),
+        },
+    ];
+    for (manifest, _) in read_custom_avatars() {
+        let option = AvatarOption {
+            id: manifest.id.clone(),
+            display_name: manifest.display_name,
+            description: manifest.description,
+        };
+        if let Some(existing) = avatars.iter_mut().find(|avatar| avatar.id == option.id) {
+            *existing = option;
+        } else {
+            avatars.push(option);
+        }
+    }
+    avatars
+}
+
+#[tauri::command]
+fn get_selected_avatar() -> SelectedAvatar {
+    let preference = avatar_preference();
+    let selected_id = preference.id;
+    if let Some((manifest, sprite_path)) = read_custom_avatars()
+        .into_iter()
+        .find(|(manifest, _)| manifest.id == selected_id)
+    {
+        if let Ok(bytes) = fs::read(&sprite_path) {
+            let encoded = base64::engine::general_purpose::STANDARD.encode(bytes);
+            let mime_type = match sprite_path.extension().and_then(|value| value.to_str()) {
+                Some("png") => "image/png",
+                _ => "image/webp",
+            };
+            return SelectedAvatar {
+                id: manifest.id,
+                display_name: manifest.display_name,
+                description: manifest.description,
+                sprite_url: format!("data:{mime_type};base64,{encoded}"),
+                enabled: preference.enabled,
+            };
+        }
+    }
+    match selected_id.as_str() {
+        "mom" => SelectedAvatar {
+            id: "mom".to_string(),
+            display_name: "Mom".to_string(),
+            description: "A serene celestial oracle desktop companion.".to_string(),
+            sprite_url: "/avatars/mom/spritesheet.webp".to_string(),
+            enabled: preference.enabled,
+        },
+        _ => SelectedAvatar {
+            id: DEFAULT_AVATAR_ID.to_string(),
+            display_name: "Cline Bot".to_string(),
+            description: "A cheerful compact Cline avatar with expressive black oval eyes."
+                .to_string(),
+            sprite_url: "/avatars/cline-bot/spritesheet.webp".to_string(),
+            enabled: preference.enabled,
+        },
+    }
+}
+
+#[tauri::command]
+fn set_selected_avatar(app: tauri::AppHandle, id: String) -> Result<(), String> {
+    if !list_avatars().iter().any(|avatar| avatar.id == id) {
+        return Err(format!("unknown avatar: {id}"));
+    }
+    let preference = SelectedAvatarPreference {
+        id,
+        enabled: avatar_preference().enabled,
+    };
+    write_avatar_preference(&preference)?;
+    let _ = app.emit_to(AVATAR_OVERLAY_WINDOW_LABEL, AVATAR_CHANGED_EVENT, ());
+    Ok(())
+}
+
+#[tauri::command]
+fn set_avatar_enabled(app: tauri::AppHandle, enabled: bool) -> Result<(), String> {
+    let preference = SelectedAvatarPreference {
+        id: avatar_preference().id,
+        enabled,
+    };
+    write_avatar_preference(&preference)?;
+    if let Some(window) = app.get_webview_window(AVATAR_OVERLAY_WINDOW_LABEL) {
+        if preference.enabled {
+            window
+                .show()
+                .map_err(|error| format!("failed showing avatar overlay: {error}"))?;
+            let _ = app.emit_to(AVATAR_OVERLAY_WINDOW_LABEL, AVATAR_SHOWN_EVENT, ());
+        } else {
+            window
+                .hide()
+                .map_err(|error| format!("failed hiding avatar overlay: {error}"))?;
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+fn handle_avatar_overlay_action(app: tauri::AppHandle, action: String) -> Result<(), String> {
+    match action.as_str() {
+        "open-cline" => show_main_window(&app),
+        "hide-avatar" => {
+            let preference = SelectedAvatarPreference {
+                id: avatar_preference().id,
+                enabled: false,
+            };
+            write_avatar_preference(&preference)?;
+            if let Some(window) = app.get_webview_window(AVATAR_OVERLAY_WINDOW_LABEL) {
+                window
+                    .hide()
+                    .map_err(|error| format!("failed hiding avatar overlay: {error}"))?;
+            }
+        }
+        _ => return Err(format!("unknown avatar overlay action: {action}")),
+    }
+    Ok(())
+}
+
+fn setup_avatar_overlay(app: &tauri::App) -> tauri::Result<()> {
+    let url = if cfg!(debug_assertions) {
+        WebviewUrl::External(
+            "http://localhost:3125/avatar-overlay"
+                .parse()
+                .expect("avatar overlay development URL must be valid"),
+        )
+    } else {
+        WebviewUrl::App("avatar-overlay.html".into())
+    };
+
+    let overlay = WebviewWindowBuilder::new(app, AVATAR_OVERLAY_WINDOW_LABEL, url)
+        .title("Cline Bot")
+        .inner_size(AVATAR_COLLAPSED_WIDTH, AVATAR_COLLAPSED_HEIGHT)
+        .resizable(false)
+        .decorations(false)
+        .transparent(true)
+        .shadow(false)
+        .always_on_top(true)
+        .visible_on_all_workspaces(true)
+        .skip_taskbar(true)
+        .focused(false)
+        .visible(avatar_preference().enabled)
+        .build()?;
+
+    if let Some(main) = app.get_webview_window(MAIN_WINDOW_LABEL) {
+        if let (Ok(main_position), Ok(main_size), Ok(overlay_size)) = (
+            main.outer_position(),
+            main.inner_size(),
+            overlay.outer_size(),
+        ) {
+            let scale = main.scale_factor().unwrap_or(1.0);
+            let margin = (16.0 * scale).round() as i32;
+            let x = main_position.x.saturating_add(margin);
+            let y = main_position
+                .y
+                .saturating_add(main_size.height as i32)
+                .saturating_sub(overlay_size.height as i32)
+                .saturating_sub(margin);
+            let _ = overlay.set_position(tauri::PhysicalPosition::new(x, y));
+        }
+    }
+
+    Ok(())
+}
+
+fn toggle_avatar_overlay(app: &tauri::AppHandle) {
+    let Some(window) = app.get_webview_window(AVATAR_OVERLAY_WINDOW_LABEL) else {
+        return;
+    };
+    if window.is_visible().unwrap_or(false) {
+        let _ = window.hide();
+        let _ = write_avatar_preference(&SelectedAvatarPreference {
+            id: avatar_preference().id,
+            enabled: false,
+        });
+    } else {
+        let _ = window.show();
+        let _ = app.emit_to(AVATAR_OVERLAY_WINDOW_LABEL, AVATAR_SHOWN_EVENT, ());
+        let _ = write_avatar_preference(&SelectedAvatarPreference {
+            id: avatar_preference().id,
+            enabled: true,
+        });
+    }
+}
+
 fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
     show_main_window(app);
     app.state::<DesktopMenuActionState>().enqueue(action);
@@ -925,6 +1258,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
         .item(&running_sessions)
         .separator()
         .text(TRAY_SETTINGS_MENU_ID, "Settings")
+        .text(TRAY_TOGGLE_AVATAR_MENU_ID, "Show/Hide Avatar")
         .separator()
         .text(TRAY_QUIT_MENU_ID, "Quit")
         .build()?;
@@ -951,6 +1285,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
         TRAY_OPEN_MENU_ID => show_main_window(app),
         TRAY_NEW_SESSION_MENU_ID => queue_desktop_menu_action(app, "new-session"),
         TRAY_SETTINGS_MENU_ID => queue_desktop_menu_action(app, "open-settings"),
+        TRAY_TOGGLE_AVATAR_MENU_ID => toggle_avatar_overlay(app),
         TRAY_QUIT_MENU_ID => app.exit(0),
         _ => {}
     })
@@ -1012,6 +1347,7 @@ fn main() {
             #[cfg(target_os = "macos")]
             setup_application_menu(app)?;
             setup_tray_icon(app)?;
+            setup_avatar_overlay(app)?;
             let app_context = app.state::<AppContext>().inner().clone();
             let backend_state = app.state::<Arc<DesktopBackendState>>().inner().clone();
             if let Err(error) = ensure_desktop_backend_started(&backend_state, &app_context) {
@@ -1043,6 +1379,11 @@ fn main() {
                     api.prevent_close();
                     let _ = window.hide();
                 }
+            } else if window.label() == AVATAR_OVERLAY_WINDOW_LABEL {
+                if let WindowEvent::CloseRequested { api, .. } = event {
+                    api.prevent_close();
+                    let _ = window.hide();
+                }
             }
         })
         .invoke_handler(tauri::generate_handler![
@@ -1053,6 +1394,11 @@ fn main() {
             restart_to_apply_update,
             check_for_update_now,
             set_app_icon,
+            list_avatars,
+            get_selected_avatar,
+            set_selected_avatar,
+            set_avatar_enabled,
+            handle_avatar_overlay_action,
             drain_desktop_menu_actions,
             set_tray_status
         ])
@@ -1060,10 +1406,7 @@ fn main() {
         .expect("error while building tauri app")
         .run(|app_handle, event| match event {
             #[cfg(target_os = "macos")]
-            RunEvent::Reopen {
-                has_visible_windows: false,
-                ..
-            } => show_main_window(app_handle),
+            RunEvent::Reopen { .. } => show_main_window(app_handle),
             RunEvent::ExitRequested { .. } | RunEvent::Exit => {
                 app_handle
                     .state::<Arc<DesktopBackendState>>()
@@ -1078,6 +1421,46 @@ fn main() {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicUsize, Ordering};
+
+    #[test]
+    fn avatar_preference_defaults_to_enabled_and_supports_explicit_state() {
+        let default_preference: SelectedAvatarPreference =
+            serde_json::from_str(r#"{"id":"mom"}"#).expect("preference should decode");
+        assert_eq!(default_preference.id, "mom");
+        assert!(default_preference.enabled);
+
+        let disabled_preference: SelectedAvatarPreference =
+            serde_json::from_str(r#"{"id":"mom","enabled":false}"#)
+                .expect("disabled preference should decode");
+        assert!(!disabled_preference.enabled);
+    }
+
+    #[test]
+    fn avatar_manifest_prefers_avatar_json_and_accepts_pet_json() {
+        let test_dir = std::env::temp_dir().join(format!(
+            "cline-avatar-manifest-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        fs::create_dir_all(&test_dir).expect("test directory should be created");
+
+        fs::write(test_dir.join("pet.json"), b"{}").expect("pet manifest should be written");
+        assert_eq!(
+            avatar_manifest_path(&test_dir)
+                .and_then(|path| path.file_name().map(|name| name.to_owned())),
+            Some(std::ffi::OsString::from("pet.json"))
+        );
+
+        fs::write(test_dir.join("avatar.json"), b"{}")
+            .expect("avatar manifest should be written");
+        assert_eq!(
+            avatar_manifest_path(&test_dir)
+                .and_then(|path| path.file_name().map(|name| name.to_owned())),
+            Some(std::ffi::OsString::from("avatar.json"))
+        );
+
+        fs::remove_dir_all(&test_dir).expect("test directory should be removed");
+    }
 
     #[test]
     fn desktop_menu_actions_are_buffered_in_order_until_drained() {

@@ -88,3 +88,14 @@ export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
+
+export type {
+	ProviderMode,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
+};

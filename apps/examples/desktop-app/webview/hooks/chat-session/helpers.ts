@@ -254,28 +254,11 @@ function mapHistoryStatusToChatStatus(
 
 export function inferHydratedChatStatus(
 	fallback: SessionHistoryStatus,
-	messages: ChatMessage[],
+	_messages: ChatMessage[],
 ): ChatSessionStatus {
-	if (fallback === "failed") {
-		return "failed";
-	}
-	if (fallback === "cancelled") {
-		return "cancelled";
-	}
-	const meaningfulMessages = messages.filter((message) => {
-		if (message.role !== "user" && message.role !== "assistant") {
-			return false;
-		}
-		return message.content.trim().length > 0;
-	});
-	if (meaningfulMessages.length === 0) {
-		return mapHistoryStatusToChatStatus(fallback);
-	}
-	if (fallback === "running") {
-		const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
-		if (lastMeaningful?.role === "assistant") {
-			return "completed";
-		}
-	}
+	// The persisted runtime status is authoritative. A running turn can emit an
+	// assistant message and then continue into reasoning or tool execution, so
+	// transcript shape cannot prove completion. Dead-process rows are reconciled
+	// by the session persistence layer before they reach this hydration path.
 	return mapHistoryStatusToChatStatus(fallback);
 }

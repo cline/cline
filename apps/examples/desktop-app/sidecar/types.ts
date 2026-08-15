@@ -36,6 +36,7 @@ export type ChatSessionCommandRequest = {
 	checkpointRunCount?: number;
 	forkBeforeRunCount?: number;
 	delivery?: "queue" | "steer";
+	source?: "desktop" | "realtime";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
 };

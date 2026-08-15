@@ -39,7 +39,10 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isAudioGenerationModel,
+	isImageGenerationModel,
 	isLikelyAuthError,
+	isVideoGenerationModel,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
@@ -850,8 +853,13 @@ export class SessionRuntime {
 		const dedicatedImageGeneration = usesImageGenerationOperation(
 			modelInfo ?? {},
 		);
+		const dedicatedMediaGeneration =
+			dedicatedImageGeneration ||
+			isAudioGenerationModel(modelInfo ?? {}) ||
+			isImageGenerationModel(modelInfo ?? {}) ||
+			isVideoGenerationModel(modelInfo ?? {});
 		const toolCallingDisabled =
-			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+			dedicatedMediaGeneration || !modelSupportsToolCalling(modelInfo ?? {});
 		const tools = toolCallingDisabled
 			? []
 			: Array.from(mergedToolsByName.values());
