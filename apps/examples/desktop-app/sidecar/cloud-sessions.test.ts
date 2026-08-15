@@ -11,6 +11,7 @@ import {
 	reconcileBufferedCloudEvents,
 	resetCloudSessionManager,
 } from "./cloud-sessions";
+import { handleCommand } from "./commands";
 import { disposeSidecarContext } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
@@ -2581,6 +2582,9 @@ describe("CloudSessionManager", () => {
 		// Opening the placeholder is benign (loading state), reads are empty,
 		// and only mutating actions fail with a clear message.
 		const placeholderId = String(placeholder?.sessionId);
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "provisioning" });
 		await expect(manager.attach(placeholderId)).resolves.toMatchObject({
 			sessionId: placeholderId,
 			status: "provisioning",
@@ -2607,6 +2611,42 @@ describe("CloudSessionManager", () => {
 			placeholderId,
 			sessionId: "ses-created",
 		});
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "ready", sessionId: "ses-created" });
+	});
+
+	it("retains a failed provisioning outcome after removing its placeholder", async () => {
+		const { ctx, events } = createContext();
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => {
+					throw new Error("sandbox failed");
+				},
+				list: async () => [],
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		ctx.cloudSessionManager = manager;
+
+		const creating = manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+		const rejected = expect(creating).rejects.toThrow("sandbox failed");
+		const placeholderId = String(
+			events.find(
+				(event) =>
+					event.name === "chat_session_status" &&
+					event.payload.status === "provisioning",
+			)?.payload.sessionId,
+		);
+		await rejected;
+
+		await expect(
+			handleCommand(ctx, "get_cloud_provisioning_outcome", { placeholderId }),
+		).resolves.toEqual({ status: "failed", message: "sandbox failed" });
 	});
 
 	it("keeps server provisioning rows visible and reconciles their status", async () => {

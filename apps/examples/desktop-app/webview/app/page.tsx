@@ -171,6 +171,12 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
+const PROVISIONING_OUTCOME_POLL_MS = 1_500;
+
+type CloudProvisioningOutcome =
+	| { status: "provisioning" }
+	| { status: "ready"; sessionId: string }
+	| { status: "failed"; message: string };
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
@@ -710,7 +716,11 @@ export default function Home() {
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string, environmentId?: string): Promise<boolean> => {
+		async (
+			sessionId: string,
+			environmentId?: string,
+			options: { silent?: boolean } = {},
+		): Promise<boolean> => {
 			const cachedSession = sessionHistory.sessions.find(
 				(session) =>
 					session.sessionId === sessionId &&
@@ -725,7 +735,7 @@ export default function Home() {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
 					{
-						environmentId: environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+						...(environmentId ? { environmentId } : {}),
 						session_id: sessionId,
 					},
 				);
@@ -743,13 +753,15 @@ export default function Home() {
 				handleOpenSession(session);
 				return true;
 			} catch (error) {
-				toast({
-					title: "Unable to open run",
-					description: humanizeCloudSessionError(
-						error instanceof Error ? error.message : String(error),
-					),
-					variant: "destructive",
-				});
+				if (!options.silent) {
+					toast({
+						title: "Unable to open run",
+						description: humanizeCloudSessionError(
+							error instanceof Error ? error.message : String(error),
+						),
+						variant: "destructive",
+					});
+				}
 				return false;
 			}
 		},
@@ -775,19 +787,13 @@ export default function Home() {
 			if (!placeholderThread) {
 				return;
 			}
-			const swap = async () => {
-				if (placeholderThread.id === activeThreadId) {
-					// Keep the placeholder if the real session cannot open.
-					const opened = await handleOpenSessionById(sessionId);
-					if (!opened) {
-						return;
-					}
-				}
+			// The mounted chat pane owns active-placeholder recovery, including
+			// retries. Background placeholders need only be removed.
+			if (placeholderThread.id !== activeThreadId) {
 				handleDeleteSession(placeholderId, placeholderThread.id);
-			};
-			void swap();
+			}
 		});
-	}, [threads, activeThreadId, handleOpenSessionById, handleDeleteSession]);
+	}, [threads, activeThreadId, handleDeleteSession]);
 
 	const historyWorkspacePaths = useMemo(
 		() =>
@@ -1033,7 +1039,8 @@ function ChatThreadPane({
 	onOpenSessionById?: (
 		sessionId: string,
 		environmentId?: string,
-	) => void | Promise<void>;
+		options?: { silent?: boolean },
+	) => boolean | Promise<boolean>;
 	onPickRemoteWorkspaceDirectory: (
 		environment: RemoteWorkspaceEnvironment,
 	) => Promise<string | null>;
@@ -1182,27 +1189,55 @@ function ChatThreadPane({
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
-	// Terminal signal for an open placeholder thread; without it the pane
-	// would show the provisioning loader forever after a failed create (the
-	// sidebar row disappears, but this thread stays open).
 	useEffect(() => {
 		const placeholderId = historySession?.sessionId;
 		if (!placeholderId || !isCloudProvisioningSessionId(placeholderId)) return;
-		return desktopClient.subscribe(
-			"cloud_session_provisioning_failed",
-			(payload) => {
-				const failure = payload as {
-					placeholderId?: string;
-					message?: string;
-				};
-				if (failure?.placeholderId !== placeholderId) return;
-				setProvisioningError(
-					humanizeCloudSessionError(failure.message?.trim() || "") ||
-						"The cloud session could not be started.",
+		let cancelled = false;
+		let retryTimer: number | undefined;
+		setProvisioningError(null);
+
+		async function checkOutcome() {
+			try {
+				const outcome =
+					await desktopClient.invoke<CloudProvisioningOutcome | null>(
+						"get_cloud_provisioning_outcome",
+						{ placeholderId },
+					);
+				if (cancelled) return;
+				if (outcome?.status === "ready") {
+					const opened = await onOpenSessionById?.(
+						outcome.sessionId,
+						undefined,
+						{ silent: true },
+					);
+					if (opened && !cancelled) {
+						onDeleteSession?.(placeholderId, threadId);
+						return;
+					}
+				} else if (outcome?.status === "failed") {
+					setProvisioningError(
+						humanizeCloudSessionError(outcome.message) ||
+							"The cloud session could not be started.",
+					);
+					return;
+				}
+			} catch {
+				// Retry after a transport interruption.
+			}
+			if (!cancelled) {
+				retryTimer = window.setTimeout(
+					checkOutcome,
+					PROVISIONING_OUTCOME_POLL_MS,
 				);
-			},
-		);
-	}, [historySession?.sessionId]);
+			}
+		}
+
+		void checkOutcome();
+		return () => {
+			cancelled = true;
+			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
+		};
+	}, [historySession?.sessionId, onDeleteSession, onOpenSessionById, threadId]);
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
 		!provisioningError &&
