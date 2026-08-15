@@ -589,6 +589,58 @@ describe("useChatSession", () => {
 		).toContain("build the feature");
 	});
 
+	it("replaces the first cloud prompt with its canonical snapshot copy", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "saved-first-prompt",
+							sessionId: "ses-cloud",
+							role: "user",
+							content: "build the feature",
+							createdAt: Date.now(),
+						},
+					];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "ses-cloud",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+					if (request?.action === "send") {
+						return { ok: true, result: { finishReason: "completed" } };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			current.setConfig((previous) => ({
+				...previous,
+				executionTarget: "cloud",
+				provider: "cline",
+				repoUrl: "https://github.com/cline/test",
+			}));
+		});
+		await act(async () => current.sendPrompt("build the feature"));
+
+		expect(
+			current.messages.filter(
+				(message) =>
+					message.role === "user" && message.content === "build the feature",
+			),
+		).toHaveLength(1);
+	});
+
 	it("hydrates output missed during a passive cloud reconnect", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, _args?: Record<string, unknown>) => {

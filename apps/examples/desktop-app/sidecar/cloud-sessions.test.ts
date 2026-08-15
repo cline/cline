@@ -328,6 +328,118 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
+	it("refreshes authentication while polling provisioning status", async () => {
+		const tokens = ["workos:create", "workos:poll-1", "workos:poll-2"];
+		const authorizations: string[] = [];
+		vi.useFakeTimers();
+		let statusCalls = 0;
+		try {
+			const api = new CloudSessionApi({
+				apiBaseUrl: "https://api.example",
+				appBaseUrl: "https://app.example",
+				getAuthToken: async () => tokens.shift(),
+				fetch: async (input, init) => {
+					authorizations.push(
+						new Headers(init?.headers).get("Authorization") ?? "",
+					);
+					if (init?.method === "POST") {
+						return jsonResponse(
+							{
+								success: true,
+								data: { sessionId: "ses-1", status: "provisioning" },
+							},
+							201,
+						);
+					}
+					expect(new URL(String(input)).pathname).toBe(
+						"/api/v1/session/ses-1/status",
+					);
+					statusCalls += 1;
+					return jsonResponse({
+						success: true,
+						data: {
+							sessionId: "ses-1",
+							status: statusCalls === 1 ? "provisioning" : "ready",
+						},
+					});
+				},
+			});
+
+			const creating = api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await vi.waitFor(() => expect(statusCalls).toBe(1));
+			await vi.advanceTimersByTimeAsync(3_000);
+			await creating;
+
+			expect(authorizations).toEqual([
+				"Bearer workos:create",
+				"Bearer workos:poll-1",
+				"Bearer workos:poll-2",
+			]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("waits for a recovered provisioning session before returning it", async () => {
+		vi.useFakeTimers();
+		let statusCalls = 0;
+		try {
+			const now = new Date().toISOString();
+			const api = new CloudSessionApi({
+				apiBaseUrl: "https://api.example",
+				appBaseUrl: "https://app.example",
+				getAuthToken: async () => "workos:fresh",
+				fetch: async (input, init) => {
+					const path = new URL(String(input)).pathname;
+					if (init?.method === "POST") {
+						return jsonResponse({ success: false, error: "gateway" }, 500);
+					}
+					if (path.endsWith("/status")) {
+						statusCalls += 1;
+						return jsonResponse({
+							success: true,
+							data: {
+								sessionId: "ses-recovered",
+								status: statusCalls === 1 ? "provisioning" : "ready",
+							},
+						});
+					}
+					return jsonResponse({
+						success: true,
+						data: [
+							{
+								id: "ses-recovered",
+								status: "provisioning",
+								sandboxUrl: "",
+								repoContext: { repoUrl: "https://github.com/cline/test" },
+								metadata: { modelId: "anthropic/claude-sonnet-5" },
+								createdAt: now,
+								updatedAt: now,
+							},
+						],
+					});
+				},
+			});
+
+			const creating = api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await vi.waitFor(() => expect(statusCalls).toBe(1));
+			await vi.advanceTimersByTimeAsync(3_000);
+
+			await expect(creating).resolves.toMatchObject({
+				sessionId: "ses-recovered",
+			});
+			expect(statusCalls).toBe(2);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("returns a stable, environment-aware GitHub connection error", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
@@ -790,6 +902,89 @@ describe("CloudSessionApi", () => {
 		releaseSlowCreate();
 
 		await expect(slow).resolves.toMatchObject({ sessionId: "ses-inflight" });
+		await expect(failing).rejects.toThrow();
+	});
+
+	it("rechecks peers that start while recovery credentials are loading", async () => {
+		const now = new Date().toISOString();
+		let authCalls = 0;
+		let releaseRecoveryAuth!: () => void;
+		const recoveryAuthBlocked = new Promise<void>((resolve) => {
+			releaseRecoveryAuth = resolve;
+		});
+		let announceRecoveryAuth!: () => void;
+		const recoveryAuthStarted = new Promise<void>((resolve) => {
+			announceRecoveryAuth = resolve;
+		});
+		let releaseSuccessfulPost!: () => void;
+		const successfulPostBlocked = new Promise<void>((resolve) => {
+			releaseSuccessfulPost = resolve;
+		});
+		let announceRecoveryList!: () => void;
+		const recoveryListStarted = new Promise<void>((resolve) => {
+			announceRecoveryList = resolve;
+		});
+		let posts = 0;
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => {
+				authCalls += 1;
+				if (authCalls === 2) {
+					announceRecoveryAuth();
+					await recoveryAuthBlocked;
+				}
+				return "sk_test";
+			},
+			fetch: async (_input, init) => {
+				if (init?.method === "POST") {
+					posts += 1;
+					if (posts === 1) {
+						return jsonResponse(
+							{ success: false, error: "gateway timeout" },
+							500,
+						);
+					}
+					await successfulPostBlocked;
+					return jsonResponse(
+						{
+							success: true,
+							data: { sessionId: "ses-late", sandboxUrl: "pod" },
+						},
+						201,
+					);
+				}
+				announceRecoveryList();
+				return jsonResponse({
+					success: true,
+					data: [
+						{
+							id: "ses-late",
+							status: "running",
+							sandboxUrl: "pod",
+							repoContext: { repoUrl: "https://github.com/cline/test" },
+							metadata: { modelId: "anthropic/claude-sonnet-5" },
+							createdAt: now,
+							updatedAt: now,
+						},
+					],
+				});
+			},
+		});
+		const input = {
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		};
+
+		const failing = api.create(input);
+		await recoveryAuthStarted;
+		const successful = api.create(input);
+		releaseRecoveryAuth();
+		await recoveryListStarted;
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		releaseSuccessfulPost();
+
+		await expect(successful).resolves.toMatchObject({ sessionId: "ses-late" });
 		await expect(failing).rejects.toThrow();
 	});
 

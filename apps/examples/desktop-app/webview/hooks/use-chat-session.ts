@@ -1821,6 +1821,13 @@ export function useChatSession() {
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
+			if (
+				validatedConfig.executionTarget === "cloud" &&
+				id !== validatedConfig.sessionId
+			) {
+				cloudTranscriptKnownRef.current[id] = true;
+				cloudTranscriptUserCountsRef.current[id] = new Map();
+			}
 			const workspaceRoot =
 				payload.workspaceRoot?.trim() || validatedConfig.workspaceRoot.trim();
 			const cwd =
