@@ -84,6 +84,29 @@ afterEach(async () => {
 });
 
 describe("useSessionHistory session mapping", () => {
+	it("binds cloud discovery rows without an SSH environment to local", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("cloud-session"),
+					origin: "cloud",
+					repoUrl: "https://github.com/cline/test",
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(current.sessions[0]).toMatchObject({
+			sessionId: "cloud-session",
+			environmentId: "local",
+		});
+	});
+
 	it("maps nested Core schedule provenance onto sidebar threads", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);

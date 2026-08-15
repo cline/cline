@@ -610,9 +610,12 @@ export function useSessionHistory({
 				setMayHaveMoreSessions(hasMoreSessions);
 				const topLevelSessions = discovered
 					.map((session) => {
+						const environmentId =
+							session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
 						const normalized: SessionHistoryItem = {
 							...session,
 							sessionId: String(session.sessionId ?? "").trim(),
+							environmentId,
 							status: normalizeDiscoveredStatus(session.status, session.prompt),
 							provider: session.provider || "",
 							model: session.model || "",
@@ -785,7 +788,9 @@ export function useSessionHistory({
 				usageLoadingRef.current.add(sessionId);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						environmentId: session.environmentId,
+						...(session.origin === "cloud"
+							? {}
+							: { environmentId: session.environmentId }),
 						sessionId,
 						maxMessages: 1200,
 					})
@@ -1107,7 +1112,9 @@ export function useSessionHistory({
 				titleLoadingRef.current.add(sessionId);
 				void desktopClient
 					.invoke<SessionMessage[]>("read_session_messages", {
-						environmentId: session.environmentId,
+						...(session.origin === "cloud"
+							? {}
+							: { environmentId: session.environmentId }),
 						sessionId,
 						maxMessages: 80,
 					})
@@ -1195,8 +1202,13 @@ export function useSessionHistory({
 			try {
 				const sourceSession = getSessionByThreadId(threadId);
 				await desktopClient.invoke("update_chat_session_title", {
-					environmentId:
-						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					...(sourceSession?.origin === "cloud"
+						? {}
+						: {
+								environmentId:
+									sourceSession?.environmentId ??
+									LOCAL_WORKSPACE_ENVIRONMENT_ID,
+							}),
 					sessionId: threadId,
 					title: normalizedTitle,
 				});
@@ -1362,8 +1374,13 @@ export function useSessionHistory({
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
-					environmentId:
-						sourceSession?.environmentId ?? LOCAL_WORKSPACE_ENVIRONMENT_ID,
+					...(sourceSession?.origin === "cloud"
+						? {}
+						: {
+								environmentId:
+									sourceSession?.environmentId ??
+									LOCAL_WORKSPACE_ENVIRONMENT_ID,
+							}),
 					sessionId: threadId,
 				});
 				const deleted =

@@ -845,6 +845,10 @@ describe("useChatSession", () => {
 		});
 
 		expect(current.config.branch).toBe("feature/cloud");
+		expect(invokeMock).toHaveBeenCalledWith("read_session_messages", {
+			sessionId: "ses-cloud",
+			maxMessages: 800,
+		});
 	});
 
 	it("keeps an approval actionable when the remote acknowledgement fails", async () => {

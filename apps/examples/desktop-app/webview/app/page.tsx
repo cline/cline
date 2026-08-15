@@ -585,10 +585,12 @@ export default function Home() {
 
 	const handleOpenSession = useCallback(
 		(session: SessionHistoryItem, initialPromptDraft?: string) => {
+			const environmentId =
+				session.environmentId?.trim() || LOCAL_WORKSPACE_ENVIRONMENT_ID;
 			dispatchApp({
 				type: "open-session",
-				session,
-				environmentId: session.environmentId,
+				session: { ...session, environmentId },
+				environmentId,
 				initialPromptDraft,
 			});
 		},
@@ -708,7 +710,7 @@ export default function Home() {
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string): Promise<boolean> => {
+		async (sessionId: string, environmentId?: string): Promise<boolean> => {
 			const cachedSession = sessionHistory.sessions.find(
 				(session) =>
 					session.sessionId === sessionId &&

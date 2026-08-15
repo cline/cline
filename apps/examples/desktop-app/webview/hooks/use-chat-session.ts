@@ -2539,7 +2539,7 @@ export function useChatSession(environmentId: string) {
 					const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 						"read_session_messages",
 						{
-							environmentId,
+							...(config.executionTarget === "cloud" ? {} : { environmentId }),
 							sessionId: activeSessionId,
 							maxMessages: MAX_MESSAGES,
 						},
@@ -3018,7 +3018,7 @@ export function useChatSession(environmentId: string) {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
 					{
-						environmentId,
+						...(session.origin === "cloud" ? {} : { environmentId }),
 						sessionId: session.sessionId,
 						maxMessages: MAX_MESSAGES,
 					},
