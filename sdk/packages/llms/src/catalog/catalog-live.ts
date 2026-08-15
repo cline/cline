@@ -517,12 +517,21 @@ export async function fetchLiveProviderModels(
 	fetcher: typeof fetch = fetch,
 ): Promise<Record<string, Record<string, ModelInfo>>> {
 	const emptyProviderModels: Record<string, Record<string, ModelInfo>> = {};
-	const [providerModels, clineRecommendedPayload] = await Promise.all([
-		fetchModelsDevProviderModels(modelsDevUrl, fetcher).catch(
-			() => emptyProviderModels,
-		),
-		fetchClineRecommendedModelsPayload(fetcher).catch(() => undefined),
-	]);
+	// Promise.allSettled keeps the catalog sources independent: one failing
+	// source degrades to its fallback without discarding the other's result.
+	const [providerModelsResult, clineRecommendedResult] =
+		await Promise.allSettled([
+			fetchModelsDevProviderModels(modelsDevUrl, fetcher),
+			fetchClineRecommendedModelsPayload(fetcher),
+		]);
+	const providerModels =
+		providerModelsResult.status === "fulfilled"
+			? providerModelsResult.value
+			: emptyProviderModels;
+	const clineRecommendedPayload =
+		clineRecommendedResult.status === "fulfilled"
+			? clineRecommendedResult.value
+			: undefined;
 	const clineRecommended = clineRecommendedPayload
 		? normalizeClineRecommendedProviderModels(
 				clineRecommendedPayload,

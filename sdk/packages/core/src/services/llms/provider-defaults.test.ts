@@ -645,6 +645,59 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("resolves bundled models promptly when the live catalog host hangs", async () => {
+		vi.useFakeTimers();
+		try {
+			// Simulate a DNS-blackholed catalog host: the request never settles
+			// on its own and only rejects once the caller aborts it, like a real
+			// fetch would. A hanging catalog request must not block unrelated
+			// providers from resolving their bundled models.
+			const fetchMock = vi.fn(
+				(_input: string, init?: RequestInit) =>
+					new Promise<Response>((_resolve, reject) => {
+						init?.signal?.addEventListener("abort", () =>
+							reject(
+								new DOMException("This operation was aborted", "AbortError"),
+							),
+						);
+					}),
+			);
+			vi.stubGlobal("fetch", fetchMock);
+
+			// Two unrelated providers resolving concurrently with the host
+			// app's default catalog config. Neither should stay stuck behind
+			// the unreachable catalog host.
+			const resolving = Promise.all([
+				resolveProviderConfig("openrouter", {
+					loadLatestOnInit: true,
+					failOnError: false,
+					cacheTtlMs: 0,
+				}),
+				resolveProviderConfig("groq", {
+					loadLatestOnInit: true,
+					failOnError: false,
+					cacheTtlMs: 0,
+				}),
+			]);
+			await vi.advanceTimersByTimeAsync(60_000);
+
+			const pending = Symbol("pending");
+			const outcome = await Promise.race([resolving, Promise.resolve(pending)]);
+			expect(outcome).not.toBe(pending);
+			if (!Array.isArray(outcome)) {
+				throw new Error("expected provider resolution to have settled");
+			}
+
+			const [openrouter, groq] = outcome;
+			expect(Object.keys(openrouter?.knownModels ?? {}).length).toBeGreaterThan(
+				0,
+			);
+			expect(Object.keys(groq?.knownModels ?? {}).length).toBeGreaterThan(0);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("resolves ChatGPT OAuth models from the filtered catalog", async () => {
 		const resolved = await resolveProviderConfig(
 			"openai-codex",
