@@ -1193,6 +1193,11 @@ export async function handleCommand(
 			query: typeof args?.query === "string" ? args.query : undefined,
 		});
 	}
+	if (command === "get_cloud_provisioning_outcome") {
+		const placeholderId = String(args?.placeholderId ?? "").trim();
+		if (!placeholderId) throw new Error("placeholderId is required");
+		return getCloudSessionManager(ctx).getProvisioningOutcome(placeholderId);
+	}
 	if (command === "get_chat_ws_endpoint") {
 		return "";
 	}

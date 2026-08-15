@@ -64,6 +64,11 @@ export type CloudSessionRecord = {
 	updatedAt: string;
 };
 
+export type CloudProvisioningOutcome =
+	| { status: "provisioning" }
+	| { status: "ready"; sessionId: string }
+	| { status: "failed"; message: string };
+
 export function deriveCloudSessionTitle(prompt: string): string {
 	return (prompt.trim().split("\n")[0] ?? "").trim().slice(0, 72);
 }
@@ -1112,6 +1117,10 @@ export class CloudSessionManager {
 	private readonly createRequests = new Map<string, Promise<JsonRecord>>();
 	// Keep locally-created sessions visible while their sandbox is provisioning.
 	private readonly pendingCreates = new Map<string, JsonRecord>();
+	private readonly provisioningOutcomes = new Map<
+		string,
+		Exclude<CloudProvisioningOutcome, { status: "provisioning" }>
+	>();
 	// Sessions mid-delete; blocks concurrent code from re-dialing them.
 	private readonly deletingSessions = new Set<string>();
 	private readonly createHubClient: NonNullable<
@@ -1132,9 +1141,19 @@ export class CloudSessionManager {
 			isCloudOuterSessionId(sessionId) ||
 			this.knownSessions.has(sessionId) ||
 			this.pendingCreates.has(sessionId) ||
+			this.provisioningOutcomes.has(sessionId) ||
 			this.connections.has(sessionId) ||
 			this.ctx.liveSessions.get(sessionId)?.config.executionTarget === "cloud"
 		);
+	}
+
+	getProvisioningOutcome(
+		placeholderId: string,
+	): CloudProvisioningOutcome | null {
+		if (this.pendingCreates.has(placeholderId)) {
+			return { status: "provisioning" };
+		}
+		return this.provisioningOutcomes.get(placeholderId) ?? null;
 	}
 
 	async list(): Promise<CloudSessionRecord[]> {
@@ -1342,18 +1361,28 @@ export class CloudSessionManager {
 		});
 		try {
 			const created = await this.createProvisionedSession(input);
+			const sessionId = String(created.sessionId ?? "");
+			this.provisioningOutcomes.set(placeholderId, {
+				status: "ready",
+				sessionId,
+			});
 			// Swap an open placeholder thread to the real session.
 			sendEvent(this.ctx, "cloud_session_provisioned", {
 				placeholderId,
-				sessionId: String(created.sessionId ?? ""),
+				sessionId,
 			});
 			return created;
 		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			this.provisioningOutcomes.set(placeholderId, {
+				status: "failed",
+				message,
+			});
 			// A thread opened on the placeholder needs a terminal signal, or
 			// its provisioning pane spins forever after the row disappears.
 			sendEvent(this.ctx, "cloud_session_provisioning_failed", {
 				placeholderId,
-				message: error instanceof Error ? error.message : String(error),
+				message,
 			});
 			throw error;
 		} finally {
@@ -2048,6 +2077,7 @@ export class CloudSessionManager {
 		}
 		this.knownSessions.clear();
 		this.pendingCreates.clear();
+		this.provisioningOutcomes.clear();
 		await Promise.allSettled(
 			Array.from(this.connections.keys()).map((sessionId) =>
 				this.disposeConnection(sessionId),
