@@ -195,12 +195,41 @@ describe("OnboardingView", () => {
 		await act(async () => {
 			buttonByText("Continue").click();
 		});
+		// Connecting a Cline account routes through the GitHub integration step.
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
+		});
 		expect(container.textContent).toContain("You're all set");
 		expect(
 			parseModelSelectionStorage(
 				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
 			).lastProvider,
 		).toBe("cline");
+	});
+
+	it("skips the GitHub step silently when the integration is already connected", async () => {
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "cline_account") {
+				return { email: "dev@example.com", displayName: "Dev" };
+			}
+			if (command === "cline_integrations") {
+				return [{ provider: "github" }];
+			}
+			if (command === "list_provider_catalog") {
+				return { providers: [makeProvider()], settingsPath: "/tmp/p.json" };
+			}
+			return {};
+		});
+		await render();
+		await act(async () => {
+			buttonByText("Get started").click();
+		});
+		await act(async () => {
+			buttonByText("Continue").click();
+		});
+		expect(container.textContent).not.toContain("Connect GitHub");
+		expect(container.textContent).toContain("You're all set");
 	});
 
 	it("lets the user cancel a pending browser sign-in", async () => {
@@ -280,6 +309,10 @@ describe("OnboardingView", () => {
 			provider: "cline",
 			enabled: true,
 			api_key: "cline_key_123",
+		});
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(container.textContent).toContain("Your Cline account is connected");
@@ -373,6 +406,10 @@ describe("OnboardingView", () => {
 		});
 		expect(invoke).toHaveBeenCalledWith("run_provider_oauth_login", {
 			provider: "cline",
+		});
+		expect(container.textContent).toContain("Connect GitHub");
+		await act(async () => {
+			buttonByText("Skip for now").click();
 		});
 		expect(container.textContent).toContain("You're all set");
 		expect(

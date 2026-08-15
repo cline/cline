@@ -22,6 +22,7 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export { GitHubIcon } from "./github-icon.js";
 export {
 	Button,
 	type ButtonProps,

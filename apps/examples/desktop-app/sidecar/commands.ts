@@ -75,6 +75,11 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import {
+	listClineGitHubRepositories,
+	listClineIntegrations,
+	resolveGitHubInstallUrl,
+} from "./commands-integrations";
+import {
 	connectorChannelsPayload,
 	startConnectorChannel,
 	stopConnectorChannel,
@@ -2154,6 +2159,37 @@ export async function handleCommand(
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
 		return result;
+	}
+
+	// ── Cline integrations (GitHub App) ────────────────────────────────
+	if (command === "cline_integrations") {
+		const operation = String(args?.operation ?? "").trim();
+		if (!operation) throw new Error("operation is required");
+		const manager = new ProviderSettingsManager();
+
+		const authToken = await resolveFreshClineAuthToken(ctx, manager);
+		if (!authToken) {
+			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
+		}
+		const settings = manager.getProviderSettings("cline");
+		const environment = getClineEnvironmentConfig();
+		const requestOptions = {
+			apiBaseUrl: settings?.baseUrl?.trim() || environment.apiBaseUrl,
+			appBaseUrl: environment.appBaseUrl,
+			authToken,
+		};
+		switch (operation) {
+			case "list":
+				return await listClineIntegrations(requestOptions);
+			case "listGitHubRepositories":
+				return await listClineGitHubRepositories(requestOptions);
+			case "githubInstallUrl":
+				return await resolveGitHubInstallUrl(requestOptions);
+			default:
+				throw new Error(
+					`Unsupported Cline integrations operation: ${operation}`,
+				);
+		}
 	}
 
 	// ── Provider management ────────────────────────────────────────────
