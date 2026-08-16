@@ -461,6 +461,26 @@ function normalizeAiSdkToolInputSchema(
 		schema.type = inputSchema.type.toLowerCase();
 	}
 
+	// Recurse into nested subschemas before the object-likeness gate below:
+	// an array node returns early there, so its `items` would never be visited,
+	// and anyOf/oneOf/allOf branches are not object-like either. Uppercase
+	// types at any depth must reach Gemini already lowercased.
+	if (isRecord(schema.items)) {
+		schema.items = normalizeAiSdkToolInputSchema(schema.items);
+	} else if (Array.isArray(schema.items)) {
+		schema.items = schema.items.map((item) =>
+			isRecord(item) ? normalizeAiSdkToolInputSchema(item) : item,
+		);
+	}
+	for (const combinator of ["anyOf", "oneOf", "allOf"] as const) {
+		const branches = schema[combinator];
+		if (Array.isArray(branches)) {
+			schema[combinator] = branches.map((branch) =>
+				isRecord(branch) ? normalizeAiSdkToolInputSchema(branch) : branch,
+			);
+		}
+	}
+
 	const isObjectLike =
 		schema.type === "object" ||
 		"properties" in schema ||

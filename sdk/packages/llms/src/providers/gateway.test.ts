@@ -2517,6 +2517,67 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("normalizes nested array items and combinator branches before Gemini", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "db.insert",
+						description: "Insert rows",
+						inputSchema: {
+							type: "OBJECT",
+							properties: {
+								rows: {
+									type: "ARRAY",
+									items: {
+										type: "OBJECT",
+										properties: { id: { type: "STRING" } },
+									},
+								},
+								mode: {
+									anyOf: [{ type: "STRING" }, { type: "OBJECT" }],
+								},
+							},
+						},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.["db.insert"].inputSchema?.jsonSchema;
+		expect(schema).toEqual({
+			type: "object",
+			properties: {
+				rows: {
+					type: "array",
+					items: {
+						type: "object",
+						properties: { id: { type: "string" } },
+					},
+				},
+				mode: {
+					anyOf: [{ type: "string" }, { type: "object" }],
+				},
+			},
+		});
+	});
+
 	it("passes reasoning effort through to Anthropic provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
