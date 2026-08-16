@@ -9,6 +9,7 @@ import {
 	setSdkLogger,
 } from "@cline/core";
 import { version } from "../package.json";
+import { setDesktopFeatureFlagsAccountContext } from "./feature-flags";
 import {
 	createDesktopLoggerAdapter,
 	type DesktopLoggerAdapter,
@@ -45,6 +46,7 @@ export function createDesktopObservability(): DesktopObservability {
 			id: auth.accountId,
 			provider: "cline",
 		});
+		setDesktopFeatureFlagsAccountContext({ id: auth.accountId });
 	}
 	captureExtensionActivated(telemetry);
 

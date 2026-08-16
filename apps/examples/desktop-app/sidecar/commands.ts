@@ -68,6 +68,7 @@ import {
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
 } from "./context";
+import { refreshDesktopFeatureFlags } from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -1735,6 +1736,18 @@ export async function handleCommand(
 		}
 		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
+	}
+
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
+	if (command === "get_feature_flags") {
+		return await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
