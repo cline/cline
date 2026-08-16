@@ -4,15 +4,18 @@
 // These wrap common tui-test patterns to keep test bodies readable.
 // ---------------------------------------------------------------------------
 
-import { expect } from "@microsoft/tui-test";
-import type { Terminal } from "@microsoft/tui-test/lib/terminal/term";
+import {
+	ExpectationError,
+	type TuiTest as Terminal,
+} from "@microsoft/tui-test";
 import { EXIT_CODE_TIMEOUT } from "./constants.js";
+import { getProgramExitCode } from "./program-exit.js";
 
 // ---------------------------------------------------------------------------
 // Core wait / assertion helpers
 // ---------------------------------------------------------------------------
 
-const maxTimeoutMs = 10_000;
+const maxTimeoutMs = 30_000;
 
 /**
  * Internal helper – asserts visibility (or not) for one or more patterns.
@@ -28,20 +31,23 @@ async function expectTextVisibility(
 		options.timeout !== undefined ? { timeout: options.timeout } : undefined;
 	await Promise.all(
 		items.map((t) => {
-			// tui-test uses String.prototype.matchAll internally, which requires
-			// the global flag on RegExp arguments. Ensure it is set.
-			if (t instanceof RegExp && !t.flags.includes("g")) {
-				t = new RegExp(t.source, `${t.flags}g`);
-			}
-			const locator = terminal.getByText(t, {
+			const pattern = t instanceof RegExp ? regexSource(t) : t;
+			return terminal.expectText(pattern, {
+				regex: t instanceof RegExp,
 				full: true,
 				strict: false,
+				not: !visible,
+				timeout: timeoutOpt?.timeout,
 			});
-			return visible
-				? expect(locator).toBeVisible(timeoutOpt)
-				: expect(locator).not.toBeVisible(timeoutOpt);
 		}),
 	);
+}
+
+function regexSource(regex: RegExp): string {
+	const flags = ["i", "m", "s"].filter((flag) => regex.flags.includes(flag));
+	return flags.length > 0
+		? `(?${flags.join("")})${regex.source}`
+		: regex.source;
 }
 
 /**
@@ -63,8 +69,14 @@ export async function expectExitCode(
 	terminal: Terminal,
 	exitCode: number,
 ): Promise<void> {
-	const xCode = await waitForTerminalExit(terminal);
-	expect(xCode).toBe(exitCode);
+	await terminal.waitExit({ timeout: 31_000 });
+	const actualExitCode =
+		getProgramExitCode(terminal) ?? (await terminal.state()).exited;
+	if (actualExitCode !== exitCode) {
+		throw new Error(
+			`Expected terminal to exit with ${exitCode}, received ${actualExitCode}`,
+		);
+	}
 }
 
 /**
@@ -91,9 +103,9 @@ export async function typeAndSubmit(
 	text: string,
 	delay = 500,
 ): Promise<void> {
-	terminal.write(text);
+	await terminal.type(text);
 	await new Promise((resolve) => setTimeout(resolve, delay));
-	terminal.submit();
+	await terminal.submit();
 }
 
 /**
@@ -109,7 +121,7 @@ export async function typeAndSubmit(
  * @param timeout Maximum ms to wait for exit before giving up (default 5000)
  */
 export async function gracefulShutdown(terminal: Terminal): Promise<number> {
-	terminal.keyCtrlC();
+	await terminal.press("Ctrl+C");
 	return await waitForTerminalExit(terminal);
 }
 
@@ -117,28 +129,17 @@ export async function waitForTerminalExit(
 	terminal: Terminal,
 	timeout = 31000,
 ): Promise<number> {
-	return await new Promise<number>((resolve) => {
-		let resolved = false;
-		const done = (code: number) => {
-			if (resolved) return;
-			resolved = true;
-			clearTimeout(timer);
-			clearInterval(poller);
-			resolve(code);
-		};
-
-		const timer = setTimeout(() => done(EXIT_CODE_TIMEOUT), timeout); // exit code 124 is timeout
-
-		// Register listener for future exit events
-		terminal.onExit((exitResult) => done(exitResult.exitCode));
-
-		// Poll terminal.exitResult as a fallback for the race condition where
-		// the process exits before onExit listener is registered (the event
-		// fires once and is not replayed for late subscribers).
-		const poller = setInterval(() => {
-			if (terminal.exitResult) {
-				done(terminal.exitResult.exitCode);
-			}
-		}, 1000);
-	});
+	try {
+		await terminal.waitExit({ timeout });
+	} catch (error) {
+		if (error instanceof ExpectationError) {
+			return EXIT_CODE_TIMEOUT;
+		}
+		throw error;
+	}
+	return (
+		getProgramExitCode(terminal) ??
+		(await terminal.state()).exited ??
+		EXIT_CODE_TIMEOUT
+	);
 }

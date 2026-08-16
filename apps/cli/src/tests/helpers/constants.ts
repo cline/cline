@@ -6,10 +6,12 @@
 // ---------------------------------------------------------------------------
 
 import fs from "node:fs";
-import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 function resolveClineBin(): string {
-	const localBin = path.resolve(process.cwd(), "..", "..", "dist", "index.js");
+	const localBin = fileURLToPath(
+		new URL("../../../dist/index.js", import.meta.url),
+	);
 	if (fs.existsSync(localBin)) {
 		return localBin;
 	}

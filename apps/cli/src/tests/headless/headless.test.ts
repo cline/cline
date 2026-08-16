@@ -8,7 +8,6 @@
 // Run them with:  CLINE_BIN=... npm test -- headless @live
 // ---------------------------------------------------------------------------
 
-import { test } from "@microsoft/tui-test";
 import {
 	CLINE_BIN,
 	EXIT_CODE_FAIL,
@@ -17,6 +16,7 @@ import {
 } from "../helpers/constants.js";
 import { clineEnv } from "../helpers/env.js";
 import { expectExitCode, expectVisible } from "../helpers/terminal.js";
+import { test } from "../helpers/test.js";
 
 // ---------------------------------------------------------------------------
 // cline -y "tell me a joke"

@@ -336,7 +336,7 @@ bun run test:unit
 bun run test:e2e
 bun run test:e2e:interactive
 
-# TUI-specific E2E tests (uses @microsoft/tui-test)
+# TUI-specific E2E tests (uses the @microsoft/tui-test Rust core)
 bun run test:e2e:cli:tui
 
 # TUI E2E tests driven through tuistory (PTY + Ghostty terminal emulator)
