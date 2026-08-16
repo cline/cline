@@ -455,6 +455,7 @@ export async function repairMalformedToolCall<T extends RepairableToolCall>({
 
 function normalizeAiSdkToolInputSchema(
 	inputSchema: Record<string, unknown>,
+	isRoot = true,
 ): Record<string, unknown> {
 	const schema: Record<string, unknown> = { ...inputSchema };
 	if (typeof inputSchema.type === "string") {
@@ -466,17 +467,17 @@ function normalizeAiSdkToolInputSchema(
 	// and anyOf/oneOf/allOf branches are not object-like either. Uppercase
 	// types at any depth must reach Gemini already lowercased.
 	if (isRecord(schema.items)) {
-		schema.items = normalizeAiSdkToolInputSchema(schema.items);
+		schema.items = normalizeAiSdkToolInputSchema(schema.items, false);
 	} else if (Array.isArray(schema.items)) {
 		schema.items = schema.items.map((item) =>
-			isRecord(item) ? normalizeAiSdkToolInputSchema(item) : item,
+			isRecord(item) ? normalizeAiSdkToolInputSchema(item, false) : item,
 		);
 	}
 	for (const combinator of ["anyOf", "oneOf", "allOf"] as const) {
 		const branches = schema[combinator];
 		if (Array.isArray(branches)) {
 			schema[combinator] = branches.map((branch) =>
-				isRecord(branch) ? normalizeAiSdkToolInputSchema(branch) : branch,
+				isRecord(branch) ? normalizeAiSdkToolInputSchema(branch, false) : branch,
 			);
 		}
 	}
@@ -488,14 +489,17 @@ function normalizeAiSdkToolInputSchema(
 		"additionalProperties" in schema;
 
 	if (!isObjectLike) {
-		return schema;
+		// Gemini requires an OBJECT schema at the tool root: a bare or
+		// scalar-only schema (e.g. an empty MCP inputSchema) still gets that
+		// shape, while nested leaves keep their own type.
+		return isRoot ? { ...schema, type: "object" } : schema;
 	}
 
 	const properties: Record<string, unknown> = {};
 	if (isRecord(schema.properties)) {
 		for (const [key, value] of Object.entries(schema.properties)) {
 			properties[key] = isRecord(value)
-				? normalizeAiSdkToolInputSchema(value)
+				? normalizeAiSdkToolInputSchema(value, false)
 				: value;
 		}
 	}

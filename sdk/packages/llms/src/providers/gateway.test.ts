@@ -2578,6 +2578,39 @@ describe("sdk-gateway", () => {
 		});
 	});
 
+	it("defaults a bare or typeless MCP inputSchema to an object at the root", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{ type: "finish", usage: { inputTokens: 1, outputTokens: 1 } },
+			]),
+		});
+
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "gemini", apiKey: "google-key" }],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				messages: baseMessages,
+				tools: [
+					{
+						name: "ping",
+						description: "No-arg ping",
+						inputSchema: {},
+					},
+				],
+			}),
+		);
+
+		const call = streamTextSpy.mock.calls[0]?.[0] as
+			| { tools?: Record<string, { inputSchema?: { jsonSchema?: unknown } }> }
+			| undefined;
+		const schema = await call?.tools?.ping.inputSchema?.jsonSchema;
+		expect(schema).toEqual({ type: "object" });
+	});
+
 	it("passes reasoning effort through to Anthropic provider options", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
