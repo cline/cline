@@ -79,10 +79,7 @@ describe("buildUpdateManifest", () => {
 
 	test("throws when universal and per-arch artifacts claim the same platform", () => {
 		const dir = makePerArchArtifactDir();
-		writeFileSync(
-			path.join(dir, "Cline_0.1.0_universal.app.tar.gz"),
-			"tar",
-		);
+		writeFileSync(path.join(dir, "Cline_0.1.0_universal.app.tar.gz"), "tar");
 		writeFileSync(
 			path.join(dir, "Cline_0.1.0_universal.app.tar.gz.sig"),
 			"sig-universal\n",
