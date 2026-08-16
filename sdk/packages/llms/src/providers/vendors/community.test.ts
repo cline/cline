@@ -45,7 +45,10 @@ describe("createSapAiCoreProviderModule", () => {
 		};
 
 		expect(process.env.AICORE_SERVICE_KEY).toBe("existing-service-key");
-		expect(model.config?.destination).toBeUndefined();
+		expect(model.config?.destination).toMatchObject({
+			url: "https://api.ai.example.aws.ml.hana.ondemand.com",
+			authentication: "OAuth2ClientCredentials",
+		});
 		expect(model.config?.deploymentConfig).toMatchObject({
 			deploymentId: "deployment-id",
 		});

@@ -64,11 +64,11 @@ const CHANNEL_COLORS: Record<string, string> = {
 	whatsapp: "#25D366",
 };
 
-function channelColor(channel: ConnectorChannel): string {
+function _channelColor(channel: ConnectorChannel): string {
 	return CHANNEL_COLORS[channel.id] ?? "#64748B";
 }
 
-function channelLetter(channel: ConnectorChannel): string {
+function _channelLetter(channel: ConnectorChannel): string {
 	return channel.name.trim().charAt(0).toUpperCase() || "?";
 }
 

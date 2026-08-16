@@ -3,7 +3,29 @@ export {};
 
 // Externalize third-party runtime deps plus the provider/runtime layer that
 // the Agent facade loads dynamically. `@cline/shared` stays bundled.
-const external = ["@cline/llms", "nanoid"];
+type PackageManifest = {
+	dependencies?: Record<string, string>;
+	peerDependencies?: Record<string, string>;
+};
+
+const packageJson = (await Bun.file(
+	new URL("./package.json", import.meta.url),
+).json()) as PackageManifest;
+
+const sharedPackageJson = (await Bun.file(
+	new URL("../shared/package.json", import.meta.url),
+).json()) as PackageManifest;
+
+const external = Object.keys({
+	...(packageJson.dependencies ?? {}),
+	...(packageJson.peerDependencies ?? {}),
+	...(sharedPackageJson.dependencies ?? {}),
+	...(sharedPackageJson.peerDependencies ?? {}),
+}).filter((name) => !name.startsWith("@cline/"));
+if (!external.includes("@cline/llms")) {
+	external.push("@cline/llms");
+}
+
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 // minify: true keeps identifier mangling active even when sourcemaps are enabled.
 const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
