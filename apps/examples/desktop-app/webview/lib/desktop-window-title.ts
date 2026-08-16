@@ -1,7 +1,7 @@
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 
-export const DEFAULT_DESKTOP_WINDOW_TITLE = "Cline Code";
+export const DEFAULT_DESKTOP_WINDOW_TITLE = "Cline";
 
 export function buildDesktopWindowTitle(version: string | undefined): string {
 	const trimmed = version?.trim();

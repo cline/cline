@@ -30,7 +30,7 @@ export function createDesktopObservability(): DesktopObservability {
 			metadata: {
 				extension_version: version,
 				cline_type: "desktop",
-				platform: "Cline Code",
+				platform: "Cline",
 				platform_version: process.version,
 				os_type: os.platform(),
 				os_version: os.version(),

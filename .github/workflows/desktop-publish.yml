@@ -259,7 +259,7 @@ jobs:
       - name: Verify bundle is a universal binary
         working-directory: apps/examples/desktop-app
         run: |
-          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Cline Code.app"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Cline.app"
           if [ ! -d "$APP" ]; then
             echo "app bundle not found at $APP"
             exit 1
@@ -318,15 +318,15 @@ jobs:
             echo "no DMG produced under $BUNDLE_DIR/dmg"
             exit 1
           fi
-          cp "$DMG" "$OUT/Cline-Code_${VERSION}_universal.dmg"
+          cp "$DMG" "$OUT/Cline_${VERSION}_universal.dmg"
 
           TARBALL=$(find "$BUNDLE_DIR/macos" -name '*.app.tar.gz' -print -quit)
           if [ -z "$TARBALL" ] || [ ! -f "${TARBALL}.sig" ]; then
             echo "updater artifact or signature missing under $BUNDLE_DIR/macos"
             exit 1
           fi
-          cp "$TARBALL" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz"
-          cp "${TARBALL}.sig" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz.sig"
+          cp "$TARBALL" "$OUT/Cline_${VERSION}_universal.app.tar.gz"
+          cp "${TARBALL}.sig" "$OUT/Cline_${VERSION}_universal.app.tar.gz.sig"
 
           ls -lh "$OUT"
 
@@ -416,7 +416,7 @@ jobs:
         run: |
           if ! gh release view desktop-latest >/dev/null 2>&1; then
             gh release create desktop-latest \
-              --title "Cline Code desktop (auto-update feed)" \
+              --title "Cline desktop (auto-update feed)" \
               --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
               --latest=false \
               --target "$(git rev-parse HEAD)"
@@ -428,7 +428,7 @@ jobs:
           VERSION: ${{ needs.validate.outputs.version }}
           TAG: ${{ needs.validate.outputs.tag }}
         run: |
-          echo "Published Cline Code desktop v${VERSION}"
+          echo "Published Cline desktop v${VERSION}"
           echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
           echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-latest/latest.json"
 
@@ -439,12 +439,12 @@ jobs:
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
           payload: |
             channel: "C0APVKGGZFC"
-            text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+            text: "Cline desktop v${{ needs.validate.outputs.version }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+                  text: "Cline desktop v${{ needs.validate.outputs.version }}"
               - type: "section"
                 text:
                   type: "mrkdwn"

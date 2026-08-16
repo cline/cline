@@ -658,7 +658,7 @@ export function AgentSidebar({
 								className="w-64 p-3"
 								side="bottom"
 							>
-								<p className="text-sm font-medium">Cline Code</p>
+								<p className="text-sm font-medium">Cline</p>
 								<p className="mt-0.5 text-xs text-muted-foreground">
 									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
 								</p>

@@ -1,11 +1,11 @@
 ---
 name: publish-desktop
-description: Use when preparing, tagging, and publishing a Cline Code desktop app (apps/examples/desktop-app) release. Guides changelog drafting, version bumps in package.json + tauri.conf.json, desktop-vX.Y.Z tags, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the auto-update feed.
+description: Use when preparing, tagging, and publishing a Cline desktop app (apps/examples/desktop-app) release. Guides changelog drafting, version bumps in package.json + tauri.conf.json, desktop-vX.Y.Z tags, and the desktop-publish GitHub workflow that builds, signs, notarizes, and updates the auto-update feed.
 ---
 
 # Desktop App Release
 
-Use this skill when the user asks to release the desktop app, publish Cline Code, bump the desktop version, create a `desktop-vX.Y.Z` tag, or trigger the desktop publish workflow.
+Use this skill when the user asks to release the desktop app, publish the Cline desktop app, bump the desktop version, create a `desktop-vX.Y.Z` tag, or trigger the desktop publish workflow.
 
 > Working directory: run every command below from the repository root.
 
