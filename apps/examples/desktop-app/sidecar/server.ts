@@ -1,3 +1,4 @@
+import { randomUUID, timingSafeEqual } from "node:crypto";
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
@@ -47,6 +48,19 @@ const TRUSTED_BROWSER_ORIGINS = new Set([
 const JSON_HEADERS = {
 	"content-type": "application/json",
 };
+
+const APPROVAL_TOKEN_QUERY_PARAM = "approval_token";
+
+function hasValidApprovalToken(url: URL, expectedToken: string): boolean {
+	const candidate = url.searchParams.get(APPROVAL_TOKEN_QUERY_PARAM);
+	if (!candidate) return false;
+	const candidateBytes = Buffer.from(candidate);
+	const expectedBytes = Buffer.from(expectedToken);
+	return (
+		candidateBytes.length === expectedBytes.length &&
+		timingSafeEqual(candidateBytes, expectedBytes)
+	);
+}
 
 function readOrigin(req: Request): string | undefined {
 	const origin = req.headers.get("origin")?.trim();
@@ -157,7 +171,8 @@ export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
 	onShutdown?: (reason?: string) => Promise<void>,
-): { port: number } {
+	approvalToken = randomUUID(),
+): { port: number; approvalToken: string } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
 	}
@@ -172,7 +187,7 @@ export function startServer(
 			server = BunRuntime.serve({
 				hostname: SIDECAR_HOST,
 				port: candidate,
-				fetch: createFetchHandler(ctx, onShutdown),
+				fetch: createFetchHandler(ctx, onShutdown, approvalToken),
 				websocket: createWebSocketHandler(ctx),
 			}) as SidecarServer;
 			break;
@@ -185,12 +200,13 @@ export function startServer(
 		throw lastError ?? new Error("Failed to start sidecar server");
 	}
 
-	return { port: server.port };
+	return { port: server.port, approvalToken };
 }
 
 export function createFetchHandler(
 	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
+	approvalToken = "",
 ) {
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
@@ -220,7 +236,9 @@ export function createFetchHandler(
 				data: {
 					// Originless clients remain supported for local integrations, but only
 					// the browser-hosted desktop UI may receive or resolve approvals.
-					canApproveTools: Boolean(readOrigin(req)),
+					canApproveTools:
+						Boolean(readOrigin(req)) &&
+						hasValidApprovalToken(url, approvalToken),
 				},
 			})
 		) {
