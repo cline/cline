@@ -1056,6 +1056,56 @@ describe("AgentRuntime", () => {
 		expect(result.outputText).toBe("saw image");
 	});
 
+	it("accounts for usage reported by model-backed tools", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_media",
+					toolName: "generate_media",
+					input: { media_type: "image", prompt: "Draw a bee" },
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "Generated." },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [
+				{
+					name: "generate_media",
+					description: "Generate media",
+					inputSchema: { type: "object" },
+					execute: async (_input, context) => {
+						await context.reportUsage?.({
+							inputTokens: 11,
+							outputTokens: 7,
+							cacheReadTokens: 2,
+							cacheWriteTokens: 1,
+							reasoningTokenCount: 3,
+							totalCost: 0.04,
+						});
+						return "generated";
+					},
+				},
+			],
+		});
+
+		const result = await runtime.run("Create an image");
+
+		expect(result.usage).toEqual({
+			inputTokens: 11,
+			outputTokens: 7,
+			cacheReadTokens: 2,
+			cacheWriteTokens: 1,
+			reasoningTokenCount: 3,
+			totalCost: 0.04,
+		});
+	});
+
 	it("preserves plain tool outputs that contain an output property", async () => {
 		const plainOutput = {
 			output: "nested value",

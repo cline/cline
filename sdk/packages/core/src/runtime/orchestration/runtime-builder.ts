@@ -43,7 +43,7 @@ import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configur
 import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
-	isModelToolEnabledGlobally,
+	isOptInToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -156,6 +156,7 @@ function createBuiltinToolsList(
 			telemetry,
 			...preset,
 			enableSkills: !!skillsExecutor,
+			enableGenerateMedia: !!executorOverrides?.generateMedia,
 			...toolRoutingConfig,
 			executors: {
 				...(skillsExecutor
@@ -367,7 +368,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		const modelTools: ModelTool[] = [];
 		if (
 			normalized.enableTools &&
-			isModelToolEnabledGlobally("web_search") &&
+			isOptInToolEnabledGlobally("web_search") &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"web_search",
@@ -377,6 +378,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		}
 		if (
 			normalized.enableTools &&
+			!toolExecutors?.generateMedia &&
 			supportsModelTool(
 				{ providerId: config.providerId, modelId: config.modelId },
 				"image_generation",

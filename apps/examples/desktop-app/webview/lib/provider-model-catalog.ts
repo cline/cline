@@ -1,6 +1,9 @@
 "use client";
 
-import { supportsChatModalities } from "@cline/shared/browser";
+import {
+	modelProducesImages,
+	supportsChatModalities,
+} from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -45,10 +48,27 @@ export function filterChatModels(
 
 export function isChatModel(model: ProviderModel): boolean {
 	return (
-		model.operation === "image-generation" ||
+		(model.operation === undefined || model.operation === "language") &&
+		!isImageGenerationModel(model) &&
 		supportsChatModalities({
 			input: model.inputModalities,
 			output: model.outputModalities,
+		})
+	);
+}
+
+export function isImageGenerationModel(model: ProviderModel): boolean {
+	return (
+		model.operation === "image-generation" ||
+		modelProducesImages({
+			operation: model.operation,
+			modalities:
+				model.inputModalities && model.outputModalities
+					? {
+							input: model.inputModalities,
+							output: model.outputModalities,
+						}
+					: undefined,
 		})
 	);
 }

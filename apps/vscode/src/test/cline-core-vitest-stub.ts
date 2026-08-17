@@ -84,9 +84,9 @@ export function setCompactionStrategyGlobally(compactionStrategy: GlobalCompacti
 	}
 }
 
-export type ModelToolName = "web_search"
+export type OptInToolName = "web_search" | "generate_media"
 
-export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+export function isOptInToolEnabledGlobally(name: OptInToolName): boolean {
 	try {
 		const settings = JSON.parse(readFileSync(process.env.CLINE_GLOBAL_SETTINGS_PATH ?? "", "utf8"))
 		return settings.tools?.[name]?.enabled === true
@@ -95,7 +95,7 @@ export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
 	}
 }
 
-export function setModelToolEnabledGlobally(name: ModelToolName, enabled: boolean): void {
+export function setOptInToolEnabledGlobally(name: OptInToolName, enabled: boolean): void {
 	const filePath = process.env.CLINE_GLOBAL_SETTINGS_PATH
 	if (filePath) {
 		let settings: { tools?: Record<string, { enabled: boolean }> } = {}

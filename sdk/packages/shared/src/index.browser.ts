@@ -370,6 +370,10 @@ export type {
 	EnterpriseSyncResponse,
 	GetProviderModelsActionRequest,
 	ListProvidersActionRequest,
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	ProviderActionRequest,
 	ProviderCapability,
 	ProviderCatalogResponse,
@@ -389,6 +393,7 @@ export type {
 	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
+	MEDIA_GENERATION_TYPES,
 	ProviderCapabilitySchema,
 	ProviderClientSchema,
 	ProviderProtocolSchema,
@@ -496,6 +501,7 @@ export {
 } from "./storage/chat-workspace-paths";
 export * from "./team";
 export { createTool } from "./tools/create";
+export * from "./tools/settings";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 // VCR is Node-only (uses node:fs, node:path), excluded from browser build
 export type { VcrRecording } from "./types/vcr";

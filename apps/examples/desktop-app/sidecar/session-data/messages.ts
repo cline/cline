@@ -6,6 +6,7 @@ import {
 	resolveMessageDisplayRole,
 } from "@cline/core";
 import {
+	type GeneratedMedia,
 	isGeneratedMedia,
 	type MessageWithMetadata,
 	validateImageMedia,
@@ -150,6 +151,35 @@ function extractImageBlock(
 	return validation.ok
 		? { mediaType: validation.mediaType, data: validation.base64 }
 		: undefined;
+}
+
+function projectGeneratedMediaFromToolResult(value: unknown): {
+	value: unknown;
+	media: GeneratedMedia[];
+} {
+	const mediaById = new Map<string, GeneratedMedia>();
+	const visit = (nested: unknown): unknown => {
+		if (isGeneratedMedia(nested)) {
+			mediaById.set(nested.id, nested);
+			return `[generated ${nested.modality}]`;
+		}
+		if (Array.isArray(nested)) {
+			return nested.map(visit);
+		}
+		if (!nested || typeof nested !== "object") {
+			return nested;
+		}
+		const record = nested as JsonRecord;
+		if (record.type === "media" && isGeneratedMedia(record.media)) {
+			mediaById.set(record.media.id, record.media);
+			return `[generated ${record.media.modality}]`;
+		}
+		return Object.fromEntries(
+			Object.entries(record).map(([key, item]) => [key, visit(item)]),
+		);
+	};
+
+	return { value: visit(value), media: [...mediaById.values()] };
 }
 
 export function readPersistedChatMessages(
@@ -529,7 +559,10 @@ export async function readSessionMessages(
 				flushTextParts();
 				const toolUseId =
 					typeof record.tool_use_id === "string" ? record.tool_use_id : "";
-				const result = record.content ?? null;
+				const projectedResult = projectGeneratedMediaFromToolResult(
+					record.content ?? null,
+				);
+				const result = projectedResult.value;
 				const isError = Boolean(record.is_error);
 				const existing = pendingToolMessages.get(toolUseId);
 				if (existing) {
@@ -549,6 +582,9 @@ export async function readSessionMessages(
 							toolName,
 							hookEventName: "history_tool_result",
 						};
+						if (projectedResult.media.length > 0) {
+							target.media = projectedResult.media;
+						}
 					}
 					pendingToolMessages.delete(toolUseId);
 				} else {
@@ -557,6 +593,10 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
+						media:
+							projectedResult.media.length > 0
+								? projectedResult.media
+								: undefined,
 						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",

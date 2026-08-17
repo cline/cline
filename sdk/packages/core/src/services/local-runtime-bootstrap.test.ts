@@ -1,13 +1,40 @@
 import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { version as corePackageVersion } from "../../package.json";
-import type { ProviderSettings } from "../types/provider-settings";
+import type {
+	MediaGenerationSettings,
+	ProviderSettings,
+} from "../types/provider-settings";
 
-function createProviderSettingsManager(settings?: ProviderSettings) {
+function createProviderSettingsManager(
+	settings?: ProviderSettings,
+	mediaGeneration?: MediaGenerationSettings,
+) {
+	const mediaProviderId = mediaGeneration?.image?.providerId;
 	return {
 		getProviderSettings: vi.fn(() => settings),
+		getMediaGenerationSettings: vi.fn(() => mediaGeneration),
+		getProviderConfig: vi.fn((providerId: string) =>
+			providerId === mediaProviderId
+				? { providerId, apiKey: "server-only-key" }
+				: undefined,
+		),
+		read: vi.fn(() => ({
+			version: 1 as const,
+			modes: mediaGeneration ? { mediaGeneration } : {},
+			providers: mediaProviderId
+				? {
+						[mediaProviderId]: {
+							settings: { provider: mediaProviderId },
+							updatedAt: "2026-01-01T00:00:00.000Z",
+							tokenSource: "manual" as const,
+						},
+					}
+				: {},
+		})),
 	};
 }
 
@@ -37,6 +64,21 @@ function createSpawnTool() {
 	};
 }
 
+const BOOTSTRAP_MEDIA_MODEL_IDS = [
+	"bootstrap-configured-image-model",
+	"bootstrap-host-image-model",
+	"bootstrap-test-image-model",
+] as const;
+
+function registerBootstrapImageModel(modelId: string): void {
+	LlmsModels.registerModel("openrouter", modelId, {
+		id: modelId,
+		name: "Bootstrap Test Image Model",
+		operation: "image-generation",
+		modalities: { input: ["text"], output: ["image"] },
+	});
+}
+
 describe("prepareLocalRuntimeBootstrap", () => {
 	const previousGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 	let resetModulesAfterEach = false;
@@ -44,6 +86,9 @@ describe("prepareLocalRuntimeBootstrap", () => {
 	afterEach(() => {
 		process.env.CLINE_GLOBAL_SETTINGS_PATH = previousGlobalSettingsPath;
 		vi.doUnmock("../extensions/plugin/plugin-config-loader");
+		for (const modelId of BOOTSTRAP_MEDIA_MODEL_IDS) {
+			LlmsModels.unregisterModel("openrouter", modelId);
+		}
 		if (resetModulesAfterEach) {
 			vi.resetModules();
 			resetModulesAfterEach = false;
@@ -115,6 +160,209 @@ describe("prepareLocalRuntimeBootstrap", () => {
 			loadLatestOnInit: false,
 			loadPrivateOnAuth: false,
 		});
+	});
+
+	it("injects the configured media executor only when an image model is selected", async () => {
+		registerBootstrapImageModel("bootstrap-configured-image-model");
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const withoutSelection = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-without-media",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(
+			withoutSelection.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeUndefined();
+
+		const withSelection = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-with-media",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: {
+					providerId: "openrouter",
+					modelId: "bootstrap-configured-image-model",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		expect(
+			withSelection.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeTypeOf("function");
+	});
+
+	it("does not inject the media executor for a stale stored selection", async () => {
+		const mediaGeneration: MediaGenerationSettings = {
+			image: {
+				providerId: "openrouter",
+				modelId: "missing-image-model",
+			},
+		};
+		const providerSettingsManager = createProviderSettingsManager(
+			undefined,
+			mediaGeneration,
+		);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-stale-media",
+			providerSettingsManager: providerSettingsManager as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(
+			bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia,
+		).toBeUndefined();
+		expect(providerSettingsManager.getMediaGenerationSettings()).toEqual(
+			mediaGeneration,
+		);
+	});
+
+	it("lets a host media executor override the configured executor", async () => {
+		registerBootstrapImageModel("bootstrap-host-image-model");
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const hostGenerateMedia = vi.fn(async () => []);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: {
+				...createStartInput(),
+				capabilities: {
+					toolExecutors: { generateMedia: hostGenerateMedia },
+				},
+			},
+			sessionId: "sess-host-media",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: {
+					providerId: "openrouter",
+					modelId: "bootstrap-host-image-model",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia).toBe(
+			hostGenerateMedia,
+		);
+	});
+
+	it("forwards the tool abort signal through the configured media executor", async () => {
+		const modelId = "bootstrap-test-image-model";
+		registerBootstrapImageModel(modelId);
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockResolvedValue({
+				media: [
+					{
+						id: "bootstrap-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				usage: {
+					inputTokens: 7,
+					outputTokens: 3,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			});
+		const providerSettingsManager = {
+			getProviderSettings: vi.fn(() => undefined),
+			getMediaGenerationSettings: vi.fn(() => ({
+				image: { providerId: "openrouter", modelId },
+			})),
+			read: vi.fn(() => ({
+				version: 1 as const,
+				modes: {
+					mediaGeneration: {
+						image: { providerId: "openrouter", modelId },
+					},
+				},
+				providers: {
+					openrouter: {
+						settings: { provider: "openrouter" },
+						updatedAt: "2026-01-01T00:00:00.000Z",
+						tokenSource: "manual" as const,
+					},
+				},
+			})),
+			getProviderConfig: vi.fn(() => ({
+				providerId: "openrouter",
+				apiKey: "server-only-key",
+			})),
+		};
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-media-abort",
+			providerSettingsManager: providerSettingsManager as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		const abortController = new AbortController();
+		const reportUsage = vi.fn();
+
+		await bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia?.(
+			{ media_type: "image", prompt: "A lighthouse" },
+			{
+				agentId: "agent-1",
+				iteration: 1,
+				signal: abortController.signal,
+				reportUsage,
+			},
+		);
+
+		expect(generateSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				abortSignal: abortController.signal,
+				providerConfig: expect.objectContaining({
+					apiKey: "server-only-key",
+				}),
+			}),
+		);
+		expect(reportUsage).toHaveBeenCalledWith({
+			inputTokens: 7,
+			outputTokens: 3,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		});
+		generateSpy.mockRestore();
 	});
 
 	it("filters globally disabled plugin tools before extension setup", async () => {

@@ -28,6 +28,10 @@ import {
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
 import type {
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	Provider,
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
@@ -76,9 +80,11 @@ const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
 let providerCatalogCache: {
 	providers: Provider[];
+	mediaGenerationModels: MediaGenerationModelCatalog;
 	fetchedAt: number;
 } | null = null;
 let voiceInputCache: VoiceInputSelection | undefined;
+let mediaGenerationCache: MediaGenerationSettings | undefined;
 
 // -----------------------------------------------------------
 // Component
@@ -120,6 +126,21 @@ export function SettingsView({
 		() => voiceInputCache,
 	);
 	const [voiceInputSaving, setVoiceInputSaving] = useState(false);
+	const [mediaGeneration, setMediaGeneration] = useState<
+		MediaGenerationSettings | undefined
+	>(() => mediaGenerationCache);
+	const [mediaGenerationModels, setMediaGenerationModels] =
+		useState<MediaGenerationModelCatalog>(
+			() =>
+				providerCatalogCache?.mediaGenerationModels ?? {
+					audio: {},
+					image: {},
+					video: {},
+				},
+		);
+	const [mediaGenerationSaving, setMediaGenerationSaving] = useState<
+		Partial<Record<MediaGenerationType, boolean>>
+	>({});
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -129,7 +150,10 @@ export function SettingsView({
 	}, [section]);
 
 	const setProvidersWithCache = useCallback(
-		(next: Provider[] | ((prev: Provider[]) => Provider[])) => {
+		(
+			next: Provider[] | ((prev: Provider[]) => Provider[]),
+			mediaGenerationModels?: MediaGenerationModelCatalog,
+		) => {
 			setProviders((prev) => {
 				const resolved =
 					typeof next === "function"
@@ -137,6 +161,12 @@ export function SettingsView({
 						: next;
 				providerCatalogCache = {
 					providers: resolved,
+					mediaGenerationModels: mediaGenerationModels ??
+						providerCatalogCache?.mediaGenerationModels ?? {
+							audio: {},
+							image: {},
+							video: {},
+						},
 					fetchedAt: Date.now(),
 				};
 				return resolved;
@@ -153,6 +183,8 @@ export function SettingsView({
 		) {
 			setProviders(providerCatalogCache.providers);
 			setVoiceInput(voiceInputCache);
+			setMediaGeneration(mediaGenerationCache);
+			setMediaGenerationModels(providerCatalogCache.mediaGenerationModels);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return;
@@ -164,9 +196,12 @@ export function SettingsView({
 			const payload = await desktopClient.invoke<ProviderCatalogResponse>(
 				"list_provider_catalog",
 			);
-			setProvidersWithCache(payload.providers);
+			setProvidersWithCache(payload.providers, payload.mediaGenerationModels);
+			setMediaGenerationModels(payload.mediaGenerationModels);
 			voiceInputCache = payload.voiceInput;
 			setVoiceInput(payload.voiceInput);
+			mediaGenerationCache = payload.mediaGeneration;
+			setMediaGeneration(payload.mediaGeneration);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -177,7 +212,7 @@ export function SettingsView({
 	}, [setProvidersWithCache]);
 
 	useEffect(() => {
-		if (activeNav !== "Models") {
+		if (activeNav !== "Models" && activeNav !== "Tools") {
 			return;
 		}
 		const timeoutId = window.setTimeout(() => {
@@ -230,6 +265,8 @@ export function SettingsView({
 					const nextEnabled = !p.enabled;
 					const clearsVoiceInput =
 						!nextEnabled && voiceInput?.providerId === id;
+					const clearsImageGeneration =
+						!nextEnabled && mediaGeneration?.image?.providerId === id;
 					void persistProviderSettings(id, { enabled: nextEnabled }).then(
 						(saved) => {
 							if (saved && clearsVoiceInput) {
@@ -237,13 +274,22 @@ export function SettingsView({
 								setVoiceInput(undefined);
 								notifyVoiceInputSettingsChanged();
 							}
+							if (saved && clearsImageGeneration) {
+								mediaGenerationCache = undefined;
+								setMediaGeneration(undefined);
+							}
 						},
 					);
 					return { ...p, enabled: nextEnabled };
 				}),
 			);
 		},
-		[persistProviderSettings, setProvidersWithCache, voiceInput],
+		[
+			mediaGeneration,
+			persistProviderSettings,
+			setProvidersWithCache,
+			voiceInput,
+		],
 	);
 
 	const updateVoiceInput = useCallback(
@@ -264,6 +310,38 @@ export function SettingsView({
 				window.alert(`Failed to save voice input settings: ${message}`);
 			} finally {
 				setVoiceInputSaving(false);
+			}
+		},
+		[],
+	);
+
+	const updateMediaGeneration = useCallback(
+		async (
+			mediaType: MediaGenerationType,
+			selection: MediaModelSelection | undefined,
+		) => {
+			setMediaGenerationSaving((current) => ({
+				...current,
+				[mediaType]: true,
+			}));
+			try {
+				const result = await desktopClient.invoke<{
+					mediaGeneration?: MediaGenerationSettings;
+				}>("save_media_generation_settings", {
+					media_type: mediaType,
+					provider: selection?.providerId,
+					model: selection?.modelId,
+				});
+				mediaGenerationCache = result.mediaGeneration;
+				setMediaGeneration(result.mediaGeneration);
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				window.alert(`Failed to save media generation settings: ${message}`);
+			} finally {
+				setMediaGenerationSaving((current) => ({
+					...current,
+					[mediaType]: false,
+				}));
 			}
 		},
 		[],
@@ -516,7 +594,24 @@ export function SettingsView({
 		) : activeNav === "Agents" ? (
 			<CustomizationSectionView section="Agents" />
 		) : activeNav === "Tools" ? (
-			<CustomizationSectionView section="Tools" />
+			<CustomizationSectionView
+				generateMediaConfig={{
+					error: providerCatalogError,
+					loading: providersLoading,
+					mediaTypes: [
+						{
+							mediaType: "image",
+							modelIdsByProvider: mediaGenerationModels.image,
+							saving: mediaGenerationSaving.image === true,
+							selection: mediaGeneration?.image,
+						},
+					],
+					onChange: updateMediaGeneration,
+					onConfigureProviders: () => onNavigateSection("Models"),
+					providers,
+				}}
+				section="Tools"
+			/>
 		) : activeNav === "Channels" ? (
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
