@@ -1,0 +1,110 @@
+import type { AgentBeforeToolContext, AgentHooks } from "@cline/shared";
+import { describe, expect, it, vi } from "vitest";
+import { createProviderToolPermission } from "./provider-tool-permission";
+
+const REQUEST = {
+	toolName: "Bash",
+	toolCallId: "cli_bash_1",
+	input: { command: "ls" },
+};
+
+describe("createProviderToolPermission", () => {
+	it("returns undefined when no layer has a beforeTool hook", () => {
+		expect(
+			createProviderToolPermission({
+				hooks: [undefined, { afterRun: async () => {} }],
+				sessionId: "s1",
+			}),
+		).toBeUndefined();
+	});
+
+	it("allows when hooks return no control", async () => {
+		const beforeTool = vi.fn(
+			async (_ctx: AgentBeforeToolContext) => undefined,
+		);
+		const gate = createProviderToolPermission({
+			hooks: [{ beforeTool }],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({ behavior: "allow" });
+		const ctx = beforeTool.mock.calls[0][0];
+		expect(ctx.toolCall).toMatchObject({
+			toolCallId: "cli_bash_1",
+			toolName: "Bash",
+			execution: "provider",
+		});
+		expect(ctx.input).toEqual({ command: "ls" });
+		expect(ctx.snapshot).toMatchObject({
+			agentId: "s1",
+			conversationId: "s1",
+		});
+	});
+
+	it("maps stop to an interrupting deny with the hook's reason", async () => {
+		const gate = createProviderToolPermission({
+			hooks: [{ beforeTool: async () => ({ stop: true, reason: "nope" }) }],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: "nope",
+			interrupt: true,
+		});
+	});
+
+	it("maps skip to a non-interrupting deny with a default message", async () => {
+		const gate = createProviderToolPermission({
+			hooks: [{ beforeTool: async () => ({ skip: true }) }],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: 'Tool "Bash" was blocked by a Cline hook',
+			interrupt: false,
+		});
+	});
+
+	it("maps an input override to allow with updatedInput", async () => {
+		const gate = createProviderToolPermission({
+			hooks: [{ beforeTool: async () => ({ input: { command: "ls -la" } }) }],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "allow",
+			updatedInput: { command: "ls -la" },
+		});
+	});
+
+	it("consults every layer and lets any of them deny", async () => {
+		const first: AgentHooks = { beforeTool: async () => undefined };
+		const second: AgentHooks = {
+			beforeTool: async () => ({ skip: true, reason: "layer two says no" }),
+		};
+		const gate = createProviderToolPermission({
+			hooks: [first, second],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: "layer two says no",
+			interrupt: false,
+		});
+	});
+
+	it("fails open when a hook throws", async () => {
+		const log = vi.fn();
+		const gate = createProviderToolPermission({
+			hooks: [
+				{
+					beforeTool: async () => {
+						throw new Error("boom");
+					},
+				},
+			],
+			sessionId: "s1",
+			logger: { log, debug: vi.fn() },
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({ behavior: "allow" });
+		expect(log).toHaveBeenCalled();
+	});
+});

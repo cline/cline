@@ -82,6 +82,9 @@ function buildGatewayProviderOptions(
 		const workspace = config.extensionContext?.workspace;
 		Object.assign(options, {
 			cwd: workspace?.cwd ?? workspace?.rootPath,
+			// Gate the CLI's own tool executions through the session's
+			// PreToolUse hooks (a live function; in-process only).
+			onToolPermission: config.onProviderToolPermission,
 		});
 	}
 

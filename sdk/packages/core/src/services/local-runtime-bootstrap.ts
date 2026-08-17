@@ -33,6 +33,7 @@ import {
 	createHookConfigFileExtension,
 	mergeAgentHooks,
 } from "../hooks/hook-file-hooks";
+import { createProviderToolPermission } from "../hooks/provider-tool-permission";
 import type { RuntimeCapabilities } from "../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../runtime/capabilities";
 import type {
@@ -412,6 +413,16 @@ export async function prepareLocalRuntimeBootstrap(
 				})
 			: undefined,
 	]);
+	// Provider-executed tools (claude-code and friends) never reach the
+	// runtime tool pipeline, so gate them at the provider boundary with the
+	// same hook layers: session hooks (host adapters, checkpoints) plus the
+	// workspace's file-based hooks. Attached unconditionally; the handler
+	// factory forwards it only to providers that execute their own tools.
+	providerConfig.onProviderToolPermission = createProviderToolPermission({
+		hooks: [hooks, fileHookExtension?.hooks],
+		sessionId,
+		logger: baseConfig.logger,
+	});
 	const config: CoreSessionConfig = {
 		...baseConfig,
 		providerConfig,

@@ -183,6 +183,39 @@ export interface GatewayProviderManifest {
 	metadata?: GatewayProviderMetadata;
 }
 
+/**
+ * A tool call a provider is about to execute inside its own session (e.g. the
+ * Claude Code CLI's native tools), offered to the host for gating before it
+ * runs.
+ */
+export interface ProviderToolPermissionRequest {
+	toolName: string;
+	toolCallId?: string;
+	input: unknown;
+}
+
+export type ProviderToolPermissionResult =
+	| {
+			behavior: "allow";
+			/** Replacement input for the tool call, when a hook rewrote it. */
+			updatedInput?: Record<string, unknown>;
+	  }
+	| {
+			behavior: "deny";
+			message?: string;
+			/** Stop the provider's whole turn instead of just this tool call. */
+			interrupt?: boolean;
+	  };
+
+/**
+ * Pre-execution gate for provider-executed tools. Lives only in-process (it is
+ * a function and never serializes across a transport); hosts construct it
+ * where their hook layers live.
+ */
+export type ProviderToolPermissionCallback = (
+	request: ProviderToolPermissionRequest,
+) => Promise<ProviderToolPermissionResult>;
+
 export interface GatewayProviderSettings {
 	apiKey?: string;
 	apiKeyResolver?: () => string | undefined | Promise<string | undefined>;

@@ -8,6 +8,7 @@
 import type {
 	BasicLogger,
 	ExtensionContext,
+	ProviderToolPermissionCallback,
 	ReasoningEffort,
 } from "@cline/shared";
 import type { ModelInfo, ProviderClient } from "../catalog/types";
@@ -332,6 +333,14 @@ export interface ProviderConfig
 
 	/** Claude Code-specific options */
 	claudeCode?: ClaudeCodeConfig;
+
+	/**
+	 * Pre-execution gate for provider-executed tools (providers with the
+	 * `provider-tools` capability run tools inside their own session). Hosts
+	 * derive this from their hook layers; it is a live function and only
+	 * works in-process.
+	 */
+	onProviderToolPermission?: ProviderToolPermissionCallback;
 
 	/** OpenCode-specific options */
 	opencode?: OpenCodeConfig;

@@ -1,7 +1,10 @@
 import { accessSync, existsSync, constants as fsConstants } from "node:fs";
 import { createRequire } from "node:module";
 import { delimiter, dirname, join } from "node:path";
-import type { GatewayResolvedProviderConfig } from "@cline/shared";
+import type {
+	GatewayResolvedProviderConfig,
+	ProviderToolPermissionCallback,
+} from "@cline/shared";
 // Keep this import static so the VS Code extension bundle includes the SAP
 // provider. Hiding it behind a computed dynamic import leaves the published
 // extension trying to load @jerome-benoit/sap-ai-provider from node_modules at
@@ -97,10 +100,76 @@ export async function createClaudeCodeProviderModule(
 			{ cause: error },
 		);
 	}
-	const { cwd: workspaceCwd, ...options } = readOptions(config);
+	const {
+		cwd: workspaceCwd,
+		onToolPermission,
+		...options
+	} = readOptions(config);
 	const defaultSettings: Record<string, unknown> = {
 		...((options.defaultSettings as Record<string, unknown> | undefined) ?? {}),
 	};
+	// Bridge the host's provider-tool gate into the agent session as a native
+	// PreToolUse hook. Hooks (unlike canUseTool) fire for every tool use,
+	// including tools the CLI would allow without prompting, so the host's
+	// PreToolUse hooks observe and can veto all of them.
+	if (
+		typeof onToolPermission === "function" &&
+		defaultSettings.hooks === undefined
+	) {
+		const permission = onToolPermission as ProviderToolPermissionCallback;
+		defaultSettings.hooks = {
+			PreToolUse: [
+				{
+					hooks: [
+						async (...args: unknown[]) => {
+							const payload =
+								args[0] && typeof args[0] === "object"
+									? (args[0] as Record<string, unknown>)
+									: {};
+							const result = await permission({
+								toolName:
+									typeof payload.tool_name === "string"
+										? payload.tool_name
+										: "tool",
+								toolCallId:
+									typeof payload.tool_use_id === "string"
+										? payload.tool_use_id
+										: undefined,
+								input: payload.tool_input,
+							});
+							if (result.behavior === "deny") {
+								const message =
+									result.message ?? "Tool call was blocked by a Cline hook";
+								return {
+									hookSpecificOutput: {
+										hookEventName: "PreToolUse",
+										permissionDecision: "deny",
+										permissionDecisionReason: message,
+									},
+									// interrupt stops the whole agent turn (a hook `cancel`),
+									// a plain deny only blocks this tool call.
+									...(result.interrupt
+										? { continue: false, stopReason: message }
+										: {}),
+								};
+							}
+							// Allow: return no permissionDecision so the CLI's own
+							// permission flow (user settings, permission mode) still
+							// applies — the gate must never widen what the user allowed.
+							return {
+								hookSpecificOutput: {
+									hookEventName: "PreToolUse",
+									...(result.updatedInput
+										? { updatedInput: result.updatedInput }
+										: {}),
+								},
+							};
+						},
+					],
+				},
+			],
+		};
+	}
 	if (defaultSettings.pathToClaudeCodeExecutable === undefined) {
 		const executable = resolveClaudeExecutable();
 		if (executable !== undefined) {
