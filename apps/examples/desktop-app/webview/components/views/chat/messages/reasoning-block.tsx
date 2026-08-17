@@ -52,7 +52,7 @@ export function ReasoningBlock({
 				presentation="rail"
 			>
 				<MemoizedMarkdown
-					classNames="text-sm"
+					className="text-sm"
 					content={displayContent}
 					streaming={streaming}
 				/>

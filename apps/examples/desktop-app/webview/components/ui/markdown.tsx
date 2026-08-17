@@ -298,18 +298,16 @@ const markdownComponents = {
 	img: MarkdownImage,
 } satisfies Components;
 
+export type MarkdownProps = {
+	content: string;
+	streaming?: boolean;
+	className?: string;
+};
+
 export const MemoizedMarkdown = memo(
-	({
-		content,
-		classNames,
-		streaming = false,
-	}: {
-		content: string;
-		streaming?: boolean;
-		classNames?: string;
-	}) => (
+	({ content, className, streaming = false }: MarkdownProps) => (
 		<Streamdown
-			className={cn("cline-markdown", classNames)}
+			className={cn("cline-markdown", className)}
 			components={markdownComponents}
 			controls={streamdownControls}
 			dir="auto"
