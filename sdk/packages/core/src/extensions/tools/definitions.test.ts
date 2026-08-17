@@ -4,6 +4,7 @@ import {
 	buildRunCommandsDescription,
 	createDefaultTools,
 	createEditorTool,
+	createGenerateMediaTool,
 	createReadFilesTool,
 	createSearchTool,
 	createShellTool,
@@ -12,7 +13,7 @@ import {
 import { CommandExitError } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
-import type { SkillsExecutorWithMetadata } from "./types";
+import type { GenerateMediaContent, SkillsExecutorWithMetadata } from "./types";
 
 function hasSchemaKey(value: unknown, key: string): boolean {
 	if (Array.isArray(value)) {
@@ -35,6 +36,100 @@ function createMockSkillsExecutor(
 	executor.configuredSkills = configuredSkills;
 	return executor;
 }
+
+describe("default generate_media tool", () => {
+	const generatedContent: GenerateMediaContent = [
+		{ type: "text", text: "Generated image." },
+		{
+			type: "media",
+			media: {
+				id: "generated-image-1",
+				modality: "image",
+				mediaType: "image/png",
+				source: { type: "url", url: "https://example.com/image.png" },
+			},
+		},
+	];
+
+	it("is included only when enabled with a generateMedia executor", () => {
+		const toolsWithoutExecutor = createDefaultTools({
+			executors: {},
+			enableGenerateMedia: true,
+		});
+		expect(toolsWithoutExecutor.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+
+		const toolsWithDisabledExecutor = createDefaultTools({
+			executors: {
+				generateMedia: async () => generatedContent,
+			},
+		});
+		expect(toolsWithDisabledExecutor.map((tool) => tool.name)).not.toContain(
+			"generate_media",
+		);
+
+		const toolsWithEnabledExecutor = createDefaultTools({
+			executors: {
+				generateMedia: async () => generatedContent,
+			},
+			enableGenerateMedia: true,
+		});
+		expect(toolsWithEnabledExecutor.map((tool) => tool.name)).toContain(
+			"generate_media",
+		);
+	});
+
+	it("validates input and preserves structured media content", async () => {
+		const execute = vi.fn(async () => generatedContent);
+		const tool = createGenerateMediaTool(execute);
+
+		const result = await tool.execute(
+			{ media_type: "image", prompt: "  A bee flying over flowers  " },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual(generatedContent);
+		expect(execute).toHaveBeenCalledWith(
+			{ media_type: "image", prompt: "A bee flying over flowers" },
+			expect.objectContaining({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			}),
+		);
+	});
+
+	it("uses the runtime error channel for executor failures", async () => {
+		const tool = createGenerateMediaTool(async () => {
+			throw new Error("provider unavailable");
+		});
+
+		await expect(
+			tool.execute(
+				{ media_type: "image", prompt: "A bee" },
+				{ agentId: "agent-1", iteration: 1 },
+			),
+		).rejects.toThrow("provider unavailable");
+	});
+
+	it("rejects unsupported media types before invoking the executor", async () => {
+		const execute = vi.fn(async () => generatedContent);
+		const tool = createGenerateMediaTool(execute);
+
+		await expect(
+			tool.execute({ media_type: "video", prompt: "A bee" } as never, {
+				agentId: "agent-1",
+				iteration: 1,
+			}),
+		).rejects.toThrow("Invalid input");
+		expect(execute).not.toHaveBeenCalled();
+	});
+});
 
 describe("default skills tool", () => {
 	it("is included only when enabled with a skills executor", () => {

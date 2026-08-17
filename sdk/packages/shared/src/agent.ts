@@ -197,6 +197,8 @@ export interface AgentToolContext {
 	metadata?: Record<string, unknown>;
 	snapshot?: AgentRuntimeStateSnapshot;
 	emitUpdate?: (update: unknown) => void;
+	/** Add usage incurred by model-backed tools to the owning agent run. */
+	reportUsage?: (usage: Partial<AgentUsage>) => Promise<void> | void;
 }
 
 export interface AgentTool<TInput = unknown, TOutput = unknown>

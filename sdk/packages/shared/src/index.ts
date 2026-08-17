@@ -420,6 +420,10 @@ export type {
 	EnterpriseSyncResponse,
 	GetProviderModelsActionRequest,
 	ListProvidersActionRequest,
+	MediaGenerationModelCatalog,
+	MediaGenerationSettings,
+	MediaGenerationType,
+	MediaModelSelection,
 	ProviderActionRequest,
 	ProviderCapability,
 	ProviderCatalogResponse,
@@ -441,6 +445,7 @@ export type {
 	VoiceInputSelection,
 } from "./rpc/runtime";
 export {
+	MEDIA_GENERATION_TYPES,
 	ProviderCapabilitySchema,
 	ProviderClientSchema,
 	ProviderProtocolSchema,
@@ -580,6 +585,7 @@ export {
 export * from "./tasks";
 export * from "./team";
 export { createTool } from "./tools/create";
+export * from "./tools/settings";
 export * from "./types";
 export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
 export { initVcr } from "./vcr";

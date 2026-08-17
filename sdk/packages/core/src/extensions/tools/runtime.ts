@@ -23,7 +23,7 @@ export interface BuiltinToolAvailabilityContext {
 	enableSpawnAgent?: boolean;
 	enableAgentTeams?: boolean;
 	disabledToolIds?: ReadonlySet<string>;
-	enabledModelToolIds?: ReadonlySet<string>;
+	enabledOptInToolIds?: ReadonlySet<string>;
 }
 
 type RuntimeToolCatalogEntry = Omit<ToolCatalogEntry, "defaultEnabled">;
@@ -64,6 +64,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		description:
 			"Fetch URL content and analyze it with a prompt describing what to extract.",
 		headlessToolNames: ["fetch_web_content"],
+	},
+	{
+		id: "generate_media",
+		description:
+			"Generate media from a text prompt using the separately configured media-generation model. Currently supports images.",
+		headlessToolNames: ["generate_media"],
 	},
 	{
 		id: "skills",
@@ -180,8 +186,8 @@ function isEntryEnabledByDefault(
 	if (context.disabledToolIds?.has(entryId)) {
 		return false;
 	}
-	if (entryId === "web_search") {
-		return context.enabledModelToolIds?.has(entryId) === true;
+	if (entryId === "web_search" || entryId === "generate_media") {
+		return context.enabledOptInToolIds?.has(entryId) === true;
 	}
 
 	const { flags } = resolvePresetFlags(context);

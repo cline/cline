@@ -27,6 +27,11 @@ import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
+import type {
+	MediaGenerationType,
+	MediaModelSelection,
+	Provider,
+} from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import {
 	MarketplaceEntrySetupDetails,
@@ -195,6 +200,198 @@ type UserInstructionListsResponse = {
 	warnings: string[];
 };
 
+export interface MediaTypeConfiguration {
+	mediaType: MediaGenerationType;
+	modelIdsByProvider: Readonly<Record<string, readonly string[]>>;
+	saving: boolean;
+	selection?: MediaModelSelection;
+}
+
+export interface GenerateMediaToolConfig {
+	error: string | null;
+	loading: boolean;
+	mediaTypes: readonly MediaTypeConfiguration[];
+	onChange: (
+		mediaType: MediaGenerationType,
+		selection: MediaModelSelection | undefined,
+	) => void | Promise<void>;
+	onConfigureProviders: () => void;
+	providers: readonly Provider[];
+}
+
+const MEDIA_TYPE_PRESENTATION: Record<
+	MediaGenerationType,
+	{ label: string; modelLabel: string }
+> = {
+	audio: { label: "Audio generation", modelLabel: "Audio model" },
+	image: { label: "Image generation", modelLabel: "Image model" },
+	video: { label: "Video generation", modelLabel: "Video model" },
+};
+
+export function MediaModelConfiguration({
+	config,
+	media,
+}: {
+	config: GenerateMediaToolConfig;
+	media: MediaTypeConfiguration;
+}) {
+	const presentation = MEDIA_TYPE_PRESENTATION[media.mediaType];
+	const eligibleProviders = config.providers
+		.filter((provider) => provider.enabled)
+		.map((provider) => ({
+			provider,
+			models: (provider.modelList ?? []).filter((model) =>
+				media.modelIdsByProvider[provider.id]?.includes(model.id),
+			),
+		}))
+		.filter((entry) => entry.models.length > 0);
+	const selectedProvider = eligibleProviders.find(
+		(entry) => entry.provider.id === media.selection?.providerId,
+	);
+	const selectedModels = selectedProvider?.models ?? [];
+
+	if (eligibleProviders.length === 0) {
+		return (
+			<div className="space-y-2" data-media-type-config={media.mediaType}>
+				<p className="text-xs font-medium text-foreground">
+					{presentation.label}
+				</p>
+				<p className="text-xs text-muted-foreground">
+					Configure and enable a provider with an eligible {media.mediaType}
+					-generation model.
+				</p>
+				<Button
+					onClick={config.onConfigureProviders}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					Configure providers
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3" data-media-type-config={media.mediaType}>
+			<p className="text-xs font-medium text-foreground">
+				{presentation.label}
+			</p>
+			{media.selection ? null : (
+				<p className="text-xs text-amber-600 dark:text-amber-400">
+					Select a provider and model to enable {media.mediaType} generation.
+				</p>
+			)}
+			<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
+				<label className="space-y-1.5 text-xs text-muted-foreground">
+					<span>Provider</span>
+					<select
+						aria-label={`${presentation.label} provider`}
+						className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+						disabled={media.saving}
+						onChange={(event) => {
+							const providerId = event.target.value;
+							if (!providerId) {
+								void config.onChange(media.mediaType, undefined);
+								return;
+							}
+							const modelId = eligibleProviders.find(
+								(entry) => entry.provider.id === providerId,
+							)?.models[0]?.id;
+							if (modelId) {
+								void config.onChange(media.mediaType, {
+									providerId,
+									modelId,
+								});
+							}
+						}}
+						value={selectedProvider?.provider.id ?? ""}
+					>
+						<option value="">Not configured</option>
+						{eligibleProviders.map(({ provider }) => (
+							<option key={provider.id} value={provider.id}>
+								{provider.name}
+							</option>
+						))}
+					</select>
+				</label>
+				<label className="space-y-1.5 text-xs text-muted-foreground">
+					<span>{presentation.modelLabel}</span>
+					<select
+						aria-label={`${presentation.label} model`}
+						className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+						disabled={!selectedProvider || media.saving}
+						onChange={(event) => {
+							if (!selectedProvider || !event.target.value) return;
+							void config.onChange(media.mediaType, {
+								providerId: selectedProvider.provider.id,
+								modelId: event.target.value,
+							});
+						}}
+						value={media.selection?.modelId ?? ""}
+					>
+						{selectedModels.length === 0 ? (
+							<option value="">Select a provider first</option>
+						) : null}
+						{selectedModels.map((model) => (
+							<option key={model.id} value={model.id}>
+								{model.name}
+							</option>
+						))}
+					</select>
+				</label>
+			</div>
+		</div>
+	);
+}
+
+export function GenerateMediaConfiguration({
+	config,
+}: {
+	config: GenerateMediaToolConfig;
+}) {
+	if (config.loading) {
+		return (
+			<p className="text-xs text-muted-foreground">
+				Loading media-generation models...
+			</p>
+		);
+	}
+
+	if (config.error) {
+		return (
+			<div className="space-y-2">
+				<p className="text-xs text-destructive">
+					Failed to load media-generation models: {config.error}
+				</p>
+				<Button
+					onClick={config.onConfigureProviders}
+					size="sm"
+					type="button"
+					variant="outline"
+				>
+					Open Models settings
+				</Button>
+			</div>
+		);
+	}
+
+	return (
+		<div className="space-y-3">
+			{config.mediaTypes.map((media) => (
+				<MediaModelConfiguration
+					config={config}
+					key={media.mediaType}
+					media={media}
+				/>
+			))}
+			<p className="text-xs text-muted-foreground">
+				Tool availability changes apply to new chats.
+			</p>
+		</div>
+	);
+}
+
 const EMPTY_MCP_RESPONSE: McpServersResponse = {
 	settingsPath: "",
 	hasSettingsFile: false,
@@ -243,6 +440,10 @@ let extensionListsCache:
 			fetchedAt: number;
 	  })
 	| null = null;
+
+export function invalidateExtensionListsCache(): void {
+	extensionListsCache = null;
+}
 
 let extensionHookStatsCache: {
 	hookExecutionByEvent: Record<string, HookExecutionSummary>;
@@ -351,6 +552,7 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 export function CustomizationSectionView({
 	catalogPrimitive,
 	chrome = "page",
+	generateMediaConfig,
 	marketplaceVariant = "full",
 	onInventoryChanged,
 	section = "Rules",
@@ -359,6 +561,7 @@ export function CustomizationSectionView({
 	catalogPrimitive?: MarketplacePrimitiveType;
 	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
 	chrome?: "page" | "embedded";
+	generateMediaConfig?: GenerateMediaToolConfig;
 	/** Which marketplace sections the embedded MarketplaceView shows. */
 	marketplaceVariant?: "full" | "installed";
 	/** Invoked after a forced inventory refresh (installs, uninstalls). */
@@ -409,6 +612,9 @@ export function CustomizationSectionView({
 	>(() => extensionHookStatsCache?.hookExecutionSessionId ?? null);
 	const [hookExecutionLoading, setHookExecutionLoading] = useState(false);
 	const [togglingToolIds, setTogglingToolIds] = useState<Set<string>>(
+		() => new Set(),
+	);
+	const [expandedToolIds, setExpandedToolIds] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const [togglingPluginPaths, setTogglingPluginPaths] = useState<Set<string>>(
@@ -575,13 +781,20 @@ export function CustomizationSectionView({
 	);
 
 	const setToolEnabled = useCallback(
-		async (tool: ToolItem) => {
+		async (tool: ToolItem, enabled: boolean) => {
+			setTools((current) =>
+				current.map((candidate) =>
+					candidate.id === tool.id ? { ...candidate, enabled } : candidate,
+				),
+			);
 			setTogglingToolIds((current) => new Set(current).add(tool.id));
 			setErrorMessage(null);
 			try {
-				const names = [tool.name, ...(tool.headlessToolNames ?? [])].filter(
-					Boolean,
-				);
+				const names = [
+					...new Set(
+						[tool.name, ...(tool.headlessToolNames ?? [])].filter(Boolean),
+					),
+				];
 				if (names.length === 0) {
 					throw new Error("tool name is required");
 				}
@@ -591,7 +804,7 @@ export function CustomizationSectionView({
 						"set_tool_disabled",
 						{
 							names,
-							disabled: tool.enabled,
+							disabled: !enabled,
 						},
 					);
 				} catch (error) {
@@ -610,9 +823,25 @@ export function CustomizationSectionView({
 						"tool toggle did not return an updated extension list",
 					);
 				}
-				applyResponse(response);
+				const normalizedResponse = normalizeInstructionListsResponse(response);
+				const updatedTool = normalizedResponse.tools.find(
+					(candidate) => candidate.id === tool.id,
+				);
+				if (updatedTool?.enabled !== enabled) {
+					throw new Error(
+						`tool toggle did not persist the requested ${enabled ? "enabled" : "disabled"} state`,
+					);
+				}
+				applyResponse(normalizedResponse);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
+				setTools((current) =>
+					current.map((candidate) =>
+						candidate.id === tool.id
+							? { ...candidate, enabled: tool.enabled }
+							: candidate,
+					),
+				);
 				setErrorMessage(message);
 			} finally {
 				setTogglingToolIds((current) => {
@@ -1283,7 +1512,7 @@ export function CustomizationSectionView({
 
 			{errorMessage && (
 				<div className="mb-4 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive">
-					Failed to load configuration lists: {errorMessage}
+					Configuration error: {errorMessage}
 				</div>
 			)}
 
@@ -1672,27 +1901,23 @@ export function CustomizationSectionView({
 							{builtinTools.map((tool) =>
 								(() => {
 									const isToggling = togglingToolIds.has(tool.id);
-									return (
-										<div
-											key={tool.id}
-											className="rounded-lg border border-border px-5 py-4"
-										>
+									const isGenerateMedia = tool.id === "generate_media";
+									const isExpanded = expandedToolIds.has(tool.id);
+									const hasMediaConfiguration = Boolean(
+										generateMediaConfig?.mediaTypes.some(
+											(media) => media.selection,
+										),
+									);
+									const setupRequired =
+										isGenerateMedia && !hasMediaConfiguration;
+									const effectivelyEnabled = tool.enabled && !setupRequired;
+									const summary = (
+										<>
 											<div className="flex items-center gap-3">
 												<Wrench className="h-4 w-4 shrink-0 text-primary" />
 												<h3 className="min-w-0 flex-1 text-sm font-semibold text-foreground">
 													{tool.name}
 												</h3>
-												<span className="text-xs text-muted-foreground">
-													{tool.enabled ? "Enabled" : "Disabled"}
-												</span>
-												<Switch
-													checked={tool.enabled}
-													onCheckedChange={() => {
-														void setToolEnabled(tool);
-													}}
-													disabled={isToggling}
-													aria-label={`Toggle ${tool.name}`}
-												/>
 											</div>
 											<p className="mt-2 ml-7 text-xs text-muted-foreground">
 												{tool.description?.trim() ||
@@ -1703,6 +1928,75 @@ export function CustomizationSectionView({
 													{tool.headlessToolNames.join(", ")}
 												</p>
 											)}
+										</>
+									);
+									return (
+										<div
+											key={tool.id}
+											className="rounded-lg border border-border px-5 py-4"
+										>
+											<div className="flex items-start gap-3">
+												{isGenerateMedia ? (
+													<button
+														aria-controls={`tool-config-${tool.id}`}
+														aria-expanded={isExpanded}
+														aria-label={`Configure ${tool.name}`}
+														className="min-w-0 flex-1 cursor-pointer text-left"
+														onClick={() => {
+															setExpandedToolIds((current) => {
+																const next = new Set(current);
+																if (next.has(tool.id)) next.delete(tool.id);
+																else next.add(tool.id);
+																return next;
+															});
+														}}
+														type="button"
+													>
+														{summary}
+													</button>
+												) : (
+													<div className="min-w-0 flex-1">{summary}</div>
+												)}
+												<span
+													className={cn(
+														"text-xs",
+														setupRequired
+															? "text-amber-600 dark:text-amber-400"
+															: "text-muted-foreground",
+													)}
+												>
+													{setupRequired
+														? "Setup required"
+														: effectivelyEnabled
+															? "Enabled"
+															: "Disabled"}
+												</span>
+												<Switch
+													checked={effectivelyEnabled}
+													onCheckedChange={(checked) => {
+														void setToolEnabled(tool, checked);
+													}}
+													disabled={isToggling || setupRequired}
+													aria-label={`Toggle ${tool.name}`}
+												/>
+											</div>
+											{isGenerateMedia && isExpanded ? (
+												<div
+													className="mt-4 ml-7 border-t border-border pt-4"
+													id={`tool-config-${tool.id}`}
+												>
+													{generateMediaConfig ? (
+														<GenerateMediaConfiguration
+															config={generateMediaConfig}
+														/>
+													) : (
+														<p className="text-xs text-muted-foreground">
+															Open the desktop Tools settings to configure an
+															eligible media provider and model.
+														</p>
+													)}
+												</div>
+											) : null}
 										</div>
 									);
 								})(),
@@ -1743,8 +2037,8 @@ export function CustomizationSectionView({
 												</span>
 												<Switch
 													checked={tool.enabled}
-													onCheckedChange={() => {
-														void setToolEnabled(tool);
+													onCheckedChange={(checked) => {
+														void setToolEnabled(tool, checked);
 													}}
 													disabled={isToggling}
 													aria-label={`Toggle ${tool.name}`}

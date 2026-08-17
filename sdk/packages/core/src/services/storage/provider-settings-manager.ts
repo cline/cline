@@ -14,6 +14,8 @@ import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
 import { hashSecret, sdkDebug } from "../../logging/early-logger";
 import {
 	emptyStoredProviderSettings,
+	type MediaGenerationSettings,
+	MediaGenerationSettingsSchema,
 	type ProviderConfig,
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
@@ -228,6 +230,24 @@ export class ProviderSettingsManager {
 			state.modes.voiceInput = VoiceInputSettingsSchema.parse(settings);
 		} else {
 			delete state.modes.voiceInput;
+		}
+		this.write(state);
+		return state;
+	}
+
+	getMediaGenerationSettings(): MediaGenerationSettings | undefined {
+		return this.read().modes.mediaGeneration;
+	}
+
+	setMediaGenerationSettings(
+		settings: MediaGenerationSettings | undefined,
+	): StoredProviderSettings {
+		const state = this.read();
+		if (settings) {
+			state.modes.mediaGeneration =
+				MediaGenerationSettingsSchema.parse(settings);
+		} else {
+			delete state.modes.mediaGeneration;
 		}
 		this.write(state);
 		return state;
