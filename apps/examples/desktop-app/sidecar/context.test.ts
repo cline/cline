@@ -551,6 +551,39 @@ describe("Code sidecar runtime capabilities", () => {
 		).toEqual([]);
 	});
 
+	it("rejects and removes an approval when initial delivery fails", async () => {
+		const { createSidecarContext, createSidecarRuntimeCapabilities } =
+			await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const failedClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(() => {
+				throw new Error("socket closed");
+			}),
+		};
+		ctx.wsClients.add(failedClient);
+
+		const approval = createSidecarRuntimeCapabilities(
+			ctx,
+		).requestToolApproval?.({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "tool-call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+
+		await expect(approval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(failedClient)).toBe(false);
+	});
+
 	it("forwards Hub-owned task session approvals to the live desktop", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
