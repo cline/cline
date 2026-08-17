@@ -3105,6 +3105,72 @@ describe("AgentRuntime sdk.error reporting", () => {
 		expect(events[0]?.properties).not.toHaveProperty("finishReason", "error");
 	});
 
+	it("does not attribute a recovery-notice listener failure to the overflow attempt", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The overflow attempt finishes with "error"; a listener then throws
+		// while handling the recovery status notice, before the retry attempt
+		// exists. The failure is the listener's, not the superseded attempt's.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			prepareTurn,
+			hooks: {
+				onEvent: async (event) => {
+					if (event.type === "status-notice") {
+						throw new Error("notice listener exploded");
+					}
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "error");
+	});
+
+	it("does not attribute an afterModel hook failure to the completed turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The model turn completes normally with "stop"; the afterModel hook
+		// then throws. The turn's own finish reason is not the cause of this
+		// failure and must not be reported as one.
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			hooks: {
+				afterModel: async () => {
+					throw new Error("afterModel exploded");
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "stop");
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
