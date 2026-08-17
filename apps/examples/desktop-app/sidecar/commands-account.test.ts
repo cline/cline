@@ -184,7 +184,7 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		expect(await currentFlagsUserId()).toBe("acct-1");
 	});
 
-	it("re-points at the new account when the user switches", async () => {
+	it("leaves the signed-in identity intact across an organization switch", async () => {
 		const { ctx } = createContext();
 		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
 		getProviderSettingsMock.mockReturnValue({});
@@ -192,12 +192,28 @@ describe("cline_account keeps feature-flag identity in sync", () => {
 		await runOperation(ctx, "fetchMe");
 		expect(await currentFlagsUserId()).toBe("acct-1");
 
-		// switchAccount only reports {updated:true}; the identity comes from the
-		// persisted settings the switch just wrote.
-		executeClineAccountActionMock.mockResolvedValue({ updated: true });
-		getProviderSettingsMock.mockReturnValue({ auth: { accountId: "acct-2" } });
+		executeClineAccountActionMock.mockResolvedValue(undefined);
+		getProviderSettingsMock.mockReturnValue({
+			auth: { accountId: "stale-acct" },
+		});
 
 		await runOperation(ctx, "switchAccount");
+
+		expect(await currentFlagsUserId()).toBe("acct-1");
+	});
+
+	it("adopts the identity from the refetch that follows a switch", async () => {
+		const { ctx } = createContext();
+		resolveProviderApiKeyMock.mockResolvedValue({ apiKey: "token" });
+		getProviderSettingsMock.mockReturnValue({});
+		executeClineAccountActionMock.mockResolvedValue({ id: "acct-1" });
+		await runOperation(ctx, "fetchMe");
+
+		executeClineAccountActionMock.mockResolvedValue(undefined);
+		await runOperation(ctx, "switchAccount");
+
+		executeClineAccountActionMock.mockResolvedValue({ id: "acct-2" });
+		await runOperation(ctx, "fetchMe");
 
 		expect(await currentFlagsUserId()).toBe("acct-2");
 	});

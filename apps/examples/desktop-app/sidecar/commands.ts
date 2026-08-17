@@ -300,32 +300,24 @@ function syncFeatureFlagsAccountFromResult(
 	operation: string,
 	result: unknown,
 ): void {
-	const options = { logger: ctx.logger, telemetry: ctx.telemetry };
-
 	if (operation === "fetchMe") {
 		const user = result as { id?: string; email?: string } | undefined;
 		if (user?.id) {
 			void identifyDesktopFeatureFlagsAccount(
 				{ id: user.id, email: user.email },
-				options,
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
 			);
 		}
 		return;
 	}
-
-	if (operation === "switchAccount") {
-		syncFeatureFlagsAccountFromSettings(ctx);
-	}
 }
+
 function syncFeatureFlagsAccountFromSettings(
 	ctx: SidecarContext,
-	manager?: ProviderSettingsManager,
+	manager: ProviderSettingsManager,
 ): void {
-	const settingsManager = manager ?? new ProviderSettingsManager();
-	const accountId =
-		settingsManager.getProviderSettings("cline")?.auth?.accountId;
 	void identifyDesktopFeatureFlagsAccount(
-		{ id: accountId },
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
 		{ logger: ctx.logger, telemetry: ctx.telemetry },
 	);
 }
