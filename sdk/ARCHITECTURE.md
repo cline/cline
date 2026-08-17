@@ -126,6 +126,15 @@ Design rules:
 6. `@cline/agents` runs the loop using `@cline/llms` handlers.
 7. `@cline/core` persists state, artifacts, and metadata.
 
+Long-running monitor commands are owned by the session runtime rather than by
+an individual agent turn. The runtime builder creates one `MonitorRegistry` for
+the lead session, and the local host routes its batched output into that
+session's pending-prompt queue so output can steer the next agent iteration.
+Plan mode does not expose monitors because their background shell commands
+cannot use the synchronous read-only command guard. During session shutdown,
+the registry sends `SIGTERM` to each monitor process group, waits for graceful
+exit, and escalates to `SIGKILL` before releasing its process handles.
+
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
 runtime inspects `AgentResult.toolCalls` and emits `task.completed` the

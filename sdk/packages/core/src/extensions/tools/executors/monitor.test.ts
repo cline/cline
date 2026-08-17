@@ -294,8 +294,11 @@ describe("MonitorRegistry", () => {
 		}
 	});
 
-	it("stops running processes on dispose", () => {
-		const registry = new MonitorRegistry({ notifier: () => {} });
+	it("stops running processes on dispose", async () => {
+		const registry = new MonitorRegistry({
+			notifier: () => {},
+			terminationGracePeriodMs: 50,
+		});
 		registry.start({
 			name: "leaky",
 			command: "sleep 30",
@@ -303,12 +306,30 @@ describe("MonitorRegistry", () => {
 		});
 		expect(registry.listRunning()).toHaveLength(1);
 
-		registry.dispose();
+		await registry.dispose();
 		expect(registry.list()).toHaveLength(0);
 		expect(() =>
 			registry.start({ name: "after", command: "sleep 1", description: "x" }),
 		).toThrow(MonitorError);
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"escalates to SIGKILL when a process ignores SIGTERM",
+		async () => {
+			const registry = new MonitorRegistry({
+				notifier: () => {},
+				terminationGracePeriodMs: 50,
+			});
+			registry.start({
+				name: "stubborn",
+				command: "trap '' TERM; while true; do sleep 1; done",
+				description: "ignores graceful termination",
+			});
+
+			await registry.dispose();
+			expect(registry.list()).toHaveLength(0);
+		},
+	);
 
 	it("survives a notifier that throws", async () => {
 		const notifier = vi.fn(() => {

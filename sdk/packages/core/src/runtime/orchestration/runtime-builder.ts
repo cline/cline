@@ -808,7 +808,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				this.teamRuntimeEntries.delete(registryKey);
 				// Background processes must not outlive the session that
 				// started them.
-				monitorRegistry?.dispose();
+				await monitorRegistry?.dispose();
 				await mcpShutdown?.();
 				if (!userInstructionServiceProvided) {
 					userInstructionService?.stop();

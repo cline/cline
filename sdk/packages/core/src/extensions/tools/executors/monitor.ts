@@ -90,12 +90,15 @@ export interface MonitorRegistryOptions {
 	maxLineChars?: number;
 	/** Concurrent running monitors allowed per registry. @default 10 */
 	maxMonitors?: number;
+	/** Time allowed for graceful shutdown before SIGKILL. @default 2000 */
+	terminationGracePeriodMs?: number;
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 750;
 const DEFAULT_MAX_LINES_PER_NOTIFICATION = 40;
 const DEFAULT_MAX_LINE_CHARS = 2_000;
 const DEFAULT_MAX_MONITORS = 10;
+const DEFAULT_TERMINATION_GRACE_PERIOD_MS = 2_000;
 const TRUNCATION_SUFFIX = "… [truncated]";
 
 /** Thrown for conditions the model can correct by calling the tool again. */
@@ -297,22 +300,61 @@ export class MonitorRegistry {
 		return snapshot(entry);
 	}
 
-	/** Stops every running monitor. Called by hosts on session teardown. */
-	stopAll(): void {
-		for (const entry of this.monitors.values()) {
-			if (entry.status !== "running") continue;
-			entry.status = "stopped";
-			this.killEntry(entry);
-			this.clearFlushTimer(entry);
-			entry.settled = true;
-		}
+	/** Stops every running monitor and waits until each process has exited. */
+	async stopAll(): Promise<void> {
+		const running = [...this.monitors.values()].filter(
+			(entry) => entry.status === "running",
+		);
+		await Promise.all(running.map((entry) => this.terminateEntry(entry)));
 	}
 
 	/** Stops everything and refuses further starts. */
-	dispose(): void {
-		this.stopAll();
+	async dispose(): Promise<void> {
 		this.disposed = true;
+		await this.stopAll();
 		this.monitors.clear();
+	}
+
+	private async terminateEntry(entry: MonitorEntry): Promise<void> {
+		entry.status = "stopped";
+		this.clearFlushTimer(entry);
+		entry.settled = true;
+
+		const child = entry.child;
+		if (!child || child.exitCode !== null || child.signalCode !== null) return;
+
+		const exited = this.waitForExit(child);
+		this.killEntry(entry);
+		const gracePeriod =
+			this.options.terminationGracePeriodMs ??
+			DEFAULT_TERMINATION_GRACE_PERIOD_MS;
+		if (await this.waitUntil(exited, gracePeriod)) return;
+
+		this.killEntry(entry, "SIGKILL");
+		// SIGKILL cannot be trapped on POSIX. Keep the handle until close is
+		// observed so teardown never loses ownership of a live process tree.
+		await exited;
+	}
+
+	private waitForExit(child: ChildProcess): Promise<void> {
+		return new Promise((resolve) => {
+			child.once("close", () => resolve());
+		});
+	}
+
+	private async waitUntil(
+		promise: Promise<void>,
+		timeoutMs: number,
+	): Promise<boolean> {
+		let timer: NodeJS.Timeout | undefined;
+		const timedOut = await Promise.race([
+			promise.then(() => false),
+			new Promise<boolean>((resolve) => {
+				timer = setTimeout(() => resolve(true), timeoutMs);
+			}),
+		]);
+		if (timer) clearTimeout(timer);
+		return !timedOut;
 	}
 
 	private findRunningByName(name: string): MonitorRecord | undefined {
@@ -327,7 +369,10 @@ export class MonitorRegistry {
 		return undefined;
 	}
 
-	private killEntry(entry: MonitorEntry): void {
+	private killEntry(
+		entry: MonitorEntry,
+		signal: NodeJS.Signals = "SIGTERM",
+	): void {
 		const child = entry.child;
 		const pid = child?.pid;
 		if (!child || !pid) return;
@@ -344,9 +389,9 @@ export class MonitorRegistry {
 		}
 		try {
 			// Negative pid targets the process group created by `detached`.
-			process.kill(-pid, "SIGTERM");
+			process.kill(-pid, signal);
 		} catch {
-			child.kill("SIGTERM");
+			child.kill(signal);
 		}
 	}
 

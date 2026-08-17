@@ -51,7 +51,9 @@ export const ToolPresets = {
 		enableApplyPatch: false,
 		enableEditor: false,
 		enableSkills: true,
-		enableMonitor: true,
+		// Monitor commands use an unrestricted background shell and therefore
+		// cannot participate in plan mode's read-only command guard.
+		enableMonitor: false,
 		enableAskQuestion: true,
 		enableSubmitAndExit: false,
 		enableSpawnAgent: true,
