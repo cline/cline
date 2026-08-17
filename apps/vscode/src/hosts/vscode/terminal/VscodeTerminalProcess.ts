@@ -23,6 +23,7 @@ import type {
 } from "@/integrations/terminal/types"
 import type { MarkerlessCompletionCause } from "@/services/telemetry/TelemetryService"
 import { Logger } from "@/shared/services/Logger"
+import { shouldFallbackToTerminalSnapshot } from "./emptyOutputFallback"
 import { Osc633EventType, Osc633Parser } from "./osc633Parser"
 import { classifyShellPrompt, getLastLine } from "./shellPromptHeuristics"
 
@@ -405,7 +406,14 @@ export class VscodeTerminalProcess extends EventEmitter<TerminalProcessEvents> i
 			}
 
 			// the command process is finished, let's check the output to see if we need to use the terminal capture fallback
-			if (!this.fullOutput.trim()) {
+			if (
+				shouldFallbackToTerminalSnapshot({
+					capturedOutput: this.fullOutput,
+					didSeeCommandExecuted,
+					executionEndObserved: eventExitCode !== undefined,
+					terminalClosed,
+				})
+			) {
 				// No output captured via shell integration, trying fallback
 				telemetryService.captureTerminalOutputFailure(
 					terminalClosed ? TerminalOutputFailureReason.TERMINAL_CLOSED : TerminalOutputFailureReason.TIMEOUT,
