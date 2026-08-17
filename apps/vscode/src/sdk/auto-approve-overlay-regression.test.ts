@@ -61,7 +61,7 @@ describe("auto-approve settings after New Task (#13260)", () => {
 			messages: { cancelPendingSave: () => {} },
 			taskHistory: {},
 			getTask: () => task,
-			setTask: (next) => {
+			setTask: (next: TaskProxy | undefined) => {
 				task = next
 			},
 			onAskResponse: async () => {},
