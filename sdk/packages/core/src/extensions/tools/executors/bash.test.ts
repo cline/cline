@@ -350,6 +350,63 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`stops a pipeline after its first non-terminating error through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				let error: unknown;
+				try {
+					await executor(
+						'1..3 | ForEach-Object { Write-Error "boom $_"; Write-Output "processed $_" }',
+						process.cwd(),
+						ctx,
+					);
+				} catch (caught) {
+					error = caught;
+				}
+
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).exitCode).toBe(1);
+				expect((error as CommandExitError).output).toContain("boom 1");
+				expect((error as CommandExitError).output).not.toContain("boom 2");
+				expect((error as CommandExitError).output).not.toContain("processed 1");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`keeps a valid pipeline running through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const output = await executor(
+					'1..3 | ForEach-Object { Write-Output "processed $_" }',
+					process.cwd(),
+					ctx,
+				);
+				expect(output).toContain("processed 1");
+				expect(output).toContain("processed 2");
+				expect(output).toContain("processed 3");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`preserves a terminating error through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				let error: unknown;
+				try {
+					await executor("throw 'terminating boom'", process.cwd(), ctx);
+				} catch (caught) {
+					error = caught;
+				}
+
+				expect(error).toBeInstanceOf(CommandExitError);
+				expect((error as CommandExitError).exitCode).toBe(1);
+				expect((error as CommandExitError).output).toContain(
+					"terminating boom",
+				);
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
 			`reports a failed final native command through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });

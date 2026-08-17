@@ -69,7 +69,8 @@ export function getShellInvocation(
 					"-NoProfile",
 					"-NonInteractive",
 					"-Command",
-					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
+					"$ErrorActionPreference='Stop';" +
+						"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
 						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
 						"$c=[Console]::In.ReadToEnd();" +
 						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
