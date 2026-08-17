@@ -13,6 +13,7 @@ export async function createGoogleProviderModule(
 	const apiKey = await resolveApiKey(config);
 	const provider = createGoogleGenerativeAI({
 		apiKey,
+		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch: config.fetch,
 		name: context.provider.id,
