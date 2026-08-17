@@ -23,6 +23,7 @@ import {
 import { GitHubConnectStep } from "@/components/views/onboarding/onboarding-github-step";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
+import { isFeatureEnabled, useFeatureFlags } from "@/hooks/use-feature-flags";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import {
@@ -40,6 +41,8 @@ import {
 import type { Provider } from "@/lib/provider-schema";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
+
+export const GITHUB_ONBOARDING_FEATURE_FLAG = "code-onboarding-github";
 
 export type OnboardingStep = "welcome" | "connect" | "github" | "done";
 
@@ -699,13 +702,6 @@ function DoneStep({
 	);
 }
 
-/**
- * Full-screen first-run experience: welcome, connect a model provider (Cline
- * account or bring-your-own API key), connect GitHub (Cline accounts only,
- * skipped when already connected), done. Rendered by the app shell while
- * onboarding has not been completed (see lib/onboarding.ts); `onComplete`
- * marks it completed and returns to the chat.
- */
 export function OnboardingView({
 	onComplete,
 	initialStep = "welcome",
@@ -716,6 +712,11 @@ export function OnboardingView({
 	const [step, setStep] = useState<OnboardingStep>(initialStep);
 	const [connection, setConnection] = useState<OnboardingConnection | null>(
 		null,
+	);
+	const { flags } = useFeatureFlags();
+	const githubStepEnabled = isFeatureEnabled(
+		flags,
+		GITHUB_ONBOARDING_FEATURE_FLAG,
 	);
 
 	return (
@@ -729,8 +730,12 @@ export function OnboardingView({
 					onConnected={(nextConnection) => {
 						setConnection(nextConnection);
 						// The GitHub integration lives on the Cline account, so the
-						// step only applies when one is connected.
-						setStep(nextConnection.kind === "cline" ? "github" : "done");
+						// step only applies when one is connected
+						setStep(
+							nextConnection.kind === "cline" && githubStepEnabled
+								? "github"
+								: "done",
+						);
 					}}
 					onSkip={onComplete}
 				/>
