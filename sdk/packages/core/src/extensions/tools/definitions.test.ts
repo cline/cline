@@ -675,6 +675,34 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("runs arg-less structured commands through the shell", async () => {
+		const execute = vi.fn(
+			async (_command: string | { command: string; args?: string[] }) => "ok",
+		);
+		const tool = createShellTool(execute);
+
+		await tool.execute(
+			{
+				commands: [
+					{ command: "echo hello" },
+					{ command: "node --version", args: [] },
+					{ command: "node", args: ["--version"] },
+				],
+			} as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(execute.mock.calls.map(([command]) => command)).toEqual([
+			"echo hello",
+			"node --version",
+			{ command: "node", args: ["--version"] },
+		]);
+	});
+
 	it("accepts mixed structured and string command arrays", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string; args?: string[] }) =>
