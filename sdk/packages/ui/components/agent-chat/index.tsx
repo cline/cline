@@ -565,6 +565,84 @@ export const ReasoningContent = ({
 	);
 };
 
+/** "Thinking" while the duration is unknown, "Thought for Ns" once it is. */
+export function formatThoughtLabel(durationMilliseconds?: number): string {
+	if (durationMilliseconds === undefined) {
+		return "Thinking";
+	}
+
+	const seconds =
+		durationMilliseconds === 0
+			? 0
+			: Math.max(1, Math.round(durationMilliseconds / 1000));
+
+	return `Thought for ${seconds}s`;
+}
+
+export type ThinkingBlockProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"children" | "onChange"
+> & {
+	durationMilliseconds?: number;
+	isStreaming?: boolean;
+	redacted?: boolean;
+	/** Overrides the derived "Thinking" / "Thought for Ns" label. */
+	label?: string;
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	/** Rendered reasoning body — typically the product's Markdown output. */
+	children?: ReactNode;
+};
+
+/**
+ * The standard thinking-trace row: brain icon, "Thinking"/"Thought for Ns"
+ * label (shimmering while streaming), and the reasoning body under the shared
+ * disclosure rail, capped to a scrollable height. Products supply the rendered
+ * body as children so they keep their own Markdown policy.
+ */
+export const ThinkingBlock = ({
+	children,
+	className,
+	defaultOpen,
+	durationMilliseconds,
+	isStreaming = false,
+	label,
+	onOpenChange,
+	open,
+	redacted = false,
+	...props
+}: ThinkingBlockProps) => {
+	const resolvedLabel =
+		label ??
+		(isStreaming ? "Thinking" : formatThoughtLabel(durationMilliseconds));
+	return (
+		<Reasoning
+			{...props}
+			className={className}
+			defaultOpen={defaultOpen}
+			isStreaming={isStreaming}
+			onOpenChange={onOpenChange}
+			open={open}
+		>
+			<ReasoningTrigger aria-label={resolvedLabel}>
+				<BrainIcon className="cline-chat-thinking-icon" />
+				<span
+					className={isStreaming ? "cline-chat-streaming-title" : undefined}
+				>
+					{resolvedLabel}
+				</span>
+			</ReasoningTrigger>
+			<ReasoningContent
+				className="cline-chat-thinking-content"
+				presentation="rail"
+			>
+				{children ?? (redacted ? "[redacted]" : null)}
+			</ReasoningContent>
+		</Reasoning>
+	);
+};
+
 export type ToolActivityStatus = "pending" | "running" | "success" | "error";
 
 type ToolActivityContextValue = DisclosureState & {
@@ -906,6 +984,36 @@ export const ToolActivityCode = ({
 }: ToolActivityCodeProps) => (
 	<pre className={classNames("cline-chat-tool-code", className)} {...props} />
 );
+
+function BrainIcon({ className }: { className?: string }) {
+	return (
+		<svg
+			aria-hidden="true"
+			className={className}
+			fill="none"
+			height="16"
+			viewBox="0 0 24 24"
+			width="16"
+		>
+			<g
+				stroke="currentColor"
+				strokeLinecap="round"
+				strokeLinejoin="round"
+				strokeWidth="2"
+			>
+				<path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" />
+				<path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" />
+				<path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" />
+				<path d="M17.599 6.5a3 3 0 0 0 .399-1.375" />
+				<path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" />
+				<path d="M3.477 10.896a4 4 0 0 1 .585-.396" />
+				<path d="M19.938 10.5a4 4 0 0 1 .585.396" />
+				<path d="M6 18a4 4 0 0 1-1.967-.516" />
+				<path d="M19.967 17.484A4 4 0 0 1 18 18" />
+			</g>
+		</svg>
+	);
+}
 
 function ChevronDownIcon({ className }: { className?: string }) {
 	return (
