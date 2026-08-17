@@ -1813,11 +1813,14 @@ export function useChatSession() {
 	const startSession = useCallback(
 		async (
 			validatedConfig: ChatSessionConfig,
-			options: { preserveStatus?: boolean } = {},
+			options: { preserveStatus?: boolean; initialPrompt?: string } = {},
 		): Promise<string> => {
 			const payload = await postSession({
 				action: "start",
 				config: validatedConfig,
+				...(options.initialPrompt?.trim()
+					? { prompt: options.initialPrompt.trim() }
+					: {}),
 			});
 			const id = payload.sessionId;
 			if (!id) throw new Error("Missing session id from server");
@@ -2082,7 +2085,11 @@ export function useChatSession() {
 							...parsed,
 							sessionId: plannedSessionId,
 						},
-						{ preserveStatus: true },
+						{
+							preserveStatus: true,
+							initialPrompt:
+								parsed.executionTarget === "cloud" ? userLabel : undefined,
+						},
 					);
 					sessionStartPromiseRef.current = startPromise;
 					try {
@@ -2926,12 +2933,14 @@ export function useChatSession() {
 				}
 
 				const synthesized: ChatMessage[] = [];
-				if (session.prompt?.trim()) {
+				const initialPrompt =
+					attached?.prompt?.trim() || session.prompt?.trim();
+				if (initialPrompt) {
 					synthesized.push({
 						id: makeId("history_user"),
 						sessionId: session.sessionId,
 						role: "user",
-						content: session.prompt.trim(),
+						content: initialPrompt,
 						createdAt: Date.now(),
 					});
 				}

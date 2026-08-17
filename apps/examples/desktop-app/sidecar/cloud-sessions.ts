@@ -19,7 +19,6 @@ import {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
-	emitChunk,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -77,6 +76,7 @@ export function deriveCloudSessionTitle(prompt: string): string {
 export type CreateCloudSessionInput = {
 	modelId: string;
 	repoUrl: string;
+	initialPrompt?: string;
 	branch?: string;
 	autoApproveTools?: boolean;
 	thinking?: boolean;
@@ -822,6 +822,7 @@ function recordToLiveSession(record: CloudSessionRecord): LiveSession {
 function attachResultPayload(
 	record: CloudSessionRecord,
 	status: string,
+	prompt?: string,
 ): JsonRecord {
 	return {
 		sessionId: record.id,
@@ -834,6 +835,7 @@ function attachResultPayload(
 		branch: record.repoContext.branch ?? "",
 		cwd: CLOUD_WORKSPACE_ROOT,
 		workspaceRoot: CLOUD_WORKSPACE_ROOT,
+		...(prompt?.trim() ? { prompt: prompt.trim() } : {}),
 		metadata: {
 			origin: "cloud",
 			repoUrl: record.repoContext.repoUrl ?? "",
@@ -1358,6 +1360,9 @@ export class CloudSessionManager {
 			branch: input.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			...(input.initialPrompt?.trim()
+				? { prompt: input.initialPrompt.trim() }
+				: {}),
 			startedAt,
 			updatedAt: startedAt,
 			metadata: {
@@ -1445,6 +1450,7 @@ export class CloudSessionManager {
 		};
 		this.knownSessions.set(record.id, record);
 		const live = recordToLiveSession(record);
+		live.prompt = input.initialPrompt?.trim() || undefined;
 		// REST does not round-trip the client-side approval preference.
 		if (typeof input.autoApproveTools === "boolean") {
 			live.config.autoApproveTools = input.autoApproveTools;
@@ -1485,6 +1491,7 @@ export class CloudSessionManager {
 			branch: input.branch ?? "",
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
+			...(live.prompt ? { prompt: live.prompt } : {}),
 		};
 	}
 
@@ -1534,7 +1541,11 @@ export class CloudSessionManager {
 		await this.refreshPendingApprovals(outerSessionId, connection);
 		const record = connection.remote;
 		const live = this.ctx.liveSessions.get(outerSessionId);
-		return attachResultPayload(record, live?.status ?? record.status);
+		return attachResultPayload(
+			record,
+			live?.status ?? record.status,
+			live?.prompt,
+		);
 	}
 
 	async send(
@@ -1595,19 +1606,6 @@ export class CloudSessionManager {
 					// Sidebar still shows the local title; REST retries on rename.
 				});
 			}
-		}
-		if (delivery === undefined) {
-			emitChunk(
-				this.ctx,
-				outerSessionId,
-				"chat_queued_prompt_start",
-				JSON.stringify({
-					promptId: `direct-${randomUUID()}`,
-					prompt,
-					attachmentCount: userImages?.length ?? 0,
-					userImages,
-				}),
-			);
 		}
 		try {
 			const reply = await connection.client.command(

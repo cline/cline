@@ -1805,12 +1805,16 @@ describe("CloudSessionManager", () => {
 		const created = await manager.create({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix it",
 			thinking: true,
 			reasoningEffort: "high",
 		});
+		const attached = await manager.attach("ses-outer");
 		const sent = await manager.send("ses-outer", "Fix it");
 
 		expect(created.sessionId).toBe("ses-outer");
+		expect(created.prompt).toBe("Fix it");
+		expect(attached.prompt).toBe("Fix it");
 		expect(hub.commands).toContainEqual(
 			expect.objectContaining({
 				command: "session.create",
@@ -1896,7 +1900,7 @@ describe("CloudSessionManager", () => {
 	});
 
 	it("forwards cloud images and continues rejecting file attachments", async () => {
-		const { ctx, events } = createContext();
+		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
 			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
@@ -1928,16 +1932,6 @@ describe("CloudSessionManager", () => {
 				attachments: { userImages: [image] },
 			},
 			sessionId: "inner-1",
-		});
-		const promptStarted = events.find(
-			(event) =>
-				event.name === "chat_event" &&
-				event.payload.stream === "chat_queued_prompt_start",
-		);
-		expect(JSON.parse(String(promptStarted?.payload.chunk))).toMatchObject({
-			prompt: "Inspect this image",
-			attachmentCount: 1,
-			userImages: [image],
 		});
 		await expect(
 			handleChatSessionCommand(ctx, {
@@ -2487,6 +2481,7 @@ describe("CloudSessionManager", () => {
 
 		await handleChatSessionCommand(ctx, {
 			action: "start",
+			prompt: "Fix the provisioning flow",
 			config: {
 				executionTarget: "cloud",
 				repoUrl: "https://github.com/cline/test",
@@ -2499,6 +2494,7 @@ describe("CloudSessionManager", () => {
 		expect(createBody).toMatchObject({
 			repoUrl: "https://github.com/cline/test",
 			modelId: "anthropic/claude-sonnet-5",
+			initialPrompt: "Fix the provisioning flow",
 			branch: "feature/login-fix",
 			autoApproveTools: false,
 		});
@@ -2626,6 +2622,7 @@ describe("CloudSessionManager", () => {
 		const creating = manager.create({
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
+			initialPrompt: "Fix the provisioning flow",
 		});
 		// Let create() register the placeholder before asserting.
 		await new Promise((resolve) => setTimeout(resolve, 0));
@@ -2641,6 +2638,7 @@ describe("CloudSessionManager", () => {
 		);
 		expect(placeholder).toMatchObject({
 			origin: "cloud",
+			prompt: "Fix the provisioning flow",
 			repoUrl: "https://github.com/cline/test",
 			metadata: expect.objectContaining({
 				title: "Provisioning cline/test…",
