@@ -43,6 +43,10 @@ import {
 	wrapLanguageModel,
 } from "ai";
 import { nanoid } from "nanoid";
+import {
+	AiSdkStreamAdapter,
+	createToolCallExecutionGate,
+} from "prefix-safe-json";
 import { classifyProviderError } from "./error-classification";
 import { extractErrorMessage } from "./format";
 import { createRetryEmptyResponseMiddleware } from "./middleware/retry-empty-response";
@@ -1292,6 +1296,16 @@ async function* emitAiSdkEvents(
 ): AsyncIterable<AgentModelEvent> {
 	let sawToolCalls = false;
 	const emittedToolCallIds = new Set<string>();
+	// Tool calls the *existing* tool-error path (below) already corrected -
+	// excluded from the truncation side-channel's own corrective yield so a
+	// call isn't flagged twice through two different mechanisms.
+	const toolErrorHandledIds = new Set<string>();
+	// Side-channel truncation check, independent of experimental_repairToolCall:
+	// tracks raw tool-input-delta text directly (never trusts an already-
+	// repaired "tool-call" part's `input`) and cross-references the stream's
+	// own finishReason once known, once the loop below ends.
+	const truncationAdapter = new AiSdkStreamAdapter();
+	const truncationGate = createToolCallExecutionGate();
 	let finishReason: unknown;
 	let streamError: CapturedStreamError | undefined;
 	let finishUsage: unknown;
@@ -1311,6 +1325,14 @@ async function* emitAiSdkEvents(
 	try {
 		if (stream.fullStream) {
 			for await (const part of stream.fullStream) {
+				// Side-channel only - observes every part (including the
+				// tool-input-start/-delta/-end parts nothing below handles) and
+				// never affects what this loop yields on its own. Decisions are
+				// read after the loop, once finishReason is known.
+				for (const normalized of truncationAdapter.push(part)) {
+					truncationGate.push(normalized);
+				}
+
 				if (part.type === "text-delta") {
 					const text =
 						(part.textDelta as string | undefined) ??
@@ -1547,6 +1569,7 @@ async function* emitAiSdkEvents(
 						`tool_${nanoid()}`;
 					const alreadyEmitted = emittedToolCallIds.has(toolCallId);
 					emittedToolCallIds.add(toolCallId);
+					toolErrorHandledIds.add(toolCallId);
 					const input = (part.input ?? part.args ?? {}) as unknown;
 					const inputText =
 						typeof input === "string" ? input : JSON.stringify(input);
@@ -1602,6 +1625,48 @@ async function* emitAiSdkEvents(
 		// Prefer the real provider error from onError over the generic
 		// NoOutputGeneratedError the AI SDK throws when 0 steps are recorded.
 		streamError = capturedError?.current ?? captureStreamError(error);
+	}
+
+	// Truncation side-channel: finishReason is only known now that the loop
+	// above has ended, so this is the first point a tool call already
+	// yielded as "tool-call-delta" (line ~1438) can be checked against it.
+	// experimental_repairToolCall / parseJsonStream are untouched - this
+	// never changes what was already streamed, it only appends a correction
+	// (same inputParseError/aiSdkToolError metadata shape the existing
+	// tool-error path above already uses) when the *stream itself* says a
+	// tool call's arguments never definitively finished, regardless of
+	// whether jsonrepair produced something that happens to parse. A
+	// streamError already short-circuits the whole turn via the existing
+	// error path below, so this only runs when there isn't one.
+	if (!streamError) {
+		const { decisions: truncationDecisions } = truncationGate.finish(
+			streamAborted ? { reason: "cancelled" } : undefined,
+		);
+		for (const decision of truncationDecisions) {
+			if (
+				decision.action === "execute" ||
+				(decision.reason !== "truncated" &&
+					decision.reason !== "stream_incomplete") ||
+				!decision.toolCallId ||
+				!emittedToolCallIds.has(decision.toolCallId) ||
+				toolErrorHandledIds.has(decision.toolCallId)
+			) {
+				continue;
+			}
+			yield {
+				type: "tool-call-delta",
+				toolCallId: decision.toolCallId,
+				toolName: decision.name,
+				metadata: buildToolCallMetadata({
+					metadata: {
+						inputParseError: `Tool call ${decision.name ?? decision.toolCallId} arguments were not confirmed complete before the stream ended (${decision.reason}); the previously streamed input must not be treated as final`,
+						aiSdkToolError: `prefix-safe-json: ${decision.reason}`,
+					},
+					request,
+					context,
+				}),
+			};
+		}
 	}
 
 	if (!streamError) {

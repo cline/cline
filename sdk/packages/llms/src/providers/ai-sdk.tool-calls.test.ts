@@ -82,6 +82,42 @@ function sseToolCall(toolName: string, args: string): string {
 	);
 }
 
+/**
+ * Same shape as sseToolCall, generalized to N concurrent tool calls and an
+ * explicit finish_reason - used for the truncation side-channel tests below,
+ * which specifically need finish_reason: "length" (a real max-output-tokens
+ * cutoff, not the "tool_calls" clean-finish every other test in this file
+ * uses).
+ */
+function sseToolCalls(
+	calls: ReadonlyArray<{ name: string; args: string }>,
+	finishReason: string,
+): string {
+	const chunk = (delta: unknown, finish: string | null = null) =>
+		`data: ${JSON.stringify({
+			id: "cmpl-1",
+			object: "chat.completion.chunk",
+			created: 1,
+			model: "test-model",
+			choices: [{ index: 0, delta, finish_reason: finish }],
+		})}\n\n`;
+	let body = chunk({
+		role: "assistant",
+		tool_calls: calls.map((call, index) => ({
+			index,
+			id: `call_${index}`,
+			type: "function",
+			function: { name: call.name, arguments: "" },
+		})),
+	});
+	for (const [index, call] of calls.entries()) {
+		body += chunk({ tool_calls: [{ index, function: { arguments: call.args } }] });
+	}
+	body += chunk({}, finishReason);
+	body += "data: [DONE]\n\n";
+	return body;
+}
+
 async function streamToolCallEvents(
 	sseBody: string,
 	tools: AgentToolDefinition[],
@@ -176,14 +212,72 @@ describe("ai-sdk adapter malformed tool calls", () => {
 		expect(findToolInput(events)).toEqual({ commands: ["ls", "pwd"] });
 	});
 
-	it("repairs unclosed container brackets with complete string values", async () => {
+	it("no longer treats a syntactically-repaired unclosed container as safe to execute", async () => {
+		// jsonrepair still mechanically closes the missing brace here - this
+		// is unchanged, see the "repairs unclosed containers" case in the
+		// repairMalformedToolCall describe block below. What changed is that
+		// the adapter no longer treats *that* success as proof the model was
+		// actually done: prefix-safe-json's own independent tracking of the
+		// raw, unrepaired argument text sees the same root object never
+		// closed, and flags it - regardless of jsonrepair's guess.
 		const events = await streamToolCallEvents(
 			sseToolCall("read_files", '{"files": [{"path": "/tmp/a.txt"}]'),
 			[READ_FILES_TOOL],
 		);
 
-		expect(findParseError(events)).toBeUndefined();
-		expect(findToolInput(events)).toEqual({ files: [{ path: "/tmp/a.txt" }] });
+		expect(findParseError(events)).toContain("were not confirmed complete");
+	});
+
+	it("container-level truncation cut short by max_tokens (finish_reason: length) is never executed", async () => {
+		// The exact repro from cline/cline#13001's still-open residual: no
+		// unterminated string anywhere in the raw text (both list elements
+		// are complete), so #13015's hasUnterminatedString guard does not
+		// apply and jsonrepair happily closes the array. Only provider
+		// stream metadata - finish_reason: "length" here - or (as in this
+		// case) the fact that the outer container never closed at all can
+		// tell you the model didn't actually finish.
+		const events = await streamToolCallEvents(
+			sseToolCalls(
+				[{ name: "run_commands", args: '{"commands":["npm install","npm test"' }],
+				"length",
+			),
+			[RUN_COMMANDS_TOOL],
+		);
+
+		expect(findParseError(events)).toContain("were not confirmed complete");
+	});
+
+	it("parallel calls: a complete tool call and a truncated one in the same length-terminated stream both fail closed", async () => {
+		// Deliberately verifies the more conservative of two possible
+		// behaviors: prefix-safe-json's coordinator applies one shared
+		// stream-level end reason to every call it tracked (see its own
+		// docs/EXECUTION_GATE.md limitations section) - it does not currently
+		// distinguish "this call's own JSON closed cleanly before the cutoff"
+		// from "the whole response was cut short by length". A call whose
+		// own JSON is genuinely complete (read_files here) is still flagged
+		// alongside the one that's actually truncated (run_commands), not
+		// silently allowed through. Tracked as a possible follow-up in
+		// prefix-safe-json itself, not something this integration papers
+		// over.
+		const events = await streamToolCallEvents(
+			sseToolCalls(
+				[
+					{ name: "read_files", args: '{"files": [{"path": "/tmp/a.txt"}]}' },
+					{ name: "run_commands", args: '{"commands":["npm install","npm test"' },
+				],
+				"length",
+			),
+			[READ_FILES_TOOL, RUN_COMMANDS_TOOL],
+		);
+
+		const parseErrors = events
+			.filter((event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> => event.type === "tool-call-delta")
+			.map((event) => (event.metadata as Record<string, unknown> | undefined)?.inputParseError)
+			.filter((message): message is string => typeof message === "string");
+
+		expect(parseErrors).toHaveLength(2);
+		expect(parseErrors.some((message) => message.includes("read_files"))).toBe(true);
+		expect(parseErrors.some((message) => message.includes("run_commands"))).toBe(true);
 	});
 
 	it("surfaces parse error for truncated JSON with unterminated string value", async () => {
