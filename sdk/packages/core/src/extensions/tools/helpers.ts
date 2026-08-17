@@ -138,41 +138,30 @@ export function normalizeRunCommandsInput(
 	input: unknown,
 ): Array<string | StructuredCommandInput> {
 	const validate = validateWithZod(RunCommandsInputUnionSchema, input);
-	const normalizeEntry = (
-		entry: string | StructuredCommandInput,
-	): string | StructuredCommandInput => {
-		// When `args` is omitted, models commonly put a shell line in `command`.
-		if (typeof entry === "string" || "args" in entry) {
-			return entry;
-		}
-
-		return entry.command;
-	};
 
 	if (typeof validate === "string") {
 		return [validate];
 	}
 
 	if (Array.isArray(validate)) {
-		return validate.map(normalizeEntry);
+		return validate;
 	}
 
 	if ("commands" in validate) {
-		const commands = Array.isArray(validate.commands)
+		return Array.isArray(validate.commands)
 			? validate.commands
 			: [validate.commands];
-		return commands.map(normalizeEntry);
 	}
 
 	if ("command" in validate) {
-		return [normalizeEntry(validate)];
+		return "args" in validate ? [validate] : [validate.command];
 	}
 
 	if ("cmd" in validate) {
 		return [validate.cmd];
 	}
 
-	return [normalizeEntry(validate)];
+	return [validate];
 }
 
 export function formatRunCommandQuery(
