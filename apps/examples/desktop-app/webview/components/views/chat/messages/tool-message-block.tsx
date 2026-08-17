@@ -13,11 +13,7 @@ import { AlertCircle } from "lucide-react";
 import { memo, useCallback, useEffect, useState } from "react";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
-import {
-	EXPANDED_PANEL_RAIL_CLASS,
-	IS_DEBUG,
-	STREAMING_TITLE_CLASS,
-} from "./constants";
+import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { getToolNameIcon } from "./tool-icons";
 import { buildToolPresentation, formatToolValue } from "./tool-summaries";
 
@@ -124,7 +120,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				showDisclosureIcon={false}
 				status={hasError ? "error" : inProgress ? "running" : "success"}
 			/>
-			<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
+			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
 					<ToolActivityDetails
 						className={cn(
