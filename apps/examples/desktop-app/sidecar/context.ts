@@ -33,6 +33,7 @@ import type {
 	PendingToolApproval,
 	PromptInQueue,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
@@ -70,11 +71,43 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 	}
 }
 
+export function sendEventToClient(
+	ctx: SidecarContext,
+	client: SidecarWebSocketClient,
+	name: string,
+	payload: unknown,
+): boolean {
+	try {
+		client.send(encodeSidecarEvent(name, payload));
+		return true;
+	} catch {
+		ctx.wsClients.delete(client);
+		void syncSidecarApprovalReadiness(ctx).catch((error) =>
+			ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+		);
+		return false;
+	}
+}
+
+export function cancelSidecarToolApprovalsForOwner(
+	ctx: SidecarContext,
+	owner: SidecarWebSocketClient,
+): void {
+	for (const [requestId, pending] of ctx.pendingApprovals) {
+		if (pending.owner !== owner) continue;
+		ctx.pendingApprovals.delete(requestId);
+		pending.resolve({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+	}
+}
+
 export async function syncSidecarApprovalReadiness(
 	ctx: SidecarContext,
 ): Promise<void> {
 	await ctx.hubClient?.updateCapabilities(
-		ctx.wsClients.size > 0
+		[...ctx.wsClients].some((client) => client.data?.canApproveTools === true)
 			? [
 					{
 						name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
@@ -673,6 +706,15 @@ function requestSidecarToolApproval(
 	ctx: SidecarContext,
 	request: ToolApprovalRequest,
 ): Promise<ToolApprovalResult> {
+	const owner = [...ctx.wsClients].find(
+		(client) => client.data?.canApproveTools === true,
+	);
+	if (!owner) {
+		return Promise.resolve({
+			approved: false,
+			reason: "No trusted desktop approval surface is connected",
+		});
+	}
 	return new Promise<ToolApprovalResult>((resolve) => {
 		const requestId = randomUUID();
 		const pending: PendingToolApproval = {
@@ -687,13 +729,18 @@ function requestSidecarToolApproval(
 				agentId: request.agentId,
 				conversationId: request.conversationId,
 			},
+			owner,
 			resolve,
 		};
 		ctx.pendingApprovals.set(requestId, pending);
 		const sessionApprovals = Array.from(ctx.pendingApprovals.values())
-			.filter((approval) => approval.item.sessionId === request.sessionId)
+			.filter(
+				(approval) =>
+					approval.owner === owner &&
+					approval.item.sessionId === request.sessionId,
+			)
 			.map((approval) => approval.item);
-		sendEvent(ctx, "tool_approval_state", {
+		sendEventToClient(ctx, owner, "tool_approval_state", {
 			sessionId: request.sessionId,
 			items: sessionApprovals,
 		});

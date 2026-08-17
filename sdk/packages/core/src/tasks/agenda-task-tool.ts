@@ -9,9 +9,11 @@ import type {
 	AgentExtension,
 	AgentTool,
 	GatewayModelSelection,
+	ITelemetryService,
 } from "@cline/shared";
 import { createTool } from "@cline/shared";
 import { z } from "zod";
+import { captureToolUsage } from "../services/telemetry/core-events";
 import type { AgendaTaskManagerApi } from "./agenda-task-api";
 
 const TaskTypeSchema = z.enum([
@@ -95,9 +97,30 @@ export interface AgendaTaskSessionDefaults {
 
 export interface CreateTodoListToolOptions {
 	manager: AgendaTaskManagerApi;
+	telemetry?: ITelemetryService;
 	resolveSessionDefaults: (
 		sessionId: string,
 	) => Promise<AgendaTaskSessionDefaults | undefined>;
+}
+
+const MUTATING_OPERATIONS = new Set<TodoListInput["operation"]>([
+	"create",
+	"update",
+]);
+
+function captureTodoListMutation(
+	options: CreateTodoListToolOptions,
+	input: TodoListInput,
+	context: Parameters<AgentTool<TodoListInput, TodoListResult>["execute"]>[1],
+	success: boolean,
+): void {
+	if (!MUTATING_OPERATIONS.has(input.operation)) return;
+	captureToolUsage(options.telemetry, {
+		ulid: context.sessionId ?? context.conversationId ?? context.agentId,
+		tool: `${TODO_LIST_TOOL_NAME}.${input.operation}`,
+		success,
+		agentId: context.agentId,
+	});
 }
 
 type TodoListResult =
@@ -250,11 +273,13 @@ export function createTodoListTool(
 							originSessionId: context.sessionId,
 							originTaskId: defaults.originTaskId,
 						};
-						return {
+						const result = {
 							ok: true,
 							operation: input.operation,
 							task: await options.manager.createTask(createInput),
-						};
+						} as const;
+						captureTodoListMutation(options, input, context, true);
+						return result;
 					}
 					case "update": {
 						const taskId = requiredString(input.task_id, "task_id");
@@ -262,7 +287,7 @@ export function createTodoListTool(
 						if (!input.expected_revision) {
 							throw new Error("expected_revision is required for update");
 						}
-						return {
+						const result = {
 							ok: true,
 							operation: input.operation,
 							task: await options.manager.updateTask({
@@ -288,7 +313,9 @@ export function createTodoListTool(
 								automationEligible: input.automation_eligible,
 								updatedBy: actor,
 							}),
-						};
+						} as const;
+						captureTodoListMutation(options, input, context, true);
+						return result;
 					}
 					case "list": {
 						const filters: AgendaTaskListInput = {
@@ -319,6 +346,7 @@ export function createTodoListTool(
 					}
 				}
 			} catch (error) {
+				captureTodoListMutation(options, input, context, false);
 				return {
 					ok: false,
 					operation: input.operation,

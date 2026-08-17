@@ -69,6 +69,34 @@ const context = {
 };
 
 describe("todo_list", () => {
+	it("captures usage telemetry for durable mutations", async () => {
+		const capture = vi.fn();
+		const tool = createTodoListTool({
+			manager: managerMock(),
+			telemetry: { capture } as never,
+			resolveSessionDefaults: async () => ({ workspaceRoot: "/repo" }),
+		});
+
+		await tool.execute(
+			{
+				operation: "create",
+				type: "todo",
+				title: "Review telemetry",
+				instructions: "Verify durable mutation telemetry.",
+				expires_at: "2035-01-02T00:00:00.000Z",
+			},
+			context,
+		);
+
+		expect(capture).toHaveBeenCalledWith({
+			event: "task.tool_used",
+			properties: expect.objectContaining({
+				tool: "todo_list.create",
+				success: true,
+			}),
+		});
+	});
+
 	it("pins list and create operations to the current session workspace", async () => {
 		const manager = managerMock();
 		const tool = createTodoListTool({

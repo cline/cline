@@ -287,6 +287,7 @@ export class HubServerTransport implements NativeHubTransport {
 		this.sessionTools.push(
 			createTodoListTool({
 				manager: this.tasks,
+				telemetry: options.telemetry,
 				resolveSessionDefaults: async (sessionId) => {
 					const session = await this.sessionHost.getSession(sessionId);
 					if (!session) return undefined;
@@ -336,6 +337,7 @@ export class HubServerTransport implements NativeHubTransport {
 		this.sessionTools.push(
 			createScheduleTool({
 				schedules: this.schedules,
+				telemetry: options.telemetry,
 				publish: (event, payload, sessionId) => {
 					this.publish(buildHubEvent(event, payload, sessionId));
 				},

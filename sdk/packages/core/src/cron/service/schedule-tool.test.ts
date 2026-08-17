@@ -90,9 +90,11 @@ describe("schedule agent tool", () => {
 	it("creates a one-time schedule using current session defaults", async () => {
 		const schedules = serviceMock();
 		const publish = vi.fn();
+		const capture = vi.fn();
 		const tool = createScheduleTool({
 			schedules,
 			publish,
+			telemetry: { capture } as never,
 			resolveSessionDefaults: async () => ({
 				workspaceRoot: WORKSPACE_ROOT,
 				cwd: WORKSPACE_ROOT,
@@ -113,6 +115,13 @@ describe("schedule agent tool", () => {
 		);
 
 		expect(result).toMatchObject({ ok: true, operation: "create" });
+		expect(capture).toHaveBeenCalledWith({
+			event: "task.tool_used",
+			properties: expect.objectContaining({
+				tool: "schedule.create",
+				success: true,
+			}),
+		});
 		expect(schedules.createSchedule).toHaveBeenCalledWith(
 			expect.objectContaining({
 				name: "Check CI",
