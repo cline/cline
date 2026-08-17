@@ -178,7 +178,7 @@ export const CompleteConversation = () => (
 			<MessageContent>
 				<Reasoning>
 					<ReasoningTrigger />
-					<ReasoningContent>
+					<ReasoningContent presentation="rail">
 						I should inspect the existing navigation and map its surfaces to the
 						semantic theme contract before changing layout.
 					</ReasoningContent>
@@ -191,7 +191,7 @@ export const CompleteConversation = () => (
 					label="Explored 3 files"
 					status="success"
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityDetails>
 						<div>settings-view.tsx</div>
 						<div>agent-sidebar.tsx</div>
@@ -208,7 +208,7 @@ export const CompleteConversation = () => (
 					label="Edited settings-view.tsx"
 					status="success"
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityCode>
 						{"+ background: var(--background);\n- background: #111;"}
 					</ToolActivityCode>
@@ -269,6 +269,62 @@ export const Streaming = () => (
 	</ChatFrame>
 );
 
+export const DisclosurePresentations = () => (
+	<div className="grid max-w-4xl gap-8 bg-background p-6 md:grid-cols-2">
+		<section className="min-w-0 space-y-3">
+			<div>
+				<h2 className="text-sm font-semibold text-foreground">Rail</h2>
+				<p className="text-xs text-muted-foreground">
+					Lightweight transcript disclosures
+				</p>
+			</div>
+			<Reasoning>
+				<ReasoningTrigger completeLabel="Thought for 4s" />
+				<ReasoningContent presentation="rail">
+					I compared the existing message hierarchy, spacing, and interaction
+					patterns before choosing the smallest shared abstraction.
+				</ReasoningContent>
+			</Reasoning>
+			<ToolActivity>
+				<ToolActivityTrigger icon={<SearchIcon />} label="Explored 3 files" />
+				<ToolActivityContent presentation="rail">
+					<ToolActivityDetails>
+						<div>disclosure.tsx</div>
+						<div>index.tsx</div>
+						<div>agent-chat.css</div>
+					</ToolActivityDetails>
+				</ToolActivityContent>
+			</ToolActivity>
+		</section>
+
+		<section className="min-w-0 space-y-3">
+			<div>
+				<h2 className="text-sm font-semibold text-foreground">Panel</h2>
+				<p className="text-xs text-muted-foreground">
+					Contained disclosures for denser surfaces
+				</p>
+			</div>
+			<Reasoning defaultOpen>
+				<ReasoningTrigger completeLabel="Thought for 4s" />
+				<ReasoningContent presentation="panel">
+					I compared the existing message hierarchy, spacing, and interaction
+					patterns before choosing the smallest shared abstraction.
+				</ReasoningContent>
+			</Reasoning>
+			<ToolActivity defaultOpen>
+				<ToolActivityTrigger icon={<SearchIcon />} label="Explored 3 files" />
+				<ToolActivityContent presentation="panel">
+					<ToolActivityDetails>
+						<div>disclosure.tsx</div>
+						<div>index.tsx</div>
+						<div>agent-chat.css</div>
+					</ToolActivityDetails>
+				</ToolActivityContent>
+			</ToolActivity>
+		</section>
+	</div>
+);
+
 export const ToolStates = () => (
 	<ChatFrame>
 		{(
@@ -285,7 +341,7 @@ export const ToolStates = () => (
 					label={label}
 					status={status}
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityCode>
 						{status === "error"
 							? "Error: expected --background token"
@@ -363,7 +419,7 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 				}
 				status={summary.errorText ? "error" : "success"}
 			/>
-			<ToolActivityContent>
+			<ToolActivityContent presentation="rail">
 				{summary.details.length > 0 ? (
 					<ToolActivityDetails>
 						{summary.details.map((detail, index) => (
