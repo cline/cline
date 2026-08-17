@@ -302,6 +302,95 @@ describe("formatMessagesForAiSdk", () => {
 		]);
 	});
 
+	it("forwards canonical generated-media tool results as bounded file parts", () => {
+		const image = "QkFTRTY0REFUQQ==";
+		const output = toAiSdkToolResultOutput([
+			{ type: "text", text: "Generated an image" },
+			{
+				type: "media",
+				media: {
+					id: "generated-image",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: image },
+				},
+			},
+		]);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{
+					type: "file",
+					data: { type: "data", data: image },
+					mediaType: "image/png",
+				},
+			],
+		});
+	});
+
+	it("forwards canonical generated-media URLs as native file parts", () => {
+		expect(
+			toAiSdkToolResultOutput([
+				{
+					type: "media",
+					media: {
+						id: "generated-image",
+						modality: "image",
+						mediaType: "image/webp",
+						source: {
+							type: "url",
+							url: "https://example.com/generated.webp",
+						},
+					},
+				},
+			]),
+		).toEqual({
+			type: "content",
+			value: [
+				{
+					type: "file",
+					data: {
+						type: "url",
+						url: "https://example.com/generated.webp",
+					},
+					mediaType: "image/webp",
+				},
+			],
+		});
+	});
+
+	it("removes canonical media bytes when the target cannot view images", () => {
+		const image = "QkFTRTY0REFUQQ==";
+		const output = toAiSdkToolResultOutput(
+			[
+				{ type: "text", text: "Generated an image" },
+				{
+					type: "media",
+					media: {
+						id: "generated-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: image },
+					},
+				},
+			],
+			false,
+			undefined,
+			{ supportsImages: false },
+		);
+
+		expect(output).toEqual({
+			type: "content",
+			value: [
+				{ type: "text", text: "Generated an image" },
+				{ type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+			],
+		});
+		expect(JSON.stringify(output)).not.toContain(image);
+	});
+
 	it("extracts nested image content blocks from a read_files tool result", () => {
 		// `read_files` returns its output as a `ToolOperationResult[]` whose
 		// `result` is a content-block array `[{type:'text'}, {type:'image'}]`.

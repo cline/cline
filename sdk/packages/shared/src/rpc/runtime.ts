@@ -326,12 +326,44 @@ export type ProviderModeSession<
 /** @deprecated Use VoiceInputModeSettings. */
 export type VoiceInputSelection = VoiceInputModeSettings;
 
+export interface MediaModelSelection {
+	providerId: string;
+	modelId: string;
+}
+
+/** Media kinds supported by the generic media-generation settings contract. */
+export const MEDIA_GENERATION_TYPES = [
+	"image",
+	"audio",
+	"video",
+] as const satisfies readonly ModelModality[];
+
+export type MediaGenerationType = (typeof MEDIA_GENERATION_TYPES)[number];
+
+/**
+ * Provider/model selections used by the generic media-generation tool.
+ *
+ * Extending {@link MediaGenerationType} automatically adds a typed selection
+ * slot for the new media kind without introducing a separate tool contract.
+ */
+export type MediaGenerationSettings = Partial<
+	Record<MediaGenerationType, MediaModelSelection>
+>;
+
+/** Server-authoritative media-generation models keyed by provider id. */
+export type MediaGenerationModelCatalog = Record<
+	MediaGenerationType,
+	Record<string, string[]>
+>;
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
 	modes: ProviderModesSettings;
 	/** @deprecated Use modes.voiceInput. */
 	voiceInput?: VoiceInputSelection;
+	mediaGeneration?: MediaGenerationSettings;
+	mediaGenerationModels: MediaGenerationModelCatalog;
 }
 
 export interface ProviderModelsResponse {

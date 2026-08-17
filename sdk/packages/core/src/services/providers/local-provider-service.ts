@@ -1,20 +1,30 @@
 import * as LlmsModels from "@cline/llms";
-import type {
-	AddProviderActionRequest,
-	ITelemetryService,
-	ProviderCapability,
-	ProviderConfigField,
-	ProviderConfigFieldPrimitive,
-	ProviderListItem,
-	ProviderMode,
-	ProviderModel,
-	ProviderModeSession,
-	ProviderModeSessionMap,
-	ProviderModeSettingsMap,
-	ProviderModesSettings,
-	ProviderSessionMode,
-	SaveProviderSettingsActionRequest,
-	VoiceInputSelection,
+import {
+	type AddProviderActionRequest,
+	type AgentUsage,
+	type ITelemetryService,
+	MEDIA_GENERATION_TYPES,
+	type MediaContent,
+	type MediaGenerationModelCatalog,
+	type MediaGenerationSettings,
+	type MediaGenerationType,
+	type MediaModelSelection,
+	modelProducesImages,
+	type ProviderCapability,
+	type ProviderCatalogResponse,
+	type ProviderConfigField,
+	type ProviderConfigFieldPrimitive,
+	type ProviderListItem,
+	type ProviderMode,
+	type ProviderModel,
+	type ProviderModeSession,
+	type ProviderModeSessionMap,
+	type ProviderModeSettingsMap,
+	type ProviderModesSettings,
+	type ProviderSessionMode,
+	type SaveProviderSettingsActionRequest,
+	type TextContent,
+	type VoiceInputSelection,
 } from "@cline/shared";
 import { PROVIDER_MODE_IDS } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
@@ -142,6 +152,24 @@ export interface SaveModeSettingsRequest<
 > {
 	mode: Mode;
 	settings?: ProviderModeSettingsMap[Mode];
+}
+
+export interface GenerateConfiguredMediaRequest {
+	mediaType: "image";
+	prompt: string;
+	abortSignal?: AbortSignal;
+}
+
+export interface GenerateConfiguredMediaResult {
+	content: Array<TextContent | MediaContent>;
+	usage?: AgentUsage;
+}
+
+export interface ResolvedMediaGenerationTarget {
+	mediaType: "image";
+	selection: MediaModelSelection;
+	providerConfig: ProviderConfig;
+	model: ModelInfo;
 }
 
 // --- Small pure helpers ---
@@ -288,6 +316,36 @@ export function isChatProviderModel(
 	);
 }
 
+/**
+ * Whether a catalog model is image-generation eligible and has an executable
+ * provider operation. Explicit image-generation models remain eligible when
+ * external modality metadata is stale; mixed language models must advertise
+ * text input and image output. The transport check deliberately fails closed
+ * for providers without a matching image-capable operation.
+ */
+export function isUsableImageGenerationModel(
+	providerId: string,
+	model: ModelInfo,
+): boolean {
+	const operation = model.operation ?? "language";
+	if (operation !== "language" && operation !== "image-generation") {
+		return false;
+	}
+	if (operation !== "image-generation" && !modelProducesImages(model)) {
+		return false;
+	}
+	const family = model.metadata?.family;
+	return LlmsModels.builtinProviderSupportsModelOperation({
+		providerId,
+		modelId: model.id,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
+		family: typeof family === "string" ? family : undefined,
+		capabilities: model.capabilities,
+	});
+}
+
 function toSortedProviderModels(
 	modelMap: Record<string, ModelInfo>,
 ): ProviderModel[] {
@@ -338,6 +396,67 @@ async function resolveProviderModelMap(
 				...registeredModelOverrides,
 			}
 		: registeredModels;
+}
+
+async function resolveMediaGenerationSelection(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	if (mediaType !== "image") return undefined;
+	if (!selection) return undefined;
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) return undefined;
+
+	try {
+		const state = manager.read();
+		if (!state.providers[providerId]) return undefined;
+		const config = manager.getProviderConfig(providerId, {
+			includeKnownModels: false,
+		});
+		if (!config) return undefined;
+
+		const modelMap = await resolveProviderModelMap(providerId, config);
+		const model = modelMap[modelId];
+		if (!model || !isUsableImageGenerationModel(providerId, model)) {
+			return undefined;
+		}
+
+		return {
+			mediaType,
+			selection: { providerId, modelId },
+			providerConfig: {
+				...config,
+				modelId,
+				modelInfo: model,
+				knownModels: {
+					...(config.knownModels ?? {}),
+					[modelId]: model,
+				},
+			},
+			model,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/** Resolve a currently executable configured media target without mutating settings. */
+export async function resolveConfiguredMediaGenerationTarget(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+): Promise<ResolvedMediaGenerationTarget | undefined> {
+	try {
+		return await resolveMediaGenerationSelection(
+			manager,
+			mediaType,
+			manager.getMediaGenerationSettings()?.[mediaType],
+		);
+	} catch {
+		return undefined;
+	}
 }
 
 function uniqueTrimmed(values?: string[]): string[] {
@@ -532,9 +651,28 @@ function removeProviderFromSettingsState(
 		delete state.lastUsedProvider;
 		mutated = true;
 	}
-	mutated = removeProviderModeSettings(state.modes, providerId) || mutated;
+	mutated = clearProviderModeSelections(state, providerId) || mutated;
 	if (mutated) manager.write(state);
 	LlmsModels.unregisterProvider(providerId);
+}
+
+function clearProviderModeSelections(
+	state: ReturnType<ProviderSettingsManager["read"]>,
+	providerId: string,
+): boolean {
+	let mutated = removeProviderModeSettings(state.modes, providerId);
+	const mediaGeneration = state.modes.mediaGeneration;
+	for (const mediaType of MEDIA_GENERATION_TYPES) {
+		if (mediaGeneration?.[mediaType]?.providerId !== providerId) {
+			continue;
+		}
+		delete mediaGeneration[mediaType];
+		if (Object.keys(mediaGeneration).length === 0) {
+			delete state.modes.mediaGeneration;
+		}
+		mutated = true;
+	}
+	return mutated;
 }
 
 // --- Public API ---
@@ -875,13 +1013,7 @@ export function markLocalProviderEnabled(
 export async function listLocalProviders(
 	manager: ProviderSettingsManager,
 	options: ListLocalProvidersOptions = {},
-): Promise<{
-	providers: ProviderListItem[];
-	settingsPath: string;
-	modes: ProviderModesSettings;
-	/** @deprecated Use modes.voiceInput. */
-	voiceInput?: VoiceInputSelection;
-}> {
+): Promise<ProviderCatalogResponse> {
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
@@ -894,7 +1026,13 @@ export async function listLocalProviders(
 
 	const providerEntries = await Promise.all(
 		ids.map(
-			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
+			async (
+				id,
+			): Promise<{
+				provider: ProviderListItem;
+				rank: number;
+				modelMap: Record<string, ModelInfo>;
+			}> => {
 				const [info, registeredModels] = await Promise.all([
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
@@ -958,6 +1096,7 @@ export async function listLocalProviders(
 						modelList,
 					},
 					rank: getPopularRank(info?.metadata),
+					modelMap: registeredModels,
 				};
 			},
 		),
@@ -975,16 +1114,49 @@ export async function listLocalProviders(
 			(provider) => provider.id !== CLINE_PASS_PROVIDER_ID,
 		);
 	}
+	const imageModelsByProvider: Record<string, string[]> = {};
+	for (const provider of providers) {
+		const modelMap = providerEntries.find(
+			(entry) => entry.provider.id === provider.id,
+		)?.modelMap;
+		imageModelsByProvider[provider.id] = Object.entries(modelMap ?? {})
+			.filter(([, model]) => isUsableImageGenerationModel(provider.id, model))
+			.map(([modelId]) => modelId)
+			.sort((a, b) => a.localeCompare(b));
+	}
+	const mediaGenerationModels: MediaGenerationModelCatalog = {
+		audio: {},
+		image: imageModelsByProvider,
+		video: {},
+	};
 
 	const modes = collectAvailableModeSettings(
 		providers,
 		options.modeSettings ?? state.modes,
 	);
+	const resolvedImageTarget = await resolveConfiguredMediaGenerationTarget(
+		manager,
+		"image",
+	);
+	const imageProvider = resolvedImageTarget
+		? providers.find(
+				(provider) =>
+					provider.id === resolvedImageTarget.selection.providerId &&
+					provider.enabled,
+			)
+		: undefined;
+	const mediaGeneration =
+		resolvedImageTarget && imageProvider
+			? { image: resolvedImageTarget.selection }
+			: undefined;
+
 	return {
 		providers,
 		settingsPath: manager.getFilePath(),
 		modes,
 		voiceInput: modes.voiceInput,
+		mediaGeneration,
+		mediaGenerationModels,
 	};
 }
 
@@ -1081,6 +1253,91 @@ export async function saveVoiceInputSettings(
 	const voiceInput = { providerId, modelId };
 	manager.setVoiceInputSettings(voiceInput);
 	return { settingsPath: manager.getFilePath(), voiceInput };
+}
+
+export async function saveMediaGenerationSettings(
+	manager: ProviderSettingsManager,
+	mediaType: MediaGenerationType,
+	selection: MediaModelSelection | undefined,
+): Promise<{
+	settingsPath: string;
+	mediaGeneration?: MediaGenerationSettings;
+}> {
+	if (mediaType !== "image") {
+		throw new Error(
+			`Media generation type "${mediaType}" is not supported yet`,
+		);
+	}
+
+	const current = { ...manager.getMediaGenerationSettings() };
+	if (!selection) {
+		delete current[mediaType];
+		const mediaGeneration =
+			Object.keys(current).length > 0 ? current : undefined;
+		manager.setMediaGenerationSettings(mediaGeneration);
+		return { settingsPath: manager.getFilePath(), mediaGeneration };
+	}
+
+	const providerId = selection.providerId.trim();
+	const modelId = selection.modelId.trim();
+	if (!providerId || !modelId) {
+		throw new Error("Image generation provider and model are required");
+	}
+	const target = await resolveMediaGenerationSelection(manager, "image", {
+		providerId,
+		modelId,
+	});
+	if (!target) {
+		throw new Error(
+			`Model "${modelId}" is not an executable image-generation model for provider "${providerId}"`,
+		);
+	}
+
+	const mediaGeneration = { ...current, [mediaType]: target.selection };
+	manager.setMediaGenerationSettings(mediaGeneration);
+	return { settingsPath: manager.getFilePath(), mediaGeneration };
+}
+
+/**
+ * Generate media with the provider and model selected in server-side settings.
+ *
+ * The selection is revalidated immediately before each request so a removed,
+ * disabled, or newly incompatible model cannot be invoked from stale session
+ * state. Provider credentials never enter the tool input or result.
+ */
+export async function generateConfiguredMedia(
+	manager: ProviderSettingsManager,
+	request: GenerateConfiguredMediaRequest,
+): Promise<GenerateConfiguredMediaResult> {
+	const target = await resolveConfiguredMediaGenerationTarget(
+		manager,
+		request.mediaType,
+	);
+	if (!target) {
+		throw new Error(
+			"The configured image generation provider or model is unavailable; choose one in Settings",
+		);
+	}
+
+	const result = await LlmsModels.generateMedia({
+		providerConfig: target.providerConfig,
+		modelId: target.selection.modelId,
+		prompt: request.prompt,
+		mediaType: request.mediaType,
+		abortSignal: request.abortSignal,
+	});
+
+	const mediaLabel = result.media.length === 1 ? "image" : "images";
+	return {
+		content: [
+			{
+				type: "text",
+				text: `Generated ${result.media.length} ${mediaLabel} with ${target.selection.providerId}/${target.selection.modelId}.`,
+			},
+			...result.media.map((media): MediaContent => ({ type: "media", media })),
+		],
+		...(result.usage ? { usage: result.usage } : {}),
+	};
 }
 
 export async function transcribeConfiguredVoiceInput(
@@ -1437,9 +1694,7 @@ export function saveLocalProviderSettings(
 		const state = manager.read();
 		delete state.providers[providerId];
 		if (state.lastUsedProvider === providerId) delete state.lastUsedProvider;
-		if (state.modes.voiceInput?.providerId === providerId) {
-			delete state.modes.voiceInput;
-		}
+		clearProviderModeSelections(state, providerId);
 		manager.write(state);
 		return { providerId, enabled: false, settingsPath: manager.getFilePath() };
 	}

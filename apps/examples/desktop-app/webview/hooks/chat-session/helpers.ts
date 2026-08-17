@@ -147,6 +147,38 @@ export function buildToolPayloadString(options: {
 	});
 }
 
+export function projectGeneratedMediaFromToolOutput(output: unknown): {
+	output: unknown;
+	media: GeneratedMedia[];
+} {
+	const mediaById = new Map<string, GeneratedMedia>();
+	const visit = (value: unknown): unknown => {
+		if (isGeneratedMedia(value)) {
+			mediaById.set(value.id, value);
+			return `[generated ${value.modality}]`;
+		}
+		if (Array.isArray(value)) {
+			return value.map(visit);
+		}
+		if (!value || typeof value !== "object") {
+			return value;
+		}
+		const record = value as Record<string, unknown>;
+		if (record.type === "media" && isGeneratedMedia(record.media)) {
+			mediaById.set(record.media.id, record.media);
+			return `[generated ${record.media.modality}]`;
+		}
+		return Object.fromEntries(
+			Object.entries(record).map(([key, nested]) => [key, visit(nested)]),
+		);
+	};
+
+	return {
+		output: visit(output),
+		media: [...mediaById.values()],
+	};
+}
+
 export function normalizeRuntimeConfig(
 	config: ChatSessionConfig,
 ): ChatSessionConfig {

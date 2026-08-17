@@ -102,3 +102,120 @@ describe("SettingsView font size", () => {
 		expect(increaseButton?.disabled).toBe(true);
 	});
 });
+
+describe("SettingsView generate media configuration", () => {
+	it("loads Tools provider data, expands from the card, and saves before enabling", async () => {
+		const disabledTool = {
+			id: "generate_media",
+			name: "generate_media",
+			description: "Generate media from a prompt.",
+			enabled: false,
+			source: "builtin",
+			headlessToolNames: ["generate_media"],
+		};
+		const emptyInstructionLists = {
+			workspaceRoot: "/workspace",
+			rules: [],
+			workflows: [],
+			skills: [],
+			agents: [],
+			plugins: [],
+			hooks: [],
+			mcp: { settingsPath: "", hasSettingsFile: false, servers: [] },
+			warnings: [],
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_user_instruction_configs") {
+				return { ...emptyInstructionLists, tools: [disabledTool] };
+			}
+			if (command === "list_provider_catalog") {
+				return {
+					providers: [
+						{
+							id: "google",
+							name: "Google",
+							models: 1,
+							color: "#4285f4",
+							letter: "G",
+							enabled: true,
+							modelList: [
+								{
+									id: "gemini-image",
+									name: "Gemini Image",
+									operation: "image-generation",
+									inputModalities: ["text"],
+									outputModalities: ["image"],
+								},
+							],
+						},
+					],
+					settingsPath: "/settings/providers.json",
+					mediaGenerationModels: {
+						audio: {},
+						image: { google: ["gemini-image"] },
+						video: {},
+					},
+				};
+			}
+			if (command === "set_tool_disabled") {
+				return {
+					...emptyInstructionLists,
+					tools: [{ ...disabledTool, enabled: true }],
+				};
+			}
+			if (command === "save_media_generation_settings") {
+				return {
+					mediaGeneration: {
+						image: { providerId: "google", modelId: "gemini-image" },
+					},
+				};
+			}
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(<SettingsView onNavigateSection={vi.fn()} section="Tools" />);
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 20));
+		});
+
+		const toggle = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Toggle generate_media"]',
+		);
+		expect(toggle).not.toBeNull();
+		expect(toggle?.disabled).toBe(true);
+		const cardTrigger = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Configure generate_media"]',
+		);
+		act(() => cardTrigger?.click());
+
+		const providerSelect = container.querySelector<HTMLSelectElement>(
+			'[aria-label="Image generation provider"]',
+		);
+		expect(providerSelect).not.toBeNull();
+		await act(async () => {
+			if (!providerSelect) return;
+			providerSelect.value = "google";
+			providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
+			await Promise.resolve();
+		});
+
+		expect(invoke).toHaveBeenCalledWith("save_media_generation_settings", {
+			media_type: "image",
+			provider: "google",
+			model: "gemini-image",
+		});
+		expect(toggle?.disabled).toBe(false);
+		expect(toggle?.getAttribute("data-state")).toBe("unchecked");
+
+		await act(async () => {
+			toggle?.click();
+		});
+		expect(invoke).toHaveBeenCalledWith("set_tool_disabled", {
+			names: ["generate_media"],
+			disabled: false,
+		});
+		expect(toggle?.getAttribute("data-state")).toBe("checked");
+	});
+});
