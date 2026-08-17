@@ -865,15 +865,13 @@ async function probeCompatibleHubUrl(
 		};
 	}
 	if (options?.requireCurrentBuild) {
-		// Managed Hubs: reusable when the build matches or the Hub is a newer
-		// build (another installation upgraded it - attach and let the
-		// build-mismatch watcher prompt the user instead of downgrading it).
+		// Managed Hubs: reusable unless this build is strictly newer than the
+		// Hub's. A Hub that is newer or unorderable is attached over the
+		// compatible wire protocol and left to the build-mismatch watcher to
+		// prompt about, so two installations can never retire each other.
 		const expectedBuildId = resolveHubBuildId();
 		const compatibility = getManagedHubCompatibility(record, expectedBuildId);
-		if (
-			!compatibility.compatible &&
-			!isManagedHubReusable(record, { expectedBuildId })
-		) {
+		if (!compatibility.compatible && !isManagedHubReusable(record)) {
 			return {
 				status:
 					compatibility.reason === "unsupported_protocol"
@@ -929,7 +927,20 @@ function sameNormalizedHubUrl(left: string, right: string): boolean {
 	}
 }
 
-function hasActiveHubSessions(payload: unknown): boolean {
+/**
+ * Whether any client is attached to a session on the hub - the one signal
+ * that cannot go stale, because participants are live socket subscriptions
+ * the hub drops the moment a client's connection closes.
+ *
+ * Deliberately NOT based on session status: a client that dies without
+ * stopping its session leaves the hub-side runtime behind in a non-terminal
+ * status forever, and counting those "ghost" sessions as busy pins an
+ * outdated hub as "serving sessions" until the machine reboots. The cost of
+ * ignoring status is that a participant-less background run executing at the
+ * exact moment of a hub swap dies with the old hub - rare, and its next
+ * scheduled tick runs normally on the replacement.
+ */
+export function hasActiveHubSessions(payload: unknown): boolean {
 	const sessions =
 		payload &&
 		typeof payload === "object" &&
@@ -940,22 +951,12 @@ function hasActiveHubSessions(payload: unknown): boolean {
 		if (!session || typeof session !== "object") {
 			return false;
 		}
-		const record = session as {
-			status?: unknown;
-			participants?: unknown;
-		};
-		if (
-			record.status === "running" ||
-			record.status === "idle" ||
-			record.status === "pending"
-		) {
-			return true;
-		}
+		const record = session as { participants?: unknown };
 		return Array.isArray(record.participants) && record.participants.length > 0;
 	});
 }
 
-async function localHubHasNoActiveSessions(
+export async function localHubHasNoActiveSessions(
 	url: string,
 	authToken?: string,
 	options?: Pick<HubClientOptions, "workspaceRoot" | "cwd">,
@@ -983,6 +984,32 @@ async function localHubHasNoActiveSessions(
 	}
 }
 
+async function recoverSupersededLocalHubUrl(
+	owner: HubOwnerContext,
+	options: LocalHubResolutionOptions,
+): Promise<string | undefined> {
+	const supersededPath = `${owner.discoveryPath}.superseded`;
+	const superseded = await readHubDiscovery(supersededPath);
+	if (!superseded?.url || !superseded.authToken) {
+		return undefined;
+	}
+	const compatible = await probeCompatibleHubUrl(superseded.url, {
+		authToken: superseded.authToken,
+	});
+	if (compatible.status !== "compatible") {
+		return undefined;
+	}
+	const hasNoActiveSessions = await localHubHasNoActiveSessions(
+		compatible.url,
+		superseded.authToken,
+		options,
+	);
+	if (hasNoActiveSessions) {
+		return undefined;
+	}
+	return rememberRecoverableLocalHubUrl(compatible.url, superseded.authToken);
+}
+
 export async function resolveCompatibleLocalHubUrl(
 	options: LocalHubResolutionOptions = {},
 ): Promise<string | undefined> {
@@ -994,7 +1021,7 @@ export async function resolveCompatibleLocalHubUrl(
 	const owner = resolveDefaultHubOwnerContext();
 	const record = await readHubDiscovery(owner.discoveryPath);
 	if (!record?.url) {
-		return undefined;
+		return await recoverSupersededLocalHubUrl(owner, options);
 	}
 	const compatible = await probeCompatibleHubUrl(record.url, {
 		authToken: record.authToken,

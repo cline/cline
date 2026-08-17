@@ -1,5 +1,7 @@
 "use client";
 
+import type { GeneratedMedia } from "@cline/shared/browser";
+import { GeneratedMediaContent } from "@cline/ui";
 import {
 	CheckIcon,
 	GitBranchIcon,
@@ -324,6 +326,29 @@ function appendReasoningDelta(
 	return [...current, assistantMessage];
 }
 
+function appendAssistantMedia(
+	current: ChatMessage[],
+	media: GeneratedMedia,
+	activeAssistantIdRef: MutableRefObject<string | undefined>,
+): ChatMessage[] {
+	if (
+		current.some((message) =>
+			message.blocks?.some(
+				(block) => block.type === "media" && block.media.id === media.id,
+			),
+		)
+	) {
+		return current;
+	}
+	activeAssistantIdRef.current = undefined;
+	return [
+		...current,
+		createMessage("assistant", "", {
+			blocks: [{ id: `media:${media.id}`, type: "media", media }],
+		}),
+	];
+}
+
 type ToolResultEntry = {
 	query?: string;
 	result?: string;
@@ -637,6 +662,20 @@ function renderMessageBlocks(
 						<ReasoningContent>{block.text}</ReasoningContent>
 					</Reasoning>,
 				];
+			case "media": {
+				return [
+					<GeneratedMediaContent
+						classNames={{
+							image: "max-h-96 max-w-full rounded-md",
+							audio: "w-full",
+							video: "max-h-96 max-w-full",
+							unavailable: "rounded-md border p-3 text-sm",
+						}}
+						key={block.id}
+						media={block.media}
+					/>,
+				];
+			}
 			case "text":
 				if (options.isMeta) {
 					return [
@@ -973,6 +1012,11 @@ export default function Chat({
 							message.redacted,
 							activeAssistantIdRef,
 						),
+					);
+					return;
+				case "assistant_media":
+					setMessages((current) =>
+						appendAssistantMedia(current, message.media, activeAssistantIdRef),
 					);
 					return;
 				case "tool_event":
