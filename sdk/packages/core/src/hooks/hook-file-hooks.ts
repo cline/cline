@@ -35,6 +35,12 @@ type HookContextBase = {
 type HookCommandControl = Omit<HookControl, "appendMessages"> & {
 	systemPrompt?: string;
 	appendMessages?: unknown[];
+	/**
+	 * Error message accompanying `cancel: true`. Kept separate from `context`
+	 * so injectable context from one hook never leaks into another hook's
+	 * cancellation reason when controls are merged.
+	 */
+	cancelReason?: string;
 };
 
 type HookCommandRunStartContext = HookContextBase & {
@@ -128,6 +134,11 @@ function mergeHookControls(
 			(value): value is string => typeof value === "string" && value.length > 0,
 		)
 		.join("\n");
+	const cancelReasons = [current.cancelReason, next.cancelReason]
+		.filter(
+			(value): value is string => typeof value === "string" && value.length > 0,
+		)
+		.join("\n");
 	const appendMessages = [
 		...(current.appendMessages ?? []),
 		...(next.appendMessages ?? []),
@@ -136,6 +147,7 @@ function mergeHookControls(
 		cancel: current.cancel === true || next.cancel === true ? true : undefined,
 		review: current.review === true || next.review === true ? true : undefined,
 		context: contexts || undefined,
+		cancelReason: cancelReasons || undefined,
 		overrideInput:
 			next.overrideInput !== undefined
 				? next.overrideInput
@@ -161,10 +173,14 @@ function parseHookControl(value: unknown): HookCommandControl | undefined {
 				: typeof record.errorMessage === "string"
 					? record.errorMessage
 					: undefined;
+	const cancel = typeof record.cancel === "boolean" ? record.cancel : undefined;
 	return {
-		cancel: typeof record.cancel === "boolean" ? record.cancel : undefined,
+		cancel,
 		review: typeof record.review === "boolean" ? record.review : undefined,
-		context: truncateHookContext(context),
+		// A cancelling hook's message is its error/reason, not injectable
+		// conversation context.
+		context: cancel === true ? undefined : truncateHookContext(context),
+		cancelReason: cancel === true ? context : undefined,
 		overrideInput: Object.hasOwn(record, "overrideInput")
 			? record.overrideInput
 			: undefined,
@@ -526,9 +542,12 @@ function beforeToolResultFromControl(
 	} = {};
 	if (control.cancel === true) {
 		result.stop = true;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
+		}
 	} else if (control.context?.trim()) {
-		// Context is injected only when the hook lets the run continue; on
-		// cancel the parsed context is the hook's error message (legacy
+		// Context is injected only when the hook lets the run continue; a
+		// cancelling hook's message travels as cancelReason instead (legacy
 		// surfaced it as an error, never as conversation context).
 		result.appendContext = control.context;
 	}
@@ -548,9 +567,8 @@ function afterToolResultFromControl(
 		{};
 	if (control.cancel === true) {
 		result.stop = true;
-		// On cancel the parsed context carries the hook's error message.
-		if (control.context?.trim()) {
-			result.reason = control.context;
+		if (control.cancelReason?.trim()) {
+			result.reason = control.cancelReason;
 		}
 	} else if (control.context?.trim()) {
 		result.appendContext = control.context;

@@ -356,7 +356,7 @@ describe("createHookConfigFileHooks", () => {
 				detachAsyncHooks: false,
 			});
 			const control = await hooks?.beforeTool?.(beforeToolContext());
-			expect(control).toEqual({ stop: true });
+			expect(control).toEqual({ stop: true, reason: "blocked by policy" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -424,6 +424,37 @@ describe("createHookConfigFileHooks", () => {
 			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "post-hook says stop" }))\n`,
 		);
 		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const control = await hooks?.afterTool?.(afterToolContext());
+			expect(control).toEqual({
+				stop: true,
+				reason: "post-hook says stop",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("keeps another hook's context out of a cancelling hook's reason", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PostToolUse",
+			'echo \'HOOK_CONTROL\t{"cancel":false,"contextModification":"unrelated lint context"}\'\n',
+		);
+		try {
+			await writeFile(
+				join(workspace, ".clinerules", "hooks", "PostToolUse.js"),
+				`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "post-hook says stop" }))\n`,
+				"utf8",
+			);
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
