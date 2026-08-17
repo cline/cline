@@ -3072,6 +3072,42 @@ describe("AgentRuntime sdk.error reporting", () => {
 		);
 	});
 
+	it("does not attribute a failed recovery attempt to the overflow attempt", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Overflow recovery runs a second attempt inside a single turn, so the
+		// turn-boundary reset alone cannot cover it. The first attempt finishes
+		// with "error" (the overflow); the recovery attempt then dies in
+		// prepareTurn, before it can report a reason of its own.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "finish",
+					reason: "error",
+					error: "prompt is too long: 213462 tokens > 200000 maximum",
+					errorClass: "context_window_exceeded",
+				},
+			],
+		]);
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) => {
+				if (context.overflowRecovery) {
+					throw new Error("compaction exploded");
+				}
+				return undefined;
+			},
+		);
+		const runtime = new AgentRuntime({ model, telemetry, prepareTurn });
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		// The overflow is still reported — via error_class, which is where it
+		// belongs — but it must not masquerade as this failure's finish reason.
+		expect(events[0]?.properties).not.toHaveProperty("finishReason", "error");
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([

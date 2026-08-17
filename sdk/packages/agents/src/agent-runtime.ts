@@ -745,13 +745,13 @@ export class AgentRuntime {
 			) {
 				this.throwIfAborted();
 
-				// The turn boundary, and the only correct place to clear the
-				// recorded finish reason: anything later leaves a window where a
-				// failure inherits the previous turn's reason and reports a
-				// confidently wrong cause on `sdk.error`. Notably `emit` does not
-				// isolate listener/onEvent errors, so even the `turn-started`
-				// emit below can fail the run. A missing reason is fine — the
-				// attribute is omitted — a wrong one is not.
+				// Clear the recorded finish reason at the turn boundary, before
+				// anything in the turn can fail — `emit` does not isolate
+				// listener/onEvent errors, so even the `turn-started` emit below
+				// can fail the run. Each model attempt clears it again (see
+				// `generateAssistantMessage`); a missing reason is fine, since
+				// the attribute is simply omitted, but a wrong one puts a
+				// confident false cause on `sdk.error`.
 				this.state.lastFinishReason = undefined;
 				this.state.iteration += 1;
 				await this.emit({
@@ -1051,6 +1051,12 @@ export class AgentRuntime {
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
+		// Per model attempt, not just per turn: overflow recovery runs a second
+		// attempt inside one turn, and the first attempt's reason (the overflow
+		// `error`) must not be reported as the cause when the recovery attempt
+		// dies in setup. The overflow itself is already carried by `lastError`
+		// and `lastErrorClass`, which is where that belongs.
+		this.state.lastFinishReason = undefined;
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
