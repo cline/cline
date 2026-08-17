@@ -30,6 +30,7 @@ import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
 	buildPreviousTimestampMap,
 	buildUserRunCountMap,
+	collapseCompletedWork,
 	getThoughtDurationMilliseconds,
 	groupChatMessages,
 } from "./messages/group-messages";
@@ -41,6 +42,7 @@ import {
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { WorkBlock } from "./messages/work-block";
 import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
@@ -184,7 +186,17 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
-	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
+	// The live run keeps rendering its rows while the session is active; only
+	// once the agent settles does its work fold into a summary row.
+	const sessionActive =
+		status === "starting" || status === "running" || status === "stopping";
+	const renderItems = useMemo(
+		() =>
+			collapseCompletedWork(groupChatMessages(messages), {
+				collapseTrailingRun: !sessionActive,
+			}),
+		[messages, sessionActive],
+	);
 	// Built once per pendingAskQuestions change instead of per render: the
 	// list re-renders on every stream flush and these rows carry JSX.
 	const askQuestionItems = useMemo(
@@ -422,6 +434,30 @@ function ChatMessagesImpl({
 		[sessionId],
 	);
 
+	const getReasoningProps = useCallback(
+		(reasoningMessages: ChatMessage[]) => {
+			const firstReasoningMessage = reasoningMessages[0];
+			const lastReasoningMessage = reasoningMessages.at(-1);
+			return {
+				reasoningContent: reasoningMessages
+					.map((reasoningMessage) => reasoningMessage.reasoning?.trim())
+					.filter((content): content is string => Boolean(content))
+					.join("\n\n"),
+				reasoningRedacted: reasoningMessages.some(
+					(reasoningMessage) => reasoningMessage.reasoningRedacted === true,
+				),
+				thoughtDurationMilliseconds:
+					firstReasoningMessage && lastReasoningMessage
+						? getThoughtDurationMilliseconds(
+								previousTimestampByMessage.get(firstReasoningMessage),
+								lastReasoningMessage.createdAt,
+							)
+						: undefined,
+			};
+		},
+		[previousTimestampByMessage],
+	);
+
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
 			if (!onForkSession) {
@@ -473,7 +509,7 @@ function ChatMessagesImpl({
 						)}
 					>
 						{showIdleDetails ? null : (
-							<div className="flex min-h-full w-full min-w-0 flex-col gap-8">
+							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
 								{renderItems.map((item) => {
 									if (item.type === "tools") {
 										return (
@@ -483,15 +519,44 @@ function ChatMessagesImpl({
 											/>
 										);
 									}
+									if (item.type === "work") {
+										return (
+											<WorkBlock
+												durationMilliseconds={item.durationMilliseconds}
+												key={`work_${item.id}`}
+												toolCallCount={item.toolCallCount}
+											>
+												{item.items.map((child) => {
+													if (child.type === "tools") {
+														return (
+															<ToolMessageBlock
+																key={`tools_${child.messages[0]?.id ?? "empty"}`}
+																messages={child.messages}
+															/>
+														);
+													}
+													if (child.type !== "message") {
+														return null;
+													}
+													// Collapsed rows keep copy/expand but drop the
+													// session-versioning actions (edit, restore,
+													// fork), which belong to the live transcript.
+													return (
+														<MessageBubble
+															agentRole={child.agentRole}
+															key={child.message.id}
+															message={child.message}
+															onCopyMessage={handleCopyMessage}
+															onExpandImage={handleExpandImage}
+															wasCopied={copiedMessageId === child.message.id}
+															{...getReasoningProps(child.reasoningMessages)}
+														/>
+													);
+												})}
+											</WorkBlock>
+										);
+									}
 									const { agentRole, message, reasoningMessages } = item;
-									const firstReasoningMessage = reasoningMessages[0];
-									const lastReasoningMessage = reasoningMessages.at(-1);
-									const reasoningContent = reasoningMessages
-										.map((reasoningMessage) =>
-											reasoningMessage.reasoning?.trim(),
-										)
-										.filter((content): content is string => Boolean(content))
-										.join("\n\n");
 									return (
 										<MessageBubble
 											agentRole={agentRole}
@@ -548,21 +613,7 @@ function ChatMessagesImpl({
 											}
 											forkPending={forkingMessageId === message.id}
 											forkError={forkErrors[message.id]}
-											reasoningContent={reasoningContent}
-											reasoningRedacted={reasoningMessages.some(
-												(reasoningMessage) =>
-													reasoningMessage.reasoningRedacted === true,
-											)}
-											thoughtDurationMilliseconds={
-												firstReasoningMessage && lastReasoningMessage
-													? getThoughtDurationMilliseconds(
-															previousTimestampByMessage.get(
-																firstReasoningMessage,
-															),
-															lastReasoningMessage.createdAt,
-														)
-													: undefined
-											}
+											{...getReasoningProps(reasoningMessages)}
 										/>
 									);
 								})}

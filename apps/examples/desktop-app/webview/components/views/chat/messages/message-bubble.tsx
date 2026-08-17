@@ -24,6 +24,7 @@ import type {
 	ChatMessageImage,
 	ChatMessageMedia,
 } from "@/lib/chat-schema";
+import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { ReasoningBlock } from "./reasoning-block";
@@ -255,10 +256,18 @@ export const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
-	// Spacing between blocks comes solely from the conversation list's `gap-8`
-	// and this content column's `gap-2`; blocks must not add their own margins.
+	// Spacing between blocks comes from the conversation list's `gap-4` and
+	// this content column's `gap-2`. The one exception: a user message opens a
+	// new turn, so it adds top margin to separate turns without padding out
+	// every in-turn row.
 	return (
-		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+		<AgentMessage
+			className={cn(
+				"relative flex flex-col gap-2",
+				isUser && "mt-4 first:mt-0",
+			)}
+			from={agentRole}
+		>
 			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
