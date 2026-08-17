@@ -1,6 +1,11 @@
 import { createOpenAI } from "@ai-sdk/openai";
+import type { GatewayProviderMetadata } from "@cline/shared";
 import { experimental_transcribe as transcribe } from "ai";
-import type { ProviderConfig } from "./providers/config";
+import { BUILTIN_PROVIDER_MANIFESTS_BY_ID } from "./providers/builtins";
+import {
+	type ProviderConfig,
+	resolveRoutingProviderId,
+} from "./providers/config";
 import {
 	resolveVercelAiGatewayBaseUrl,
 	trimTrailingSlashes,
@@ -42,7 +47,7 @@ export interface StreamingAudioTranscriptionSession {
 }
 
 export interface AudioTranscriptionRoute {
-	kind: "elevenlabs" | "vercel-ai-gateway" | "openai-compatible";
+	transport: NonNullable<GatewayProviderMetadata["transcriptionTransport"]>;
 	baseUrl: string;
 	endpoint: string;
 }
@@ -54,36 +59,48 @@ export interface AudioTranscriptionRoute {
  * surface: transcription requests go to `/v4/ai/transcription-model`.
  */
 export function resolveAudioTranscriptionRoute(
-	config: Pick<ProviderConfig, "providerId" | "baseUrl">,
+	config: Pick<ProviderConfig, "providerId" | "routingProviderId" | "baseUrl">,
 ): AudioTranscriptionRoute {
-	if (config.providerId === "elevenlabs") {
+	const routingProviderId = resolveRoutingProviderId(config);
+	const manifest = BUILTIN_PROVIDER_MANIFESTS_BY_ID[routingProviderId];
+	const supportsTranscription = manifest?.modelOperationCapabilities?.some(
+		(capability) => capability.operation === "transcription",
+	);
+	const transport = manifest?.metadata?.transcriptionTransport;
+	if (!supportsTranscription || !transport) {
+		throw new Error(
+			`Provider "${config.providerId}" does not declare a transcription operation`,
+		);
+	}
+
+	if (transport === "elevenlabs") {
 		const baseUrl = trimTrailingSlashes(
-			config.baseUrl ?? DEFAULT_ELEVENLABS_BASE_URL,
+			config.baseUrl ?? manifest.api ?? DEFAULT_ELEVENLABS_BASE_URL,
 		);
 		return {
-			kind: "elevenlabs",
+			transport,
 			baseUrl,
 			endpoint: `${baseUrl}/speech-to-text`,
 		};
 	}
 
-	if (config.providerId === "vercel-ai-gateway") {
+	if (transport === "vercel-ai-gateway") {
 		const baseUrl = resolveVercelAiGatewayBaseUrl(
-			config.baseUrl,
+			config.baseUrl ?? manifest.api,
 			DEFAULT_VERCEL_AI_GATEWAY_BASE_URL,
 		);
 		return {
-			kind: "vercel-ai-gateway",
+			transport,
 			baseUrl,
 			endpoint: `${baseUrl}/transcription-model`,
 		};
 	}
 
 	const baseUrl = trimTrailingSlashes(
-		config.baseUrl ?? DEFAULT_OPENAI_BASE_URL,
+		config.baseUrl ?? manifest.api ?? DEFAULT_OPENAI_BASE_URL,
 	);
 	return {
-		kind: "openai-compatible",
+		transport,
 		baseUrl,
 		endpoint: `${baseUrl}/audio/transcriptions`,
 	};
@@ -93,10 +110,6 @@ function resolveApiKey(
 	config: Pick<ProviderConfig, "apiKey" | "accessToken">,
 ): string | undefined {
 	return config.apiKey?.trim() || config.accessToken?.trim() || undefined;
-}
-
-export function isStreamingTranscriptionModelId(modelId: string): boolean {
-	return /(?:^|[/_.-])realtime(?:$|[/_.-])/.test(modelId.trim().toLowerCase());
 }
 
 function resolveAbortSignal(
@@ -164,13 +177,8 @@ async function readErrorBody(response: Response): Promise<string> {
 async function transcribeVercelAIGatewayAudio(
 	request: AudioTranscriptionRequest,
 	apiKey: string,
+	route: AudioTranscriptionRoute,
 ): Promise<AudioTranscriptionResult> {
-	if (isStreamingTranscriptionModelId(request.modelId)) {
-		throw new Error(
-			`Model "${request.modelId}" requires streaming transcription and cannot transcribe a completed recording`,
-		);
-	}
-	const route = resolveAudioTranscriptionRoute(request.providerConfig);
 	const headers = new Headers(request.providerConfig.headers);
 	if (!headers.has("authorization")) {
 		headers.set("authorization", `Bearer ${apiKey}`);
@@ -237,7 +245,8 @@ export async function createStreamingAudioTranscriptionSession(
 	if (!modelId) {
 		throw new Error("A streaming transcription model is required");
 	}
-	if (request.providerConfig.providerId !== "vercel-ai-gateway") {
+	const route = resolveAudioTranscriptionRoute(request.providerConfig);
+	if (route.transport !== "vercel-ai-gateway") {
 		throw new Error(
 			`Provider "${request.providerConfig.providerId}" does not support browser streaming transcription`,
 		);
@@ -259,7 +268,6 @@ export async function createStreamingAudioTranscriptionSession(
 		);
 	}
 
-	const route = resolveAudioTranscriptionRoute(request.providerConfig);
 	const mintEndpoint = new URL(
 		"/v1/realtime/client-secrets",
 		route.baseUrl,
@@ -316,8 +324,8 @@ export async function createStreamingAudioTranscriptionSession(
 async function transcribeElevenLabsAudio(
 	request: AudioTranscriptionRequest,
 	apiKey: string,
+	route: AudioTranscriptionRoute,
 ): Promise<AudioTranscriptionResult> {
-	const route = resolveAudioTranscriptionRoute(request.providerConfig);
 	const headers = new Headers(request.providerConfig.headers);
 	headers.delete("content-type");
 	headers.set("xi-api-key", apiKey);
@@ -385,15 +393,15 @@ export async function transcribeAudio(
 		);
 	}
 
-	if (request.providerConfig.providerId === "elevenlabs") {
-		return transcribeElevenLabsAudio(request, apiKey);
-	}
-
-	if (request.providerConfig.providerId === "vercel-ai-gateway") {
-		return transcribeVercelAIGatewayAudio(request, apiKey);
-	}
-
 	const route = resolveAudioTranscriptionRoute(request.providerConfig);
+	if (route.transport === "elevenlabs") {
+		return transcribeElevenLabsAudio(request, apiKey, route);
+	}
+
+	if (route.transport === "vercel-ai-gateway") {
+		return transcribeVercelAIGatewayAudio(request, apiKey, route);
+	}
+
 	const provider = createOpenAI({
 		apiKey,
 		baseURL: route.baseUrl,

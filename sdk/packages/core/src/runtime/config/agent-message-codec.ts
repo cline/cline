@@ -5,6 +5,7 @@ import type {
 	ContentBlock,
 	FileContent,
 	ImageContent,
+	MediaContent,
 	Message,
 	MessageWithMetadata,
 	RedactedThinkingContent,
@@ -198,6 +199,8 @@ function contentBlockToAgentPart(block: ContentBlock): AgentMessagePart {
 			};
 		case "image":
 			return { type: "image", image: block.data, mediaType: block.mediaType };
+		case "media":
+			return { type: "media", media: block.media };
 		case "file":
 			return { type: "file", path: block.path, content: block.content };
 		case "tool_use":
@@ -268,6 +271,11 @@ function agentPartToContentBlock(
 				path: part.path,
 				content: part.content,
 			} satisfies FileContent;
+		case "media":
+			return {
+				type: "media",
+				media: part.media,
+			} satisfies MediaContent;
 		case "tool-call": {
 			const metadata = part.metadata as
 				| {

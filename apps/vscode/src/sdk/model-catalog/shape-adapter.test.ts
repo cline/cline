@@ -30,6 +30,19 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", capabilities: ["tools", 42] })).toThrow(CatalogShapeError)
 		})
 
+		it("throws CatalogShapeError when modalities are malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: "image" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["text"] } })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["text"], output: ["hologram"] } })).toThrow(
+				CatalogShapeError,
+			)
+		})
+
+		it("throws CatalogShapeError when operation modes are malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", operationModes: "streaming" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", operationModes: ["live"] })).toThrow(CatalogShapeError)
+		})
+
 		it("throws CatalogShapeError when pricing is malformed", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: "cheap" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: "free" } })).toThrow(CatalogShapeError)
@@ -85,6 +98,40 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.supportsImages).toBe(openAiModelInfoSafeDefaults.supportsImages)
 			expect(model.supportsPromptCache).toBe(openAiModelInfoSafeDefaults.supportsPromptCache)
 			expect(model.supportsReasoning).toBeUndefined()
+		})
+
+		it("preserves the SDK capability list verbatim, including entries without a boolean projection", () => {
+			const model = adaptSdkModelInfo({
+				id: "m",
+				capabilities: ["tools", "structured_output", "images", "some-future-capability"],
+			})
+			expect(model.capabilities).toEqual(["tools", "structured_output", "images", "some-future-capability"])
+		})
+
+		it("omits the preserved capability list when the SDK sends none", () => {
+			// Absent means "capabilities unknown"; SDK checks fail open on it.
+			// Fabricating a list here would make safe-default booleans read as
+			// authoritative capability denials downstream.
+			const model = adaptSdkModelInfo({ id: "m" })
+			expect(Object.hasOwn(model, "capabilities")).toBe(false)
+		})
+
+		it("preserves SDK input and output modalities", () => {
+			const model = adaptSdkModelInfo({
+				id: "image-model",
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
+			})
+			expect(model.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+		})
+
+		it("preserves the SDK operation and execution modes", () => {
+			const model = adaptSdkModelInfo({
+				id: "openai/gpt-realtime-whisper",
+				operation: "transcription",
+				operationModes: ["streaming"],
+			})
+			expect(model.operation).toBe("transcription")
+			expect(model.operationModes).toEqual(["streaming"])
 		})
 	})
 

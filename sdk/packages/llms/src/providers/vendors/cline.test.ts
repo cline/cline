@@ -133,7 +133,7 @@ describe("createCline", () => {
 			} as unknown as GatewayResolvedProviderConfig,
 			{ provider: { id: providerId } } as never,
 		);
-		const model = module.model(modelId) as {
+		const model = module.operations.language(modelId) as {
 			doGenerate: (options: unknown) => Promise<unknown>;
 		};
 

@@ -203,7 +203,7 @@
 	.cline-chat-reasoning {
 		width: 100%;
 		min-width: 0;
-		margin: 0.5rem 0;
+		margin: 0.6rem 0;
 	}
 
 	.cline-chat-reasoning-trigger,
@@ -245,6 +245,30 @@
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
 		transform: rotate(180deg);
+	}
+
+	.cline-chat-disclosure-content-motion {
+		display: grid;
+		min-width: 0;
+		grid-template-rows: 0fr;
+		opacity: 0;
+		visibility: hidden;
+		transition:
+			grid-template-rows 60ms ease-out,
+			opacity 60ms ease-out,
+			visibility 0s linear 60ms;
+	}
+
+	.cline-chat-disclosure-content-motion[data-state="open"] {
+		grid-template-rows: 1fr;
+		opacity: 1;
+		visibility: visible;
+		transition-delay: 0s;
+	}
+
+	.cline-chat-disclosure-content-motion-inner {
+		min-height: 0;
+		overflow: hidden;
 	}
 
 	.cline-chat-reasoning-content {
@@ -330,9 +354,24 @@
 		max-width: 100%;
 		min-width: 0;
 		margin-top: 0.375rem;
-		padding-left: 2rem;
+		padding-left: 1rem;
 		overflow-x: hidden;
 		color: var(--muted-foreground);
+		font-size: var(--text-sm);
+	}
+
+	/* Expanded reasoning and tool panels can share a lightweight disclosure
+	 * rail instead of their default panel chrome. The rail sits beneath a 1rem
+	 * trigger icon, while the inset aligns its content with the trigger label. */
+	.cline-chat-panel-rail {
+		max-width: 100%;
+		margin-top: 0;
+		margin-left: 0.45rem;
+		padding: 0.4rem 1rem;
+		border: 0;
+		border-left: 1px solid var(--border);
+		border-radius: 0;
+		background: transparent;
 		font-size: var(--text-sm);
 	}
 
@@ -380,6 +419,10 @@
 
 	@media (prefers-reduced-motion: reduce) {
 		.cline-chat-disclosure-icon {
+			transition: none;
+		}
+
+		.cline-chat-disclosure-content-motion {
 			transition: none;
 		}
 

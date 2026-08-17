@@ -1094,6 +1094,22 @@ export class AgentRuntime {
 					});
 					break;
 				}
+				case "media": {
+					sequence.push({
+						type: "part",
+						part: {
+							type: "media",
+							media: event.media,
+						},
+					});
+					await this.emit({
+						type: "assistant-media",
+						snapshot: this.snapshot(),
+						iteration: this.state.iteration,
+						media: event.media,
+					});
+					break;
+				}
 				case "reasoning-delta": {
 					accumulatedReasoning += event.text;
 					const last = sequence.at(-1);
@@ -1218,28 +1234,6 @@ export class AgentRuntime {
 								execution: event.execution,
 							},
 						]),
-					});
-					break;
-				}
-				case "file": {
-					// Model-generated file output. Preserved into the assistant
-					// message so a file-only turn is not treated as empty:
-					// images become image parts (the shape providers accept on
-					// resend); other media becomes a file part carrying the
-					// base64 payload.
-					sequence.push({
-						type: "part",
-						part: event.mediaType.startsWith("image/")
-							? {
-									type: "image",
-									image: event.data,
-									mediaType: event.mediaType,
-								}
-							: {
-									type: "file",
-									path: `model-generated-file-${sequence.length + 1}`,
-									content: event.data,
-								},
 					});
 					break;
 				}
@@ -1953,6 +1947,7 @@ export class AgentRuntime {
 			// telemetry. Listeners and hooks below still receive them.
 			case "assistant-text-delta":
 			case "assistant-reasoning-delta":
+			case "assistant-media":
 			case "tool-updated":
 				break;
 			default:

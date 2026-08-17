@@ -1,4 +1,5 @@
 import type {
+	GatewayModelOperationCapability,
 	GatewayModelToolCapability,
 	GatewayProviderMetadata,
 	GatewayProviderSettings,
@@ -37,6 +38,7 @@ export interface BuiltinSpec {
 	protocol?: ProviderProtocol;
 	client?: ProviderClient;
 	modelToolCapabilities?: readonly GatewayModelToolCapability[];
+	modelOperationCapabilities?: readonly GatewayModelOperationCapability[];
 	capabilities?: ProviderCapability[];
 	popular?: number;
 	modelsProviderId?: string;

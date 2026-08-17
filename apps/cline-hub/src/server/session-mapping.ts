@@ -1,7 +1,9 @@
 import { projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	formatDisplayUserInput,
+	isGeneratedMedia,
 	type MessageWithMetadata,
+	validateImageMedia,
 } from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
@@ -248,6 +250,35 @@ export function mapHistoryToWebviewMessages(
 				continue;
 			}
 
+			if (type === "image") {
+				const validation = validateImageMedia(
+					asString(part.mediaType),
+					asString(part.data) ?? "",
+				);
+				if (validation.ok) {
+					blocks.push({
+						id: `${messageKey}:media:${partIndex}`,
+						type: "media",
+						media: {
+							id: `${messageKey}:media:${partIndex}`,
+							modality: "image",
+							mediaType: validation.mediaType,
+							source: { type: "base64", data: validation.base64 },
+						},
+					});
+				}
+				continue;
+			}
+
+			if (type === "media" && isGeneratedMedia(part.media)) {
+				blocks.push({
+					id: `${messageKey}:media:${partIndex}`,
+					type: "media",
+					media: part.media,
+				});
+				continue;
+			}
+
 			if (type === "thinking" || type === "reasoning") {
 				reasoningRedacted =
 					pushReasoningBlock(
@@ -371,7 +402,7 @@ export function mapHistoryToWebviewMessages(
 
 		const text = textParts.join("\n");
 		const toolEventList = [...toolEvents.values()];
-		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
+		if (blocks.length === 0) {
 			continue;
 		}
 		if (!text && role === "user" && toolEventList.length > 0) {

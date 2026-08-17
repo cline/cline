@@ -102,6 +102,9 @@ function toGatewayModelDefinition(
 		contextWindow: model.contextWindow,
 		maxInputTokens: model.maxInputTokens,
 		maxOutputTokens: model.maxTokens,
+		operation: model.operation,
+		operationModes: model.operationModes,
+		modalities: model.modalities,
 		capabilities: toGatewayCapabilities(model.capabilities),
 		reasoningOptions: model.reasoningOptions,
 		metadata: {
@@ -384,6 +387,8 @@ export function toGatewayRequestMessages(
 										mediaType: part.mediaType,
 									},
 								];
+							case "media":
+								return [{ type: "media" as const, media: part.media }];
 							case "file":
 								return [{ type: "text" as const, text: part.content }];
 							case "redacted_thinking":
@@ -553,10 +558,8 @@ function toApiStreamChunk(
 	switch (event.type) {
 		case "text-delta":
 			return { type: "text", id, text: event.text };
-		case "file":
-			// The legacy ApiStream contract has no file chunk type; generated
-			// files are only representable on the AgentModelEvent path.
-			return undefined;
+		case "media":
+			return { type: "media", id, media: event.media };
 		case "tool-result":
 			// Model-tool activity is available through the AgentModel/AgentRuntime
 			// event path. The legacy ApiStream contract has no observational tool
