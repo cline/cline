@@ -83,6 +83,27 @@ export class HubUIClient {
 		return reply.payload?.action as unknown as ClineDeepLinkAction;
 	}
 
+	async beginDeepLinkOAuth(providerId: string): Promise<{
+		providerId: string;
+		authorizationUrl: string;
+	}> {
+		const reply = await this.client.command("deep_link.oauth.begin", {
+			providerId,
+		});
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "deep_link.oauth.begin failed");
+		}
+		const resolvedProviderId = reply.payload?.providerId;
+		const authorizationUrl = reply.payload?.authorizationUrl;
+		if (
+			typeof resolvedProviderId !== "string" ||
+			typeof authorizationUrl !== "string"
+		) {
+			throw new Error("Hub returned an invalid deep-link OAuth response.");
+		}
+		return { providerId: resolvedProviderId, authorizationUrl };
+	}
+
 	async listClients(): Promise<HubClientRecord[]> {
 		const reply = await this.client.command("client.list");
 		return Array.isArray(reply.payload?.clients)

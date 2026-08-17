@@ -149,6 +149,22 @@ event payload and `source` field.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
 
+The CLI and other registered protocol handlers forward `cline://` URLs to the
+shared hub with `deep_link.open`. The hub validates and normalizes each URL,
+publishes `deep_link.opened` together with `ui.show_window`, and leaves view
+routing and draft prompt state to the attached host UI. Project, new-session,
+and existing-session links therefore share one authority path without coupling
+the runtime to a particular window implementation.
+
+OAuth deep links must originate from `deep_link.oauth.begin`. The hub creates a
+cryptographically random, short-lived, single-use transaction whose state is
+embedded in the exact `cline://auth` redirect URI sent to the authorization
+server. A callback is rejected unless it consumes that pending transaction;
+the transaction is consumed before the asynchronous code exchange so retries
+and replays cannot reuse it. The hub persists the resulting credentials and
+publishes only the normalized provider action, never the authorization code or
+transaction state.
+
 ### Generated Media Operation and Event Flow
 
 Model modalities and provider operations are separate facts. Modalities describe

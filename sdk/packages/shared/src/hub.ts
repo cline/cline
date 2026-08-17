@@ -469,7 +469,8 @@ export type HubCommandName =
 	| "cron.event.get"
 	| "ui.notify"
 	| "ui.show_window"
-	| "deep_link.open";
+	| "deep_link.open"
+	| "deep_link.oauth.begin";
 
 export type ClineDeepLinkAction =
 	| { type: "auth"; provider?: string }

@@ -136,6 +136,16 @@ export async function runProviderOAuthLogin(
 	providerId: string,
 ): Promise<void> {
 	const normalized = normalizeOAuthProvider(providerId);
+	if (normalized === "cline" || normalized === "cline-pass") {
+		if (!ctx.uiClient) throw new Error("Hub UI client is not connected.");
+		const flow = await ctx.uiClient.beginDeepLinkOAuth(normalized);
+		await openExternalUrl(flow.authorizationUrl);
+		ctx.send(peer, {
+			type: "status",
+			text: `Waiting for ${normalized} authentication in your browser...`,
+		});
+		return;
+	}
 	const saved = await loginAndSaveLocalProviderOAuthCredentials(
 		providerSettingsManager,
 		normalized,

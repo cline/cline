@@ -18,7 +18,11 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
-import { completeLocalProviderOAuthCallback } from "../../services/providers/local-provider-service";
+import {
+	completeLocalProviderOAuthCallback,
+	createLocalProviderDeepLinkOAuthAuthorization,
+	normalizeOAuthProvider,
+} from "../../services/providers/local-provider-service";
 import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
@@ -29,6 +33,10 @@ import {
 	type CoreSettingsType,
 } from "../../settings";
 import type { CoreSessionEvent } from "../../types/events";
+import {
+	type DeepLinkOAuthTransaction,
+	DeepLinkOAuthTransactionStore,
+} from "./deep-link-oauth";
 import {
 	handleApprovalRespond,
 	requestToolApproval as requestToolApprovalHandler,
@@ -190,6 +198,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
+	private readonly deepLinkOAuth = new DeepLinkOAuthTransactionStore();
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
@@ -427,8 +436,19 @@ export class HubServerTransport implements NativeHubTransport {
 						"Expected a supported cline:// deep link.",
 					);
 				}
+				let routedAction = action;
 				if (action.type === "auth") {
 					const callback = new URL(rawUrl);
+					let transaction: DeepLinkOAuthTransaction;
+					try {
+						transaction = this.deepLinkOAuth.consume(callback);
+					} catch (error) {
+						return errorReply(
+							envelope,
+							"invalid_oauth_transaction",
+							error instanceof Error ? error.message : String(error),
+						);
+					}
 					const code = callback.searchParams.get("code")?.trim();
 					if (!code) {
 						return errorReply(
@@ -440,27 +460,65 @@ export class HubServerTransport implements NativeHubTransport {
 					await completeLocalProviderOAuthCallback(
 						new ProviderSettingsManager(),
 						{
-							providerId: action.provider ?? "cline",
+							providerId: transaction.providerId,
 							code,
-							redirectUri: "cline://auth",
+							redirectUri: transaction.redirectUri,
+							authProvider: callback.searchParams.get("provider")?.trim(),
 						},
 					);
+					routedAction = { type: "auth", provider: transaction.providerId };
 				}
 				this.publish(
 					buildHubEvent(
 						"deep_link.opened",
-						action as unknown as Record<string, unknown>,
+						routedAction as unknown as Record<string, unknown>,
 					),
 				);
 				this.publish(
 					buildHubEvent("ui.show_window", {
 						reason: "deep_link",
-						action: action as unknown as Record<string, unknown>,
+						action: routedAction as unknown as Record<string, unknown>,
 					}),
 				);
 				return okReply(envelope, {
-					action: action as unknown as Record<string, unknown>,
+					action: routedAction as unknown as Record<string, unknown>,
 				});
+			}
+			case "deep_link.oauth.begin": {
+				const providerId =
+					typeof envelope.payload?.providerId === "string"
+						? envelope.payload.providerId.trim()
+						: "";
+				if (!providerId) {
+					return errorReply(
+						envelope,
+						"invalid_provider",
+						"deep_link.oauth.begin requires a providerId.",
+					);
+				}
+				try {
+					const normalizedProviderId = normalizeOAuthProvider(providerId);
+					const { state, transaction } =
+						this.deepLinkOAuth.begin(normalizedProviderId);
+					const authorization = createLocalProviderDeepLinkOAuthAuthorization(
+						new ProviderSettingsManager(),
+						{
+							providerId: normalizedProviderId,
+							redirectUri: transaction.redirectUri,
+							state,
+						},
+					);
+					return okReply(envelope, {
+						providerId: authorization.providerId,
+						authorizationUrl: authorization.authorizationUrl,
+					});
+				} catch (error) {
+					return errorReply(
+						envelope,
+						"oauth_not_supported",
+						error instanceof Error ? error.message : String(error),
+					);
+				}
 			}
 			case "settings.list":
 				return await this.handleSettingsList(envelope);

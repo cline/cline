@@ -147,6 +147,34 @@ describe("hub UI events", () => {
 		receiver.close();
 	}, 10_000);
 
+	it("requires a pending transaction for OAuth deep links", async () => {
+		const server = await startHubServer({
+			port: 0,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.push(server);
+		const sender = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-sender",
+		});
+		await sender.connect();
+
+		await expect(
+			sender.openDeepLink("cline://auth?code=untrusted&state=unknown"),
+		).rejects.toThrow("does not match a pending login");
+
+		const flow = await sender.beginDeepLinkOAuth("cline");
+		const authorizationUrl = new URL(flow.authorizationUrl);
+		const redirectUri = authorizationUrl.searchParams.get("redirect_uri");
+		expect(flow.providerId).toBe("cline");
+		expect(authorizationUrl.searchParams.get("callback_url")).toBe(redirectUri);
+		expect(authorizationUrl.searchParams.get("state")).toBeTruthy();
+		expect(redirectUri).toMatch(/^cline:\/\/auth\?state=.+/);
+
+		sender.close();
+	}, 10_000);
+
 	it("receives hub.client.registered events when clients connect", async () => {
 		const server = await startHubServer({
 			port: 0,

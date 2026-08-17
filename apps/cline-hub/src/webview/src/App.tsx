@@ -1170,6 +1170,10 @@ function App() {
 			if (message.type === "deep_link") {
 				const { action } = message;
 				if (action.type === "open_session") {
+					setDeepLinkDraft((current) => ({
+						prompt: action.prompt,
+						version: current.version + 1,
+					}));
 					setSelectedSessionId(action.sessionId);
 					window.history.pushState(null, "", chatPath(action.sessionId));
 					setView("chat");
@@ -1177,11 +1181,11 @@ function App() {
 					action.type === "new_session" ||
 					action.type === "open_project"
 				) {
-					setDeepLinkDraft({
+					setDeepLinkDraft((current) => ({
 						prompt: action.prompt,
 						workspacePath: action.path,
-						version: Date.now(),
-					});
+						version: current.version + 1,
+					}));
 					setSelectedSessionId(undefined);
 					window.history.pushState(null, "", chatPath());
 					setView("chat");
