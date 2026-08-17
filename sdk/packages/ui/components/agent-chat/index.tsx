@@ -12,13 +12,18 @@ import {
 	useCallback,
 	useContext,
 	useEffect,
-	useId,
 	useLayoutEffect,
 	useMemo,
 	useRef,
 	useState,
 } from "react";
 import { IconButton } from "../button.js";
+import {
+	DisclosureContent,
+	type DisclosureContentPresentation,
+	type DisclosureState,
+	useDisclosureState,
+} from "./disclosure.js";
 
 const STICK_TO_BOTTOM_THRESHOLD_PX = 24;
 const SCROLL_BUTTON_THRESHOLD_PX = 120;
@@ -439,12 +444,6 @@ export const MessageAction = ({
 	/>
 );
 
-type DisclosureState = {
-	isOpen: boolean;
-	panelId: string;
-	setIsOpen: (open: boolean) => void;
-};
-
 type ReasoningContextValue = DisclosureState & {
 	isStreaming: boolean;
 };
@@ -477,16 +476,11 @@ export const Reasoning = ({
 	open,
 	...props
 }: ReasoningProps) => {
-	const [internalOpen, setInternalOpen] = useState(defaultOpen);
-	const panelId = useId();
-	const isOpen = open ?? internalOpen;
-	const setIsOpen = useCallback(
-		(nextOpen: boolean) => {
-			if (open === undefined) setInternalOpen(nextOpen);
-			onOpenChange?.(nextOpen);
-		},
-		[onOpenChange, open],
-	);
+	const { isOpen, panelId, setIsOpen } = useDisclosureState({
+		defaultOpen,
+		onOpenChange,
+		open,
+	});
 	const value = useMemo(
 		() => ({ isOpen, isStreaming, panelId, setIsOpen }),
 		[isOpen, isStreaming, panelId, setIsOpen],
@@ -545,19 +539,23 @@ export const ReasoningTrigger = ({
 export type ReasoningContentProps = Omit<
 	HTMLAttributes<HTMLDivElement>,
 	"hidden" | "id"
->;
+> & {
+	presentation?: DisclosureContentPresentation;
+};
 
 export const ReasoningContent = ({
-	className,
+	presentation,
 	...props
 }: ReasoningContentProps) => {
 	const { isOpen, panelId } = useReasoning();
-	if (!isOpen) return null;
 	return (
-		<div
+		<DisclosureContent
 			{...props}
-			className={classNames("cline-chat-reasoning-content", className)}
-			id={panelId}
+			contentClassName="cline-chat-reasoning-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
 		/>
 	);
 };
@@ -600,17 +598,12 @@ export const ToolActivity = ({
 	open,
 	...props
 }: ToolActivityProps) => {
-	const [internalOpen, setInternalOpen] = useState(defaultOpen);
-	const panelId = useId();
-	const isOpen = expandable && (open ?? internalOpen);
-	const setIsOpen = useCallback(
-		(nextOpen: boolean) => {
-			if (!expandable) return;
-			if (open === undefined) setInternalOpen(nextOpen);
-			onOpenChange?.(nextOpen);
-		},
-		[expandable, onOpenChange, open],
-	);
+	const { isOpen, panelId, setIsOpen } = useDisclosureState({
+		defaultOpen,
+		enabled: expandable,
+		onOpenChange,
+		open,
+	});
 	const value = useMemo(
 		() => ({ expandable, isOpen, panelId, setIsOpen }),
 		[expandable, isOpen, panelId, setIsOpen],
@@ -718,19 +711,24 @@ export const ToolActivityTrigger = ({
 export type ToolActivityContentProps = Omit<
 	HTMLAttributes<HTMLDivElement>,
 	"hidden" | "id"
->;
+> & {
+	presentation?: DisclosureContentPresentation;
+};
 
 export const ToolActivityContent = ({
-	className,
+	presentation,
 	...props
 }: ToolActivityContentProps) => {
 	const { expandable, isOpen, panelId } = useToolActivity();
-	if (!expandable || !isOpen) return null;
+	if (!expandable) return null;
 	return (
-		<div
+		<DisclosureContent
 			{...props}
-			className={classNames("cline-chat-tool-content", className)}
-			id={panelId}
+			contentClassName="cline-chat-tool-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
 		/>
 	);
 };
