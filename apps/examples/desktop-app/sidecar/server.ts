@@ -171,7 +171,8 @@ export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
 	onShutdown?: (reason?: string) => Promise<void>,
-	approvalToken = randomUUID(),
+	approvalToken = process.env.CLINE_SIDECAR_APPROVAL_TOKEN?.trim() ||
+		randomUUID(),
 ): { port: number; approvalToken: string } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");

@@ -173,7 +173,7 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:sidecar   # Start sidecar on port 3126 with the development approval token
+bun run dev:web       # Start Next.js on port 3125 with the matching tokenized endpoint
 bun run dev           # Both concurrently
 ```
