@@ -15,6 +15,11 @@ const hubGetUrlMock = vi.hoisted(() => vi.fn());
 const hubIsConnectedMock = vi.hoisted(() => vi.fn());
 const nodeHubClientCtorMock = vi.hoisted(() => vi.fn());
 const subscribeMock = vi.hoisted(() => vi.fn());
+const updateCapabilitiesMock = vi.hoisted(() => vi.fn());
+
+vi.mock("@ai-sdk/provider-utils", () => ({
+	createProviderDefinedToolFactory: vi.fn(() => vi.fn()),
+}));
 
 vi.mock("@cline/core", async () => {
 	const actual =
@@ -35,6 +40,7 @@ vi.mock("@cline/core", async () => {
 			getUrl = hubGetUrlMock;
 			isConnected = hubIsConnectedMock;
 			subscribe = subscribeMock;
+			updateCapabilities = updateCapabilitiesMock;
 			dispose = vi.fn();
 		},
 	};
@@ -64,6 +70,7 @@ describe("Code sidecar runtime capabilities", () => {
 		hubIsConnectedMock.mockReset();
 		nodeHubClientCtorMock.mockReset();
 		subscribeMock.mockReset();
+		updateCapabilitiesMock.mockReset();
 		connectMock.mockResolvedValue(undefined);
 		ensureCompatibleLocalHubUrlMock.mockResolvedValue(
 			"ws://127.0.0.1:25463/hub",
@@ -73,6 +80,7 @@ describe("Code sidecar runtime capabilities", () => {
 		hubGetUrlMock.mockReturnValue("ws://127.0.0.1:25463/hub");
 		hubIsConnectedMock.mockReturnValue(true);
 		subscribeMock.mockReturnValue(() => {});
+		updateCapabilitiesMock.mockResolvedValue(undefined);
 		createCoreMock.mockResolvedValue({
 			runtimeAddress: "ws://127.0.0.1:25463/hub",
 			subscribe: vi.fn(() => () => {}),
@@ -515,6 +523,63 @@ describe("Code sidecar runtime capabilities", () => {
 		).toEqual([]);
 	});
 
+	it("forwards Hub-owned task session approvals to the live desktop", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		let onHubEvent: ((event: Record<string, unknown>) => void) | undefined;
+		subscribeMock.mockImplementation((handler) => {
+			onHubEvent = handler;
+			return () => {};
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+
+		expect(updateCapabilitiesMock).toHaveBeenCalledWith([
+			expect.objectContaining({ name: "approval.respond" }),
+		]);
+		onHubEvent?.({
+			event: "approval.requested",
+			sessionId: "task-session-1",
+			payload: {
+				approvalId: "hub-approval-1",
+				agendaTaskId: "task-1",
+				agentId: "task-agent-1",
+				conversationId: "task-conversation-1",
+				iteration: 2,
+				toolCallId: "tool-call-1",
+				toolName: "write_to_file",
+				inputJson: JSON.stringify({ path: "src/a.ts" }),
+				policy: { autoApprove: false },
+			},
+		});
+		await vi.waitFor(() => expect(ctx.pendingApprovals.size).toBe(1));
+		const pendingItems = (await handleCommand(ctx, "poll_tool_approvals", {
+			sessionId: "task-session-1",
+		})) as Array<{ requestId: string }>;
+		const pending = pendingItems[0];
+		if (!pending) throw new Error("expected a pending task approval");
+		await handleCommand(ctx, "respond_tool_approval", {
+			sessionId: "task-session-1",
+			requestId: pending.requestId,
+			approved: true,
+		});
+
+		await vi.waitFor(() =>
+			expect(hubCommandMock).toHaveBeenCalledWith(
+				"approval.respond",
+				{
+					approvalId: "hub-approval-1",
+					approved: true,
+					reason: undefined,
+				},
+				"task-session-1",
+			),
+		);
+	});
+
 	it("routes routine commands through the connected shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
@@ -538,6 +603,82 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(hubCommandMock).toHaveBeenCalledWith("schedule.disable", {
 			scheduleId: "schedule-1",
 		});
+	});
+
+	it("proxies Agenda task commands through the connected shared Hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const task = {
+			taskId: "task-1",
+			title: "Review the PR",
+			status: "pending_approval",
+		};
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { tasks: [task] },
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "task.list", {
+				workspaceRoot: "/workspace/project",
+				statuses: ["pending_approval"],
+			}),
+		).resolves.toEqual({ tasks: [task] });
+		expect(hubCommandMock).toHaveBeenCalledWith("task.list", {
+			workspaceRoot: "/workspace/project",
+			statuses: ["pending_approval"],
+		});
+
+		hubCommandMock.mockResolvedValueOnce({
+			ok: true,
+			payload: { task: { ...task, status: "in_progress", revision: 4 } },
+		});
+		await expect(
+			handleCommand(ctx, "task.run", {
+				taskId: "task-1",
+				expectedRevision: 4,
+			}),
+		).resolves.toEqual({
+			task: { ...task, status: "in_progress", revision: 4 },
+		});
+		expect(hubCommandMock).toHaveBeenCalledWith("task.run", {
+			taskId: "task-1",
+			expectedRevision: 4,
+		});
+	});
+
+	it("forwards Hub task events that do not have a session", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() } as never);
+
+		handleHubLiveEvent(ctx, {
+			event: "task.created",
+			payload: {
+				taskId: "task-1",
+				status: "pending_approval",
+			},
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			{
+				type: "event",
+				event: {
+					name: "task.created",
+					payload: {
+						taskId: "task-1",
+						status: "pending_approval",
+					},
+				},
+			},
+		]);
 	});
 });
 

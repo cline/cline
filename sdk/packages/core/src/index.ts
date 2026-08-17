@@ -863,6 +863,7 @@ export {
 	CoreSettingsService,
 	createCoreSettingsService,
 } from "./settings";
+export * from "./tasks";
 export type {
 	ChatMessage,
 	ChatMessageImage,

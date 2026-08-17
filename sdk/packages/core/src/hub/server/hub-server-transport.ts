@@ -1,20 +1,36 @@
+import { resolve } from "node:path";
 import type {
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
 	HubReplyEnvelope,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { captureSdkError, createSessionId } from "@cline/shared";
+import {
+	CLINE_DEFAULT_MODEL_ID,
+	captureSdkError,
+	createSessionId,
+	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+} from "@cline/shared";
+import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
+import {
+	createSchedulePromptExtension,
+	createScheduleTool,
+} from "../../cron/service/schedule-tool";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
+import { withSessionHistoryOriginMetadata } from "../../session/history-origin";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
 	type CoreSettingsListInput,
@@ -22,6 +38,13 @@ import {
 	type CoreSettingsToggleInput,
 	type CoreSettingsType,
 } from "../../settings";
+import {
+	AgendaTaskManager,
+	type AgendaTaskRuntimeResult,
+	createTodoListPromptExtension,
+	createTodoListTool,
+} from "../../tasks";
+import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
 import {
 	handleApprovalRespond,
@@ -77,6 +100,10 @@ import { logHubBoundaryError } from "./hub-server-logging";
 import type { HubWebSocketServerOptions } from "./hub-server-options";
 import type { HubSessionState } from "./hub-session-records";
 import type { NativeHubTransport } from "./native-transport";
+import {
+	HubAgendaTaskCommandService,
+	isAgendaTaskCommand,
+} from "./task-command-service";
 
 const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
@@ -178,6 +205,10 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly activeRpcTurnCountBySession = new Map<string, number>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
+	private readonly tasks: AgendaTaskManager;
+	private readonly taskCommands: HubAgendaTaskCommandService;
+	private readonly sessionTools: AgentTool[] = [];
+	private readonly sessionExtensions: AgentExtension[] = [];
 	private readonly settings: CoreSettingsService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
@@ -203,6 +234,8 @@ export class HubServerTransport implements NativeHubTransport {
 				this.suppressNextTerminalEventBySession,
 			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
 			telemetry: options.telemetry,
+			sessionTools: this.sessionTools,
+			sessionExtensions: this.sessionExtensions,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
 			buildEvent: buildHubEvent,
@@ -222,6 +255,60 @@ export class HubServerTransport implements NativeHubTransport {
 					onProgress,
 				),
 		};
+		this.tasks = new AgendaTaskManager({
+			...options.taskOptions,
+			runtime: {
+				isInteractiveClientAvailable: () =>
+					[...this.clients.values()].some((client) =>
+						client.capabilities.some(
+							(capability) =>
+								capability.name === HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+						),
+					),
+				startSession: (task, run, requestedByClientId, runtimeOptions) =>
+					this.startAgendaTaskSession(
+						task,
+						run,
+						requestedByClientId,
+						runtimeOptions?.unattended === true,
+					),
+				runSession: (sessionId, task, run) =>
+					this.runAgendaTaskSession(sessionId, task, run),
+				abortSession: async (sessionId, reason) => {
+					await this.sessionHost.abort(sessionId, reason);
+				},
+			},
+			logger: options.taskOptions?.logger ?? options.logger,
+			publish: (event, payload, sessionId) => {
+				this.publish(buildHubEvent(event, payload, sessionId));
+			},
+		});
+		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
+		this.sessionTools.push(
+			createTodoListTool({
+				manager: this.tasks,
+				resolveSessionDefaults: async (sessionId) => {
+					const session = await this.sessionHost.getSession(sessionId);
+					if (!session) return undefined;
+					const projectWorkspace = !isChatWorkspacePath(session.workspaceRoot)
+						? session.workspaceRoot
+						: undefined;
+					return {
+						workspaceRoot: projectWorkspace,
+						cwd: projectWorkspace ? session.cwd : undefined,
+						modelSelection: {
+							providerId: session.provider,
+							modelId: session.model,
+						},
+						originTaskId:
+							typeof session.metadata?.agendaTaskId === "string"
+								? session.metadata.agendaTaskId
+								: undefined,
+					};
+				},
+			}) as AgentTool,
+		);
+		this.sessionExtensions.push(createTodoListPromptExtension());
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
 			runtimeHandlers: options.runtimeHandlers,
@@ -246,6 +333,28 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		this.sessionTools.push(
+			createScheduleTool({
+				schedules: this.schedules,
+				publish: (event, payload, sessionId) => {
+					this.publish(buildHubEvent(event, payload, sessionId));
+				},
+				resolveSessionDefaults: async (sessionId) => {
+					const session = await this.sessionHost.getSession(sessionId);
+					if (!session) return undefined;
+					return {
+						workspaceRoot: session.workspaceRoot,
+						cwd: session.cwd,
+						modelSelection: {
+							providerId: session.provider,
+							modelId: session.model,
+						},
+						interactive: session.interactive,
+					};
+				},
+			}) as AgentTool,
+		);
+		this.sessionExtensions.push(createSchedulePromptExtension());
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({
@@ -271,6 +380,152 @@ export class HubServerTransport implements NativeHubTransport {
 		});
 	}
 
+	private async startAgendaTaskSession(
+		task: AgendaTaskRecord,
+		run: AgendaTaskRunRecord,
+		requestedByClientId?: string,
+		unattended = false,
+	): Promise<{ sessionId: string }> {
+		const originSession = task.originSessionId
+			? await this.sessionHost.getSession(task.originSessionId)
+			: undefined;
+		const inheritedAutoApproveTools =
+			originSession?.metadata?.autoApproveTools === true;
+		const autoApproveTools = unattended || inheritedAutoApproveTools;
+		const providerId = task.modelSelection?.providerId?.trim() || "cline";
+		const modelId =
+			task.modelSelection?.modelId?.trim() ||
+			(providerId === "cline" ? CLINE_DEFAULT_MODEL_ID : "");
+		const metadata = withSessionHistoryOriginMetadata(
+			{
+				title: task.title,
+				agendaTaskId: task.taskId,
+				agendaTaskRunId: run.runId,
+				agendaTaskAssignee: task.assignee,
+				interactive: !unattended,
+				source: SessionSource.CORE,
+			},
+			{ mode: "task", trigger: "agenda_task" },
+		);
+		const clientId = requestedByClientId?.trim() || "agenda-task-manager";
+		const reply = await handleSessionCreate(
+			this.ctx,
+			{
+				version: "v1",
+				command: "session.create",
+				requestId: createSessionId("task_session_"),
+				clientId,
+				payload: {
+					workspaceRoot: task.workspaceRoot,
+					cwd: task.cwd,
+					sessionConfig: {
+						providerId,
+						modelId,
+						systemPrompt: task.systemPrompt ?? "",
+						mode: task.mode ?? "act",
+						maxIterations: task.maxIterations,
+						enableTools: true,
+						enableSpawnAgent: true,
+						enableAgentTeams: true,
+					},
+					metadata,
+					runtimeOptions: {
+						mode: task.mode ?? "act",
+						maxIterations: task.maxIterations,
+						enableTools: true,
+						enableSpawn: true,
+						enableTeams: true,
+					},
+					toolPolicies: {
+						"*": { autoApprove: autoApproveTools, enabled: true },
+					},
+				},
+			},
+			(request) => requestToolApprovalHandler(this.ctx, request),
+		);
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "failed to create task session");
+		}
+		const session = reply.payload?.session as
+			| { sessionId?: unknown }
+			| undefined;
+		const snapshot = reply.payload?.snapshot as
+			| { sessionId?: unknown }
+			| undefined;
+		const sessionId =
+			typeof snapshot?.sessionId === "string"
+				? snapshot.sessionId
+				: typeof session?.sessionId === "string"
+					? session.sessionId
+					: "";
+		if (!sessionId) throw new Error("task session did not return a session id");
+		return { sessionId };
+	}
+
+	private async runAgendaTaskSession(
+		sessionId: string,
+		task: AgendaTaskRecord,
+		run: AgendaTaskRunRecord,
+	): Promise<AgendaTaskRuntimeResult> {
+		const resources = task.resourcePaths.length
+			? `\n\nRelevant resources (paths are relative to workspace root ${task.workspaceRoot}):\n${task.resourcePaths
+					.map(
+						(path) =>
+							`- ${path} (absolute: ${resolve(task.workspaceRoot ?? task.cwd ?? "", path)})`,
+					)
+					.join("\n")}`
+			: "";
+		const assignment = task.assignee
+			? `\nAssigned agent: ${task.assignee}. If a configured agent or subagent with this name is available, delegate the work to it and oversee completion; otherwise execute it directly and mention the fallback in the summary.`
+			: "";
+		const prompt = `Execute this approved agenda task.\n\nTitle: ${task.title}\nType: ${task.type}\nPriority: P${task.priority}${assignment}\n\n${task.instructions}${resources}`;
+		const reply = await handleSessionInput(this.ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: createSessionId("task_run_"),
+			clientId: run.requestedByClientId ?? "agenda-task-manager",
+			sessionId,
+			payload: {
+				sessionId,
+				input: prompt,
+				mode: task.mode ?? "act",
+				timeoutSeconds: task.timeoutSeconds,
+			},
+		});
+		if (!reply.ok) {
+			return {
+				status: "failed",
+				error: reply.error?.message ?? "task session run failed",
+			};
+		}
+		const result = reply.payload?.result as
+			| { finishReason?: unknown; text?: unknown }
+			| undefined;
+		const finishReason =
+			typeof result?.finishReason === "string"
+				? result.finishReason
+				: undefined;
+		const summary =
+			typeof result?.text === "string" && result.text.trim()
+				? result.text.trim()
+				: undefined;
+		if (finishReason === "completed") {
+			return { status: "completed", summary };
+		}
+		if (finishReason === "aborted") {
+			return { status: "cancelled", summary };
+		}
+		return {
+			status: "failed",
+			summary,
+			error:
+				summary ??
+				(finishReason
+					? `Task session ended with ${finishReason}`
+					: "Task session did not return a completion result"),
+		};
+	}
+
 	getCronService(): CronService | undefined {
 		return this.cronService;
 	}
@@ -280,6 +535,7 @@ export class HubServerTransport implements NativeHubTransport {
 	}
 
 	async start(): Promise<void> {
+		await this.tasks.start();
 		await this.schedules.start();
 		if (this.cronService) {
 			try {
@@ -302,6 +558,7 @@ export class HubServerTransport implements NativeHubTransport {
 			() => true,
 			"Hub shutting down before capability request was resolved.",
 		);
+		await this.tasks.dispose();
 		await this.sessionHost.dispose("hub_server_stop");
 		await this.schedules.dispose();
 		if (this.cronService) {
@@ -334,16 +591,28 @@ export class HubServerTransport implements NativeHubTransport {
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
 	): Promise<HubReplyEnvelope> {
+		if (isAgendaTaskCommand(envelope.command)) {
+			return await this.taskCommands.handleCommand(envelope);
+		}
 		switch (envelope.command) {
-			case "client.register":
-				return handleClientRegister(this.ctx, envelope);
-			case "client.update":
-				return handleClientUpdate(this.ctx, envelope);
-			case "client.unregister":
-				return handleClientUnregister(this.ctx, envelope, (clientId) => {
+			case "client.register": {
+				const reply = handleClientRegister(this.ctx, envelope);
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
+			case "client.update": {
+				const reply = handleClientUpdate(this.ctx, envelope);
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
+			case "client.unregister": {
+				const reply = handleClientUnregister(this.ctx, envelope, (clientId) => {
 					this.listeners.delete(clientId);
 					this.detachClientFromSessions(clientId);
 				});
+				this.tasks.notifyAutomationReadinessChanged();
+				return reply;
+			}
 			case "client.list":
 				return handleClientList(this.ctx, envelope);
 			case "session.create":

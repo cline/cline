@@ -490,6 +490,126 @@ Lower layers should not depend on optional feature packages.
 
 For remote config, that means shared owns the reusable bundle/materialization/blob primitives and core owns only the session-oriented wrapper exported to apps.
 
+## Hub-Owned Agenda Task Queue
+
+Agenda tasks are durable proposals for future work. They are intentionally
+separate from cron specs, queued prompts inside an existing session, and the
+agent-team task board. Shared, browser-safe contracts use `AgendaTaskRecord`
+and `AgendaTaskRunRecord`; orchestration and persistence remain in
+`@cline/core`.
+
+### Authority and persistence
+
+- A Hub process owns one Agenda task manager. Its
+  `AgendaTaskManagerApi` boundary is the only place allowed to change task
+  lifecycle, approval, run, or session-link state. Hub commands, file import,
+  and the agent tool all route mutations through that boundary.
+- User-editable intent is represented as Markdown with YAML frontmatter in
+  `~/.cline/tasks/*.task.md` for global tasks and
+  `<workspace>/.cline/tasks/*.task.md` for workspace tasks. Operational fields
+  such as status, revision, approval, and session IDs are not writable in a
+  spec. `AgendaTaskSpecFileStore` confines paths to the selected task directory
+  and writes specs atomically.
+- `SqliteAgendaTaskStore` owns `tasks.db` (resolved by
+  `resolveTasksDbPath()`). SQLite is the operational source of truth for task
+  status, revisions, run attempts, session links, and the automation policy;
+  the Markdown file is the canonical editable task description, not an
+  append-only queue or a substitute for concurrency control.
+- Task-file parsing and reconciliation must feed the manager instead of
+  writing SQLite directly. This preserves one validation and audit boundary
+  whether a change came from an editor, desktop client, SDK client, or agent.
+- Manager startup scans global task specs, recovers persisted task/run state,
+  and reattaches every known workspace whose directory still exists. Missing
+  historical workspaces are preserved in SQLite without recreating project
+  directories. Selecting/listing a workspace registers it so even its first
+  hand-authored task file is discovered and watched. Filesystem changes are
+  reconciled back through the same manager rather than applied from watcher
+  callbacks.
+- Raw-file creation and edits are attributed to `system:file_reconciler` and
+  always leave changed intent awaiting manual task approval. File edits never
+  reopen completed, cancelled, or expired tasks; terminal records remain
+  terminal and retain their last-known-good operational state.
+
+### Approval and session execution
+
+- Every new task starts at `pending_approval`. Approval is bound to the exact
+  task `revision` through `approvedRevision`; an execution-relevant edit
+  increments the revision and revokes stale approval. An approved revision is
+  therefore immutable at the point it is claimed for execution.
+- Approval and execution synchronously reconcile the backing Markdown file to
+  close the watcher debounce window. Both fail closed if that canonical spec
+  is missing, malformed, or does not semantically match the SQLite revision;
+  stale last-known-good intent is never approved or executed.
+- Hub `task.create` and `task.update` payloads omit actor fields; the command
+  service derives the user actor from the calling Hub client. Update,
+  approval, cancellation, and run requests carry the caller's displayed
+  `expectedRevision`; specifically, `task.approve`, `task.cancel`, and
+  `task.run` reject a missing or stale revision.
+- P0 is the most urgent priority and P5 is the least urgent. `expiresAt` is a
+  required latest-start boundary: expiry prevents a new run but does not abort
+  a session that already started.
+- Starting a task creates an `AgendaTaskRunRecord` and a normal Hub session.
+  The run owns the task/revision/session association, while the task keeps
+  `currentRunId`, `lastRunId`, and `lastSessionId` projections for UI lookup.
+  A global task remains globally scoped and resolves the Hub's shared chat
+  workspace only when its session starts.
+- The manager correlates Hub session completion, failure, and cancellation
+  with the linked run and updates both run and task. Startup recovery follows
+  the same boundary rather than manufacturing a second run. A completed task
+  does not own or delete its session; the linked session remains normal
+  session history that a user can reopen.
+
+### Hub, agent, and desktop surfaces
+
+- The Hub command family is `task.create`, `task.list`, `task.get`,
+  `task.update`, `task.approve`, `task.cancel`, `task.run`,
+  `task.automation.get`, and `task.automation.set`. Registered task events are
+  `task.created`, `task.updated`, `task.deleted`, `task.run.started`,
+  `task.run.completed`, `task.run.failed`, and `task.automation.updated`.
+  Events are invalidation and lifecycle signals; clients re-read the current
+  task or policy projection rather than rebuilding authority state from the
+  event stream.
+- Hub-hosted agent sessions receive the snake-case `todo_list` tool. It can
+  create, update, list, and get tasks within the current session's workspace
+  (or the global scope for chat sessions) and returns structured errors. It
+  cannot approve, cancel, or start a task, so an agent cannot self-authorize or
+  terminate queue work.
+- The Hub also contributes a tool-conditional system-prompt rule for
+  `todo_list`. The runtime appends it only after the tool survives global and
+  per-session enablement filtering. It tells agents to record useful follow-up,
+  handoff, reminder, suggestion, and idea work with self-contained instructions,
+  priority, expiry, and relevant paths while avoiding trivial or duplicate
+  agenda items.
+- Hub-hosted sessions also receive a separate `schedule` tool backed directly
+  by `HubScheduleService`. It creates and manages the same records shown by the
+  desktop Routine view; there is no agent-only scheduler or duplicate store.
+  The tool inherits the current session workspace, cwd, and model, filters all
+  reads and mutations to that workspace, and allows mutations only from an
+  interactive session. One-time schedules accept an exact future ISO timestamp;
+  recurring schedules accept a five-field cron expression and optional IANA
+  timezone.
+- A paired tool-conditional rule makes the routing boundary explicit:
+  `schedule` is only for an explicit request to execute work later, while
+  `todo_list` is for reviewed Agenda notes and follow-ups. The agent must ask
+  when a phrase such as “remind me” does not establish which behavior the user
+  wants, and it must not create both records unless requested.
+- `AgendaAutomationPolicy` is user-owned Hub state. `manual` preserves the
+  per-task review gate; `auto_start` and `unattended` are explicit opt-ins. The
+  manager's automation pump enforces the policy's concurrency, chain-depth,
+  and hourly-start guardrails. `auto_start` waits for a connected client with
+  the tool-approval capability and starts an interactive task session that
+  conservatively requires approval for each tool. Explicit `unattended` mode
+  may run headlessly and auto-approves enabled tools.
+- Automation never infers user consent from a raw task-file change. For
+  manager-backed intent, `applyToAgentCreated` governs tasks originally
+  created by an agent and tasks whose latest manager-backed edit came from an
+  agent; disabling it leaves those revisions pending manual approval.
+- Cline Code projects the same Hub state into an Agenda section in the desktop
+  sidebar and workspace-filtered `suggestion`/`reminder` quick actions below
+  the welcome composer. The sidebar supports review, start, cancellation,
+  linked-session navigation, and the automation toggle; it does not maintain a
+  second task store.
+
 ## File-Based And Event-Driven Automation (`ClineCore` / `CronService`)
 
 `@cline/core` ships a file-based automation subsystem under

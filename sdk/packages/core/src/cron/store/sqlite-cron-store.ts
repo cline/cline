@@ -422,6 +422,7 @@ function hubScheduleInputToCronSpec(input: HubScheduleCreateInput): CronSpec {
 				...common,
 				triggerKind: "schedule",
 				schedule: input.cronPattern.trim(),
+				timezone: input.timezone?.trim() || undefined,
 			};
 }
 
@@ -474,6 +475,12 @@ function cronSpecRecordToHubScheduleInput(
 	return {
 		name: updates.name ?? current.title,
 		cronPattern,
+		timezone:
+			updates.timezone === null
+				? undefined
+				: updates.timezone !== undefined
+					? updates.timezone
+					: current.timezone,
 		prompt: updates.prompt ?? current.prompt ?? "",
 		workspaceRoot: updates.workspaceRoot ?? current.workspaceRoot ?? "",
 		cwd,
@@ -673,7 +680,12 @@ export class SqliteCronStore {
 	}
 
 	public listHubSchedules(
-		options: { enabled?: boolean; limit?: number; tags?: string[] } = {},
+		options: {
+			enabled?: boolean;
+			limit?: number;
+			tags?: string[];
+			workspaceRoot?: string;
+		} = {},
 	): CronSpecRecord[] {
 		const where = [
 			"source = 'hub-schedule'",
@@ -684,6 +696,10 @@ export class SqliteCronStore {
 		if (typeof options.enabled === "boolean") {
 			where.push("enabled = ?");
 			params.push(options.enabled ? 1 : 0);
+		}
+		if (options.workspaceRoot?.trim()) {
+			where.push("workspace_root = ?");
+			params.push(options.workspaceRoot.trim());
 		}
 		if (options.tags && options.tags.length > 0) {
 			for (const tag of options.tags) {
@@ -732,6 +748,7 @@ export class SqliteCronStore {
 			}
 			if (
 				updates.cronPattern !== undefined ||
+				updates.timezone !== undefined ||
 				updates.metadata?.[ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY] !==
 					undefined ||
 				updates.enabled !== undefined

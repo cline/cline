@@ -1,6 +1,15 @@
 export type { ITelemetryService } from "@cline/shared";
 export { HubScheduleCommandService } from "../cron/service/schedule-command-service";
 export { HubScheduleService } from "../cron/service/schedule-service";
+export {
+	type AgentScheduleServiceApi,
+	type CreateScheduleToolOptions,
+	createSchedulePromptExtension,
+	createScheduleTool,
+	SCHEDULE_SYSTEM_PROMPT_RULE,
+	SCHEDULE_TOOL_NAME,
+	ScheduleToolInputSchema,
+} from "../cron/service/schedule-tool";
 /**
  * Re-exported so detached hub daemon entry points (e.g. the VS Code
  * `hub-daemon.ts` companion process) can construct a telemetry service

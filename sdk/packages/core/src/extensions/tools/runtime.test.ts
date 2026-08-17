@@ -13,6 +13,23 @@ describe("builtin tool catalog", () => {
 		expect(catalog.some((entry) => entry.id === "teams")).toBe(true);
 	});
 
+	it("includes todo_list outside yolo mode", () => {
+		for (const mode of ["act", "plan"] as const) {
+			const entry = getCoreBuiltinToolCatalog({ mode }).find(
+				(candidate) => candidate.id === "todo_list",
+			);
+			expect(entry).toMatchObject({
+				defaultEnabled: true,
+				headlessToolNames: ["todo_list"],
+			});
+		}
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "yolo" }).some(
+				(entry) => entry.id === "todo_list",
+			),
+		).toBe(false);
+	});
+
 	it("marks teams enabled by default in act mode", () => {
 		const catalog = getCoreBuiltinToolCatalog({ mode: "act" });
 		expect(catalog.find((entry) => entry.id === "teams")?.defaultEnabled).toBe(

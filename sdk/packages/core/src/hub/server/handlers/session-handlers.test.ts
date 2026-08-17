@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { readSessionConnectionUpdate } from "./session-handlers";
+import {
+	readSessionConnectionUpdate,
+	resolveSessionAutoApproveTools,
+} from "./session-handlers";
 
 describe("readSessionConnectionUpdate", () => {
 	it("enables thinking when a positive budget is supplied without thinking", () => {
@@ -23,5 +26,29 @@ describe("readSessionConnectionUpdate", () => {
 		expect(updates.reasoningEffort).toBeUndefined();
 		expect(Object.hasOwn(updates, "thinkingBudgetTokens")).toBe(true);
 		expect(updates.thinkingBudgetTokens).toBeUndefined();
+	});
+});
+
+describe("resolveSessionAutoApproveTools", () => {
+	it("prefers the effective global tool policy", () => {
+		expect(
+			resolveSessionAutoApproveTools(
+				{ "*": { autoApprove: false } },
+				{ autoApproveTools: true },
+			),
+		).toBe(false);
+		expect(
+			resolveSessionAutoApproveTools(
+				{ "*": { autoApprove: true } },
+				{ autoApproveTools: false },
+			),
+		).toBe(true);
+	});
+
+	it("falls back to the runtime option", () => {
+		expect(resolveSessionAutoApproveTools(undefined, {})).toBe(false);
+		expect(
+			resolveSessionAutoApproveTools(undefined, { autoApproveTools: true }),
+		).toBe(true);
 	});
 });
