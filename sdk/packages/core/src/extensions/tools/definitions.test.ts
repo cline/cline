@@ -9,7 +9,7 @@ import {
 	createShellTool,
 	createSkillsTool,
 } from "./definitions";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, createShellExecutor } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
@@ -675,7 +675,7 @@ describe("default run_commands tool", () => {
 		);
 	});
 
-	it("runs arg-less structured commands through the shell", async () => {
+	it("normalizes omitted args without erasing explicit args", async () => {
 		const execute = vi.fn(
 			async (_command: string | { command: string; args?: string[] }) => "ok",
 		);
@@ -698,8 +698,29 @@ describe("default run_commands tool", () => {
 
 		expect(execute.mock.calls.map(([command]) => command)).toEqual([
 			"echo hello",
-			"node --version",
+			{ command: "node --version", args: [] },
 			{ command: "node", args: ["--version"] },
+		]);
+	});
+
+	it("executes omitted-args legacy command objects through the shell", async () => {
+		const tool = createShellTool(createShellExecutor());
+
+		const result = await tool.execute(
+			{ commands: [{ command: "echo shell-ok" }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			expect.objectContaining({
+				query: "echo shell-ok",
+				result: expect.stringContaining("shell-ok"),
+				success: true,
+			}),
 		]);
 	});
 

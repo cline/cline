@@ -141,8 +141,8 @@ export function normalizeRunCommandsInput(
 	const normalizeEntry = (
 		entry: string | StructuredCommandInput,
 	): string | StructuredCommandInput => {
-		// Without argv, models commonly put a complete shell line in `command`.
-		if (typeof entry === "string" || (entry.args?.length ?? 0) > 0) {
+		// When `args` is omitted, models commonly put a shell line in `command`.
+		if (typeof entry === "string" || "args" in entry) {
 			return entry;
 		}
 
