@@ -160,9 +160,14 @@ function createBuiltinToolsList(
 			telemetry,
 			...preset,
 			enableSkills: !!skillsExecutor,
-			enableMonitor: preset.enableMonitor && !!monitorRegistry,
 			monitorRegistry,
 			...toolRoutingConfig,
+			// Routing rules may narrow tool availability, but plan mode's monitor
+			// prohibition is a security boundary and cannot be overridden.
+			enableMonitor:
+				preset.enableMonitor &&
+				!!monitorRegistry &&
+				toolRoutingConfig.enableMonitor !== false,
 			executors: {
 				...(skillsExecutor
 					? {

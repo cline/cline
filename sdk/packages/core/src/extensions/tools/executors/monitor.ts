@@ -333,14 +333,17 @@ export class MonitorRegistry {
 		if (await this.waitUntil(exited, gracePeriod)) return;
 
 		this.killEntry(entry, "SIGKILL");
-		// SIGKILL cannot be trapped on POSIX. Keep the handle until close is
-		// observed so teardown never loses ownership of a live process tree.
+		// SIGKILL cannot be trapped on POSIX. Keep the handle until process exit
+		// is observed so teardown never loses ownership of a live process tree.
 		await exited;
 	}
 
 	private waitForExit(child: ChildProcess): Promise<void> {
 		return new Promise((resolve) => {
-			child.once("close", () => resolve());
+			// `close` also waits for stdio streams. An escaped descendant can keep
+			// an inherited pipe open indefinitely even after this child is dead;
+			// `exit` tracks the owned process itself and cannot be held by that pipe.
+			child.once("exit", () => resolve());
 		});
 	}
 

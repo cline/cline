@@ -411,6 +411,24 @@ Use the review guidance.`,
 		expect(names).not.toContain("editor");
 	});
 
+	it("does not let routing rules enable monitor in plan mode", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				mode: "plan",
+				toolRoutingRules: [
+					{
+						mode: "plan",
+						enableTools: ["monitor"],
+					},
+				],
+			}),
+			monitorNotifier: () => {},
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).not.toContain("monitor");
+		await runtime.shutdown("test");
+	});
+
 	it("omits builtin tools when disabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
