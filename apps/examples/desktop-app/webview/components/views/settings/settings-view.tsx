@@ -1,8 +1,10 @@
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -586,8 +588,31 @@ function GeneralSettingsContent() {
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
 	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	const [appVersion, setAppVersion] = useState<string | null>(null);
 
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void desktopClient
+			.invoke<{ appVersion?: unknown }>("get_process_context")
+			.then((context) => {
+				if (cancelled) {
+					return;
+				}
+				const version =
+					typeof context?.appVersion === "string"
+						? context.appVersion.trim()
+						: "";
+				setAppVersion(version || null);
+			})
+			.catch(() => {
+				// Leave the About row versionless if the sidecar is unreachable.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
@@ -955,6 +980,26 @@ function GeneralSettingsContent() {
 						<RotateCcw className="size-3" />
 						Replay
 					</Button>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-sm text-muted-foreground">
+							{productNameForVersion(appVersion)}
+							{appVersion ? ` v${appVersion}` : ""}
+							{isBetaVersion(appVersion)
+								? " — beta builds install side by side with the stable app and update from the beta channel."
+								: ""}
+						</p>
+					</div>
+					{isBetaVersion(appVersion) ? (
+						<Badge
+							className="shrink-0 uppercase tracking-wide"
+							variant="secondary"
+						>
+							Beta
+						</Badge>
+					) : null}
 				</div>
 			</section>
 		</PageFrame>
