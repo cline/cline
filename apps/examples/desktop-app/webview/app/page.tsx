@@ -54,6 +54,10 @@ import {
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
 import {
+	type DesktopDeepLinkAction,
+	subscribeToDesktopDeepLinks,
+} from "@/lib/desktop-deep-links";
+import {
 	subscribeToDesktopMenuActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
@@ -67,6 +71,7 @@ import {
 import { isProviderConnected } from "@/lib/provider-connection";
 import {
 	fetchProviderCatalog,
+	invalidateProviderCatalogCache,
 	readProviderCatalogSnapshot,
 	subscribeToProviderCatalogInvalidation,
 	writeProviderCatalogSnapshot,
@@ -216,9 +221,17 @@ export default function Home() {
 
 	useEffect(() => watchDesktopTrayStatus(), []);
 
-	const handleNewThread = useCallback(() => {
-		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
-	}, []);
+	const handleNewThread = useCallback(
+		(options?: { prompt?: string; workspacePath?: string }) => {
+			dispatchApp({
+				type: "new-thread",
+				threadId: makeThreadId(),
+				initialPromptDraft: options?.prompt,
+				initialWorkspacePath: options?.workspacePath,
+			});
+		},
+		[],
+	);
 
 	const completeOnboarding = useCallback(() => {
 		markOnboardingCompleted();
@@ -353,12 +366,12 @@ export default function Home() {
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
 	const handleOpenSessionById = useCallback(
-		async (sessionId: string) => {
+		async (sessionId: string, initialPromptDraft?: string) => {
 			const cachedSession = sessionHistory.sessions.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
-				handleOpenSession(cachedSession);
+				handleOpenSession(cachedSession, initialPromptDraft);
 				return;
 			}
 			try {
@@ -369,7 +382,7 @@ export default function Home() {
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
 				}
-				handleOpenSession(session);
+				handleOpenSession(session, initialPromptDraft);
 			} catch (error) {
 				toast({
 					title: "Unable to open run",
@@ -380,6 +393,42 @@ export default function Home() {
 		},
 		[handleOpenSession, sessionHistory.sessions],
 	);
+
+	useEffect(() => {
+		const handleDeepLink = async (action: DesktopDeepLinkAction) => {
+			try {
+				switch (action.type) {
+					case "auth":
+						await desktopClient.invoke("handle_deep_link_auth_callback", {
+							url: action.url,
+						});
+						invalidateProviderCatalogCache();
+						toast({
+							title: "Signed in",
+							description: "Authentication completed successfully.",
+						});
+						break;
+					case "open-project":
+					case "new-session":
+						handleNewThread({
+							prompt: action.prompt,
+							workspacePath: action.path,
+						});
+						break;
+					case "open-session":
+						await handleOpenSessionById(action.sessionId, action.prompt);
+						break;
+				}
+			} catch (error) {
+				toast({
+					title: "Unable to open Cline link",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+			}
+		};
+		return subscribeToDesktopDeepLinks(handleDeepLink);
+	}, [handleNewThread, handleOpenSessionById]);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
@@ -450,6 +499,7 @@ export default function Home() {
 									key={activeThread.id}
 									historySession={activeThread.historySession}
 									initialPromptDraft={activeThread.initialPromptDraft}
+									initialWorkspacePath={activeThread.initialWorkspacePath}
 									knownWorkspacePaths={historyWorkspacePaths}
 									onInitialPromptDraftConsumed={
 										handleInitialPromptDraftConsumed
@@ -508,6 +558,7 @@ function ChatThreadPane({
 	threadId,
 	historySession,
 	initialPromptDraft,
+	initialWorkspacePath,
 	knownWorkspacePaths,
 	onInitialPromptDraftConsumed,
 	onUpdateSessionMetadata,
@@ -524,6 +575,7 @@ function ChatThreadPane({
 	threadId: string;
 	historySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
+	initialWorkspacePath?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
 	onUpdateSessionMetadata?: (
@@ -1005,6 +1057,25 @@ function ChatThreadPane({
 		setManualTitle("");
 		void reset();
 	}, [historySession, manualTitle, reset, threadId, setPromptInput]);
+
+	useEffect(() => {
+		if (!historySession && initialPromptDraft !== undefined) {
+			setPromptInput(initialPromptDraft);
+			onInitialPromptDraftConsumed?.(threadId);
+		}
+	}, [
+		historySession,
+		initialPromptDraft,
+		onInitialPromptDraftConsumed,
+		setPromptInput,
+		threadId,
+	]);
+
+	useEffect(() => {
+		if (!historySession && initialWorkspacePath) {
+			void selectWorkspace(initialWorkspacePath);
+		}
+	}, [historySession, initialWorkspacePath]);
 
 	useEffect(() => {
 		if (!historySession) {

@@ -10,6 +10,11 @@
 		"frontendDist": "../webview/out"
 	},
 	"plugins": {
+		"deep-link": {
+			"desktop": {
+				"schemes": ["cline"]
+			}
+		},
 		"updater": {
 			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IENEMTJDNzk2RUExQUY3RDEKUldUUjl4cnFsc2NTelYxNzlFR1NkWnI0VTM1V0hvQXRyOW0xV2c0bFhkL3dhdkdpNGhNRW1MQXEK",
 			"endpoints": [

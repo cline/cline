@@ -12,6 +12,7 @@ export type DesktopThread = {
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	initialWorkspacePath?: string;
 };
 
 export type DesktopAppLocation<SettingsSection extends string> = {
@@ -29,7 +30,12 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| { type: "navigate"; destination: DesktopAppLocation<SettingsSection> }
 	| { type: "back" }
 	| { type: "forward" }
-	| { type: "new-thread"; threadId: string }
+	| {
+			type: "new-thread";
+			threadId: string;
+			initialPromptDraft?: string;
+			initialWorkspacePath?: string;
+	  }
 	| {
 			type: "open-session";
 			session: SessionHistoryItem;
@@ -98,7 +104,14 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		case "new-thread":
 			return {
-				threads: [...state.threads, { id: action.threadId }],
+				threads: [
+					...state.threads,
+					{
+						id: action.threadId,
+						initialPromptDraft: action.initialPromptDraft,
+						initialWorkspacePath: action.initialWorkspacePath,
+					},
+				],
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
 					destination: {

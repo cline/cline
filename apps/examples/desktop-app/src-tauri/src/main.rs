@@ -16,6 +16,7 @@ use tauri::{
     tray::TrayIconBuilder,
     Emitter, Manager, RunEvent, State, WindowEvent,
 };
+use tauri_plugin_deep_link::DeepLinkExt;
 use tauri_plugin_updater::UpdaterExt;
 
 const UPDATE_INITIAL_DELAY: Duration = Duration::from_secs(10);
@@ -33,10 +34,33 @@ const VIEW_ZOOM_OUT_MENU_ID: &str = "view-zoom-out";
 #[cfg(any(target_os = "macos", test))]
 const VIEW_ZOOM_RESET_MENU_ID: &str = "view-zoom-reset";
 const DESKTOP_MENU_ACTION_PENDING_EVENT: &str = "desktop-menu-action-pending";
+const DESKTOP_DEEP_LINK_PENDING_EVENT: &str = "desktop-deep-link-pending";
 
 #[derive(Default)]
 struct DesktopMenuActionState {
     pending: Mutex<VecDeque<String>>,
+}
+
+#[derive(Default)]
+struct DesktopDeepLinkState {
+    pending: Mutex<VecDeque<String>>,
+}
+
+impl DesktopDeepLinkState {
+    fn enqueue(&self, url: String) {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .push_back(url);
+    }
+
+    fn drain(&self) -> Vec<String> {
+        self.pending
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .drain(..)
+            .collect()
+    }
 }
 
 impl DesktopMenuActionState {
@@ -816,6 +840,23 @@ fn queue_desktop_menu_action(app: &tauri::AppHandle, action: &str) {
     }
 }
 
+fn queue_deep_link(app: &tauri::AppHandle, url: String) {
+    if !url.starts_with("cline://") {
+        return;
+    }
+    show_main_window(app);
+    app.state::<DesktopDeepLinkState>().enqueue(url);
+    if let Err(error) = app.emit_to(MAIN_WINDOW_LABEL, DESKTOP_DEEP_LINK_PENDING_EVENT, ()) {
+        eprintln!("[deep-link] failed to signal pending URL: {error}");
+    }
+}
+
+fn queue_deep_links_from_args(app: &tauri::AppHandle, args: &[String]) {
+    for url in args.iter().filter(|arg| arg.starts_with("cline://")) {
+        queue_deep_link(app, url.clone());
+    }
+}
+
 #[cfg(any(target_os = "macos", test))]
 fn application_menu_action(menu_id: &str) -> Option<&'static str> {
     match menu_id {
@@ -969,6 +1010,11 @@ fn drain_desktop_menu_actions(action_state: State<'_, DesktopMenuActionState>) -
 }
 
 #[tauri::command]
+fn drain_desktop_deep_links(state: State<'_, DesktopDeepLinkState>) -> Vec<String> {
+    state.drain()
+}
+
+#[tauri::command]
 fn set_tray_status(
     tray_menu: State<'_, TrayMenuState>,
     update_state: State<'_, Arc<UpdateState>>,
@@ -1003,12 +1049,32 @@ fn main() {
     };
 
     tauri::Builder::default()
+        // This plugin must be registered first so a subsequent process forwards
+        // its cline:// argument to this callback and exits immediately.
+        .plugin(tauri_plugin_single_instance::init(|app, args, _cwd| {
+            queue_deep_links_from_args(app, &args);
+        }))
+        .plugin(tauri_plugin_deep_link::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(desktop_backend)
         .manage(app_context)
         .manage(Arc::new(UpdateState::default()))
         .manage(DesktopMenuActionState::default())
+        .manage(DesktopDeepLinkState::default())
         .setup(|app| {
+            let app_handle = app.handle().clone();
+            app.deep_link().on_open_url(move |event| {
+                for url in event.urls() {
+                    queue_deep_link(&app_handle, url.to_string());
+                }
+            });
+            // Linux and development builds do not get installer-time protocol
+            // registration, so register the configured scheme at startup too.
+            #[cfg(any(target_os = "linux", debug_assertions))]
+            if let Err(error) = app.deep_link().register_all() {
+                eprintln!("[deep-link] scheme registration failed: {error}");
+            }
+            queue_deep_links_from_args(app.handle(), &std::env::args().collect::<Vec<_>>());
             #[cfg(target_os = "macos")]
             setup_application_menu(app)?;
             setup_tray_icon(app)?;
@@ -1054,6 +1120,7 @@ fn main() {
             check_for_update_now,
             set_app_icon,
             drain_desktop_menu_actions,
+            drain_desktop_deep_links,
             set_tray_status
         ])
         .build(tauri::generate_context!())
@@ -1086,6 +1153,15 @@ mod tests {
         state.enqueue("open-settings");
 
         assert_eq!(state.drain(), vec!["new-session", "open-settings"]);
+        assert!(state.drain().is_empty());
+    }
+
+    #[test]
+    fn deep_links_are_buffered_in_order_until_drained() {
+        let state = DesktopDeepLinkState::default();
+        state.enqueue("cline://open-project?path=%2Ftmp%2Fa".to_string());
+        state.enqueue("cline://new-session?prompt=hello".to_string());
+        assert_eq!(state.drain().len(), 2);
         assert!(state.drain().is_empty());
     }
 

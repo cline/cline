@@ -212,6 +212,7 @@ const NATIVE_COMMANDS = new Set([
 	"check_for_update_now",
 	"set_app_icon",
 	"drain_desktop_menu_actions",
+	"drain_desktop_deep_links",
 	"set_tray_status",
 ]);
 

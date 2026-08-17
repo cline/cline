@@ -16,6 +16,7 @@ import {
 	addLocalProvider,
 	ClineAccountService,
 	captureAuthRefreshSoftFailure,
+	completeLocalProviderOAuthCallback,
 	createConfiguredStreamingTranscriptionSession,
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
@@ -1683,6 +1684,27 @@ export async function handleCommand(
 			models: Array.isArray(args?.models)
 				? (args.models as string[])
 				: undefined,
+		});
+	}
+	if (command === "handle_deep_link_auth_callback") {
+		const callbackUrl = new URL(String(args?.url ?? ""));
+		if (
+			callbackUrl.protocol !== "cline:" ||
+			(callbackUrl.hostname || callbackUrl.pathname.replace(/^\/+/, "")) !==
+				"auth"
+		) {
+			throw new Error("invalid Cline OAuth callback URL");
+		}
+		const code = callbackUrl.searchParams.get("code")?.trim();
+		if (!code)
+			throw new Error("OAuth callback is missing the authorization code");
+		const providerId =
+			callbackUrl.searchParams.get("provider")?.trim() || "cline";
+		const manager = new ProviderSettingsManager();
+		return await completeLocalProviderOAuthCallback(manager, {
+			providerId,
+			code,
+			redirectUri: "cline://auth",
 		});
 	}
 	if (command === "run_provider_oauth_login") {
