@@ -2977,6 +2977,51 @@ describe("AgentRuntime sdk.error reporting", () => {
 		);
 	});
 
+	it("does not attribute a turn that fails during setup to the previous turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Same stale-attribution hazard, but the second turn dies before the
+		// stream is ever opened. The reset has to precede the fallible setup
+		// (pending input, prepareTurn, beforeModel hooks, stream open), not
+		// just the stream loop.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		let turns = 0;
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+			hooks: {
+				beforeModel: async () => {
+					turns += 1;
+					if (turns > 1) {
+						throw new Error("beforeModel exploded");
+					}
+					return undefined;
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
