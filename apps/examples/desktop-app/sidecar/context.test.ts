@@ -584,6 +584,48 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(ctx.wsClients.has(failedClient)).toBe(false);
 	});
 
+	it("rejects an owned approval when a later broadcast fails", async () => {
+		const {
+			broadcastEvent,
+			createSidecarContext,
+			createSidecarRuntimeCapabilities,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi
+				.fn()
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => {
+					throw new Error("socket closed");
+				}),
+		};
+		ctx.wsClients.add(approvalClient);
+
+		const approval = createSidecarRuntimeCapabilities(
+			ctx,
+		).requestToolApproval?.({
+			sessionId: "sess-1",
+			agentId: "agent-1",
+			conversationId: "conversation-1",
+			iteration: 1,
+			toolCallId: "tool-call-1",
+			toolName: "run_commands",
+			input: { commands: ["echo hi"] },
+			policy: { autoApprove: false },
+		});
+		expect(ctx.pendingApprovals.size).toBe(1);
+
+		broadcastEvent(ctx, "task.updated", { taskId: "task-1" });
+
+		await expect(approval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(approvalClient)).toBe(false);
+	});
+
 	it("forwards Hub-owned task session approvals to the live desktop", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
