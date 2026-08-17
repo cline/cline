@@ -18678,35 +18678,6 @@ export const GENERATED_PROVIDER_MODELS: {
       "releaseDate": "2026-04-02",
       "family": "gemma"
     },
-    "zai-glm-4.7": {
-      "id": "zai-glm-4.7",
-      "name": "Z.AI GLM-4.7",
-      "contextWindow": 131072,
-      "maxInputTokens": 131072,
-      "maxTokens": 40960,
-      "capabilities": [
-        "tools",
-        "reasoning",
-        "structured_output",
-        "temperature",
-        "prompt-cache"
-      ],
-      "reasoningOptions": [
-        {
-          "type": "effort",
-          "values": [
-            "none"
-          ]
-        }
-      ],
-      "pricing": {
-        "input": 2.25,
-        "output": 2.75,
-        "cacheRead": 2.25,
-        "cacheWrite": 0
-      },
-      "releaseDate": "2026-01-07"
-    },
     "gpt-oss-120b": {
       "id": "gpt-oss-120b",
       "name": "GPT OSS 120B",
