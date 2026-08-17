@@ -27,7 +27,7 @@ describe("createGoogleProviderModule", () => {
 			context(),
 		);
 
-		provider.model("gemini-2.5-pro");
+		provider.operations.language("gemini-2.5-pro");
 
 		expect(createGoogleGenerativeAIMock).toHaveBeenCalledWith(
 			expect.objectContaining({
