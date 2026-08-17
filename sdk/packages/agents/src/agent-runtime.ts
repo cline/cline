@@ -1249,6 +1249,12 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
+		// Cleared per turn, not per run, and before any fallible setup: a turn
+		// that dies while consuming pending input, preparing the request, in a
+		// beforeModel hook, or opening the stream must stay unattributed
+		// rather than inherit the previous turn's reason, which would put a
+		// confidently wrong cause on the failure telemetry.
+		this.state.lastFinishReason = undefined;
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
@@ -1359,11 +1365,6 @@ export class AgentRuntime {
 		> = [];
 		let nextToolIndex = 0;
 		let finishReason: AgentModelFinishReason = "stop";
-		// Cleared per turn, not per run: a turn that dies before the stream
-		// reports a finish reason must stay unattributed rather than inherit
-		// the previous turn's, which would put a confidently wrong cause on
-		// the failure telemetry.
-		this.state.lastFinishReason = undefined;
 		let accumulatedText = "";
 		let accumulatedReasoning = "";
 
