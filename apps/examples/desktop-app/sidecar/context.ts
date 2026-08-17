@@ -740,10 +740,14 @@ function requestSidecarToolApproval(
 					approval.item.sessionId === request.sessionId,
 			)
 			.map((approval) => approval.item);
-		sendEventToClient(ctx, owner, "tool_approval_state", {
-			sessionId: request.sessionId,
-			items: sessionApprovals,
-		});
+		if (
+			!sendEventToClient(ctx, owner, "tool_approval_state", {
+				sessionId: request.sessionId,
+				items: sessionApprovals,
+			})
+		) {
+			cancelSidecarToolApprovalsForOwner(ctx, owner);
+		}
 	});
 }
 
