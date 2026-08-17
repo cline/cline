@@ -572,9 +572,13 @@ export class AgentRuntime {
 		 */
 		lastErrorReported: false,
 		/**
-		 * Finish reason of the most recent model turn, carried into
-		 * `sdk.error` so failures can be attributed to a cause. Undefined
-		 * when the run failed before any turn reported one.
+		 * Finish reason carried into the run-failed `sdk.error` event. Set
+		 * only at the throw sites where a finish reason IS the failure's
+		 * cause (empty turn, max-tokens, provider error) — never recorded
+		 * ambiently on finish events, so a failure elsewhere in the loop
+		 * (hooks, listeners, transport, setup) can never inherit a reason
+		 * from a request that did not cause it. Undefined means the
+		 * attribute is omitted, which is always safe; a wrong reason is not.
 		 */
 		lastFinishReason: undefined as AgentModelFinishReason | undefined,
 	};
@@ -818,14 +822,6 @@ export class AgentRuntime {
 			) {
 				this.throwIfAborted();
 
-				// Clear the recorded finish reason at the turn boundary, before
-				// anything in the turn can fail — `emit` does not isolate
-				// listener/onEvent errors, so even the `turn-started` emit below
-				// can fail the run. Each model attempt clears it again (see
-				// `generateAssistantMessage`); a missing reason is fine, since
-				// the attribute is simply omitted, but a wrong one puts a
-				// confident false cause on `sdk.error`.
-				this.state.lastFinishReason = undefined;
 				this.state.iteration += 1;
 				await this.emit({
 					type: "turn-started",
@@ -851,7 +847,14 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
+					// Attribution is set immediately before each throw: nothing can
+					// interleave between a synchronous set-and-throw and the
+					// run-level catch, so `sdk.error` can never pick up a reason
+					// from a failure it did not cause. Failures with no
+					// finish-reason cause (hooks, listeners, transport) leave the
+					// field unset and the attribute is omitted.
 					if (finishReason === "error") {
+						this.state.lastFinishReason = finishReason;
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
 					// Provider-executed tool activity lives in message metadata, not
@@ -868,6 +871,7 @@ export class AgentRuntime {
 					// limit is not a true empty response: fall through so the message is
 					// kept and the max-tokens recovery branch below can nudge and retry.
 					if (!hasModelToolActivity && finishReason !== "max-tokens") {
+						this.state.lastFinishReason = finishReason;
 						throw new Error(
 							finishReason === "content-filter"
 								? CONTENT_FILTER_EMPTY_TURN_MESSAGE
@@ -915,9 +919,12 @@ export class AgentRuntime {
 						});
 						continue;
 					}
+					// Same set-and-throw attribution as the empty-content check.
+					this.state.lastFinishReason = finishReason;
 					throw new Error(MAX_TOKENS_INCOMPLETE_TURN_MESSAGE);
 				}
 				if (finishReason === "error" && toolCalls.length === 0) {
+					this.state.lastFinishReason = finishReason;
 					throw new Error(this.state.lastError ?? "Model stream failed");
 				}
 				// A turn that yields tool calls is progress: reset the cut-off streak.
@@ -1368,12 +1375,6 @@ export class AgentRuntime {
 		finishReason: AgentModelFinishReason;
 		interrupted?: boolean;
 	}> {
-		// Per model attempt, not just per turn: overflow recovery runs a second
-		// attempt inside one turn, and the first attempt's reason (the overflow
-		// `error`) must not be reported as the cause when the recovery attempt
-		// dies in setup. The overflow itself is already carried by `lastError`
-		// and `lastErrorClass`, which is where that belongs.
-		this.state.lastFinishReason = undefined;
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
@@ -1671,12 +1672,6 @@ export class AgentRuntime {
 				case "finish": {
 					finishReason = event.reason;
 					requestId = event.requestId;
-					// Recorded for failure telemetry: several distinct upstream
-					// causes (filtered turn, output cap hit before any content,
-					// genuinely empty stream) reach the user through the same
-					// run-failed path, and without this attribute they are
-					// indistinguishable once reported.
-					this.state.lastFinishReason = event.reason;
 					if (event.error) {
 						this.state.lastError = event.error;
 						// Models that classify at their own error boundary (where the
