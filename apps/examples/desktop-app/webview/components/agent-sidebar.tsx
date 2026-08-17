@@ -1075,7 +1075,6 @@ function ThreadItem({
 	const title = normalizeTitle(thread.title);
 	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
-	const isProvisioningPlaceholder = isCloudProvisioningSessionId(thread.id);
 	const statusDotClass = pending
 		? "bg-yellow-400"
 		: thread.status === "provisioning"
@@ -1117,7 +1116,6 @@ function ThreadItem({
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
 						<button
-							aria-disabled={isProvisioningPlaceholder}
 							className={cn(
 								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
 								isActive
@@ -1125,7 +1123,7 @@ function ThreadItem({
 									: "text-sidebar-foreground/80 hover:bg-surface-hover",
 							)}
 							disabled={pending}
-							onClick={isProvisioningPlaceholder ? undefined : onClick}
+							onClick={onClick}
 							type="button"
 						>
 							<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-sm font-normal leading-tight">
@@ -1186,8 +1184,8 @@ function ThreadItem({
 				allowFork={thread.origin !== "cloud"}
 				// Provisioning placeholders have no server session to rename or
 				// delete yet (the sidecar rejects both until the create settles).
-				allowRename={!isProvisioningPlaceholder}
-				allowDelete={!isProvisioningPlaceholder}
+				allowRename={!isCloudProvisioningSessionId(thread.id)}
+				allowDelete={!isCloudProvisioningSessionId(thread.id)}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}

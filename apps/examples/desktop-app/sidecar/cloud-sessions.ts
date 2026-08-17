@@ -19,6 +19,7 @@ import {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	emitChunk,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -1594,6 +1595,19 @@ export class CloudSessionManager {
 					// Sidebar still shows the local title; REST retries on rename.
 				});
 			}
+		}
+		if (delivery === undefined) {
+			emitChunk(
+				this.ctx,
+				outerSessionId,
+				"chat_queued_prompt_start",
+				JSON.stringify({
+					promptId: `direct-${randomUUID()}`,
+					prompt,
+					attachmentCount: userImages?.length ?? 0,
+					userImages,
+				}),
+			);
 		}
 		try {
 			const reply = await connection.client.command(

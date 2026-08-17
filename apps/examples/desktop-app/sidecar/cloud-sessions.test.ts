@@ -1896,7 +1896,7 @@ describe("CloudSessionManager", () => {
 	});
 
 	it("forwards cloud images and continues rejecting file attachments", async () => {
-		const { ctx } = createContext();
+		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
 			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
@@ -1928,6 +1928,16 @@ describe("CloudSessionManager", () => {
 				attachments: { userImages: [image] },
 			},
 			sessionId: "inner-1",
+		});
+		const promptStarted = events.find(
+			(event) =>
+				event.name === "chat_event" &&
+				event.payload.stream === "chat_queued_prompt_start",
+		);
+		expect(JSON.parse(String(promptStarted?.payload.chunk))).toMatchObject({
+			prompt: "Inspect this image",
+			attachmentCount: 1,
+			userImages: [image],
 		});
 		await expect(
 			handleChatSessionCommand(ctx, {

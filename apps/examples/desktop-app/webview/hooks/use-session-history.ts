@@ -4,7 +4,6 @@ import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
-import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
@@ -1147,7 +1146,6 @@ export function useSessionHistory({
 
 	const openThread = useCallback(
 		(threadId: string) => {
-			if (isCloudProvisioningSessionId(threadId)) return;
 			const session = getSessionByThreadId(threadId);
 			if (session) {
 				setUnreadSessionIds((current) => {
