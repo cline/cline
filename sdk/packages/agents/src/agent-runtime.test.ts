@@ -2943,6 +2943,43 @@ describe("AgentRuntime sdk.error reporting", () => {
 		expect(result.error?.message).not.toBe("Model returned empty response");
 	});
 
+	it("does not attribute a failed turn to the previous turn's finish reason", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// Turn 1 finishes normally with "tool-calls"; turn 2 dies in the
+		// gateway before the stream reports any finish reason. Carrying turn
+		// 1's reason onto turn 2's failure would put a confident, wrong cause
+		// on the event — worse than reporting none at all.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => {
+				throw new Error("gateway exploded");
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
