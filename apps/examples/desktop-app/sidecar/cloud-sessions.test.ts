@@ -441,6 +441,66 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
+	it("uses a fresh timeout while recovering after the create request times out", async () => {
+		vi.useFakeTimers();
+		let statusCalls = 0;
+		try {
+			const now = new Date().toISOString();
+			const api = new CloudSessionApi({
+				apiBaseUrl: "https://api.example",
+				appBaseUrl: "https://app.example",
+				createTimeoutMs: 100,
+				getAuthToken: async () => "workos:fresh",
+				fetch: async (input, init) => {
+					const path = new URL(String(input)).pathname;
+					if (init?.method === "POST") {
+						return await new Promise<Response>((_resolve, reject) => {
+							init.signal?.addEventListener(
+								"abort",
+								() => reject(init.signal?.reason),
+								{ once: true },
+							);
+						});
+					}
+					if (path.endsWith("/status")) {
+						statusCalls += 1;
+						return jsonResponse({
+							success: true,
+							data: { sessionId: "ses-recovered", status: "ready" },
+						});
+					}
+					return jsonResponse({
+						success: true,
+						data: [
+							{
+								id: "ses-recovered",
+								status: "provisioning",
+								sandboxUrl: "",
+								repoContext: { repoUrl: "https://github.com/cline/test" },
+								metadata: { modelId: "anthropic/claude-sonnet-5" },
+								createdAt: now,
+								updatedAt: now,
+							},
+						],
+					});
+				},
+			});
+
+			const creating = api.create({
+				modelId: "anthropic/claude-sonnet-5",
+				repoUrl: "https://github.com/cline/test",
+			});
+			await vi.advanceTimersByTimeAsync(100);
+
+			await expect(creating).resolves.toMatchObject({
+				sessionId: "ses-recovered",
+			});
+			expect(statusCalls).toBe(1);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
 	it("returns a stable, environment-aware GitHub connection error", async () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",

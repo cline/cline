@@ -564,7 +564,19 @@ export class CloudSessionApi {
 						recovered.status === "provisioning" ||
 						!recovered.sandboxUrl?.trim()
 					) {
-						await this.waitUntilReady(recovered.id, controller.signal);
+						const recoveryController = new AbortController();
+						const recoveryTimeout = setTimeout(
+							() => recoveryController.abort(),
+							this.createTimeoutMs,
+						);
+						try {
+							await this.waitUntilReady(
+								recovered.id,
+								recoveryController.signal,
+							);
+						} finally {
+							clearTimeout(recoveryTimeout);
+						}
 					}
 					return {
 						sessionId: recovered.id,

@@ -140,6 +140,45 @@ afterEach(async () => {
 });
 
 describe("AgentSidebar session organization", () => {
+	it("does not open a cloud provisioning placeholder", async () => {
+		const openThread = vi.fn();
+		const sessionHistory = makeSessionHistory(
+			[
+				{
+					...makeThread("cline", 1),
+					id: "cloud-provisioning-1",
+					title: "Provisioning cline/cline…",
+					origin: "cloud",
+					status: "provisioning",
+				},
+			],
+			vi.fn(),
+		);
+		sessionHistory.openThread = openThread;
+
+		await act(async () => {
+			root.render(
+				<SidebarProvider>
+					<AgentSidebar
+						activeSessionId={null}
+						onHome={vi.fn()}
+						onNewThread={vi.fn()}
+						onSettingsSectionChange={vi.fn()}
+						sessionHistory={sessionHistory}
+						setView={vi.fn()}
+						settingsSection="General"
+						view="chat"
+					/>
+				</SidebarProvider>,
+			);
+		});
+
+		const placeholder = buttonWithText("Provisioning cline/cline…");
+		expect(placeholder.getAttribute("aria-disabled")).toBe("true");
+		await click(placeholder);
+		expect(openThread).not.toHaveBeenCalled();
+	});
+
 	it("filters scheduled sessions without changing their titles", async () => {
 		const scheduled = {
 			...makeThread("scheduled", 1),
