@@ -23,6 +23,13 @@ The beta is a **separate app**, not a mode of the stable app:
   `desktop-beta` release. The feed URL is compiled into the binary, so a beta
   install only ever receives beta builds and vice versa. **Never delete either
   rolling release.**
+- Yes, the names are asymmetric: `desktop-latest` *is* the stable feed. Do
+  not rename it to `desktop-stable` — the URL is baked into every stable
+  binary ever shipped and the updater has no fallback endpoint, so renaming
+  (or deleting) the release silently strands every existing install on a
+  dead feed forever. Renaming would mean maintaining both feeds for as long
+  as any pre-rename install exists, i.e. permanently. Same applies to
+  `desktop-beta` once the first beta ships.
 - Both apps share `~/.cline` (provider credentials, global settings, hub
   daemon — the hub is multi-client by design, same as running the CLI and the
   app together). A beta that requires a newer hub build can trigger the
