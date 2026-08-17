@@ -165,22 +165,28 @@ function parseHookControl(value: unknown): HookCommandControl | undefined {
 		return undefined;
 	}
 	const record = value as Record<string, unknown>;
-	const context =
+	const injectableContext =
 		typeof record.context === "string"
 			? record.context
 			: typeof record.contextModification === "string"
 				? record.contextModification
-				: typeof record.errorMessage === "string"
-					? record.errorMessage
-					: undefined;
+				: undefined;
+	const errorMessage =
+		typeof record.errorMessage === "string" && record.errorMessage.length > 0
+			? record.errorMessage
+			: undefined;
 	const cancel = typeof record.cancel === "boolean" ? record.cancel : undefined;
 	return {
 		cancel,
 		review: typeof record.review === "boolean" ? record.review : undefined,
 		// A cancelling hook's message is its error/reason, not injectable
-		// conversation context.
-		context: cancel === true ? undefined : truncateHookContext(context),
-		cancelReason: cancel === true ? context : undefined,
+		// conversation context; errorMessage takes precedence there.
+		context:
+			cancel === true
+				? undefined
+				: truncateHookContext(injectableContext ?? errorMessage),
+		cancelReason:
+			cancel === true ? (errorMessage ?? injectableContext) : undefined,
 		overrideInput: Object.hasOwn(record, "overrideInput")
 			? record.overrideInput
 			: undefined,

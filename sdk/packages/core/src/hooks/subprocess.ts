@@ -204,23 +204,28 @@ function toHookControl(value: unknown): AgentHookControl | undefined {
 	if (!hasControlKey) {
 		return undefined;
 	}
-	const contextFromHook =
+	const injectableContext =
 		typeof maybe.context === "string"
 			? maybe.context
 			: typeof maybe.contextModification === "string"
 				? maybe.contextModification
-				: typeof maybe.errorMessage === "string" &&
-						maybe.errorMessage.length > 0
-					? maybe.errorMessage
-					: undefined;
+				: undefined;
+	const errorMessage =
+		typeof maybe.errorMessage === "string" && maybe.errorMessage.length > 0
+			? maybe.errorMessage
+			: undefined;
 	const cancel = typeof maybe.cancel === "boolean" ? maybe.cancel : undefined;
 	return {
 		cancel,
 		review: typeof maybe.review === "boolean" ? maybe.review : undefined,
 		// A cancelling hook's message is its error/reason, not injectable
-		// conversation context.
-		context: cancel === true ? undefined : truncateHookContext(contextFromHook),
-		cancelReason: cancel === true ? contextFromHook : undefined,
+		// conversation context; errorMessage takes precedence there.
+		context:
+			cancel === true
+				? undefined
+				: truncateHookContext(injectableContext ?? errorMessage),
+		cancelReason:
+			cancel === true ? (errorMessage ?? injectableContext) : undefined,
 		overrideInput: Object.hasOwn(maybe, "overrideInput")
 			? maybe.overrideInput
 			: undefined,
