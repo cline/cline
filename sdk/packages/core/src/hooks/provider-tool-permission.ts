@@ -17,7 +17,6 @@ import type {
 	ProviderToolPermissionCallback,
 	ProviderToolPermissionRequest,
 } from "@cline/shared";
-import { mergeAgentHooks } from "./hook-file-hooks";
 
 function syntheticBeforeToolContext(
 	sessionId: string,
@@ -62,15 +61,42 @@ export function createProviderToolPermission(options: {
 	sessionId: string;
 	logger?: BasicLogger;
 }): ProviderToolPermissionCallback | undefined {
-	const beforeTool = mergeAgentHooks([...options.hooks])?.beforeTool;
-	if (!beforeTool) {
+	// Layers run with the runtime pipeline's beforeTool semantics (see
+	// mergeRuntimeHooks in session-runtime-orchestrator.ts), NOT the
+	// mergeAgentHooks aggregation: the first stop/skip wins immediately and
+	// later layers never see the call, and a layer that throws fails open by
+	// itself — it must not erase a denial another layer already issued or
+	// prevent later layers from being consulted.
+	const layers = options.hooks
+		.map((layer) => layer?.beforeTool)
+		.filter(
+			(handler): handler is NonNullable<AgentHooks["beforeTool"]> =>
+				typeof handler === "function",
+		);
+	if (layers.length === 0) {
 		return undefined;
 	}
 	return async (request) => {
-		try {
-			const result = await beforeTool(
-				syntheticBeforeToolContext(options.sessionId, request),
-			);
+		let input = request.input;
+		let inputUpdated = false;
+		for (const handler of layers) {
+			let result: Awaited<ReturnType<(typeof layers)[number]>>;
+			try {
+				result = await handler(
+					syntheticBeforeToolContext(options.sessionId, {
+						...request,
+						input,
+					}),
+				);
+			} catch (error) {
+				// Fail open per layer: a broken hook must not brick the provider
+				// session, but the remaining layers still get their say.
+				options.logger?.log?.(
+					`provider tool permission hook failed for "${request.toolName}"; skipping that hook layer`,
+					{ severity: "warn", ...(error !== undefined ? { error } : {}) },
+				);
+				continue;
+			}
 			if (result?.stop || result?.skip) {
 				return {
 					behavior: "deny",
@@ -80,21 +106,15 @@ export function createProviderToolPermission(options: {
 					interrupt: result.stop === true,
 				};
 			}
-			const updatedInput =
-				result?.input !== undefined && result.input !== request.input
-					? toUpdatedInput(result.input)
-					: undefined;
-			return {
-				behavior: "allow",
-				...(updatedInput ? { updatedInput } : {}),
-			};
-		} catch (error) {
-			// Fail open: a broken hook must not brick the provider session.
-			options.logger?.log?.(
-				`provider tool permission hook failed for "${request.toolName}"; allowing`,
-				{ severity: "warn", ...(error !== undefined ? { error } : {}) },
-			);
-			return { behavior: "allow" };
+			if (result?.input !== undefined && result.input !== input) {
+				input = result.input;
+				inputUpdated = true;
+			}
 		}
+		const updatedInput = inputUpdated ? toUpdatedInput(input) : undefined;
+		return {
+			behavior: "allow",
+			...(updatedInput ? { updatedInput } : {}),
+		};
 	};
 }

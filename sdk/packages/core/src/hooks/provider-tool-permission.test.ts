@@ -19,9 +19,7 @@ describe("createProviderToolPermission", () => {
 	});
 
 	it("allows when hooks return no control", async () => {
-		const beforeTool = vi.fn(
-			async (_ctx: AgentBeforeToolContext) => undefined,
-		);
+		const beforeTool = vi.fn(async (_ctx: AgentBeforeToolContext) => undefined);
 		const gate = createProviderToolPermission({
 			hooks: [{ beforeTool }],
 			sessionId: "s1",
@@ -89,6 +87,64 @@ describe("createProviderToolPermission", () => {
 			message: "layer two says no",
 			interrupt: false,
 		});
+	});
+
+	it("stops at the first denial: later layers are never consulted and cannot erase it", async () => {
+		const later = vi.fn(async () => {
+			throw new Error("boom");
+		});
+		const gate = createProviderToolPermission({
+			hooks: [
+				{ beforeTool: async () => ({ skip: true, reason: "denied first" }) },
+				{ beforeTool: later },
+			],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: "denied first",
+			interrupt: false,
+		});
+		expect(later).not.toHaveBeenCalled();
+	});
+
+	it("lets later layers deny after an earlier layer throws", async () => {
+		const gate = createProviderToolPermission({
+			hooks: [
+				{
+					beforeTool: async () => {
+						throw new Error("boom");
+					},
+				},
+				{ beforeTool: async () => ({ stop: true, reason: "still denied" }) },
+			],
+			sessionId: "s1",
+			logger: { log: vi.fn(), debug: vi.fn() },
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: "still denied",
+			interrupt: true,
+		});
+	});
+
+	it("threads input overrides through subsequent layers", async () => {
+		const seenBySecond = vi.fn(async (ctx: AgentBeforeToolContext) => {
+			expect(ctx.input).toEqual({ command: "ls -la" });
+			return undefined;
+		});
+		const gate = createProviderToolPermission({
+			hooks: [
+				{ beforeTool: async () => ({ input: { command: "ls -la" } }) },
+				{ beforeTool: seenBySecond },
+			],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "allow",
+			updatedInput: { command: "ls -la" },
+		});
+		expect(seenBySecond).toHaveBeenCalled();
 	});
 
 	it("fails open when a hook throws", async () => {

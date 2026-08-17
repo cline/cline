@@ -400,8 +400,7 @@ export async function prepareLocalRuntimeBootstrap(
 		modelCatalogDefaults,
 		defaultFetch,
 	);
-	const hooks = mergeAgentHooks([
-		baseConfig.hooks,
+	const checkpointHooks =
 		baseConfig.checkpoint?.enabled === true
 			? createCheckpointHooks({
 					cwd: baseConfig.cwd,
@@ -411,15 +410,23 @@ export async function prepareLocalRuntimeBootstrap(
 					readSessionMetadata,
 					writeSessionMetadata,
 				})
-			: undefined,
-	]);
+			: undefined;
+	const hooks = mergeAgentHooks([baseConfig.hooks, checkpointHooks]);
 	// Provider-executed tools (claude-code and friends) never reach the
 	// runtime tool pipeline, so gate them at the provider boundary with the
-	// same hook layers: session hooks (host adapters, checkpoints) plus the
-	// workspace's file-based hooks. Attached unconditionally; the handler
-	// factory forwards it only to providers that execute their own tools.
+	// same hook layers: host adapter hooks, audit hooks, checkpoint hooks,
+	// and the workspace's file-based hooks. Passed unmerged so a denial from
+	// one layer survives a later layer failing (the gate runs them with the
+	// runtime pipeline's first-deny-wins semantics). Attached unconditionally;
+	// the handler factory forwards it only to providers that execute their
+	// own tools.
 	providerConfig.onProviderToolPermission = createProviderToolPermission({
-		hooks: [hooks, fileHookExtension?.hooks],
+		hooks: [
+			localConfig?.hooks,
+			auditHooks,
+			checkpointHooks,
+			fileHookExtension?.hooks,
+		],
 		sessionId,
 		logger: baseConfig.logger,
 	});
