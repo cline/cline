@@ -4,7 +4,11 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
+
+export type ModelModality = "text" | "image" | "audio" | "video" | "pdf";
 
 export type ProviderConfigFieldType =
 	| "text"
