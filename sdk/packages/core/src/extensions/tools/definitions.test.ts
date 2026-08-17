@@ -510,6 +510,31 @@ describe("run_commands tool description", () => {
 		expect(onUnix).toContain("grep/head/tail");
 	});
 
+	it("preserves explicit command sequencing and shell-safe arguments", () => {
+		const descriptions = [
+			buildRunCommandsDescription("powershell", true),
+			buildRunCommandsDescription("cmd", true),
+			buildRunCommandsDescription("wsl", true),
+			buildRunCommandsDescription("posix", true),
+			buildRunCommandsDescription("posix", false),
+		];
+
+		for (const description of descriptions) {
+			const sequencingInstruction =
+				"If the user asks for commands separately or one at a time, do not combine commands or merge their argument lists.";
+			expect(description).toContain(sequencingInstruction);
+			expect(description).toContain(
+				"Commands that mutate the same shared state, such as the Git index, are not independent and must not run concurrently.",
+			);
+			expect(description).toContain(
+				"Quote paths and arguments containing whitespace or shell metacharacters for the active shell, including parentheses.",
+			);
+			expect(description.indexOf(sequencingInstruction)).toBeLessThan(
+				description.indexOf("Include multiple commands"),
+			);
+		}
+	});
+
 	it("derives the createShellTool description from config.shell", () => {
 		const posixTool = createShellTool(async () => "ok", {
 			shell: "/bin/bash",
