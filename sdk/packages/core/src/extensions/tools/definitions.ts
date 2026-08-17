@@ -859,7 +859,7 @@ export function createMonitorTool(
 							validatedInput.monitor_id?.trim() ||
 							validatedInput.name?.trim() ||
 							"";
-						const record = registry.stop(key);
+						const record = await registry.stop(key);
 						if (!record) return `No monitor found matching "${key}".`;
 						return `Stopped monitor ${record.id} ("${record.name}").`;
 					}

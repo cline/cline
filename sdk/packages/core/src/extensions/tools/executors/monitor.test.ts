@@ -234,7 +234,7 @@ describe("MonitorRegistry", () => {
 			await collector.waitFor((all) => allLines(all).length >= 2);
 			expect(registry.listRunning()).toHaveLength(1);
 
-			const stopped = registry.stop(record.id);
+			const stopped = await registry.stop(record.id);
 			expect(stopped?.status).toBe("stopped");
 			expect(registry.listRunning()).toHaveLength(0);
 
@@ -262,7 +262,7 @@ describe("MonitorRegistry", () => {
 		}
 	});
 
-	it("allows reusing a name once the first has stopped", () => {
+	it("allows reusing a name once the first has stopped", async () => {
 		const registry = new MonitorRegistry({ notifier: () => {} });
 		try {
 			const start = {
@@ -271,7 +271,7 @@ describe("MonitorRegistry", () => {
 				description: "watch",
 			};
 			registry.start(start);
-			registry.stop("reused");
+			await registry.stop("reused");
 			expect(() => registry.start(start)).not.toThrow();
 		} finally {
 			registry.dispose();
@@ -355,11 +355,30 @@ describe("MonitorRegistry", () => {
 		}
 	});
 
-	it("returns undefined when stopping something that does not exist", () => {
+	it("returns undefined when stopping something that does not exist", async () => {
 		const registry = new MonitorRegistry({ notifier: () => {} });
-		expect(registry.stop("nope")).toBeUndefined();
-		registry.dispose();
+		expect(await registry.stop("nope")).toBeUndefined();
+		await registry.dispose();
 	});
+
+	it.skipIf(process.platform === "win32")(
+		"escalates a stopped process that ignores SIGTERM",
+		async () => {
+			const registry = new MonitorRegistry({
+				notifier: () => {},
+				terminationGracePeriodMs: 50,
+			});
+			const record = registry.start({
+				name: "stubborn-stop",
+				command: "trap '' TERM; while true; do sleep 1; done",
+				description: "ignores a stop request",
+			});
+
+			const stopped = await registry.stop(record.id);
+			expect(stopped?.status).toBe("stopped");
+			await registry.dispose();
+		},
+	);
 });
 
 describe("formatMonitorNotification", () => {

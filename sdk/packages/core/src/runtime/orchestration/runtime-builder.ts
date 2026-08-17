@@ -160,7 +160,7 @@ function createBuiltinToolsList(
 			telemetry,
 			...preset,
 			enableSkills: !!skillsExecutor,
-			enableMonitor: !!monitorRegistry,
+			enableMonitor: preset.enableMonitor && !!monitorRegistry,
 			monitorRegistry,
 			...toolRoutingConfig,
 			executors: {

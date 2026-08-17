@@ -282,7 +282,7 @@ export class MonitorRegistry {
 	 * Stops one monitor by id or name. Returns the final record, or undefined
 	 * when nothing matched.
 	 */
-	stop(idOrName: string): MonitorRecord | undefined {
+	async stop(idOrName: string): Promise<MonitorRecord | undefined> {
 		const key = idOrName.trim();
 		const entry =
 			this.monitors.get(key) ??
@@ -291,21 +291,23 @@ export class MonitorRegistry {
 		if (!entry) return undefined;
 		if (entry.status !== "running") return snapshot(entry);
 
-		entry.status = "stopped";
-		this.killEntry(entry);
 		// Report anything already buffered rather than discarding it, then close
 		// the monitor out. The later `close` event finds it settled and is a
 		// no-op.
 		this.settle(entry, { status: "stopped" });
+		await this.terminateEntry(entry);
 		return snapshot(entry);
 	}
 
-	/** Stops every running monitor and waits until each process has exited. */
+	/** Stops every live monitor process and waits until each has exited. */
 	async stopAll(): Promise<void> {
-		const running = [...this.monitors.values()].filter(
-			(entry) => entry.status === "running",
+		const live = [...this.monitors.values()].filter(
+			(entry) =>
+				entry.child &&
+				entry.child.exitCode === null &&
+				entry.child.signalCode === null,
 		);
-		await Promise.all(running.map((entry) => this.terminateEntry(entry)));
+		await Promise.all(live.map((entry) => this.terminateEntry(entry)));
 	}
 
 	/** Stops everything and refuses further starts. */
