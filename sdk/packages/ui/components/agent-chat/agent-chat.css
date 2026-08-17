@@ -146,7 +146,8 @@
 	}
 
 	/* Actions appear and vanish instantly — a fade on hover chrome reads as
-	 * lag, not polish. */
+	 * lag, not polish. They float as a self-backed pill OVER whatever follows,
+	 * so the transcript reserves no blank space for them. */
 	.cline-chat-message-actions {
 		position: absolute;
 		top: 100%;
@@ -154,9 +155,16 @@
 		display: flex;
 		min-height: 1.5rem;
 		align-items: center;
+		gap: 0.125rem;
+		margin-top: 0.125rem;
+		padding: 0.125rem 0.375rem;
+		border: 1px solid var(--border);
+		border-radius: 9999px;
+		background: color-mix(in oklab, var(--background) 92%, transparent);
+		backdrop-filter: blur(4px);
+		box-shadow: 0 1px 3px rgb(0 0 0 / 0.1);
 		pointer-events: none;
 		opacity: 0;
-		margin-top: 0.1rem;
 	}
 
 	.cline-chat-message-actions[data-side="start"] {
@@ -165,10 +173,6 @@
 
 	.cline-chat-message-actions[data-side="end"] {
 		right: 0;
-	}
-
-	.cline-chat-message[data-role="assistant"] > .cline-chat-message-actions {
-		margin-top: 0.25rem;
 	}
 
 	.cline-chat-message:hover > .cline-chat-message-actions,
@@ -207,7 +211,8 @@
 	}
 
 	.cline-chat-reasoning-trigger,
-	.cline-chat-tool-trigger {
+	.cline-chat-tool-trigger,
+	.cline-chat-work-trigger {
 		display: flex;
 		max-width: 100%;
 		min-height: 1.75rem;
@@ -225,17 +230,20 @@
 	}
 
 	button.cline-chat-reasoning-trigger,
-	button.cline-chat-tool-trigger {
+	button.cline-chat-tool-trigger,
+	button.cline-chat-work-trigger {
 		cursor: pointer;
 	}
 
 	button.cline-chat-reasoning-trigger:disabled,
-	button.cline-chat-tool-trigger:disabled {
+	button.cline-chat-tool-trigger:disabled,
+	button.cline-chat-work-trigger:disabled {
 		cursor: not-allowed;
 		opacity: 0.5;
 	}
 
-	.cline-chat-reasoning-trigger:hover {
+	.cline-chat-reasoning-trigger:hover,
+	.cline-chat-work-trigger:hover {
 		color: var(--foreground);
 	}
 
@@ -398,6 +406,29 @@
 		box-sizing: border-box;
 	}
 
+	.cline-chat-work {
+		width: 100%;
+		min-width: 0;
+	}
+
+	/* Expanded work re-shows the run's normal chat rows; the default rail
+	 * presentation groups them as one past unit rather than live transcript. */
+	.cline-chat-work-content {
+		display: flex;
+		max-width: 100%;
+		min-width: 0;
+		flex-direction: column;
+		gap: 1rem;
+		box-sizing: border-box;
+	}
+
+	/* The flex gap owns row spacing inside expanded work; the rows' own
+	 * transcript margins would double it. */
+	.cline-chat-work-content > .cline-chat-tool,
+	.cline-chat-work-content > .cline-chat-reasoning {
+		margin: 0;
+	}
+
 	.cline-chat-conversation-viewport:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: -2px;
@@ -406,7 +437,8 @@
 	.cline-chat-scroll-button:focus-visible,
 	.cline-chat-message-action:focus-visible,
 	.cline-chat-reasoning-trigger:focus-visible,
-	.cline-chat-tool-trigger:focus-visible {
+	.cline-chat-tool-trigger:focus-visible,
+	.cline-chat-work-trigger:focus-visible {
 		outline: 2px solid var(--ring);
 		outline-offset: 2px;
 	}

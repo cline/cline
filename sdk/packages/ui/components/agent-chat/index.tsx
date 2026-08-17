@@ -733,6 +733,146 @@ export const ToolActivityContent = ({
 	);
 };
 
+const WorkActivityContext = createContext<DisclosureState | null>(null);
+
+function useWorkActivity(): DisclosureState {
+	const context = useContext(WorkActivityContext);
+	if (!context) {
+		throw new Error(
+			"WorkActivity components must be rendered inside WorkActivity",
+		);
+	}
+	return context;
+}
+
+export type WorkActivityLabelOptions = {
+	durationMilliseconds?: number;
+	toolCallCount?: number;
+};
+
+/** Compact "3s" / "4m 12s" / "1h 3m" duration for work summary rows. */
+export function formatWorkDuration(durationMilliseconds: number): string {
+	const totalSeconds = Math.max(1, Math.round(durationMilliseconds / 1000));
+	const hours = Math.floor(totalSeconds / 3600);
+	const minutes = Math.floor((totalSeconds % 3600) / 60);
+	const seconds = totalSeconds % 60;
+	if (hours > 0) return minutes > 0 ? `${hours}h ${minutes}m` : `${hours}h`;
+	if (minutes > 0)
+		return seconds > 0 ? `${minutes}m ${seconds}s` : `${minutes}m`;
+	return `${seconds}s`;
+}
+
+/** "Worked for 4m 12s · 14 tool calls" with graceful fallbacks when either
+ * number is unknown. */
+export function formatWorkActivityLabel({
+	durationMilliseconds,
+	toolCallCount,
+}: WorkActivityLabelOptions): string {
+	const worked =
+		durationMilliseconds !== undefined &&
+		Number.isFinite(durationMilliseconds) &&
+		durationMilliseconds >= 0
+			? `Worked for ${formatWorkDuration(durationMilliseconds)}`
+			: "Worked";
+	if (!toolCallCount) return worked;
+	return `${worked} · ${toolCallCount} ${
+		toolCallCount === 1 ? "tool call" : "tool calls"
+	}`;
+}
+
+export type WorkActivityProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"onChange"
+> & {
+	open?: boolean;
+	defaultOpen?: boolean;
+	onOpenChange?: (open: boolean) => void;
+};
+
+/**
+ * Collapsed summary of a finished agent run: the tool calls, thinking traces,
+ * and working narration that produced an answer fold into a single
+ * "Worked for 4m 12s · 14 tool calls" row that expands back into the full rows.
+ */
+export const WorkActivity = ({
+	className,
+	defaultOpen = false,
+	onOpenChange,
+	open,
+	...props
+}: WorkActivityProps) => {
+	const value = useDisclosureState({ defaultOpen, onOpenChange, open });
+
+	return (
+		<WorkActivityContext.Provider value={value}>
+			<div {...props} className={classNames("cline-chat-work", className)} />
+		</WorkActivityContext.Provider>
+	);
+};
+
+export type WorkActivityTriggerProps = Omit<
+	ButtonHTMLAttributes<HTMLButtonElement>,
+	"aria-controls" | "aria-expanded" | "type"
+> &
+	WorkActivityLabelOptions;
+
+export const WorkActivityTrigger = ({
+	children,
+	className,
+	durationMilliseconds,
+	onClick,
+	toolCallCount,
+	...props
+}: WorkActivityTriggerProps) => {
+	const { isOpen, panelId, setIsOpen } = useWorkActivity();
+	return (
+		<button
+			{...props}
+			aria-controls={panelId}
+			aria-expanded={isOpen}
+			className={classNames("cline-chat-work-trigger", className)}
+			onClick={(event) => {
+				onClick?.(event);
+				if (!event.defaultPrevented) setIsOpen(!isOpen);
+			}}
+			type="button"
+		>
+			{children ?? (
+				<>
+					<span className="cline-chat-tool-label">
+						{formatWorkActivityLabel({ durationMilliseconds, toolCallCount })}
+					</span>
+					<ChevronDownIcon className="cline-chat-disclosure-icon" />
+				</>
+			)}
+		</button>
+	);
+};
+
+export type WorkActivityContentProps = Omit<
+	HTMLAttributes<HTMLDivElement>,
+	"hidden" | "id"
+> & {
+	presentation?: DisclosureContentPresentation;
+};
+
+export const WorkActivityContent = ({
+	presentation = "rail",
+	...props
+}: WorkActivityContentProps) => {
+	const { isOpen, panelId } = useWorkActivity();
+	return (
+		<DisclosureContent
+			{...props}
+			contentClassName="cline-chat-work-content"
+			isOpen={isOpen}
+			lazyContent
+			panelId={panelId}
+			presentation={presentation}
+		/>
+	);
+};
+
 export type ToolActivityDetailsProps = HTMLAttributes<HTMLDivElement>;
 
 export const ToolActivityDetails = ({
