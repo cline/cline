@@ -289,10 +289,12 @@ Use the review guidance.`,
 			toolExecutors: {
 				submit: async () => "submitted",
 			},
+			monitorNotifier: () => {},
 		});
 
 		const names = runtime.tools.map((tool) => tool.name);
 		expect(names).not.toContain("ask_question");
+		expect(names).not.toContain("monitor");
 		expect(names).toContain("submit_and_exit");
 		expect(runtime.completionPolicy).toEqual({
 			requireCompletionTool: true,
@@ -411,13 +413,16 @@ Use the review guidance.`,
 		expect(names).not.toContain("editor");
 	});
 
-	it("does not let routing rules enable monitor in plan mode", async () => {
+	it.each([
+		"plan",
+		"yolo",
+	] as const)("does not let routing rules enable monitor in %s mode", async (mode) => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
-				mode: "plan",
+				mode,
 				toolRoutingRules: [
 					{
-						mode: "plan",
+						mode,
 						enableTools: ["monitor"],
 					},
 				],

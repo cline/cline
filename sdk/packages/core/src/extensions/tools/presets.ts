@@ -109,7 +109,7 @@ export const ToolPresets = {
 		enableApplyPatch: false,
 		enableEditor: true,
 		enableSkills: false,
-		enableMonitor: true,
+		enableMonitor: false,
 		enableAskQuestion: false,
 		enableSubmitAndExit: true,
 		enableSpawnAgent: false,
