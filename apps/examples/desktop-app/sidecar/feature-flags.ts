@@ -85,14 +85,32 @@ export async function disposeDesktopFeatureFlagsService(): Promise<void> {
 export function setDesktopFeatureFlagsAccountContext(account: {
 	id?: string;
 	email?: string;
-}): void {
+}): boolean {
 	const accountId = account.id?.trim();
-	desktopFeatureFlagsContext = {
-		...desktopFeatureFlagsContext,
-		...(accountId ? { distinctId: accountId, userId: accountId } : {}),
-		...(account.email?.trim() ? { email: account.email.trim() } : {}),
-	};
+	const previousUserId = desktopFeatureFlagsContext.userId ?? undefined;
+	if (previousUserId === (accountId || undefined)) {
+		return false;
+	}
+
+	if (accountId) {
+		desktopFeatureFlagsContext = {
+			...desktopFeatureFlagsContext,
+			distinctId: accountId,
+			userId: accountId,
+		};
+	} else {
+		// Drop both identifiers; ensureDesktopDistinctId re-resolves the device
+		// ID on the next read rather than leaving the old account's ID behind.
+		const {
+			distinctId: _distinctId,
+			userId: _userId,
+			...rest
+		} = desktopFeatureFlagsContext;
+		desktopFeatureFlagsContext = rest;
+	}
+
 	desktopFeatureFlagsService?.setContext(getDesktopFeatureFlagsContext());
+	return true;
 }
 
 export type FeatureFlagsSnapshot = {
@@ -127,6 +145,24 @@ export async function refreshDesktopFeatureFlags(options?: {
 		});
 	}
 	return buildFeatureFlagsSnapshot(service);
+}
+
+export async function identifyDesktopFeatureFlagsAccount(
+	account: { id?: string; email?: string },
+	options?: { logger?: BasicLogger; telemetry?: ITelemetryService },
+): Promise<void> {
+	if (
+		!setDesktopFeatureFlagsAccountContext(account) ||
+		!desktopFeatureFlagsService
+	) {
+		return;
+	}
+
+	try {
+		await desktopFeatureFlagsService.poll();
+	} catch (error) {
+		options?.logger?.error?.("Error polling desktop feature flags", { error });
+	}
 }
 
 export function resetDesktopFeatureFlagsForTesting(): void {

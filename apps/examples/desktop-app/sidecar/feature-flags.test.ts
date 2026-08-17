@@ -141,6 +141,36 @@ describe("feature flags context", () => {
 			"machine-distinct-id",
 		);
 	});
+
+	it("clears the account identity on sign-out and falls back to the device", () => {
+		setDesktopFeatureFlagsAccountContext({ id: "acct-1" });
+		expect(getDesktopFeatureFlagsContext().userId).toBe("acct-1");
+
+		expect(setDesktopFeatureFlagsAccountContext({})).toBe(true);
+
+		const context = getDesktopFeatureFlagsContext();
+		expect(context.userId).toBeUndefined();
+		// Must not be left on the signed-out account's ID.
+		expect(context.distinctId).toBe("machine-distinct-id");
+	});
+
+	it("reports no change when the same account is re-confirmed", () => {
+		expect(setDesktopFeatureFlagsAccountContext({ id: "acct-1" })).toBe(true);
+		expect(setDesktopFeatureFlagsAccountContext({ id: "acct-1" })).toBe(false);
+	});
+
+	it("reports no change when signed out twice", () => {
+		expect(setDesktopFeatureFlagsAccountContext({})).toBe(false);
+	});
+
+	it("re-points at the new account when switching accounts", () => {
+		setDesktopFeatureFlagsAccountContext({ id: "acct-1" });
+		expect(setDesktopFeatureFlagsAccountContext({ id: "acct-2" })).toBe(true);
+
+		const context = getDesktopFeatureFlagsContext();
+		expect(context.userId).toBe("acct-2");
+		expect(context.distinctId).toBe("acct-2");
+	});
 });
 
 describe("buildFeatureFlagsSnapshot", () => {
