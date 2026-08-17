@@ -3,15 +3,14 @@ import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
 export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
 
 /**
- * App icon variants selectable in Settings. "midnight" is the icon bundled
- * with the app; the others live in webview/public/app-icons (picker +
- * browser favicon) and src-tauri/icons/dock (runtime dock icon resources).
+ * App icon variants selectable in Settings. src-tauri/icons/dock is the source
+ * of truth; the build syncs those files to webview/public/app-icons for the
+ * picker and browser favicon.
  */
 export const APP_ICONS = [
 	{ id: "classic", label: "Classic" },
-	{ id: "sunrise", label: "Sunrise" },
-	{ id: "steel", label: "Steel" },
 	{ id: "midnight", label: "Midnight" },
+	{ id: "hologram", label: "Hologram" },
 ] as const;
 
 export type AppIconId = (typeof APP_ICONS)[number]["id"];
@@ -29,6 +28,10 @@ export function appIconAssetPath(icon: AppIconId): string {
 export function readStoredAppIcon(): AppIconId {
 	try {
 		const stored = window.localStorage.getItem(APP_ICON_STORAGE_KEY);
+		if (stored === "sunrise") {
+			window.localStorage.setItem(APP_ICON_STORAGE_KEY, "hologram");
+			return "hologram";
+		}
 		return isAppIconId(stored) ? stored : DEFAULT_APP_ICON;
 	} catch {
 		return DEFAULT_APP_ICON;
@@ -47,7 +50,7 @@ function applyFavicon(icon: AppIconId): void {
 
 /**
  * Applies the icon to whatever this runtime can control: the macOS dock
- * icon in the Tauri shell (native `set_app_icon` command, best-effort) and
+ * icon in the Tauri shell (native `set_app_icon` command) and
  * the favicon in browser dev mode so the choice is still visible there.
  */
 export async function applyAppIcon(icon: AppIconId): Promise<void> {
@@ -59,12 +62,12 @@ export async function applyAppIcon(icon: AppIconId): Promise<void> {
 }
 
 export async function setStoredAppIcon(icon: AppIconId): Promise<void> {
+	await applyAppIcon(icon);
 	try {
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, icon);
 	} catch {
 		// Selection falls back to default next launch; applying still works.
 	}
-	await applyAppIcon(icon);
 }
 
 /**
