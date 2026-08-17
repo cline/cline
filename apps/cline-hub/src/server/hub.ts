@@ -121,6 +121,15 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 	await ctx.uiClient.connect();
 
 	ctx.uiClient.subscribeUI({
+		onDeepLink(action) {
+			ctx.pushEvent(
+				"Deep link opened",
+				`Routing ${action.type.replaceAll("_", " ")}`,
+				"info",
+			);
+			ctx.broadcast({ type: "deep_link", action });
+			broadcastHubState(ctx);
+		},
 		onNotify(payload: HubUINotifyPayload) {
 			ctx.pushEvent(
 				payload.title,

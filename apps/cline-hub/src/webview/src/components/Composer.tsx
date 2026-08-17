@@ -8,7 +8,7 @@ import {
 	SignalLow,
 	SignalMedium,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import {
 	Attachment,
@@ -298,6 +298,7 @@ const reasonLevels = [
 
 export function Composer({
 	autoApproveTools,
+	initialPrompt,
 	disabled = false,
 	enableSpawn,
 	enableTeams,
@@ -329,6 +330,7 @@ export function Composer({
 	workspaceRoot,
 }: {
 	autoApproveTools: boolean;
+	initialPrompt?: string;
 	disabled?: boolean;
 	enableSpawn: boolean;
 	enableTeams: boolean;
@@ -369,6 +371,11 @@ export function Composer({
 	const selectedModel = models.find((item) => item.id === model);
 	const thinkingSupported = selectedModel?.supportsThinking === true;
 	const activeReasonLevel = thinkingSupported ? reasonLevel : ReasonLevel.None;
+	useEffect(() => {
+		if (initialPrompt !== undefined) {
+			controller.textInput.setInput(initialPrompt);
+		}
+	}, [controller.textInput, initialPrompt]);
 	const reasonLevelOption = Math.max(
 		reasonLevels.findIndex((item) => item.value === activeReasonLevel),
 		0,

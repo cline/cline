@@ -3,7 +3,7 @@ import type {
 	ProviderListItem,
 	ProviderModel,
 } from "@cline/core";
-import type { GeneratedMedia } from "@cline/shared";
+import type { ClineDeepLinkAction, GeneratedMedia } from "@cline/shared";
 
 export type WebviewUsage = {
 	inputTokens?: number;
@@ -68,6 +68,8 @@ export type WebviewChatMessage = Omit<
 };
 
 export type WebviewConfig = {
+	workspaceRoot?: string;
+	cwd?: string;
 	provider?: string;
 	model?: string;
 	mode?: "act" | "plan";
@@ -274,6 +276,7 @@ export type WebviewInboundMessage =
 
 export type WebviewOutboundMessage =
 	| { type: "status"; text: string }
+	| { type: "deep_link"; action: ClineDeepLinkAction }
 	/**
 	 * `recoverable: true` marks an in-run notice (e.g. a MistakeTracker
 	 * mistake such as a plan-mode guard-blocked command) — the run continues,

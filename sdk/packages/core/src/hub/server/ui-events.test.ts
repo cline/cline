@@ -1,4 +1,4 @@
-import type { HubUINotifyPayload } from "@cline/shared";
+import type { ClineDeepLinkAction, HubUINotifyPayload } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionSource } from "../../types/common";
 import { HubUIClient } from "../client/ui-client";
@@ -103,6 +103,46 @@ describe("hub UI events", () => {
 		await sender.sendShowWindow({ focus: true });
 
 		await expect(received).resolves.toEqual({ focus: true });
+		sender.close();
+		receiver.close();
+	}, 10_000);
+
+	it("validates and broadcasts normalized deep links", async () => {
+		const server = await startHubServer({
+			port: 0,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.push(server);
+		const sender = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-sender",
+		});
+		const receiver = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-receiver",
+		});
+		await sender.connect();
+		await receiver.connect();
+		const received = waitForEvent<ClineDeepLinkAction>((resolve) =>
+			receiver.subscribeUI({ onDeepLink: resolve }),
+		);
+		await expect(
+			sender.openDeepLink("cline://new-session?prompt=fix%20it"),
+		).resolves.toEqual({
+			type: "new_session",
+			path: undefined,
+			prompt: "fix it",
+		});
+		await expect(received).resolves.toEqual({
+			type: "new_session",
+			path: undefined,
+			prompt: "fix it",
+		});
+		await expect(sender.openDeepLink("https://example.com")).rejects.toThrow(
+			"Expected a supported cline:// deep link",
+		);
 		sender.close();
 		receiver.close();
 	}, 10_000);

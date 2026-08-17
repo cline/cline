@@ -5,7 +5,11 @@ import type {
 	HubReplyEnvelope,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { captureSdkError, createSessionId } from "@cline/shared";
+import {
+	captureSdkError,
+	createSessionId,
+	parseClineDeepLink,
+} from "@cline/shared";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
@@ -14,6 +18,8 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import { completeLocalProviderOAuthCallback } from "../../services/providers/local-provider-service";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
@@ -44,6 +50,7 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	errorReply,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -407,6 +414,54 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "deep_link.open": {
+				const rawUrl =
+					typeof envelope.payload?.url === "string"
+						? envelope.payload.url.trim()
+						: "";
+				const action = parseClineDeepLink(rawUrl);
+				if (!action) {
+					return errorReply(
+						envelope,
+						"invalid_deep_link",
+						"Expected a supported cline:// deep link.",
+					);
+				}
+				if (action.type === "auth") {
+					const callback = new URL(rawUrl);
+					const code = callback.searchParams.get("code")?.trim();
+					if (!code) {
+						return errorReply(
+							envelope,
+							"invalid_oauth_callback",
+							"OAuth callback is missing the authorization code.",
+						);
+					}
+					await completeLocalProviderOAuthCallback(
+						new ProviderSettingsManager(),
+						{
+							providerId: action.provider ?? "cline",
+							code,
+							redirectUri: "cline://auth",
+						},
+					);
+				}
+				this.publish(
+					buildHubEvent(
+						"deep_link.opened",
+						action as unknown as Record<string, unknown>,
+					),
+				);
+				this.publish(
+					buildHubEvent("ui.show_window", {
+						reason: "deep_link",
+						action: action as unknown as Record<string, unknown>,
+					}),
+				);
+				return okReply(envelope, {
+					action: action as unknown as Record<string, unknown>,
+				});
+			}
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":

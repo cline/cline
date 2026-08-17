@@ -1,4 +1,5 @@
 import type {
+	ClineDeepLinkAction,
 	HubClientRecord,
 	HubEventEnvelope,
 	HubUINotifyPayload,
@@ -74,6 +75,14 @@ export class HubUIClient {
 		);
 	}
 
+	async openDeepLink(url: string): Promise<ClineDeepLinkAction> {
+		const reply = await this.client.command("deep_link.open", { url });
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "deep_link.open failed");
+		}
+		return reply.payload?.action as unknown as ClineDeepLinkAction;
+	}
+
 	async listClients(): Promise<HubClientRecord[]> {
 		const reply = await this.client.command("client.list");
 		return Array.isArray(reply.payload?.clients)
@@ -108,6 +117,7 @@ export class HubUIClient {
 	subscribeUI(handlers: {
 		onNotify?: (payload: HubUINotifyPayload) => void;
 		onShowWindow?: (payload: HubUIShowWindowPayload) => void;
+		onDeepLink?: (payload: ClineDeepLinkAction) => void;
 		onClientRegistered?: (payload: Record<string, unknown>) => void;
 		onClientDisconnected?: (payload: Record<string, unknown>) => void;
 		onSessionCreated?: (payload: Record<string, unknown>) => void;
@@ -122,6 +132,11 @@ export class HubUIClient {
 				case "ui.show_window":
 					handlers.onShowWindow?.(
 						event.payload as unknown as HubUIShowWindowPayload,
+					);
+					break;
+				case "deep_link.opened":
+					handlers.onDeepLink?.(
+						event.payload as unknown as ClineDeepLinkAction,
 					);
 					break;
 				case "hub.client.registered":

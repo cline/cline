@@ -10,9 +10,12 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
+import { completeClineAuthorizationCode } from "../../auth/cline";
 import {
 	getProviderAuthHandler,
+	getProviderAuthStorageId,
 	loginAndSaveProviderOAuthCredentials,
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
@@ -1106,6 +1109,33 @@ export async function loginLocalProvider(
 		},
 	});
 	return handler.login({ settings: existing, callbacks, telemetry });
+}
+
+export async function completeLocalProviderOAuthCallback(
+	manager: ProviderSettingsManager,
+	input: { providerId: string; code: string; redirectUri: string },
+): Promise<ProviderSettings> {
+	const providerId = normalizeOAuthProvider(input.providerId);
+	if (providerId !== "cline" && providerId !== "cline-pass") {
+		throw new Error(
+			`deep-link OAuth callbacks are not supported for "${providerId}"`,
+		);
+	}
+	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
+	const existing = manager.getProviderSettings(storageProviderId);
+	const credentials = await completeClineAuthorizationCode({
+		code: input.code,
+		redirectUri: input.redirectUri,
+		apiBaseUrl:
+			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		provider: providerId,
+	});
+	return saveLocalProviderOAuthCredentials(
+		manager,
+		providerId,
+		existing,
+		credentials,
+	);
 }
 
 export function saveLocalProviderOAuthCredentials(

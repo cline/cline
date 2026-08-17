@@ -468,7 +468,57 @@ export type HubCommandName =
 	| "cron.event.list"
 	| "cron.event.get"
 	| "ui.notify"
-	| "ui.show_window";
+	| "ui.show_window"
+	| "deep_link.open";
+
+export type ClineDeepLinkAction =
+	| { type: "auth"; provider?: string }
+	| { type: "open_project"; path: string; prompt?: string }
+	| { type: "new_session"; path?: string; prompt?: string }
+	| { type: "open_session"; sessionId: string; prompt?: string };
+
+function clineDeepLinkRoute(url: URL): string {
+	const path = url.pathname.replace(/^\/+/, "");
+	return (
+		url.hostname ? [url.hostname, path].filter(Boolean).join("/") : path
+	).toLowerCase();
+}
+
+/** Parse and validate a URL before it crosses the trusted local Hub boundary. */
+export function parseClineDeepLink(rawUrl: string): ClineDeepLinkAction | null {
+	let url: URL;
+	try {
+		url = new URL(rawUrl);
+	} catch {
+		return null;
+	}
+	if (url.protocol !== "cline:") return null;
+	const route = clineDeepLinkRoute(url);
+	const prompt = url.searchParams.get("prompt")?.trim() || undefined;
+	const path =
+		url.searchParams.get("path")?.trim() ||
+		url.searchParams.get("project")?.trim() ||
+		undefined;
+	if (route === "auth" || route.startsWith("auth/")) {
+		return {
+			type: "auth",
+			provider: url.searchParams.get("provider")?.trim() || undefined,
+		};
+	}
+	if (route === "open-project" && path) {
+		return { type: "open_project", path, prompt };
+	}
+	if (route === "new-session" || route === "task") {
+		return { type: "new_session", path, prompt };
+	}
+	if (route === "open-session" || route === "session") {
+		const sessionId =
+			url.searchParams.get("id")?.trim() ||
+			url.searchParams.get("sessionId")?.trim();
+		return sessionId ? { type: "open_session", sessionId, prompt } : null;
+	}
+	return null;
+}
 
 export const HUB_DEFAULT_COMMAND_TIMEOUT_MS = 30_000;
 export const HUB_COMMAND_SLOW_LOG_MS = 5_000;
@@ -566,6 +616,7 @@ export type HubEventName =
 	| "settings.changed"
 	| "ui.notify"
 	| "ui.show_window"
+	| "deep_link.opened"
 	| "hub.client.updated";
 
 export interface HubEventEnvelope {
