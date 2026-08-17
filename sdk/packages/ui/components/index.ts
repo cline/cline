@@ -1,5 +1,6 @@
 "use client";
 
+export { Badge, type BadgeProps } from "./badge.js";
 export {
 	type AgentApprovalAction,
 	AgentApprovalCard,
