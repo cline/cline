@@ -2237,7 +2237,7 @@ describe("AgentRuntime", () => {
 				expect(contextMessage?.role).toBe("user");
 				expect(contextMessage?.content[0]).toMatchObject({
 					type: "text",
-					text: '<hook_context source="PreToolUse">\npre-context\n</hook_context>\n\n<hook_context source="PostToolUse">\npost-context\n</hook_context>',
+					text: '<hook_context source="PreToolUse" tool_name="echo" tool_call_id="ctx">\npre-context\n</hook_context>\n\n<hook_context source="PostToolUse" tool_name="echo" tool_call_id="ctx">\npost-context\n</hook_context>',
 				});
 				const toolMessage = request.messages.at(-2);
 				expect(toolMessage?.role).toBe("tool");

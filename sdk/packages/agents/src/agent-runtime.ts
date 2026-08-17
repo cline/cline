@@ -331,9 +331,14 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 
 function formatHookContextBlock(
 	source: "PreToolUse" | "PostToolUse",
+	toolCall: AgentToolCallPart,
 	text: string,
 ): string {
-	return `<hook_context source="${source}">\n${text.trim()}\n</hook_context>`;
+	// Tool identity keeps each block attributable to its call: contexts are
+	// batched into one message after the tool results, and parallel tool
+	// execution collects them in completion order, so position alone cannot
+	// identify the tool.
+	return `<hook_context source="${source}" tool_name="${toolCall.toolName}" tool_call_id="${toolCall.toolCallId}">\n${text.trim()}\n</hook_context>`;
 }
 
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
@@ -1683,7 +1688,11 @@ export class AgentRuntime {
 				}
 				if (result?.appendContext?.trim()) {
 					this.pendingHookContexts.push(
-						formatHookContextBlock("PreToolUse", result.appendContext),
+						formatHookContextBlock(
+							"PreToolUse",
+							toolCall,
+							result.appendContext,
+						),
 					);
 				}
 				this.applyStopControl(result);
@@ -1835,7 +1844,11 @@ export class AgentRuntime {
 				})) as AgentAfterToolResult | undefined;
 				if (after?.appendContext?.trim()) {
 					this.pendingHookContexts.push(
-						formatHookContextBlock("PostToolUse", after.appendContext),
+						formatHookContextBlock(
+							"PostToolUse",
+							prepared.toolCall,
+							after.appendContext,
+						),
 					);
 				}
 				this.applyStopControl(after);
