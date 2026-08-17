@@ -745,6 +745,14 @@ export class AgentRuntime {
 			) {
 				this.throwIfAborted();
 
+				// The turn boundary, and the only correct place to clear the
+				// recorded finish reason: anything later leaves a window where a
+				// failure inherits the previous turn's reason and reports a
+				// confidently wrong cause on `sdk.error`. Notably `emit` does not
+				// isolate listener/onEvent errors, so even the `turn-started`
+				// emit below can fail the run. A missing reason is fine — the
+				// attribute is omitted — a wrong one is not.
+				this.state.lastFinishReason = undefined;
 				this.state.iteration += 1;
 				await this.emit({
 					type: "turn-started",
@@ -1043,12 +1051,6 @@ export class AgentRuntime {
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
-		// Cleared per turn, not per run, and before any fallible setup: a turn
-		// that dies while consuming pending input, preparing the request, in a
-		// beforeModel hook, or opening the stream must stay unattributed
-		// rather than inherit the previous turn's reason, which would put a
-		// confidently wrong cause on the failure telemetry.
-		this.state.lastFinishReason = undefined;
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
