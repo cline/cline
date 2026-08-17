@@ -111,7 +111,9 @@ function sseToolCalls(
 		})),
 	});
 	for (const [index, call] of calls.entries()) {
-		body += chunk({ tool_calls: [{ index, function: { arguments: call.args } }] });
+		body += chunk({
+			tool_calls: [{ index, function: { arguments: call.args } }],
+		});
 	}
 	body += chunk({}, finishReason);
 	body += "data: [DONE]\n\n";
@@ -238,7 +240,12 @@ describe("ai-sdk adapter malformed tool calls", () => {
 		// tell you the model didn't actually finish.
 		const events = await streamToolCallEvents(
 			sseToolCalls(
-				[{ name: "run_commands", args: '{"commands":["npm install","npm test"' }],
+				[
+					{
+						name: "run_commands",
+						args: '{"commands":["npm install","npm test"',
+					},
+				],
 				"length",
 			),
 			[RUN_COMMANDS_TOOL],
@@ -263,7 +270,10 @@ describe("ai-sdk adapter malformed tool calls", () => {
 			sseToolCalls(
 				[
 					{ name: "read_files", args: '{"files": [{"path": "/tmp/a.txt"}]}' },
-					{ name: "run_commands", args: '{"commands":["npm install","npm test"' },
+					{
+						name: "run_commands",
+						args: '{"commands":["npm install","npm test"',
+					},
 				],
 				"length",
 			),
@@ -271,13 +281,26 @@ describe("ai-sdk adapter malformed tool calls", () => {
 		);
 
 		const parseErrors = events
-			.filter((event): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> => event.type === "tool-call-delta")
-			.map((event) => (event.metadata as Record<string, unknown> | undefined)?.inputParseError)
+			.filter(
+				(
+					event,
+				): event is Extract<AgentModelEvent, { type: "tool-call-delta" }> =>
+					event.type === "tool-call-delta",
+			)
+			.map(
+				(event) =>
+					(event.metadata as Record<string, unknown> | undefined)
+						?.inputParseError,
+			)
 			.filter((message): message is string => typeof message === "string");
 
 		expect(parseErrors).toHaveLength(2);
-		expect(parseErrors.some((message) => message.includes("read_files"))).toBe(true);
-		expect(parseErrors.some((message) => message.includes("run_commands"))).toBe(true);
+		expect(parseErrors.some((message) => message.includes("read_files"))).toBe(
+			true,
+		);
+		expect(
+			parseErrors.some((message) => message.includes("run_commands")),
+		).toBe(true);
 	});
 
 	it("surfaces parse error for truncated JSON with unterminated string value", async () => {

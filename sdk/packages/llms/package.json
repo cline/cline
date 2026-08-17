@@ -83,6 +83,7 @@
 		"ai-sdk-provider-codex-cli": "^2"
 	},
 	"devDependencies": {
+		"@cline/agents": "workspace:*",
 		"ai-sdk-provider-claude-code": "^4",
 		"ai-sdk-provider-codex-cli": "^2"
 	}
