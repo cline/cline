@@ -3022,6 +3022,53 @@ describe("AgentRuntime sdk.error reporting", () => {
 		);
 	});
 
+	it("does not attribute a turn that fails on turn-started to the previous turn", async () => {
+		const { telemetry, capture } = createTelemetryMock();
+		// The earliest failure a turn can have: `emit` does not isolate
+		// listener/onEvent errors, so a throw while handling `turn-started`
+		// fails the run before any of the turn's own work begins. The reset
+		// has to sit at the turn boundary to cover even this.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_1",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [{ type: "finish", reason: "stop" }],
+		]);
+		let starts = 0;
+		const runtime = new AgentRuntime({
+			model,
+			telemetry,
+			tools: [createEchoTool()],
+			hooks: {
+				onEvent: async (event) => {
+					if (event.type !== "turn-started") {
+						return;
+					}
+					starts += 1;
+					if (starts > 1) {
+						throw new Error("listener exploded");
+					}
+				},
+			},
+		});
+
+		const result = await runtime.run("Start");
+
+		expect(result.status).toBe("failed");
+		const events = sdkErrorEvents(capture);
+		expect(events).toHaveLength(1);
+		expect(events[0]?.properties).not.toHaveProperty(
+			"finishReason",
+			"tool-calls",
+		);
+	});
+
 	it("attributes a filtered empty turn to content-filter rather than stop", async () => {
 		const { telemetry, capture } = createTelemetryMock();
 		const model = new ScriptedModel([
