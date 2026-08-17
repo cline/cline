@@ -6,6 +6,7 @@ import type {
 	GatewayModelSelection,
 	HubScheduleCreateInput,
 	HubScheduleUpdateInput,
+	ITelemetryService,
 	ScheduleExecutionRecord,
 	ScheduleRecord,
 } from "@cline/shared";
@@ -15,6 +16,7 @@ import {
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
 import { z } from "zod";
+import { captureToolUsage } from "../../services/telemetry/core-events";
 import type { ListSchedulesOptions } from "./schedule-service";
 
 const ScheduleOperationSchema = z.enum([
@@ -93,6 +95,7 @@ export interface AgentScheduleServiceApi {
 
 export interface CreateScheduleToolOptions {
 	schedules: AgentScheduleServiceApi;
+	telemetry?: ITelemetryService;
 	resolveSessionDefaults: (
 		sessionId: string,
 	) => Promise<ScheduleSessionDefaults | undefined>;
@@ -105,6 +108,23 @@ export interface CreateScheduleToolOptions {
 		payload: Record<string, unknown>,
 		sessionId: string,
 	) => void;
+}
+
+function captureScheduleMutation(
+	options: CreateScheduleToolOptions,
+	input: ScheduleToolInput,
+	context: Parameters<
+		AgentTool<ScheduleToolInput, ScheduleToolResult>["execute"]
+	>[1],
+	success: boolean,
+): void {
+	if (!MUTATING_OPERATIONS.has(input.operation)) return;
+	captureToolUsage(options.telemetry, {
+		ulid: context.sessionId ?? context.conversationId ?? context.agentId,
+		tool: `${SCHEDULE_TOOL_NAME}.${input.operation}`,
+		success,
+		agentId: context.agentId,
+	});
 }
 
 type ScheduleToolResult =
@@ -381,6 +401,7 @@ export function createScheduleTool(
 							{ schedule },
 							context.sessionId,
 						);
+						captureScheduleMutation(options, input, context, true);
 						return { ok: true, operation: input.operation, schedule };
 					}
 					case "update": {
@@ -409,6 +430,7 @@ export function createScheduleTool(
 							{ schedule },
 							context.sessionId,
 						);
+						captureScheduleMutation(options, input, context, true);
 						return { ok: true, operation: input.operation, schedule };
 					}
 					case "list": {
@@ -454,6 +476,7 @@ export function createScheduleTool(
 							{ schedule },
 							context.sessionId,
 						);
+						captureScheduleMutation(options, input, context, true);
 						return { ok: true, operation: input.operation, schedule };
 					}
 					case "delete": {
@@ -469,6 +492,7 @@ export function createScheduleTool(
 							{ deleted, scheduleId },
 							context.sessionId,
 						);
+						captureScheduleMutation(options, input, context, true);
 						return { ok: true, operation: input.operation, deleted };
 					}
 					case "run_now": {
@@ -485,10 +509,12 @@ export function createScheduleTool(
 							{ execution },
 							context.sessionId,
 						);
+						captureScheduleMutation(options, input, context, true);
 						return { ok: true, operation: input.operation, execution };
 					}
 				}
 			} catch (error) {
+				captureScheduleMutation(options, input, context, false);
 				return {
 					ok: false,
 					operation: input.operation,

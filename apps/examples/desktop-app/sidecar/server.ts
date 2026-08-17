@@ -3,6 +3,7 @@ import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
 import {
+	cancelSidecarToolApprovalsForOwner,
 	encodeSidecarEvent,
 	sendEvent,
 	syncSidecarApprovalReadiness,
@@ -21,7 +22,10 @@ import {
 
 type SidecarServer = {
 	port: number;
-	upgrade(req: Request): boolean;
+	upgrade(
+		req: Request,
+		options?: { data?: { canApproveTools?: boolean } },
+	): boolean;
 };
 
 // Comma-separated extra origins (e.g. a dev server on a nonstandard port when
@@ -212,7 +216,13 @@ export function createFetchHandler(
 		if (
 			url.pathname === "/transport" &&
 			isTrustedRequestOrigin(req) &&
-			server.upgrade(req)
+			server.upgrade(req, {
+				data: {
+					// Originless clients remain supported for local integrations, but only
+					// the browser-hosted desktop UI may receive or resolve approvals.
+					canApproveTools: Boolean(readOrigin(req)),
+				},
+			})
 		) {
 			return undefined;
 		}
@@ -370,6 +380,7 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
+			cancelSidecarToolApprovalsForOwner(ctx, ws);
 			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			// Browser OAuth flows are interactive: if the connection that started
 			// one goes away (webview reload, transport drop), cancel its callback

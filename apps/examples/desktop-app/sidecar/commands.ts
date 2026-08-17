@@ -67,6 +67,7 @@ import {
 	broadcastEvent,
 	ensureSharedHubClient,
 	resolveSidecarAskQuestion,
+	sendEventToClient,
 } from "./context";
 import {
 	installMarketplaceEntryForDesktopCommand,
@@ -107,6 +108,7 @@ import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
 import { pickWorkspaceDirectory } from "./workspace-picker";
 
@@ -1178,7 +1180,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
-	options?: { connection?: object },
+	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	// ── Chat session commands ──────────────────────────────────────────
 	if (command === "chat_session_command") {
@@ -1241,8 +1243,12 @@ export async function handleCommand(
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
+		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1251,20 +1257,28 @@ export async function handleCommand(
 		if (!sessionId || !requestId) {
 			throw new Error("sessionId and requestId are required");
 		}
-		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending) {
-			pending.resolve({
-				approved: Boolean(args?.approved),
-				...(typeof args?.reason === "string" && args.reason.trim().length > 0
-					? { reason: args.reason.trim() }
-					: {}),
-			});
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
 		}
+		const pending = ctx.pendingApprovals.get(requestId);
+		if (!pending || pending.owner !== connection) {
+			throw new Error("tool approval does not belong to this connection");
+		}
+		if (pending.item.sessionId !== sessionId) {
+			throw new Error("tool approval does not belong to this session");
+		}
+		pending.resolve({
+			approved: Boolean(args?.approved),
+			...(typeof args?.reason === "string" && args.reason.trim().length > 0
+				? { reason: args.reason.trim() }
+				: {}),
+		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
 			.map((a) => a.item);
-		broadcastEvent(ctx, "tool_approval_state", {
+		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
 			items: remaining,
 		});

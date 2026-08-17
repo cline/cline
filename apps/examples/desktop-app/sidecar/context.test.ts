@@ -395,7 +395,11 @@ describe("Code sidecar runtime capabilities", () => {
 		const { handleCommand } = await import("./commands");
 
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
 
 		await initializeSessionManager(ctx);
 
@@ -451,7 +455,11 @@ describe("Code sidecar runtime capabilities", () => {
 		const { handleCommand } = await import("./commands");
 
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
 
 		await initializeSessionManager(ctx);
 
@@ -483,9 +491,12 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 
 		expect(approval).toBeInstanceOf(Promise);
-		const pending = await handleCommand(ctx, "poll_tool_approvals", {
-			sessionId: "sess-1",
-		});
+		const pending = await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "sess-1" },
+			{ connection: approvalClient },
+		);
 		expect(pending).toEqual([
 			expect.objectContaining({
 				sessionId: "sess-1",
@@ -511,15 +522,32 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 
 		const [{ requestId }] = pending as Array<{ requestId: string }>;
-		await handleCommand(ctx, "respond_tool_approval", {
-			sessionId: "sess-1",
-			requestId,
-			approved: true,
-		});
+		const untrustedClient = { send: vi.fn() };
+		ctx.wsClients.add(untrustedClient);
+		await expect(
+			handleCommand(
+				ctx,
+				"respond_tool_approval",
+				{ sessionId: "sess-1", requestId, approved: true },
+				{ connection: untrustedClient },
+			),
+		).rejects.toThrow("trusted desktop connection");
+		expect(ctx.pendingApprovals.size).toBe(1);
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{ sessionId: "sess-1", requestId, approved: true },
+			{ connection: approvalClient },
+		);
 
 		await expect(approval).resolves.toEqual({ approved: true });
 		expect(
-			await handleCommand(ctx, "poll_tool_approvals", { sessionId: "sess-1" }),
+			await handleCommand(
+				ctx,
+				"poll_tool_approvals",
+				{ sessionId: "sess-1" },
+				{ connection: approvalClient },
+			),
 		).toEqual([]);
 	});
 
@@ -534,7 +562,11 @@ describe("Code sidecar runtime capabilities", () => {
 			return () => {};
 		});
 		const ctx = createSidecarContext("/workspace/project");
-		ctx.wsClients.add({ send: vi.fn() });
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
+		ctx.wsClients.add(approvalClient);
 		await initializeSessionManager(ctx);
 
 		expect(updateCapabilitiesMock).toHaveBeenCalledWith([
@@ -556,16 +588,24 @@ describe("Code sidecar runtime capabilities", () => {
 			},
 		});
 		await vi.waitFor(() => expect(ctx.pendingApprovals.size).toBe(1));
-		const pendingItems = (await handleCommand(ctx, "poll_tool_approvals", {
-			sessionId: "task-session-1",
-		})) as Array<{ requestId: string }>;
+		const pendingItems = (await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "task-session-1" },
+			{ connection: approvalClient },
+		)) as Array<{ requestId: string }>;
 		const pending = pendingItems[0];
 		if (!pending) throw new Error("expected a pending task approval");
-		await handleCommand(ctx, "respond_tool_approval", {
-			sessionId: "task-session-1",
-			requestId: pending.requestId,
-			approved: true,
-		});
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{
+				sessionId: "task-session-1",
+				requestId: pending.requestId,
+				approved: true,
+			},
+			{ connection: approvalClient },
+		);
 
 		await vi.waitFor(() =>
 			expect(hubCommandMock).toHaveBeenCalledWith(

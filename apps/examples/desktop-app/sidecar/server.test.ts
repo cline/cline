@@ -85,6 +85,32 @@ describe("sidecar HTTP origin checks", () => {
 		expect(server.upgrade).not.toHaveBeenCalled();
 	});
 
+	it("does not grant approval authority to originless local clients", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request("http://127.0.0.1:3126/transport"),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: false },
+		});
+	});
+
+	it("grants approval authority to the trusted desktop webview", async () => {
+		const server = createTestServer();
+		await createHandler()(
+			new Request("http://127.0.0.1:3126/transport", {
+				headers: { origin: "tauri://localhost" },
+			}),
+			server,
+		);
+
+		expect(server.upgrade).toHaveBeenCalledWith(expect.any(Request), {
+			data: { canApproveTools: true },
+		});
+	});
+
 	it("allows desktop webview origins in preflight responses", async () => {
 		const server = createTestServer();
 		const response = await createHandler()(
