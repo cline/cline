@@ -329,6 +329,10 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+function sanitizeHookAttribute(value: string): string {
+	return value.replace(/["<>]/g, "_");
+}
+
 function formatHookContextBlock(
 	source: "PreToolUse" | "PostToolUse",
 	toolCall: AgentToolCallPart,
@@ -337,8 +341,13 @@ function formatHookContextBlock(
 	// Tool identity keeps each block attributable to its call: contexts are
 	// batched into one message after the tool results, and parallel tool
 	// execution collects them in completion order, so position alone cannot
-	// identify the tool.
-	return `<hook_context source="${source}" tool_name="${toolCall.toolName}" tool_call_id="${toolCall.toolCallId}">\n${text.trim()}\n</hook_context>`;
+	// identify the tool. Attribute values are sanitized and embedded closing
+	// tags neutralized so neither provider-supplied ids nor hook output can
+	// corrupt or spoof the block markup.
+	const toolName = sanitizeHookAttribute(toolCall.toolName);
+	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const body = text.trim().replaceAll("</hook_context>", "<\\/hook_context>");
+	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
 }
 
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
