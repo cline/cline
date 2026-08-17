@@ -20,6 +20,9 @@ describe("adaptSdkModelInfo", () => {
 
 		it("throws CatalogShapeError when optional scalar fields are malformed", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", contextWindow: "big" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", maxInputTokens: "huge" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", maxInputTokens: Number.NaN })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", maxInputTokens: Number.POSITIVE_INFINITY })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", maxTokens: "huge" })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", name: 1 })).toThrow(CatalogShapeError)
 			expect(() => adaptSdkModelInfo({ id: "m", description: 1 })).toThrow(CatalogShapeError)
@@ -172,10 +175,34 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.description).toBeUndefined()
 		})
 
-		it("treats null contextWindow/maxTokens as missing (live LiteLLM /model/info reports unknown limits as null)", () => {
-			const model = adaptSdkModelInfo({ id: "claude-opus-5", contextWindow: null, maxTokens: null })
+		it("treats null token limits as missing (live LiteLLM /model/info reports unknown limits as null)", () => {
+			const model = adaptSdkModelInfo({
+				id: "claude-opus-5",
+				contextWindow: null,
+				maxInputTokens: null,
+				maxTokens: null,
+			})
 			expect(model.contextWindow).toBe(openAiModelInfoSafeDefaults.contextWindow)
+			expect(model.maxInputTokens).toBeUndefined()
 			expect(model.maxTokens).toBe(openAiModelInfoSafeDefaults.maxTokens)
+		})
+
+		it("uses a reported input limit when LiteLLM omits the context window", () => {
+			const model = adaptSdkModelInfo({ id: "openai/grok-4.6", maxInputTokens: 500_000 })
+
+			expect(model.contextWindow).toBe(500_000)
+			expect(model.maxInputTokens).toBe(500_000)
+		})
+
+		it("keeps distinct context and input limits when both are reported", () => {
+			const model = adaptSdkModelInfo({
+				id: "openai/grok-4.6",
+				contextWindow: 600_000,
+				maxInputTokens: 500_000,
+			})
+
+			expect(model.contextWindow).toBe(600_000)
+			expect(model.maxInputTokens).toBe(500_000)
 		})
 
 		it("falls back to id when name is omitted and passes through description", () => {
@@ -199,6 +226,7 @@ describe("adaptSdkModelInfo", () => {
 			id: "deepseek-v4-flash",
 			name: "DeepSeek V4 Flash",
 			contextWindow: 200_000,
+			maxInputTokens: 180_000,
 			maxTokens: 8192,
 			capabilities: ["tools", "reasoning", "structured_output", "temperature", "prompt-cache", "images"],
 			pricing: { input: 0.5, output: 1.5, cacheRead: 0.05, cacheWrite: 0.1 },
@@ -210,6 +238,7 @@ describe("adaptSdkModelInfo", () => {
 		expect(model).toMatchObject({
 			name: "DeepSeek V4 Flash",
 			contextWindow: 200_000,
+			maxInputTokens: 180_000,
 			maxTokens: 8192,
 			supportsImages: true,
 			supportsPromptCache: true,
@@ -229,6 +258,7 @@ describe("adaptSdkModelInfo", () => {
 			id: "m",
 			name: "M",
 			contextWindow: 32_000,
+			maxInputTokens: 30_000,
 			maxTokens: 4096,
 			capabilities: ["tools", "reasoning"],
 			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0.2 },

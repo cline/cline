@@ -352,8 +352,7 @@ function applyModelOverrides(modelInfo: ModelInfo, overrides: ModelSelectionOver
 	if (overrides.name !== undefined) next.name = overrides.name
 	if (overrides.maxTokens !== undefined) next.maxTokens = overrides.maxTokens
 	if (overrides.contextWindow !== undefined) next.contextWindow = overrides.contextWindow
-	if (overrides.maxInputTokens !== undefined)
-		(next as ModelInfo & { maxInputTokens?: number }).maxInputTokens = overrides.maxInputTokens
+	if (overrides.maxInputTokens !== undefined) next.maxInputTokens = overrides.maxInputTokens
 	if (overrides.inputPrice !== undefined) next.inputPrice = overrides.inputPrice
 	if (overrides.outputPrice !== undefined) next.outputPrice = overrides.outputPrice
 	if (overrides.cacheReadsPrice !== undefined) next.cacheReadsPrice = overrides.cacheReadsPrice
@@ -413,16 +412,21 @@ function readBaseModelInfoForProvider(providerId: ProviderId, modelId: string): 
 	return undefined
 }
 
-function resolveSelection(selection: ModelSelection, stateModelInfoHint?: ModelInfo): ResolvedModelSelection {
+interface BaseModelInfoHint {
+	modelInfo: ModelInfo
+	source: "catalog" | "state"
+}
+
+function resolveSelection(selection: ModelSelection, baseModelInfoHint?: BaseModelInfoHint): ResolvedModelSelection {
 	const overrides = normalizeModelSelectionOverrides(
 		selection.overrides ?? readModelOverrides(selection.providerId, selection.modelId),
 	)
-	// Base resolution order: SDK catalog, then the picker's persisted state
-	// snapshot (the only accurate data for dynamic-list models the static
-	// catalog does not know), then provider-safe fallback defaults.
+	// Base resolution order: static SDK catalog, then host-resolved/persisted
+	// metadata for dynamic-list models the static catalog does not know, then
+	// provider-safe fallback defaults.
 	const catalogModelInfo = readBaseModelInfoForProvider(selection.providerId, selection.modelId)
-	const baseModelInfo = catalogModelInfo ?? stateModelInfoHint ?? fallbackModelInfo(selection.modelId)
-	const modelInfoSource = catalogModelInfo ? "catalog" : stateModelInfoHint ? "state" : "fallback"
+	const baseModelInfo = catalogModelInfo ?? baseModelInfoHint?.modelInfo ?? fallbackModelInfo(selection.modelId)
+	const modelInfoSource = catalogModelInfo ? "catalog" : (baseModelInfoHint?.source ?? "fallback")
 	return {
 		...selection,
 		overrides,
@@ -680,17 +684,15 @@ function writeSelectionToProviderSettings(providerId: ProviderId, selection: Mod
 	saveProviderSettings(providerId, next)
 }
 
-type LegacyModelInfo = ModelInfo & { maxInputTokens?: number }
 type MutableModelSelectionOverrides = { -readonly [Key in keyof ModelSelectionOverrides]: ModelSelectionOverrides[Key] }
 
-function legacyModelInfoToOverrides(modelInfo: LegacyModelInfo, fallback: ModelInfo): ModelSelectionOverrides | undefined {
-	const fallbackInfo = fallback as LegacyModelInfo
+function legacyModelInfoToOverrides(modelInfo: ModelInfo, fallback: ModelInfo): ModelSelectionOverrides | undefined {
 	const overrides: MutableModelSelectionOverrides = {}
 	if (modelInfo.name !== undefined && modelInfo.name !== fallback.name) overrides.name = modelInfo.name
 	if (modelInfo.maxTokens !== undefined && modelInfo.maxTokens !== fallback.maxTokens) overrides.maxTokens = modelInfo.maxTokens
 	if (modelInfo.contextWindow !== undefined && modelInfo.contextWindow !== fallback.contextWindow)
 		overrides.contextWindow = modelInfo.contextWindow
-	if (modelInfo.maxInputTokens !== undefined && modelInfo.maxInputTokens !== fallbackInfo.maxInputTokens)
+	if (modelInfo.maxInputTokens !== undefined && modelInfo.maxInputTokens !== fallback.maxInputTokens)
 		overrides.maxInputTokens = modelInfo.maxInputTokens
 
 	const supportsVision = modelInfo.supportsImages ?? fallback.supportsImages
@@ -740,7 +742,7 @@ function migrateLegacyModelOverridesIfNeeded(providerId: ProviderId, modelId: st
 	if (readBaseModelInfoForProvider(providerId, modelId) !== undefined) {
 		return
 	}
-	const overrides = legacyModelInfoToOverrides(modelInfo as LegacyModelInfo, fallbackModelInfo(modelId))
+	const overrides = legacyModelInfoToOverrides(modelInfo, fallbackModelInfo(modelId))
 	if (overrides) {
 		try {
 			writeModelOverrides(providerId, modelId, overrides)
@@ -757,10 +759,11 @@ function migrateLegacyModelOverridesIfNeeded(providerId: ProviderId, modelId: st
 }
 
 /**
- * The picker writes the live model metadata to the mode-specific
- * `*ModeModelInfo` state key before committing. When the state still refers to
- * the model being resolved, that snapshot is the best available base for
- * dynamic-list models the static catalog does not know.
+ * The host persists live model metadata to the mode-specific `*ModeModelInfo`
+ * state key when a selection is committed. When the state still refers to the
+ * model being resolved, that snapshot is the best available base for
+ * dynamic-list models the static catalog does not know. Pre-existing snapshots
+ * from older picker flows remain valid inputs here.
  *
  * openai-compatible is excluded: its legacy state snapshot is user-authored
  * metadata that {@link migrateLegacyModelOverridesIfNeeded} converts into
@@ -822,7 +825,11 @@ function readSelectionFromState(providerId: ProviderId, mode: Mode): ResolvedMod
 		if (isModelInfo(modelInfo)) {
 			migrateLegacyModelOverridesIfNeeded(providerId, modelId, modelInfo)
 		}
-		return resolveSelection({ providerId, modelId }, readStateModelInfoHint(providerId, mode, modelId))
+		const stateModelInfoHint = readStateModelInfoHint(providerId, mode, modelId)
+		return resolveSelection(
+			{ providerId, modelId },
+			stateModelInfoHint ? { modelInfo: stateModelInfoHint, source: "state" } : undefined,
+		)
 	}
 
 	const providerSettingsSelection = readSelectionFromProviderSettings(providerId)
@@ -881,16 +888,23 @@ export function createProviderConfigStore(): ProviderConfigStore {
 			return config
 		},
 
-		commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection): void {
+		commitSelection(providerId: ProviderId, mode: Mode, selection: ModelSelection, baseModelInfoHint?: ModelInfo): void {
 			writeSelectionToProviderSettings(providerId, selection)
 			if (selection.overrides !== undefined) {
 				writeModelOverrides(providerId, selection.modelId, selection.overrides)
 			}
-			// Read the picker-written state snapshot before writeSelectionToState
-			// replaces it, so dynamic-list models keep their live metadata instead
-			// of being re-resolved to fallback defaults.
+			// Prefer metadata resolved by the host catalog for this commit. Fall
+			// back to an existing state snapshot for legacy callers, then persist
+			// the genuine base so dynamic-list models survive future reads.
 			const stateModelInfoHint = readStateModelInfoHint(providerId, mode, selection.modelId)
-			const resolvedSelection = resolveSelection({ providerId, modelId: selection.modelId }, stateModelInfoHint)
+			const resolvedSelection = resolveSelection(
+				{ providerId, modelId: selection.modelId },
+				baseModelInfoHint
+					? { modelInfo: baseModelInfoHint, source: "catalog" }
+					: stateModelInfoHint
+						? { modelInfo: stateModelInfoHint, source: "state" }
+						: undefined,
+			)
 			writeSelectionToState(providerId, mode, resolvedSelection)
 			emit({ kind: "selection", providerId, mode, selection: resolvedSelection })
 		},

@@ -513,6 +513,8 @@ describe("resolveProviderConfig", () => {
 								model_name: "private-proxy-model",
 								litellm_params: { model: "openai/gpt-4o-mini" },
 								model_info: {
+									max_output_tokens: 64_000,
+									max_input_tokens: 500_000,
 									supports_vision: true,
 									supports_reasoning: true,
 								},
@@ -543,12 +545,16 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
 		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
