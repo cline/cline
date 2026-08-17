@@ -78,6 +78,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		headlessToolNames: ["ask_question"],
 	},
 	{
+		id: "todo_list",
+		description:
+			"Create, edit, inspect, or list durable agenda tasks that remain visible after the current session.",
+		headlessToolNames: ["todo_list"],
+	},
+	{
 		id: "spawn_agent",
 		description: createSpawnAgentTool({ configProvider: {} as never })
 			.description,
@@ -185,6 +191,9 @@ function isEntryEnabledByDefault(
 	if (entryId === "teams") {
 		return flags.enableAgentTeams === true;
 	}
+	if (entryId === "todo_list") {
+		return true;
+	}
 	if (entryId === "editor") {
 		return flags.enableEditor === true || flags.enableApplyPatch === true;
 	}
@@ -219,11 +228,13 @@ export function getCoreBuiltinToolCatalog(
 ): ToolCatalogEntry[] {
 	return BASE_TOOL_CATALOG.filter(
 		(entry) =>
-			entry.id !== "web_search" ||
-			supportsModelTool(
-				{ providerId: context.providerId ?? "", modelId: context.modelId },
-				"web_search",
-			),
+			(entry.id !== "todo_list" ||
+				resolveContextMode(context.mode) !== "yolo") &&
+			(entry.id !== "web_search" ||
+				supportsModelTool(
+					{ providerId: context.providerId ?? "", modelId: context.modelId },
+					"web_search",
+				)),
 	).map((entry) => buildCatalogEntry(entry, context));
 }
 

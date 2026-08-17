@@ -15,7 +15,11 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
+import {
+	type AgentEvent,
+	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	isGeneratedMedia,
+} from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -59,8 +63,26 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 			client.send(encoded);
 		} catch {
 			ctx.wsClients.delete(client);
+			void syncSidecarApprovalReadiness(ctx).catch((error) =>
+				ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+			);
 		}
 	}
+}
+
+export async function syncSidecarApprovalReadiness(
+	ctx: SidecarContext,
+): Promise<void> {
+	await ctx.hubClient?.updateCapabilities(
+		ctx.wsClients.size > 0
+			? [
+					{
+						name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+						description: "Cline Code has a live user surface for tool review.",
+					},
+				]
+			: [],
+	);
 }
 
 // Session log appends are chained per session so writes stay ordered, but
@@ -686,6 +708,25 @@ export function handleHubLiveEvent(
 		payload?: Record<string, unknown>;
 	},
 ): void {
+	if (event.event === "approval.requested") {
+		if (typeof event.payload?.agendaTaskId !== "string") return;
+		void handleHubApprovalRequest(ctx, event).catch((error) => {
+			ctx.logger?.error?.("Hub task approval forwarding failed", { error });
+		});
+		return;
+	}
+	// Task lifecycle events are Hub-wide invalidations and usually do not have a
+	// session yet (pending and approved tasks explicitly predate their session).
+	// Forward them before the session-only live-chat projection below so Agenda
+	// surfaces stay current without polling.
+	if (event.event.startsWith("task.")) {
+		sendEvent(ctx, event.event, {
+			...(event.payload ?? {}),
+			...(event.sessionId ? { sessionId: event.sessionId } : {}),
+		});
+		return;
+	}
+
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
 		return;
@@ -810,6 +851,72 @@ export function handleHubLiveEvent(
 	}
 }
 
+async function handleHubApprovalRequest(
+	ctx: SidecarContext,
+	event: {
+		sessionId?: string;
+		payload?: Record<string, unknown>;
+	},
+): Promise<void> {
+	const sessionId = event.sessionId?.trim() || "";
+	const approvalId =
+		typeof event.payload?.approvalId === "string"
+			? event.payload.approvalId.trim()
+			: "";
+	const toolCallId =
+		typeof event.payload?.toolCallId === "string"
+			? event.payload.toolCallId.trim()
+			: "";
+	const toolName =
+		typeof event.payload?.toolName === "string"
+			? event.payload.toolName.trim()
+			: "";
+	if (!sessionId || !approvalId || !toolCallId || !toolName) return;
+	let input: unknown;
+	try {
+		input =
+			typeof event.payload?.inputJson === "string"
+				? JSON.parse(event.payload.inputJson)
+				: undefined;
+	} catch {
+		input = undefined;
+	}
+	const result = await requestSidecarToolApproval(ctx, {
+		sessionId,
+		agentId:
+			typeof event.payload?.agentId === "string" ? event.payload.agentId : "",
+		conversationId:
+			typeof event.payload?.conversationId === "string"
+				? event.payload.conversationId
+				: sessionId,
+		iteration:
+			typeof event.payload?.iteration === "number"
+				? event.payload.iteration
+				: 0,
+		toolCallId,
+		toolName,
+		input,
+		policy:
+			event.payload?.policy &&
+			typeof event.payload.policy === "object" &&
+			!Array.isArray(event.payload.policy)
+				? (event.payload.policy as ToolApprovalRequest["policy"])
+				: { autoApprove: false },
+	});
+	const client = ctx.hubClient;
+	if (!client)
+		throw new Error("Hub client disconnected before approval response");
+	await client.command(
+		"approval.respond",
+		{
+			approvalId,
+			approved: result.approved,
+			reason: result.reason,
+		},
+		sessionId,
+	);
+}
+
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
@@ -883,6 +990,7 @@ export async function ensureSharedHubClient(
 				handleHubLiveEvent(ctx, event);
 			});
 			ctx.hubClient = client;
+			await syncSidecarApprovalReadiness(ctx);
 			return client;
 		} catch (error) {
 			await client.dispose().catch(() => undefined);

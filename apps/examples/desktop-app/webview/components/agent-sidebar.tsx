@@ -1,13 +1,22 @@
 "use client";
 
+import type {
+	AgendaTaskPriority,
+	AgendaTaskRecord,
+	AgendaTaskType,
+	HubTaskCreateInput,
+} from "@cline/shared";
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	Activity,
 	ArrowDownUp,
 	Bot,
+	Check,
 	ChevronDown,
 	ChevronLeft,
 	ChevronRight,
 	CircleUserRound,
+	ClipboardList,
 	Clock3,
 	Code,
 	FileText,
@@ -15,8 +24,10 @@ import {
 	FolderTree,
 	GitFork,
 	Loader2,
+	MessageSquarePlus,
 	PanelLeftOpen,
 	Pencil,
+	Play,
 	Plug,
 	Plus,
 	Radio,
@@ -27,6 +38,8 @@ import {
 	Star,
 	Trash2,
 	Wrench,
+	X,
+	Zap,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -36,6 +49,7 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
@@ -57,6 +71,14 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuLabel,
@@ -73,6 +95,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
+import { Textarea } from "@/components/ui/textarea";
 import { normalizeTitle } from "@/components/utils";
 import {
 	CUSTOMIZATION_SECTIONS,
@@ -80,6 +103,7 @@ import {
 	type SettingsSection,
 } from "@/components/views/settings/sections";
 import { useAccount } from "@/contexts/account-context";
+import { useAgendaAutomation, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
@@ -91,6 +115,7 @@ import {
 	productNameForVersion,
 } from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
+import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
 import {
 	ALL_SESSION_SOURCES,
 	filterSessionsBySource,
@@ -110,6 +135,7 @@ type AppView = "chat" | "sessions" | "settings";
 const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
+type SidebarContent = "sessions" | "agenda";
 type DesktopProcessContext = {
 	appVersion?: unknown;
 	hub?: {
@@ -216,12 +242,14 @@ export function AgentSidebar({
 	onNavigateBack,
 	onNavigateForward,
 	onNewThread,
+	onOpenSessionById,
 	onSettingsSectionChange,
 	setView,
 	settingsSection,
 	view,
 	activeSessionId,
 	sessionHistory,
+	workspaceRoot,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -229,12 +257,14 @@ export function AgentSidebar({
 	onNavigateBack?: () => void;
 	onNavigateForward?: () => void;
 	onNewThread?: () => void;
+	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
 	settingsSection: SettingsSection;
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
+	workspaceRoot?: string;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -265,6 +295,10 @@ export function AgentSidebar({
 	const [filter, setFilter] = useState<FilterOption>("All");
 	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	const [sidebarContent, setSidebarContent] =
+		useState<SidebarContent>("sessions");
+	const [hasNewTodoTasks, setHasNewTodoTasks] = useState(false);
+	const knownAgendaTaskIdsRef = useRef<Set<string> | null>(null);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showMoreCount, setShowMoreCount] = useState(
@@ -283,6 +317,38 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const normalizedWorkspaceRoot = workspaceRoot?.trim() ?? "";
+	const agendaWorkspaceRoot =
+		normalizedWorkspaceRoot && !isChatWorkspacePath(normalizedWorkspaceRoot)
+			? normalizedWorkspaceRoot
+			: undefined;
+	const agenda = useAgendaTasks(
+		{
+			statuses: ["pending_approval", "approved", "in_progress", "failed"],
+			workspaceRoot: agendaWorkspaceRoot,
+			limit: 200,
+		},
+		view !== "settings",
+	);
+	const agendaAutomation = useAgendaAutomation(view !== "settings");
+
+	useEffect(() => {
+		if (view === "settings") {
+			knownAgendaTaskIdsRef.current = null;
+			return;
+		}
+		if (agenda.isLoading) return;
+		const currentTaskIds = new Set(agenda.tasks.map((task) => task.taskId));
+		const knownTaskIds = knownAgendaTaskIdsRef.current;
+		if (
+			knownTaskIds !== null &&
+			sidebarContent !== "agenda" &&
+			agenda.tasks.some((task) => !knownTaskIds.has(task.taskId))
+		) {
+			setHasNewTodoTasks(true);
+		}
+		knownAgendaTaskIdsRef.current = currentTaskIds;
+	}, [agenda.isLoading, agenda.tasks, sidebarContent, view]);
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -354,6 +420,25 @@ export function AgentSidebar({
 	const closeMobileSidebar = useCallback(() => {
 		if (isMobile) setOpenMobile(false);
 	}, [isMobile, setOpenMobile]);
+	const openAgendaSession = useCallback(
+		(task: AgendaTaskRecord) => {
+			if (!task.lastSessionId) return;
+			void onOpenSessionById?.(task.lastSessionId);
+			closeMobileSidebar();
+		},
+		[closeMobileSidebar, onOpenSessionById],
+	);
+	const runAgendaTask = useCallback(
+		async (task: AgendaTaskRecord) => {
+			try {
+				const started = await agenda.runTask(task);
+				if (started.lastSessionId) openAgendaSession(started);
+			} catch {
+				// The queue hook exposes the error inline and refreshes after recovery.
+			}
+		},
+		[agenda.runTask, openAgendaSession],
+	);
 
 	const openThread = useCallback(
 		(threadId: string) => {
@@ -392,6 +477,12 @@ export function AgentSidebar({
 	const navigateForward = useCallback(() => {
 		onNavigateForward?.();
 	}, [onNavigateForward]);
+	const toggleSidebarContent = useCallback(() => {
+		const next = sidebarContent === "agenda" ? "sessions" : "agenda";
+		setSidebarContent(next);
+		if (next === "agenda") setHasNewTodoTasks(false);
+		if (next === "agenda" && view === "settings") setView("chat");
+	}, [setView, sidebarContent, view]);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -705,16 +796,43 @@ export function AgentSidebar({
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 					</div>
 					{!isCollapsed ? (
-						<Button
-							aria-label="New Session"
-							className="size-8 shrink-0 justify-center px-0"
-							onClick={openNewThread}
-							title="New Session"
-							type="button"
-							variant="sidebarItem"
-						>
-							<Plus className="size-4" />
-						</Button>
+						<div className="flex items-center gap-1">
+							<Button
+								aria-label={
+									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
+								}
+								aria-pressed={sidebarContent === "agenda"}
+								className={cn(
+									"relative size-8 shrink-0 justify-center px-0",
+									sidebarContent === "agenda" &&
+										"bg-surface-hover text-sidebar-foreground",
+								)}
+								onClick={toggleSidebarContent}
+								title={
+									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
+								}
+								type="button"
+								variant="sidebarItem"
+							>
+								<ClipboardList className="size-4" />
+								{hasNewTodoTasks ? (
+									<span
+										className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
+										data-testid="new-todo-indicator"
+									/>
+								) : null}
+							</Button>
+							<Button
+								aria-label="New Session"
+								className="size-8 shrink-0 justify-center px-0"
+								onClick={openNewThread}
+								title="New Session"
+								type="button"
+								variant="sidebarItem"
+							>
+								<MessageSquarePlus className="size-4" />
+							</Button>
+						</div>
 					) : null}
 				</div>
 
@@ -747,6 +865,36 @@ export function AgentSidebar({
 							onSelect={openSettingsSection}
 						/>
 					</div>
+				) : sidebarContent === "agenda" ? (
+					<AgendaSection
+						automatic={
+							agendaAutomation.policy !== null &&
+							agendaAutomation.policy.mode !== "manual"
+						}
+						automationDisabled={
+							agendaAutomation.isLoading || agendaAutomation.isUpdating
+						}
+						error={agenda.error ?? agendaAutomation.error}
+						isLoading={agenda.isLoading}
+						onCreate={agenda.createTask}
+						onApprove={agenda.approveTask}
+						onCancel={(task) => {
+							return agenda.cancelTask(task).catch(() => undefined);
+						}}
+						onOpen={openAgendaSession}
+						onRun={(task) => void runAgendaTask(task)}
+						onToggleAutomation={() => {
+							void agendaAutomation
+								.setAutomatic(
+									agendaAutomation.policy?.mode !== "auto_start" &&
+										agendaAutomation.policy?.mode !== "unattended",
+								)
+								.catch(() => undefined);
+						}}
+						pendingTaskIds={agenda.pendingTaskIds}
+						tasks={agenda.tasks}
+						workspaceRoot={agendaWorkspaceRoot}
+					/>
 				) : (
 					<>
 						<div className="mt-5 shrink-0 pl-4 pr-2">
@@ -1020,6 +1168,421 @@ export function AgentSidebar({
 				</AlertDialogContent>
 			</AlertDialog>
 		</>
+	);
+}
+
+function AgendaSection({
+	tasks,
+	workspaceRoot,
+	isLoading,
+	error,
+	pendingTaskIds,
+	automatic,
+	automationDisabled,
+	onApprove,
+	onRun,
+	onOpen,
+	onCancel,
+	onToggleAutomation,
+	onCreate,
+}: {
+	tasks: AgendaTaskRecord[];
+	workspaceRoot?: string;
+	isLoading: boolean;
+	error: string | null;
+	pendingTaskIds: ReadonlySet<string>;
+	automatic: boolean;
+	automationDisabled: boolean;
+	onApprove: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
+	onRun: (task: AgendaTaskRecord) => void;
+	onOpen: (task: AgendaTaskRecord) => void;
+	onCancel: (task: AgendaTaskRecord) => void | Promise<void>;
+	onToggleAutomation: () => void;
+	onCreate: (input: HubTaskCreateInput) => Promise<AgendaTaskRecord>;
+}) {
+	const [createOpen, setCreateOpen] = useState(false);
+	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
+	const [creating, setCreating] = useState(false);
+	const [title, setTitle] = useState("");
+	const [instructions, setInstructions] = useState("");
+	const [type, setType] = useState<AgendaTaskType>("todo");
+	const [priority, setPriority] = useState<AgendaTaskPriority>(3);
+	const [scope, setScope] = useState<"workspace" | "global">(
+		workspaceRoot ? "workspace" : "global",
+	);
+	const [expiresAt, setExpiresAt] = useState(() =>
+		new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
+	);
+	const resetCreateForm = () => {
+		setTitle("");
+		setInstructions("");
+		setType("todo");
+		setPriority(3);
+		setScope(workspaceRoot ? "workspace" : "global");
+		setExpiresAt(
+			new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
+		);
+	};
+	const submitCreate = async () => {
+		const normalizedTitle = title.trim();
+		const normalizedInstructions = instructions.trim();
+		if (!normalizedTitle || !normalizedInstructions || !expiresAt) return;
+		const expiration = new Date(expiresAt);
+		if (Number.isNaN(expiration.getTime())) return;
+		setCreating(true);
+		try {
+			const rememberedModel = readModelSelectionStorageFromWindow();
+			const providerId = rememberedModel.lastProvider.trim();
+			const modelId = providerId
+				? rememberedModel.lastModelByProvider[providerId]?.trim()
+				: undefined;
+			await onCreate({
+				type,
+				title: normalizedTitle,
+				instructions: normalizedInstructions,
+				scope: scope === "workspace" && workspaceRoot ? "workspace" : "global",
+				workspaceRoot:
+					scope === "workspace" && workspaceRoot ? workspaceRoot : undefined,
+				priority,
+				modelSelection: providerId
+					? { providerId, ...(modelId ? { modelId } : {}) }
+					: undefined,
+				expiresAt: expiration.toISOString(),
+				automationEligible: true,
+			});
+			setCreateOpen(false);
+			resetCreateForm();
+		} catch {
+			// The Agenda hook surfaces the manager's structured error inline.
+		} finally {
+			setCreating(false);
+		}
+	};
+	return (
+		<section
+			aria-label="Agenda"
+			className="mt-4 flex min-h-0 flex-1 flex-col px-2"
+		>
+			<div className="flex h-8 items-center justify-between px-2">
+				<span className="text-sm font-medium text-muted-foreground">Todo</span>
+				<div className="flex items-center">
+					<Button
+						aria-label={
+							automatic ? "Pause Agenda automation" : "Automate Agenda"
+						}
+						aria-pressed={automatic}
+						className={cn(
+							"size-7 p-0 text-muted-foreground",
+							automatic && "text-emerald-500",
+						)}
+						disabled={automationDisabled}
+						onClick={onToggleAutomation}
+						title={
+							automatic
+								? "Auto mode: click to switch to manual"
+								: "Manual mode: click to automate eligible trusted work"
+						}
+						type="button"
+						variant="ghost"
+					>
+						{automationDisabled ? (
+							<Loader2 className="size-3.5 animate-spin" />
+						) : (
+							<Zap className={cn("size-3.5", automatic && "fill-current")} />
+						)}
+					</Button>
+					<Dialog
+						onOpenChange={(open) => {
+							setCreateOpen(open);
+							if (open) setScope(workspaceRoot ? "workspace" : "global");
+						}}
+						open={createOpen}
+					>
+						<DialogTrigger asChild>
+							<Button
+								aria-label="Create Todo item"
+								className="size-7 p-0 text-muted-foreground"
+								title="Create task"
+								type="button"
+								variant="ghost"
+							>
+								<Plus className="size-3.5" />
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="sm:max-w-md">
+							<DialogHeader>
+								<DialogTitle>Create Todo Item</DialogTitle>
+							</DialogHeader>
+							<div className="space-y-3">
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-title"
+								>
+									<span className="text-muted-foreground">Title</span>
+									<Input
+										autoFocus
+										id="agenda-task-title"
+										onChange={(event) => setTitle(event.target.value)}
+										placeholder="What needs attention?"
+										value={title}
+									/>
+								</label>
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-instructions"
+								>
+									<span className="text-muted-foreground">Instructions</span>
+									<Textarea
+										id="agenda-task-instructions"
+										onChange={(event) => setInstructions(event.target.value)}
+										placeholder="Describe the outcome and any relevant files."
+										rows={4}
+										value={instructions}
+									/>
+								</label>
+								<div className="grid grid-cols-3 gap-2">
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Type</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setType(event.target.value as AgendaTaskType)
+											}
+											value={type}
+										>
+											{[
+												"todo",
+												"follow-up",
+												"suggestion",
+												"handoff",
+												"idea",
+												"reminder",
+											].map((value) => (
+												<option key={value} value={value}>
+													{value}
+												</option>
+											))}
+										</select>
+									</label>
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Priority</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setPriority(
+													Number(event.target.value) as AgendaTaskPriority,
+												)
+											}
+											value={priority}
+										>
+											{[0, 1, 2, 3, 4, 5].map((value) => (
+												<option key={value} value={value}>
+													P{value}
+												</option>
+											))}
+										</select>
+									</label>
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Scope</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setScope(event.target.value as "workspace" | "global")
+											}
+											value={scope}
+										>
+											{workspaceRoot ? (
+												<option value="workspace">Project</option>
+											) : null}
+											<option value="global">General</option>
+										</select>
+									</label>
+								</div>
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-expires-at"
+								>
+									<span className="text-muted-foreground">Expires</span>
+									<Input
+										id="agenda-task-expires-at"
+										onChange={(event) => setExpiresAt(event.target.value)}
+										type="datetime-local"
+										value={expiresAt}
+									/>
+								</label>
+							</div>
+							<DialogFooter>
+								<Button
+									disabled={
+										creating ||
+										!title.trim() ||
+										!instructions.trim() ||
+										!expiresAt
+									}
+									onClick={() => void submitCreate()}
+									type="button"
+								>
+									{creating ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : null}
+									Add to Agenda
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+			{/* Radix ScrollArea wraps its children in a display:table element. A long
+			    task title can therefore widen the table beyond the sidebar and push the
+			    action buttons off-screen, so this fixed-width list uses native scrolling. */}
+			<div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+				<div className="w-full min-w-0 max-w-full space-y-1">
+					{isLoading && tasks.length === 0 ? (
+						<div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+							<Loader2 className="size-3 animate-spin" />
+							Loading Agenda…
+						</div>
+					) : null}
+					{tasks.map((task) => {
+						const pending = pendingTaskIds.has(task.taskId);
+						const requiresFileReview =
+							task.updatedBy.kind === "system" &&
+							task.updatedBy.id === "file_reconciler" &&
+							task.status === "pending_approval";
+						const canOpen = Boolean(task.lastSessionId);
+						const canRun =
+							task.status === "approved" || task.status === "failed";
+						const taskWorkspaceName =
+							task.scope === "workspace"
+								? workspaceDisplayName(task.workspaceRoot ?? task.cwd ?? "") ||
+									"Workspace"
+								: "General";
+						return (
+							<div
+								className="group flex w-full min-w-0 max-w-full flex-col items-stretch overflow-hidden rounded-md px-2 py-1.5 hover:bg-surface-hover"
+								key={task.taskId}
+								title={
+									requiresFileReview
+										? "File-created or edited tasks always require manual review."
+										: task.description || task.instructions
+								}
+							>
+								<button
+									className="w-full min-w-0 overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+									onClick={() => setReviewTask(task)}
+									type="button"
+								>
+									<span className="block truncate text-xs text-sidebar-foreground">
+										{task.title}
+									</span>
+								</button>
+								<div className="flex min-w-0 items-center justify-between">
+									<span className="min-w-0 truncate text-[10px] capitalize text-muted-foreground">
+										{taskWorkspaceName}
+										{task.status !== "pending_approval"
+											? ` · ${task.status.replace("_", " ")}`
+											: ""}
+										{requiresFileReview ? " · file review" : ""}
+									</span>
+									<div className="flex shrink-0 items-center">
+										{pending ? (
+											<Loader2 className="mx-1 size-3 animate-spin text-muted-foreground" />
+										) : task.status === "pending_approval" ? (
+											<AgendaIconButton
+												className="text-emerald-500! hover:text-emerald-400!"
+												icon={<Check className="size-3" />}
+												label={`Approve ${task.title}`}
+												onClick={() => setReviewTask(task)}
+											/>
+										) : canRun ? (
+											<AgendaIconButton
+												icon={<Play className="size-3 fill-current" />}
+												label={`Run ${task.title}`}
+												onClick={() => onRun(task)}
+											/>
+										) : canOpen ? (
+											<AgendaIconButton
+												icon={<ChevronRight className="size-3" />}
+												label={`Open session for ${task.title}`}
+												onClick={() => onOpen(task)}
+											/>
+										) : null}
+										{!pending ? (
+											<AgendaIconButton
+												className="text-destructive! hover:text-destructive!"
+												icon={<X className="size-3" />}
+												label={`Cancel ${task.title}`}
+												onClick={() => onCancel(task)}
+											/>
+										) : null}
+									</div>
+								</div>
+							</div>
+						);
+					})}
+					{!isLoading && tasks.length === 0 && !error ? (
+						<p className="px-2 py-1 text-[11px] text-muted-foreground">
+							Nothing waiting for review.
+						</p>
+					) : null}
+					{error ? (
+						<p
+							className="truncate px-2 py-1 text-[11px] text-destructive"
+							title={error}
+						>
+							{error}
+						</p>
+					) : null}
+				</div>
+			</div>
+			<AgendaTaskReviewDialog
+				onConfirm={async (task) => {
+					try {
+						await onApprove(task);
+						setReviewTask(null);
+					} catch {
+						// The Agenda hook keeps the manager error visible in this section.
+					}
+				}}
+				onOpenChange={(open) => {
+					if (!open) setReviewTask(null);
+				}}
+				onReject={async (task) => {
+					await onCancel(task);
+					setReviewTask(null);
+				}}
+				open={reviewTask !== null}
+				pending={reviewTask ? pendingTaskIds.has(reviewTask.taskId) : false}
+				task={reviewTask}
+			/>
+		</section>
+	);
+}
+
+function AgendaIconButton({
+	className,
+	icon,
+	label,
+	onClick,
+}: {
+	className?: string;
+	icon: ReactNode;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			aria-label={label}
+			className={cn(
+				"flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+				className,
+			)}
+			onClick={onClick}
+			title={label}
+			type="button"
+		>
+			{icon}
+		</button>
 	);
 }
 

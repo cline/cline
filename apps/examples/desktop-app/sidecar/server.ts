@@ -2,7 +2,11 @@ import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
-import { encodeSidecarEvent, sendEvent } from "./context";
+import {
+	encodeSidecarEvent,
+	sendEvent,
+	syncSidecarApprovalReadiness,
+} from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -325,6 +329,7 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
 			ctx.wsClients.add(ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			sendEvent(ctx, "host_ready", {
 				pid: process.pid,
 				mode: SIDECAR_MODE,
@@ -365,6 +370,7 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 		},
 		close(ws: SidecarWebSocketClient) {
 			ctx.wsClients.delete(ws);
+			void syncSidecarApprovalReadiness(ctx).catch(() => {});
 			// Browser OAuth flows are interactive: if the connection that started
 			// one goes away (webview reload, transport drop), cancel its callback
 			// wait so the sidecar cannot retain an abandoned authorization attempt.

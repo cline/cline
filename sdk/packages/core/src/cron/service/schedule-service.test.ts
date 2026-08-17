@@ -261,6 +261,65 @@ describe("HubScheduleService", () => {
 		},
 	);
 
+	sqliteIt("persists and validates recurring schedule timezones", async () => {
+		const dbPath = await createTempDbPath();
+		cleanupPaths.push(dbPath);
+		const service = new HubScheduleService({
+			dbPath,
+			specs: { cronSpecsDir: join(dirname(dbPath), "cron") },
+			runtimeHandlers: {
+				startSession: vi.fn(async () => ({ sessionId: "unused" })),
+				sendSession: vi.fn(async () => ({ result: { text: "unused" } })),
+				abortSession: vi.fn(async () => ({ applied: true })),
+				stopSession: vi.fn(async () => ({ applied: true })),
+			},
+		});
+		try {
+			const created = service.createSchedule({
+				name: "Pacific morning",
+				cronPattern: "0 9 * * 1-5",
+				timezone: "America/Los_Angeles",
+				prompt: "Review open pull requests.",
+				workspaceRoot: "/workspace",
+			});
+			expect(created.timezone).toBe("America/Los_Angeles");
+			service.createSchedule({
+				name: "Other workspace",
+				cronPattern: "0 9 * * *",
+				prompt: "Do other work.",
+				workspaceRoot: "/other-workspace",
+			});
+			expect(service.listSchedules({ workspaceRoot: "/workspace" })).toEqual([
+				expect.objectContaining({ scheduleId: created.scheduleId }),
+			]);
+
+			const updated = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: "UTC",
+			});
+			expect(updated?.timezone).toBe("UTC");
+			expect(updated?.nextRunAt).not.toBe(created.nextRunAt);
+
+			const cleared = service.updateSchedule(created.scheduleId, {
+				scheduleId: created.scheduleId,
+				timezone: null,
+			});
+			expect(cleared?.timezone).toBeUndefined();
+
+			expect(() =>
+				service.createSchedule({
+					name: "Invalid timezone",
+					cronPattern: "0 9 * * *",
+					timezone: "Not/A_Timezone",
+					prompt: "Do work.",
+					workspaceRoot: "/workspace",
+				}),
+			).toThrow();
+		} finally {
+			await service.dispose();
+		}
+	});
+
 	sqliteIt(
 		"handles schedule commands through the hub command adapter",
 		async () => {
