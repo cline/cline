@@ -329,6 +329,24 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
+function afterToolResultFromControl(
+	control: AgentHookControl | undefined,
+): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
+	if (!control) return undefined;
+	const result: { stop?: boolean; reason?: string; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+		// On cancel the parsed context carries the hook's error message.
+		if (control.context?.trim()) {
+			result.reason = control.context;
+		}
+	} else if (control.context?.trim()) {
+		result.appendContext = control.context;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
 async function dispatchDetached(
 	payload: HookEventPayload,
 	options: SubprocessHooksOptions,
@@ -451,7 +469,11 @@ export function createSubprocessHooks(
 		}
 	};
 
-	const afterTool = async (ctx: AgentAfterToolContext): Promise<undefined> => {
+	const afterTool = async (
+		ctx: AgentAfterToolContext,
+	): Promise<
+		{ stop?: boolean; reason?: string; appendContext?: string } | undefined
+	> => {
 		const record = runtimeToolRecord(ctx);
 		const base = {
 			agentId: ctx.snapshot.agentId,
@@ -477,8 +499,30 @@ export function createSubprocessHooks(
 				executionTimeMs: record.durationMs,
 			},
 		};
-		await dispatchDetached(payload, options);
-		return undefined;
+
+		try {
+			const result = await runHook(payload, {
+				command: options.command,
+				cwd: options.cwd,
+				env: options.env,
+				detached: false,
+				timeoutMs: options.timeoutMs,
+				onSpawn: options.onSpawn,
+			});
+			options.onDispatch?.({ payload, result, detached: false });
+			if (result?.timedOut) {
+				throw new Error("tool_result hook command timed out");
+			}
+			if (result?.parseError) {
+				throw new Error(
+					`tool_result hook produced invalid control JSON: ${result.parseError}`,
+				);
+			}
+			return afterToolResultFromControl(toHookControl(result?.parsedJson));
+		} catch (error) {
+			options.onDispatchError?.(toError(error), payload);
+			return;
+		}
 	};
 
 	const afterRun: NonNullable<AgentHooks["afterRun"]> = async ({

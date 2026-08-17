@@ -392,6 +392,58 @@ describe("createHookConfigFileHooks", () => {
 		}
 	});
 
+	it("collects PostToolUse context and returns it from afterTool", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PostToolUse.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: false, contextModification: "LINT_RESULTS: 3 errors in src/foo.ts" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.afterTool).toBeTypeOf("function");
+			const control = await hooks?.afterTool?.(afterToolContext());
+			expect(control).toEqual({
+				appendContext: "LINT_RESULTS: 3 errors in src/foo.ts",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("honors PostToolUse cancel with the hook's error message as reason", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PostToolUse.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "post-hook says stop" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const control = await hooks?.afterTool?.(afterToolContext());
+			expect(control).toEqual({
+				stop: true,
+				reason: "post-hook says stop",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
 	it("concatenates appendContext across merged hook layers", async () => {
 		const hooks = mergeAgentHooks([
 			{

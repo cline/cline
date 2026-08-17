@@ -538,6 +538,26 @@ function beforeToolResultFromControl(
 	return Object.keys(result).length > 0 ? result : undefined;
 }
 
+function afterToolResultFromControl(
+	control: HookCommandControl | undefined,
+): { stop?: boolean; reason?: string; appendContext?: string } | undefined {
+	if (!control) {
+		return undefined;
+	}
+	const result: { stop?: boolean; reason?: string; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+		// On cancel the parsed context carries the hook's error message.
+		if (control.context?.trim()) {
+			result.reason = control.context;
+		}
+	} else if (control.context?.trim()) {
+		result.appendContext = control.context;
+	}
+	return Object.keys(result).length > 0 ? result : undefined;
+}
+
 export function createHookAuditHooks(options: {
 	rootSessionId?: string;
 	workspacePath: string;
@@ -758,16 +778,16 @@ export function createHookConfigFileHooks(
 
 	const runToolCallEnd = async (
 		ctx: HookCommandToolCallEndContext,
-	): Promise<void> => {
+	): Promise<HookCommandControl | undefined> => {
 		const commandPaths = commandMap.tool_result ?? [];
 		if (commandPaths.length === 0) {
-			return;
+			return undefined;
 		}
-		await runAsyncHookCommands({
+		return runBlockingHookCommands({
 			commands: commandPaths,
 			cwd: options.cwd,
 			logger: options.logger,
-			detached: options.detachAsyncHooks ?? true,
+			timeoutMs: options.toolCallTimeoutMs ?? 120000,
 			payload: {
 				...createPayloadBase(ctx, options),
 				hookName: "tool_result",
@@ -910,8 +930,8 @@ export function createHookConfigFileHooks(
 	}
 	if ((commandMap.tool_result?.length ?? 0) > 0) {
 		hooks.afterTool = async (ctx: AgentAfterToolContext) => {
-			await runToolCallEnd(toolCallEndContext(ctx));
-			return undefined;
+			const control = await runToolCallEnd(toolCallEndContext(ctx));
+			return afterToolResultFromControl(control);
 		};
 	}
 	if ((commandMap.agent_end?.length ?? 0) > 0) {
