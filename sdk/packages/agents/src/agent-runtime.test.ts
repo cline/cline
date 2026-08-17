@@ -2221,6 +2221,91 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("injects beforeTool and afterTool appendContext into the next model request", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "ctx",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				const contextMessage = request.messages.at(-1);
+				expect(contextMessage?.role).toBe("user");
+				expect(contextMessage?.content[0]).toMatchObject({
+					type: "text",
+					text: '<hook_context source="PreToolUse">\npre-context\n</hook_context>\n\n<hook_context source="PostToolUse">\npost-context\n</hook_context>',
+				});
+				const toolMessage = request.messages.at(-2);
+				expect(toolMessage?.role).toBe("tool");
+				expect(toolMessage?.content[0]).toMatchObject({
+					type: "tool-result",
+					toolName: "echo",
+				});
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: {
+				beforeTool: () => ({ appendContext: "pre-context" }),
+				afterTool: () => ({ appendContext: "post-context" }),
+			},
+		});
+
+		const result = await runtime.run("Inject context");
+
+		expect(result.status).toBe("completed");
+		const hookContextMessage = result.messages.find(
+			(message) =>
+				message.role === "user" &&
+				message.content.some(
+					(part) => part.type === "text" && part.text.includes("<hook_context"),
+				),
+		);
+		expect(hookContextMessage).toBeDefined();
+	});
+
+	it("does not append a hook context message when hooks return none", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "no_ctx",
+					toolName: "echo",
+					inputText: '{"text":"hi"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			(request) => {
+				expect(request.messages.at(-1)?.role).toBe("tool");
+				return [
+					{ type: "text-delta", text: "done" },
+					{ type: "finish", reason: "stop" },
+				];
+			},
+		]);
+		const runtime = new AgentRuntime({
+			model,
+			tools: [createEchoTool()],
+			hooks: {
+				beforeTool: () => undefined,
+				afterTool: () => ({ appendContext: "   " }),
+			},
+		});
+
+		const result = await runtime.run("No context");
+
+		expect(result.status).toBe("completed");
+	});
+
 	it("treats invalid tool-call JSON as a tool error instead of failing the run", async () => {
 		const model = new ScriptedModel([
 			() => [

@@ -16,7 +16,11 @@ import { augmentNodeCommandForDebug } from "@cline/shared";
 import { ensureHookLogDir } from "@cline/shared/storage";
 import { createAgentHooksExtension } from "./hook-extension";
 import { listHookConfigFiles } from "./hook-file-config";
-import type { HookEventName, HookEventPayload } from "./subprocess";
+import {
+	type HookEventName,
+	type HookEventPayload,
+	truncateHookContext,
+} from "./subprocess";
 import {
 	type RunSubprocessEventResult,
 	runSubprocessEvent,
@@ -160,7 +164,7 @@ function parseHookControl(value: unknown): HookCommandControl | undefined {
 	return {
 		cancel: typeof record.cancel === "boolean" ? record.cancel : undefined,
 		review: typeof record.review === "boolean" ? record.review : undefined,
-		context,
+		context: truncateHookContext(context),
 		overrideInput: Object.hasOwn(record, "overrideInput")
 			? record.overrideInput
 			: undefined,
@@ -508,13 +512,25 @@ function textFromMessageContent(
 
 function beforeToolResultFromControl(
 	control: HookCommandControl | undefined,
-): { stop?: boolean; reason?: string; input?: unknown } | undefined {
+):
+	| { stop?: boolean; reason?: string; input?: unknown; appendContext?: string }
+	| undefined {
 	if (!control) {
 		return undefined;
 	}
-	const result: { stop?: boolean; reason?: string; input?: unknown } = {};
+	const result: {
+		stop?: boolean;
+		reason?: string;
+		input?: unknown;
+		appendContext?: string;
+	} = {};
 	if (control.cancel === true) {
 		result.stop = true;
+	} else if (control.context?.trim()) {
+		// Context is injected only when the hook lets the run continue; on
+		// cancel the parsed context is the hook's error message (legacy
+		// surfaced it as an error, never as conversation context).
+		result.appendContext = control.context;
 	}
 	if (control.overrideInput !== undefined) {
 		result.input = control.overrideInput;
@@ -968,11 +984,18 @@ function mergeHookFunction<K extends keyof AgentHooks>(
 				continue;
 			}
 			const record = next as Record<string, unknown>;
+			const appendContexts = [merged?.appendContext, record.appendContext]
+				.filter(
+					(value): value is string =>
+						typeof value === "string" && value.length > 0,
+				)
+				.join("\n\n");
 			merged = {
 				...(merged ?? {}),
 				...record,
 				stop:
 					merged?.stop === true || record.stop === true ? true : record.stop,
+				appendContext: appendContexts || undefined,
 				options:
 					merged?.options || record.options
 						? {

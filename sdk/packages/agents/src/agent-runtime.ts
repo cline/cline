@@ -329,6 +329,13 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+function formatHookContextBlock(
+	source: "PreToolUse" | "PostToolUse",
+	text: string,
+): string {
+	return `<hook_context source="${source}">\n${text.trim()}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -448,6 +455,13 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+	/**
+	 * `appendContext` blocks collected from beforeTool/afterTool hooks during
+	 * the current iteration's tool executions, flushed as one user message
+	 * after the tool results so tool-result parts stay contiguous for
+	 * providers that require them first in the following turn.
+	 */
+	private pendingHookContexts: string[] = [];
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -782,6 +796,11 @@ export class AgentRuntime {
 						snapshot: this.snapshot(),
 						message: toolMessage,
 					});
+				}
+				if (this.pendingHookContexts.length > 0) {
+					const hookContextText = this.pendingHookContexts.join("\n\n");
+					this.pendingHookContexts = [];
+					await this.addUserReminderMessage(hookContextText);
 				}
 				await this.emit({
 					type: "turn-finished",
@@ -1568,6 +1587,7 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
@@ -1660,6 +1680,11 @@ export class AgentRuntime {
 						...policyOverride,
 						...result.policy,
 					};
+				}
+				if (result?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock("PreToolUse", result.appendContext),
+					);
 				}
 				this.applyStopControl(result);
 				if (result?.skip) {
@@ -1808,6 +1833,11 @@ export class AgentRuntime {
 					endedAt,
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
+				if (after?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock("PostToolUse", after.appendContext),
+					);
+				}
 				this.applyStopControl(after);
 				if (after?.result) {
 					result = after.result;

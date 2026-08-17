@@ -43,6 +43,21 @@ type AgentHookControl = Omit<HookControl, "appendMessages"> & {
 	appendMessages?: unknown[];
 };
 
+/**
+ * Maximum size for a hook's injected context (`contextModification`), matching
+ * the legacy extension's cap. Prevents a hook from overflowing the prompt.
+ */
+export const MAX_HOOK_CONTEXT_SIZE = 50_000;
+
+export function truncateHookContext(
+	context: string | undefined,
+): string | undefined {
+	if (context === undefined || context.length <= MAX_HOOK_CONTEXT_SIZE) {
+		return context;
+	}
+	return `${context.slice(0, MAX_HOOK_CONTEXT_SIZE)}\n[hook context truncated: exceeded ${MAX_HOOK_CONTEXT_SIZE} characters]`;
+}
+
 export interface HookOutput {
 	contextModification: string;
 	cancel: boolean;
@@ -189,7 +204,7 @@ function toHookControl(value: unknown): AgentHookControl | undefined {
 	return {
 		cancel: typeof maybe.cancel === "boolean" ? maybe.cancel : undefined,
 		review: typeof maybe.review === "boolean" ? maybe.review : undefined,
-		context: contextFromHook,
+		context: truncateHookContext(contextFromHook),
 		overrideInput: Object.hasOwn(maybe, "overrideInput")
 			? maybe.overrideInput
 			: undefined,
@@ -298,10 +313,18 @@ function runtimeToolRecord(
 
 function beforeToolResultFromControl(
 	control: AgentHookControl | undefined,
-): { stop?: boolean; input?: unknown } | undefined {
+): { stop?: boolean; input?: unknown; appendContext?: string } | undefined {
 	if (!control) return undefined;
-	const result: { stop?: boolean; input?: unknown } = {};
-	if (control.cancel === true) result.stop = true;
+	const result: { stop?: boolean; input?: unknown; appendContext?: string } =
+		{};
+	if (control.cancel === true) {
+		result.stop = true;
+	} else if (control.context?.trim()) {
+		// Context is injected only when the hook lets the run continue; on
+		// cancel the parsed context is the hook's error message (legacy
+		// surfaced it as an error, never as conversation context).
+		result.appendContext = control.context;
+	}
 	if (control.overrideInput !== undefined) result.input = control.overrideInput;
 	return Object.keys(result).length > 0 ? result : undefined;
 }
