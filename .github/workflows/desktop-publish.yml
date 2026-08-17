@@ -176,6 +176,19 @@ jobs:
     # stay main's) — only the checked-out tag points into desktop-experimental,
     # which validate pins via the ancestry check. A workflow copy edited on
     # desktop-experimental can therefore never reach the signing secrets.
+    #
+    # What dispatch-from-main does NOT protect: the checked-out tag's own
+    # build scripts (bun install hooks, build:sdk, Tauri's beforeBuildCommand,
+    # build.rs) run inside this job with the signing secrets in scope, for
+    # stable and beta alike. The control for that is this environment's
+    # required-reviewer approval — the approver is vouching for the code the
+    # tag points at, not just for "a release happening". Two consequences:
+    # desktop-experimental must keep main-grade merge controls (branch
+    # protection, maintainer-only pushes), and an approval should only follow
+    # a look at what the tag actually contains. Building betas without these
+    # secrets is not an option: unsigned bundles fail Gatekeeper and updater
+    # artifacts must be signed with the same key or beta installs cannot
+    # verify their updates.
     if: github.ref == 'refs/heads/main'
     environment: PublishDesktop
     runs-on: macos-latest

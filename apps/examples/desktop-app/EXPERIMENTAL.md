@@ -113,6 +113,16 @@ exactly as they are for stable, and a workflow file edited on
 `desktop-experimental` can never reach the signing secrets. Do **not** add
 `desktop-experimental` to the PublishDesktop deployment-branch policy.
 
+One thing dispatch-from-main does *not* cover: the build job checks out the
+tag and runs its build scripts (dependency install hooks, `build:sdk`,
+Tauri's `beforeBuildCommand`, `build.rs`) with the signing secrets in scope
+— true for stable and beta alike. The control is the PublishDesktop
+required-reviewer approval: **approving a publish means vouching for the
+code the tag points at**, not just for the release happening. That is why
+`desktop-experimental` must keep main-grade merge controls (branch
+protection, maintainer-only pushes) — anyone who can land code there can get
+it executed alongside the signing keys once a publish of it is approved.
+
 ## Guardrails worth knowing about
 
 - The updater comparator is a plain semver "newer than". Feed separation is
