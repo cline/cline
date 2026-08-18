@@ -87,16 +87,24 @@ function buildHookStatusMessage(opts: {
 	}
 }
 
-export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: HookMessageEmitter): AgentHooks {
+export function buildAgentHooks(
+	stateManager: StateManager,
+	emitHookMessage?: HookMessageEmitter,
+	sessionWorkspaceRoot?: string,
+): AgentHooks {
 	const hooksEnabled = () => getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
+	// Session-scoped discovery: the shared workspaceRoots global state can be
+	// repointed by another Cline instance, so the factory also scans this
+	// session's own workspace for hook files.
+	const createFactory = () => new HookFactory({ sessionWorkspaceRoot })
 
 	return {
 		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentStopControl | undefined> {
-			const taskStartControl = await runTaskStart(ctx, hooksEnabled, emitHookMessage)
+			const taskStartControl = await runTaskStart(ctx, hooksEnabled, createFactory, emitHookMessage)
 			if (taskStartControl) {
 				return taskStartControl
 			}
-			return runUserPromptSubmit(ctx, hooksEnabled, emitHookMessage)
+			return runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
 		},
 
 		async beforeTool(
@@ -108,7 +116,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return undefined
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook("PreToolUse"))) {
 					return undefined
 				}
@@ -165,7 +173,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return undefined
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook("PostToolUse"))) {
 					return undefined
 				}
@@ -228,7 +236,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook(hookName))) {
 					return
 				}
@@ -280,6 +288,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 async function runTaskStart(
 	ctx: AgentRunLifecycleContext,
 	hooksEnabled: () => boolean,
+	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
 ): Promise<AgentStopControl | undefined> {
 	let runningTs: number | undefined
@@ -288,7 +297,7 @@ async function runTaskStart(
 			return undefined
 		}
 
-		const factory = new HookFactory()
+		const factory = createFactory()
 		if (!(await factory.hasHook("TaskStart"))) {
 			return undefined
 		}
@@ -328,6 +337,7 @@ async function runTaskStart(
 async function runUserPromptSubmit(
 	ctx: AgentRunLifecycleContext,
 	hooksEnabled: () => boolean,
+	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
 ): Promise<AgentStopControl | undefined> {
 	let runningTs: number | undefined
@@ -336,7 +346,7 @@ async function runUserPromptSubmit(
 			return undefined
 		}
 
-		const factory = new HookFactory()
+		const factory = createFactory()
 		if (!(await factory.hasHook("UserPromptSubmit"))) {
 			return undefined
 		}
