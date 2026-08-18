@@ -331,13 +331,22 @@ export function createShellExecutor(
 		MAX_COMMAND_OUTPUT_CHARS;
 
 	return (command, cwd, context) => {
-		const isStructured = typeof command !== "string";
-		const invocation = isStructured
+		// Direct exec only applies when the caller already split the argv:
+		// a non-empty args list means `command` is a bare executable. The
+		// object form without args usually carries a full command line
+		// (models emit e.g. { command: "echo hello" }), which would fail
+		// with ENOENT if spawned verbatim — route it through the shell
+		// exactly like the string form.
+		const directExec = typeof command !== "string" && !!command.args?.length;
+		const invocation = directExec
 			? { args: command.args ?? [] }
-			: getShellInvocation(shell, command);
+			: getShellInvocation(
+					shell,
+					typeof command === "string" ? command : command.command,
+				);
 		return spawnAndCollect(
 			{
-				executable: isStructured ? command.command : shell,
+				executable: directExec ? command.command : shell,
 				args: invocation.args,
 				cwd,
 				env,
