@@ -181,26 +181,72 @@
 /*
  * Code blocks: Streamdown renders a double box — an outer sidebar-tinted card
  * holding a language header row plus an inner bordered body. Collapse it to a
- * single quiet block: no outer chrome, no language label, and the copy button
- * only appears while hovering the block.
+ * single quiet block with a restrained language header and a copy button that
+ * appears while hovering the block.
  */
 .cline-markdown [data-streamdown="code-block"] {
+	position: relative;
+	overflow: hidden;
 	padding: 0;
 	gap: 0;
-	border: none;
-	background: transparent;
+	border-radius: 0.5rem;
+	border: 1px solid var(--border);
+	background: var(--card);
 }
 
 .cline-markdown [data-streamdown="code-block-header"] {
+	display: flex;
+	align-items: center;
+	padding-block: 1rem 0;
+	padding-inline: 1rem;
+	background: var(--card);
+	color: var(--muted-foreground);
+	font-size: 0.8125rem;
+}
+
+/* Streamdown emits an empty header for unannotated fences. Do not reserve a
+ * blank row when there is no language to identify. */
+.cline-markdown [data-streamdown="code-block-header"]:has(> span:empty) {
 	display: none;
 }
 
+.cline-markdown [data-streamdown="code-block-header"] > span {
+	margin-left: 0;
+	font-family: inherit;
+}
+
 .cline-markdown [data-streamdown="code-block-body"] {
-	border-radius: 0.5rem;
+	overflow-x: auto;
+	overflow-y: hidden;
+	border: none;
 	background: var(--card);
-	padding: 0.625rem 0.75rem;
 	font-size: 0.8125rem;
 	line-height: 1.6;
+	scrollbar-color: transparent transparent;
+}
+
+/* Keep the gutter stable and reveal overflow before interaction. Touch devices
+ * keep the thumb visible because they have no persistent hover state. */
+.cline-markdown [data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+	background: transparent;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
+	[data-streamdown="code-block-body"] {
+	scrollbar-color: var(--scrollbar-thumb) transparent;
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
+	[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+	background: var(--scrollbar-thumb);
+}
+
+.cline-markdown
+	[data-streamdown="code-block"]
+	[data-streamdown="code-block-body"]::-webkit-scrollbar-thumb:hover {
+	background: var(--scrollbar-thumb-hover);
 }
 
 /* The body's <pre> paints the Shiki theme background, which never quite
@@ -209,16 +255,17 @@
 	background: transparent;
 }
 
-/* The actions overlay's -mt-10 was sized to cover the (now hidden) header
- * row; re-anchor it over the top-right of the code body and reveal on
- * hover/focus so it stops competing with the code. Stickiness is kept so the
- * copy button stays reachable inside long blocks. */
+/* Re-anchor Streamdown's negatively offset actions over the top-right of the
+ * language header and reveal them on hover/focus. */
 .cline-markdown [data-streamdown="code-block"]
 	> div:has(> [data-streamdown="code-block-actions"]) {
-	margin-block: 0 -2rem;
-	padding: 0.375rem 0.375rem 0 0;
+	position: absolute;
+	inset-block-start: 0.375rem;
+	inset-inline-end: calc(0.375rem - 0.1rem);
+	height: auto;
+	margin: 0;
+	padding: 0;
 	opacity: 0;
-	transition: opacity 120ms ease;
 }
 
 /* While hidden the pill must not intercept clicks or text selection on the
@@ -226,28 +273,49 @@
  * unaffected by pointer-events, so tabbing still reveals it. */
 .cline-markdown [data-streamdown="code-block-actions"] {
 	pointer-events: none;
+	border: 0;
+	background: transparent;
+	backdrop-filter: none;
+}
+
+.cline-markdown [data-streamdown="code-block-copy-button"] {
+	display: inline-flex;
+	width: 2rem;
+	height: 2rem;
+	align-items: center;
+	justify-content: center;
+	padding: 0;
+	border-radius: var(--radius-md);
+	background: transparent;
+	color: var(--foreground);
+	transition: none;
+}
+
+.cline-markdown [data-streamdown="code-block-copy-button"]:hover {
+	background: color-mix(in srgb, var(--secondary), var(--foreground) 8%);
 }
 
 .cline-markdown
-	[data-streamdown="code-block"]:hover
-	> div:has(> [data-streamdown="code-block-actions"]),
-.cline-markdown
-	[data-streamdown="code-block"]
-	> div:focus-within:has(> [data-streamdown="code-block-actions"]) {
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
+	> div:has(> [data-streamdown="code-block-actions"]) {
 	opacity: 1;
 }
 
 .cline-markdown
-	[data-streamdown="code-block"]:hover
-	[data-streamdown="code-block-actions"],
-.cline-markdown
-	[data-streamdown="code-block"]
-	> div:focus-within
+	[data-streamdown="code-block"]:is(:hover, :focus-within)
 	[data-streamdown="code-block-actions"] {
 	pointer-events: auto;
 }
 
 @media (hover: none) {
+	.cline-markdown [data-streamdown="code-block-body"] {
+		scrollbar-color: var(--scrollbar-thumb) transparent;
+	}
+
+	.cline-markdown [data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+		background: var(--scrollbar-thumb);
+	}
+
 	.cline-markdown
 		[data-streamdown="code-block"]
 		> div:has(> [data-streamdown="code-block-actions"]) {
@@ -257,6 +325,28 @@
 	.cline-markdown [data-streamdown="code-block-actions"] {
 		pointer-events: auto;
 	}
+}
+
+/* Keep system colors authoritative when high-contrast and touch media queries
+ * both match. This block intentionally follows the hover fallback above. */
+@media (forced-colors: active) {
+	.cline-markdown [data-streamdown="code-block-body"] {
+		scrollbar-color: auto;
+	}
+
+	.cline-markdown [data-streamdown="code-block-body"]::-webkit-scrollbar-thumb {
+		background: ButtonText;
+	}
+}
+
+/* With no header, the copy button sits over the body. Reserve its inline space
+ * so the first line cannot run underneath the control. Keep this after the
+ * shared body rules so its more specific spacing override reads last. */
+.cline-markdown [data-streamdown="code-block"]:has(
+		> [data-streamdown="code-block-header"] > span:empty
+	)
+	[data-streamdown="code-block-body"] {
+	padding-inline-end: 3rem;
 }
 
 /* Tables get the same single-box treatment as code blocks. */
