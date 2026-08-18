@@ -89,6 +89,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { resolveSessionHeaderStatus } from "@/lib/session-status";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -631,7 +632,7 @@ function ChatThreadPane({
 	threadId: string;
 	historySession?: SessionHistoryItem;
 	/** Current status from the live list; the history snapshot may be stale. */
-	liveHistoryStatus?: string;
+	liveHistoryStatus?: SessionHistoryItem["status"];
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
 	onInitialPromptDraftConsumed?: (threadId: string) => void;
@@ -787,6 +788,11 @@ function ChatThreadPane({
 	};
 	const isCloudSession =
 		config.executionTarget === "cloud" || historySession?.origin === "cloud";
+	const headerStatus = resolveSessionHeaderStatus({
+		chatStatus: status,
+		isCloudSession,
+		liveHistoryStatus,
+	});
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
@@ -1922,7 +1928,7 @@ function ChatThreadPane({
 							onOpenDiff={handleOpenDiff}
 							onRenameTitle={handleRenameTitle}
 							renamingTitle={renamingSession}
-							status={status}
+							status={headerStatus}
 							title={threadTitle}
 						/>
 					</div>
