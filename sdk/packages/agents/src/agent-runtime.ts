@@ -329,8 +329,16 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	'"': "_q_",
+	"<": "_lt_",
+	">": "_gt_",
+};
+
 function sanitizeHookAttribute(value: string): string {
-	return value.replace(/["<>]/g, "_");
+	// Distinct token per delimiter keeps sanitized ids distinguishable when
+	// two ids differ only by a markup character.
+	return value.replace(/["<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
 }
 
 function formatHookContextBlock(
