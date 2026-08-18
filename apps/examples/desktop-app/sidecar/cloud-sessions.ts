@@ -41,6 +41,7 @@ import type {
 const CLOUD_WORKSPACE_ROOT = "/workspace";
 const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
+const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
@@ -584,7 +585,7 @@ export class CloudSessionApi {
 					([peerSequence]) => !awaited.has(peerSequence),
 				);
 				await Promise.allSettled(latePeers.map(([, settled]) => settled));
-				const recovered = this.claimFirstUnclaimed(candidates);
+				const recovered = this.claimOnlyUnclaimed(candidates);
 				if (recovered) {
 					await this.persistHandoffOuterSession(
 						input,
@@ -627,9 +628,9 @@ export class CloudSessionApi {
 		}
 	}
 
-	private async waitUntilReady(
+	async waitUntilReady(
 		sessionId: string,
-		signal: AbortSignal,
+		signal: AbortSignal = AbortSignal.timeout(CREATE_TIMEOUT_MS),
 	): Promise<void> {
 		while (!signal.aborted) {
 			let result:
@@ -679,15 +680,21 @@ export class CloudSessionApi {
 	 * that atomicity (per event-loop continuation) is what guarantees two
 	 * concurrent recoveries can never adopt the same session record.
 	 */
-	private claimFirstUnclaimed(
+	private claimOnlyUnclaimed(
 		candidates: CloudSessionRecord[],
 	): CloudSessionRecord | undefined {
-		for (const candidate of candidates) {
-			if (this.claimedSessionIds.has(candidate.id)) continue;
-			this.claimedSessionIds.add(candidate.id);
-			return candidate;
+		const unclaimed = candidates.filter(
+			(candidate) => !this.claimedSessionIds.has(candidate.id),
+		);
+		if (unclaimed.length > 1) {
+			throw new CloudSessionError(
+				"request_failed",
+				"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
+			);
 		}
-		return undefined;
+		const candidate = unclaimed[0];
+		if (candidate) this.claimedSessionIds.add(candidate.id);
+		return candidate;
 	}
 
 	private async persistHandoffOuterSession(
@@ -826,6 +833,7 @@ type CloudSessionManagerOptions = {
 		| "delete"
 		| "list"
 		| "status"
+		| "waitUntilReady"
 		| "history"
 		| "updateTitle"
 		| "listRepositories"
@@ -1443,6 +1451,12 @@ export class CloudSessionManager {
 		return await creating;
 	}
 
+	/** Waits for an adopted pending handoff target before opening its Hub proxy. */
+	async waitUntilReady(outerSessionId: string): Promise<void> {
+		await this.options.api.waitUntilReady(outerSessionId);
+		await this.refreshKnownSession(outerSessionId);
+	}
+
 	/** Seeds an already-provisioned outer session when retrying a pending handoff. */
 	async seedHandoff(
 		outerSessionId: string,
@@ -1462,13 +1476,32 @@ export class CloudSessionManager {
 		outerSessionId: string,
 		expected: readonly MessageWithMetadata[],
 	): Promise<void> {
-		const actual = await this.readMessages(outerSessionId);
+		const connection = await this.ensureConnection(outerSessionId);
+		const innerSessionId = connection.innerSessionId;
+		if (!innerSessionId) {
+			throw new Error("Cloud Hub did not return an inner session id");
+		}
+		const reply = await connection.client.command(
+			"session.messages",
+			{ sessionId: innerSessionId },
+			innerSessionId,
+		);
+		const actual = reply.payload?.messages;
+		if (!Array.isArray(actual)) {
+			throw new Error("Cloud runtime returned no transcript after seeding.");
+		}
+		if (expected.length > 0 && actual.length === 0) {
+			throw new Error(
+				"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /handoff against this same pod will not help.",
+			);
+		}
 		if (!cloudHandoffTranscriptsEqual(expected, actual)) {
 			throw new CloudHandoffTranscriptMismatchError(
 				expected.length,
 				actual.length,
 			);
 		}
+		connection.transcriptKnown = true;
 	}
 
 	private async createOnce(
@@ -1763,7 +1796,9 @@ export class CloudSessionManager {
 					...(userImages?.length ? { attachments: { userImages } } : {}),
 				},
 				innerSessionId,
-				{ timeoutMs: null },
+				delivery === "queue"
+					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
+					: { timeoutMs: null },
 			);
 			// Advance the baseline so an older identical prompt cannot confirm this send.
 			if (live && delivery !== "queue") {
@@ -2553,8 +2588,9 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
 		connection.innerSessionId = innerSessionId;
-		// A newly-created inner session has an authoritative empty transcript.
-		connection.transcriptKnown = true;
+		// Seeded content is authoritative only after a strict session.messages
+		// read-back verifies that the pod persisted initialMessages.
+		connection.transcriptKnown = !handoffSeed;
 	}
 
 	private handleEvent(

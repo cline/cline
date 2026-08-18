@@ -53,7 +53,13 @@ export function cloudHandoffUiReducer(
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
 		case "progress":
-			if (current?.status === "complete") return state;
+			if (
+				current?.status === "complete" ||
+				current?.status === "failed" ||
+				current?.status === "recovery"
+			) {
+				return state;
+			}
 			return {
 				...state,
 				[action.sourceSessionId]: {

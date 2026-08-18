@@ -31,6 +31,7 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ToastAction } from "@/components/ui/toast";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import {
@@ -176,6 +177,10 @@ type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
 const PROVISIONING_OUTCOME_POLL_MS = 1_500;
+// The sidecar caps provisioning at 610s and all subsequent Hub commands have
+// finite deadlines. Keep the UI above that bound without waiting forever for
+// a lost transport response.
+const HANDOFF_INVOKE_TIMEOUT_MS = 15 * 60_000;
 
 type CloudProvisioningOutcome =
 	| { status: "provisioning" }
@@ -1435,12 +1440,26 @@ function ChatThreadPane({
 				setHandoffConfirmOpen(true);
 			} catch (error) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				const cloudError = parseCloudSessionError(
+					error instanceof Error ? error.message : String(error),
+				);
+				const connectUrl = cloudError?.connectUrl;
 				toast({
 					title: "Handoff is not ready",
-					description: humanizeCloudSessionError(
-						error instanceof Error ? error.message : String(error),
-					),
+					description:
+						cloudError?.message ??
+						humanizeCloudSessionError(
+							error instanceof Error ? error.message : String(error),
+						),
 					variant: "destructive",
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
 				});
 			}
 		},
@@ -1486,7 +1505,7 @@ function ChatThreadPane({
 							attachments.userImages.length > 0 ? attachments : undefined,
 					},
 				},
-				{ timeoutMs: null },
+				{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
 			);
 			const targetSessionId = (
 				result.outerSessionId ||
@@ -1548,12 +1567,26 @@ function ChatThreadPane({
 					: "/handoff",
 				retryAttachments: sourceAttachments,
 			});
+			const cloudError = parseCloudSessionError(
+				error instanceof Error ? error.message : String(error),
+			);
+			const connectUrl = cloudError?.connectUrl;
 			toast({
 				title: "Handoff failed",
-				description: humanizeCloudSessionError(
-					error instanceof Error ? error.message : String(error),
-				),
+				description:
+					cloudError?.message ??
+					humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
 				variant: "destructive",
+				action: connectUrl ? (
+					<ToastAction
+						altText="Connect GitHub"
+						onClick={() => void openExternalUrl(connectUrl)}
+					>
+						Connect GitHub
+					</ToastAction>
+				) : undefined,
 			});
 		} finally {
 			handoffConfirmingRef.current = false;

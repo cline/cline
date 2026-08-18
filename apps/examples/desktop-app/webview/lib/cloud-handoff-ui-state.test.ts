@@ -65,5 +65,24 @@ describe("cloudHandoffUiReducer", () => {
 			retryDraft: undefined,
 			retryAttachments: undefined,
 		});
+		expect(
+			cloudHandoffUiReducer(recovery, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+			}),
+		).toBe(recovery);
+		const failed = cloudHandoffUiReducer(progress, {
+			type: "failed",
+			sourceSessionId: "local-1",
+			exposeRecovery: false,
+		});
+		expect(
+			cloudHandoffUiReducer(failed, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+			}),
+		).toBe(failed);
 	});
 });

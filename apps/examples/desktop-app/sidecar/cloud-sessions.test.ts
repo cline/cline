@@ -878,7 +878,7 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
-	it("recovers distinct sessions for overlapping identical create requests", async () => {
+	it("refuses ambiguous recovery for overlapping identical create requests", async () => {
 		const now = new Date().toISOString();
 		const record = (id: string, createdAt: string) => ({
 			id,
@@ -909,17 +909,23 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		// Two identical CONCURRENT requests fail over to list-based recovery;
-		// each must claim a different record or one sandbox is orphaned.
-		const [first, second] = await Promise.all([
+		// The API exposes no request id that can map either failed POST to one of
+		// these rows. Newest-wins can steal another conversation's sandbox.
+		const results = await Promise.allSettled([
 			api.create(input),
 			api.create(input),
 		]);
 
-		expect([first.sessionId, second.sessionId].sort()).toEqual([
-			"ses-newer",
-			"ses-older",
+		expect(results.map((result) => result.status)).toEqual([
+			"rejected",
+			"rejected",
 		]);
+		for (const result of results) {
+			if (result.status === "rejected") {
+				expect(result.reason).toMatchObject({ code: "request_failed" });
+				expect(String(result.reason)).toContain("ambiguous result");
+			}
+		}
 	});
 
 	it("recovery never steals a session whose successful POST is still completing", async () => {
@@ -2131,6 +2137,67 @@ describe("CloudSessionManager", () => {
 			(innerCreate?.payload?.sessionConfig as { systemPrompt?: string })
 				.systemPrompt,
 		).toContain("fresh clone");
+	});
+
+	it("verifies handoff seeding from the live Hub without archive fallback", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const expected = [{ role: "user" as const, content: "continue" }];
+		const history = vi.fn(async () => expected);
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({ sessionId: "ses-handoff", sandboxUrl: "pod" }),
+				history,
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			handoff: {
+				sourceSessionId: "local-1",
+				resolveMessages: async () => expected,
+				onOuterSessionCreated: async () => undefined,
+			},
+		});
+		hub.commandHook = (command) => {
+			if (command === "session.messages") throw new Error("live read failed");
+		};
+
+		await expect(
+			manager.verifyHandoffTranscript("ses-handoff", expected),
+		).rejects.toThrow("live read failed");
+		expect(history).not.toHaveBeenCalled();
+	});
+
+	it("identifies a runtime that ignored seeded initialMessages", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		hub.messages = [];
+		const expected = [{ role: "user" as const, content: "continue" }];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async () => ({ sessionId: "ses-handoff", sandboxUrl: "pod" }),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			handoff: {
+				sourceSessionId: "local-1",
+				resolveMessages: async () => expected,
+				onOuterSessionCreated: async () => undefined,
+			},
+		});
+
+		await expect(
+			manager.verifyHandoffTranscript("ses-handoff", expected),
+		).rejects.toThrow("must use @cline/core 0.0.72 or newer");
 	});
 
 	it("updates the cloud model before sending and skips redundant updates", async () => {

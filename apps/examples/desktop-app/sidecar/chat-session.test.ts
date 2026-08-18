@@ -19,6 +19,7 @@ import {
 	prewarmWorkspaceMetadata,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
+	updateHandoffMetadataOrThrow,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
@@ -1377,6 +1378,18 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
+	it("fails when a required handoff metadata update is not persisted", async () => {
+		const update = vi.fn(async () => ({ updated: false }));
+		await expect(
+			updateHandoffMetadataOrThrow(
+				{ update } as never,
+				"local-1",
+				{ handoff: { status: "pending" } },
+				"recovery record was not saved",
+			),
+		).rejects.toThrow("recovery record was not saved");
+	});
+
 	function createHandoffGateContext(options: {
 		busy?: boolean;
 		messages?: Array<{ role: "user" | "assistant"; content: string }>;

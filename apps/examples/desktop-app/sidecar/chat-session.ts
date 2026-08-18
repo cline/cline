@@ -1379,6 +1379,9 @@ async function handleReset(
 ): Promise<unknown> {
 	const sessionId = request.sessionId?.trim();
 	if (sessionId) {
+		if (handoffRequests.get(ctx)?.has(sessionId)) {
+			throw new Error("Wait for the cloud handoff to finish before resetting.");
+		}
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -1401,6 +1404,11 @@ async function handleRestoreCheckpoint(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (handoffRequests.get(ctx)?.has(sourceSessionId)) {
+		throw new Error(
+			"Wait for the cloud handoff to finish before restoring a checkpoint.",
+		);
+	}
 	const runCount = request.checkpointRunCount;
 	if (
 		typeof runCount !== "number" ||
@@ -1679,6 +1687,16 @@ async function assertHandoffIdle(
 	}
 }
 
+export async function updateHandoffMetadataOrThrow(
+	manager: Pick<ClineCore, "update">,
+	sessionId: string,
+	metadata: Record<string, unknown>,
+	failureMessage: string,
+): Promise<void> {
+	const result = await manager.update(sessionId, { metadata });
+	if (!result.updated) throw new Error(failureMessage);
+}
+
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1814,27 +1832,20 @@ async function handleHandoffOnce(
 	const metadataBefore =
 		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
 		readSessionMetadata(sourceSessionId);
-	let pending = readCloudHandoffMetadata(metadataBefore);
+	const pending = readCloudHandoffMetadata(metadataBefore);
 	if (
 		pending?.status === "pending" &&
 		!cloudHandoffFingerprintsEqual(pending.fingerprint, prepared.fingerprint)
 	) {
-		await cloud.delete(pending.toCloudSessionId).catch((error) => {
-			if (
-				error instanceof CloudSessionError &&
-				(error.code === "session_not_found" || error.code === "session_expired")
-			) {
-				return;
-			}
-			throw new Error(
-				"The previous cloud handoff no longer matches this workspace and could not be cleaned up. Delete it from Cline Cloud before retrying.",
-				{ cause: error },
+		const dashboardUrl =
+			pending.dashboardUrl ??
+			buildCloudHandoffDashboardUrl(
+				environment.appBaseUrl,
+				pending.toCloudSessionId,
 			);
-		});
-		await manager.update(sourceSessionId, {
-			metadata: clearCloudHandoffMetadata(metadataBefore),
-		});
-		pending = undefined;
+		throw new Error(
+			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${dashboardUrl}`,
+		);
 	}
 
 	let outerSessionId = pending?.toCloudSessionId ?? "";
@@ -1874,11 +1885,14 @@ async function handleHandoffOnce(
 			}
 		}
 		const current = await manager.get(sourceSessionId);
-		await manager.update(sourceSessionId, {
-			metadata: clearCloudHandoffMetadata(
+		await updateHandoffMetadataOrThrow(
+			manager,
+			sourceSessionId,
+			clearCloudHandoffMetadata(
 				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore,
 			),
-		});
+			"The cloud target was removed, but its local pending handoff record could not be cleared.",
+		);
 	};
 
 	if (outerSessionId) {
@@ -1896,6 +1910,7 @@ async function handleHandoffOnce(
 			outerSessionId,
 		);
 		try {
+			await cloud.waitUntilReady(outerSessionId);
 			const seed = await readSeedMessages();
 			const resumed = await cloud.seedHandoff(outerSessionId, {
 				sourceSessionId,
@@ -1909,13 +1924,16 @@ async function handleHandoffOnce(
 			});
 			innerSessionId = resumed.innerSessionId;
 			if (!pendingHandoff.dashboardUrl) {
-				await manager.update(sourceSessionId, {
-					metadata: mergeCloudHandoffMetadata(metadataBefore, {
+				await updateHandoffMetadataOrThrow(
+					manager,
+					sourceSessionId,
+					mergeCloudHandoffMetadata(metadataBefore, {
 						...pendingHandoff,
 						dashboardUrl,
 						innerSessionId,
 					}),
-				});
+					"The resumed cloud handoff could not update its local recovery record.",
+				);
 			}
 		} catch (error) {
 			if (
@@ -1963,8 +1981,10 @@ async function handleHandoffOnce(
 						createdSessionId,
 					);
 					const current = await manager.get(sourceSessionId);
-					await manager.update(sourceSessionId, {
-						metadata: mergeCloudHandoffMetadata(
+					await updateHandoffMetadataOrThrow(
+						manager,
+						sourceSessionId,
+						mergeCloudHandoffMetadata(
 							(current?.metadata as JsonRecord | null | undefined) ??
 								metadataBefore,
 							{
@@ -1975,7 +1995,8 @@ async function handleHandoffOnce(
 								fingerprint: prepared.fingerprint,
 							},
 						),
-					});
+						`Cloud workspace ${createdSessionId} was created, but its recovery link could not be saved locally.`,
+					);
 					emitProgress(
 						"provisioning",
 						"Preparing the cloud workspace…",
@@ -2018,15 +2039,12 @@ async function handleHandoffOnce(
 		}
 		throw error;
 	}
-	try {
-		await assertHandoffIdle(ctx, manager, sourceSessionId);
-		const finalLocalMessages = await manager.readLiveMessages(sourceSessionId);
-		if (!cloudHandoffTranscriptsEqual(finalLocalMessages, seededMessages)) {
-			throw new Error(
-				"The local conversation changed during handoff. Nothing was closed; try again when the session is idle.",
-			);
-		}
-	} catch (error) {
+	await assertHandoffIdle(ctx, manager, sourceSessionId);
+	const finalLocalMessages = await manager.readLiveMessages(sourceSessionId);
+	if (!cloudHandoffTranscriptsEqual(finalLocalMessages, seededMessages)) {
+		const error = new Error(
+			"The local conversation changed during handoff. Nothing was closed; try again when the session is idle.",
+		);
 		try {
 			await clearPendingTarget(outerSessionId);
 		} catch (cleanupError) {
@@ -2047,8 +2065,10 @@ async function handleHandoffOnce(
 	const handedOffAt =
 		readCloudHandoffMetadata(latestMetadata)?.handedOffAt ??
 		new Date().toISOString();
-	await manager.update(sourceSessionId, {
-		metadata: mergeCloudHandoffMetadata(latestMetadata, {
+	await updateHandoffMetadataOrThrow(
+		manager,
+		sourceSessionId,
+		mergeCloudHandoffMetadata(latestMetadata, {
 			toCloudSessionId: outerSessionId,
 			handedOffAt,
 			status: "complete",
@@ -2056,7 +2076,8 @@ async function handleHandoffOnce(
 			dashboardUrl,
 			fingerprint: prepared.fingerprint,
 		}),
-	});
+		"The cloud transcript was verified, but the local handoff marker could not be saved. The local session remains open.",
+	);
 
 	let warning: string | undefined;
 	if (nextCommand) {
