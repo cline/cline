@@ -815,7 +815,20 @@ export class AgentRuntime {
 				if (this.pendingHookContexts.length > 0) {
 					const hookContextText = this.pendingHookContexts.join("\n\n");
 					this.pendingHookContexts = [];
-					await this.addUserReminderMessage(hookContextText);
+					// displayRole "system" keeps the injected block out of user-facing
+					// transcripts (live and replayed) while it still reaches the model,
+					// mirroring how compaction summaries are handled.
+					const hookContextMessage = createMessage(
+						"user",
+						[{ type: "text", text: hookContextText }],
+						{ userRunSpan: 0, displayRole: "system" },
+					);
+					this.state.messages.push(hookContextMessage);
+					await this.emit({
+						type: "message-added",
+						snapshot: this.snapshot(),
+						message: hookContextMessage,
+					});
 				}
 				await this.emit({
 					type: "turn-finished",

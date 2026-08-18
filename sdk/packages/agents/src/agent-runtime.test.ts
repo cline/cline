@@ -2271,6 +2271,12 @@ describe("AgentRuntime", () => {
 				),
 		);
 		expect(hookContextMessage).toBeDefined();
+		// Hidden from user-facing transcripts (live and replayed) while still
+		// sent to the model, like compaction summaries.
+		expect(hookContextMessage?.metadata).toMatchObject({
+			displayRole: "system",
+			userRunSpan: 0,
+		});
 	});
 
 	it("sanitizes hook context markup against corrupting identity attributes", async () => {
