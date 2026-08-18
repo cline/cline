@@ -347,7 +347,7 @@ function formatHookContextBlock(
 	// markup.
 	const toolName = sanitizeHookAttribute(toolCall.toolName);
 	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
-	const body = text.trim().replace(/<(\/?)hook_context/g, "<\\$1hook_context");
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
 	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
 }
 
