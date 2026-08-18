@@ -245,7 +245,9 @@ export async function updateSettings(controller: Controller, request: UpdateSett
 			// Update first so the authoritative refresh evaluates the new preference.
 			controller.stateManager.setGlobalState("optOutOfRemoteConfig", isOptingOut)
 			if (isOptingOut !== hadOptedOut) {
-				await controller.refreshRemoteConfig()
+				// force: never coalesce onto an in-flight refresh that already
+				// evaluated the pre-change opt-out preference.
+				await controller.refreshRemoteConfig({ force: true })
 			}
 		}
 

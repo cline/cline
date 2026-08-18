@@ -37,6 +37,39 @@ async function withPublicationLock<T>(controller: object, operation: () => Promi
 	}
 }
 
+/**
+ * File cleanup is best-effort: a filesystem error (e.g. EACCES on the
+ * remote-config workspace) must not reject the refresh, or every session
+ * start — including for personal users with no org — fails with a raw fs
+ * error. State and integration clearing still proceed.
+ */
+async function clearMaterializedRuntimeBestEffort(workspacePath: string): Promise<void> {
+	try {
+		await clearMaterializedRemoteConfigRuntime({ workspacePath })
+	} catch (error) {
+		Logger.error("[RemoteConfig] Failed to remove materialized remote config files; continuing with state clear:", error)
+	}
+}
+
+/**
+ * Authoritative local clear (sign-out): runs under the same publication lock
+ * as refreshes so an in-flight refresh cannot interleave with the clear.
+ * Callers must also invalidate the refresh coordinator first so a refresh
+ * that already fetched under the old identity cannot republish afterward.
+ */
+export async function clearSdkRemoteConfig(
+	controller: Controller,
+	options: { workspacePath?: string; organizationId?: string } = {},
+): Promise<void> {
+	const workspacePath = await getRemoteConfigWorkspacePath(options.workspacePath)
+	await withPublicationLock(controller, async () => {
+		await clearMaterializedRuntimeBestEffort(workspacePath)
+		clearRemoteConfig(options.organizationId)
+		controller.setRemoteConfigAvailable(false)
+		await controller.setRemoteConfigCoreIntegration(undefined)
+	})
+}
+
 async function ensureGlobalRemoteConfigWorkspacePath(): Promise<string> {
 	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
 	const workspacePath = path.join(clineDir, "data", "remote-config-workspace")
@@ -93,7 +126,7 @@ export async function refreshSdkRemoteConfig(
 				if (!remoteConfig) {
 					await candidateIntegration?.dispose()
 					candidateIntegration = undefined
-					await clearMaterializedRemoteConfigRuntime({ workspacePath })
+					await clearMaterializedRuntimeBestEffort(workspacePath)
 					clearRemoteConfig()
 					await controller.setRemoteConfigCoreIntegration(undefined)
 					shouldPostState = true
@@ -138,7 +171,7 @@ export async function refreshSdkRemoteConfig(
 						return
 					}
 					controller.setRemoteConfigAvailable(controlPlane.isRemoteConfigAvailable())
-					await clearMaterializedRemoteConfigRuntime({ workspacePath })
+					await clearMaterializedRuntimeBestEffort(workspacePath)
 					clearRemoteConfig()
 					await controller.setRemoteConfigCoreIntegration(undefined)
 					shouldPostState = true

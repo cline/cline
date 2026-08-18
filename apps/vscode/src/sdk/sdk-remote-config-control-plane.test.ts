@@ -56,13 +56,20 @@ describe("SdkRemoteConfigControlPlane", () => {
 		writeRemoteConfigToCache.mockReset().mockResolvedValue(undefined)
 		readRemoteConfigFromCache.mockReset().mockResolvedValue({ version: "v1" })
 		activeOrganization.id = "org-current"
+		lastManagedOrganization.id = undefined
 		axiosRequest.mockReset().mockRejectedValue(new Error("offline"))
 	})
+
+	const lastManagedOrganization = { id: undefined as string | undefined }
 
 	function makeControlPlane() {
 		return new SdkRemoteConfigControlPlane({
 			accountService: { switchAccount, fetchUserRemoteConfig },
-			stateManager: { setSecret, getGlobalStateKey: () => ({}) },
+			stateManager: {
+				setSecret,
+				getGlobalStateKey: ((key: string) =>
+					key === "lastManagedOrganizationId" ? lastManagedOrganization.id : {}) as never,
+			},
 		})
 	}
 
@@ -107,6 +114,22 @@ describe("SdkRemoteConfigControlPlane", () => {
 
 	it("throws instead of reporting no-config when no auth token is available for an active organization", async () => {
 		activeOrganization.id = "org-current"
+		fetchUserRemoteConfig.mockResolvedValue(undefined)
+		const controlPlane = makeControlPlane()
+
+		await expect(controlPlane.fetchBundle({ workspacePath: "/workspace" })).rejects.toThrow(
+			"Remote config discovery returned no response",
+		)
+		expect(controlPlane.wasExplicitNoConfig()).toBe(false)
+	})
+
+	it("throws instead of reporting no-config when identity restore fails on a previously managed install", async () => {
+		// Offline cold start: auth restore failed, so BOTH the token and the
+		// active org are gone — but the persisted marker says this install runs
+		// under org policy. Reporting no-config would wipe the policy and the
+		// marker, permanently disarming the fail-closed session gate.
+		activeOrganization.id = null
+		lastManagedOrganization.id = "org-previous"
 		fetchUserRemoteConfig.mockResolvedValue(undefined)
 		const controlPlane = makeControlPlane()
 
@@ -239,12 +262,14 @@ describe("SdkRemoteConfigControlPlane", () => {
 			accountService: { switchAccount, fetchUserRemoteConfig },
 			stateManager: {
 				setSecret,
-				getGlobalStateKey: (key): Record<string, boolean> =>
-					key === "remoteRulesToggles"
-						? { "Optional rule": false, "Locked rule": false }
-						: key === "remoteWorkflowToggles"
-							? { "Optional workflow": false }
-							: { "Optional skill": false },
+				getGlobalStateKey: ((key: string) =>
+					key === "lastManagedOrganizationId"
+						? undefined
+						: key === "remoteRulesToggles"
+							? { "Optional rule": false, "Locked rule": false }
+							: key === "remoteWorkflowToggles"
+								? { "Optional workflow": false }
+								: { "Optional skill": false }) as never,
 			},
 		})
 

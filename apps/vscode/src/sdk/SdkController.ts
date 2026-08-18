@@ -33,8 +33,7 @@ import type { TelemetrySetting } from "@shared/TelemetrySetting"
 import type { ClineCheckpointRestore } from "@shared/WebviewMessage"
 import { parseMentions } from "@/core/mentions"
 import { ensureMcpServersDirectoryExists } from "@/core/storage/disk"
-import { refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
-import { clearRemoteConfig } from "@/core/storage/remote-config/utils"
+import { clearSdkRemoteConfig, refreshSdkRemoteConfig } from "@/core/storage/remote-config/sdk-refresh"
 import { StateManager } from "@/core/storage/StateManager"
 import { WorkspaceRootManager } from "@/core/workspace/WorkspaceRootManager"
 import { HostProvider } from "@/hosts/host-provider"
@@ -776,10 +775,10 @@ export class Controller {
 		}, 3600000) // 1 hour
 	}
 
-	async refreshRemoteConfig(): Promise<boolean> {
+	async refreshRemoteConfig(options: { force?: boolean } = {}): Promise<boolean> {
 		const userId = this.authService.getInfo().user?.uid ?? "signed-out"
 		const organizationId = this.authService.getActiveOrganizationId() ?? "no-org"
-		return this.remoteConfigRefreshCoordinator.refresh(`${userId}:${organizationId}`)
+		return this.remoteConfigRefreshCoordinator.refresh(`${userId}:${organizationId}`, options)
 	}
 
 	async waitForInitialRemoteConfig(): Promise<void> {
@@ -787,7 +786,10 @@ export class Controller {
 	}
 
 	async rematerializeRemoteConfig(): Promise<void> {
-		const refreshed = await this.refreshRemoteConfig()
+		// force: this runs right after a toggle/opt-out mutation; coalescing onto
+		// an in-flight refresh that sampled the pre-mutation state would report
+		// success while applying the old configuration.
+		const refreshed = await this.refreshRemoteConfig({ force: true })
 		if (!refreshed) {
 			throw new Error("Could not apply managed configuration change. Check your connection and try again.")
 		}
@@ -798,7 +800,16 @@ export class Controller {
 	private async ensureRemoteConfigForSessionStart(): Promise<void> {
 		const startedAt = Date.now()
 		await this.waitForInitialRemoteConfig()
-		const refreshed = await this.refreshRemoteConfig()
+		let refreshed = false
+		try {
+			refreshed = await this.refreshRemoteConfig()
+		} catch (error) {
+			// A rejected refresh must degrade to the same fallback logic as a
+			// false return: otherwise a filesystem error on the clear path (e.g.
+			// EACCES on the remote-config workspace) blocks even unmanaged users
+			// from starting sessions with a raw fs error.
+			Logger.error("[SdkController] Remote config refresh threw during session gate:", error)
+		}
 		const activeOrganizationId = this.authService.getActiveOrganizationId()
 		if (refreshed) {
 			void telemetryService.captureRemoteConfigSessionGate({
@@ -1882,8 +1893,15 @@ export class Controller {
 		const organizationId = this.authService.getActiveOrganizationId() ?? undefined
 		await this.taskControl.cancelClineTaskOnSignOut(isClineManagedProvider(sessionProviderId))
 		await this.authService.handleDeauth(LogoutReason.USER_INITIATED)
-		clearRemoteConfig(organizationId)
-		await this.setRemoteConfigCoreIntegration(undefined)
+		// Invalidate BEFORE clearing: a refresh that already fetched under the
+		// signed-in identity must not republish the policy (and re-create the
+		// secret-bearing caches) after the clear. The clear itself runs under the
+		// same publication lock refreshes use, so it cannot interleave either.
+		this.remoteConfigRefreshCoordinator.invalidate()
+		await clearSdkRemoteConfig(this, {
+			workspacePath: await this.getRemoteConfigWorkspacePath(),
+			organizationId,
+		})
 		await this.postStateToWebview()
 	}
 

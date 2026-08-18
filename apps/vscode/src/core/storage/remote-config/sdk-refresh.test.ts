@@ -48,7 +48,7 @@ vi.mock("./sdk-control-plane", () => ({
 	},
 }))
 
-import { refreshSdkRemoteConfig } from "./sdk-refresh"
+import { clearSdkRemoteConfig, refreshSdkRemoteConfig } from "./sdk-refresh"
 
 function deferred<T>() {
 	let resolve!: (value: T) => void
@@ -267,5 +267,29 @@ describe("refreshSdkRemoteConfig", () => {
 		expect(setRemoteConfigCoreIntegration).toHaveBeenCalledWith(undefined)
 		expect(getCurrentIntegration()).toBeUndefined()
 		expect(controller.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
+	it("still clears state and reports success when file cleanup fails on the cleared path", async () => {
+		scenarios.push({ preparation: Promise.reject(new Error("no bundle")), explicitNoConfig: true })
+		clearMaterializedRemoteConfigRuntime.mockRejectedValueOnce(new Error("EACCES: permission denied"))
+		const { controller, setRemoteConfigCoreIntegration, getCurrentIntegration } = makeController()
+
+		const refreshed = await refreshSdkRemoteConfig(controller as never, { workspacePath: "/workspace" })
+
+		expect(refreshed).toBe(true)
+		expect(clearRemoteConfig).toHaveBeenCalledOnce()
+		expect(setRemoteConfigCoreIntegration).toHaveBeenCalledWith(undefined)
+		expect(getCurrentIntegration()).toBeUndefined()
+	})
+
+	it("clearSdkRemoteConfig clears state and integration even when file cleanup fails", async () => {
+		clearMaterializedRemoteConfigRuntime.mockRejectedValueOnce(new Error("EACCES: permission denied"))
+		const { controller, getCurrentIntegration } = makeController("signed-in")
+
+		await clearSdkRemoteConfig(controller as never, { workspacePath: "/workspace", organizationId: "org-current" })
+
+		expect(clearRemoteConfig).toHaveBeenCalledWith("org-current")
+		expect(getCurrentIntegration()).toBeUndefined()
+		expect(controller.setRemoteConfigAvailable).toHaveBeenCalledWith(false)
 	})
 })

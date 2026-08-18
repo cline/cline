@@ -75,7 +75,7 @@ describe("SDK remote-config coordination", () => {
 
 		await SdkController.prototype.refreshRemoteConfig.call(controller as never)
 
-		expect(refresh).toHaveBeenCalledWith("user-1:org-1")
+		expect(refresh).toHaveBeenCalledWith("user-1:org-1", {})
 	})
 
 	it("uses a stable signed-out identity so startup refresh can settle", async () => {
@@ -90,7 +90,7 @@ describe("SDK remote-config coordination", () => {
 
 		await SdkController.prototype.refreshRemoteConfig.call(controller as never)
 
-		expect(refresh).toHaveBeenCalledWith("signed-out:no-org")
+		expect(refresh).toHaveBeenCalledWith("signed-out:no-org", {})
 	})
 
 	it("refreshes remote config after login before posting authenticated state", async () => {
@@ -150,6 +150,23 @@ describe("SDK remote-config coordination", () => {
 		const controller = {
 			waitForInitialRemoteConfig: vi.fn().mockResolvedValue(undefined),
 			refreshRemoteConfig: vi.fn().mockResolvedValue(false),
+			authService: { getActiveOrganizationId: () => null },
+			stateManager: { getGlobalStateKey: () => undefined },
+			remoteConfigBundle: undefined,
+		}
+
+		await expect(
+			SdkController.prototype["ensureRemoteConfigForSessionStart"].call(controller as never),
+		).resolves.toBeUndefined()
+		expect(telemetryService.captureRemoteConfigSessionGate).toHaveBeenCalledWith(
+			expect.objectContaining({ outcome: "unmanaged", managed: false }),
+		)
+	})
+
+	it("does not block unmanaged session start when the refresh rejects instead of returning false", async () => {
+		const controller = {
+			waitForInitialRemoteConfig: vi.fn().mockResolvedValue(undefined),
+			refreshRemoteConfig: vi.fn().mockRejectedValue(new Error("EACCES: permission denied")),
 			authService: { getActiveOrganizationId: () => null },
 			stateManager: { getGlobalStateKey: () => undefined },
 			remoteConfigBundle: undefined,

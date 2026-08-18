@@ -20,6 +20,7 @@ export interface SdkRemoteConfigControlPlaneController {
 	stateManager: {
 		setSecret(key: "remoteLiteLlmApiKey", value: string | undefined): unknown
 		getGlobalStateKey(key: "remoteRulesToggles" | "remoteWorkflowToggles" | "remoteSkillsToggles"): Record<string, boolean>
+		getGlobalStateKey(key: "lastManagedOrganizationId"): string | undefined
 	}
 }
 
@@ -235,12 +236,16 @@ export class SdkRemoteConfigControlPlane {
 
 		const response = await this.controller.accountService.fetchUserRemoteConfig()
 		if (response === undefined) {
-			// No auth token was available. A user with an active organization is
-			// signed in, so this is auth/network trouble (e.g. token refresh
-			// failed offline), not an org without config. Treating it as explicit
-			// no-config would wipe the enforced policy.
-			if (activeOrganizationId) {
-				throw new Error("Remote config discovery returned no response for the active organization")
+			// No auth token was available. An active organization means the user
+			// is signed in, so this is auth/network trouble (e.g. token refresh
+			// failed offline), not an org without config. The persisted marker
+			// covers the offline cold start where identity restore fails and BOTH
+			// token and org come back null: this install last ran under org
+			// policy, so reporting no-config here would wipe the policy — and the
+			// marker itself — permanently disarming the fail-closed session gate.
+			// A real sign-out clears the marker directly, so it never gets stuck.
+			if (activeOrganizationId || this.controller.stateManager.getGlobalStateKey("lastManagedOrganizationId")) {
+				throw new Error("Remote config discovery returned no response for a managed install")
 			}
 			return undefined
 		}
