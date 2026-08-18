@@ -679,6 +679,44 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(ctx.wsClients.has(approvalClient)).toBe(false);
 	});
 
+	it("serializes approval readiness updates and publishes the latest state", async () => {
+		const {
+			createSidecarContext,
+			initializeSessionManager,
+			syncSidecarApprovalReadiness,
+		} = await import("./context");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		updateCapabilitiesMock.mockReset();
+
+		let finishDisconnectedUpdate: (() => void) | undefined;
+		updateCapabilitiesMock
+			.mockImplementationOnce(
+				() =>
+					new Promise<void>((resolve) => {
+						finishDisconnectedUpdate = resolve;
+					}),
+			)
+			.mockResolvedValue(undefined);
+
+		const disconnected = syncSidecarApprovalReadiness(ctx);
+		await vi.waitFor(() =>
+			expect(updateCapabilitiesMock).toHaveBeenCalledWith([]),
+		);
+		ctx.wsClients.add({
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		});
+		const connected = syncSidecarApprovalReadiness(ctx);
+		expect(updateCapabilitiesMock).toHaveBeenCalledTimes(1);
+
+		finishDisconnectedUpdate?.();
+		await Promise.all([disconnected, connected]);
+		expect(updateCapabilitiesMock).toHaveBeenLastCalledWith([
+			expect.objectContaining({ name: "approval.respond" }),
+		]);
+	});
+
 	it("forwards Hub-owned task session approvals to the live desktop", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
