@@ -938,6 +938,7 @@ describe("ChatMessages follow-up questions", () => {
 						options: ["Continue", "Stop"],
 						question: "Continue this task?",
 						requestId: "request-1",
+						sessionId: "session-1",
 					},
 				],
 			},

@@ -6,6 +6,7 @@
 	"permissions": [
 		"core:default",
 		"core:window:allow-set-title",
-		"core:window:allow-start-dragging"
+		"core:window:allow-start-dragging",
+		"notification:default"
 	]
 }
