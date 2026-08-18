@@ -734,6 +734,10 @@ async function handleAttach(
 			? (session.metadata as JsonRecord)
 			: undefined;
 	const existing = ctx.liveSessions.get(sessionId);
+	// A live sidecar session has already seen run.started/run.completed and is
+	// more authoritative than Core's persisted `running` process status.
+	// Capture it before session.attach can emit a resident-process snapshot.
+	const attachedStatus = existing?.status ?? session.status;
 	if (ctx.hubClient) {
 		await ctx.hubClient.command("session.attach", { sessionId }, sessionId);
 	}
@@ -759,7 +763,7 @@ async function handleAttach(
 		createLiveSession(attachedConfig, {
 			messages: existing?.messages ?? [],
 			promptsInQueue: existing?.promptsInQueue ?? [],
-			status: session.status,
+			status: attachedStatus,
 			prompt:
 				session.prompt ||
 				(typeof metadata?.prompt === "string" ? metadata.prompt : undefined) ||
@@ -779,7 +783,7 @@ async function handleAttach(
 
 	return {
 		sessionId,
-		status: session.status,
+		status: attachedStatus,
 		provider: session.provider,
 		model: session.model,
 		cwd: session.cwd,

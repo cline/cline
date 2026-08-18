@@ -1015,6 +1015,35 @@ describe("first-send connection updates", () => {
 		}
 	});
 
+	it("preserves an idle fork status when Core reports its resident process as running", async () => {
+		const { ctx, sessionId } = createContext();
+		const existing = ctx.liveSessions.get(sessionId);
+		if (!existing) throw new Error("missing session");
+		existing.status = "idle";
+		existing.busy = false;
+		(ctx.sessionManager as unknown as { get: unknown }).get = vi.fn(
+			async () => ({
+				sessionId,
+				status: "running",
+				provider: "cline",
+				model: "anthropic/claude-sonnet-4.6",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+			}),
+		);
+
+		const result = (await handleChatSessionCommand(ctx, {
+			action: "attach",
+			sessionId,
+		})) as { status: string };
+
+		expect(result.status).toBe("idle");
+		expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+			status: "idle",
+			busy: false,
+		});
+	});
+
 	it("updates a changed connection before sending", async () => {
 		const { ctx, send, sessionId, updateSessionConnection } = createContext({
 			config: { ...baseConfig, reasoningEffort: "low" },

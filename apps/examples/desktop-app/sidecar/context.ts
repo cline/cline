@@ -872,7 +872,15 @@ export function handleHubLiveEvent(
 			);
 			return;
 		}
-		case "run.started":
+		case "run.started": {
+			const statusChanged = session.status !== "running";
+			session.status = "running";
+			session.busy = true;
+			if (statusChanged) {
+				sendEvent(ctx, "chat_session_status", { sessionId, status: "running" });
+			}
+			return;
+		}
 		case "session.attached":
 		case "session.updated": {
 			const payloadSession =
@@ -884,13 +892,23 @@ export function handleHubLiveEvent(
 			const runtimeStatus =
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
-					: event.event === "run.started"
-						? "running"
-						: session.status;
+					: session.status;
 			// Hub "pending" means the run is blocked on approval or otherwise
 			// still active. Desktop has no pending status, so expose it as running
 			// and keep later prompts on the queue path.
 			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			// Core's persisted `running` status also means the interactive runtime
+			// process is resident; it does not prove a model turn is active. Only
+			// run.started may move an already-idle attached session to running.
+			// This is especially important for an idle fork created from handoff
+			// history, which otherwise renders "Thinking" forever after attach.
+			if (
+				runtimeStatus === "running" &&
+				session.status !== "running" &&
+				session.config.executionTarget !== "cloud"
+			) {
+				return;
+			}
 			// Pods emit periodic session.updated snapshots; re-broadcasting an
 			// unchanged status marks the session unread in the sidebar every time.
 			const statusChanged = session.status !== status;
