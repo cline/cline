@@ -249,6 +249,37 @@ describe("createProviderConfigStore", () => {
 		expect(mocks.getModelsFile().providers.litellm?.models?.[modelId]).toBeUndefined()
 	})
 
+	it("prefers live LiteLLM catalog metadata when its model id overlaps the static registry", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "gpt-5.4"
+		const staticModelInfo: ModelInfo = {
+			name: "SDK fallback gpt-5.4",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 16_384,
+			supportsPromptCache: true,
+		}
+		const liveModelInfo: ModelInfo = {
+			name: "Private gpt-5.4 deployment",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+		mocks.setGeneratedModels("litellm", { [modelId]: staticModelInfo })
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toEqual(liveModelInfo)
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			modelInfoSource: "state",
+			baseModelInfo: liveModelInfo,
+			modelInfo: liveModelInfo,
+		})
+	})
+
 	it("keeps a LiteLLM max-input override ahead of cached catalog metadata without baking it into the base", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()

@@ -421,12 +421,27 @@ function resolveSelection(selection: ModelSelection, baseModelInfoHint?: BaseMod
 	const overrides = normalizeModelSelectionOverrides(
 		selection.overrides ?? readModelOverrides(selection.providerId, selection.modelId),
 	)
-	// Base resolution order: static SDK catalog, then host-resolved/persisted
-	// metadata for dynamic-list models the static catalog does not know, then
-	// provider-safe fallback defaults.
+	// A host catalog hint is the exact live entry the user selected, so it must
+	// win even when a private/dynamic provider reuses an id from the static SDK
+	// catalog. Persisted state is weaker: static metadata should supersede an
+	// older snapshot when no live catalog entry accompanies the commit.
 	const catalogModelInfo = readBaseModelInfoForProvider(selection.providerId, selection.modelId)
-	const baseModelInfo = catalogModelInfo ?? baseModelInfoHint?.modelInfo ?? fallbackModelInfo(selection.modelId)
-	const modelInfoSource = catalogModelInfo ? "catalog" : (baseModelInfoHint?.source ?? "fallback")
+	const liveCatalogHint = baseModelInfoHint?.source === "catalog" ? baseModelInfoHint.modelInfo : undefined
+	const stateModelInfoHint = baseModelInfoHint?.source === "state" ? baseModelInfoHint.modelInfo : undefined
+	// LiteLLM's catalog belongs to the configured self-hosted endpoint. Its
+	// persisted snapshot therefore remains authoritative after the live cache
+	// is gone, including when the endpoint reuses the built-in fallback model
+	// id. Other providers retain static-catalog-over-snapshot semantics so SDK
+	// catalog updates can refresh an existing selection.
+	const authoritativeStateHint = providerKey(selection.providerId) === "litellm" ? stateModelInfoHint : undefined
+	const baseModelInfo =
+		liveCatalogHint ??
+		authoritativeStateHint ??
+		catalogModelInfo ??
+		stateModelInfoHint ??
+		fallbackModelInfo(selection.modelId)
+	const modelInfoSource =
+		liveCatalogHint || (catalogModelInfo && !authoritativeStateHint) ? "catalog" : stateModelInfoHint ? "state" : "fallback"
 	return {
 		...selection,
 		overrides,

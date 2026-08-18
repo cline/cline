@@ -404,9 +404,10 @@ export interface ProviderConfigStore extends ProviderConfigReader {
 	 * Supplying overrides replaces that model's stored override entry; omitting
 	 * them leaves the existing entry unchanged.
 	 *
-	 * `baseModelInfoHint` is host-resolved catalog metadata for dynamic models
-	 * that are absent from the static SDK registry. It is not user-authored and
-	 * must never be persisted as an override.
+	 * `baseModelInfoHint` is the exact host-resolved catalog metadata selected
+	 * by the user. It is authoritative for that commit, including when a
+	 * private/dynamic provider reuses an id from the static SDK registry. It is
+	 * not user-authored and must never be persisted as an override.
 	 *
 	 * I2: refresh handlers do not have access to this method by type, since
 	 * `ProviderCatalog` holds only a `ProviderConfigReader`.
