@@ -807,7 +807,6 @@ type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
 	innerSessionId?: string;
-	handoffSourceSessionId?: string;
 	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
@@ -2386,14 +2385,10 @@ export class CloudSessionManager {
 		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
-			if (
-				options.handoffSeed &&
-				existing.innerSessionId &&
-				existing.handoffSourceSessionId !== options.handoffSeed.sourceSessionId
-			) {
-				throw new CloudSessionError(
-					"request_failed",
-					"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+			if (options.handoffSeed && existing.innerSessionId) {
+				await this.assertHandoffConnectionReusable(
+					existing,
+					options.handoffSeed,
 				);
 			}
 			if (options.createInner && !existing.innerSessionId) {
@@ -2404,15 +2399,10 @@ export class CloudSessionManager {
 		const pending = this.connectionPromises.get(outerSessionId);
 		if (pending) {
 			const connection = await pending;
-			if (
-				options.handoffSeed &&
-				connection.innerSessionId &&
-				connection.handoffSourceSessionId !==
-					options.handoffSeed.sourceSessionId
-			) {
-				throw new CloudSessionError(
-					"request_failed",
-					"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+			if (options.handoffSeed && connection.innerSessionId) {
+				await this.assertHandoffConnectionReusable(
+					connection,
+					options.handoffSeed,
 				);
 			}
 			if (options.createInner && !connection.innerSessionId) {
@@ -2517,8 +2507,6 @@ export class CloudSessionManager {
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
-					connection.handoffSourceSessionId =
-						sessionRowHandoffSourceSessionId(newest) || undefined;
 					const modelId = sessionRowModelId(newest);
 					if (modelId) this.applyModel(connection, modelId);
 					await this.ensureAttached(connection);
@@ -2552,6 +2540,27 @@ export class CloudSessionManager {
 		});
 		this.connectionPromises.set(outerSessionId, connecting);
 		return await connecting;
+	}
+
+	private async assertHandoffConnectionReusable(
+		connection: CloudConnection,
+		handoffSeed: CloudHandoffSeed,
+	): Promise<void> {
+		const listed = await connection.client.command("session.list", {
+			limit: 100,
+		});
+		const rows = readSessionRows(listed.payload);
+		const [only] = rows;
+		if (
+			rows.length !== 1 ||
+			String(only?.sessionId ?? "").trim() !== connection.innerSessionId ||
+			sessionRowHandoffSourceSessionId(only) !== handoffSeed.sourceSessionId
+		) {
+			throw new CloudSessionError(
+				"request_failed",
+				"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+			);
+		}
 	}
 
 	private async createInnerSession(
@@ -2643,7 +2652,6 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
 		connection.innerSessionId = innerSessionId;
-		connection.handoffSourceSessionId = handoffSeed?.sourceSessionId;
 		// Seeded content is authoritative only after a strict session.messages
 		// read-back verifies that the pod persisted initialMessages.
 		connection.transcriptKnown = !handoffSeed;

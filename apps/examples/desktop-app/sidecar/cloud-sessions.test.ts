@@ -2277,6 +2277,45 @@ describe("CloudSessionManager", () => {
 		).toBe(false);
 	});
 
+	it("revalidates all inner sessions before reusing a cached handoff connection", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [
+			{
+				sessionId: "inner-handoff",
+				metadata: { handoff: { sourceSessionId: "local-1" } },
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.sessionRows = [
+			{
+				sessionId: "inner-handoff",
+				metadata: { handoff: { sourceSessionId: "local-1" } },
+			},
+			{
+				sessionId: "inner-sibling",
+				metadata: { handoff: { sourceSessionId: "another-local" } },
+			},
+		];
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-1",
+				messages: [{ role: "user", content: "continue" }],
+			}),
+		).rejects.toThrow("already contains another conversation");
+		expect(
+			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
+	});
+
 	it("updates the cloud model before sending and skips redundant updates", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
