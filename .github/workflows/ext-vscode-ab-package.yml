@@ -23,11 +23,6 @@ on:
                 required: true
                 default: "main"
                 type: string
-            legacy-ref:
-                description: "Ref to build the legacy bundle from"
-                required: true
-                default: "legacy-extension"
-                type: string
             publish:
                 description: "Publish to the VS Code Marketplace and Open VSX (unchecked: just build the .vsix artifact)"
                 required: true
@@ -130,18 +125,26 @@ jobs:
         name: Test legacy bundle
         runs-on: ubuntu-latest
         # The tested revision, exported so the build job builds EXACTLY what
-        # this suite ran against. legacy-ref is a mutable branch name and the
-        # build job starts later — re-resolving the name there could pick up
-        # commits this gate never saw.
+        # this suite ran against. legacy-extension is a mutable branch name and
+        # the build job starts later — re-resolving the name there could pick
+        # up commits this gate never saw.
         outputs:
             tested-sha: ${{ steps.rev.outputs.sha }}
         defaults:
             run:
                 working-directory: apps/vscode
         steps:
+            # Always the protected legacy-extension branch — deliberately not
+            # an input. An arbitrary ref here would be built into the published
+            # VSIX by the environment-less build job, and the publish
+            # environment approver only ever sees an opaque prebuilt artifact:
+            # the approval would protect the marketplace PAT but not the
+            # shipped bytes. Hardcoding the branch makes its protection rules
+            # load-bearing for releases. Legacy hotfix testing has its own
+            # workflow (ext-vscode-publish-legacy.yml).
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.legacy-ref }}
+                  ref: legacy-extension
 
             - name: Record tested revision
               id: rev

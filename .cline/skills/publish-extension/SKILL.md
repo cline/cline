@@ -93,7 +93,9 @@ Release prep on `main` (PR, not direct push):
 
 ```bash
 gh workflow run ext-vscode-ab-package.yml --ref main \
-  -f version=<VERSION> -f next-ref=main -f legacy-ref=legacy-extension -f publish=true
+  -f version=<VERSION> -f next-ref=main -f publish=true
+# (the legacy bundle always builds from the protected legacy-extension branch;
+# it is deliberately not an input)
 # publish=false builds an installable .vsix artifact without publishing and
 # needs NO environment approval — the ungated build job uploads the artifact
 # and the run completes.
