@@ -20,7 +20,12 @@ import {
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	formatUserCommandBlock,
+	normalizeUserInput,
+	stripModeNotices,
+} from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -643,6 +648,34 @@ function getSessionManager(ctx: SidecarContext): ClineCore {
 }
 
 /**
+ * Mirrors the runtime's deriveTitleFromPrompt: the title it auto-assigns to
+ * an untitled session from the prompt it receives (the expanded one).
+ */
+function autoDerivedTitleFor(prompt: string): string | undefined {
+	const normalized = stripModeNotices(normalizeUserInput(prompt)).trim();
+	return normalized.split("\n")[0]?.trim().slice(0, 120) || undefined;
+}
+
+/**
+ * Whether the typed-command title may replace the session's current title.
+ * The untitled check happens before dispatch and the user can rename the
+ * session while the turn runs; only a missing title or the one the runtime
+ * auto-derived from the expanded prompt may be replaced — a rename wins.
+ */
+export function shouldReplaceSessionTitle(options: {
+	currentTitle?: string;
+	typedTitle: string;
+	autoDerivedTitle?: string;
+}): boolean {
+	const current = options.currentTitle?.trim();
+	return (
+		!current ||
+		current === options.autoDerivedTitle ||
+		current === options.typedTitle
+	);
+}
+
+/**
  * Best-effort: title an untitled session from the typed prompt so a slash
  * command session isn't titled with the first line of the expanded
  * instructions (e.g. the skill markdown heading).
@@ -651,12 +684,25 @@ async function applyTypedPromptTitle(
 	ctx: SidecarContext,
 	sessionId: string,
 	typedPrompt: string,
+	runtimePrompt: string,
 ): Promise<void> {
 	const title = normalizeSessionTitle(typedPrompt)
 		?.split("\n")[0]
 		?.trim()
 		.slice(0, 120);
 	if (!title) {
+		return;
+	}
+	const currentTitle =
+		ctx.liveSessions.get(sessionId)?.title?.trim() ||
+		readSessionMetadataTitle(sessionId);
+	if (
+		!shouldReplaceSessionTitle({
+			currentTitle,
+			typedTitle: title,
+			autoDerivedTitle: autoDerivedTitleFor(runtimePrompt),
+		})
+	) {
 		return;
 	}
 	try {
@@ -1039,7 +1085,7 @@ async function handleSend(
 			// Set before the queued prompt runs so the runtime's own title
 			// derivation (existing title wins) never sees a missing title.
 			if (needsTypedPromptTitle) {
-				await applyTypedPromptTitle(ctx, sessionId, prompt);
+				await applyTypedPromptTitle(ctx, sessionId, prompt, runtimePrompt);
 			}
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
@@ -1107,7 +1153,7 @@ async function handleSend(
 		if (needsTypedPromptTitle) {
 			// After the turn: a fresh session's row only exists once the send
 			// ran, and the runtime has titled it from the expanded prompt.
-			await applyTypedPromptTitle(ctx, sessionId, prompt);
+			await applyTypedPromptTitle(ctx, sessionId, prompt, runtimePrompt);
 		}
 		if (session && ownsBusyState) {
 			session.status = "idle";

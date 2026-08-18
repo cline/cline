@@ -18,6 +18,7 @@ import {
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	rewriteDesktopTeamPrompt,
+	shouldReplaceSessionTitle,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
@@ -1498,6 +1499,39 @@ Follow the desktop send skill instructions.`,
 				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
 		expect(response.prompt?.prompt).toBe("/team inspect the app");
+	});
+
+	it("only replaces missing or runtime-derived titles with the typed command", () => {
+		const typedTitle = "/desktop-send-skill write the docs";
+		const autoDerivedTitle = "Follow the desktop send skill instructions.";
+
+		// Untitled session, or still carrying the runtime's auto-derived title.
+		expect(shouldReplaceSessionTitle({ typedTitle, autoDerivedTitle })).toBe(
+			true,
+		);
+		expect(
+			shouldReplaceSessionTitle({
+				currentTitle: autoDerivedTitle,
+				typedTitle,
+				autoDerivedTitle,
+			}),
+		).toBe(true);
+		expect(
+			shouldReplaceSessionTitle({
+				currentTitle: typedTitle,
+				typedTitle,
+				autoDerivedTitle,
+			}),
+		).toBe(true);
+
+		// A rename made while the turn was running must win.
+		expect(
+			shouldReplaceSessionTitle({
+				currentTitle: "My custom session name",
+				typedTitle,
+				autoDerivedTitle,
+			}),
+		).toBe(false);
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {

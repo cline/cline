@@ -122,6 +122,13 @@ async function loadInvertibleCommands(
  * command expansion back to the typed `/command remainder` form. Text that
  * does not start with a configured command's instructions is returned
  * unchanged, including when command discovery fails.
+ *
+ * Known trade-off: a message the user hand-typed with a command's exact
+ * instructions as its prefix persists byte-identically to that command's
+ * expansion, so it collapses to the `/command` form too. The two are
+ * indistinguishable from stored history alone (the model received the same
+ * text either way), and the collapsed form still names the instructions the
+ * message carried.
  */
 export async function createSlashCommandDisplayInverter(
 	workspacePath: string | undefined,
