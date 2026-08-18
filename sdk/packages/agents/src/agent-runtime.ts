@@ -1107,7 +1107,7 @@ export class AgentRuntime {
 			// surfaced by the run's own failure path, so no notice here.
 			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 				phase: "failed",
-				eventType: this.isAbortError(error) ? "aborted" : "retry_threw",
+				eventType: this.isRunStopError(error) ? "aborted" : "retry_threw",
 			});
 			throw error;
 		}
@@ -1135,7 +1135,7 @@ export class AgentRuntime {
 		} catch (error) {
 			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 				phase: "failed",
-				eventType: this.isAbortError(error) ? "aborted" : "notice_threw",
+				eventType: this.isRunStopError(error) ? "aborted" : "notice_threw",
 			});
 			throw error;
 		}
@@ -1618,6 +1618,15 @@ export class AgentRuntime {
 			error instanceof AgentRuntimeAbortError ||
 			this.abortController?.signal.aborted === true
 		);
+	}
+
+	/**
+	 * True for errors the run loop classifies as an aborted run rather than a
+	 * failure: user aborts and hook-initiated controlled stops. Mirrors the
+	 * `isAborted` classification in `run()`'s catch.
+	 */
+	private isRunStopError(error: unknown): boolean {
+		return error instanceof ControlledStopError || this.isAbortError(error);
 	}
 
 	private captureUnexpectedReasoningTokens(
