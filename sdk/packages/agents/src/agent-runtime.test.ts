@@ -107,6 +107,79 @@ describe("AgentRuntime", () => {
 		expect(model.requests).toHaveLength(1);
 	});
 
+	it("persists generated images in assistant message content", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a lighthouse");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				},
+			],
+		});
+	});
+
+	it("preserves generated media in exact text/media/text order", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "Before" },
+				{
+					type: "media",
+					media: {
+						id: "generated-middle",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				},
+				{ type: "text-delta", text: "After" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw between two captions");
+
+		expect(result.messages.at(-1)?.content).toEqual([
+			{ type: "text", text: "Before" },
+			{
+				type: "media",
+				media: {
+					id: "generated-middle",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+			{ type: "text", text: "After" },
+		]);
+	});
+
 	it("streams and persists model-tool activity without local execution", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -151,6 +224,65 @@ describe("AgentRuntime", () => {
 		});
 		expect(eventTypes).toContain("tool-started");
 		expect(eventTypes).toContain("tool-finished");
+	});
+
+	it("stores generated model-tool media once and keeps activity metadata compact", async () => {
+		const data = "aGVsbG8=";
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "image_1",
+					toolName: "image_generation",
+					execution: "provider",
+					input: { prompt: "Draw a bee" },
+				},
+				{
+					type: "media",
+					media: {
+						id: "generated-image",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data },
+						sizeBytes: 5,
+					},
+				},
+				{
+					type: "tool-result",
+					toolCallId: "image_1",
+					toolName: "image_generation",
+					execution: "provider",
+					input: { prompt: "Draw a bee" },
+					output: {
+						generatedMediaCount: 1,
+						mediaTypes: ["image/png"],
+						byteLength: 5,
+					},
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a bee");
+		const assistant = result.messages.at(-1);
+
+		expect(assistant?.metadata).toEqual({
+			modelToolActivities: [
+				{
+					toolCallId: "image_1",
+					toolName: "image_generation",
+					execution: "provider",
+					input: { prompt: "Draw a bee" },
+					output: {
+						generatedMediaCount: 1,
+						mediaTypes: ["image/png"],
+						byteLength: 5,
+					},
+				},
+			],
+		});
+		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
 	});
 
 	it("fails a turn that hits the model output token limit before completion", async () => {
@@ -420,13 +552,21 @@ describe("AgentRuntime", () => {
 		expect(result.messages[0]?.role).toBe("user");
 	});
 
-	it("treats a file-only model turn as content, assembling images onto the message", async () => {
+	it("treats a media-only model turn as content", async () => {
 		// A model that answers with only a generated file (e.g. an
 		// image-output model) must not fail as "Model returned empty
 		// response" — the file event is assembled into the assistant message.
 		const model = new ScriptedModel([
 			() => [
-				{ type: "file", data: "aGVsbG8=", mediaType: "image/png" },
+				{
+					type: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				},
 				{ type: "finish", reason: "stop" },
 			],
 		]);
@@ -439,15 +579,31 @@ describe("AgentRuntime", () => {
 			(message) => message.role === "assistant",
 		);
 		expect(assistant?.content).toEqual([
-			{ type: "image", image: "aGVsbG8=", mediaType: "image/png" },
+			{
+				type: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
 		]);
 	});
 
-	it("preserves non-image generated files as file parts", async () => {
+	it("preserves non-image generated files as media parts", async () => {
 		const model = new ScriptedModel([
 			() => [
 				{ type: "text-delta", text: "Here you go." },
-				{ type: "file", data: "UERGLWRhdGE=", mediaType: "application/pdf" },
+				{
+					type: "media",
+					media: {
+						id: "generated-pdf",
+						modality: "file",
+						mediaType: "application/pdf",
+						source: { type: "base64", data: "UERGLWRhdGE=" },
+					},
+				},
 				{ type: "finish", reason: "stop" },
 			],
 		]);
@@ -462,9 +618,13 @@ describe("AgentRuntime", () => {
 		expect(assistant?.content).toEqual([
 			{ type: "text", text: "Here you go." },
 			{
-				type: "file",
-				path: "model-generated-file-2",
-				content: "UERGLWRhdGE=",
+				type: "media",
+				media: {
+					id: "generated-pdf",
+					modality: "file",
+					mediaType: "application/pdf",
+					source: { type: "base64", data: "UERGLWRhdGE=" },
+				},
 			},
 		]);
 	});

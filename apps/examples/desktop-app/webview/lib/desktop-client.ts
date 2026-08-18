@@ -1,6 +1,7 @@
 "use client";
 
 import type {
+	DesktopDebugLogPayload,
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -134,11 +135,73 @@ function finiteReportNumber(value: unknown): number | undefined {
 const REQUEST_TIMEOUT_MS = 120_000;
 const RECONNECT_BASE_DELAY_MS = 400;
 const RECONNECT_MAX_DELAY_MS = 4_000;
+const DESKTOP_DEBUG_LOG_EVENT = "desktop_debug_log";
 // Commands that should be routed to Tauri's native invoke bridge instead of
 // the WebSocket transport — only applicable in the full Tauri app shell.
 // In sidecar/web mode these commands are handled by the sidecar over WebSocket.
 export function isTauriAvailable(): boolean {
 	return typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseDesktopDebugLogPayload(
+	payload: unknown,
+): DesktopDebugLogPayload | null {
+	if (!isRecord(payload)) return null;
+	const { level, message, metadata, scope, timestamp } = payload;
+	if (
+		(level !== "debug" && level !== "info" && level !== "error") ||
+		typeof message !== "string" ||
+		typeof scope !== "string" ||
+		typeof timestamp !== "string"
+	) {
+		return null;
+	}
+	return {
+		level,
+		message,
+		scope,
+		timestamp,
+		metadata: isRecord(metadata) ? metadata : undefined,
+	};
+}
+
+function webviewDebugLoggingEnabled(): boolean {
+	let runtimeEnabled = false;
+	try {
+		runtimeEnabled =
+			typeof window !== "undefined" &&
+			window.localStorage.getItem("cline.debugLogs") === "1";
+	} catch {
+		// Some embedded/privacy contexts deny localStorage access.
+	}
+	return (
+		process.env.NODE_ENV !== "production" ||
+		process.env.NEXT_PUBLIC_CLINE_DEBUG_LOGS === "1" ||
+		runtimeEnabled
+	);
+}
+
+export function writeDesktopDebugLog(payload: unknown): void {
+	const entry = parseDesktopDebugLogPayload(payload);
+	if (!entry || !webviewDebugLoggingEnabled()) {
+		return;
+	}
+	const prefix = `[desktop:${entry.scope}] ${entry.message}`;
+	const details = {
+		timestamp: entry.timestamp,
+		...(entry.metadata ?? {}),
+	};
+	if (entry.level === "error") {
+		console.error("%s %o", prefix, details);
+	} else if (entry.level === "info") {
+		console.info("%s %o", prefix, details);
+	} else {
+		console.debug("%s %o", prefix, details);
+	}
 }
 
 const NATIVE_COMMANDS = new Set([
@@ -283,6 +346,9 @@ class DesktopClient {
 	}
 
 	private dispatchEvent(message: DesktopTransportEvent) {
+		if (message.event.name === DESKTOP_DEBUG_LOG_EVENT) {
+			writeDesktopDebugLog(message.event.payload);
+		}
 		const handlers = this.handlers.get(message.event.name);
 		if (!handlers || handlers.size === 0) {
 			return;

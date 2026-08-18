@@ -33,6 +33,12 @@ export {
 	shouldShowProviderUsageCost,
 } from "./providers/billing";
 export {
+	BUILTIN_MODEL_OPERATION_CAPABILITIES,
+	builtinProviderSupportsModelOperation,
+	providerManifestSupportsModelOperation,
+	resolveModelOperation,
+} from "./providers/model-operations";
+export {
 	type ModelToolSupportInput,
 	providerManifestSupportsModelTool,
 	supportsModelTool,

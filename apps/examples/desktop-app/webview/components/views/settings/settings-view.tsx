@@ -1,8 +1,10 @@
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -24,6 +26,7 @@ import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	invalidateProviderCatalogCache,
+	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
 import type {
@@ -31,6 +34,7 @@ import type {
 	ProviderCatalogResponse,
 	ProviderModelsResponse,
 	ProviderSettingsUpdate,
+	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import {
 	type HubAccent,
@@ -76,6 +80,7 @@ let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
 } | null = null;
+let voiceInputCache: VoiceInputSelection | undefined;
 
 // -----------------------------------------------------------
 // Component
@@ -113,6 +118,10 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
+	const [voiceInput, setVoiceInput] = useState<VoiceInputSelection | undefined>(
+		() => voiceInputCache,
+	);
+	const [voiceInputSaving, setVoiceInputSaving] = useState(false);
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -145,6 +154,7 @@ export function SettingsView({
 			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
 		) {
 			setProviders(providerCatalogCache.providers);
+			setVoiceInput(voiceInputCache);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return;
@@ -157,6 +167,8 @@ export function SettingsView({
 				"list_provider_catalog",
 			);
 			setProvidersWithCache(payload.providers);
+			voiceInputCache = payload.voiceInput;
+			setVoiceInput(payload.voiceInput);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -185,7 +197,7 @@ export function SettingsView({
 				baseUrl?: string;
 				configValues?: ProviderSettingsUpdate["configValues"];
 			},
-		) => {
+		): Promise<boolean> => {
 			try {
 				await desktopClient.invoke("save_provider_settings", {
 					provider: id,
@@ -196,9 +208,11 @@ export function SettingsView({
 						? toSettingsPatch(updates.configValues)
 						: undefined,
 				});
+				return true;
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
 				window.alert(`Failed to save provider settings for ${id}: ${message}`);
+				return false;
 			} finally {
 				// Keep the shared short-lived catalog cache (composer model
 				// selector, onboarding) in sync with the just-saved settings.
@@ -216,12 +230,45 @@ export function SettingsView({
 						return p;
 					}
 					const nextEnabled = !p.enabled;
-					void persistProviderSettings(id, { enabled: nextEnabled });
+					const clearsVoiceInput =
+						!nextEnabled && voiceInput?.providerId === id;
+					void persistProviderSettings(id, { enabled: nextEnabled }).then(
+						(saved) => {
+							if (saved && clearsVoiceInput) {
+								voiceInputCache = undefined;
+								setVoiceInput(undefined);
+								notifyVoiceInputSettingsChanged();
+							}
+						},
+					);
 					return { ...p, enabled: nextEnabled };
 				}),
 			);
 		},
-		[persistProviderSettings, setProvidersWithCache],
+		[persistProviderSettings, setProvidersWithCache, voiceInput],
+	);
+
+	const updateVoiceInput = useCallback(
+		async (selection: VoiceInputSelection | undefined) => {
+			setVoiceInputSaving(true);
+			try {
+				const result = await desktopClient.invoke<{
+					voiceInput?: VoiceInputSelection;
+				}>("save_voice_input_settings", {
+					provider: selection?.providerId,
+					model: selection?.modelId,
+				});
+				voiceInputCache = result.voiceInput;
+				setVoiceInput(result.voiceInput);
+				notifyVoiceInputSettingsChanged();
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				window.alert(`Failed to save voice input settings: ${message}`);
+			} finally {
+				setVoiceInputSaving(false);
+			}
+		},
+		[],
 	);
 
 	const updateProvider = useCallback(
@@ -415,9 +462,12 @@ export function SettingsView({
 				onAddProvider={openAddProvider}
 				onConfigure={openProviderDetail}
 				onToggle={toggleProvider}
+				onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
 				providers={providers}
 				selectedProviderId={selectedProvider.id}
 				variant="panel"
+				voiceInput={voiceInput}
+				voiceInputSaving={voiceInputSaving}
 			/>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
@@ -445,7 +495,10 @@ export function SettingsView({
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
 			onToggle={toggleProvider}
+			onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
 			providers={providers}
+			voiceInput={voiceInput}
+			voiceInputSaving={voiceInputSaving}
 		/>
 	);
 
@@ -535,8 +588,31 @@ function GeneralSettingsContent() {
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
 	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	const [appVersion, setAppVersion] = useState<string | null>(null);
 
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void desktopClient
+			.invoke<{ appVersion?: unknown }>("get_process_context")
+			.then((context) => {
+				if (cancelled) {
+					return;
+				}
+				const version =
+					typeof context?.appVersion === "string"
+						? context.appVersion.trim()
+						: "";
+				setAppVersion(version || null);
+			})
+			.catch(() => {
+				// Leave the About row versionless if the sidecar is unreachable.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
@@ -904,6 +980,26 @@ function GeneralSettingsContent() {
 						<RotateCcw className="size-3" />
 						Replay
 					</Button>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-sm text-muted-foreground">
+							{productNameForVersion(appVersion)}
+							{appVersion ? ` v${appVersion}` : ""}
+							{isBetaVersion(appVersion)
+								? " — beta builds install side by side with the stable app and update from the beta channel."
+								: ""}
+						</p>
+					</div>
+					{isBetaVersion(appVersion) ? (
+						<Badge
+							className="shrink-0 uppercase tracking-wide"
+							variant="secondary"
+						>
+							Beta
+						</Badge>
+					) : null}
 				</div>
 			</section>
 		</PageFrame>

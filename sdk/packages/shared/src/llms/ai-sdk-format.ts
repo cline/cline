@@ -3,6 +3,8 @@ import {
 	createMediaBudgetState,
 	DEFAULT_MAX_IMAGE_DECODED_BYTES,
 	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	type GeneratedMedia,
+	type GeneratedMediaModality,
 	IMAGE_OMITTED_PLACEHOLDER,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	imageBase64LengthForDecodedBytes,
@@ -49,6 +51,10 @@ export type AiSdkFormatterPart =
 			mediaType?: string;
 	  }
 	| {
+			type: "media";
+			media: GeneratedMedia;
+	  }
+	| {
 			type: "file";
 			path: string;
 			content: string;
@@ -75,6 +81,20 @@ export interface AiSdkFormatterMessage {
 
 export const EMPTY_CONTENT_TEXT = "ERROR: EMPTY CONTENT";
 const IMAGE_ATTACHED_TEXT = "[image attached]";
+const GENERATED_IMAGE_TEXT = "[generated image]";
+
+function generatedMediaText(modality: GeneratedMediaModality): string {
+	return `[generated ${modality}]`;
+}
+
+function generatedMediaUnavailableText(
+	media: GeneratedMedia,
+): AiSdkMessagePart {
+	return {
+		type: "text",
+		text: `[generated ${media.modality} unavailable to this model]`,
+	};
+}
 
 export type AiSdkMessagePart = Record<string, unknown>;
 export type AiSdkMessage = {
@@ -309,6 +329,59 @@ function toUserImagePart(
 	}
 
 	return userMediaPart(image.image, mediaType);
+}
+
+function supportsGeneratedMediaInput(
+	media: GeneratedMedia,
+	supportedInputModalities: readonly string[] | undefined,
+): boolean {
+	if (!supportedInputModalities) return true;
+	if (media.modality === "file") {
+		return (
+			media.mediaType === "application/pdf" &&
+			supportedInputModalities.includes("pdf")
+		);
+	}
+	return supportedInputModalities.includes(media.modality);
+}
+
+function toUserGeneratedMediaPart(
+	media: GeneratedMedia,
+	state: MediaBudgetState,
+	supportedInputModalities: readonly string[] | undefined,
+): AiSdkMessagePart {
+	if (!supportsGeneratedMediaInput(media, supportedInputModalities)) {
+		return generatedMediaUnavailableText(media);
+	}
+
+	if (media.modality === "image") {
+		if (media.source.type === "artifact") {
+			return generatedMediaUnavailableText(media);
+		}
+		return toUserImagePart(
+			{
+				type: "image",
+				image:
+					media.source.type === "url" ? media.source.url : media.source.data,
+				mediaType: media.mediaType,
+			},
+			state,
+		);
+	}
+
+	if (media.source.type === "artifact") {
+		return generatedMediaUnavailableText(media);
+	}
+	if (media.source.type === "url") {
+		const protocol = parseUrlProtocol(media.source.url);
+		if (protocol !== "http:" && protocol !== "https:" && protocol !== "data:") {
+			return generatedMediaUnavailableText(media);
+		}
+	}
+	return userMediaPart(
+		media.source.type === "url" ? media.source.url : media.source.data,
+		media.mediaType,
+	);
 }
 
 interface StripImagesOptions {
@@ -576,13 +649,33 @@ export function formatMessagesForAiSdk(
 		 * Defaults to true. The substitution happens here at request-build
 		 * time only — stored conversation history is never mutated.
 		 */
-		supportsImages?: boolean;
+		supportedInputModalities?: readonly string[];
 	},
 ): AiSdkMessage[] {
 	const toolCallArgKey = options?.assistantToolCallArgKey ?? "input";
-	const supportsImages = options?.supportsImages ?? true;
+	const supportedInputModalities = options?.supportedInputModalities;
+	const supportsImages =
+		!supportedInputModalities || supportedInputModalities.includes("image");
 	const result: AiSdkMessage[] = [];
 	const mediaState = createMediaBudgetState();
+	const pendingAssistantMedia: Array<
+		| Extract<AiSdkFormatterPart, { type: "image" }>
+		| Extract<AiSdkFormatterPart, { type: "media" }>
+	> = [];
+	const takePendingAssistantMedia = (): AiSdkMessagePart[] => {
+		const pending = pendingAssistantMedia.splice(0);
+		return pending.map((part) =>
+			part.type === "image"
+				? supportsImages
+					? toUserImagePart(part, mediaState)
+					: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER }
+				: toUserGeneratedMediaPart(
+						part.media,
+						mediaState,
+						supportedInputModalities,
+					),
+		);
+	};
 
 	if (
 		(typeof systemContent === "string" && systemContent.trim().length > 0) ||
@@ -601,6 +694,26 @@ export function formatMessagesForAiSdk(
 		const contentParts = message.content;
 
 		if (typeof contentParts === "string") {
+			const movedAssistantMedia =
+				message.role === "user" && pendingAssistantMedia.length > 0
+					? takePendingAssistantMedia()
+					: [];
+			if (movedAssistantMedia.length > 0) {
+				result.push({
+					role: message.role,
+					content: [
+						{
+							type: "text",
+							text:
+								contentParts.trim().length > 0
+									? sanitizeSurrogates(contentParts)
+									: EMPTY_CONTENT_TEXT,
+						},
+						...movedAssistantMedia,
+					],
+				});
+				continue;
+			}
 			if (contentParts.trim().length === 0) {
 				result.push({
 					role: message.role,
@@ -646,11 +759,42 @@ export function formatMessagesForAiSdk(
 					});
 					break;
 				case "image":
-					messageParts.push(
-						supportsImages
-							? toUserImagePart(part, mediaState)
-							: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
-					);
+					if (message.role === "assistant") {
+						// AI SDK ModelMessage only accepts generated media as an
+						// assistant `file` part, but common provider wire formats
+						// (including Anthropic and OpenAI chat) only accept images on
+						// user turns. Preserve the assistant output marker and move the
+						// validated image to the following user turn so vision models
+						// can reliably inspect generated images in conversation history.
+						pendingAssistantMedia.push(part);
+						messageParts.push({
+							type: "text",
+							text: GENERATED_IMAGE_TEXT,
+						});
+					} else {
+						messageParts.push(
+							supportsImages
+								? toUserImagePart(part, mediaState)
+								: { type: "text", text: IMAGE_UNSUPPORTED_PLACEHOLDER },
+						);
+					}
+					break;
+				case "media":
+					if (message.role === "assistant") {
+						pendingAssistantMedia.push(part);
+						messageParts.push({
+							type: "text",
+							text: generatedMediaText(part.media.modality),
+						});
+					} else {
+						messageParts.push(
+							toUserGeneratedMediaPart(
+								part.media,
+								mediaState,
+								supportedInputModalities,
+							),
+						);
+					}
 					break;
 				case "file":
 					messageParts.push({
@@ -691,6 +835,15 @@ export function formatMessagesForAiSdk(
 			}
 		}
 
+		const hasToolResults = toolResultParts.length > 0;
+		if (
+			message.role === "user" &&
+			!hasToolResults &&
+			pendingAssistantMedia.length > 0
+		) {
+			messageParts.push(...takePendingAssistantMedia());
+		}
+
 		// A message whose parts are all empty text is effectively empty: the AI SDK
 		// strips empty text parts before sending, and providers like Vercel reject
 		// the resulting `content: []` ("user message must have content").
@@ -708,13 +861,22 @@ export function formatMessagesForAiSdk(
 				text: EMPTY_CONTENT_TEXT,
 			});
 		}
-
 		if (messageParts.length > 0) {
 			pushAiSdkMessage(result, { role: message.role, content: messageParts });
 		}
-		if (toolResultParts.length > 0) {
+		if (hasToolResults) {
 			pushAiSdkMessage(result, { role: "tool", content: toolResultParts });
 		}
+	}
+
+	if (pendingAssistantMedia.length > 0) {
+		// Tool results must stay contiguous with their assistant tool calls. If
+		// there was no later user turn to receive generated images, append one
+		// synthetic user turn after the complete tool-result sequence.
+		pushAiSdkMessage(result, {
+			role: "user",
+			content: takePendingAssistantMedia(),
+		});
 	}
 
 	return result;

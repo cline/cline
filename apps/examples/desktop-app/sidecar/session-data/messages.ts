@@ -5,7 +5,11 @@ import {
 	projectSessionMessagesForDisplay,
 	resolveMessageDisplayRole,
 } from "@cline/core";
-import { type MessageWithMetadata, validateImageMedia } from "@cline/shared";
+import {
+	isGeneratedMedia,
+	type MessageWithMetadata,
+	validateImageMedia,
+} from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
@@ -380,11 +384,16 @@ export async function readSessionMessages(
 		// assistant answer. Give projected messages a stable chronological order
 		// even when they share the source timestamp: the webview sorts timestamp
 		// ties by id, which would otherwise put the answer before its tool card.
-		const createdAt =
+		let partCreatedAt =
 			previousCreatedAt === undefined
 				? storedCreatedAt
 				: Math.max(storedCreatedAt, previousCreatedAt + 1);
-		previousCreatedAt = createdAt;
+		const nextPartCreatedAt = () => {
+			const value = partCreatedAt;
+			partCreatedAt += 1;
+			previousCreatedAt = value;
+			return value;
+		};
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
@@ -445,7 +454,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
 			continue;
@@ -471,7 +480,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
 				// A persisted user message can project into more than one text
 				// segment around tool blocks. Only its first segment represents
 				// the run; later segments must not acquire a fallback ordinal in
@@ -505,7 +514,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
 						hookEventName: "history_tool_use",
@@ -548,7 +557,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt,
+						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
 							hookEventName: "history_tool_result",
@@ -579,6 +588,20 @@ export async function readSessionMessages(
 				}
 				continue;
 			}
+			if (blockType === "media" && isGeneratedMedia(record.media)) {
+				flushTextParts();
+				out.push({
+					id: `${messageIdBase}_media_${blockIdx}`,
+					sessionId,
+					role,
+					content: "",
+					media: [record.media],
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -599,7 +622,7 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});
 				textMeta = undefined;
@@ -625,7 +648,7 @@ export async function readSessionMessages(
 					content: "",
 					reasoning: reasoning || undefined,
 					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});
 				textMeta = undefined;

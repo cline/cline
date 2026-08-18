@@ -3,9 +3,9 @@ import { dirname } from "node:path";
 import {
 	type AgentConfig,
 	type AgentTool,
+	CONFIGURABLE_MODEL_TOOL_NAMES,
+	type ConfigurableModelToolName,
 	type ITelemetryService,
-	MODEL_TOOL_NAMES,
-	type ModelToolName,
 	type ModelToolSettings,
 } from "@cline/shared";
 import { resolveGlobalSettingsPath } from "@cline/shared/storage";
@@ -42,7 +42,7 @@ const GlobalCompactionStrategySchema = z
 
 const ModelToolSettingsSchema = z
 	.partialRecord(
-		z.enum(MODEL_TOOL_NAMES),
+		z.enum(CONFIGURABLE_MODEL_TOOL_NAMES),
 		z.object({ enabled: z.boolean() }).strip(),
 	)
 	.optional();
@@ -333,20 +333,22 @@ export function isToolDisabledGlobally(toolName: string): boolean {
 	return resolveDisabledToolNames().has(toolName);
 }
 
-function isModelToolName(value: string): value is ModelToolName {
-	return (MODEL_TOOL_NAMES as readonly string[]).includes(value);
+function isModelToolName(value: string): value is ConfigurableModelToolName {
+	return (CONFIGURABLE_MODEL_TOOL_NAMES as readonly string[]).includes(value);
 }
 
 export function resolveModelToolSettings(): ModelToolSettings {
 	return readGlobalSettings().tools ?? {};
 }
 
-export function isModelToolEnabledGlobally(name: ModelToolName): boolean {
+export function isModelToolEnabledGlobally(
+	name: ConfigurableModelToolName,
+): boolean {
 	return resolveModelToolSettings()[name]?.enabled === true;
 }
 
 export function setModelToolEnabledGlobally(
-	name: ModelToolName,
+	name: ConfigurableModelToolName,
 	enabled: boolean,
 ): void {
 	const settings = readGlobalSettings();

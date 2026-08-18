@@ -18,6 +18,7 @@ import {
 } from "@cline/shared";
 import { toAsyncIterable } from "./async";
 import { BUILTIN_PROVIDER_REGISTRATIONS } from "./builtins-runtime";
+import { providerManifestSupportsModelOperation } from "./model-operations";
 import { providerManifestSupportsModelTool } from "./model-tools";
 import { GatewayRegistry } from "./registry";
 import { isPositiveFiniteNumber } from "./utils";
@@ -307,6 +308,13 @@ export class DefaultGateway implements Gateway {
 			providerId: request.providerId,
 			modelId: request.modelId || undefined,
 		});
+		if (
+			!providerManifestSupportsModelOperation(resolved.provider, resolved.model)
+		) {
+			throw new Error(
+				`Provider "${resolved.provider.id}" does not support model "${resolved.model.id}" operation "${resolved.model.operation ?? "language"}" with its declared modalities.`,
+			);
+		}
 		const unsupportedModelTools = [
 			...new Set(
 				(request.modelTools ?? [])

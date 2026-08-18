@@ -1,10 +1,12 @@
 import { type AgentMode, projectSessionMessagesForDisplay } from "@cline/core";
 import {
 	formatDisplayUserInput,
+	type GeneratedMedia,
 	type MessageWithMetadata,
 	parseUserInputMode,
 } from "@cline/shared";
 import { ACT_MODE_CONTINUATION_PROMPT } from "../../runtime/interactive/mode";
+import { materializeGeneratedMedia } from "../../utils/generated-media";
 import { formatToolInput } from "../../utils/helpers";
 import type { ChatEntry } from "../types";
 
@@ -88,6 +90,39 @@ export function hydrateSessionMessages(
 		const userTextParts: string[] = [];
 
 		for (const block of msg.content) {
+			if (
+				msg.role === "assistant" &&
+				(block.type === "image" || block.type === "media")
+			) {
+				const media: GeneratedMedia =
+					block.type === "media"
+						? block.media
+						: {
+								id: `${msg.id ?? "history"}:media:${entries.length}`,
+								modality: "image",
+								mediaType: block.mediaType,
+								source: { type: "base64", data: block.data },
+							};
+				if (media.source.type !== "base64" || media.source.data.length > 0) {
+					const saved = materializeGeneratedMedia(media);
+					entries.push({
+						kind: "assistant_media",
+						modality: media.modality,
+						mediaType: media.mediaType,
+						byteLength: saved?.byteLength ?? media.sizeBytes ?? 0,
+						location:
+							saved?.path ??
+							(media.source.type === "url"
+								? media.source.url
+								: media.source.type === "artifact"
+									? `artifact:${media.source.artifactId}`
+									: undefined),
+						mode,
+					});
+				}
+				continue;
+			}
+
 			if (block.type === "text") {
 				if (msg.role === "user") {
 					userTextParts.push(block.text);

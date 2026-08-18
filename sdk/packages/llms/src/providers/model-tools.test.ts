@@ -31,16 +31,34 @@ describe("supportsModelTool", () => {
 		);
 	});
 
-	it("excludes known, default, and unregistered Claude routes from Vertex", () => {
+	it("offers OpenAI image generation to language models, not dedicated image operations", () => {
+		expect(
+			supportsModelTool(
+				{ providerId: "openai-native", modelId: "gpt-5.4" },
+				"image_generation",
+			),
+		).toBe(true);
+		expect(
+			supportsModelTool(
+				{ providerId: "openai-native", modelId: "gpt-image-2" },
+				"image_generation",
+			),
+		).toBe(false);
+		expect(
+			supportsModelTool(
+				{ providerId: "openai", modelId: "gpt-5.4" },
+				"image_generation",
+			),
+		).toBe(false);
+	});
+
+	it("excludes known and unregistered Claude routes from Vertex", () => {
 		expect(
 			supportsModelTool(
 				{ providerId: "vertex", modelId: "claude-sonnet-4-6" },
 				"web_search",
 			),
 		).toBe(false);
-		expect(supportsModelTool({ providerId: "vertex" }, "web_search")).toBe(
-			false,
-		);
 		expect(
 			supportsModelTool(
 				{ providerId: "vertex", modelId: "claude-custom" },
@@ -60,6 +78,31 @@ describe("supportsModelTool", () => {
 
 		expect(
 			providerManifestSupportsModelTool(manifest, "alpha", "web_search"),
+		).toBe(true);
+	});
+
+	it("falls back to the manifest default model when no model id is given", () => {
+		const manifest = {
+			id: "custom",
+			name: "Custom",
+			defaultModelId: "excluded",
+			models: [
+				{ id: "excluded", name: "Excluded", providerId: "custom" },
+				{ id: "allowed", name: "Allowed", providerId: "custom" },
+			],
+			modelToolCapabilities: [
+				{
+					name: "web_search",
+					excludeRoutes: [{ matcher: "model-id", modelId: "excluded" }],
+				},
+			],
+		} satisfies GatewayProviderManifest;
+
+		expect(
+			providerManifestSupportsModelTool(manifest, undefined, "web_search"),
+		).toBe(false);
+		expect(
+			providerManifestSupportsModelTool(manifest, "allowed", "web_search"),
 		).toBe(true);
 	});
 });

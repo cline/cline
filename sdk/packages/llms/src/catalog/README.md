@@ -8,6 +8,21 @@ generation scripts.
 This file documents the intended meaning of the token-limit fields and the
 boundary between catalog metadata and runtime request policy.
 
+## Audio Modalities
+
+Audio-capable entries retain models.dev's directional modality metadata:
+
+```text
+modalities.input   content accepted by the model
+modalities.output  content produced by the model
+```
+
+These directions are not interchangeable. A microphone transcription model
+accepts `audio` and produces `text`; a text-to-speech model accepts `text` and
+produces `audio`. Audio models are retained even when they do not support tool
+calling so non-chat surfaces can discover them. Chat model pickers must exclude
+utility models that do not accept and produce text.
+
 ## Source Fields
 
 `models.dev` exposes model limits under `limit`:
