@@ -161,11 +161,13 @@ fn running_sessions_text(running_sessions: u32) -> String {
     }
 }
 
-fn tray_tooltip_text(running_sessions: u32) -> String {
+// app_name is package_info().name (the configured productName), so beta
+// builds ("Cline Code Beta") identify themselves in the tooltip too.
+fn tray_tooltip_text(app_name: &str, running_sessions: u32) -> String {
     if running_sessions == 0 {
-        "Cline Code".to_string()
+        app_name.to_string()
     } else {
-        format!("Cline Code — {}", running_sessions_text(running_sessions))
+        format!("{app_name} — {}", running_sessions_text(running_sessions))
     }
 }
 
@@ -1033,7 +1035,13 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text(
             TRAY_OPEN_MENU_ID,
-            format!("Cline Code v{}", app.package_info().version),
+            // package_info().name is the configured productName, so beta
+            // builds ("Cline Code Beta") identify themselves in the tray too.
+            format!(
+                "{} v{}",
+                app.package_info().name,
+                app.package_info().version
+            ),
         )
         .item(&status)
         .separator()
@@ -1059,7 +1067,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let tray = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .icon(icon)
         .menu(&menu)
-        .tooltip(tray_tooltip_text(0));
+        .tooltip(tray_tooltip_text(app.package_info().name.as_str(), 0));
     #[cfg(target_os = "macos")]
     let tray = tray.icon_as_template(true);
 
@@ -1104,7 +1112,10 @@ fn set_tray_status(
         .set_text(running_sessions_text(running_sessions))
         .map_err(|error| format!("failed updating tray session count: {error}"))?;
     if let Some(tray) = app.tray_by_id(TRAY_ICON_ID) {
-        tray.set_tooltip(Some(tray_tooltip_text(running_sessions)))
+        tray.set_tooltip(Some(tray_tooltip_text(
+            app.package_info().name.as_str(),
+            running_sessions,
+        )))
             .map_err(|error| format!("failed updating tray tooltip: {error}"))?;
         tray.set_title(tray_badge_text(running_sessions))
             .map_err(|error| format!("failed updating tray badge: {error}"))?;
@@ -1315,8 +1326,15 @@ mod tests {
         assert_eq!(running_sessions_text(0), "0 sessions running");
         assert_eq!(running_sessions_text(1), "1 session running");
         assert_eq!(running_sessions_text(3), "3 sessions running");
-        assert_eq!(tray_tooltip_text(0), "Cline Code");
-        assert_eq!(tray_tooltip_text(3), "Cline Code — 3 sessions running");
+        assert_eq!(tray_tooltip_text("Cline Code", 0), "Cline Code");
+        assert_eq!(
+            tray_tooltip_text("Cline Code", 3),
+            "Cline Code — 3 sessions running"
+        );
+        assert_eq!(
+            tray_tooltip_text("Cline Code Beta", 2),
+            "Cline Code Beta — 2 sessions running"
+        );
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
     }
