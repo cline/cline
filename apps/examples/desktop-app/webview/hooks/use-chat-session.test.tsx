@@ -1199,6 +1199,26 @@ describe("useChatSession", () => {
 		});
 	});
 
+	it("renders unrouted questions (no session ID) in the active session", async () => {
+		const unroutedQuestion = {
+			requestId: "question-unrouted",
+			sessionId: "",
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		const askQuestionHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "ask_question_requested",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(askQuestionHandler).toBeTypeOf("function");
+
+		await act(async () => {
+			askQuestionHandler?.(unroutedQuestion);
+		});
+
+		expect(current.pendingAskQuestions).toEqual([unroutedQuestion]);
+	});
+
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,

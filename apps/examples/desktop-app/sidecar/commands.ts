@@ -1243,8 +1243,13 @@ export async function handleCommand(
 	}
 	if (command === "poll_ask_questions") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		// Questions without an owning session (older hub daemons don't send a
+		// session ID in the tool context) surface in whichever session polls.
 		return Array.from(ctx.pendingQuestions.values())
-			.filter((question) => question.item.sessionId === sessionId)
+			.filter(
+				(question) =>
+					!question.item.sessionId || question.item.sessionId === sessionId,
+			)
 			.map((question) => question.item);
 	}
 	if (command === "respond_ask_question") {

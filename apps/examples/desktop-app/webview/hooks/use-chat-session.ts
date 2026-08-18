@@ -989,8 +989,10 @@ export function useChatSession() {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
+			// Questions without an owning session (older hub daemons don't send
+			// a session ID in the tool context) render in the active session.
 			if (
-				item.sessionId !== activeSessionIdRef.current ||
+				(item.sessionId && item.sessionId !== activeSessionIdRef.current) ||
 				!item.requestId ||
 				!item.question ||
 				!Array.isArray(item.options)

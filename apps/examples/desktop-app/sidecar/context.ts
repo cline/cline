@@ -581,12 +581,13 @@ export function requestSidecarAskQuestion(
 	options: string[],
 	context: AgentToolContext,
 ): Promise<string> {
-	const sessionId = context.sessionId?.trim();
-	if (!sessionId) {
-		return Promise.reject(
-			new Error("ask_question requires an active session ID"),
-		);
-	}
+	// An older shared hub daemon (see watchManagedHubBuildMismatch) may not
+	// serialize sessionId into the tool context yet. Fall back to the
+	// conversation ID — mirroring the runtime's approval-context fallback —
+	// and otherwise degrade to an unrouted question (empty session ID) that
+	// renders in whichever session is active, rather than failing the tool.
+	const sessionId =
+		context.sessionId?.trim() || context.conversationId?.trim() || "";
 	const choices = options
 		.map((option) => option.trim())
 		.filter((option) => option.length > 0)

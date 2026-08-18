@@ -460,10 +460,49 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
-	it("rejects askQuestion requests without an owning session", async () => {
+	it("falls back to the conversation ID when the tool context has no session ID", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
 		);
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+
+		const capabilities = createCoreMock.mock.calls[0][0]
+			.capabilities as RuntimeCapabilities;
+		const answer = capabilities.toolExecutors?.askQuestion?.(
+			"Which branch?",
+			["Keep current", "Create new"],
+			{ agentId: "agent-1", conversationId: "conversation-1", iteration: 3 },
+		);
+
+		const event = readEvents(ctx).find(
+			(item) => item.event.name === "ask_question_requested",
+		);
+		expect(event?.event.payload).toMatchObject({
+			sessionId: "conversation-1",
+			question: "Which branch?",
+		});
+		const requestId = String(event?.event.payload.requestId ?? "");
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "conversation-1",
+			}),
+		).toEqual([expect.objectContaining({ requestId })]);
+
+		await handleCommand(ctx, "respond_ask_question", {
+			requestId,
+			answer: "Keep current",
+		});
+		await expect(answer).resolves.toBe("Keep current");
+	});
+
+	it("surfaces unrouted askQuestion requests to every session poll", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
 		const ctx = createSidecarContext("/workspace/project");
 		ctx.wsClients.add({ send: vi.fn() });
 		await initializeSessionManager(ctx);
@@ -476,14 +515,26 @@ describe("Code sidecar runtime capabilities", () => {
 			{ agentId: "agent-1", iteration: 3 },
 		);
 
-		await expect(answer).rejects.toThrow(
-			"ask_question requires an active session ID",
+		const event = readEvents(ctx).find(
+			(item) => item.event.name === "ask_question_requested",
 		);
+		expect(event?.event.payload).toMatchObject({
+			sessionId: "",
+			question: "Which branch?",
+		});
+		const requestId = String(event?.event.payload.requestId ?? "");
+		expect(requestId.length).toBeGreaterThan(0);
 		expect(
-			readEvents(ctx).some(
-				(message) => message.event.name === "ask_question_requested",
-			),
-		).toBe(false);
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "any-session",
+			}),
+		).toEqual([expect.objectContaining({ requestId, sessionId: "" })]);
+
+		await handleCommand(ctx, "respond_ask_question", {
+			requestId,
+			answer: "Create new",
+		});
+		await expect(answer).resolves.toBe("Create new");
 	});
 
 	it("resolves approval through websocket state", async () => {
