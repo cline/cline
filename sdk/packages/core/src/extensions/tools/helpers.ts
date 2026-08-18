@@ -50,12 +50,16 @@ export function withTimeout<T>(
 	ms: number,
 	message: string,
 ): Promise<T> {
+	// Clear the timer once the race settles: an orphaned timer keeps the Node
+	// event loop alive for the full duration, which matters now that the shell
+	// tool default is 1 hour (a one-shot process would otherwise linger).
+	let timer: NodeJS.Timeout | undefined;
 	return Promise.race([
 		promise,
 		new Promise<never>((_, reject) => {
-			setTimeout(() => reject(new TimeoutError(message, ms)), ms);
+			timer = setTimeout(() => reject(new TimeoutError(message, ms)), ms);
 		}),
-	]);
+	]).finally(() => clearTimeout(timer));
 }
 
 export function formatReadFileQuery(request: ReadFileRequest): string {
