@@ -15,6 +15,7 @@ import {
 	sharedSessionMessagesPath,
 	sharedSessionMessagesWritePath,
 } from "../paths";
+import { createSlashCommandDisplayInverter } from "../slash-command-display";
 import type { JsonRecord, SidecarContext } from "../types";
 import { readChildSessionMessages } from "./agents";
 import {
@@ -329,6 +330,27 @@ function readCheckpointEntriesByRunCount(
 	return entries;
 }
 
+function resolveSessionWorkspacePath(
+	ctx: Pick<SidecarContext, "liveSessions">,
+	sessionId: string,
+): string | undefined {
+	const config = ctx.liveSessions.get(sessionId)?.config;
+	const manifest = readSessionManifest(sessionId);
+	for (const candidate of [
+		config?.cwd,
+		config?.workspaceRoot,
+		config?.workspace_root,
+		manifest?.cwd,
+		manifest?.workspace_root,
+		manifest?.workspaceRoot,
+	]) {
+		if (typeof candidate === "string" && candidate.trim()) {
+			return candidate.trim();
+		}
+	}
+	return undefined;
+}
+
 export async function readSessionMessages(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
@@ -344,6 +366,11 @@ export async function readSessionMessages(
 		persisted && persisted.length > 0
 			? persisted
 			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+	// A user prompt sent as a slash command persists as its expanded
+	// instructions; project it back to the typed `/command` for display.
+	const invertUserText = await createSlashCommandDisplayInverter(
+		resolveSessionWorkspacePath(ctx, sessionId),
+	);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
@@ -453,7 +480,7 @@ export async function readSessionMessages(
 				id: messageIdBase,
 				sessionId,
 				role,
-				content,
+				content: role === "user" ? invertUserText(content) : content,
 				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
@@ -479,7 +506,7 @@ export async function readSessionMessages(
 				id: `${messageIdBase}_text_${textSegmentIndex}`,
 				sessionId,
 				role,
-				content: joined,
+				content: role === "user" ? invertUserText(joined) : joined,
 				createdAt: nextPartCreatedAt(),
 				// A persisted user message can project into more than one text
 				// segment around tool blocks. Only its first segment represents

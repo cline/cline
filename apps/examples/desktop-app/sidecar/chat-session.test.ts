@@ -1446,36 +1446,50 @@ Follow the desktop send skill instructions.`,
 		);
 		// The session's display prompt keeps the raw token.
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+		// The typed prompt is recorded so queue displays and queued-prompt
+		// events can echo it instead of the expanded instructions.
+		expect(
+			(
+				session as unknown as {
+					typedPromptByRuntimePrompt?: Map<string, string>;
+				}
+			).typedPromptByRuntimePrompt?.get(
+				"Follow the desktop send skill instructions. write the docs",
+			),
+		).toBe("/desktop-send-skill write the docs");
 	});
 
 	it("expands a skill command when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
-		await handleChatSessionCommand(ctx, {
+		const response = (await handleChatSessionCommand(ctx, {
 			action: "update_pending_prompt",
 			sessionId,
 			promptId: "queued-1",
 			prompt: "/desktop-send-skill later please",
-		});
+		})) as { prompt?: { prompt?: string } };
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
 			prompt: "Follow the desktop send skill instructions. later please",
 		});
+		// The runtime stores the expanded prompt, but the response echoes the
+		// typed command back for display.
+		expect(response.prompt?.prompt).toBe("/desktop-send-skill later please");
 	});
 
 	it("rewrites a team command when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
-		await handleChatSessionCommand(ctx, {
+		const response = (await handleChatSessionCommand(ctx, {
 			action: "update_pending_prompt",
 			sessionId,
 			promptId: "queued-team",
 			prompt: "/team inspect the app",
-		});
+		})) as { prompt?: { prompt?: string } };
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
@@ -1483,6 +1497,7 @@ Follow the desktop send skill instructions.`,
 			prompt:
 				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
+		expect(response.prompt?.prompt).toBe("/team inspect the app");
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {

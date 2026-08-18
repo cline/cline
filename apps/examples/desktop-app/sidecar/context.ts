@@ -23,6 +23,7 @@ import {
 	reconcileQueuedAttachments,
 } from "./attachments";
 import { sessionLogPath } from "./paths";
+import { displayPromptFor } from "./slash-command-display";
 import type {
 	LiveSession,
 	PendingAskQuestion,
@@ -384,7 +385,9 @@ function handleCoreSessionEvent(
 			const mapped: PromptInQueue[] = prompts
 				.map((item) => ({
 					id: item.id ?? "",
-					prompt: item.prompt ?? "",
+					// The runtime holds the expanded slash-command prompt; show
+					// the typed text the sidecar expanded it from.
+					prompt: displayPromptFor(session, item.prompt),
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
 					userImages: item.userImages,
@@ -422,7 +425,9 @@ function handleCoreSessionEvent(
 			markQueuedAttachmentsSubmitted(session, id);
 			emitQueuedPromptStart(ctx, sessionId, session, {
 				promptId: id,
-				prompt,
+				// Echo the typed text (the runtime consumed the expanded
+				// prompt) so the webview can match its optimistic bubble.
+				prompt: displayPromptFor(session, prompt),
 				attachmentCount: attachmentCount ?? 0,
 				userImages,
 			});

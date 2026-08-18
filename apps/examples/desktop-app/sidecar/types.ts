@@ -64,6 +64,11 @@ export type LiveSession = {
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
 	lastQueuedPromptStartId?: string;
+	/**
+	 * Typed prompt by the runtime prompt it was expanded/rewritten into
+	 * (slash commands), so queue displays echo what the user typed.
+	 */
+	typedPromptByRuntimePrompt?: Map<string, string>;
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
 };

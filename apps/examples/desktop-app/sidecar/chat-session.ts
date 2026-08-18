@@ -11,6 +11,7 @@ import {
 	getCoreBuiltinToolCatalog,
 	projectSessionCompactionState,
 	readGlobalSettings,
+	resolveSessionBackend,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -28,6 +29,8 @@ import {
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { normalizeSessionTitle } from "./session-data/common";
+import { displayPromptFor, recordTypedPrompt } from "./slash-command-display";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -597,10 +600,15 @@ function sendPromptsInQueueSnapshot(
 	});
 }
 
-function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
+function mapPendingPrompt(
+	session: LiveSession | undefined,
+	item: SessionPendingPrompt,
+): PromptInQueue {
 	return {
 		id: item.id,
-		prompt: item.prompt,
+		// Queued prompts are stored expanded (slash commands resolve before
+		// enqueueing); show the typed text the expansion came from.
+		prompt: displayPromptFor(session, item.prompt),
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
 		userImages: item.userImages,
@@ -612,8 +620,10 @@ function applyPendingPrompts(
 	sessionId: string,
 	prompts: SessionPendingPrompt[],
 ): PromptInQueue[] {
-	const mapped = prompts.map(mapPendingPrompt).filter((item) => item.id);
 	const session = ctx.liveSessions.get(sessionId);
+	const mapped = prompts
+		.map((item) => mapPendingPrompt(session, item))
+		.filter((item) => item.id);
 	if (session) {
 		session.promptsInQueue = mapped;
 	}
@@ -629,6 +639,40 @@ function applyPendingPrompts(
 function getSessionManager(ctx: SidecarContext): ClineCore {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
+}
+
+/**
+ * Best-effort: title an untitled session from the typed prompt so a slash
+ * command session isn't titled with the first line of the expanded
+ * instructions (e.g. the skill markdown heading).
+ */
+async function applyTypedPromptTitle(
+	ctx: SidecarContext,
+	sessionId: string,
+	typedPrompt: string,
+): Promise<void> {
+	const title = normalizeSessionTitle(typedPrompt)
+		?.split("\n")[0]
+		?.trim()
+		.slice(0, 120);
+	if (!title) {
+		return;
+	}
+	try {
+		const backend = await resolveSessionBackend({ backendMode: "local" });
+		const result = await backend.updateSession({ sessionId, title });
+		if (result.updated) {
+			const session = ctx.liveSessions.get(sessionId);
+			if (session) {
+				session.title = title;
+			}
+		}
+	} catch (error) {
+		ctx.logger?.debug("Failed to title session from typed prompt", {
+			sessionId,
+			error,
+		});
+	}
 }
 
 // ---------------------------------------------------------------------------
@@ -913,6 +957,13 @@ async function handleSend(
 		prompt,
 		request.config?.mode ?? session?.config?.mode,
 	);
+	recordTypedPrompt(session, runtimePrompt, prompt);
+	// The runtime derives a fresh session's title from the prompt it receives,
+	// which is the expanded instructions — pin the typed command instead.
+	const needsTypedPromptTitle =
+		runtimePrompt !== prompt &&
+		!session?.title?.trim() &&
+		!readSessionMetadataTitle(sessionId);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -984,6 +1035,11 @@ async function handleSend(
 				userImages: request.attachments?.userImages,
 				userFiles,
 			});
+			// Set before the queued prompt runs so the runtime's own title
+			// derivation (existing title wins) never sees a missing title.
+			if (needsTypedPromptTitle) {
+				await applyTypedPromptTitle(ctx, sessionId, prompt);
+			}
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
 			return {
@@ -999,7 +1055,7 @@ async function handleSend(
 				// prompts_in_queue_state here would resurrect a phantom queue
 				// entry for every connected webview.
 				promptsInQueue: prompts
-					.map(mapPendingPrompt)
+					.map((item) => mapPendingPrompt(session, item))
 					.filter((item) => item.id)
 					.map(({ id, prompt, steer, attachmentCount }) => ({
 						id,
@@ -1047,6 +1103,11 @@ async function handleSend(
 			finishReason: result?.finishReason,
 			textLength: result?.text?.length ?? 0,
 		});
+		if (needsTypedPromptTitle) {
+			// After the turn: a fresh session's row only exists once the send
+			// ran, and the runtime has titled it from the expanded prompt.
+			await applyTypedPromptTitle(ctx, sessionId, prompt);
+		}
 		if (session && ownsBusyState) {
 			session.status = "idle";
 			if (result?.messages) session.messages = result.messages;
@@ -1459,6 +1520,16 @@ async function handleSteerPrompt(
 	};
 }
 
+function mapOwnPendingPrompt(
+	ctx: SidecarContext,
+	sessionId: string,
+	prompt: SessionPendingPrompt | undefined,
+): PromptInQueue | undefined {
+	return prompt
+		? mapPendingPrompt(ctx.liveSessions.get(sessionId), prompt)
+		: undefined;
+}
+
 async function handleUpdatePendingPrompt(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1473,7 +1544,8 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
-	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
+	const session = ctx.liveSessions.get(sessionId);
+	const sessionConfig = session?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
 	const runtimePrompt = await resolveDesktopRuntimePrompt(
@@ -1482,6 +1554,7 @@ async function handleUpdatePendingPrompt(
 		prompt,
 		sessionConfig?.mode,
 	);
+	recordTypedPrompt(session, runtimePrompt, prompt);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
@@ -1490,7 +1563,7 @@ async function handleUpdatePendingPrompt(
 	return {
 		sessionId,
 		updated: result.updated === true,
-		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		prompt: mapOwnPendingPrompt(ctx, sessionId, result.prompt),
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
 	};
 }
@@ -1516,7 +1589,7 @@ async function handleRemovePendingPrompt(
 	return {
 		sessionId,
 		removed: result.removed === true,
-		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
+		prompt: mapOwnPendingPrompt(ctx, sessionId, result.prompt),
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
 	};
 }

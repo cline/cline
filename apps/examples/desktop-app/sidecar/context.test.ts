@@ -300,6 +300,80 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
+	it("echoes the typed prompt for expanded slash commands in queue events", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { recordTypedPrompt } = await import("./slash-command-display");
+		let onEvent: ((event: unknown) => void) | undefined;
+		createCoreMock.mockResolvedValue({
+			runtimeAddress: "ws://127.0.0.1:25463/hub",
+			subscribe: vi.fn((handler: (event: unknown) => void) => {
+				onEvent = handler;
+				return () => {};
+			}),
+			dispose: vi.fn(),
+		});
+
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+		const session = {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+		} satisfies LiveSession;
+		ctx.liveSessions.set("session-1", session);
+		recordTypedPrompt(
+			session,
+			"Follow the skill instructions. write the docs",
+			"/my-skill write the docs",
+		);
+
+		onEvent?.({
+			type: "pending_prompts",
+			payload: {
+				sessionId: "session-1",
+				prompts: [
+					{
+						id: "queued-1",
+						prompt: "Follow the skill instructions. write the docs",
+						delivery: "queue",
+					},
+				],
+			},
+		});
+		expect(session.promptsInQueue).toEqual([
+			expect.objectContaining({
+				id: "queued-1",
+				prompt: "/my-skill write the docs",
+			}),
+		]);
+
+		onEvent?.({
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "queued-1",
+				prompt: "Follow the skill instructions. write the docs",
+				attachmentCount: 0,
+			},
+		});
+		const start = readEvents(ctx).findLast(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_queued_prompt_start",
+		);
+		const chunk = JSON.parse(
+			String((start?.event.payload as { chunk?: string }).chunk ?? "{}"),
+		) as { prompt?: string };
+		expect(chunk.prompt).toBe("/my-skill write the docs");
+	});
+
 	it("relays generated media for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"
