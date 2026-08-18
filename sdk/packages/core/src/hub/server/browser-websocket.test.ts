@@ -94,7 +94,11 @@ describe("BrowserWebSocketHubAdapter", () => {
 			subscribe: vi.fn(),
 		};
 		const socket = createSocket();
-		new BrowserWebSocketHubAdapter(transport).attach(socket);
+		new BrowserWebSocketHubAdapter(
+			transport,
+			undefined,
+			"/server-workspace",
+		).attach(socket);
 
 		socket.emitMessage(
 			JSON.stringify({
@@ -133,8 +137,8 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command.mock.calls[1]?.[1]).toEqual({
 			clientId: "client-1",
 			workspaceContext: {
-				workspaceRoot: "/trusted",
-				cwd: "/trusted/project",
+				workspaceRoot: "/server-workspace",
+				cwd: "/server-workspace",
 			},
 		});
 

@@ -40,6 +40,11 @@ const policy: AgendaAutomationPolicy = {
 	updatedAt: "2026-08-13T00:00:00.000Z",
 };
 
+const AUTHORITY = {
+	clientId: "desktop",
+	workspaceContext: { workspaceRoot: "/repo", cwd: "/repo" },
+};
+
 function managerMock(): AgendaTaskManagerApi {
 	return {
 		createTask: vi.fn(async (input) =>
@@ -93,6 +98,7 @@ describe("HubAgendaTaskCommandService", () => {
 				expiresAt: "2026-08-20T00:00:00.000Z",
 				createdBy: { kind: "system", id: "spoofed" },
 			}),
+			AUTHORITY,
 		);
 
 		expect(reply.ok).toBe(true);
@@ -114,9 +120,11 @@ describe("HubAgendaTaskCommandService", () => {
 
 		const approved = await service.handleCommand(
 			envelope("task.approve", { taskId: "task_1", expectedRevision: 1 }),
+			AUTHORITY,
 		);
 		const started = await service.handleCommand(
 			envelope("task.run", { taskId: "task_1", expectedRevision: 1 }),
+			AUTHORITY,
 		);
 		const cancelled = await service.handleCommand(
 			envelope("task.cancel", {
@@ -124,6 +132,7 @@ describe("HubAgendaTaskCommandService", () => {
 				expectedRevision: 1,
 				reason: "No longer needed",
 			}),
+			AUTHORITY,
 		);
 
 		expect(approved.payload?.task).toMatchObject({ status: "approved" });
@@ -148,6 +157,26 @@ describe("HubAgendaTaskCommandService", () => {
 		);
 	});
 
+	it("rejects task access outside the Hub-authorized workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.get", { taskId: "task_1" }),
+			{
+				clientId: "desktop",
+				workspaceContext: { workspaceRoot: "/other-repo" },
+			},
+		);
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: {
+				code: "task_command_failed",
+				message: "task does not exist in this workspace",
+			},
+		});
+	});
+
 	it.each([
 		"task.approve",
 		"task.cancel",
@@ -157,6 +186,7 @@ describe("HubAgendaTaskCommandService", () => {
 		const service = new HubAgendaTaskCommandService(manager);
 		const reply = await service.handleCommand(
 			envelope(command, { taskId: "task_1" }),
+			AUTHORITY,
 		);
 
 		expect(reply).toMatchObject({
@@ -172,6 +202,7 @@ describe("HubAgendaTaskCommandService", () => {
 		const service = new HubAgendaTaskCommandService(managerMock());
 		const reply = await service.handleCommand(
 			envelope("task.automation.set", {}),
+			AUTHORITY,
 		);
 
 		expect(reply).toMatchObject({

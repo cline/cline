@@ -349,6 +349,7 @@ export async function startHubWebSocketServer(
 	const adapter = new BrowserWebSocketHubAdapter(
 		new NativeHubTransportAdapter(transport),
 		options.telemetry,
+		options.workspaceRoot,
 	);
 	const cleanup = new Set<() => void>();
 	const startedAt = new Date().toISOString();

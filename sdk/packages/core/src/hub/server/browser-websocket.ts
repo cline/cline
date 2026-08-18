@@ -59,6 +59,7 @@ export class BrowserWebSocketHubAdapter {
 	constructor(
 		private readonly transport: HubCommandTransport,
 		private readonly telemetry?: ITelemetryService,
+		private readonly workspaceRoot?: string,
 	) {}
 
 	attach(socket: BrowserHubSocketLike): () => void {
@@ -227,8 +228,11 @@ export class BrowserWebSocketHubAdapter {
 								registeredClientIds.add(clientId);
 								authority = {
 									clientId,
-									workspaceContext: registration.workspaceContext
-										? JSON.parse(JSON.stringify(registration.workspaceContext))
+									workspaceContext: this.workspaceRoot
+										? {
+												workspaceRoot: this.workspaceRoot,
+												cwd: this.workspaceRoot,
+											}
 										: undefined,
 								};
 							}

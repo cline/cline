@@ -573,7 +573,19 @@ export class HubServerTransport implements NativeHubTransport {
 		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		try {
-			const reply = await this.dispatchCommand(envelope, authority);
+			const clientId = envelope.clientId?.trim();
+			const effectiveAuthority =
+				authority ??
+				(this.options.workspaceRoot?.trim() && clientId
+					? {
+							clientId,
+							workspaceContext: {
+								workspaceRoot: this.options.workspaceRoot,
+								cwd: this.options.workspaceRoot,
+							},
+						}
+					: undefined);
+			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -594,7 +606,7 @@ export class HubServerTransport implements NativeHubTransport {
 		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		if (isAgendaTaskCommand(envelope.command)) {
-			return await this.taskCommands.handleCommand(envelope);
+			return await this.taskCommands.handleCommand(envelope, authority);
 		}
 		switch (envelope.command) {
 			case "client.register": {

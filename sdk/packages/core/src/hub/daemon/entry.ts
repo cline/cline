@@ -234,6 +234,7 @@ async function main(): Promise<void> {
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
+			workspaceRoot: options.cwd,
 			onShutdownRequested: () => {
 				void requestOrQueueShutdown({
 					reason: "authenticated HTTP shutdown request",

@@ -13,6 +13,8 @@ import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
 
 export interface HubWebSocketServerOptions {
+	/** Workspace authority established by the process that starts this Hub. */
+	workspaceRoot?: string;
 	host?: string;
 	port?: number;
 	pathname?: string;

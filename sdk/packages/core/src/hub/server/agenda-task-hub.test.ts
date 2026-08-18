@@ -102,6 +102,7 @@ describe("Hub agenda task vertical slice", () => {
 			};
 		});
 		const transport = new HubServerTransport({
+			workspaceRoot: canonicalChatWorkspace,
 			runtimeHandlers: {
 				startSession: vi.fn(),
 				sendSession: vi.fn(),
@@ -208,7 +209,7 @@ describe("Hub agenda task vertical slice", () => {
 					(extension) => extension.name === "hub-task-guidance",
 				),
 			).toBe(true);
-			expect(capturedStart?.config.workspaceRoot).toBeUndefined();
+			expect(capturedStart?.config.workspaceRoot).toBe(canonicalChatWorkspace);
 			expect(capturedStart?.toolPolicies).toMatchObject({
 				"*": { autoApprove: true, enabled: true },
 			});

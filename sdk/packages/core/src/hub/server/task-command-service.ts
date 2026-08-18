@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type {
 	AgendaAutomationPolicy,
 	AgendaTaskCreateInput,
@@ -8,6 +9,7 @@ import type {
 	HubReplyEnvelope,
 } from "@cline/shared";
 import type { AgendaTaskManagerApi } from "../../tasks/agenda-task-api";
+import type { HubConnectionAuthority } from "./command-transport";
 import { errorReply, okReply } from "./handlers/context";
 
 const TASK_COMMANDS = new Set<HubCommandName>([
@@ -51,7 +53,10 @@ function requiredRevision(payload: Record<string, unknown>): number {
 export class HubAgendaTaskCommandService {
 	constructor(private readonly tasks: AgendaTaskManagerApi) {}
 
-	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
+	async handleCommand(
+		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority,
+	): Promise<HubReplyEnvelope> {
 		const payload = payloadOf(envelope);
 		const actor = {
 			kind: "user" as const,
@@ -59,10 +64,14 @@ export class HubAgendaTaskCommandService {
 			clientId: envelope.clientId?.trim() || undefined,
 		};
 		try {
+			const workspaceRoot = this.resolveWorkspace(authority);
 			switch (envelope.command) {
 				case "task.create": {
 					const task = await this.tasks.createTask({
 						...(payload as unknown as AgendaTaskCreateInput),
+						scope: "workspace",
+						workspaceRoot,
+						cwd: workspaceRoot,
 						requiresApproval: false,
 						createdBy: actor,
 					});
@@ -70,22 +79,31 @@ export class HubAgendaTaskCommandService {
 				}
 				case "task.list":
 					return okReply(envelope, {
-						tasks: await this.tasks.listTasks(
-							payload as unknown as AgendaTaskListInput,
-						),
+						tasks: await this.tasks.listTasks({
+							...(payload as unknown as AgendaTaskListInput),
+							scope: "workspace",
+							workspaceRoot,
+						}),
 					});
-				case "task.get":
+				case "task.get": {
+					const task = await this.requireScopedTask(payload, workspaceRoot);
 					return okReply(envelope, {
-						task: await this.tasks.getTask(taskIdOf(payload)),
+						task,
 					});
+				}
 				case "task.update": {
+					await this.requireScopedTask(payload, workspaceRoot);
 					const task = await this.tasks.updateTask({
 						...(payload as unknown as AgendaTaskUpdateInput),
+						scope: "workspace",
+						workspaceRoot,
+						cwd: workspaceRoot,
 						updatedBy: actor,
 					});
 					return okReply(envelope, { task });
 				}
 				case "task.approve":
+					await this.requireScopedTask(payload, workspaceRoot);
 					return okReply(envelope, {
 						task: await this.tasks.approveTask(
 							taskIdOf(payload),
@@ -94,6 +112,7 @@ export class HubAgendaTaskCommandService {
 						),
 					});
 				case "task.cancel":
+					await this.requireScopedTask(payload, workspaceRoot);
 					return okReply(envelope, {
 						task: await this.tasks.cancelTask(
 							taskIdOf(payload),
@@ -103,6 +122,7 @@ export class HubAgendaTaskCommandService {
 						),
 					});
 				case "task.run": {
+					await this.requireScopedTask(payload, workspaceRoot);
 					const result = await this.tasks.runTask(
 						taskIdOf(payload),
 						actor,
@@ -143,5 +163,29 @@ export class HubAgendaTaskCommandService {
 				error instanceof Error ? error.message : String(error),
 			);
 		}
+	}
+
+	private resolveWorkspace(authority?: HubConnectionAuthority): string {
+		const workspaceRoot = authority?.workspaceContext?.workspaceRoot?.trim();
+		if (!authority?.clientId || !workspaceRoot) {
+			throw new Error("task commands require a Hub-authorized workspace");
+		}
+		return resolve(workspaceRoot);
+	}
+
+	private async requireScopedTask(
+		payload: Record<string, unknown>,
+		workspaceRoot: string,
+	) {
+		const task = await this.tasks.getTask(taskIdOf(payload));
+		if (
+			!task ||
+			task.scope !== "workspace" ||
+			!task.workspaceRoot ||
+			resolve(task.workspaceRoot) !== workspaceRoot
+		) {
+			throw new Error("task does not exist in this workspace");
+		}
+		return task;
 	}
 }
