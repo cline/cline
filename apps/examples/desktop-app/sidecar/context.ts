@@ -28,8 +28,10 @@ import type {
 	PendingAskQuestion,
 	PendingToolApproval,
 	PromptInQueue,
+	SessionRuntimeBinding,
 	SidecarContext,
 } from "./types";
+import { LOCAL_ENVIRONMENT_ID } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
 const hubClientInitialization = new WeakMap<
@@ -165,7 +167,7 @@ export function serializeQueuedPromptStart(input: {
 	});
 }
 
-function sendPromptsInQueueSnapshot(
+export function sendPromptsInQueueSnapshot(
 	ctx: SidecarContext,
 	sessionId: string,
 ): void {
@@ -501,13 +503,16 @@ export function createSidecarContext(
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot,
+		runtimeBindings: new Map(),
+		sessionEnvironmentIds: new Map(),
+		activeEnvironmentId: LOCAL_ENVIRONMENT_ID,
+		remoteEnvironments: null,
+		localWorkspaceRoot: workspaceRoot,
 		liveBotSessions: new Map(),
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		cloudSessionManager: null,
 		hubBuildMismatch: null,
 	};
 }
@@ -517,9 +522,7 @@ export async function disposeSidecarContext(
 	reason = "code_sidecar_shutdown",
 ): Promise<void> {
 	const cleanup: Array<Promise<unknown>> = [];
-
-	ctx.unsubscribeSessionEvents?.();
-	ctx.unsubscribeSessionEvents = null;
+	const approvalCleanup: Array<Promise<unknown>> = [];
 
 	for (const [sessionId, session] of ctx.liveSessions) {
 		discardAllTrackedAttachments(sessionId, session);
@@ -535,7 +538,21 @@ export async function disposeSidecarContext(
 	}
 	ctx.wsClients.clear();
 	for (const pending of ctx.pendingApprovals.values()) {
-		pending.resolve({ approved: false, reason });
+		// Cloud sessions outlive this app: denying their approvals on local
+		// shutdown would fail a tool call on a pod that keeps running and
+		// could otherwise be answered later (from here or another surface).
+		// Drop those entries locally and leave the remote approval pending.
+		if (ctx.cloudSessionManager?.isCloudSession(pending.item.sessionId)) {
+			continue;
+		}
+		try {
+			approvalCleanup.push(
+				Promise.resolve(pending.resolve({ approved: false, reason })),
+			);
+		} catch (error) {
+			// Keep disposing the remaining resources, then preserve the failure.
+			approvalCleanup.push(Promise.reject(error));
+		}
 	}
 	ctx.pendingApprovals.clear();
 	for (const pending of ctx.pendingQuestions.values()) {
@@ -543,20 +560,28 @@ export async function disposeSidecarContext(
 		pending.reject(new Error(reason));
 	}
 	ctx.pendingQuestions.clear();
+	// Approval callbacks may need the Hub/cloud clients that are disposed below.
+	const approvalResults = await Promise.allSettled(approvalCleanup);
 
-	const hubClient = ctx.hubClient;
-	ctx.hubClient = null;
-	if (hubClient) {
-		cleanup.push(hubClient.dispose());
+	const cloudSessionManager = ctx.cloudSessionManager;
+	ctx.cloudSessionManager = null;
+	if (cloudSessionManager) {
+		cleanup.push(cloudSessionManager.dispose());
 	}
 
-	const sessionManager = ctx.sessionManager;
-	ctx.sessionManager = null;
-	if (sessionManager) {
-		cleanup.push(sessionManager.dispose(reason));
+	for (const binding of ctx.runtimeBindings?.values() ?? []) {
+		binding.unsubscribeSessionEvents();
+		cleanup.push(binding.hubClient.dispose());
+		cleanup.push(binding.sessionManager.dispose(reason));
+	}
+	ctx.runtimeBindings?.clear();
+	ctx.sessionEnvironmentIds?.clear();
+	if (ctx.remoteEnvironments) {
+		cleanup.push(ctx.remoteEnvironments.dispose());
+		ctx.remoteEnvironments = null;
 	}
 
-	const results = await Promise.allSettled(cleanup);
+	const results = [...approvalResults, ...(await Promise.allSettled(cleanup))];
 	const firstFailure = results.find(
 		(result): result is PromiseRejectedResult => result.status === "rejected",
 	);
@@ -686,6 +711,7 @@ export function handleHubLiveEvent(
 		sessionId?: string;
 		payload?: Record<string, unknown>;
 	},
+	options: { relayRawAssistantText?: boolean } = {},
 ): void {
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
@@ -698,13 +724,23 @@ export function handleHubLiveEvent(
 
 	switch (event.event) {
 		case "assistant.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			if (text) {
-				emitChunk(ctx, sessionId, "chat_text", text);
+			if (options.relayRawAssistantText) {
+				const text =
+					typeof event.payload?.text === "string" ? event.payload.text : "";
+				if (text) emitChunk(ctx, sessionId, "chat_text", text);
 			}
 			return;
 		}
+		case "assistant.image":
+		case "assistant.video":
+		case "assistant.audio":
+		case "reasoning.delta":
+		case "tool.started":
+		case "tool.finished":
+			// HubRuntimeHost already projects these into the canonical Core event
+			// stream consumed by handleCoreSessionEvent. Relaying the raw Hub copy
+			// too duplicates assistant output and tool activity.
+			return;
 		case "assistant.media": {
 			const media = event.payload?.media;
 			if (isGeneratedMedia(media)) {
@@ -712,61 +748,84 @@ export function handleHubLiveEvent(
 			}
 			return;
 		}
-		case "reasoning.delta": {
-			const text =
-				typeof event.payload?.text === "string" ? event.payload.text : "";
-			const redacted = event.payload?.redacted === true;
-			if (!text && !redacted) {
+		case "usage.updated": {
+			const delta =
+				event.payload?.delta &&
+				typeof event.payload.delta === "object" &&
+				!Array.isArray(event.payload.delta)
+					? (event.payload.delta as Record<string, unknown>)
+					: {};
+			const totals =
+				event.payload?.totals &&
+				typeof event.payload.totals === "object" &&
+				!Array.isArray(event.payload.totals)
+					? (event.payload.totals as Record<string, unknown>)
+					: {};
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_usage",
+				JSON.stringify({
+					inputTokens: delta.inputTokens,
+					outputTokens: delta.outputTokens,
+					cacheReadTokens: delta.cacheReadTokens,
+					cacheWriteTokens: delta.cacheWriteTokens,
+					cost: delta.totalCost,
+					totalInputTokens: totals.inputTokens,
+					totalOutputTokens: totals.outputTokens,
+					totalCost: totals.totalCost,
+				}),
+			);
+			return;
+		}
+		case "session.pending_prompts": {
+			const items = Array.isArray(event.payload?.prompts)
+				? (event.payload.prompts as Array<Record<string, unknown>>)
+				: [];
+			const mapped: PromptInQueue[] = items
+				.map((item) => ({
+					id: typeof item.id === "string" ? item.id : "",
+					prompt: typeof item.prompt === "string" ? item.prompt : "",
+					steer: item.delivery === "steer",
+					attachmentCount:
+						typeof item.attachmentCount === "number" ? item.attachmentCount : 0,
+					userImages: Array.isArray(item.userImages)
+						? (item.userImages as string[])
+						: undefined,
+				}))
+				.filter((item) => item.id && (item.prompt || item.attachmentCount > 0));
+			reconcileQueuedAttachments(
+				session,
+				mapped.map((item) => item.id),
+			);
+			// No "head submitted" inference here, unlike the local queue-drain
+			// handler: the hub emits an explicit session.pending_prompt_submitted
+			// for real submissions, and a snapshot can also shrink because a
+			// prompt was REMOVED — inferring a start would render the deleted
+			// prompt in the transcript as if it had been sent.
+			session.promptsInQueue = mapped;
+			sendPromptsInQueueSnapshot(ctx, sessionId);
+			return;
+		}
+		case "session.pending_prompt_submitted": {
+			const item =
+				event.payload?.prompt && typeof event.payload.prompt === "object"
+					? (event.payload.prompt as Record<string, unknown>)
+					: undefined;
+			const promptId = typeof item?.id === "string" ? item.id : "";
+			if (!promptId) {
 				return;
 			}
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_reasoning",
-				JSON.stringify({ text, redacted }),
-			);
-			return;
-		}
-		case "tool.started": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_start",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					input: event.payload?.input,
-				}),
-			);
-			return;
-		}
-		case "tool.finished": {
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_tool_call_end",
-				JSON.stringify({
-					toolCallId:
-						typeof event.payload?.toolCallId === "string"
-							? event.payload.toolCallId
-							: undefined,
-					toolName:
-						typeof event.payload?.toolName === "string"
-							? event.payload.toolName
-							: "tool",
-					output: event.payload?.output,
-					error:
-						typeof event.payload?.error === "string"
-							? event.payload.error
-							: undefined,
-				}),
-			);
+			markQueuedAttachmentsSubmitted(session, promptId);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId,
+				prompt: typeof item?.prompt === "string" ? item.prompt : "",
+				attachmentCount:
+					typeof item?.attachmentCount === "number" ? item.attachmentCount : 0,
+				userImages: Array.isArray(item?.userImages)
+					? (item.userImages as string[])
+					: undefined,
+			});
 			return;
 		}
 		case "run.started":
@@ -778,20 +837,43 @@ export function handleHubLiveEvent(
 				!Array.isArray(event.payload.session)
 					? (event.payload.session as Record<string, unknown>)
 					: undefined;
-			const status =
+			const runtimeStatus =
 				typeof payloadSession?.status === "string"
 					? payloadSession.status
 					: event.event === "run.started"
 						? "running"
 						: session.status;
+			// Hub "pending" means the run is blocked on approval or otherwise
+			// still active. Desktop has no pending status, so expose it as running
+			// and keep later prompts on the queue path.
+			const status = runtimeStatus === "pending" ? "running" : runtimeStatus;
+			// Pods emit periodic session.updated snapshots; re-broadcasting an
+			// unchanged status marks the session unread in the sidebar every time.
+			const statusChanged = session.status !== status;
 			session.status = status;
 			session.busy = status === "running";
-			sendEvent(ctx, "chat_session_status", { sessionId, status });
+			if (statusChanged) {
+				sendEvent(ctx, "chat_session_status", { sessionId, status });
+			}
 			return;
 		}
 		case "run.completed":
 		case "run.failed":
 		case "run.aborted": {
+			// A failed run carries its reason in payload.error — surface it, or
+			// the user sees a silent no-op (e.g. "Insufficient balance").
+			const errorMessage =
+				event.event === "run.failed" && typeof event.payload?.error === "string"
+					? event.payload.error.trim()
+					: "";
+			if (errorMessage) {
+				emitChunk(
+					ctx,
+					sessionId,
+					"chat_core_log",
+					JSON.stringify({ level: "error", message: errorMessage }),
+				);
+			}
 			const reason =
 				typeof event.payload?.reason === "string"
 					? event.payload.reason
@@ -823,8 +905,8 @@ export async function initializeSessionManager(
 		telemetry: ctx.telemetry,
 		hub: {
 			strategy: "require-hub",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
 			displayName: "Code App sidecar",
 		},
@@ -835,24 +917,186 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
+	let hubClient: NodeHubClient;
 	try {
-		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+		hubClient = await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
 	} catch (error) {
 		unsubscribe();
 		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
 		throw error;
 	}
 
-	ctx.sessionManager = sessionManager;
-	ctx.unsubscribeSessionEvents = unsubscribe;
+	ctx.runtimeBindings.set(LOCAL_ENVIRONMENT_ID, {
+		environmentId: LOCAL_ENVIRONMENT_ID,
+		kind: "local",
+		workspaceRoot: ctx.localWorkspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+	});
+}
+
+export function getRuntimeBinding(
+	ctx: SidecarContext,
+	environmentId = ctx.activeEnvironmentId,
+): SessionRuntimeBinding {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	if (!binding) {
+		throw new Error(`Environment ${environmentId} is not connected.`);
+	}
+	return binding;
+}
+
+export function getSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId?: string,
+	requestedEnvironmentId?: string,
+): SessionRuntimeBinding {
+	const environmentId =
+		requestedEnvironmentId?.trim() ||
+		(sessionId ? ctx.liveSessions.get(sessionId)?.environmentId : undefined) ||
+		(sessionId ? ctx.sessionEnvironmentIds.get(sessionId) : undefined) ||
+		ctx.activeEnvironmentId;
+	return getRuntimeBinding(ctx, environmentId);
+}
+
+export async function findSessionRuntimeBinding(
+	ctx: SidecarContext,
+	sessionId: string,
+	preferredEnvironmentId?: string,
+): Promise<SessionRuntimeBinding | undefined> {
+	const knownEnvironmentId =
+		preferredEnvironmentId?.trim() ||
+		ctx.liveSessions.get(sessionId)?.environmentId ||
+		ctx.sessionEnvironmentIds.get(sessionId);
+	const candidates = [
+		...(knownEnvironmentId
+			? [ctx.runtimeBindings.get(knownEnvironmentId)]
+			: []),
+		...ctx.runtimeBindings.values(),
+	].filter(
+		(binding, index, all): binding is SessionRuntimeBinding =>
+			Boolean(binding) && all.indexOf(binding) === index,
+	);
+	for (const binding of candidates) {
+		try {
+			if (await binding.sessionManager.get(sessionId)) {
+				ctx.sessionEnvironmentIds.set(sessionId, binding.environmentId);
+				return binding;
+			}
+		} catch {
+			// A disconnected environment must not prevent another runtime from
+			// resolving the session.
+		}
+	}
+	return undefined;
+}
+
+async function disposeRuntimeBinding(
+	binding: SessionRuntimeBinding,
+	reason: string,
+): Promise<void> {
+	try {
+		binding.unsubscribeSessionEvents();
+	} catch {
+		// Continue disposing the Hub clients even if an event source has already
+		// torn down its subscription.
+	}
+	await Promise.allSettled([
+		binding.hubClient.dispose(),
+		binding.sessionManager.dispose(reason),
+	]);
+}
+
+export async function connectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	connection: NonNullable<SessionRuntimeBinding["remote"]>,
+): Promise<SessionRuntimeBinding> {
+	const environmentId = connection.profile.id;
+	const existing = ctx.runtimeBindings.get(environmentId);
+	const sessionManager = await ClineCore.create({
+		clientName: "cline-code",
+		backendMode: "remote",
+		capabilities: createSidecarRuntimeCapabilities(ctx),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
+		remote: {
+			endpoint: connection.endpoint,
+			authToken: connection.authToken,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+			clientType: "code-sidecar-ssh",
+			displayName: `Code App (${connection.profile.name})`,
+		},
+	});
+	let unsubscribe: (() => void) | undefined;
+	let hubClient: NodeHubClient | undefined;
+	try {
+		unsubscribe = sessionManager.subscribe((event: CoreSessionEvent) => {
+			handleCoreSessionEvent(ctx, event);
+		});
+		hubClient = new NodeHubClient({
+			url: connection.endpoint,
+			authToken: connection.authToken,
+			clientType: "code-sidecar-ssh-observer",
+			displayName: `Code App observer (${connection.profile.name})`,
+			workspaceRoot: connection.workspaceRoot,
+			cwd: connection.workspaceRoot,
+		});
+		await hubClient.connect();
+		hubClient.subscribe((event) => handleHubLiveEvent(ctx, event));
+	} catch (error) {
+		try {
+			unsubscribe?.();
+		} catch {
+			// Best effort; the failed runtime still needs to be disposed below.
+		}
+		const disposals: Promise<unknown>[] = [
+			sessionManager.dispose("code_sidecar_remote_initialization_failed"),
+		];
+		if (hubClient) disposals.push(hubClient.dispose());
+		await Promise.allSettled(disposals);
+		throw error;
+	}
+
+	const binding: SessionRuntimeBinding = {
+		environmentId,
+		kind: "ssh",
+		workspaceRoot: connection.workspaceRoot,
+		sessionManager,
+		hubClient,
+		unsubscribeSessionEvents: unsubscribe,
+		remote: connection,
+	};
+	ctx.runtimeBindings.set(environmentId, binding);
+	ctx.activeEnvironmentId = environmentId;
+	if (existing) {
+		await disposeRuntimeBinding(existing, "code_sidecar_remote_reconnect");
+	}
+	return binding;
+}
+
+export async function disconnectRemoteSessionRuntime(
+	ctx: SidecarContext,
+	environmentId: string,
+): Promise<void> {
+	const binding = ctx.runtimeBindings.get(environmentId);
+	if (binding?.kind === "ssh") {
+		ctx.runtimeBindings.delete(environmentId);
+		await disposeRuntimeBinding(binding, "code_sidecar_remote_disconnect");
+	}
+	if (ctx.activeEnvironmentId === environmentId) {
+		ctx.activeEnvironmentId = LOCAL_ENVIRONMENT_ID;
+	}
 }
 
 export async function ensureSharedHubClient(
 	ctx: SidecarContext,
 	preferredUrl?: string,
 ): Promise<NodeHubClient> {
-	if (ctx.hubClient) {
-		return ctx.hubClient;
+	const existing = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+	if (existing) {
+		return existing;
 	}
 	const pending = hubClientInitialization.get(ctx);
 	if (pending) {
@@ -864,8 +1108,8 @@ export async function ensureSharedHubClient(
 			preferredUrl?.trim() ||
 			(await ensureCompatibleLocalHubUrl({
 				strategy: "require-hub",
-				workspaceRoot: ctx.workspaceRoot,
-				cwd: ctx.workspaceRoot,
+				workspaceRoot: ctx.localWorkspaceRoot,
+				cwd: ctx.localWorkspaceRoot,
 			}));
 		if (!url) {
 			throw new Error("Unable to start or connect to the shared Cline Hub.");
@@ -875,15 +1119,14 @@ export async function ensureSharedHubClient(
 			url,
 			clientType: "code-sidecar-observer",
 			displayName: "Code App observer",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
+			workspaceRoot: ctx.localWorkspaceRoot,
+			cwd: ctx.localWorkspaceRoot,
 		});
 		try {
 			await client.connect();
 			client.subscribe((event) => {
 				handleHubLiveEvent(ctx, event);
 			});
-			ctx.hubClient = client;
 			return client;
 		} catch (error) {
 			await client.dispose().catch(() => undefined);

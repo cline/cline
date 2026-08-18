@@ -1,11 +1,17 @@
 import { isChatWorkspacePath } from "@cline/shared/browser";
 
 export const WORKSPACE_SELECTION_STORAGE_KEY =
-	"cline.code.workspace-selection.v1";
+	"cline.code.workspace-selection.v2";
+
+export const LOCAL_WORKSPACE_ENVIRONMENT_ID = "local";
 
 export type WorkspaceSelectionStorage = {
 	lastWorkspace: string;
 	workspaces: string[];
+};
+
+type WorkspaceSelectionStore = {
+	environments: Record<string, WorkspaceSelectionStorage>;
 };
 
 export type WorkspacePathSource = {
@@ -13,7 +19,15 @@ export type WorkspacePathSource = {
 	workspaceRoot?: string;
 	startedAt?: string;
 	endedAt?: string;
+	origin?: string;
+	environmentId?: string;
 };
+
+// Cloud sessions run in the sandbox's synthetic /workspace root — offering it
+// in the local workspace picker (or persisting it) would be meaningless.
+function isLocalWorkspaceSource(session: WorkspacePathSource): boolean {
+	return session.origin !== "cloud";
+}
 
 /** Typed/pasted folder paths in search boxes double as manual path entry. */
 export function looksLikeFolderPath(value: string): boolean {
@@ -143,10 +157,15 @@ export function filterWorkspacePaths(paths: readonly string[]): string[] {
  * the end.
  */
 export function workspacePathsFromSessions(
-	sessions: readonly WorkspacePathSource[],
+	allSessions: readonly WorkspacePathSource[],
+	environmentId?: string,
 ): string[] {
+	const sessions = allSessions.filter(isLocalWorkspaceSource);
+	const scopedSessions = environmentId
+		? sessions.filter((session) => session.environmentId === environmentId)
+		: sessions;
 	const lastActivityByPath = new Map<string, number>();
-	for (const session of sessions) {
+	for (const session of scopedSessions) {
 		const normalized = normalizeWorkspacePath(
 			session.workspaceRoot || session.cwd || "",
 		);
@@ -164,7 +183,9 @@ export function workspacePathsFromSessions(
 	}
 	return filterWorkspacePaths(
 		mergeWorkspacePaths(
-			sessions.map((session) => session.workspaceRoot || session.cwd || ""),
+			scopedSessions.map(
+				(session) => session.workspaceRoot || session.cwd || "",
+			),
 		),
 	).sort((a, b) => {
 		const aTime = lastActivityByPath.get(normalizeWorkspacePath(a)) ?? 0;
@@ -175,24 +196,27 @@ export function workspacePathsFromSessions(
 
 export function parseWorkspaceSelectionStorage(
 	raw: string | null,
+	environmentId: string,
 ): WorkspaceSelectionStorage {
 	if (!raw) {
 		return { lastWorkspace: "", workspaces: [] };
 	}
 	try {
 		const parsed = JSON.parse(raw) as {
-			lastWorkspace?: unknown;
-			workspaces?: unknown;
+			environments?: Record<string, unknown>;
 		};
+		const selected = parsed.environments?.[environmentId] as
+			| { lastWorkspace?: unknown; workspaces?: unknown }
+			| undefined;
 		const parsedLastWorkspace =
-			typeof parsed?.lastWorkspace === "string"
-				? parsed.lastWorkspace.trim()
+			typeof selected?.lastWorkspace === "string"
+				? selected.lastWorkspace.trim()
 				: "";
 		const lastWorkspace = isChatWorkspacePath(parsedLastWorkspace)
 			? ""
 			: parsedLastWorkspace;
-		const workspaces = Array.isArray(parsed?.workspaces)
-			? parsed.workspaces.filter(
+		const workspaces = Array.isArray(selected?.workspaces)
+			? selected.workspaces.filter(
 					(workspace): workspace is string => typeof workspace === "string",
 				)
 			: [];
@@ -207,13 +231,16 @@ export function parseWorkspaceSelectionStorage(
 	}
 }
 
-export function readWorkspaceSelectionFromWindow(): WorkspaceSelectionStorage {
+export function readWorkspaceSelectionFromWindow(
+	environmentId: string,
+): WorkspaceSelectionStorage {
 	if (typeof window === "undefined") {
 		return { lastWorkspace: "", workspaces: [] };
 	}
 	try {
 		return parseWorkspaceSelectionStorage(
 			window.localStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY),
+			environmentId,
 		);
 	} catch {
 		return { lastWorkspace: "", workspaces: [] };
@@ -221,22 +248,40 @@ export function readWorkspaceSelectionFromWindow(): WorkspaceSelectionStorage {
 }
 
 export function writeWorkspaceSelectionToWindow(
+	environmentId: string,
 	value: WorkspaceSelectionStorage,
 ): void {
 	if (typeof window === "undefined") {
 		return;
 	}
 	try {
+		const current = (() => {
+			try {
+				const parsed = JSON.parse(
+					window.localStorage.getItem(WORKSPACE_SELECTION_STORAGE_KEY) ?? "{}",
+				) as Partial<WorkspaceSelectionStore>;
+				return parsed.environments && typeof parsed.environments === "object"
+					? parsed.environments
+					: {};
+			} catch {
+				return {};
+			}
+		})();
 		const lastWorkspace = isChatWorkspacePath(value.lastWorkspace)
 			? ""
 			: value.lastWorkspace.trim();
 		window.localStorage.setItem(
 			WORKSPACE_SELECTION_STORAGE_KEY,
 			JSON.stringify({
-				lastWorkspace,
-				workspaces: filterWorkspacePaths(
-					mergeWorkspacePaths(value.workspaces, [lastWorkspace]),
-				),
+				environments: {
+					...current,
+					[environmentId]: {
+						lastWorkspace,
+						workspaces: filterWorkspacePaths(
+							mergeWorkspacePaths(value.workspaces, [lastWorkspace]),
+						),
+					},
+				},
 			}),
 		);
 	} catch {

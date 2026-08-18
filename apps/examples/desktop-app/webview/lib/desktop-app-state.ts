@@ -4,11 +4,13 @@ import {
 	navigationHistoryReducer,
 } from "./navigation-history";
 import type { SessionHistoryItem, SessionMetadata } from "./session-history";
+import { LOCAL_WORKSPACE_ENVIRONMENT_ID } from "./workspace-paths";
 
 export type DesktopAppView = "chat" | "sessions" | "settings";
 
 export type DesktopThread = {
 	id: string;
+	environmentId: string;
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
@@ -35,10 +37,17 @@ export type DesktopAppAction<SettingsSection extends string> =
 	| { type: "navigate"; destination: DesktopAppLocation<SettingsSection> }
 	| { type: "back" }
 	| { type: "forward" }
-	| { type: "new-thread"; threadId: string }
+	| { type: "new-thread"; threadId: string; environmentId: string }
+	| { type: "bind-unstarted-thread"; threadId: string; environmentId: string }
+	| {
+			type: "select-environment-draft";
+			environmentId: string;
+			threadId: string;
+	  }
 	| {
 			type: "open-session";
 			session: SessionHistoryItem;
+			environmentId: string;
 			initialPromptDraft?: string;
 	  }
 	| {
@@ -52,6 +61,7 @@ export type DesktopAppAction<SettingsSection extends string> =
 			deletedSessionId: string;
 			deletedThreadId?: string;
 			fallbackThreadId: string;
+			fallbackEnvironmentId: string;
 	  }
 	| {
 			type: "update-session-metadata";
@@ -74,9 +84,10 @@ function areLocationsEqual<SettingsSection extends string>(
 export function createDesktopAppState<SettingsSection extends string>(
 	initialThreadId: string,
 	initialSettingsSection: SettingsSection,
+	initialEnvironmentId: string,
 ): DesktopAppState<SettingsSection> {
 	return {
-		threads: [{ id: initialThreadId }],
+		threads: [{ id: initialThreadId, environmentId: initialEnvironmentId }],
 		navigation: createNavigationHistory({
 			activeThreadId: initialThreadId,
 			settingsSection: initialSettingsSection,
@@ -109,7 +120,10 @@ export function desktopAppReducer<SettingsSection extends string>(
 			};
 		case "new-thread":
 			return {
-				threads: [...state.threads, { id: action.threadId }],
+				threads: [
+					...state.threads,
+					{ id: action.threadId, environmentId: action.environmentId },
+				],
 				navigation: navigationHistoryReducer(state.navigation, {
 					type: "navigate",
 					destination: {
@@ -119,6 +133,52 @@ export function desktopAppReducer<SettingsSection extends string>(
 					},
 				}),
 			};
+		case "bind-unstarted-thread":
+			return {
+				...state,
+				threads: state.threads.map((thread) =>
+					thread.id === action.threadId &&
+					!thread.hasStarted &&
+					!thread.historySession
+						? { ...thread, environmentId: action.environmentId }
+						: thread,
+				),
+			};
+		case "select-environment-draft": {
+			const existingDraft = [...state.threads]
+				.reverse()
+				.find(
+					(thread) =>
+						thread.environmentId === action.environmentId &&
+						!thread.hasStarted &&
+						!thread.historySession,
+				);
+			const targetThreadId = existingDraft?.id ?? action.threadId;
+			const threads = existingDraft
+				? state.threads
+				: [
+						...state.threads,
+						{ id: targetThreadId, environmentId: action.environmentId },
+					];
+			const destination = {
+				...state.navigation.current,
+				activeThreadId: targetThreadId,
+				view: "chat" as const,
+			};
+			if (
+				threads === state.threads &&
+				areLocationsEqual(state.navigation.current, destination)
+			) {
+				return state;
+			}
+			return {
+				threads,
+				navigation: navigationHistoryReducer(state.navigation, {
+					type: "navigate",
+					destination,
+				}),
+			};
+		}
 		case "open-session": {
 			const threadId = `session_${action.session.sessionId}`;
 			const existingIdx = state.threads.findIndex(
@@ -130,8 +190,12 @@ export function desktopAppReducer<SettingsSection extends string>(
 							index === existingIdx
 								? {
 										...thread,
+										environmentId: action.environmentId,
 										hasStarted: true,
-										historySession: action.session,
+										historySession: {
+											...action.session,
+											environmentId: action.environmentId,
+										},
 										initialPromptDraft: action.initialPromptDraft,
 									}
 								: thread,
@@ -140,8 +204,12 @@ export function desktopAppReducer<SettingsSection extends string>(
 							...state.threads,
 							{
 								id: threadId,
+								environmentId: action.environmentId,
 								hasStarted: true,
-								historySession: action.session,
+								historySession: {
+									...action.session,
+									environmentId: action.environmentId,
+								},
 								initialPromptDraft: action.initialPromptDraft,
 							},
 						];
@@ -164,6 +232,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 			);
 			const botThread: DesktopThread = {
 				id: threadId,
+				// Bot sessions always run on the local runtime.
+				environmentId: LOCAL_WORKSPACE_ENVIRONMENT_ID,
 				botId: action.botId,
 				hasStarted: Boolean(action.session),
 				historySession: action.session,
@@ -242,7 +312,13 @@ export function desktopAppReducer<SettingsSection extends string>(
 			let replacementThreadId = threads[0]?.id;
 			if (deletedWasActive || !replacementThreadId) {
 				replacementThreadId = action.fallbackThreadId;
-				threads = [...threads, { id: replacementThreadId }];
+				threads = [
+					...threads,
+					{
+						id: replacementThreadId,
+						environmentId: action.fallbackEnvironmentId,
+					},
+				];
 			}
 			const fallback: DesktopAppLocation<SettingsSection> = {
 				...state.navigation.current,

@@ -2,6 +2,14 @@ import type {
 	ModelModality,
 	ModelOperation,
 	ModelOperationMode,
+	ProviderMode,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
 } from "@cline/shared/browser";
 
 export interface ProviderModel {
@@ -13,6 +21,7 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	supportsTools?: boolean;
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
 }
@@ -77,6 +86,7 @@ export interface ProviderCatalogResponse {
 	providers: Provider[];
 	settingsPath: string;
 	voiceInput?: VoiceInputSelection;
+	modes?: ProviderModesSettings;
 }
 
 export interface VoiceInputSelection {
@@ -88,3 +98,14 @@ export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
+
+export type {
+	ProviderMode,
+	ProviderModeSettings,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSession,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
+};

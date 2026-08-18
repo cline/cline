@@ -47,6 +47,44 @@ describe("AgentHeader title bar", () => {
 });
 
 describe("AgentHeader title editor", () => {
+	it("shows the workspace selector below the session title", async () => {
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					onNewThread={vi.fn()}
+					status="idle"
+					title="Session"
+					workspace={{
+						currentBranch: "main",
+						onListGitBranches: vi.fn(async () => ({
+							branches: ["main"],
+							current: "main",
+						})),
+						onRefreshWorkspaces: vi.fn(async () => undefined),
+						onSwitchGitBranch: vi.fn(async () => true),
+						onSwitchWorkspace: vi.fn(async () => true),
+						workspaces: ["/workspace/cline"],
+						workspaceRoot: "/workspace/cline",
+					}}
+				/>,
+			);
+		});
+
+		const workspace = container.querySelector("#git-branch-btn");
+		const newSession = container.querySelector('[aria-label="New session"]');
+		const title = container.querySelector('[title="Session"]');
+		expect(workspace).not.toBeNull();
+		expect((workspace as HTMLButtonElement | null)?.disabled).toBe(true);
+		expect(workspace?.className).toContain("text-xs");
+		expect(workspace?.className).toContain("text-muted-foreground");
+		expect(workspace?.parentElement?.parentElement?.parentElement).toBe(
+			title?.parentElement?.parentElement,
+		);
+		expect(workspace?.parentElement?.parentElement?.parentElement).not.toBe(
+			newSession?.parentElement,
+		);
+	});
+
 	it("preserves the displayed title width when editing starts", async () => {
 		await act(async () => {
 			root.render(
@@ -66,7 +104,7 @@ describe("AgentHeader title editor", () => {
 			"max-md:pl-28",
 		);
 		expect(container.querySelector("header")?.className).toContain(
-			"max-md:h-7",
+			"max-md:h-12",
 		);
 		expect(container.querySelector("header")?.className).toContain(
 			"md:group-data-[state=collapsed]/sidebar-wrapper:pl-7",

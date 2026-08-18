@@ -30,6 +30,59 @@ API keys, `JAVA_HOME`-style tool roots) are not pulled in. Set
 `CLINE_SIDECAR_SKIP_SHELL_PATH=1` to disable. Implementation and details:
 [`sidecar/shell-path.ts`](./sidecar/shell-path.ts).
 
+## SSH Remote Environments (v0)
+
+Open **Settings → Remote** to add and test an SSH host. Saving or testing a
+profile does not activate it. From the welcome chat, open the environment
+selector beside the workspace picker and choose the saved host; that selection
+starts the SSH connection at the remote user's home directory. Choose **Add
+project…** from the normal workspace selector to browse that machine and select
+a project, or choose **Local** in the environment selector to disconnect. Recent
+and last-used workspaces are remembered separately for each SSH host and for
+the local machine.
+
+SSH config aliases are supported. Leave **Port** blank to use the alias's SSH
+configuration (including its configured port), or enter a port to override it.
+The desktop keeps its webview and native integration local; only the
+authenticated Cline Hub protocol is forwarded through SSH. Agent tools,
+workspace discovery, Git metadata, and session persistence therefore run on the
+SSH host, while approvals and live session events return to the desktop.
+
+The desktop stores host metadata at
+`~/.cline/data/settings/remote-environments.json` with mode `0600`. It stores an
+identity-file path, never private-key contents. On first connect it uploads a
+content-addressed, branch-matched, self-contained Hub helper under
+`~/.cline/code/remote/`, binds the Hub to remote loopback, and forwards it to a
+random local loopback port. Linux x64 and arm64 helpers are bundled by
+`bun run build:sidecar:bin`; 32-bit Raspberry Pi operating systems are not
+supported in v0. The current helper is roughly 110 MB because it includes its
+own runtime. It is copied once per matching desktop build and cached, with no
+`apt`, `npm`, root access,
+global CLI install, or public Hub port. Disconnecting stops the desktop-owned
+remote Hub but leaves the helper cached for a faster reconnect. The helper
+imports the remote login-shell `PATH`, so user-installed Git, GitHub CLI, and
+MCP executables remain visible.
+
+The desktop uses its own discovery record, so an existing Cline CLI/Hub on the
+same account is neither replaced nor stopped. Both Hub processes can coexist
+while the desktop is connected; this isolation is intentional for the proof of
+concept so a branch-matched desktop helper cannot disrupt another Cline build.
+
+v0 intentionally leaves file attachments and opening a remote file in a local
+editor disabled. Text, images, file mentions/search, Git branch operations,
+session history, and remote agent tools are supported. The current desktop
+provider access/API token is sent through the authenticated tunnel for the
+session; reusable OAuth refresh credentials are not copied into remote provider
+settings.
+
+For a real SSH acceptance run, `scripts/verify-ssh-poc.ts` accepts
+`CLINE_SSH_TEST_HOST`, `CLINE_SSH_TEST_USER`, `CLINE_SSH_TEST_KEY`,
+`CLINE_SSH_TEST_WORKSPACE`, and `CLINE_SSH_TEST_HELPER`. It starts a remote
+connection at the SSH user's home, starts an agent session in the test
+workspace with the selected desktop provider, asks the agent to read
+`REMOTE_MARKER.txt`, then verifies the session appears in remote history and
+that its messages can be read back.
+
 ## Web Visual System
 
 The framework-neutral color, typography, radius, and navigation contract lives
@@ -54,6 +107,12 @@ updates in the background, and prompt for a restart. Two things must never be
 lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
+
+There is also a beta channel ("Cline Code Beta", a separate app that installs
+side by side with stable) cut from the `desktop-experimental` branch and
+served by the rolling `desktop-beta` release — the same never-delete rule
+applies to it. The experimental-branch process and beta release flow live in
+[`EXPERIMENTAL.md`](./EXPERIMENTAL.md).
 
 ## Shareable Desktop Packages (manual fallback)
 
@@ -135,6 +194,16 @@ Desktop transport envelope:
 ## Data + Storage
 
 - Session artifacts are written under `~/.cline/data/sessions/<sessionId>/` (or `CLINE_SESSION_DATA_DIR`).
+- Desktop avatar packages live under `~/.cline/avatars/<avatar-name>/`. Each package
+  contains a v2 `spritesheet.webp` (or PNG) and either an `avatar.json` or
+  `pet.json` manifest with
+  `id`, `displayName`, `description`, `spriteVersionNumber: 2`, and
+  `spritesheetPath`. If both manifests exist, `avatar.json` takes precedence.
+  The bundled Cline Bot avatar is selected and enabled by default, with Mom also
+  available as a bundled option.
+  Visibility and the selected installed avatar are configured independently under
+  **Settings → General → Desktop avatar**; both values are stored in
+  `~/.cline/avatars/selected.json`.
 - Canonical replay/export artifact: `<sessionId>.messages.json`.
 - `<sessionId>.messages.json` is expected to contain ordered messages plus assistant `modelInfo` and `metrics` (including cache token fields when provided by the model runtime).
 - `<sessionId>.hooks.jsonl` is observability/debug telemetry and should not be required for normal history replay/export flows.

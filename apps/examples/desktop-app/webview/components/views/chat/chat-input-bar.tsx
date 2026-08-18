@@ -5,7 +5,21 @@ import {
 	formatDisplayUserInput,
 } from "@cline/shared/browser";
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
-import { ArrowUp, Brain, CircleStop, Cpu, Paperclip, X } from "lucide-react";
+import {
+	ArrowRight,
+	ArrowUp,
+	Brain,
+	CircleStop,
+	Cloud,
+	Cpu,
+	Paperclip,
+	Signal,
+	SignalHigh,
+	SignalLow,
+	SignalMedium,
+	SignalZero,
+	X,
+} from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	SpeechInput,
@@ -31,6 +45,7 @@ import { formatCostUsd } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
+import { cloudRepositoryLabel } from "@/lib/cloud-repositories";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	readModelSelectionStorageFromWindow,
@@ -40,6 +55,7 @@ import { normalizeProviderId } from "@/lib/provider-id";
 import {
 	loadProviderModelCatalog,
 	loadProviderModels,
+	MODE_SETTINGS_CHANGED_EVENT,
 	subscribeToProviderModels,
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
@@ -132,6 +148,7 @@ const FALLBACK_PROVIDER_REASONING_MODELS: Record<string, string[]> = {
 	openrouter: ["anthropic/claude-sonnet-4.6"],
 	gemini: ["gemini-3-pro-latest"],
 };
+const CLINE_ONLY_PROVIDER_IDS = ["cline"];
 
 type ReasoningEffort = NonNullable<ChatSessionConfig["reasoningEffort"]>;
 type ReasoningEffortOption = {
@@ -151,7 +168,36 @@ const EFFORT_LEVELS: ReasoningEffortOption[] = [
 	{ label: "High", value: "high" },
 	{ label: "Extra", value: "xhigh" },
 ];
+
+function ReasoningEffortIcon({
+	value,
+	className = "size-3",
+}: {
+	value: ReasoningEffortOption["value"];
+	className?: string;
+}) {
+	const LevelIcon =
+		value === "none"
+			? SignalZero
+			: value === "low"
+				? SignalLow
+				: value === "medium"
+					? SignalMedium
+					: value === "high"
+						? SignalHigh
+						: Signal;
+	return (
+		<span
+			aria-hidden="true"
+			className={cn("relative inline-flex -scale-x-100", className)}
+		>
+			<Signal className="absolute inset-0 size-full text-primary opacity-50" />
+			<LevelIcon className="relative size-full text-primary" />
+		</span>
+	);
+}
 const PROMPT_INPUT_COLLAPSED_ROWS = 1;
+const PROMPT_INPUT_WELCOME_ROWS = 3;
 const PROMPT_INPUT_EXPANDED_ROWS = 2;
 const PROMPT_INPUT_MAX_ROWS = 5;
 const PROMPT_INPUT_LINE_HEIGHT_REM = 1.25;
@@ -269,7 +315,16 @@ export type PromptDraft = {
 	value: string;
 };
 
+export function buildWorkspaceFileSearchKey(
+	environmentId: string,
+	workspaceRoot: string,
+	query: string,
+): string {
+	return JSON.stringify([environmentId, workspaceRoot, query]);
+}
+
 type ChatInputBarProps = {
+	environmentId: string;
 	variant?: "conversation" | "welcome";
 	status: ChatSessionStatus;
 	provider: string;
@@ -280,6 +335,10 @@ type ChatInputBarProps = {
 	reasoningEffort: ChatSessionConfig["reasoningEffort"];
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
+	executionTarget?: "local" | "cloud";
+	repoUrl?: string;
+	cloudBranch?: string;
+	hasActiveSession?: boolean;
 	promptDraft: PromptDraft;
 	onPromptInputChange: (value: string) => void;
 	onProviderChange: (provider: string) => void;
@@ -313,6 +372,7 @@ type ChatInputBarProps = {
 };
 
 function ChatInputBarImpl({
+	environmentId,
 	variant = "conversation",
 	status,
 	provider,
@@ -322,6 +382,10 @@ function ChatInputBarImpl({
 	thinking,
 	reasoningEffort,
 	gitBranch,
+	executionTarget = "local",
+	repoUrl,
+	cloudBranch,
+	hasActiveSession = false,
 	promptDraft,
 	onPromptInputChange,
 	onProviderChange,
@@ -432,13 +496,27 @@ function ChatInputBarImpl({
 		},
 		[model, provider],
 	);
-	const canSend = hasDraft && !speechInputActive;
+	const needsCloudRepository =
+		executionTarget === "cloud" && !hasActiveSession && !repoUrl?.trim();
+	const cloudSettingsLocked = executionTarget === "cloud" && hasActiveSession;
+	const canSend =
+		hasDraft &&
+		!speechInputActive &&
+		!needsCloudRepository &&
+		(executionTarget !== "cloud" || promptInput.trim().length > 0);
+	const cloudContextLabel = useMemo(
+		() =>
+			[cloudRepositoryLabel(repoUrl ?? "", "Cloud"), cloudBranch?.trim()]
+				.filter(Boolean)
+				.join(" / "),
+		[cloudBranch, repoUrl],
+	);
 	const handleSend = useCallback(() => {
-		if (speechInputActive) return;
+		if (!canSend) return;
 		const prompt = promptInput.trim();
 		setPromptInput("");
 		onSend(prompt);
-	}, [onSend, promptInput, setPromptInput, speechInputActive]);
+	}, [canSend, onSend, promptInput, setPromptInput]);
 	const fileInputRef = useRef<HTMLInputElement | null>(null);
 	const [transcriptionTarget, setTranscriptionTarget] =
 		useState<TranscriptionModelTarget | null>(null);
@@ -475,7 +553,10 @@ function ChatInputBarImpl({
 	const mentionKey = activeMention
 		? `${activeMention.start}:${activeMention.query}`
 		: null;
-	const mentionOpen = mentionKey !== null && dismissedMentionKey !== mentionKey;
+	const mentionOpen =
+		executionTarget === "local" &&
+		mentionKey !== null &&
+		dismissedMentionKey !== mentionKey;
 	const [mentionFiles, setMentionFiles] = useState<string[]>([]);
 	const [mentionLoading, setMentionLoading] = useState(false);
 	const [mentionSelectedIndex, setMentionSelectedIndex] = useState(0);
@@ -493,22 +574,28 @@ function ChatInputBarImpl({
 	const slashKey = activeSlash
 		? `${activeSlash.slashIndex}:${activeSlash.query}`
 		: null;
-	const slashOpen = slashKey !== null && dismissedSlashKey !== slashKey;
+	// Slash commands resolve against locally installed skills/workflows, which
+	// the cloud sandbox cannot run — gate them like @-mentions.
+	const slashOpen =
+		executionTarget === "local" &&
+		slashKey !== null &&
+		dismissedSlashKey !== slashKey;
 	const [slashCommands, setSlashCommands] = useState<SlashCommand[]>(
 		() => cachedSlashCommands ?? BUILTIN_SLASH_COMMANDS,
 	);
 	const [slashLoading, setSlashLoading] = useState(false);
 	const [slashSelectedIndex, setSlashSelectedIndex] = useState(0);
-
 	useEffect(() => {
 		let cancelled = false;
 		let loadId = 0;
-		const loadVoiceInput = () => {
+		const loadModeSettings = () => {
 			const currentLoadId = ++loadId;
 			loadProviderModelCatalog()
 				.then((catalog) => {
 					if (!cancelled && currentLoadId === loadId) {
-						updateTranscriptionTarget(catalog.voiceInput);
+						updateTranscriptionTarget(
+							catalog.modes?.voiceInput ?? catalog.voiceInput,
+						);
 					}
 				})
 				.catch(() => {
@@ -517,14 +604,31 @@ function ChatInputBarImpl({
 					}
 				});
 		};
-		loadVoiceInput();
-		window.addEventListener(VOICE_INPUT_SETTINGS_CHANGED_EVENT, loadVoiceInput);
+		const handleModeSettingsChanged = (event: Event) => {
+			const mode = (event as CustomEvent<{ mode?: string }>).detail?.mode;
+			if (!mode || mode === "voiceInput") {
+				loadModeSettings();
+			}
+		};
+		loadModeSettings();
+		window.addEventListener(
+			MODE_SETTINGS_CHANGED_EVENT,
+			handleModeSettingsChanged,
+		);
+		window.addEventListener(
+			VOICE_INPUT_SETTINGS_CHANGED_EVENT,
+			loadModeSettings,
+		);
 		return () => {
 			cancelled = true;
 			loadId += 1;
 			window.removeEventListener(
+				MODE_SETTINGS_CHANGED_EVENT,
+				handleModeSettingsChanged,
+			);
+			window.removeEventListener(
 				VOICE_INPUT_SETTINGS_CHANGED_EVENT,
-				loadVoiceInput,
+				loadModeSettings,
 			);
 		};
 	}, [updateTranscriptionTarget]);
@@ -757,6 +861,16 @@ function ChatInputBarImpl({
 		() => resolveEffortIndex(thinking, reasoningEffort),
 		[reasoningEffort, thinking],
 	);
+	const [modelSettingsOpen, setModelSettingsOpen] = useState(false);
+	const thinkingSliderRef = useRef<HTMLInputElement | null>(null);
+	useEffect(() => {
+		if (
+			executionTarget === "cloud" &&
+			normalizeProviderId(provider) !== "cline"
+		) {
+			onProviderChange("cline");
+		}
+	}, [executionTarget, onProviderChange, provider]);
 	const hasExplicitReasoningSelection =
 		thinking !== undefined || reasoningEffort !== undefined;
 	const effortLabel =
@@ -766,9 +880,11 @@ function ChatInputBarImpl({
 				? "None"
 				: (EFFORT_LEVELS[effortIndex]?.label ?? "Reasoning");
 	const promptInputRows =
-		variant === "welcome" || promptInputFocused
-			? PROMPT_INPUT_EXPANDED_ROWS
-			: PROMPT_INPUT_COLLAPSED_ROWS;
+		variant === "welcome"
+			? PROMPT_INPUT_WELCOME_ROWS
+			: promptInputFocused
+				? PROMPT_INPUT_EXPANDED_ROWS
+				: PROMPT_INPUT_COLLAPSED_ROWS;
 	const handleEffortChange = useCallback(
 		(value: string) => {
 			if (modelSupportsReasoning !== true) {
@@ -821,7 +937,11 @@ function ChatInputBarImpl({
 			return;
 		}
 
-		const requestKey = `${workspaceRoot}::${activeMention.query}`;
+		const requestKey = buildWorkspaceFileSearchKey(
+			environmentId,
+			workspaceRoot,
+			activeMention.query,
+		);
 		if (mentionLastRequestKeyRef.current === requestKey) {
 			return;
 		}
@@ -843,6 +963,7 @@ function ChatInputBarImpl({
 				const results = await desktopClient.invoke<string[]>(
 					"search_workspace_files",
 					{
+						environmentId,
 						workspaceRoot,
 						query: activeMention.query,
 						limit: 10,
@@ -873,7 +994,13 @@ function ChatInputBarImpl({
 			cancelled = true;
 			window.clearTimeout(timeoutId);
 		};
-	}, [activeMention, mentionOpen, workspaceRoot, mentionFiles.length]);
+	}, [
+		activeMention,
+		environmentId,
+		mentionOpen,
+		workspaceRoot,
+		mentionFiles.length,
+	]);
 
 	const insertMentionFile = useCallback(
 		(filePath: string) => {
@@ -993,7 +1120,7 @@ function ChatInputBarImpl({
 	return (
 		<div
 			className={cn(
-				"bg-card",
+				"w-full min-w-0 max-w-full bg-card",
 				variant === "welcome"
 					? "overflow-visible rounded-xl border border-border/90 bg-surface-1/40 shadow-[0_24px_80px_-56px_color-mix(in_oklab,var(--primary)_72%,transparent)] backdrop-blur-md"
 					: "overflow-visible rounded-xl border border-border bg-surface-2 backdrop-blur-sm focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
@@ -1101,9 +1228,9 @@ function ChatInputBarImpl({
 					{/* biome-ignore lint/a11y/noStaticElementInteractions: Empty composer space forwards pointer focus to the nested textarea; keyboard users focus the textarea directly. */}
 					<div
 						className={cn(
-							"flex items-end gap-2 rounded-lg border border-border bg-background px-3 py-2.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
+							"flex gap-2 rounded-lg border border-border bg-background px-3 py-2.5 transition-all focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20",
 							variant === "welcome"
-								? "min-h-16 rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
+								? "min-h-16 items-end rounded-none border-0 bg-transparent px-0 py-0 focus-within:ring-0"
 								: "min-h-24 items-start rounded-none border-0 bg-transparent px-0 py-0 focus-within:border-transparent focus-within:ring-0",
 						)}
 						onMouseDown={(event) => {
@@ -1252,11 +1379,17 @@ function ChatInputBarImpl({
 							placeholder={
 								speechInputProcessing
 									? "Transcribing voice input…"
-									: variant === "welcome"
-										? "Ask to make changes, @mention files, reference #PRs, or run /commands."
-										: isBusy
+									: needsCloudRepository
+										? "Choose a repository"
+										: isBusy && variant !== "welcome"
 											? "Agent is working... submit to queue another message"
-											: "Enter your question or type / for commands or @ for context"
+											: executionTarget === "cloud"
+												? // Mentions and slash commands are local-only; do not
+													// advertise them in cloud sessions.
+													"Describe what Cline should do in this repository."
+												: variant === "welcome"
+													? "Ask to make changes, @mention files, reference #PRs, or run /commands."
+													: "Enter your question or type / for commands or @ for context"
 							}
 							readOnly={speechInputActive}
 							ref={promptInputRef}
@@ -1270,22 +1403,30 @@ function ChatInputBarImpl({
 						/>
 						<div
 							className={cn(
-								"flex shrink-0 items-center gap-2",
+								"flex shrink-0 items-center gap-1",
 								variant === "conversation" && "self-end",
 							)}
 						>
+							{needsCloudRepository ? (
+								<span
+									aria-live="polite"
+									className="max-w-40 text-right text-[11px] leading-4 text-muted-foreground"
+								>
+									Repository required
+								</span>
+							) : null}
 							{canAbort && (
 								<button
 									aria-label="Stop agent"
 									className={cn(
-										"bg-foreground p-1.5 text-background hover:bg-destructive",
+										"inline-grid size-7 shrink-0 place-items-center bg-foreground p-0 text-background transition-colors hover:bg-primary/80",
 										variant === "welcome" ? "rounded-md" : "rounded-full",
 									)}
 									onClick={onAbort}
 									title="Stop the agent (Esc)"
 									type="button"
 								>
-									<CircleStop className="size-3" />
+									<CircleStop className="size-2" />
 								</button>
 							)}
 							<SpeechInput
@@ -1326,23 +1467,27 @@ function ChatInputBarImpl({
 										: "Configure voice input in Settings → Models"
 								}
 							/>
-							{(!isBusy || canSend) && (
+							{!isBusy || canSend ? (
 								<button
 									aria-label="Send message"
 									className={cn(
-										"p-1.5 disabled:cursor-not-allowed disabled:opacity-50",
+										"inline-grid size-7 shrink-0 place-items-center p-0 transition-colors disabled:cursor-not-allowed disabled:opacity-50",
 										variant === "welcome"
-											? "rounded-md bg-[linear-gradient(145deg,var(--primary-emphasis),var(--primary))] text-white shadow-sm hover:brightness-110"
-											: "rounded-full bg-primary text-background hover:bg-primary/80",
+											? "rounded-md bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground"
+											: "rounded-full bg-transparent text-muted-foreground hover:bg-muted hover:text-foreground",
 									)}
 									disabled={!canSend}
 									onClick={handleSend}
-									title="Send (Enter)"
+									title={
+										needsCloudRepository
+											? "Choose a repository"
+											: "Send (Enter)"
+									}
 									type="button"
 								>
-									<ArrowUp className="size-3" />
+									<ArrowRight className="size-4" />
 								</button>
-							)}
+							) : null}
 						</div>
 					</div>
 				</div>
@@ -1372,7 +1517,9 @@ function ChatInputBarImpl({
 			<div className="flex min-w-0 items-center justify-between gap-x-3 gap-y-2 rounded-b-xl border-t border-border bg-muted/20 px-2 py-2 text-sm text-muted-foreground">
 				<div className="flex min-w-0 flex-auto flex-wrap items-center gap-2 max-[560px]:flex-nowrap">
 					<button
-						aria-label="Attach files"
+						aria-label={
+							executionTarget === "cloud" ? "Attach images" : "Attach files"
+						}
 						className="rounded-md p-2 text-muted-foreground hover:bg-surface-hover"
 						onClick={() => fileInputRef.current?.click()}
 						type="button"
@@ -1380,7 +1527,7 @@ function ChatInputBarImpl({
 						<Paperclip className="size-3" />
 					</button>
 					<input
-						accept="*/*"
+						accept={executionTarget === "cloud" ? "image/*" : "*/*"}
 						className="hidden"
 						multiple
 						onChange={(event) => {
@@ -1391,96 +1538,221 @@ function ChatInputBarImpl({
 						ref={fileInputRef}
 						type="file"
 					/>
-					<div className="hidden shrink-0 items-center rounded-md bg-muted p-0.5">
-						<button
-							aria-pressed={mode === "plan"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "plan"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "plan") onModeToggle();
-							}}
-							type="button"
-						>
-							Plan
-						</button>
-						<button
-							aria-pressed={mode === "act"}
-							className={cn(
-								"rounded px-2 py-1 ",
-								mode === "act"
-									? "bg-background text-foreground shadow-xs"
-									: "hover:text-foreground",
-							)}
-							onClick={() => {
-								if (mode !== "act") onModeToggle();
-							}}
-							type="button"
-						>
-							Act
-						</button>
+					{executionTarget === "cloud" ? (
+						<span className="truncate text-[11px]" title={cloudContextLabel}>
+							{cloudContextLabel}
+						</span>
+					) : null}
+
+					<div className="ml-auto flex min-w-0 shrink-0 items-center gap-0">
+						{executionTarget === "cloud" ? (
+							<>
+								<ModelSelector
+									allowedProviderIds={CLINE_ONLY_PROVIDER_IDS}
+									autoCorrectModel={!cloudSettingsLocked}
+									isBusy={isBusy}
+									model={model}
+									onModelChange={onModelChange}
+									onModelSupportsReasoningChange={
+										handleModelSupportsReasoningChange
+									}
+									onProviderChange={onProviderChange}
+									persistSelection={false}
+									provider={provider}
+								/>
+								<Select
+									disabled
+									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+								>
+									<SelectTrigger
+										aria-label="Thinking level"
+										className="h-7 border-0"
+										size="sm"
+									>
+										<span className="flex items-center gap-1">
+											{effortLabel}
+											<ReasoningEffortIcon
+												className="size-3"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{EFFORT_LEVELS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</>
+						) : (
+							<>
+								<Popover
+									onOpenChange={setModelSettingsOpen}
+									open={modelSettingsOpen}
+								>
+									<PopoverTrigger asChild>
+										<button
+											aria-label="Model settings"
+											className="flex h-7 max-w-md items-center gap-1 rounded-md px-2 text-[11px] transition-colors hover:bg-accent"
+											type="button"
+										>
+											<span className="truncate text-muted-foreground">
+												{provider}
+											</span>
+											<span className="truncate text-foreground">{model}</span>
+											<ReasoningEffortIcon
+												className="size-3 shrink-0"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</button>
+									</PopoverTrigger>
+									<PopoverContent
+										align="end"
+										className="w-72 space-y-1 p-2"
+										forceMount
+										onOpenAutoFocus={(event) => {
+											event.preventDefault();
+											requestAnimationFrame(() =>
+												thinkingSliderRef.current?.focus(),
+											);
+										}}
+										side="top"
+									>
+										<ModelSelector
+											allowedProviderIds={
+												executionTarget === "cloud"
+													? CLINE_ONLY_PROVIDER_IDS
+													: undefined
+											}
+											autoCorrectModel={!cloudSettingsLocked}
+											isBusy={isBusy}
+											model={model}
+											onModelChange={onModelChange}
+											onModelSupportsReasoningChange={
+												handleModelSupportsReasoningChange
+											}
+											onProviderChange={onProviderChange}
+											persistSelection={executionTarget !== "cloud"}
+											provider={provider}
+											variant="menu"
+										/>
+										<div className="rounded-md px-2 py-1">
+											<div className="flex items-center justify-between text-xs">
+												<span className="text-[10px] text-muted-foreground">
+													Effort
+												</span>
+												<span className="flex items-center gap-1.5 text-[10px] text-foreground">
+													{effortLabel}
+													<ReasoningEffortIcon
+														className="size-3.5"
+														value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+													/>
+												</span>
+											</div>
+											<div className="relative mt-3 h-4">
+												<input
+													aria-label="Effort"
+													aria-valuetext={effortLabel}
+													className="relative z-10 block h-4 w-full cursor-pointer appearance-none rounded-full disabled:cursor-not-allowed disabled:opacity-50"
+													disabled={
+														cloudSettingsLocked ||
+														modelSupportsReasoning !== true
+													}
+													max={EFFORT_LEVELS.length - 1}
+													min={0}
+													onChange={(event) => {
+														const option =
+															EFFORT_LEVELS[Number(event.currentTarget.value)];
+														if (option) handleEffortChange(option.value);
+													}}
+													onKeyDown={(event) => {
+														if (
+															event.key !== "ArrowLeft" &&
+															event.key !== "ArrowRight"
+														)
+															return;
+														event.preventDefault();
+														const direction =
+															event.key === "ArrowRight" ? 1 : -1;
+														const nextIndex = Math.min(
+															EFFORT_LEVELS.length - 1,
+															Math.max(0, effortIndex + direction),
+														);
+														const option = EFFORT_LEVELS[nextIndex];
+														if (option) handleEffortChange(option.value);
+													}}
+													ref={thinkingSliderRef}
+													step={1}
+													type="range"
+													value={effortIndex}
+												/>
+												<div
+													aria-hidden="true"
+													className="pointer-events-none absolute left-2.5 right-2.5 top-0 z-20 flex h-4 items-center justify-between"
+													data-slot="thinking-level-markers"
+												>
+													{EFFORT_LEVELS.map((option) => (
+														<span
+															className="size-1 rounded-full bg-zinc-500 opacity-50"
+															key={option.value}
+														/>
+													))}
+												</div>
+											</div>
+										</div>
+									</PopoverContent>
+								</Popover>
+								<Select
+									disabled={modelSupportsReasoning !== true}
+									onValueChange={handleEffortChange}
+									value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+								>
+									<SelectTrigger
+										aria-label="Thinking level"
+										className="h-7 gap-1.5 border-0 px-2 text-sm shadow-none"
+										size="sm"
+									>
+										<span className="flex items-center gap-1">
+											{effortLabel}
+											<ReasoningEffortIcon
+												className="size-3"
+												value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
+											/>
+										</span>
+									</SelectTrigger>
+									<SelectContent>
+										{EFFORT_LEVELS.map((option) => (
+											<SelectItem key={option.value} value={option.value}>
+												{option.label}
+											</SelectItem>
+										))}
+									</SelectContent>
+								</Select>
+							</>
+						)}
 					</div>
-					<div className="min-w-0 shrink-0">
-						<ModelSelector
-							isBusy={isBusy}
-							model={model}
-							onModelChange={onModelChange}
-							onModelSupportsReasoningChange={
-								handleModelSupportsReasoningChange
-							}
-							onProviderChange={onProviderChange}
-							provider={provider}
-						/>
-					</div>
-					<Select
-						disabled={modelSupportsReasoning !== true}
-						onValueChange={handleEffortChange}
-						value={EFFORT_LEVELS[effortIndex]?.value ?? "low"}
-					>
-						<SelectTrigger
-							aria-label="Thinking level"
-							className="gap-1.5 border-0 px-2 text-sm shadow-none data-[size=sm]:h-7 [&>svg:last-child]:hidden max-[560px]:size-7 max-[560px]:justify-center max-[560px]:p-0 bg-transparent! hover:bg-surface-hover!"
-							size="sm"
-							title={
-								modelSupportsReasoning === false
-									? "The selected model does not report reasoning support"
-									: undefined
-							}
-						>
-							<Brain className="size-3" />
-							<span className="max-[560px]:sr-only">
-								<SelectValue>{effortLabel}</SelectValue>
-							</span>
-						</SelectTrigger>
-						<SelectContent align="start">
-							{EFFORT_LEVELS.map((option) => (
-								<SelectItem key={option.value} value={option.value}>
-									{option.label}
-								</SelectItem>
-							))}
-						</SelectContent>
-					</Select>
 				</div>
 
-				<div className="ml-auto flex min-w-0 items-center gap-2 max-[560px]:shrink-0">
+				<div className="ml-auto flex min-w-0 shrink-0 items-center gap-0">
 					{variant === "conversation" ? (
 						<div className="flex min-w-0 items-center gap-0">
-							<div className="min-w-0 overflow-visible">
-								<WorkspaceSelector
-									currentBranch={gitBranch}
-									disabled
-									onListGitBranches={onListGitBranches}
-									onRefreshWorkspaces={onRefreshWorkspaces}
-									onPickWorkspaceDirectory={onPickWorkspaceDirectory}
-									onSwitchGitBranch={onSwitchGitBranch}
-									onSwitchWorkspace={onSwitchWorkspace}
-									workspaces={workspaces}
-									workspaceRoot={workspaceRoot}
-								/>
-							</div>
+							{executionTarget !== "cloud" && gitBranch !== undefined ? (
+								<div className="min-w-0 overflow-visible">
+									<WorkspaceSelector
+										currentBranch={gitBranch}
+										disabled
+										onListGitBranches={onListGitBranches}
+										onRefreshWorkspaces={onRefreshWorkspaces}
+										onPickWorkspaceDirectory={onPickWorkspaceDirectory}
+										onSwitchGitBranch={onSwitchGitBranch}
+										onSwitchWorkspace={onSwitchWorkspace}
+										workspaces={workspaces}
+										workspaceRoot={workspaceRoot}
+									/>
+								</div>
+							) : null}
 							<TokenUsageRing
 								usage={{
 									contextWindow: modelContextWindow,
@@ -1506,19 +1778,27 @@ export const ChatInputBar = memo(ChatInputBarImpl);
 // Memoized: the selectors load/hold the full provider-model catalog, so they
 // should not re-render for every keystroke in the composer textarea.
 const ModelSelector = memo(function ModelSelector({
+	allowedProviderIds,
+	autoCorrectModel = true,
+	persistSelection = true,
 	provider,
 	model,
 	isBusy,
 	onProviderChange,
 	onModelChange,
 	onModelSupportsReasoningChange,
+	variant = "toolbar",
 }: {
+	allowedProviderIds?: string[];
+	autoCorrectModel?: boolean;
+	persistSelection?: boolean;
 	provider: string;
 	model: string;
 	isBusy: boolean;
 	onProviderChange: (provider: string) => void;
 	onModelChange: (model: string) => void;
 	onModelSupportsReasoningChange: (supportsReasoning: boolean | null) => void;
+	variant?: "toolbar" | "menu";
 }) {
 	const normalizedProvider = normalizeProviderId(provider);
 	const [providerModels, setProviderModels] = useState<
@@ -1538,10 +1818,13 @@ const ModelSelector = memo(function ModelSelector({
 	const visibleProviderModels = useMemo(() => {
 		const next: Record<string, string[]> = {};
 		for (const providerId of enabledProviderIds) {
+			if (allowedProviderIds && !allowedProviderIds.includes(providerId)) {
+				continue;
+			}
 			next[providerId] = providerModels[providerId] ?? [];
 		}
 		return next;
-	}, [enabledProviderIds, providerModels]);
+	}, [allowedProviderIds, enabledProviderIds, providerModels]);
 	const providers = useMemo(
 		() => Object.keys(visibleProviderModels),
 		[visibleProviderModels],
@@ -1679,6 +1962,9 @@ const ModelSelector = memo(function ModelSelector({
 	// happened to use.
 	const rememberSelection = useCallback(
 		(providerId: string, modelId: string | undefined) => {
+			if (!persistSelection) {
+				return;
+			}
 			const normalizedId = normalizeProviderId(providerId);
 			if (!normalizedId) {
 				return;
@@ -1701,7 +1987,7 @@ const ModelSelector = memo(function ModelSelector({
 				};
 			});
 		},
-		[],
+		[persistSelection],
 	);
 
 	useEffect(() => {
@@ -1716,13 +2002,22 @@ const ModelSelector = memo(function ModelSelector({
 		if (providers.length === 0) {
 			return;
 		}
+		// isBusy also covers a locked cloud composer: silently "correcting" an
+		// attached cloud session's model (e.g. an org-catalog id missing from
+		// the local list) would push a real model change to the remote session
+		// on the next send, contradicting the locked-settings tooltip.
+		if (isBusy) {
+			return;
+		}
 		if (resolvedProvider && resolvedProvider !== normalizedProvider) {
 			onProviderChange(resolvedProvider);
 		}
-		if (resolvedModel && resolvedModel !== model) {
+		if (autoCorrectModel && resolvedModel && resolvedModel !== model) {
 			onModelChange(resolvedModel);
 		}
 	}, [
+		autoCorrectModel,
+		isBusy,
 		model,
 		onModelChange,
 		onProviderChange,
@@ -1788,7 +2083,10 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
-	const renderProviderSelect = (triggerClassName: string) => (
+	const renderProviderSelect = (
+		triggerClassName: string,
+		placement: "top" | "right" | "bottom" | "left" = "top",
+	) => (
 		<SearchCombobox
 			ariaLabel="Provider"
 			className={triggerClassName}
@@ -1797,7 +2095,7 @@ const ModelSelector = memo(function ModelSelector({
 			onValueChange={handleProviderSelect}
 			options={providers.map((value) => ({ label: value, value }))}
 			placeholder="Provider"
-			placement="top"
+			placement={placement}
 			searchPlaceholder="Search providers"
 			value={resolvedProvider}
 		/>
@@ -1805,8 +2103,11 @@ const ModelSelector = memo(function ModelSelector({
 	const renderModelSelect = (
 		triggerClassName: string,
 		closeMobileMenu = false,
+		placement: "top" | "right" | "bottom" | "left" = "top",
+		align: "start" | "end" = "start",
 	) => (
 		<SearchCombobox
+			align={align}
 			ariaLabel="Model"
 			className={triggerClassName}
 			disabled={isBusy || modelsForProvider.length === 0}
@@ -1817,11 +2118,41 @@ const ModelSelector = memo(function ModelSelector({
 			}}
 			options={modelsForProvider.map((value) => ({ label: value, value }))}
 			placeholder="Model"
-			placement="top"
+			placement={placement}
 			searchPlaceholder="Search models"
 			value={resolvedModel}
 		/>
 	);
+	if (variant === "menu") {
+		return (
+			<div className="grid gap-1 text-xs">
+				<div
+					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
+					data-slot="provider-selector-row"
+				>
+					<div className="mb-0.5 text-[10px] text-muted-foreground">
+						Provider
+					</div>
+					{renderProviderSelect(
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						"left",
+					)}
+				</div>
+				<div
+					className="rounded-md px-2 py-1.5 transition-colors hover:bg-accent"
+					data-slot="model-selector-row"
+				>
+					<div className="mb-0.5 text-[10px] text-muted-foreground">Model</div>
+					{renderModelSelect(
+						"h-6 w-full max-w-none justify-start border-0 bg-transparent !p-0 text-left text-xs text-foreground shadow-none hover:bg-transparent",
+						false,
+						"left",
+						"start",
+					)}
+				</div>
+			</div>
+		);
+	}
 
 	return (
 		<div className="relative min-w-0 shrink-0 text-sm">
@@ -1868,10 +2199,9 @@ const ModelSelector = memo(function ModelSelector({
 				</>
 			) : null}
 
-			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
-				<div className="bg-border-2 h-4 w-[0.1rem]" />
-				{renderModelSelect("max-w-52")}
+			<div className="flex min-w-0 items-center gap-0 max-[560px]:hidden">
+				{renderProviderSelect("max-w-28 text-[11px] text-muted-foreground")}
+				{renderModelSelect("max-w-52 text-[11px] text-foreground")}
 			</div>
 		</div>
 	);

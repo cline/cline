@@ -14,6 +14,14 @@ export function createEphemeralCacheControl() {
 	};
 }
 
+/** Target a single AI SDK provider-options bucket. */
+export function buildProviderOptionsPatch(options: {
+	providerOptionsKey: string;
+	bucketOptions: Record<string, unknown>;
+}): ProviderOptionsPatch {
+	return { [options.providerOptionsKey]: options.bucketOptions };
+}
+
 /**
  * Target the AI SDK provider-name bucket for the provider id and, when
  * distinct, its camelCase alias bucket (e.g. `vercel-ai-gateway` +
@@ -41,21 +49,18 @@ export function buildProviderAndAliasPatch(options: {
 		: options.providerOptionsKey;
 	const needsAlias =
 		providerOptionsKey !== providerId && providerOptionsKey !== "anthropic";
-	return {
-		[providerId]: bucketOptions,
-		...(needsAlias ? { [providerOptionsKey]: bucketOptions } : {}),
-	};
+	return needsAlias
+		? { [providerId]: bucketOptions, [providerOptionsKey]: bucketOptions }
+		: { [providerOptionsKey]: bucketOptions };
 }
 
 export function buildThinkingPatch(options: {
-	providerId: string;
 	providerOptionsKey: string;
 	thinkingType: "enabled" | "disabled";
 }): ProviderOptionsPatch {
 	const bucketOptions = { thinking: { type: options.thinkingType } };
 	return {
-		...buildProviderAndAliasPatch({
-			providerId: options.providerId,
+		...buildProviderOptionsPatch({
 			providerOptionsKey: options.providerOptionsKey,
 			bucketOptions,
 		}),

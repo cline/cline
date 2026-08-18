@@ -11,6 +11,7 @@ import {
 } from "@/lib/model-selection";
 import {
 	buildUserInstructionSlashCommands,
+	buildWorkspaceFileSearchKey,
 	ChatInputBar,
 } from "./chat-input-bar";
 
@@ -72,6 +73,7 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
+	MODE_SETTINGS_CHANGED_EVENT: "cline:mode-settings-changed",
 	subscribeToProviderModels: subscribeToProviderModelsMock,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT: "cline:test-voice-input-settings-changed",
 }));
@@ -202,6 +204,24 @@ async function renderVoiceComposer({
 }
 
 describe("ChatInputBar", () => {
+	it("isolates workspace file search caches by environment", () => {
+		const localKey = buildWorkspaceFileSearchKey(
+			"local",
+			"/workspace/shared",
+			"src",
+		);
+		const remoteKey = buildWorkspaceFileSearchKey(
+			"pi-server",
+			"/workspace/shared",
+			"src",
+		);
+
+		expect(remoteKey).not.toBe(localKey);
+		expect(
+			buildWorkspaceFileSearchKey("pi-server", "/workspace/shared", "src"),
+		).toBe(remoteKey);
+	});
+
 	it("builds slash commands from both workflows and skills", () => {
 		expect(
 			buildUserInstructionSlashCommands({
@@ -226,6 +246,203 @@ describe("ChatInputBar", () => {
 		]);
 	});
 
+	it("allows cloud image and model selection without replacing local defaults", async () => {
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["anthropic", "cline"],
+			providerModels: {
+				anthropic: ["claude-test"],
+				cline: ["cline-test", "cline-alt"],
+			},
+			providerReasoningModels: { anthropic: [], cline: [] },
+		});
+		const localSelection = {
+			lastProvider: "anthropic",
+			lastModelByProvider: { anthropic: "claude-test" },
+		};
+		window.localStorage.setItem(
+			MODEL_SELECTION_STORAGE_KEY,
+			JSON.stringify(localSelection),
+		);
+		const onProviderChange = vi.fn();
+		const onModelChange = vi.fn();
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider
+					value={{
+						workspaceRoot: "",
+						workspaces: [],
+						listWorkspaces: vi.fn(async () => []),
+						refreshWorkspaces: vi.fn(async () => undefined),
+						switchWorkspace: vi.fn(async () => true),
+						pickWorkspaceDirectory: vi.fn(async () => null),
+						selectChat: vi.fn(async () => true),
+					}}
+				>
+					<ChatInputBar
+						attachments={[]}
+						cloudBranch="feature/cloud"
+						executionTarget="cloud"
+						gitBranch="no-git"
+						hasActiveSession
+						mode="act"
+						model="claude-test"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "no-git",
+							branches: [],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={onModelChange}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={onProviderChange}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => false)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="anthropic"
+						reasoningEffort="low"
+						repoUrl="https://github.com/cline/cline"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking
+						variant="conversation"
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+
+		await vi.waitFor(() => {
+			expect(onProviderChange).toHaveBeenCalledWith("cline");
+		});
+		expect(onModelChange).not.toHaveBeenCalled();
+		expect(
+			container.querySelector('[aria-label="Attach images"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector<HTMLInputElement>('input[type="file"]')?.accept,
+		).toBe("image/*");
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(container.textContent).toContain("cline/cline / feature/cloud");
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Model and provider"]',
+			)?.disabled,
+		).toBe(false);
+		expect(
+			container.querySelector<HTMLButtonElement>(
+				'[aria-label="Thinking level"]',
+			)?.disabled,
+		).toBe(true);
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model and provider"]',
+		);
+		await act(async () => modelTrigger?.click());
+		const cloudModel = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model: cline-test"]',
+		);
+		await act(async () => cloudModel?.click());
+		const alternateModel = Array.from(
+			container.querySelectorAll<HTMLButtonElement>(
+				".cline-ui-search-combobox__option",
+			),
+		).find((button) => button.textContent?.includes("cline-alt"));
+		expect(alternateModel).not.toBeUndefined();
+		await act(async () => alternateModel?.click());
+		expect(onModelChange).toHaveBeenCalledWith("cline-alt");
+		expect(
+			JSON.parse(
+				window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY) ?? "null",
+			),
+		).toEqual(localSelection);
+	});
+
+	it("blocks a new cloud message until a GitHub repository is selected", async () => {
+		const onSend = vi.fn();
+		const render = async (repoUrl?: string) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider
+						value={{
+							workspaceRoot: "",
+							workspaces: [],
+							listWorkspaces: vi.fn(async () => []),
+							refreshWorkspaces: vi.fn(async () => undefined),
+							switchWorkspace: vi.fn(async () => true),
+							pickWorkspaceDirectory: vi.fn(async () => null),
+							selectChat: vi.fn(async () => true),
+						}}
+					>
+						<ChatInputBar
+							attachments={[]}
+							executionTarget="cloud"
+							gitBranch="no-git"
+							hasActiveSession={false}
+							mode="act"
+							model="test-model"
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "no-git",
+								branches: [],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={onSend}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => false)}
+							promptDraft={{ version: 0, value: "Continue in cloud" }}
+							promptsInQueue={[]}
+							provider="cline"
+							reasoningEffort="low"
+							repoUrl={repoUrl}
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+		};
+
+		await render();
+		const sendButton = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Send message"]',
+		);
+		const promptInput = container.querySelector<HTMLTextAreaElement>(
+			'textarea[role="combobox"]',
+		);
+		expect(sendButton?.disabled).toBe(true);
+		expect(sendButton?.title).toBe("Choose a repository");
+		expect(container.textContent).toContain("Repository required");
+		expect(promptInput?.placeholder).toBe("Choose a repository");
+		await act(async () => {
+			promptInput?.dispatchEvent(
+				new KeyboardEvent("keydown", { key: "Enter", bubbles: true }),
+			);
+		});
+		expect(onSend).not.toHaveBeenCalled();
+
+		await render("https://github.com/cline/cline");
+		expect(sendButton?.disabled).toBe(false);
+		await act(async () => sendButton?.click());
+		expect(onSend).toHaveBeenCalledWith("Continue in cloud");
+	});
+
 	it("top-aligns the textarea in the taller welcome composer", async () => {
 		await act(async () => {
 			root.render(
@@ -242,6 +459,7 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
+						environmentId="local"
 						gitBranch="main"
 						mode="act"
 						model="test-model"
@@ -756,12 +974,12 @@ describe("ChatInputBar", () => {
 							onAbort={vi.fn()}
 							onAttachFiles={vi.fn()}
 							onEditPromptInQueue={vi.fn()}
+							onModeToggle={vi.fn()}
+							onModelChange={vi.fn()}
 							onListGitBranches={vi.fn(async () => ({
 								current: "main",
 								branches: ["main"],
 							}))}
-							onModeToggle={vi.fn()}
-							onModelChange={vi.fn()}
 							onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 							onPromptInputChange={vi.fn()}
 							onProviderChange={vi.fn()}
@@ -769,7 +987,7 @@ describe("ChatInputBar", () => {
 							onRemoveAttachment={vi.fn()}
 							onSend={vi.fn()}
 							onSteerPromptInQueue={vi.fn()}
-							onSwitchGitBranch={vi.fn(async () => true)}
+							onSwitchGitBranch={vi.fn(async () => false)}
 							onRemovePromptInQueue={vi.fn()}
 							promptDraft={{ version: 0, value: "" }}
 							promptsInQueue={[]}
@@ -786,8 +1004,25 @@ describe("ChatInputBar", () => {
 		};
 
 		await render("idle");
+		const compactModelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model settings"]',
+		);
+		expect(compactModelTrigger).not.toBeNull();
+		expect(
+			compactModelTrigger?.querySelector(".lucide-chevron-down"),
+		).toBeNull();
+		const levelIcon = compactModelTrigger?.querySelector(
+			"[aria-hidden='true']",
+		);
+		expect(levelIcon?.className).toContain("-scale-x-100");
+		expect(levelIcon?.querySelector(".lucide-signal")?.classList).toContain(
+			"text-primary",
+		);
+		expect(compactModelTrigger?.lastElementChild).toBe(levelIcon);
+		await act(async () => compactModelTrigger?.click());
+		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("true");
 		await vi.waitFor(() => {
-			expect(loadProviderModelsMock).toHaveBeenCalledWith("cline");
+			expect(subscribeToProviderModelsMock).toHaveBeenCalled();
 		});
 		const providerModelsListener =
 			subscribeToProviderModelsMock.mock.calls[0]?.[0];
@@ -797,47 +1032,108 @@ describe("ChatInputBar", () => {
 			]);
 		});
 		await vi.waitFor(() => {
-			const trigger = container.querySelector<HTMLButtonElement>(
-				'[aria-label="Thinking level"]',
+			const trigger = document.querySelector<HTMLInputElement>(
+				'[aria-label="Effort"]',
 			);
-			expect(trigger?.textContent).toContain("High");
+			expect(trigger?.value).toBe("3");
+			expect(trigger?.getAttribute("aria-valuetext")).toBe("High");
 			expect(trigger?.disabled).toBe(true);
+			expect(trigger?.className).toContain("h-4");
+			expect(document.body.textContent).toContain("EffortHigh");
+			expect(document.body.textContent).not.toContain("ThinkingHigh");
 			expect(
-				trigger?.querySelector('[data-slot="select-value"]')?.parentElement
+				document.querySelector('[data-slot="thinking-level-markers"]')
+					?.children,
+			).toHaveLength(5);
+			const markers = document.querySelector(
+				'[data-slot="thinking-level-markers"]',
+			)?.children;
+			expect(markers?.[0]?.className).toContain("bg-zinc-500");
+			expect(markers?.[4]?.className).toContain("bg-zinc-500");
+			expect(markers?.[3]?.className).toContain("opacity-50");
+			expect(markers?.[3]?.className).not.toContain("opacity-0");
+			expect(markers?.[0]?.className).not.toContain("bg-primary-foreground");
+			expect(
+				document.querySelector('[data-slot="thinking-level-markers"]')
 					?.className,
-			).toContain("max-[560px]:sr-only");
+			).toContain("top-0");
+			expect(
+				[...document.querySelectorAll("span")]
+					.find((element) => element.textContent?.includes("High"))
+					?.querySelector(".lucide-signal-high"),
+			).not.toBeNull();
 		});
-		const compactModelTrigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label="Model and provider"]',
-		);
-		expect(compactModelTrigger?.disabled).toBe(false);
-		await act(async () => compactModelTrigger?.click());
-		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("true");
 		expect(
-			container.querySelectorAll<HTMLButtonElement>(
-				'[aria-label^="Provider:"]',
-			),
-		).toHaveLength(2);
+			document.querySelectorAll<HTMLButtonElement>('[aria-label^="Provider:"]'),
+		).toHaveLength(1);
 		expect(
-			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
-		).toHaveLength(2);
-		expect(container.textContent).toContain("refreshed-model");
-		await act(async () =>
-			container
-				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
-				?.click(),
+			document.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
+		).toHaveLength(1);
+		expect(document.body.textContent).toContain("refreshed-model");
+		const modelMenuTrigger = document.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
 		);
-		expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(modelMenuTrigger?.className).toContain("w-full");
+		expect(modelMenuTrigger?.className).toContain("max-w-none");
+		const providerMenuTrigger = document.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await act(async () => {
+			providerMenuTrigger?.click();
+		});
+		expect(modelMenuTrigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(
+			document
+				.querySelector<HTMLButtonElement>('[aria-label^="Provider:"]')
+				?.getAttribute("aria-expanded"),
+		).toBe("true");
+		expect(
+			document.querySelector<HTMLElement>('[aria-label="Search provider"]')
+				?.className,
+		).toContain("right-full");
+		await act(async () => {
+			providerMenuTrigger?.click();
+			modelMenuTrigger?.click();
+		});
+		const modelMenu = document.querySelector<HTMLElement>(
+			'[aria-label="Search model"]',
+		);
+		expect(modelMenu?.className).toContain("right-full");
+		expect(modelMenu?.className).toContain("top-0");
+		expect(modelMenu?.className).not.toContain("bottom-0");
+		await act(async () => {
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+			);
+		});
+		await act(async () => {
+			document.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Escape" }),
+			);
+		});
+		await vi.waitFor(() =>
+			expect(compactModelTrigger?.getAttribute("aria-expanded")).toBe("false"),
+		);
 
 		const promptInput = container.querySelector<HTMLTextAreaElement>(
 			'textarea[role="combobox"]',
 		);
+		await act(async () => {
+			promptInput?.blur();
+			promptInput?.dispatchEvent(new Event("focusin", { bubbles: true }));
+		});
 		expect(promptInput?.rows).toBe(2);
 		expect(promptInput?.className).toContain("field-sizing-content");
 		expect(promptInput?.className).toContain("overflow-y-auto");
 		expect(promptInput?.className).not.toContain("self-start");
 		expect(promptInput?.style.minHeight).toBe("2.5rem");
 		expect(promptInput?.style.maxHeight).toBe("6.25rem");
+		const emptySpeechTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Record speech"]',
+		);
+		expect(emptySpeechTrigger).not.toBeNull();
+		expect(promptInput?.parentElement?.contains(emptySpeechTrigger)).toBe(true);
+		expect(onOpenVoiceInputSettings).not.toHaveBeenCalled();
 
 		await act(async () => {
 			if (!promptInput) return;
@@ -849,6 +1145,15 @@ describe("ChatInputBar", () => {
 			promptInput.dispatchEvent(new Event("input", { bubbles: true }));
 		});
 		expect(promptInput?.rows).toBe(2);
+		expect(
+			container.querySelector('[aria-label="Record speech"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Send message"]'),
+		).not.toBeNull();
+		expect(
+			container.querySelector('[aria-label="Configure realtime voice"]'),
+		).toBeNull();
 
 		await render("starting");
 		expect(container.querySelector('[aria-label="Stop agent"]')).toBeNull();
@@ -856,16 +1161,9 @@ describe("ChatInputBar", () => {
 		expect(container.querySelector('[aria-label="Stop agent"]')).not.toBeNull();
 
 		expect(onReasoningChange).not.toHaveBeenCalled();
-		const providerTrigger = container.querySelector<HTMLButtonElement>(
-			'[aria-label^="Provider:"]',
-		);
-		expect(providerTrigger?.parentElement?.parentElement?.className).toContain(
-			"max-[560px]:hidden",
-		);
-		expect(compactModelTrigger?.className).toContain("max-[560px]:inline-flex");
-		expect(compactModelTrigger?.querySelector(".lucide-cpu")).not.toBeNull();
-		const workspaceTrigger =
-			container.querySelector<HTMLButtonElement>("#git-branch-btn");
+		expect(
+			compactModelTrigger?.querySelector(".lucide-signal-high"),
+		).not.toBeNull();
 		const attachTrigger = container.querySelector<HTMLButtonElement>(
 			'[aria-label="Attach files"]',
 		);
@@ -876,11 +1174,16 @@ describe("ChatInputBar", () => {
 			'[aria-label="Thinking level"]',
 		);
 		const leftControls = attachTrigger?.parentElement;
+		expect(
+			attachTrigger?.querySelector(".lucide-paperclip")?.classList,
+		).toContain("size-3");
 		expect(leftControls?.className).toContain("max-[560px]:flex-nowrap");
 		expect(leftControls?.contains(compactModelTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(thinkingTrigger ?? null)).toBe(true);
 		expect(leftControls?.contains(speechTrigger ?? null)).toBe(false);
 
+		const workspaceTrigger =
+			container.querySelector<HTMLButtonElement>("#git-branch-btn");
 		expect(workspaceTrigger?.disabled).toBe(true);
 		expect(workspaceTrigger?.className).toContain("max-[560px]:size-7");
 		expect(workspaceTrigger?.textContent).toContain("cline");
@@ -912,7 +1215,7 @@ describe("ChatInputBar", () => {
 		expect(onOpenVoiceInputSettings).toHaveBeenCalledOnce();
 	});
 
-	it("selects High from the supported model thinking menu", async () => {
+	it("selects High with the supported model thinking slider", async () => {
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -935,16 +1238,11 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
-						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={vi.fn()}
-						onListGitBranches={vi.fn(async () => ({
-							current: "main",
-							branches: ["main"],
-						}))}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
@@ -953,7 +1251,6 @@ describe("ChatInputBar", () => {
 						onRemoveAttachment={vi.fn()}
 						onSend={vi.fn()}
 						onSteerPromptInQueue={vi.fn()}
-						onSwitchGitBranch={vi.fn(async () => true)}
 						onRemovePromptInQueue={vi.fn()}
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
@@ -966,31 +1263,36 @@ describe("ChatInputBar", () => {
 				</WorkspaceProvider>,
 			);
 		});
+		const modelSettings = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model settings"]',
+		);
+		await act(async () => modelSettings?.click());
 		const trigger = await vi.waitFor(() => {
-			const element = container.querySelector<HTMLButtonElement>(
-				'[aria-label="Thinking level"]',
+			const element = document.querySelector<HTMLInputElement>(
+				'[aria-label="Effort"]',
 			);
 			expect(element?.disabled).toBe(false);
-			return element as HTMLButtonElement;
+			return element as HTMLInputElement;
 		});
+		await vi.waitFor(() => expect(document.activeElement).toBe(trigger));
 		await act(async () => {
 			trigger.dispatchEvent(
-				new MouseEvent("pointerdown", { bubbles: true, cancelable: true }),
+				new KeyboardEvent("keydown", { bubbles: true, key: "ArrowRight" }),
 			);
-			trigger.click();
 		});
-		const highOption = await vi.waitFor(() => {
-			const element = [
-				...document.querySelectorAll<HTMLElement>('[role="option"]'),
-			].find((option) => option.textContent?.includes("High"));
-			expect(element).toBeDefined();
-			return element as HTMLElement;
+		expect(onReasoningChange).toHaveBeenLastCalledWith({
+			reasoningEffort: "medium",
+			thinking: true,
 		});
+		onReasoningChange.mockClear();
 		await act(async () => {
-			highOption.dispatchEvent(
-				new MouseEvent("pointerup", { bubbles: true, cancelable: true }),
-			);
-			highOption.click();
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(trigger, "3");
+			trigger.dispatchEvent(new Event("input", { bubbles: true }));
+			trigger.dispatchEvent(new Event("change", { bubbles: true }));
 		});
 
 		expect(onReasoningChange).toHaveBeenCalledWith({
@@ -1022,16 +1324,11 @@ describe("ChatInputBar", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
-						gitBranch="main"
 						mode="act"
 						model="test-model"
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={onEditPromptInQueue}
-						onListGitBranches={vi.fn(async () => ({
-							current: "main",
-							branches: ["main"],
-						}))}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
@@ -1040,7 +1337,6 @@ describe("ChatInputBar", () => {
 						onRemoveAttachment={vi.fn()}
 						onSend={vi.fn()}
 						onSteerPromptInQueue={onSteerPromptInQueue}
-						onSwitchGitBranch={vi.fn(async () => true)}
 						onRemovePromptInQueue={onRemovePromptInQueue}
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[
@@ -1301,7 +1597,12 @@ describe("ChatInputBar", () => {
 			expect(loadProviderModelsMock).toHaveBeenCalledWith("openrouter");
 		});
 		// The composer displays the session's model...
-		const modelTrigger = container.querySelector<HTMLButtonElement>(
+		const modelSettings = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model settings"]',
+		);
+		expect(modelSettings?.textContent).toContain("old-session-model");
+		await act(async () => modelSettings?.click());
+		const modelTrigger = document.querySelector<HTMLButtonElement>(
 			'[aria-label^="Model:"]',
 		);
 		expect(modelTrigger?.textContent).toContain("old-session-model");
@@ -1318,9 +1619,8 @@ describe("ChatInputBar", () => {
 		// An explicit pick in the model dropdown DOES update the remembered
 		// selection.
 		await act(async () => modelTrigger?.click());
-		const panel = document.querySelector('[role="dialog"]');
 		const option = [
-			...(panel?.querySelectorAll<HTMLButtonElement>("button") ?? []),
+			...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button'),
 		].find((entry) => entry.textContent?.includes("user-picked-model"));
 		expect(option).toBeTruthy();
 		await act(async () => option?.click());
@@ -1446,17 +1746,12 @@ describe("ChatInputBar token ring", () => {
 				>
 					<ChatInputBar
 						attachments={[]}
-						gitBranch="main"
 						mode="act"
 						model="test-model"
 						modelContextWindow={modelContextWindow}
 						onAbort={vi.fn()}
 						onAttachFiles={vi.fn()}
 						onEditPromptInQueue={vi.fn()}
-						onListGitBranches={vi.fn(async () => ({
-							current: "main",
-							branches: ["main"],
-						}))}
 						onModeToggle={vi.fn()}
 						onModelChange={vi.fn()}
 						onPromptInputChange={vi.fn()}
@@ -1466,7 +1761,6 @@ describe("ChatInputBar token ring", () => {
 						onRemovePromptInQueue={vi.fn()}
 						onSend={vi.fn()}
 						onSteerPromptInQueue={vi.fn()}
-						onSwitchGitBranch={vi.fn(async () => true)}
 						promptDraft={{ version: 0, value: "" }}
 						promptsInQueue={[]}
 						provider="cline"
@@ -1517,6 +1811,10 @@ describe("ChatInputBar token ring", () => {
 		);
 		expect(trigger?.textContent).toBe("");
 		const ring = trigger?.querySelector("svg");
+		const inputBar = trigger?.closest(".max-w-full");
+		expect(inputBar?.classList.contains("w-full")).toBe(true);
+		expect(inputBar?.classList.contains("min-w-0")).toBe(true);
+		expect(inputBar?.classList.contains("max-w-full")).toBe(true);
 		expect(ring?.classList.contains("size-3.5")).toBe(true);
 		expect(ring?.getAttribute("height")).toBe("22");
 		expect(ring?.getAttribute("width")).toBe("22");
@@ -1526,21 +1824,15 @@ describe("ChatInputBar token ring", () => {
 		expect(
 			Number(progressCircle?.getAttribute("stroke-dashoffset")),
 		).toBeCloseTo(circumference * 0.25);
-
-		if (!trigger?.parentElement) {
-			throw new Error("Expected token usage trigger group");
-		}
-		const usageGroup = trigger.parentElement;
-		const workspaceSelector = usageGroup.querySelector("#git-branch-btn");
-		if (!workspaceSelector) {
-			throw new Error("Expected workspace selector in token usage group");
-		}
-		expect(usageGroup.classList.contains("gap-0")).toBe(true);
-		expect(usageGroup.contains(workspaceSelector)).toBe(true);
+		expect(container.querySelector("#git-branch-btn")).toBeNull();
+		expect(trigger?.parentElement?.classList.contains("gap-0")).toBe(true);
+		const modelSettings = container.querySelector(
+			'[aria-label="Model settings"]',
+		);
 		expect(
 			Boolean(
-				trigger.compareDocumentPosition(workspaceSelector) &
-					Node.DOCUMENT_POSITION_PRECEDING,
+				modelSettings?.compareDocumentPosition(trigger as Node) &
+					Node.DOCUMENT_POSITION_FOLLOWING,
 			),
 		).toBe(true);
 	});

@@ -1,8 +1,10 @@
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
+import { isBetaVersion, productNameForVersion } from "@/lib/app-channel";
 import {
 	DEFAULT_APP_FONT_SIZE,
 	isAppFontSize,
@@ -20,19 +22,28 @@ import {
 	readStoredAppIcon,
 	setStoredAppIcon,
 } from "@/lib/app-icon";
+import {
+	type AvatarOption,
+	getSelectedAvatar,
+	listAvatars,
+	selectAvatar,
+	setAvatarEnabled,
+} from "@/lib/avatar";
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
 	invalidateProviderCatalogCache,
-	notifyVoiceInputSettingsChanged,
+	notifyModeSettingsChanged,
 	publishProviderModels,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderCatalogResponse,
+	ProviderMode,
 	ProviderModelsResponse,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
 	ProviderSettingsUpdate,
-	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import {
 	type HubAccent,
@@ -54,6 +65,7 @@ import {
 	ProviderDetailContent,
 	ProviderListContent,
 } from "./provider-list-view";
+import { RemoteEnvironmentsContent } from "./remote-environments-view";
 import { RoutineSchedulesContent } from "./routine-view";
 import type { SettingsSection } from "./sections";
 import { toSettingsPatch } from "./settings-patch";
@@ -78,7 +90,22 @@ let providerCatalogCache: {
 	providers: Provider[];
 	fetchedAt: number;
 } | null = null;
-let voiceInputCache: VoiceInputSelection | undefined;
+let modeSettingsCache: ProviderModesSettings = {};
+
+function removeProviderModes(
+	modes: ProviderModesSettings,
+	providerId: string,
+): { modes: ProviderModesSettings; removed: ProviderMode[] } {
+	const next = { ...modes };
+	const removed: ProviderMode[] = [];
+	for (const mode of Object.keys(next) as ProviderMode[]) {
+		if (next[mode]?.providerId === providerId) {
+			delete next[mode];
+			removed.push(mode);
+		}
+	}
+	return { modes: next, removed };
+}
 
 // -----------------------------------------------------------
 // Component
@@ -116,10 +143,11 @@ export function SettingsView({
 		null,
 	);
 	const [addingProvider, setAddingProvider] = useState(false);
-	const [voiceInput, setVoiceInput] = useState<VoiceInputSelection | undefined>(
-		() => voiceInputCache,
-	);
-	const [voiceInputSaving, setVoiceInputSaving] = useState(false);
+	const [modeSettings, setModeSettings] =
+		useState<ProviderModesSettings>(modeSettingsCache);
+	const [savingModes, setSavingModes] = useState<
+		Partial<Record<ProviderMode, boolean>>
+	>({});
 
 	useEffect(() => {
 		if (section !== "Models") {
@@ -152,7 +180,7 @@ export function SettingsView({
 			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
 		) {
 			setProviders(providerCatalogCache.providers);
-			setVoiceInput(voiceInputCache);
+			setModeSettings(modeSettingsCache);
 			setProvidersLoading(false);
 			setProviderCatalogError(null);
 			return;
@@ -165,8 +193,11 @@ export function SettingsView({
 				"list_provider_catalog",
 			);
 			setProvidersWithCache(payload.providers);
-			voiceInputCache = payload.voiceInput;
-			setVoiceInput(payload.voiceInput);
+			const modes =
+				payload.modes ??
+				(payload.voiceInput ? { voiceInput: payload.voiceInput } : {});
+			modeSettingsCache = modes;
+			setModeSettings(modes);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setProviderCatalogError(message);
@@ -228,14 +259,17 @@ export function SettingsView({
 						return p;
 					}
 					const nextEnabled = !p.enabled;
-					const clearsVoiceInput =
-						!nextEnabled && voiceInput?.providerId === id;
+					const updatedModes = nextEnabled
+						? { modes: modeSettings, removed: [] }
+						: removeProviderModes(modeSettings, id);
 					void persistProviderSettings(id, { enabled: nextEnabled }).then(
 						(saved) => {
-							if (saved && clearsVoiceInput) {
-								voiceInputCache = undefined;
-								setVoiceInput(undefined);
-								notifyVoiceInputSettingsChanged();
+							if (saved && updatedModes.removed.length > 0) {
+								modeSettingsCache = updatedModes.modes;
+								setModeSettings(updatedModes.modes);
+								for (const mode of updatedModes.removed) {
+									notifyModeSettingsChanged(mode);
+								}
 							}
 						},
 					);
@@ -243,27 +277,31 @@ export function SettingsView({
 				}),
 			);
 		},
-		[persistProviderSettings, setProvidersWithCache, voiceInput],
+		[persistProviderSettings, setProvidersWithCache, modeSettings],
 	);
 
-	const updateVoiceInput = useCallback(
-		async (selection: VoiceInputSelection | undefined) => {
-			setVoiceInputSaving(true);
+	const updateModeSettings = useCallback(
+		async <Mode extends ProviderMode>(
+			mode: Mode,
+			settings: ProviderModeSettingsMap[Mode] | undefined,
+		) => {
+			setSavingModes((current) => ({ ...current, [mode]: true }));
 			try {
 				const result = await desktopClient.invoke<{
-					voiceInput?: VoiceInputSelection;
-				}>("save_voice_input_settings", {
-					provider: selection?.providerId,
-					model: selection?.modelId,
+					modes: ProviderModesSettings;
+				}>("save_mode_settings", {
+					mode,
+					settings,
 				});
-				voiceInputCache = result.voiceInput;
-				setVoiceInput(result.voiceInput);
-				notifyVoiceInputSettingsChanged();
+				const modes = result.modes ?? {};
+				modeSettingsCache = modes;
+				setModeSettings(modes);
+				notifyModeSettingsChanged(mode);
 			} catch (error) {
 				const message = error instanceof Error ? error.message : String(error);
-				window.alert(`Failed to save voice input settings: ${message}`);
+				window.alert(`Failed to save ${mode} settings: ${message}`);
 			} finally {
-				setVoiceInputSaving(false);
+				setSavingModes((current) => ({ ...current, [mode]: false }));
 			}
 		},
 		[],
@@ -460,12 +498,24 @@ export function SettingsView({
 				onAddProvider={openAddProvider}
 				onConfigure={openProviderDetail}
 				onToggle={toggleProvider}
-				onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
+				onRealtimeVoiceChange={(settings) =>
+					void updateModeSettings("realtimeVoice", settings)
+				}
+				onVoiceInputChange={(settings) =>
+					void updateModeSettings("voiceInput", settings)
+				}
+				onVoiceOutputChange={(settings) =>
+					void updateModeSettings("voiceOutput", settings)
+				}
 				providers={providers}
+				realtimeVoice={modeSettings.realtimeVoice}
+				realtimeVoiceSaving={savingModes.realtimeVoice}
 				selectedProviderId={selectedProvider.id}
 				variant="panel"
-				voiceInput={voiceInput}
-				voiceInputSaving={voiceInputSaving}
+				voiceInput={modeSettings.voiceInput}
+				voiceInputSaving={savingModes.voiceInput}
+				voiceOutput={modeSettings.voiceOutput}
+				voiceOutputSaving={savingModes.voiceOutput}
 			/>
 			<aside className="min-h-0 overflow-hidden border-l bg-background max-[1100px]:border-l-0 max-[1100px]:border-t">
 				<ProviderDetailContent
@@ -493,10 +543,22 @@ export function SettingsView({
 			onAddProvider={openAddProvider}
 			onConfigure={openProviderDetail}
 			onToggle={toggleProvider}
-			onVoiceInputChange={(selection) => void updateVoiceInput(selection)}
+			onRealtimeVoiceChange={(settings) =>
+				void updateModeSettings("realtimeVoice", settings)
+			}
+			onVoiceInputChange={(settings) =>
+				void updateModeSettings("voiceInput", settings)
+			}
+			onVoiceOutputChange={(settings) =>
+				void updateModeSettings("voiceOutput", settings)
+			}
 			providers={providers}
-			voiceInput={voiceInput}
-			voiceInputSaving={voiceInputSaving}
+			realtimeVoice={modeSettings.realtimeVoice}
+			realtimeVoiceSaving={savingModes.realtimeVoice}
+			voiceInput={modeSettings.voiceInput}
+			voiceInputSaving={savingModes.voiceInput}
+			voiceOutput={modeSettings.voiceOutput}
+			voiceOutputSaving={savingModes.voiceOutput}
 		/>
 	);
 
@@ -521,6 +583,8 @@ export function SettingsView({
 			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
+		) : activeNav === "Remote" ? (
+			<RemoteEnvironmentsContent />
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
@@ -574,6 +638,12 @@ function GeneralSettingsContent() {
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
+	const [avatars, setAvatars] = useState<AvatarOption[]>([]);
+	const [selectedAvatarId, setSelectedAvatarId] = useState("cline-bot");
+	const [avatarEnabled, setAvatarEnabledState] = useState(true);
+	const [avatarLoading, setAvatarLoading] = useState(true);
+	const [avatarSaving, setAvatarSaving] = useState(false);
+	const [avatarError, setAvatarError] = useState<string | null>(null);
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -586,8 +656,60 @@ function GeneralSettingsContent() {
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
 	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	const [cloudSessionsEnabled, setCloudSessionsEnabled] = useState(false);
+	const [cloudSessionsLoading, setCloudSessionsLoading] = useState(true);
+	const [cloudSessionsSaving, setCloudSessionsSaving] = useState(false);
+	const [cloudSessionsError, setCloudSessionsError] = useState<string | null>(
+		null,
+	);
+	// The gate the composer actually uses. It can diverge from the stored
+	// setting when the CLINE_CODE_CLOUD_AGENTS env override is set; without
+	// surfacing that, the toggle silently appears to do nothing.
+	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
+		boolean | null
+	>(null);
+	// Hard-wired on for the preview. If rollout control is ever needed,
+	// gate this on a PostHog flag exposed through the sidecar's
+	// get_feature_flags command (the sidecar's remote-flag evaluation
+	// plumbing was removed with the old rollout gate; see the git history
+	// of sidecar/feature-flags.ts for the hardened version).
+	const cloudSessionsSettingVisible = true;
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+
+	const refreshCloudSessionsEffective = useCallback(async () => {
+		try {
+			const flags = await desktopClient.invoke<{ cloudAgents?: boolean }>(
+				"get_feature_flags",
+			);
+			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+		} catch {
+			setCloudSessionsEffective(null);
+		}
+	}, []);
 
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void desktopClient
+			.invoke<{ appVersion?: unknown }>("get_process_context")
+			.then((context) => {
+				if (cancelled) {
+					return;
+				}
+				const version =
+					typeof context?.appVersion === "string"
+						? context.appVersion.trim()
+						: "";
+				setAppVersion(version || null);
+			})
+			.catch(() => {
+				// Leave the About row versionless if the sidecar is unreachable.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const loadGlobalSettings = useCallback(async () => {
 		setTelemetryLoading(true);
@@ -596,24 +718,50 @@ function GeneralSettingsContent() {
 		setAutoUpdateError(null);
 		setWebSearchLoading(true);
 		setWebSearchError(null);
-		try {
-			const settings = await desktopClient.invoke<GlobalSettingsResponse>(
-				"get_global_settings",
-			);
-			setTelemetryOptOut(settings.telemetryOptOut);
-			setAutoUpdateEnabled(settings.autoUpdateEnabled);
-			setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setTelemetryError(message);
-			setAutoUpdateError(message);
-			setWebSearchError(message);
-		} finally {
-			setTelemetryLoading(false);
-			setAutoUpdateLoading(false);
-			setWebSearchLoading(false);
-		}
-	}, []);
+		setCloudSessionsLoading(true);
+		setCloudSessionsError(null);
+		// Independent backends: load them concurrently so one slow call cannot
+		// hold the other's toggle in its loading state.
+		await Promise.all([
+			(async () => {
+				try {
+					const settings = await desktopClient.invoke<GlobalSettingsResponse>(
+						"get_global_settings",
+					);
+					setTelemetryOptOut(settings.telemetryOptOut);
+					setAutoUpdateEnabled(settings.autoUpdateEnabled);
+					setWebSearchEnabled(settings.tools?.web_search?.enabled === true);
+				} catch (error) {
+					const message =
+						error instanceof Error ? error.message : String(error);
+					setTelemetryError(message);
+					setAutoUpdateError(message);
+					setWebSearchError(message);
+				} finally {
+					setTelemetryLoading(false);
+					setAutoUpdateLoading(false);
+					setWebSearchLoading(false);
+				}
+			})(),
+			(async () => {
+				try {
+					const desktopSettings = await desktopClient.invoke<{
+						cloudSessionsEnabled: boolean;
+					}>("get_desktop_settings");
+					setCloudSessionsEnabled(
+						Boolean(desktopSettings.cloudSessionsEnabled),
+					);
+				} catch (error) {
+					setCloudSessionsError(
+						error instanceof Error ? error.message : String(error),
+					);
+				} finally {
+					setCloudSessionsLoading(false);
+				}
+			})(),
+			refreshCloudSessionsEffective(),
+		]);
+	}, [refreshCloudSessionsEffective]);
 
 	useEffect(() => {
 		const timeoutId = window.setTimeout(() => {
@@ -621,6 +769,35 @@ function GeneralSettingsContent() {
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [loadGlobalSettings]);
+
+	useEffect(() => {
+		let cancelled = false;
+		void Promise.all([listAvatars(), getSelectedAvatar()])
+			.then(([avatars, selected]) => {
+				if (cancelled) return;
+				setAvatars(Array.isArray(avatars) ? avatars : []);
+				if (selected && typeof selected.id === "string") {
+					setSelectedAvatarId(selected.id);
+				}
+				if (selected && typeof selected.enabled === "boolean") {
+					setAvatarEnabledState(selected.enabled);
+				}
+				setAvatarError(null);
+			})
+			.catch((error) => {
+				if (!cancelled) {
+					setAvatarError(
+						error instanceof Error ? error.message : String(error),
+					);
+				}
+			})
+			.finally(() => {
+				if (!cancelled) setAvatarLoading(false);
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const updateTelemetryOptOut = async (nextValue: boolean) => {
 		const previousValue = telemetryOptOut;
@@ -682,6 +859,26 @@ function GeneralSettingsContent() {
 		}
 	};
 
+	const updateCloudSessionsEnabled = async (nextValue: boolean) => {
+		const previousValue = cloudSessionsEnabled;
+		setCloudSessionsEnabled(nextValue);
+		setCloudSessionsSaving(true);
+		setCloudSessionsError(null);
+		try {
+			const settings = await desktopClient.invoke<{
+				cloudSessionsEnabled: boolean;
+			}>("set_cloud_sessions_enabled", { cloud_sessions_enabled: nextValue });
+			setCloudSessionsEnabled(Boolean(settings.cloudSessionsEnabled));
+			await refreshCloudSessionsEffective();
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setCloudSessionsEnabled(previousValue);
+			setCloudSessionsError(message);
+		} finally {
+			setCloudSessionsSaving(false);
+		}
+	};
+
 	const updateTheme = (darkModeEnabled: boolean) => {
 		const nextTheme = darkModeEnabled ? "dark" : "light";
 		setTheme(setStoredHubTheme(nextTheme));
@@ -719,6 +916,36 @@ function GeneralSettingsContent() {
 			// Storage was written before the native call failed; roll it back
 			// so the persisted choice matches what the dock actually shows.
 			await setStoredAppIcon(previousIcon).catch(() => {});
+		}
+	};
+
+	const updateAvatar = async (nextId: string) => {
+		const previousId = selectedAvatarId;
+		setSelectedAvatarId(nextId);
+		setAvatarSaving(true);
+		setAvatarError(null);
+		try {
+			await selectAvatar(nextId);
+		} catch (error) {
+			setSelectedAvatarId(previousId);
+			setAvatarError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setAvatarSaving(false);
+		}
+	};
+
+	const updateAvatarEnabled = async (enabled: boolean) => {
+		const previousEnabled = avatarEnabled;
+		setAvatarEnabledState(enabled);
+		setAvatarSaving(true);
+		setAvatarError(null);
+		try {
+			await setAvatarEnabled(enabled);
+		} catch (error) {
+			setAvatarEnabledState(previousEnabled);
+			setAvatarError(error instanceof Error ? error.message : String(error));
+		} finally {
+			setAvatarSaving(false);
 		}
 	};
 
@@ -871,6 +1098,51 @@ function GeneralSettingsContent() {
 						))}
 					</div>
 				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Show desktop avatar
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Display the selected avatar as a desktop overlay.
+						</p>
+						{avatarError ? (
+							<p className="mt-2 text-xs text-destructive" role="alert">
+								Failed to update desktop avatar: {avatarError}
+							</p>
+						) : null}
+					</div>
+					<Switch
+						aria-label="Show desktop avatar"
+						checked={avatarEnabled}
+						disabled={avatarLoading || avatarSaving}
+						onCheckedChange={(checked) => void updateAvatarEnabled(checked)}
+					/>
+				</div>
+				<div className="flex min-h-20 items-center justify-between gap-5 border-b py-4 max-[720px]:flex-col max-[720px]:items-stretch">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">
+							Desktop avatar
+						</p>
+						<p className="text-sm text-muted-foreground">
+							Choose Cline Bot, Mom, or a v2 avatar installed under
+							{" ~/.cline/avatars/<avatar-name>"}.
+						</p>
+					</div>
+					<select
+						aria-label="Desktop avatar"
+						className="h-9 min-w-44 rounded-md border border-input bg-background px-3 text-sm text-foreground"
+						disabled={avatarLoading || avatarSaving}
+						onChange={(event) => void updateAvatar(event.target.value)}
+						value={selectedAvatarId}
+					>
+						{avatars.map((avatar) => (
+							<option key={avatar.id} value={avatar.id}>
+								{avatar.displayName}
+							</option>
+						))}
+					</select>
+				</div>
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">
@@ -916,6 +1188,46 @@ function GeneralSettingsContent() {
 						onCheckedChange={(checked) => void updateAutoUpdateEnabled(checked)}
 					/>
 				</div>
+				{cloudSessionsSettingVisible ? (
+					<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+						<div className="flex flex-col gap-1">
+							<p className="flex items-center gap-2 text-base font-semibold text-foreground">
+								Cloud sessions
+								<span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium uppercase tracking-wide text-primary">
+									Preview
+								</span>
+							</p>
+							<p className="text-sm text-muted-foreground">
+								Run Cline on your GitHub repositories in secure cloud sandboxes.
+								Adds a Cloud option to the new-session composer. Requires a
+								Cline account with GitHub connected.
+							</p>
+							{cloudSessionsError ? (
+								<p className="mt-2 text-xs text-destructive" role="alert">
+									Failed to update cloud sessions setting: {cloudSessionsError}
+								</p>
+							) : null}
+							{cloudSessionsEffective !== null &&
+							!cloudSessionsLoading &&
+							cloudSessionsEffective !== cloudSessionsEnabled ? (
+								<p className="mt-2 text-xs text-muted-foreground">
+									Cloud sessions are currently{" "}
+									{cloudSessionsEffective ? "enabled" : "disabled"} by the
+									CLINE_CODE_CLOUD_AGENTS environment override, which takes
+									precedence over this setting.
+								</p>
+							) : null}
+						</div>
+						<Switch
+							aria-label="Cloud sessions"
+							checked={cloudSessionsEnabled}
+							disabled={cloudSessionsLoading || cloudSessionsSaving}
+							onCheckedChange={(checked) =>
+								void updateCloudSessionsEnabled(checked)
+							}
+						/>
+					</div>
+				) : null}
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Telemetry</p>
@@ -955,6 +1267,26 @@ function GeneralSettingsContent() {
 						<RotateCcw className="size-3" />
 						Replay
 					</Button>
+				</div>
+				<div className="flex py-4 items-center justify-between gap-5 max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
+					<div className="flex flex-col gap-1">
+						<p className="text-base font-semibold text-foreground">About</p>
+						<p className="text-sm text-muted-foreground">
+							{productNameForVersion(appVersion)}
+							{appVersion ? ` v${appVersion}` : ""}
+							{isBetaVersion(appVersion)
+								? " — beta builds install side by side with the stable app and update from the beta channel."
+								: ""}
+						</p>
+					</div>
+					{isBetaVersion(appVersion) ? (
+						<Badge
+							className="shrink-0 uppercase tracking-wide"
+							variant="secondary"
+						>
+							Beta
+						</Badge>
+					) : null}
 				</div>
 			</section>
 		</PageFrame>

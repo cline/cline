@@ -38,20 +38,52 @@ const sidecarOutfile = (targetTriple: string): string => {
 	return `./src-tauri/bin/code-sidecar-${targetTriple}${extension}`;
 };
 
-const buildSidecar = async (targetTriple: string): Promise<string> => {
-	const outfile = sidecarOutfile(targetTriple);
+const buildSidecar = async (
+	targetTriple: string,
+	outfile = sidecarOutfile(targetTriple),
+	entrypoint = "./sidecar/index.ts",
+	minify = false,
+): Promise<string> => {
 	const bunTarget = resolveBunCompileTarget(targetTriple);
 	// Telemetry config must be inlined into the compiled binary: a packaged
 	// app launched from Finder/the Dock has no OTEL_* env at runtime, so
 	// without this the sidecar silently ships with telemetry disabled.
 	// Verify with `<binary> --telemetry-selfcheck` after building.
 	const defines = telemetryDefineArgs();
+	const optimizationArgs = minify ? ["--minify"] : [];
+	// A compiled Bun executable otherwise reads .env and bunfig.toml from its
+	// launch directory before our entrypoint runs. Remote helpers are launched
+	// from an SSH user's home directory, so that behavior can both make the
+	// helper fail on an unrelated dotenv file and leak workspace credentials
+	// into the Hub process. Packaged binaries must depend only on their explicit
+	// process environment and compiled configuration.
+	const runtimeIsolationArgs = [
+		"--no-compile-autoload-dotenv",
+		"--no-compile-autoload-bunfig",
+	];
 	if (bunTarget) {
-		await $`bun build ./sidecar/index.ts --compile --target=${bunTarget} ${defines} --outfile ${outfile}`;
+		await $`bun build ${entrypoint} --compile --target=${bunTarget} ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
 	} else {
-		await $`bun build ./sidecar/index.ts --compile ${defines} --outfile ${outfile}`;
+		await $`bun build ${entrypoint} --compile ${runtimeIsolationArgs} ${optimizationArgs} ${defines} --outfile ${outfile}`;
 	}
 	return outfile;
+};
+
+// SSH environments run the same Hub build as the desktop in a dedicated
+// bootstrap/daemon binary. It intentionally excludes the desktop HTTP server,
+// command router, and UI backend. Linux x64 and arm64 cover common SSH hosts.
+const buildRemoteHelpers = async (): Promise<void> => {
+	for (const targetTriple of [
+		"x86_64-unknown-linux-gnu",
+		"aarch64-unknown-linux-gnu",
+	]) {
+		await buildSidecar(
+			targetTriple,
+			`./src-tauri/bin/remote-helpers/code-sidecar-${targetTriple}`,
+			"./sidecar/remote-helper.ts",
+			true,
+		);
+	}
 };
 
 // Tauri's universal-apple-darwin pseudo-target lipos the Rust binary itself
@@ -68,12 +100,13 @@ const buildUniversalMacSidecar = async (): Promise<void> => {
 
 const main = async () => {
 	const targetTriple = await resolveTargetTriple();
-	await $`mkdir -p src-tauri/bin`;
+	await $`mkdir -p src-tauri/bin src-tauri/bin/remote-helpers`;
 	if (targetTriple === "universal-apple-darwin") {
 		await buildUniversalMacSidecar();
-		return;
+	} else {
+		await buildSidecar(targetTriple);
 	}
-	await buildSidecar(targetTriple);
+	await buildRemoteHelpers();
 };
 
 main().catch((error: unknown) => {

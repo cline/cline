@@ -19,12 +19,15 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import type {
 	ChatMessage,
 	ChatMessageImage,
+	ChatMessageVideo,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { openExternalUrl } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
 import { STREAMING_TITLE_CLASS } from "./messages/constants";
 import {
@@ -35,12 +38,14 @@ import {
 } from "./messages/group-messages";
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
+import { ChatVideoLightbox } from "./messages/message-media";
 import {
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
 } from "./messages/tool-approval-panel";
 import { ToolMessageBlock } from "./messages/tool-message-block";
 import { buildToolPresentation } from "./messages/tool-summaries";
+import { useAssistantSpeech } from "./messages/use-assistant-speech";
 import { SessionContent } from "./session-content";
 
 type ChatMessagesProps = {
@@ -70,6 +75,9 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onOpenVoiceOutputSettings?: () => void;
+	startingLabel?: string;
+	errorAction?: { label: string; url: string };
 };
 
 type AskQuestionRequestItem = {
@@ -100,6 +108,9 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onOpenVoiceOutputSettings,
+	startingLabel = "Thinking...",
+	errorAction,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -176,12 +187,22 @@ function ChatMessagesImpl({
 		sessionId: string | null;
 		image: ChatMessageImage;
 	} | null>(null);
+	const [expandedVideo, setExpandedVideo] = useState<{
+		sessionId: string;
+		video: ChatMessageVideo;
+	} | null>(null);
+	const assistantSpeech = useAssistantSpeech({
+		sessionId,
+		onOpenVoiceOutputSettings,
+	});
 	const sessionVersioningPending =
 		editingMessageId !== null ||
 		forkingMessageId !== null ||
 		Object.values(checkpointActions).includes("undoing");
 	const visibleExpandedImage =
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
+	const visibleExpandedVideo =
+		expandedVideo?.sessionId === sessionId ? expandedVideo : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
 	const renderItems = useMemo(() => groupChatMessages(messages), [messages]);
@@ -212,17 +233,18 @@ function ChatMessagesImpl({
 	}, [sessionId]);
 
 	useEffect(() => {
-		if (!visibleExpandedImage) {
+		if (!visibleExpandedImage && !visibleExpandedVideo) {
 			return;
 		}
 		const handleKeyDown = (event: KeyboardEvent) => {
 			if (event.key === "Escape") {
 				setExpandedImage(null);
+				setExpandedVideo(null);
 			}
 		};
 		window.addEventListener("keydown", handleKeyDown);
 		return () => window.removeEventListener("keydown", handleKeyDown);
-	}, [visibleExpandedImage]);
+	}, [visibleExpandedImage, visibleExpandedVideo]);
 
 	useEffect(() => {
 		if (!isSessionSwitching) {
@@ -421,6 +443,12 @@ function ChatMessagesImpl({
 		},
 		[sessionId],
 	);
+	const handleExpandVideo = useCallback(
+		(video: ChatMessageVideo) => {
+			if (sessionId) setExpandedVideo({ sessionId, video });
+		},
+		[sessionId],
+	);
 
 	const handleForkSession = useCallback(
 		async (messageId: string) => {
@@ -504,6 +532,7 @@ function ChatMessagesImpl({
 											message={message}
 											runCount={userRunCountByMessage.get(message)}
 											onExpandImage={handleExpandImage}
+											onExpandVideo={handleExpandVideo}
 											onCopyMessage={handleCopyMessage}
 											onEditMessage={
 												onEditMessage ? requestEditMessage : undefined
@@ -548,6 +577,19 @@ function ChatMessagesImpl({
 											}
 											forkPending={forkingMessageId === message.id}
 											forkError={forkErrors[message.id]}
+											onSpeakMessage={assistantSpeech.speak}
+											speechAvailable={Boolean(assistantSpeech.target)}
+											speechSettingsLoaded={assistantSpeech.settingsLoaded}
+											speechState={
+												assistantSpeech.state?.messageId === message.id
+													? assistantSpeech.state.phase
+													: undefined
+											}
+											speechTargetLabel={
+												assistantSpeech.target
+													? `${assistantSpeech.target.providerName} / ${assistantSpeech.target.modelName}`
+													: undefined
+											}
 											reasoningContent={reasoningContent}
 											reasoningRedacted={reasoningMessages.some(
 												(reasoningMessage) =>
@@ -623,7 +665,7 @@ function ChatMessagesImpl({
 						!isSessionSwitching ? (
 							<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
 								<Loader2 className="size-4 animate-spin" />
-								<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+								<span className={STREAMING_TITLE_CLASS}>{startingLabel}</span>
 							</div>
 						) : null}
 						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
@@ -638,7 +680,17 @@ function ChatMessagesImpl({
 						) : null}
 						{shouldShowErrorBanner ? (
 							<div className="cline-chat-selectable mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
-								{error}
+								<p>{error}</p>
+								{errorAction ? (
+									<Button
+										className="mt-2"
+										onClick={() => void openExternalUrl(errorAction.url)}
+										size="sm"
+										variant="outline"
+									>
+										{errorAction.label}
+									</Button>
+								) : null}
 							</div>
 						) : null}
 					</SessionContent>
@@ -649,6 +701,13 @@ function ChatMessagesImpl({
 				<ChatImageLightbox
 					image={visibleExpandedImage}
 					onClose={() => setExpandedImage(null)}
+				/>
+			) : null}
+			{visibleExpandedVideo ? (
+				<ChatVideoLightbox
+					onClose={() => setExpandedVideo(null)}
+					sessionId={visibleExpandedVideo.sessionId}
+					video={visibleExpandedVideo.video}
 				/>
 			) : null}
 			<AlertDialog

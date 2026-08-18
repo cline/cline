@@ -80,6 +80,7 @@ describe("readSessionMessages", () => {
 			expect.objectContaining({
 				id: "assistant-message_tool_use_2",
 				createdAt: assistantTimestamp + 1,
+				meta: expect.objectContaining({ toolCallId: "tool-use" }),
 			}),
 		]);
 	});
@@ -122,6 +123,92 @@ describe("readSessionMessages", () => {
 						id: "user-image_image_1",
 						mediaType: "image/png",
 						data: "aGVsbG8=",
+					},
+				],
+			}),
+		]);
+	});
+
+	it("projects generated video artifact blocks", async () => {
+		const sessionId = `video-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "assistant-video",
+							role: "assistant",
+							content: [
+								{
+									type: "video",
+									mediaType: "video/mp4",
+									path: `/tmp/session/artifacts/video-result.mp4`,
+								},
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "assistant",
+				content: "",
+				videos: [
+					{
+						id: "assistant-video_video_0",
+						mediaType: "video/mp4",
+						artifactName: "video-result.mp4",
+					},
+				],
+			}),
+		]);
+	});
+
+	it("projects generated audio artifact blocks", async () => {
+		const sessionId = `audio-projection-${Date.now()}`;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "assistant-audio",
+							role: "assistant",
+							content: [
+								{
+									type: "audio",
+									mediaType: "audio/mpeg",
+									path: "/tmp/session/artifacts/audio-result.mp3",
+								},
+							],
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				role: "assistant",
+				content: "",
+				audios: [
+					{
+						id: "assistant-audio_audio_0",
+						mediaType: "audio/mpeg",
+						artifactName: "audio-result.mp3",
 					},
 				],
 			}),

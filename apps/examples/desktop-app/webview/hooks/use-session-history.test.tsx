@@ -84,6 +84,29 @@ afterEach(async () => {
 });
 
 describe("useSessionHistory session mapping", () => {
+	it("binds cloud discovery rows without an SSH environment to local", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("cloud-session"),
+					origin: "cloud",
+					repoUrl: "https://github.com/cline/test",
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		expect(current.sessions[0]).toMatchObject({
+			sessionId: "cloud-session",
+			environmentId: "local",
+		});
+	});
+
 	it("maps nested Core schedule provenance onto sidebar threads", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);
@@ -178,6 +201,80 @@ describe("useSessionHistory refresh coalescing", () => {
 			await loadMore;
 		});
 		expect(pendingLists).toHaveLength(2);
+	});
+});
+
+describe("useSessionHistory live status updates", () => {
+	it("clears a running sidebar thread immediately when the session is stopped", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				{
+					...sessionRow("session-1"),
+					status: "running",
+					prompt: "Inspect the repository",
+				},
+			]);
+			await Promise.resolve();
+		});
+		expect(current.threads[0]?.status).toBe("running");
+
+		const endedSubscription = subscribeMock.mock.calls.find(
+			([event]) => event === "chat_session_ended",
+		);
+		const onSessionEnded = endedSubscription?.[1] as
+			| ((payload: unknown) => void)
+			| undefined;
+		expect(onSessionEnded).toBeTypeOf("function");
+
+		await act(async () => {
+			onSessionEnded?.({ sessionId: "session-1", reason: "aborted" });
+		});
+		expect(current.threads[0]?.status).toBe("cancelled");
+	});
+});
+
+describe("useSessionHistory persisted usage", () => {
+	it("maps usage metadata for every discovered session without reading artifacts", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve(
+				Array.from({ length: 10 }, (_, index) => ({
+					...sessionRow(`session-${index}`),
+					metadata: {
+						usage: {
+							inputTokens: 1_000 + index,
+							outputTokens: 100 + index,
+							totalCost: 0.01 + index / 100,
+						},
+					},
+				})),
+			);
+			await Promise.resolve();
+		});
+
+		expect(current.threads).toHaveLength(10);
+		const lastThread = current.threads.find(
+			(thread) => thread.id === "session-9",
+		);
+		expect(lastThread).toMatchObject({
+			inputTokens: 1_009,
+			outputTokens: 109,
+		});
+		expect(lastThread?.totalCostUsd).toBeCloseTo(0.1);
+		expect(
+			invokeMock.mock.calls.some(
+				([command]) =>
+					command === "read_session_messages" ||
+					command === "read_session_hooks",
+			),
+		).toBe(false);
 	});
 });
 
@@ -358,5 +455,32 @@ describe("useSessionHistory complete history loading", () => {
 
 		expect(current.sessions).toHaveLength(120);
 		expect(current.mayHaveMoreSessions).toBe(false);
+	});
+});
+
+describe("useSessionHistory background hydration", () => {
+	it("does not open cloud sessions to enrich sidebar metadata", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([
+				sessionRow("local-session"),
+				{
+					...sessionRow("ses-cloud"),
+					origin: "cloud",
+					executionTarget: "cloud",
+				},
+			]);
+			await Promise.resolve();
+		});
+
+		await flush(801);
+		const hydratedSessionIds = invokeMock.mock.calls
+			.filter(([command]) => command === "read_session_messages")
+			.map(([, args]) => args?.sessionId);
+		expect(hydratedSessionIds).toContain("local-session");
+		expect(hydratedSessionIds).not.toContain("ses-cloud");
 	});
 });

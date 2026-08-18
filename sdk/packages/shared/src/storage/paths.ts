@@ -352,6 +352,20 @@ export function resolveProviderSettingsPath(): string {
 	return join(resolveClineDataDir(), "settings", "providers.json");
 }
 
+export function resolveClientSettingsPath(clientId: string): string {
+	const normalizedClientId = clientId.trim();
+	if (!/^[a-z0-9][a-z0-9_-]*$/.test(normalizedClientId)) {
+		throw new Error(`Invalid client settings id: ${clientId}`);
+	}
+	return join(
+		resolveClineDataDir(),
+		"settings",
+		"clients",
+		normalizedClientId,
+		"settings.json",
+	);
+}
+
 export function resolveGlobalSettingsPath(): string {
 	const explicitPath = process.env.CLINE_GLOBAL_SETTINGS_PATH?.trim();
 	if (explicitPath) {

@@ -24,6 +24,21 @@ export {
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
 export {
+	AudioPlayer,
+	AudioPlayerControlBar,
+	type AudioPlayerControlBarProps,
+	type AudioPlayerData,
+	AudioPlayerElement,
+	type AudioPlayerElementProps,
+	AudioPlayerPlayButton,
+	type AudioPlayerPlayButtonProps,
+	type AudioPlayerProps,
+	AudioPlayerTimeDisplay,
+	type AudioPlayerTimeDisplayProps,
+	AudioPlayerTimeRange,
+	type AudioPlayerTimeRangeProps,
+} from "./audio-player.js";
+export {
 	Button,
 	type ButtonProps,
 	type ButtonSize,
@@ -39,6 +54,7 @@ export {
 	GeneratedMediaContent,
 	type GeneratedMediaContentProps,
 } from "./generated-media.js";
+export { GitHubIcon } from "./github-icon.js";
 export {
 	SearchCombobox,
 	type SearchComboboxOption,

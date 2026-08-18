@@ -34,6 +34,7 @@ import {
 import { Input } from "./ui/input";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
 import { normalizeTitle } from "./utils";
+import { WorkspaceSelector } from "./views/chat/workspace-selector";
 
 type AgentHeaderProps = {
 	title?: string;
@@ -60,6 +61,16 @@ type AgentHeaderProps = {
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
+	workspace?: {
+		currentBranch: string | null;
+		workspaceRoot: string;
+		workspaces: string[];
+		onListGitBranches: () => Promise<{ current: string; branches: string[] }>;
+		onRefreshWorkspaces: () => Promise<void>;
+		onSwitchGitBranch: (branch: string) => Promise<boolean>;
+		onSwitchWorkspace: (workspacePath: string) => Promise<boolean>;
+		onPickWorkspaceDirectory?: (initialPath?: string) => Promise<string | null>;
+	};
 };
 
 function AgentHeaderImpl({
@@ -83,6 +94,7 @@ function AgentHeaderImpl({
 	onOpenAgentSession,
 	parentSession,
 	onOpenParentSession,
+	workspace,
 }: AgentHeaderProps) {
 	const [isEditingTitle, setIsEditingTitle] = useState(false);
 	const [titleInput, setTitleInput] = useState("");
@@ -124,7 +136,7 @@ function AgentHeaderImpl({
 
 	return (
 		<header
-			className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-7 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
+			className="flex h-12 items-center justify-between gap-2 px-4 max-md:h-12 max-md:pl-28 md:group-data-[state=collapsed]/sidebar-wrapper:pl-7"
 			data-tauri-drag-region="deep"
 		>
 			{/* Left: thread title */}
@@ -140,88 +152,111 @@ function AgentHeaderImpl({
 					}
 					tone={statusTone}
 				/>
-				{!canEditTitle ? (
-					<span
-						className="min-w-0 truncate text-sm font-medium text-foreground"
-						title={threadTitle}
-					>
-						{threadTitle}
-					</span>
-				) : isEditingTitle ? (
-					<form
-						className="m-0 min-w-0 max-w-full shrink-0"
-						onSubmit={(event) => {
-							event.preventDefault();
-							void submitTitle();
-						}}
-						style={{ width: titleEditorWidth }}
-					>
-						<Input
-							autoFocus
-							className="h-7 w-full text-sm"
-							disabled={renamingTitle}
-							onBlur={() => {
-								void submitTitle();
-							}}
-							onChange={(event) => setTitleInput(event.target.value)}
-							onKeyDown={(event) => {
-								if (event.key === "Escape") {
+				<div className="flex min-w-0 flex-col justify-center">
+					<div className="flex min-w-0 items-center gap-1">
+						{!canEditTitle ? (
+							<span
+								className="min-w-0 truncate text-sm font-medium text-foreground"
+								title={threadTitle}
+							>
+								{threadTitle}
+							</span>
+						) : isEditingTitle ? (
+							<form
+								className="m-0 min-w-0 max-w-full shrink-0"
+								onSubmit={(event) => {
 									event.preventDefault();
+									void submitTitle();
+								}}
+								style={{ width: titleEditorWidth }}
+							>
+								<Input
+									autoFocus
+									className="h-7 w-full text-sm"
+									disabled={renamingTitle}
+									onBlur={() => {
+										void submitTitle();
+									}}
+									onChange={(event) => setTitleInput(event.target.value)}
+									onKeyDown={(event) => {
+										if (event.key === "Escape") {
+											event.preventDefault();
+											setTitleInput(threadTitle);
+											setIsEditingTitle(false);
+										}
+									}}
+									value={titleInput}
+								/>
+							</form>
+						) : (
+							<button
+								className={cn(
+									"min-w-0 truncate text-sm font-medium text-foreground",
+									canEditTitle &&
+										"rounded px-1 py-0.5 transition-colors hover:bg-accent",
+								)}
+								disabled={renamingTitle}
+								onClick={(event) => {
+									if (!canEditTitle || renamingTitle) {
+										return;
+									}
+									setTitleEditorWidth(
+										event.currentTarget.getBoundingClientRect().width,
+									);
 									setTitleInput(threadTitle);
-									setIsEditingTitle(false);
-								}
-							}}
-							value={titleInput}
-						/>
-					</form>
-				) : (
-					<button
-						className={cn(
-							"min-w-0 truncate text-sm font-medium text-foreground",
-							canEditTitle &&
-								"rounded px-1 py-0.5 transition-colors hover:bg-surface-hover",
+									setIsEditingTitle(true);
+								}}
+								type="button"
+								title={threadTitle}
+							>
+								{threadTitle}
+							</button>
 						)}
-						disabled={renamingTitle}
-						onClick={(event) => {
-							if (!canEditTitle || renamingTitle) {
-								return;
-							}
-							setTitleEditorWidth(
-								event.currentTarget.getBoundingClientRect().width,
-							);
-							setTitleInput(threadTitle);
-							setIsEditingTitle(true);
-						}}
-						type="button"
-						title={threadTitle}
-					>
-						{threadTitle}
-					</button>
-				)}
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button
-							aria-label="Session actions"
-							className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
-							id="show-more-btn"
-							variant="ghost"
-							size="icon-sm"
-							type="button"
-						>
-							<MoreHorizontal className="size-3" />
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="start" className="w-44">
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							disabled={!canDeleteSession || deletingSession}
-							onClick={triggerDeleteSession}
-						>
-							<Trash2 className="size-4" />
-							<span>{deletingSession ? "Deleting..." : "Delete session"}</span>
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+						{showSessionActions ? (
+							<DropdownMenu>
+								<DropdownMenuTrigger asChild>
+									<Button
+										aria-label="Session actions"
+										className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+										id="show-more-btn"
+										size="icon-sm"
+										type="button"
+										variant="ghost"
+									>
+										<MoreHorizontal className="size-3" />
+									</Button>
+								</DropdownMenuTrigger>
+								<DropdownMenuContent align="start" className="w-44">
+									<DropdownMenuItem
+										className="text-destructive focus:text-destructive"
+										disabled={!canDeleteSession || deletingSession}
+										onClick={triggerDeleteSession}
+									>
+										<Trash2 className="size-4" />
+										<span>
+											{deletingSession ? "Deleting..." : "Delete session"}
+										</span>
+									</DropdownMenuItem>
+								</DropdownMenuContent>
+							</DropdownMenu>
+						) : null}
+					</div>
+					{workspace ? (
+						<WorkspaceSelector
+							className="text-xs text-muted-foreground disabled:opacity-100"
+							currentBranch={workspace.currentBranch}
+							disabled
+							onListGitBranches={workspace.onListGitBranches}
+							onPickWorkspaceDirectory={workspace.onPickWorkspaceDirectory}
+							onRefreshWorkspaces={workspace.onRefreshWorkspaces}
+							onSwitchGitBranch={workspace.onSwitchGitBranch}
+							onSwitchWorkspace={workspace.onSwitchWorkspace}
+							placement="bottom"
+							workspaces={workspace.workspaces}
+							workspaceRoot={workspace.workspaceRoot}
+						/>
+					) : null}
+				</div>
 			</div>
 
 			{showSessionActions ? (
@@ -265,7 +300,7 @@ function AgentHeaderImpl({
 					) : (
 						<Button
 							aria-label="New session"
-							className="flex items-center gap-1 rounded-md text-sm text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
+							className="hidden items-center gap-1 rounded-md text-sm text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
 							onClick={() => onNewThread?.()}
 							size="icon-sm"
 							variant="ghost"

@@ -7,6 +7,7 @@ import {
 	ChevronLeft,
 	ChevronRight,
 	ChevronsLeft,
+	Cloud,
 	Filter,
 	Folder,
 	GitFork,
@@ -49,6 +50,7 @@ import {
 	sessionActivityTimestamp,
 	type UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import type { SessionHistoryItem } from "@/lib/session-history";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
@@ -59,6 +61,19 @@ type SessionsViewProps = {
 };
 
 const PAGE_SIZE = 10;
+const FILTER_CATEGORIES = [
+	"Favorites",
+	"Workspaces",
+	"Statuses",
+	"Providers",
+	"Models",
+] as const;
+type FilterCategory = (typeof FILTER_CATEGORIES)[number];
+type SessionFilterDetail = {
+	key: string;
+	category: FilterCategory;
+	label: string;
+};
 
 function modelLabel(thread: SessionThread): string {
 	if (thread.provider && thread.model) {
@@ -127,16 +142,42 @@ function tokensLabel(thread: SessionThread): string {
 function sessionFilterDetails(
 	thread: SessionThread,
 	session?: SessionHistoryItem,
-): string[] {
+): SessionFilterDetail[] {
 	const workspacePath = session?.workspaceRoot || session?.cwd || "";
 	const workspace = workspacePath ? basenamePath(workspacePath) : "";
 	return [
-		thread.pinned ? "favorite:yes" : undefined,
-		workspace ? `workspace:${workspace}` : undefined,
-		thread.status ? `status:${thread.status}` : undefined,
-		thread.provider ? `provider:${thread.provider}` : undefined,
-		thread.model ? `model:${thread.model}` : undefined,
-	].filter((detail): detail is string => Boolean(detail));
+		thread.pinned
+			? { key: "favorite:yes", category: "Favorites", label: "Favorites" }
+			: undefined,
+		workspace
+			? {
+					key: `workspace:${workspace}`,
+					category: "Workspaces",
+					label: workspace,
+				}
+			: undefined,
+		thread.status
+			? {
+					key: `status:${thread.status}`,
+					category: "Statuses",
+					label: thread.status,
+				}
+			: undefined,
+		thread.provider
+			? {
+					key: `provider:${thread.provider}`,
+					category: "Providers",
+					label: thread.provider,
+				}
+			: undefined,
+		thread.model
+			? {
+					key: `model:${thread.model}`,
+					category: "Models",
+					label: thread.model,
+				}
+			: undefined,
+	].filter((detail): detail is SessionFilterDetail => Boolean(detail));
 }
 
 function sortTimestamp(session?: SessionHistoryItem) {
@@ -149,6 +190,7 @@ function sortTimestamp(session?: SessionHistoryItem) {
 
 export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 	const [query, setQuery] = useState("");
+	const [filterQuery, setFilterQuery] = useState("");
 	const [sessionFilters, setSessionFilters] = useState<string[]>([]);
 	const [sortDirection, setSortDirection] = useState<"newest" | "oldest">(
 		"newest",
@@ -175,17 +217,31 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 		requiresCompleteHistory,
 	]);
 
-	const filterOptions = useMemo(
-		() =>
-			Array.from(
-				new Set(
-					history.threads.flatMap((thread) =>
-						sessionFilterDetails(thread, history.sessionById.get(thread.id)),
-					),
-				),
-			).sort((a, b) => a.localeCompare(b)),
-		[history.sessionById, history.threads],
-	);
+	const filterOptions = useMemo(() => {
+		const options = new Map<string, SessionFilterDetail>();
+		for (const thread of history.threads) {
+			for (const detail of sessionFilterDetails(
+				thread,
+				history.sessionById.get(thread.id),
+			)) {
+				options.set(detail.key, detail);
+			}
+		}
+		return [...options.values()].sort((a, b) => a.label.localeCompare(b.label));
+	}, [history.sessionById, history.threads]);
+	const groupedFilterOptions = useMemo(() => {
+		const normalizedQuery = filterQuery.trim().toLowerCase();
+		return FILTER_CATEGORIES.map((category) => ({
+			category,
+			options: filterOptions.filter(
+				(option) =>
+					option.category === category &&
+					(!normalizedQuery ||
+						option.label.toLowerCase().includes(normalizedQuery) ||
+						category.toLowerCase().includes(normalizedQuery)),
+			),
+		})).filter((group) => group.options.length > 0);
+	}, [filterOptions, filterQuery]);
 
 	const filteredThreads = useMemo(() => {
 		const normalizedQuery = query.trim().toLowerCase();
@@ -194,7 +250,8 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 			const session = history.sessionById.get(thread.id);
 			const details = sessionFilterDetails(thread, session);
 			const matchesFilters =
-				selected.size === 0 || details.some((detail) => selected.has(detail));
+				selected.size === 0 ||
+				details.some((detail) => selected.has(detail.key));
 			if (!matchesFilters) {
 				return false;
 			}
@@ -206,6 +263,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 				thread.codebase,
 				thread.provider,
 				thread.model,
+				thread.repoUrl,
 				session?.workspaceRoot,
 				session?.cwd,
 			]
@@ -357,6 +415,7 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					</DropdownMenu>
 					<DropdownMenu
 						onOpenChange={(open) => {
+							if (!open) setFilterQuery("");
 							// Filter choices are derived from the loaded rows, so
 							// complete the history as soon as the user opens this
 							// menu. This keeps both the options and their results
@@ -378,9 +437,20 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 								<Filter className="size-4" />
 							</Button>
 						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end" className="max-h-72 w-72">
+						<DropdownMenuContent align="end" className="max-h-96 w-72">
 							<DropdownMenuGroup>
 								<DropdownMenuLabel>Filter sessions</DropdownMenuLabel>
+								<div className="px-2 pb-2">
+									<Input
+										aria-label="Search session filters"
+										autoFocus
+										className="h-8"
+										onChange={(event) => setFilterQuery(event.target.value)}
+										onKeyDown={(event) => event.stopPropagation()}
+										placeholder="Search filters…"
+										value={filterQuery}
+									/>
+								</div>
 								{sessionFilters.length > 0 ? (
 									<>
 										<DropdownMenuItem onClick={() => setSessionFilters([])}>
@@ -389,23 +459,31 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 										<DropdownMenuSeparator />
 									</>
 								) : null}
-								{filterOptions.length === 0 ? (
+								{groupedFilterOptions.length === 0 ? (
 									<DropdownMenuItem disabled>
-										No filters available
+										{filterQuery
+											? "No matching filters"
+											: "No filters available"}
 									</DropdownMenuItem>
 								) : (
-									filterOptions.map((detail) => (
-										<DropdownMenuCheckboxItem
-											checked={sessionFilters.includes(detail)}
-											key={detail}
-											onCheckedChange={(checked) =>
-												toggleFilter(detail, checked === true)
-											}
-										>
-											<span className="truncate" title={detail}>
-												{detail}
-											</span>
-										</DropdownMenuCheckboxItem>
+									groupedFilterOptions.map((group, groupIndex) => (
+										<div key={group.category}>
+											{groupIndex > 0 ? <DropdownMenuSeparator /> : null}
+											<DropdownMenuLabel>{group.category}</DropdownMenuLabel>
+											{group.options.map((detail) => (
+												<DropdownMenuCheckboxItem
+													checked={sessionFilters.includes(detail.key)}
+													key={detail.key}
+													onCheckedChange={(checked) =>
+														toggleFilter(detail.key, checked === true)
+													}
+												>
+													<span className="truncate" title={detail.label}>
+														{detail.label}
+													</span>
+												</DropdownMenuCheckboxItem>
+											))}
+										</div>
 									))
 								)}
 							</DropdownMenuGroup>
@@ -568,6 +646,12 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 													tone={sessionStatusTone(thread.status)}
 												/>
 												<span className="truncate">{thread.title}</span>
+												{thread.origin === "cloud" ? (
+													<Cloud
+														aria-label="Cloud session"
+														className="size-3.5 shrink-0 text-muted-foreground"
+													/>
+												) : null}
 												{thread.pinned ? (
 													<Star
 														aria-label="Favorited"
@@ -576,9 +660,20 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												) : null}
 											</span>
 											<span className="flex min-w-0 items-center gap-2 text-muted-foreground">
-												<Folder className="size-3.5 shrink-0" />
-												<span className="truncate" title={workspace}>
-													{workspace ? basenamePath(workspace) : "No workspace"}
+												{thread.origin === "cloud" ? (
+													<Cloud className="size-3.5 shrink-0" />
+												) : (
+													<Folder className="size-3.5 shrink-0" />
+												)}
+												<span
+													className="truncate"
+													title={thread.repoUrl || workspace}
+												>
+													{thread.origin === "cloud"
+														? thread.repoUrl || "Cloud repository"
+														: workspace
+															? basenamePath(workspace)
+															: "No workspace"}
 												</span>
 											</span>
 											<span
@@ -615,34 +710,46 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 												</button>
 											</DropdownMenuTrigger>
 											<DropdownMenuContent align="end" sideOffset={6}>
-												<DropdownMenuItem
-													onClick={() =>
-														void history.setThreadPinned(
-															thread.id,
-															!thread.pinned,
-														)
-													}
-												>
-													<Star
-														className={cn(
-															"size-4",
-															thread.pinned && "fill-current",
-														)}
-													/>
-													{thread.pinned ? "Unfavorite" : "Favorite"}
-												</DropdownMenuItem>
-												<DropdownMenuItem onClick={() => startRename(thread)}>
-													<Pencil className="size-4" />
-													Rename
-												</DropdownMenuItem>
-												<DropdownMenuItem
-													onClick={() => void history.forkThread(thread.id)}
-												>
-													<GitFork className="size-4" />
-													Fork
-												</DropdownMenuItem>
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() =>
+															void history.setThreadPinned(
+																thread.id,
+																!thread.pinned,
+															)
+														}
+													>
+														<Star
+															className={cn(
+																"size-4",
+																thread.pinned && "fill-current",
+															)}
+														/>
+														{thread.pinned ? "Unfavorite" : "Favorite"}
+													</DropdownMenuItem>
+												) : null}
+												{/* Cloud sessions support rename (PATCH title), matching
+												    the sidebar and chat header affordances. Provisioning
+												    placeholders have no server session to rename yet. */}
+												{!isCloudProvisioningSessionId(thread.id) ? (
+													<DropdownMenuItem onClick={() => startRename(thread)}>
+														<Pencil className="size-4" />
+														Rename
+													</DropdownMenuItem>
+												) : null}
+												{thread.origin !== "cloud" ? (
+													<DropdownMenuItem
+														onClick={() => void history.forkThread(thread.id)}
+													>
+														<GitFork className="size-4" />
+														Fork
+													</DropdownMenuItem>
+												) : null}
 												<DropdownMenuSeparator />
 												<DropdownMenuItem
+													// Provisioning placeholders have no server session
+													// to delete yet; the sidecar rejects the request.
+													disabled={isCloudProvisioningSessionId(thread.id)}
 													onClick={() => setDeleteCandidate(thread)}
 													variant="destructive"
 												>
@@ -748,8 +855,9 @@ export function SessionsView({ activeSessionId, history }: SessionsViewProps) {
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "{deleteCandidate?.title ?? "this session"}" from
-							local history.
+							{deleteCandidate?.origin === "cloud"
+								? `This deletes "${deleteCandidate?.title ?? "this session"}" and its cloud workspace.`
+								: `This removes "${deleteCandidate?.title ?? "this session"}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>

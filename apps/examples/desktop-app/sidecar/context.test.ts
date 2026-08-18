@@ -21,6 +21,11 @@ vi.mock("@cline/core", async () => {
 		await vi.importActual<typeof import("@cline/core")>("@cline/core");
 	return {
 		...actual,
+		ClientSettingsManager: class {
+			initializeModesIfMissing = vi.fn();
+			read = vi.fn(() => ({ modes: {} }));
+			getModeSettings = vi.fn(() => undefined);
+		},
 		ClineCore: {
 			create: createCoreMock,
 		},
@@ -186,7 +191,7 @@ describe("Code sidecar runtime capabilities", () => {
 		const ctx = createSidecarContext("/workspace/project");
 
 		const hubClient = await ensureSharedHubClient(ctx);
-		expect(hubClient).toBe(ctx.hubClient);
+		expect(hubClient).toBeDefined();
 
 		expect(ensureCompatibleLocalHubUrlMock).toHaveBeenCalledWith({
 			strategy: "require-hub",
@@ -220,6 +225,43 @@ describe("Code sidecar runtime capabilities", () => {
 			attachmentCount: 1,
 			userImages: ["data:image/png;base64,AQID"],
 		});
+	});
+
+	it("leaves attached-session content projection to the Core event stream", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-image", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		for (const event of [
+			"assistant.delta",
+			"assistant.image",
+			"reasoning.delta",
+			"tool.started",
+			"tool.finished",
+		]) {
+			handleHubLiveEvent(ctx, {
+				event,
+				sessionId: "session-image",
+				payload: {
+					text: "one canonical copy",
+					toolCallId: "tool-1",
+					toolName: "run_commands",
+				},
+			});
+		}
+
+		expect(readEvents(ctx)).toEqual([]);
 	});
 
 	it("announces a queued prompt start once when drain emits both queue events", async () => {
@@ -515,6 +557,37 @@ describe("Code sidecar runtime capabilities", () => {
 		).toEqual([]);
 	});
 
+	it("keeps an approval visible when its remote acknowledgement fails", async () => {
+		const { createSidecarContext } = await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.pendingApprovals.set("cloud-approval", {
+			item: {
+				requestId: "cloud-approval",
+				sessionId: "ses-cloud",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+			},
+			resolve: async () => {
+				throw new Error("hub disconnected");
+			},
+		});
+
+		await expect(
+			handleCommand(ctx, "respond_tool_approval", {
+				sessionId: "ses-cloud",
+				requestId: "cloud-approval",
+				approved: true,
+			}),
+		).rejects.toThrow("hub disconnected");
+		expect(
+			await handleCommand(ctx, "poll_tool_approvals", {
+				sessionId: "ses-cloud",
+			}),
+		).toEqual([expect.objectContaining({ requestId: "cloud-approval" })]);
+	});
+
 	it("routes routine commands through the connected shared Hub client", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
@@ -588,5 +661,38 @@ describe("disposeSidecarContext attachment cleanup", () => {
 
 		expect(existsSync(queuedFile)).toBe(false);
 		expect(ctx.liveSessions.size).toBe(0);
+	});
+
+	it("waits for pending approval callbacks before shutdown completes", async () => {
+		const { createSidecarContext, disposeSidecarContext } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		let release: (() => void) | undefined;
+		ctx.pendingApprovals.set("approval-1", {
+			item: {
+				requestId: "approval-1",
+				sessionId: "session-1",
+				createdAt: new Date().toISOString(),
+				toolCallId: "tool-1",
+				toolName: "run_commands",
+				input: {},
+			},
+			resolve: async () =>
+				await new Promise<void>((resolve) => {
+					release = resolve;
+				}),
+		});
+
+		let disposed = false;
+		const disposing = disposeSidecarContext(ctx, "test_shutdown").then(() => {
+			disposed = true;
+		});
+		await vi.waitFor(() => expect(release).toBeTypeOf("function"));
+		expect(disposed).toBe(false);
+
+		release?.();
+		await disposing;
+		expect(disposed).toBe(true);
 	});
 });

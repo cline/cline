@@ -1,5 +1,14 @@
 # Cline Code Desktop Changelog
 
+## 0.0.14-beta.1
+
+- First beta release. Cline Code Beta installs side by side with the stable app so you can compare the two, and updates automatically from its own beta channel — stable installs are unaffected.
+- Cloud sessions (preview): run sessions in Cline's cloud straight from the desktop app. Connect GitHub during onboarding, pick a repository and branch, and hand sessions off between devices — transcripts, approvals, and queued prompts stay in sync, and you can rename cloud sessions and switch models mid-session. Turn it on with the Cloud sessions toggle in Settings.
+- Avatar overlay (preview): a floating desktop companion that reacts to what your sessions are doing.
+- Onboarding now includes a GitHub integration step.
+- Early proof of concept for running sessions in SSH remote environments.
+- Includes everything from the upcoming stable release: microphone voice input in the composer, model-driven image generation, redesigned question prompts, animated reasoning and tool disclosures, and session list polish.
+
 ## 0.0.13
 
 - Added an app font size setting. A slider in Settings scales the interface, and your size is applied before the window paints, so launching no longer flashes at the old size first.

@@ -23,7 +23,11 @@ import type { MessageWithMetadata } from "@cline/llms";
 import { buildClineSystemPrompt } from "@cline/shared";
 import { emitChunk, sendEvent } from "./context";
 import { sharedSessionDataDir } from "./paths";
-import type { JsonRecord, SidecarContext } from "./types";
+import {
+	type JsonRecord,
+	LOCAL_ENVIRONMENT_ID,
+	type SidecarContext,
+} from "./types";
 
 // ---------------------------------------------------------------------------
 // Bot registry
@@ -498,10 +502,13 @@ function messageText(message: MessageWithMetadata): string {
 // ---------------------------------------------------------------------------
 
 function getSessionManager(ctx: SidecarContext): ClineCore {
-	if (!ctx.sessionManager) {
+	// Bot sessions always run on the local runtime binding; remote (SSH/cloud)
+	// environments never host bots today.
+	const binding = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID);
+	if (!binding) {
 		throw new Error("Session manager not initialized");
 	}
-	return ctx.sessionManager;
+	return binding.sessionManager;
 }
 
 function resolveBotCredentials(

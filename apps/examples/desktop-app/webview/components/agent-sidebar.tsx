@@ -9,12 +9,14 @@ import {
 	ChevronRight,
 	CircleUserRound,
 	Clock3,
+	Cloud,
 	Code,
 	FileText,
 	Filter,
 	FolderTree,
 	GitFork,
 	Loader2,
+	Network,
 	PanelLeftOpen,
 	Pencil,
 	Plug,
@@ -48,6 +50,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -85,7 +88,13 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import {
+	BETA_PRODUCT_NAME,
+	isBetaVersion,
+	productNameForVersion,
+} from "@/lib/app-channel";
 import type { BotSummary } from "@/lib/bots";
+import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -152,6 +161,7 @@ const SETTINGS_SECTION_ICONS = {
 	Models: Bot,
 	Channels: Radio,
 	Schedules: Clock3,
+	Remote: Network,
 	Account: CircleUserRound,
 	Plugins: Plug,
 	Skills: Activity,
@@ -240,6 +250,7 @@ export function AgentSidebar({
 	onOpenBot,
 	onBotDeleted,
 	onRefreshBots,
+	realtimeVoiceControl,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -259,6 +270,7 @@ export function AgentSidebar({
 	onOpenBot: (bot: BotSummary) => void;
 	onBotDeleted: (botId: string) => void;
 	onRefreshBots: () => Promise<void>;
+	realtimeVoiceControl?: ReactNode;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -679,8 +691,8 @@ export function AgentSidebar({
 
 				<div
 					className={cn(
-						"flex h-10 shrink-0 items-center justify-between px-2",
-						isCollapsed && "px-1.5",
+						"flex min-h-10 shrink-0 items-center justify-between px-3",
+						isCollapsed && "flex-col items-center justify-start gap-1 px-1.5",
 					)}
 				>
 					<div className="flex min-w-0 items-center gap-0.5">
@@ -712,7 +724,9 @@ export function AgentSidebar({
 								className="w-64 p-3"
 								side="bottom"
 							>
-								<p className="text-sm font-medium">Cline Code</p>
+								<p className="text-sm font-medium">
+									{productNameForVersion(appVersion)}
+								</p>
 								<p className="mt-0.5 text-xs text-muted-foreground">
 									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
 								</p>
@@ -739,20 +753,37 @@ export function AgentSidebar({
 								</div>
 							</HoverCardContent>
 						</HoverCard>
+						{!isCollapsed && isBetaVersion(appVersion) ? (
+							<Badge
+								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
+								variant="secondary"
+							>
+								Beta
+							</Badge>
+						) : null}
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 					</div>
-					{!isCollapsed ? (
-						<Button
-							aria-label="New Session"
-							className="size-8 shrink-0 justify-center px-0"
-							onClick={openNewThread}
-							title="New Session"
-							type="button"
-							variant="sidebarItem"
-						>
-							<Plus className="size-4" />
-						</Button>
-					) : null}
+					<div
+						className={cn(
+							"flex shrink-0 items-center gap-0.5",
+							isCollapsed && "flex-col",
+						)}
+					>
+						{realtimeVoiceControl}
+						{!isCollapsed ? (
+							<Button
+								aria-label="New Session"
+								className="size-8 shrink-0 justify-center px-0"
+								onClick={openNewThread}
+								title="New Session"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Plus className="size-4" />
+							</Button>
+						) : null}
+					</div>
 				</div>
 
 				{isCollapsed ? (
@@ -1072,9 +1103,9 @@ export function AgentSidebar({
 					<AlertDialogHeader>
 						<AlertDialogTitle>Delete session?</AlertDialogTitle>
 						<AlertDialogDescription>
-							This removes "
-							{normalizeTitle(deleteConfirmThread?.title ?? "this session")}"
-							from local history.
+							{deleteConfirmThread?.origin === "cloud"
+								? `This deletes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" and its cloud workspace.`
+								: `This removes "${normalizeTitle(deleteConfirmThread?.title ?? "this session")}" from local history.`}
 						</AlertDialogDescription>
 					</AlertDialogHeader>
 					<AlertDialogFooter>
@@ -1178,11 +1209,13 @@ function ThreadItem({
 	const pending = pendingAction !== null;
 	const statusDotClass = pending
 		? "bg-yellow-400"
-		: thread.status === "running"
-			? "bg-green-500"
-			: unread
-				? "bg-blue-500"
-				: "";
+		: thread.status === "provisioning"
+			? "animate-pulse bg-yellow-400"
+			: thread.status === "running"
+				? "bg-green-500"
+				: unread
+					? "bg-blue-500"
+					: "";
 	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
@@ -1225,8 +1258,14 @@ function ThreadItem({
 							onClick={onClick}
 							type="button"
 						>
-							<span className="block max-w-full min-w-0 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-normal leading-tight">
-								{title}
+							<span className="flex max-w-full min-w-0 items-center gap-1.5 overflow-hidden text-sm font-normal leading-tight">
+								{thread.origin === "cloud" ? (
+									<Cloud
+										aria-label="Cloud session"
+										className="size-3 shrink-0 text-muted-foreground"
+									/>
+								) : null}
+								<span className="truncate">{title}</span>
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
@@ -1273,6 +1312,12 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				allowFavorite={thread.origin !== "cloud"}
+				allowFork={thread.origin !== "cloud"}
+				// Provisioning placeholders have no server session to rename or
+				// delete yet (the sidecar rejects both until the create settles).
+				allowRename={!isCloudProvisioningSessionId(thread.id)}
+				allowDelete={!isCloudProvisioningSessionId(thread.id)}
 				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
@@ -1296,8 +1341,10 @@ export function getSessionOverviewItems(
 	const workspacePath = thread.workspacePath || thread.codebase;
 	const items: Array<[string, string | null | undefined, string?]> = [
 		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
+			thread.origin === "cloud" ? "Repository" : "Workspace",
+			thread.origin === "cloud"
+				? thread.repoUrl
+				: workspaceDisplayName(workspacePath),
 			workspacePath || undefined,
 		],
 		["Branch", thread.gitBranch],
@@ -1365,6 +1412,10 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	allowFavorite,
+	allowFork,
+	allowRename,
+	allowDelete = true,
 	favorited,
 	onRename,
 	onToggleFavorite,
@@ -1372,6 +1423,10 @@ function SessionContextMenuContent({
 	onDelete,
 	pendingAction,
 }: {
+	allowFavorite: boolean;
+	allowFork: boolean;
+	allowRename: boolean;
+	allowDelete?: boolean;
 	favorited: boolean;
 	onRename: () => void;
 	onToggleFavorite: () => void;
@@ -1382,28 +1437,34 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
-			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
-				<Star className={cn("size-4", favorited && "fill-current")} />
-				{favorited ? "Unfavorite" : "Favorite"}
-			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onRename}>
-				{pendingAction === "rename" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<Pencil className="size-4" />
-				)}
-				{pendingAction === "rename" ? "Renaming..." : "Rename"}
-			</ContextMenuItem>
-			<ContextMenuItem disabled={pending} onSelect={onFork}>
-				{pendingAction === "fork" ? (
-					<Loader2 className="size-4 animate-spin" />
-				) : (
-					<GitFork className="size-4" />
-				)}
-				{pendingAction === "fork" ? "Forking..." : "Fork"}
-			</ContextMenuItem>
+			{allowFavorite ? (
+				<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+					<Star className={cn("size-4", favorited && "fill-current")} />
+					{favorited ? "Unfavorite" : "Favorite"}
+				</ContextMenuItem>
+			) : null}
+			{allowRename ? (
+				<ContextMenuItem disabled={pending} onSelect={onRename}>
+					{pendingAction === "rename" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<Pencil className="size-4" />
+					)}
+					{pendingAction === "rename" ? "Renaming..." : "Rename"}
+				</ContextMenuItem>
+			) : null}
+			{allowFork ? (
+				<ContextMenuItem disabled={pending} onSelect={onFork}>
+					{pendingAction === "fork" ? (
+						<Loader2 className="size-4 animate-spin" />
+					) : (
+						<GitFork className="size-4" />
+					)}
+					{pendingAction === "fork" ? "Forking..." : "Fork"}
+				</ContextMenuItem>
+			) : null}
 			<ContextMenuItem
-				disabled={pending}
+				disabled={pending || !allowDelete}
 				onSelect={onDelete}
 				variant="destructive"
 			>

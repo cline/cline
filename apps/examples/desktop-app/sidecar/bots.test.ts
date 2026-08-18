@@ -42,14 +42,33 @@ function createContext(): SidecarContext & {
 		wsClients: new Set([client]),
 		pendingApprovals: new Map(),
 		pendingQuestions: new Map(),
-		sessionManager: null,
-		hubClient: null,
-		workspaceRoot: dataDir,
+		runtimeBindings: new Map(),
+		sessionEnvironmentIds: new Map(),
+		activeEnvironmentId: "local",
+		remoteEnvironments: null,
+		localWorkspaceRoot: dataDir,
 		liveBotSessions: new Map(),
 		unsubscribeSessionEvents: null,
+		cloudSessionManager: null,
 		hubBuildMismatch: null,
 		sentEvents,
 	};
+}
+
+function bindLocalSessionManager(
+	ctx: SidecarContext,
+	sessionManager: unknown,
+): void {
+	ctx.runtimeBindings.set("local", {
+		environmentId: "local",
+		kind: "local",
+		workspaceRoot: dataDir,
+		sessionManager,
+		hubClient: {},
+		unsubscribeSessionEvents: () => {},
+	} as unknown as NonNullable<
+		ReturnType<SidecarContext["runtimeBindings"]["get"]>
+	>);
 }
 
 beforeEach(() => {
@@ -341,9 +360,7 @@ describe("deliverBotMessage", () => {
 		const receiver = createBot({ name: "Researcher" });
 		ctx.liveBotSessions.set(receiver.id, "session_receiver");
 		const send = vi.fn().mockResolvedValue(undefined);
-		ctx.sessionManager = {
-			send,
-		} as unknown as SidecarContext["sessionManager"];
+		bindLocalSessionManager(ctx, { send });
 
 		const result = (await deliverBotMessage(
 			ctx,
@@ -374,9 +391,7 @@ describe("deliverBotMessage", () => {
 			.fn()
 			.mockRejectedValueOnce(new Error("session_run_in_progress"))
 			.mockResolvedValueOnce(undefined);
-		ctx.sessionManager = {
-			send,
-		} as unknown as SidecarContext["sessionManager"];
+		bindLocalSessionManager(ctx, { send });
 
 		await deliverBotMessage(ctx, sender.id, receiver.id, "Queued message.");
 		await vi.waitFor(() => {

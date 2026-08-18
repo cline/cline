@@ -693,7 +693,7 @@ describe("ChatMessages tool disclosures", () => {
 			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
 				[]),
 		];
-		expect(assistantActionButtons).toHaveLength(2);
+		expect(assistantActionButtons).toHaveLength(3);
 		expect(
 			assistantActionButtons.every(
 				(action) => action.getAttribute("data-slot") === "icon-button",

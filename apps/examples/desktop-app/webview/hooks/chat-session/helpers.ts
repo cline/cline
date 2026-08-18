@@ -8,6 +8,7 @@ import type {
 	ChatSessionConfig,
 	ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { isGitHubRepositoryUrl } from "@/lib/cloud-repositories";
 import type { SessionHistoryStatus } from "@/lib/session-history";
 import { OAUTH_MANAGED_PROVIDERS } from "./constants";
 
@@ -151,9 +152,15 @@ export function normalizeRuntimeConfig(
 ): ChatSessionConfig {
 	const normalizedWorkspaceRoot = config.workspaceRoot.trim();
 	const normalizedCwd = (config.cwd?.trim() || normalizedWorkspaceRoot).trim();
+	const executionTarget = config.executionTarget ?? "local";
+	const repoUrl = config.repoUrl?.trim();
+	const branch = config.branch?.trim();
 	const thinking = config.reasoningEffort ? true : config.thinking;
 	return {
 		...config,
+		executionTarget,
+		repoUrl: executionTarget === "cloud" ? repoUrl : undefined,
+		branch: executionTarget === "cloud" ? branch || undefined : undefined,
 		workspaceRoot: normalizedWorkspaceRoot,
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
 		thinking,
@@ -161,9 +168,60 @@ export function normalizeRuntimeConfig(
 	};
 }
 
+/**
+ * Maps a cloud runtime status (hub vocabulary plus the sidecar-side
+ * "expired"/"error" values) to the chat UI status. Returns null for unknown
+ * values so callers leave the current status alone — a malformed snapshot
+ * must never flip a running turn to "done".
+ */
+export function mapCloudRuntimeStatus(
+	status: string | undefined,
+): ChatSessionStatus | null {
+	switch (status) {
+		case "failed":
+		case "error":
+			return "failed";
+		case "aborted":
+		case "cancelled":
+			return "cancelled";
+		case "running":
+		case "pending":
+			return "running";
+		case "idle":
+		case "ready":
+			return "idle";
+		case "completed":
+		case "expired":
+			return "completed";
+		default:
+			return null;
+	}
+}
+
 export function resolveCredentialError(
 	config: ChatSessionConfig,
+	options?: { hasActiveSession?: boolean },
 ): string | null {
+	if (config.executionTarget === "cloud") {
+		if (config.provider.trim().toLowerCase() !== "cline") {
+			return "Cloud sessions require the Cline provider.";
+		}
+		// Sends into an existing cloud session need no repo URL — the sandbox
+		// was already provisioned with one.
+		if (options?.hasActiveSession) {
+			return null;
+		}
+		const repoUrl = config.repoUrl?.trim() ?? "";
+		if (!repoUrl) {
+			return "Select a GitHub repository before starting a cloud session.";
+		}
+		// The picker validates as-you-type, but config accepts any keystroke —
+		// re-validate here so a half-typed URL can't reach the create call.
+		if (!isGitHubRepositoryUrl(repoUrl)) {
+			return "Enter a valid HTTPS GitHub repository URL (https://github.com/owner/repo).";
+		}
+		return null;
+	}
 	const providerId = config.provider.trim().toLowerCase();
 	if (!providerId) {
 		return "Provider is required before starting a chat session.";
@@ -196,28 +254,11 @@ function mapHistoryStatusToChatStatus(
 
 export function inferHydratedChatStatus(
 	fallback: SessionHistoryStatus,
-	messages: ChatMessage[],
+	_messages: ChatMessage[],
 ): ChatSessionStatus {
-	if (fallback === "failed") {
-		return "failed";
-	}
-	if (fallback === "cancelled") {
-		return "cancelled";
-	}
-	const meaningfulMessages = messages.filter((message) => {
-		if (message.role !== "user" && message.role !== "assistant") {
-			return false;
-		}
-		return message.content.trim().length > 0;
-	});
-	if (meaningfulMessages.length === 0) {
-		return mapHistoryStatusToChatStatus(fallback);
-	}
-	if (fallback === "running") {
-		const lastMeaningful = meaningfulMessages[meaningfulMessages.length - 1];
-		if (lastMeaningful?.role === "assistant") {
-			return "completed";
-		}
-	}
+	// The persisted runtime status is authoritative. A running turn can emit an
+	// assistant message and then continue into reasoning or tool execution, so
+	// transcript shape cannot prove completion. Dead-process rows are reconciled
+	// by the session persistence layer before they reach this hydration path.
 	return mapHistoryStatusToChatStatus(fallback);
 }

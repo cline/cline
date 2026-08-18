@@ -449,14 +449,23 @@ function buildOpenAICodexModels(): Record<string, ModelInfo> {
 	return filterOpenAICodexModels(generatedModels("openai-native"));
 }
 
-// Vercel-only model ids surfaced for the Cline provider while the OpenRouter
-// catalog lacks them (Cline's backend routes these to Vercel AI Gateway).
-// Remove an id once the OpenRouter catalog lists it.
-const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
-	"meta/muse-spark-1.2-contributor",
-];
-
 function buildElevenLabsModels(): Record<string, ModelInfo> {
+	const speechModel = (
+		id: string,
+		name: string,
+		description: string,
+	): ModelInfo => ({
+		id,
+		name,
+		description,
+		family: "elevenlabs",
+		operation: "speech-generation",
+		operationModes: ["batch"],
+		modalities: {
+			input: ["text"],
+			output: ["audio"],
+		},
+	});
 	return {
 		scribe_v2: {
 			id: "scribe_v2",
@@ -471,8 +480,35 @@ function buildElevenLabsModels(): Record<string, ModelInfo> {
 				output: ["text"],
 			},
 		},
+		eleven_v3: speechModel(
+			"eleven_v3",
+			"Eleven v3",
+			"Expressive multilingual text-to-speech model",
+		),
+		eleven_multilingual_v2: speechModel(
+			"eleven_multilingual_v2",
+			"Eleven Multilingual v2",
+			"High-quality multilingual text-to-speech model",
+		),
+		eleven_flash_v2_5: speechModel(
+			"eleven_flash_v2_5",
+			"Eleven Flash v2.5",
+			"Low-latency multilingual text-to-speech model",
+		),
+		eleven_turbo_v2_5: speechModel(
+			"eleven_turbo_v2_5",
+			"Eleven Turbo v2.5",
+			"Fast, high-quality multilingual text-to-speech model",
+		),
 	};
 }
+
+// Vercel-only model ids surfaced for the Cline provider while the OpenRouter
+// catalog lacks them (Cline's backend routes these to Vercel AI Gateway).
+// Remove an id once the OpenRouter catalog lists it.
+const VERCEL_ONLY_CLINE_MODEL_IDS: readonly string[] = [
+	"meta/muse-spark-1.2-contributor",
+];
 
 function buildClineModels(): Record<string, ModelInfo> {
 	// Cline is OpenRouter-backed generally, but its recommended-model endpoint

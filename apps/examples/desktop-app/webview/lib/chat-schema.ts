@@ -5,8 +5,12 @@ export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
 	/** When set, this chat is a bot's persistent session (see lib/bots.ts). */
 	botId: z.string().min(1).optional(),
+	executionTarget: z.enum(["local", "cloud"]).default("local"),
+	repoUrl: z.string().optional(),
+	branch: z.string().optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
+	environmentId: z.string().trim().min(1),
 	provider: z.string().min(1),
 	model: z.string().min(1),
 	mode: z.enum(["act", "plan"]).default("act"),
@@ -64,6 +68,7 @@ export const ChatMessageSchema = z.object({
 		.object({
 			stream: z.enum(["stdout", "stderr"]).optional(),
 			toolName: z.string().optional(),
+			toolCallId: z.string().optional(),
 			iteration: z.number().int().nonnegative().optional(),
 			agentId: z.string().optional(),
 			conversationId: z.string().optional(),

@@ -30,6 +30,7 @@ const thread: SessionThread = {
 
 const session: SessionHistoryItem = {
 	sessionId: thread.id,
+	environmentId: "local",
 	status: "completed",
 	provider: thread.provider,
 	model: thread.model,
@@ -165,6 +166,21 @@ describe("SessionsView table", () => {
 		expect(container.querySelector('[aria-label="Favorited"]')).not.toBeNull();
 	});
 
+	it("marks cloud sessions and shows their repository", async () => {
+		const cloudThread: SessionThread = {
+			...thread,
+			origin: "cloud",
+			repoUrl: "https://github.com/cline/cline",
+		};
+		const view = renderView({ threads: [cloudThread] });
+		await view.render();
+
+		expect(
+			container.querySelector('[aria-label="Cloud session"]'),
+		).not.toBeNull();
+		expect(container.textContent).toContain("https://github.com/cline/cline");
+	});
+
 	it("opens a session on click but not while text is selected", async () => {
 		const view = renderView({});
 		await view.render();
@@ -251,6 +267,43 @@ describe("SessionsView table", () => {
 		});
 
 		expect(view.loadAllSessions).toHaveBeenCalledOnce();
+	});
+
+	it("groups filter choices without prefixes and searches them", async () => {
+		const view = renderView();
+		await view.render();
+		const filterButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Filter sessions"]',
+		);
+		await act(async () => {
+			filterButton?.dispatchEvent(
+				new MouseEvent("pointerdown", {
+					bubbles: true,
+					cancelable: true,
+					button: 0,
+				}),
+			);
+		});
+
+		expect(document.body.textContent).toContain("Workspaces");
+		expect(document.body.textContent).toContain("Providers");
+		expect(document.body.textContent).not.toContain("provider:cline-pass");
+
+		const search = document.body.querySelector<HTMLInputElement>(
+			'input[aria-label="Search session filters"]',
+		);
+		await act(async () => {
+			if (!search) return;
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(search, "cline-pass");
+			search.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+
+		expect(document.body.textContent).toContain("cline-pass");
+		expect(document.body.textContent).not.toContain("Workspaces");
 	});
 });
 

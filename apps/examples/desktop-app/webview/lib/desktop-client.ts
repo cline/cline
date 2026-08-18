@@ -195,7 +195,12 @@ export function writeDesktopDebugLog(payload: unknown): void {
 		timestamp: entry.timestamp,
 		...(entry.metadata ?? {}),
 	};
-	if (entry.level === "error") {
+	if (entry.level === "error" && entry.scope === "realtime-voice") {
+		// Browser dev overlays treat console.error as an uncaught application
+		// failure. Realtime failures are already handled and shown in-product,
+		// so preserve their severity without triggering the overlay.
+		console.warn("%s", prefix, { ...details, severity: "error" });
+	} else if (entry.level === "error") {
 		console.error("%s %o", prefix, details);
 	} else if (entry.level === "info") {
 		console.info("%s %o", prefix, details);
@@ -211,6 +216,11 @@ const NATIVE_COMMANDS = new Set([
 	"restart_to_apply_update",
 	"check_for_update_now",
 	"set_app_icon",
+	"list_avatars",
+	"get_selected_avatar",
+	"set_selected_avatar",
+	"set_avatar_enabled",
+	"handle_avatar_overlay_action",
 	"drain_desktop_menu_actions",
 	"set_tray_status",
 ]);

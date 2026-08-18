@@ -1,3 +1,12 @@
+import type {
+	ProviderMode,
+	ProviderModeSettingsMap,
+	ProviderModesSettings,
+	RealtimeVoiceModeSettings,
+	VoiceInputModeSettings,
+	VoiceOutputModeSettings,
+} from "@cline/shared";
+import { PROVIDER_MODE_IDS } from "@cline/shared";
 import { z } from "zod";
 import {
 	type ProviderClient,
@@ -22,16 +31,49 @@ export { toProviderConfig };
 
 export type ProviderTokenSource = "manual" | "oauth" | "migration";
 
-export const VoiceInputSettingsSchema = z.object({
-	providerId: z.string().min(1),
-	modelId: z.string().min(1),
-});
+export const VoiceInputModeSettingsSchema: z.ZodType<VoiceInputModeSettings> =
+	z.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+	});
 
-export type VoiceInputSettings = z.infer<typeof VoiceInputSettingsSchema>;
+export const VoiceOutputModeSettingsSchema: z.ZodType<VoiceOutputModeSettings> =
+	z.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+		voice: z.string().min(1).optional(),
+	});
 
-export interface StoredProviderModes {
-	voiceInput?: VoiceInputSettings;
+/** @deprecated Use VoiceInputModeSettingsSchema. */
+export const VoiceInputSettingsSchema = VoiceInputModeSettingsSchema;
+/** @deprecated Use VoiceInputModeSettings. */
+export type VoiceInputSettings = VoiceInputModeSettings;
+
+export const RealtimeVoiceModeSettingsSchema: z.ZodType<RealtimeVoiceModeSettings> =
+	z.object({
+		providerId: z.string().min(1),
+		modelId: z.string().min(1),
+		voice: z.string().min(1).optional(),
+	});
+
+export const ProviderModeSettingsSchemas = {
+	voiceInput: VoiceInputModeSettingsSchema,
+	voiceOutput: VoiceOutputModeSettingsSchema,
+	realtimeVoice: RealtimeVoiceModeSettingsSchema,
+} as const satisfies {
+	[Mode in ProviderMode]: z.ZodType<ProviderModeSettingsMap[Mode]>;
+};
+
+export function parseProviderModeSettings<Mode extends ProviderMode>(
+	mode: Mode,
+	settings: unknown,
+): ProviderModeSettingsMap[Mode] {
+	return ProviderModeSettingsSchemas[mode].parse(
+		settings,
+	) as ProviderModeSettingsMap[Mode];
 }
+
+export type StoredProviderModes = ProviderModesSettings;
 
 export interface StoredProviderSettingsEntry {
 	settings: ProviderSettings;
@@ -46,10 +88,19 @@ export interface StoredProviderSettings {
 	providers: Record<string, StoredProviderSettingsEntry>;
 }
 
+const StoredProviderModesSchemaShape = Object.fromEntries(
+	PROVIDER_MODE_IDS.map((mode) => [
+		mode,
+		ProviderModeSettingsSchemas[mode].optional(),
+	]),
+) as {
+	[Mode in ProviderMode]: z.ZodOptional<
+		(typeof ProviderModeSettingsSchemas)[Mode]
+	>;
+};
+
 export const StoredProviderModesSchema: z.ZodType<StoredProviderModes> =
-	z.object({
-		voiceInput: VoiceInputSettingsSchema.optional(),
-	});
+	z.object(StoredProviderModesSchemaShape);
 
 export const StoredProviderSettingsEntrySchema: z.ZodType<StoredProviderSettingsEntry> =
 	z.object({

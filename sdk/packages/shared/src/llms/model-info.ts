@@ -32,6 +32,7 @@ export const ModelCapabilitySchema = z.enum([
 	"structured_output",
 	"temperature",
 	"files",
+	"transcription-streaming",
 ]);
 
 export type ModelCapability = z.infer<typeof ModelCapabilitySchema>;
@@ -136,6 +137,62 @@ export function usesImageGenerationOperation(
 	model: ImageOutputModelDescriptor,
 ): boolean {
 	return model.operation === "image-generation";
+}
+
+export function isImageGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	return usesImageGenerationOperation(model) || modelProducesImages(model);
+}
+
+export function isDedicatedImageGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return (
+		model.operation === "image-generation" ||
+		(isImageGenerationModel(model) && output?.includes("text") !== true)
+	);
+}
+
+export function isVideoGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	return (
+		model.operation === "video-generation" ||
+		(model.modalities?.input.includes("text") === true &&
+			model.modalities.output.includes("video"))
+	);
+}
+
+export function isDedicatedVideoGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return (
+		model.operation === "video-generation" ||
+		(isVideoGenerationModel(model) && output?.includes("text") !== true)
+	);
+}
+
+export function isAudioGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	return (
+		model.operation === "speech-generation" ||
+		(model.modalities?.input.includes("text") === true &&
+			model.modalities.output.includes("audio"))
+	);
+}
+
+export function isDedicatedAudioGenerationModel(
+	model: Pick<ModelInfo, "operation" | "modalities">,
+): boolean {
+	const output = model.modalities?.output;
+	return (
+		model.operation === "speech-generation" ||
+		(isAudioGenerationModel(model) && output?.includes("text") !== true)
+	);
 }
 
 /**

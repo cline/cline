@@ -100,6 +100,7 @@ vi.mock("ai", () => ({
 		jsonSchema: schema,
 		...(options && typeof options === "object" ? options : {}),
 	}),
+	tool: (definition: unknown) => definition,
 	generateImage: (input: unknown) => generateImageSpy(input),
 	streamText: (input: unknown) => streamTextSpy(input),
 	// `wrapLanguageModel` is used by the openai-compatible and mistral
@@ -4637,9 +4638,6 @@ describe("sdk-gateway", () => {
 						instructions: "You are helpful.",
 						store: false,
 					}),
-					"openai-codex": expect.objectContaining({
-						store: false,
-					}),
 					openaiCodex: expect.objectContaining({
 						store: false,
 					}),
@@ -4655,13 +4653,15 @@ describe("sdk-gateway", () => {
 			| undefined;
 		expect(call).not.toHaveProperty("maxOutputTokens");
 		expect(call?.providerOptions?.openai).not.toHaveProperty("truncation");
-		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
-			"truncation",
+		expect(call?.providerOptions?.openai).not.toHaveProperty("reasoningEffort");
+		expect(call?.providerOptions?.["openai-codex"]).toBeUndefined();
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty(
+			"reasoningEffort",
 		);
-		expect(call?.providerOptions?.["openai-codex"]).not.toHaveProperty(
+		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty(
 			"reasoningSummary",
 		);
-		expect(call?.providerOptions?.openaiCodex).not.toHaveProperty("truncation");
 	});
 
 	it("passes object JSON schemas unchanged to the OpenAI Codex tool adapter", async () => {
@@ -5445,19 +5445,16 @@ describe("sdk-gateway", () => {
 			providerId: "cline",
 			modelId: "qwen/qwen3.6-plus",
 			providerOptionsKey: "cline",
-			aliasKey: undefined,
 		},
 		{
 			providerId: "vercel-ai-gateway",
 			modelId: "alibaba/qwen3.6-plus",
-			providerOptionsKey: "vercel-ai-gateway",
-			aliasKey: "vercelAiGateway",
+			providerOptionsKey: "vercelAiGateway",
 		},
 	])("forwards Qwen prompt cache controls without Anthropic reasoning for $providerId", async ({
 		providerId,
 		modelId,
 		providerOptionsKey,
-		aliasKey,
 	}) => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
@@ -5521,10 +5518,11 @@ describe("sdk-gateway", () => {
 				[providerOptionsKey]: expect.objectContaining(expectedCacheControl),
 			}),
 		);
-		if (aliasKey) {
-			expect(qwenCall.providerOptions?.[aliasKey]).toEqual(
-				expect.objectContaining(expectedCacheControl),
-			);
+		if (providerId === "vercel-ai-gateway") {
+			const messageProviderOptions =
+				qwenCall.messages?.[0]?.content[0]?.providerOptions;
+			expect(messageProviderOptions?.[providerId]).toBeUndefined();
+			expect(qwenCall.providerOptions?.[providerId]).toBeUndefined();
 		}
 		// Portable effort rides the top-level reasoning option, so no
 		// reasoning provider options are forwarded for either provider.

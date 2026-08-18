@@ -33,7 +33,9 @@
  *   assistant-message → one content_end { contentType:"text", text }
  *                        if any text parts; one
  *                        content_end { contentType:"reasoning", reasoning }
- *                        if any reasoning parts
+ *                        if any reasoning parts; and one
+ *                        content_end { contentType:"image", image } per
+ *                        generated image
  *                        (turn-processor.ts:157-170).
  *
  * --- STATEFUL BOOK-KEEPING ------------------------------------------------
@@ -54,13 +56,16 @@
 
 import type {
 	AgentEvent,
+	AgentAudioPart,
 	AgentFinishReason,
+	AgentImagePart,
 	AgentMessage,
 	AgentReasoningPart,
 	AgentRuntimeEvent,
 	AgentTextPart,
 	AgentToolResultPart,
 	AgentUsage,
+	AgentVideoPart,
 	LegacyAgentUsage,
 } from "@cline/shared";
 
@@ -106,6 +111,42 @@ function extractReasoningPart(
 		reasoning: parts.map((part) => part.text).join(""),
 		redacted: parts.some((part) => part.redacted === true),
 	};
+}
+
+function extractImageParts(
+	message: AgentMessage,
+): Array<{ data: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentImagePart & { image: string } =>
+				part.type === "image" && typeof part.image === "string",
+		)
+		.map((part) => ({
+			data: part.image,
+			mediaType: part.mediaType ?? "image/png",
+		}));
+}
+
+function extractVideoParts(
+	message: AgentMessage,
+): Array<{ path: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentVideoPart & { path: string } =>
+				part.type === "video" && typeof part.path === "string",
+		)
+		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
+}
+
+function extractAudioParts(
+	message: AgentMessage,
+): Array<{ path: string; mediaType: string }> {
+	return message.content
+		.filter(
+			(part): part is AgentAudioPart & { path: string } =>
+				part.type === "audio" && typeof part.path === "string",
+		)
+		.map((part) => ({ path: part.path, mediaType: part.mediaType }));
 }
 
 function extractToolResultPart(
@@ -298,6 +339,27 @@ export class RuntimeEventAdapter {
 				type: "content_end",
 				contentType: "reasoning",
 				reasoning: reasoning.reasoning,
+			});
+		}
+		for (const image of extractImageParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "image",
+				image,
+			});
+		}
+		for (const video of extractVideoParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "video",
+				video,
+			});
+		}
+		for (const audio of extractAudioParts(message)) {
+			out.push({
+				type: "content_end",
+				contentType: "audio",
+				audio,
 			});
 		}
 		return out;

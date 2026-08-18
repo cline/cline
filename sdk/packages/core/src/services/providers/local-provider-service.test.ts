@@ -18,6 +18,7 @@ import {
 	createConfiguredStreamingTranscriptionSession,
 	deleteLocalProvider,
 	getLocalProviderModels,
+	isChatProviderModel,
 	isDedicatedTranscriptionModel,
 	listLocalProviders,
 	markLocalProviderEnabled,
@@ -380,6 +381,39 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 			name: "Live Free Model (free)",
 			supportsReasoning: true,
 		});
+	});
+
+	it("adds live Cline Cloud models to the Cline provider", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.dev/api.json") {
+				return new Response(JSON.stringify({}), { status: 200 });
+			}
+
+			return new Response(
+				JSON.stringify({
+					clineCloud: [
+						{
+							id: "cline-cloud/claude-sonnet-4.6",
+							name: "Claude Sonnet 4.6",
+						},
+					],
+				}),
+				{ status: 200 },
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { models } = await getLocalProviderModels("cline", undefined, {
+			loadLatest: true,
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(models).toContainEqual(
+			expect.objectContaining({
+				id: "cline-cloud/claude-sonnet-4.6",
+				name: "Claude Sonnet 4.6",
+			}),
+		);
 	});
 
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
@@ -1502,6 +1536,21 @@ describe("listLocalProviders", () => {
 	});
 
 	afterEach(() => cleanup());
+
+	it("includes text-to-image models in the chat model set", () => {
+		expect(
+			isChatProviderModel({
+				inputModalities: ["text"],
+				outputModalities: ["image"],
+			}),
+		).toBe(true);
+		expect(
+			isChatProviderModel({
+				inputModalities: ["audio"],
+				outputModalities: ["image"],
+			}),
+		).toBe(false);
+	});
 
 	it("includes all registered providers", async () => {
 		await addLocalProvider(manager, {

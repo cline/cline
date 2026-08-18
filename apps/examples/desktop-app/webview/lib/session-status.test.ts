@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
+import {
+	resolveSessionHeaderStatus,
+	sessionStatusColor,
+	sessionStatusTone,
+} from "@/lib/session-status";
+
+describe("resolveSessionHeaderStatus", () => {
+	it("uses the live list status for cloud headers", () => {
+		expect(
+			resolveSessionHeaderStatus({
+				chatStatus: "completed",
+				isCloudSession: true,
+				liveHistoryStatus: "running",
+			}),
+		).toBe("running");
+	});
+
+	it("keeps the chat status for local headers", () => {
+		expect(
+			resolveSessionHeaderStatus({
+				chatStatus: "completed",
+				isCloudSession: false,
+				liveHistoryStatus: "running",
+			}),
+		).toBe("completed");
+	});
+});
 
 describe("sessionStatusTone", () => {
 	it("marks running sessions as running", () => {

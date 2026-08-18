@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	MAX_RECORDED_AUDIO_BASE64_BYTES,
 	MAX_RECORDED_AUDIO_BYTES,
@@ -23,6 +26,20 @@ function createTelemetryHandler(capture = vi.fn()) {
 		capture,
 	};
 }
+
+const originalSessionDataDir = process.env.CLINE_SESSION_DATA_DIR;
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+	if (originalSessionDataDir === undefined) {
+		delete process.env.CLINE_SESSION_DATA_DIR;
+	} else {
+		process.env.CLINE_SESSION_DATA_DIR = originalSessionDataDir;
+	}
+	for (const directory of temporaryDirectories.splice(0)) {
+		rmSync(directory, { recursive: true, force: true });
+	}
+});
 
 describe("sidecar WebSocket payload limit", () => {
 	it("accepts every recording allowed by the voice input size limit", () => {
@@ -102,6 +119,41 @@ describe("sidecar HTTP origin checks", () => {
 		expect(response?.headers.get("access-control-allow-origin")).toBe(
 			"tauri://localhost",
 		);
+	});
+});
+
+describe("session video artifacts", () => {
+	it("serves a generated video only from the session artifact directory", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "desktop-video-artifact-"));
+		temporaryDirectories.push(sessionsDir);
+		process.env.CLINE_SESSION_DATA_DIR = sessionsDir;
+		const artifactsDir = join(sessionsDir, "session-1", "artifacts");
+		mkdirSync(artifactsDir, { recursive: true });
+		writeFileSync(join(artifactsDir, "video-result.mp4"), "video-bytes");
+
+		const response = await createHandler()(
+			new Request(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/video-result.mp4",
+				{ headers: { origin: "tauri://localhost" } },
+			),
+			createTestServer(),
+		);
+
+		expect(response?.status).toBe(200);
+		expect(response?.headers.get("content-type")).toBe("video/mp4");
+		await expect(response?.text()).resolves.toBe("video-bytes");
+	});
+
+	it("rejects untrusted origins for session artifacts", async () => {
+		const response = await createHandler()(
+			new Request(
+				"http://127.0.0.1:3126/api/session-artifacts/session-1/video.mp4",
+				{ headers: { origin: "https://attacker.example" } },
+			),
+			createTestServer(),
+		);
+
+		expect(response?.status).toBe(403);
 	});
 });
 

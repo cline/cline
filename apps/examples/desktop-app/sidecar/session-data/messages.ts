@@ -1,5 +1,5 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname } from "node:path";
+import { basename, dirname } from "node:path";
 import {
 	getUserRunSpan,
 	projectSessionMessagesForDisplay,
@@ -333,28 +333,37 @@ export async function readSessionMessages(
 	ctx: Pick<SidecarContext, "liveSessions">,
 	sessionId: string,
 	maxMessages = 800,
+	/** Explicit authoritative source for remote sessions; bypasses local disk. */
+	sourceMessages?: unknown[],
 ): Promise<unknown[]> {
-	const persisted =
-		readPersistedChatMessages(sessionId) ??
-		// A child agent's transcript is not stored under its own session
-		// directory — it lives beside the root session's artifacts — so opening a
-		// subagent session has to resolve the path recorded on its row.
-		readChildSessionMessages(sessionId);
-	const messages =
-		persisted && persisted.length > 0
+	const isRemoteRead = sourceMessages !== undefined;
+	const persisted = sourceMessages
+		? undefined
+		: (readPersistedChatMessages(sessionId) ??
+			// A child agent's transcript is not stored under its own session
+			// directory — it lives beside the root session's artifacts — so opening a
+			// subagent session has to resolve the path recorded on its row.
+			readChildSessionMessages(sessionId));
+	const messages = (sourceMessages ??
+		(persisted && persisted.length > 0
 			? persisted
-			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
+			: (ctx.liveSessions.get(sessionId)?.messages ??
+				[]))) as MessageWithMetadata[];
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
 	const displayMessages = projectSessionMessagesForDisplay(
-		messages.slice(start),
+		messages.slice(start) as MessageWithMetadata[],
 	).map((entry) => ({
 		message: entry.message,
 		sourceIndex: start + entry.sourceIndex,
 	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
-	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
+	// Remote artifacts belong to the SSH host. Never decorate them with a
+	// same-id local session's live transcript or checkpoint metadata.
+	const checkpointsByRunCount = isRemoteRead
+		? new Map<number, StoredCheckpointEntry>()
+		: readCheckpointEntriesByRunCount(sessionId);
 	const pendingToolMessages = new Map<string, [number, string, unknown]>();
 	let userRunCount = 0;
 	for (let idx = 0; idx < start; idx += 1) {
@@ -462,6 +471,16 @@ export async function readSessionMessages(
 
 		const textParts: string[] = [];
 		const images: Array<{ id: string; mediaType: string; data: string }> = [];
+		const videos: Array<{
+			id: string;
+			mediaType: string;
+			artifactName: string;
+		}> = [];
+		const audios: Array<{
+			id: string;
+			mediaType: string;
+			artifactName: string;
+		}> = [];
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
@@ -517,6 +536,7 @@ export async function readSessionMessages(
 					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
+						...(toolUseId ? { toolCallId: toolUseId } : {}),
 						hookEventName: "history_tool_use",
 					},
 				});
@@ -547,6 +567,7 @@ export async function readSessionMessages(
 								? (target.meta as JsonRecord)
 								: {}),
 							toolName,
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						};
 					}
@@ -560,6 +581,7 @@ export async function readSessionMessages(
 						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
 					});
@@ -584,6 +606,30 @@ export async function readSessionMessages(
 					images.push({
 						id: `${messageIdBase}_image_${blockIdx}`,
 						...image,
+					});
+				}
+				continue;
+			}
+			if (blockType === "video") {
+				const mediaType = trimNonEmptyString(record.mediaType);
+				const path = trimNonEmptyString(record.path);
+				if (mediaType && path) {
+					videos.push({
+						id: `${messageIdBase}_video_${blockIdx}`,
+						mediaType,
+						artifactName: basename(path),
+					});
+				}
+				continue;
+			}
+			if (blockType === "audio") {
+				const mediaType = trimNonEmptyString(record.mediaType);
+				const path = trimNonEmptyString(record.path);
+				if (mediaType && path) {
+					audios.push({
+						id: `${messageIdBase}_audio_${blockIdx}`,
+						mediaType,
+						artifactName: basename(path),
 					});
 				}
 				continue;
@@ -622,6 +668,44 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
+		if (videos.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.videos = videos;
+			} else {
+				out.push({
+					id: `${messageIdBase}_videos`,
+					sessionId,
+					role,
+					content: "",
+					videos,
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+			}
+		}
+		if (audios.length > 0) {
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				target.audios = audios;
+			} else {
+				out.push({
+					id: `${messageIdBase}_audios`,
+					sessionId,
+					role,
+					content: "",
+					audios,
 					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});

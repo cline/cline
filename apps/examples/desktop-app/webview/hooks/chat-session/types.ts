@@ -1,11 +1,21 @@
 import type { SessionHookEvent } from "@/lib/session-diff";
 
 export type ProcessContext = {
+	environmentId: string;
 	workspaceRoot: string;
 	cwd: string;
 	homeDir?: string;
 	platform?: string;
 	appVersion?: string;
+	activeEnvironmentId?: string;
+	remoteEnvironment?: {
+		id: string;
+		name?: string;
+		host?: string;
+		workspaceRoot?: string;
+		platform?: string;
+		arch?: string;
+	} | null;
 };
 
 export type AgentChunkEvent = {
@@ -76,9 +86,11 @@ export type ChatApiResult = {
 	text: string;
 	inputTokens?: number;
 	outputTokens?: number;
+	cacheReadTokens?: number;
 	usage?: {
 		inputTokens?: number;
 		outputTokens?: number;
+		cacheReadTokens?: number;
 		totalCost?: number;
 	};
 	iterations?: number;
@@ -99,16 +111,26 @@ export type ChatApiResult = {
 };
 
 export type ChatSessionCommandResponse = {
+	environmentId?: string;
 	sessionId?: string;
 	cwd?: string;
 	workspaceRoot?: string;
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;
+	recoveredAfterDisconnect?: boolean;
+	status?: string;
 	promptsInQueue?: PromptInQueue[];
 	prompt?: PromptInQueue;
 	updated?: boolean;
 	removed?: boolean;
+};
+
+export type ChatPromptCompletion = {
+	sessionId: string;
+	queued: boolean;
+	text?: string;
+	result?: ChatApiResult;
 };
 
 export type ChatWsResponseEvent = {

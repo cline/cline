@@ -8,6 +8,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { basename, dirname } from "node:path";
+import type { ProviderMode, ProviderModeSettingsMap } from "@cline/shared";
 import { resolveProviderSettingsPath } from "@cline/shared/storage";
 import { getLiveModelsCatalog } from "../..";
 import { getProviderAuthHandler } from "../../auth/provider-auth-registry";
@@ -18,6 +19,7 @@ import {
 	type ProviderSettings,
 	ProviderSettingsSchemaTyped as ProviderSettingsSchema,
 	type ProviderTokenSource,
+	parseProviderModeSettings,
 	type StoredProviderSettings,
 	StoredProviderSettingsSchema,
 	type ToProviderConfigOptions,
@@ -216,21 +218,37 @@ export class ProviderSettingsManager {
 		return this.resolveProviderSettings(state, providerId);
 	}
 
+	getModeSettings<Mode extends ProviderMode>(
+		mode: Mode,
+	): ProviderModeSettingsMap[Mode] | undefined {
+		return this.read().modes[mode];
+	}
+
+	setModeSettings<Mode extends ProviderMode>(
+		mode: Mode,
+		settings: ProviderModeSettingsMap[Mode] | undefined,
+	): StoredProviderSettings {
+		const state = this.read();
+		if (settings) {
+			state.modes[mode] = parseProviderModeSettings(mode, settings);
+		} else {
+			delete state.modes[mode];
+		}
+		this.write(state);
+		return state;
+	}
+
 	getVoiceInputSettings(): VoiceInputSettings | undefined {
-		return this.read().modes.voiceInput;
+		return this.getModeSettings("voiceInput");
 	}
 
 	setVoiceInputSettings(
 		settings: VoiceInputSettings | undefined,
 	): StoredProviderSettings {
-		const state = this.read();
-		if (settings) {
-			state.modes.voiceInput = VoiceInputSettingsSchema.parse(settings);
-		} else {
-			delete state.modes.voiceInput;
-		}
-		this.write(state);
-		return state;
+		return this.setModeSettings(
+			"voiceInput",
+			settings ? VoiceInputSettingsSchema.parse(settings) : undefined,
+		);
 	}
 
 	private resolveLastUsedProviderId(
