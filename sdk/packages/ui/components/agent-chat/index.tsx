@@ -762,8 +762,8 @@ export function formatWorkDuration(durationMilliseconds: number): string {
 	return `${seconds}s`;
 }
 
-/** "Worked for 4m 12s · 14 tool calls" with graceful fallbacks when either
- * number is unknown. */
+/** "Worked for 4m 12s and made 14 tool calls" with graceful fallbacks when
+ * either number is unknown. */
 export function formatWorkActivityLabel({
 	durationMilliseconds,
 	toolCallCount,
@@ -773,11 +773,14 @@ export function formatWorkActivityLabel({
 		Number.isFinite(durationMilliseconds) &&
 		durationMilliseconds >= 0
 			? `Worked for ${formatWorkDuration(durationMilliseconds)}`
-			: "Worked";
-	if (!toolCallCount) return worked;
-	return `${worked} · ${toolCallCount} ${
-		toolCallCount === 1 ? "tool call" : "tool calls"
-	}`;
+			: undefined;
+	const calls = toolCallCount
+		? `${toolCallCount} ${toolCallCount === 1 ? "tool call" : "tool calls"}`
+		: undefined;
+	if (worked && calls) return `${worked} and made ${calls}`;
+	if (worked) return worked;
+	if (calls) return `Made ${calls}`;
+	return "Worked";
 }
 
 export type WorkActivityProps = Omit<
@@ -791,8 +794,8 @@ export type WorkActivityProps = Omit<
 
 /**
  * Collapsed summary of a finished agent run: the tool calls, thinking traces,
- * and working narration that produced an answer fold into a single
- * "Worked for 4m 12s · 14 tool calls" row that expands back into the full rows.
+ * and working narration that produced an answer fold into a single "Worked
+ * for 4m 12s and made 14 tool calls" row that expands back into the full rows.
  */
 export const WorkActivity = ({
 	className,
@@ -856,8 +859,13 @@ export type WorkActivityContentProps = Omit<
 	presentation?: DisclosureContentPresentation;
 };
 
+/**
+ * Expanded work re-shows the run's normal chat rows at transcript level — no
+ * rail or extra indent, since the rows inside (tool disclosures, thinking
+ * traces) already carry their own nesting when expanded.
+ */
 export const WorkActivityContent = ({
-	presentation = "rail",
+	presentation,
 	...props
 }: WorkActivityContentProps) => {
 	const { isOpen, panelId } = useWorkActivity();

@@ -16,6 +16,17 @@ export type ChatRenderItem =
 			items: ChatRenderItem[];
 			durationMilliseconds?: number;
 			toolCallCount: number;
+	  }
+	| {
+			type: "run";
+			/**
+			 * A run's working rows while they are still visible (live stream or a
+			 * tail that never collapsed): rendered as one tightly spaced group so
+			 * thinking traces and tool calls share the same rhythm, and so rows
+			 * keep their exact position when the run later folds into `work`.
+			 */
+			id: string;
+			items: ChatRenderItem[];
 	  };
 
 export function hasMessageReasoning(message: ChatMessage): boolean {
@@ -153,7 +164,9 @@ function firstMessageId(item: ChatRenderItem): string | undefined {
  * Folds each finished run's working rows (tool calls, thinking traces,
  * intermediate narration) into a single expandable `work` item, keeping the
  * run's final answer — the assistant text the run ended on — visible after it.
- * Runs still streaming, and runs without any tool calls, pass through as-is.
+ * Working rows that stay visible (live stream, tool-less runs, tails that
+ * never produced an answer) are grouped into a `run` item instead, so they
+ * share one tight rhythm and hold their position when the collapse happens.
  */
 export function collapseCompletedWork(
 	items: ChatRenderItem[],
@@ -198,7 +211,25 @@ export function collapseCompletedWork(
 		);
 		const firstCollapsed = collapsed[0];
 		if (!complete || toolCallCount === 0 || firstCollapsed === undefined) {
-			out.push(...span);
+			// Not collapsed: group the working rows (everything but a trailing
+			// answer-looking message) so they render with the tight in-run
+			// rhythm instead of full transcript spacing. Pure prose spans have
+			// no tool work to group and keep normal spacing.
+			const body = answer ? span.slice(0, -1) : span;
+			const firstBody = body[0];
+			const hasToolWork = body.some((item) => item.type === "tools");
+			if (body.length >= 2 && hasToolWork && firstBody !== undefined) {
+				out.push({
+					type: "run",
+					id: firstMessageId(firstBody) ?? "run",
+					items: body,
+				});
+				if (answer) {
+					out.push(answer);
+				}
+			} else {
+				out.push(...span);
+			}
 		} else {
 			const startTimestamp =
 				runStartTimestamp ?? firstTimestamp(firstCollapsed);

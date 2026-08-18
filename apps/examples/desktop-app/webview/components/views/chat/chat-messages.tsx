@@ -511,12 +511,52 @@ function ChatMessagesImpl({
 						{showIdleDetails ? null : (
 							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
 								{renderItems.map((item) => {
-									if (item.type === "tools") {
+									// Working rows — live (`run`) or folded (`work`) — render
+									// through one child renderer so a row keeps its exact look
+									// and position when the run collapses. Those rows keep
+									// copy/expand but drop the session-versioning actions
+									// (edit, restore, fork), which belong to top-level
+									// transcript rows.
+									const renderWorkingRow = (child: typeof item) => {
+										if (child.type === "tools") {
+											return (
+												<ToolMessageBlock
+													key={`tools_${child.messages[0]?.id ?? "empty"}`}
+													messages={child.messages}
+												/>
+											);
+										}
+										if (child.type !== "message") {
+											return null;
+										}
 										return (
-											<ToolMessageBlock
-												key={`tools_${item.messages[0]?.id ?? "empty"}`}
-												messages={item.messages}
+											<MessageBubble
+												agentRole={child.agentRole}
+												isLastAssistantMessage={
+													child.message.role === "assistant" &&
+													lastConversationMessage === child.message
+												}
+												isStreaming={streamingMessageId === child.message.id}
+												key={child.message.id}
+												message={child.message}
+												onCopyMessage={handleCopyMessage}
+												onExpandImage={handleExpandImage}
+												wasCopied={copiedMessageId === child.message.id}
+												{...getReasoningProps(child.reasoningMessages)}
 											/>
+										);
+									};
+									if (item.type === "tools") {
+										return renderWorkingRow(item);
+									}
+									if (item.type === "run") {
+										return (
+											<div
+												className="flex flex-col gap-1"
+												key={`run_${item.id}`}
+											>
+												{item.items.map(renderWorkingRow)}
+											</div>
 										);
 									}
 									if (item.type === "work") {
@@ -526,33 +566,7 @@ function ChatMessagesImpl({
 												key={`work_${item.id}`}
 												toolCallCount={item.toolCallCount}
 											>
-												{item.items.map((child) => {
-													if (child.type === "tools") {
-														return (
-															<ToolMessageBlock
-																key={`tools_${child.messages[0]?.id ?? "empty"}`}
-																messages={child.messages}
-															/>
-														);
-													}
-													if (child.type !== "message") {
-														return null;
-													}
-													// Collapsed rows keep copy/expand but drop the
-													// session-versioning actions (edit, restore,
-													// fork), which belong to the live transcript.
-													return (
-														<MessageBubble
-															agentRole={child.agentRole}
-															key={child.message.id}
-															message={child.message}
-															onCopyMessage={handleCopyMessage}
-															onExpandImage={handleExpandImage}
-															wasCopied={copiedMessageId === child.message.id}
-															{...getReasoningProps(child.reasoningMessages)}
-														/>
-													);
-												})}
+												{item.items.map(renderWorkingRow)}
 											</WorkBlock>
 										);
 									}
@@ -617,6 +631,17 @@ function ChatMessagesImpl({
 										/>
 									);
 								})}
+								{/* Lives inside the transcript column and mirrors a
+								    reasoning/tool trigger's geometry exactly (icon slot,
+								    min-height, padding), so the first real row replaces it
+								    in place with no jump. */}
+								{(status === "starting" || isAwaitingFirstOutput) &&
+								!isSessionSwitching ? (
+									<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+										<Loader2 className="size-4 animate-spin" />
+										<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
+									</div>
+								) : null}
 								{pendingToolApprovals.length > 0 ? (
 									<ToolApprovalPanel
 										items={pendingToolApprovals}
@@ -669,13 +694,6 @@ function ChatMessagesImpl({
 									</div>
 								</div>
 							)
-						) : null}
-						{(status === "starting" || isAwaitingFirstOutput) &&
-						!isSessionSwitching ? (
-							<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
-								<Loader2 className="size-4 animate-spin" />
-								<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
-							</div>
 						) : null}
 						{chatTransportState !== "connected" && !shouldShowErrorBanner ? (
 							<div className="mt-4 flex items-center gap-2 text-xs text-muted-foreground">

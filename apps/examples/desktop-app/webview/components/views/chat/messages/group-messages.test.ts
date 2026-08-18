@@ -166,6 +166,40 @@ describe("collapseCompletedWork", () => {
 		expect(work.items.map((item) => item.type)).toEqual(["tools"]);
 	});
 
+	it("groups a live run's working rows into a tight run item", () => {
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeMessage({
+					id: "r1",
+					reasoning: "planning",
+					createdAt: 2_000,
+				}),
+				makeTool("t1", 3_000),
+				makeTool("t2", 4_000),
+				makeMessage({ id: "a1", content: "Done.", createdAt: 5_000 }),
+			],
+			false,
+		);
+
+		// The thought row and tool rows share one run group while streaming;
+		// the answer-in-progress stays outside at transcript level.
+		expect(items.map((item) => item.type)).toEqual([
+			"message",
+			"run",
+			"message",
+		]);
+		const run = items[1];
+		if (run?.type !== "run") throw new Error("expected run item");
+		expect(run.id).toBe("r1");
+		expect(run.items.map((item) => item.type)).toEqual(["message", "tools"]);
+	});
+
 	it("keeps the live trailing run expanded", () => {
 		const items = collapse(
 			[

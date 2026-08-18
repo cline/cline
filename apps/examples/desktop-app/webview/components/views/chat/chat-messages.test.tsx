@@ -626,11 +626,14 @@ describe("ChatMessages tool disclosures", () => {
 		const message = container.querySelector(
 			'.cline-chat-message[data-role="assistant"]',
 		);
-		const messageList = message?.parentElement;
+		// This narration-then-tool tail renders inside a tight run group,
+		// which in turn sits in the gap-4 conversation list; the content column
+		// keeps the gap-2 spacing between blocks within one message.
+		const runGroup = message?.parentElement;
+		const messageList = runGroup?.parentElement;
 		const content = message?.querySelector(".cline-chat-message-content");
 
-		// The list owns conversation spacing via gap-4, while the content column
-		// keeps the tighter gap-2 spacing between blocks within one message.
+		expect(runGroup?.classList.contains("gap-1")).toBe(true);
 		expect(messageList?.classList.contains("gap-4")).toBe(true);
 		expect(content?.classList.contains("flex")).toBe(true);
 		expect(content?.classList.contains("flex-col")).toBe(true);
@@ -1448,7 +1451,9 @@ describe("ChatMessages work collapse", () => {
 		const trigger = container.querySelector(
 			"button.cline-chat-work-trigger",
 		) as HTMLButtonElement | null;
-		expect(trigger?.textContent).toContain("Worked for 4s · 2 tool calls");
+		expect(trigger?.textContent).toContain(
+			"Worked for 4s and made 2 tool calls",
+		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		// Collapsed content is lazy: the tool rows do not render until opened.
 		expect(container.querySelector(".cline-chat-tool")).toBeNull();

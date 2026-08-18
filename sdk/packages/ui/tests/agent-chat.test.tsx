@@ -205,15 +205,15 @@ describe("@cline/ui agent chat primitives", () => {
 				durationMilliseconds: 252_000,
 				toolCallCount: 14,
 			}),
-		).toBe("Worked for 4m 12s · 14 tool calls");
+		).toBe("Worked for 4m 12s and made 14 tool calls");
 		expect(
 			formatWorkActivityLabel({ durationMilliseconds: 800, toolCallCount: 1 }),
-		).toBe("Worked for 1s · 1 tool call");
+		).toBe("Worked for 1s and made 1 tool call");
 		expect(formatWorkActivityLabel({ durationMilliseconds: 3_720_000 })).toBe(
 			"Worked for 1h 2m",
 		);
 		expect(formatWorkActivityLabel({ toolCallCount: 3 })).toBe(
-			"Worked · 3 tool calls",
+			"Made 3 tool calls",
 		);
 		expect(formatWorkActivityLabel({})).toBe("Worked");
 	});
@@ -229,7 +229,9 @@ describe("@cline/ui agent chat primitives", () => {
 		const trigger = container.querySelector(
 			"button.cline-chat-work-trigger",
 		) as HTMLButtonElement;
-		expect(trigger.textContent).toContain("Worked for 1m 5s · 2 tool calls");
+		expect(trigger.textContent).toContain(
+			"Worked for 1m 5s and made 2 tool calls",
+		);
 		expect(trigger.getAttribute("aria-expanded")).toBe("false");
 		const panel = document.getElementById(
 			trigger.getAttribute("aria-controls") ?? "",
@@ -242,9 +244,10 @@ describe("@cline/ui agent chat primitives", () => {
 		expect(trigger.getAttribute("aria-expanded")).toBe("true");
 		expect(panel?.getAttribute("data-state")).toBe("open");
 		expect(panel?.textContent).toContain("Ran tests, edited theme.css");
-		expect(
-			panel?.querySelector(".cline-chat-work-content.cline-chat-panel-rail"),
-		).not.toBeNull();
+		// Expanded rows sit at transcript level — no rail or extra indent.
+		const content = panel?.querySelector(".cline-chat-work-content");
+		expect(content).not.toBeNull();
+		expect(content?.classList.contains("cline-chat-panel-rail")).toBe(false);
 
 		await act(async () => trigger.click());
 		expect(panel?.getAttribute("data-state")).toBe("closed");
