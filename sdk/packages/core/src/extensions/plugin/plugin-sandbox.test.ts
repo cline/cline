@@ -1004,6 +1004,48 @@ describe("plugin-sandbox", () => {
 		}
 	});
 
+	it("rejects returned-failure classifiers in sandboxed plugin tools", async () => {
+		const pluginPath = join(dir, "plugin-unsupported-classifier.mjs");
+		await writeFile(
+			pluginPath,
+			[
+				"export default {",
+				"  name: 'sandbox-unsupported-classifier',",
+				"  manifest: { capabilities: ['tools'] },",
+				"  setup(api) {",
+				"    api.registerTool({",
+				"      name: 'classified_tool',",
+				"      description: 'classified result',",
+				"      inputSchema: { type: 'object', properties: {} },",
+				"      isError: (output) => output.success === false,",
+				"      execute: async () => ({ success: false }),",
+				"    });",
+				"  },",
+				"};",
+			].join("\n"),
+			"utf8",
+		);
+
+		const sandboxed = await loadSandboxedPlugins({
+			pluginPaths: [pluginPath],
+		});
+
+		try {
+			expect(sandboxed.extensions).toEqual([]);
+			expect(sandboxed.failures).toEqual([
+				expect.objectContaining({
+					pluginName: "sandbox-unsupported-classifier",
+					phase: "setup",
+					message: expect.stringContaining(
+						"Sandboxed plugin tools do not support isError callbacks",
+					),
+				}),
+			]);
+		} finally {
+			await sandboxed.shutdown();
+		}
+	});
+
 	it("keeps the later duplicate sandbox plugin and reports the override", async () => {
 		const sandboxed = await loadSandboxedPlugins({
 			pluginPaths: [

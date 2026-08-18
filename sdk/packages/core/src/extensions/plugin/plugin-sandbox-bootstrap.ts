@@ -33,6 +33,7 @@ interface PluginTool {
 	inputSchema?: unknown;
 	timeoutMs?: number;
 	retryable?: boolean;
+	isError?: unknown;
 	execute: (input: unknown, context: unknown) => Promise<unknown>;
 }
 
@@ -559,6 +560,11 @@ async function loadPluginDescriptor(args: {
 
 		const api: PluginApi = {
 			registerTool: (tool) => {
+				if (tool.isError !== undefined) {
+					throw new Error(
+						"Sandboxed plugin tools do not support isError callbacks; throw from execute() to report a failure",
+					);
+				}
 				const id = makeId(args.pluginId, "tool");
 				handlers.tools.set(id, tool.execute);
 				contributions.tools.push({

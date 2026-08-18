@@ -46,6 +46,7 @@ describe("createTool", () => {
 	});
 
 	it("preserves explicit execution policy fields", () => {
+		const isError = (output: { ok: boolean }) => !output.ok;
 		const tool = createTool({
 			name: "custom_policy_tool",
 			description: "Tool with custom execution policy",
@@ -53,12 +54,14 @@ describe("createTool", () => {
 			timeoutMs: 1_000,
 			retryable: false,
 			maxRetries: 0,
+			isError,
 			execute: async () => ({ ok: true }),
 		});
 
 		expect(tool.timeoutMs).toBe(1_000);
 		expect(tool.retryable).toBe(false);
 		expect(tool.maxRetries).toBe(0);
+		expect(tool.isError).toBe(isError);
 	});
 
 	it("strips the $schema meta-key emitted by Zod v4's toJSONSchema", () => {

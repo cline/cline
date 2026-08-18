@@ -1771,7 +1771,12 @@ export class AgentRuntime {
 						});
 					},
 				});
-				result = { output };
+				result = {
+					output,
+					...(prepared.tool.isError?.(output) === true
+						? { isError: true }
+						: {}),
+				};
 			} catch (error) {
 				result = {
 					output: {
