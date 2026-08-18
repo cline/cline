@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	parseHandoffCommand,
 	readHandoffReceipt,
+	readPendingHandoffRecovery,
 	shouldOpenHandoffInApp,
 	validateHandoffAttachments,
 } from "./cloud-handoff";
@@ -40,6 +41,30 @@ describe("cloud handoff helpers", () => {
 			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 		});
 		expect(readHandoffReceipt({ handoff: { status: "pending" } })).toBeNull();
+	});
+
+	it("reads pending handoff metadata into restart recovery", () => {
+		expect(
+			readPendingHandoffRecovery({
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "cloud-pending",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
+				},
+			}),
+		).toEqual({
+			targetSessionId: "cloud-pending",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
+		});
+		expect(
+			readPendingHandoffRecovery({
+				handoff: {
+					status: "complete",
+					toCloudSessionId: "cloud-complete",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-complete",
+				},
+			}),
+		).toBeNull();
 	});
 
 	it("only focuses an in-app target while its source is still active", () => {

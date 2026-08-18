@@ -807,6 +807,7 @@ type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
 	innerSessionId?: string;
+	handoffSourceSessionId?: string;
 	rehydrationPromise?: Promise<CloudRehydrationSnapshot>;
 	rehydrationRerunRequested?: boolean;
 	bufferingEvents?: boolean;
@@ -979,6 +980,20 @@ function sessionRowModelId(record: JsonRecord | undefined): string {
 			? (record.metadata as JsonRecord)
 			: undefined;
 	return String(metadata?.model ?? record?.model ?? "").trim();
+}
+
+function sessionRowHandoffSourceSessionId(
+	record: JsonRecord | undefined,
+): string {
+	const metadata =
+		record?.metadata && typeof record.metadata === "object"
+			? (record.metadata as JsonRecord)
+			: undefined;
+	const handoff =
+		metadata?.handoff && typeof metadata.handoff === "object"
+			? (metadata.handoff as JsonRecord)
+			: undefined;
+	return String(handoff?.sourceSessionId ?? "").trim();
 }
 
 function parseApprovalInput(value: unknown): unknown {
@@ -2371,6 +2386,16 @@ export class CloudSessionManager {
 		}
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
+			if (
+				options.handoffSeed &&
+				existing.innerSessionId &&
+				existing.handoffSourceSessionId !== options.handoffSeed.sourceSessionId
+			) {
+				throw new CloudSessionError(
+					"request_failed",
+					"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+				);
+			}
 			if (options.createInner && !existing.innerSessionId) {
 				await this.createInnerSession(existing, options.handoffSeed);
 			}
@@ -2379,6 +2404,17 @@ export class CloudSessionManager {
 		const pending = this.connectionPromises.get(outerSessionId);
 		if (pending) {
 			const connection = await pending;
+			if (
+				options.handoffSeed &&
+				connection.innerSessionId &&
+				connection.handoffSourceSessionId !==
+					options.handoffSeed.sourceSessionId
+			) {
+				throw new CloudSessionError(
+					"request_failed",
+					"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+				);
+			}
 			if (options.createInner && !connection.innerSessionId) {
 				await this.createInnerSession(connection, options.handoffSeed);
 			}
@@ -2458,12 +2494,31 @@ export class CloudSessionManager {
 					throw new Error("Cloud session manager was disposed");
 				}
 				const listed = await client.command("session.list", { limit: 100 });
-				const newest = readSessionRows(listed.payload).sort(
-					(left, right) => updatedAt(right) - updatedAt(left),
-				)[0];
+				const rows = readSessionRows(listed.payload);
+				let newest: JsonRecord | undefined;
+				if (options.handoffSeed && rows.length > 0) {
+					const [only] = rows;
+					if (
+						rows.length !== 1 ||
+						sessionRowHandoffSourceSessionId(only) !==
+							options.handoffSeed.sourceSessionId
+					) {
+						throw new CloudSessionError(
+							"request_failed",
+							"This cloud workspace already contains another conversation. Open it in Cline Cloud or delete it before retrying the handoff.",
+						);
+					}
+					newest = only;
+				} else {
+					newest = rows.sort(
+						(left, right) => updatedAt(right) - updatedAt(left),
+					)[0];
+				}
 				const innerSessionId = String(newest?.sessionId ?? "").trim();
 				if (innerSessionId) {
 					connection.innerSessionId = innerSessionId;
+					connection.handoffSourceSessionId =
+						sessionRowHandoffSourceSessionId(newest) || undefined;
 					const modelId = sessionRowModelId(newest);
 					if (modelId) this.applyModel(connection, modelId);
 					await this.ensureAttached(connection);
@@ -2588,6 +2643,7 @@ export class CloudSessionManager {
 			throw new Error("Cloud Hub did not return an inner session id");
 		}
 		connection.innerSessionId = innerSessionId;
+		connection.handoffSourceSessionId = handoffSeed?.sourceSessionId;
 		// Seeded content is authoritative only after a strict session.messages
 		// read-back verifies that the pod persisted initialMessages.
 		connection.transcriptKnown = !handoffSeed;

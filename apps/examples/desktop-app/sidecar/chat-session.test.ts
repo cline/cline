@@ -231,6 +231,111 @@ describe("pathless session starts", () => {
 });
 
 describe("session forks", () => {
+	it("keeps a persisted pending handoff read-only after restart", async () => {
+		const send = vi.fn();
+		const restore = vi.fn();
+		const sourceSessionId = "pending-handoff-source";
+		const pendingSession = {
+			sessionId: sourceSessionId,
+			status: "idle",
+			metadata: {
+				handoff: {
+					status: "pending",
+					toCloudSessionId: "cloud-pending",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+					dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-pending",
+				},
+			},
+		};
+		const ctx = {
+			liveSessions: new Map([
+				[
+					sourceSessionId,
+					{
+						config: { cwd: "/workspace/project" },
+						messages: [{ role: "user", content: "continue" }],
+						promptsInQueue: [],
+						busy: false,
+						startedAt: Date.now(),
+						status: "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => pendingSession),
+				send,
+				restore,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+		const recovery = "Cloud handoff is still pending";
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId: sourceSessionId,
+				prompt: "race",
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "fork",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "reset",
+				sessionId: sourceSessionId,
+			}),
+		).rejects.toThrow(recovery);
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: sourceSessionId,
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow(recovery);
+		expect(send).not.toHaveBeenCalled();
+		expect(restore).not.toHaveBeenCalled();
+	});
+
+	it("rejects checkpoint restore after the source completed a cloud handoff", async () => {
+		const restore = vi.fn();
+		const ctx = {
+			liveSessions: new Map(),
+			restoringWorkspacePaths: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "handed-off-source",
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-target",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+						},
+					},
+				})),
+				restore,
+			},
+			streamIndices: new Map(),
+			wsClients: new Set(),
+		} as unknown as SidecarContext;
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "restore_checkpoint",
+				sessionId: "handed-off-source",
+				checkpointRunCount: 1,
+				config: { cwd: "/workspace/project" },
+			}),
+		).rejects.toThrow("Fork locally before restoring a checkpoint");
+		expect(restore).not.toHaveBeenCalled();
+	});
+
 	it("restores the selected workspace checkpoint before forking for message editing", async () => {
 		const sourceSessionId = `source-fork-${Date.now()}`;
 		const sourceMessages = [
@@ -700,6 +805,7 @@ describe("first-send connection updates", () => {
 		const stop = vi.fn(async () => undefined);
 		const sessionId = "session-connection-test";
 		const start = vi.fn(async (_input?: unknown) => ({ sessionId }));
+		const get = vi.fn(async () => ({ sessionId, status: "idle" }));
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -719,6 +825,7 @@ describe("first-send connection updates", () => {
 			streamIndices: new Map(),
 			wsClients: new Set(),
 			sessionManager: {
+				get,
 				readMessages,
 				readSessionCompactionState,
 				send,

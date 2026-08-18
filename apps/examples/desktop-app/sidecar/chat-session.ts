@@ -924,12 +924,17 @@ async function handleSend(
 		typeof manager.get === "function"
 			? await manager.get(sessionId)
 			: undefined;
-	const completedHandoff = readCloudHandoffMetadata(
+	const handoff = readCloudHandoffMetadata(
 		persistedSession?.metadata ?? readSessionMetadata(sessionId),
 	);
-	if (completedHandoff?.status === "complete") {
+	if (handoff?.status === "pending") {
 		throw new Error(
-			`This session continued in Cline Cloud: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}. Fork locally to continue here.`,
+			`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+		);
+	}
+	if (handoff?.status === "complete") {
+		throw new Error(
+			`This session continued in Cline Cloud: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}. Fork locally to continue here.`,
 		);
 	}
 	const session = ctx.liveSessions.get(sessionId);
@@ -1195,6 +1200,14 @@ async function handleFork(
 		throw new Error(WORKSPACE_RESTORE_BUSY_ERROR);
 	}
 	const sourceSession = await manager.get(sourceSessionId);
+	const sourceHandoff = readCloudHandoffMetadata(
+		sourceSession?.metadata ?? readSessionMetadata(sourceSessionId),
+	);
+	if (sourceHandoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /handoff or continue here: ${sourceHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, sourceHandoff.toCloudSessionId)}`,
+		);
+	}
 	if (
 		forkBeforeRunCount !== undefined &&
 		(sourceSession?.status === "running" || sourceSession?.status === "pending")
@@ -1386,6 +1399,16 @@ async function handleReset(
 		if (handoffRequests.get(ctx)?.has(sessionId)) {
 			throw new Error("Wait for the cloud handoff to finish before resetting.");
 		}
+		const manager = getSessionManager(ctx);
+		const persisted = await manager.get(sessionId);
+		const pendingHandoff = readCloudHandoffMetadata(
+			persisted?.metadata ?? readSessionMetadata(sessionId),
+		);
+		if (pendingHandoff?.status === "pending") {
+			throw new Error(
+				`Cloud handoff is still pending. Retry /handoff or continue here: ${pendingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, pendingHandoff.toCloudSessionId)}`,
+			);
+		}
 		const session = ctx.liveSessions.get(sessionId);
 		if (
 			session?.busy ||
@@ -1393,7 +1416,7 @@ async function handleReset(
 			session?.status === "running" ||
 			session?.status === "stopping"
 		) {
-			await getSessionManager(ctx).stop(sessionId);
+			await manager.stop(sessionId);
 		}
 		discardAllTrackedAttachments(sessionId, session);
 		ctx.liveSessions.delete(sessionId);
@@ -1420,6 +1443,21 @@ async function handleRestoreCheckpoint(
 		runCount < 1
 	)
 		throw new Error("checkpointRunCount must be a positive integer");
+	const manager = getSessionManager(ctx);
+	const persisted = await manager.get(sourceSessionId);
+	const completedHandoff = readCloudHandoffMetadata(
+		persisted?.metadata ?? readSessionMetadata(sourceSessionId),
+	);
+	if (completedHandoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /handoff or continue here: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}`,
+		);
+	}
+	if (completedHandoff?.status === "complete") {
+		throw new Error(
+			"This session continued in Cline Cloud. Fork locally before restoring a checkpoint.",
+		);
+	}
 	const config = request.config;
 	if (!config) throw new Error("config is required to restore a checkpoint");
 	const cwd =
@@ -1427,7 +1465,6 @@ async function handleRestoreCheckpoint(
 		(typeof config.workspaceRoot === "string" && config.workspaceRoot.trim()) ||
 		"";
 	if (!cwd) throw new Error("config.cwd or config.workspaceRoot is required");
-	const manager = getSessionManager(ctx);
 	return withWorkspaceRestoreLock(ctx, cwd, async () => {
 		const restored = await manager.restore({
 			sessionId: sourceSessionId,
@@ -1799,7 +1836,7 @@ async function handleHandoffOnce(
 		!cloudHandoffFingerprintsEqual(expectedFingerprint, prepared.fingerprint)
 	) {
 		throw new Error(
-			"The repository, branch, commit, or cloud model changed after confirmation. Review the handoff details and try again.",
+			"The repository, branch, commit, or cloud model changed after handoff started. Review the handoff details and try again.",
 		);
 	}
 	const manager = getSessionManager(ctx);

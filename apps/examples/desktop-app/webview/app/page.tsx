@@ -61,6 +61,7 @@ import {
 	type HandoffResult,
 	parseHandoffCommand,
 	readHandoffReceipt,
+	readPendingHandoffRecovery,
 	shouldOpenHandoffInApp,
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
@@ -792,8 +793,13 @@ function ChatThreadPane({
 		? handoffUiState[sourceSessionId]
 		: undefined;
 	const handoffProgress = handoffUi?.status === "progress" ? handoffUi : null;
+	const pendingHandoffRecovery = readPendingHandoffRecovery(
+		historySession?.metadata,
+	);
 	const handoffRecoveryUrl =
-		handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null;
+		(handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null) ??
+		pendingHandoffRecovery?.dashboardUrl ??
+		null;
 	const handoffRetry =
 		(handoffUi?.status === "recovery" || handoffUi?.status === "failed") &&
 		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
@@ -1379,7 +1385,6 @@ function ChatThreadPane({
 				sourceSessionId,
 				phase: "creating",
 			});
-			setPendingAttachments([]);
 			try {
 				const attachments = await serializeAttachments(sourceAttachments);
 				const result = await desktopClient.invoke<HandoffResult>(
@@ -1451,7 +1456,7 @@ function ChatThreadPane({
 				onHandoffUiAction({
 					type: "failed",
 					sourceSessionId,
-					exposeRecovery: !cloudAgentsEnabled,
+					exposeRecovery: true,
 					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
 					retryAttachments: sourceAttachments,
 				});
@@ -1543,6 +1548,11 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
+			onHandoffUiAction({
+				type: "start",
+				sourceSessionId,
+			});
+			setPendingAttachments([]);
 			try {
 				const preflight = await desktopClient.invoke<HandoffPreflight>(
 					"chat_session_command",
@@ -1561,7 +1571,13 @@ function ChatThreadPane({
 					sourceSessionId,
 				);
 			} catch (error) {
-				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				onHandoffUiAction({
+					type: "failed",
+					sourceSessionId,
+					exposeRecovery: true,
+					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+					retryAttachments: sourceAttachments,
+				});
 				const cloudError = parseCloudSessionError(
 					error instanceof Error ? error.message : String(error),
 				);
@@ -1597,6 +1613,7 @@ function ChatThreadPane({
 			sessionId,
 			setPromptInput,
 			status,
+			onHandoffUiAction,
 		],
 	);
 
@@ -2279,7 +2296,7 @@ function ChatThreadPane({
 			onOpenCloud={handleOpenHandoffProgressLink}
 			phase={handoffProgress.phase}
 		/>
-	) : handoffRecoveryUrl && !cloudAgentsEnabled ? (
+	) : handoffRecoveryUrl ? (
 		<div className="w-full">
 			<CloudHandoffRecoveryNotice
 				dashboardUrl={handoffRecoveryUrl}
@@ -2395,7 +2412,9 @@ function ChatThreadPane({
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
+									isCloudSession || handoffReceipt
+										? undefined
+										: handleRestoreCheckpoint
 								}
 								onForkSession={isCloudSession ? undefined : handleForkSession}
 								startingLabel={

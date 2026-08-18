@@ -24,6 +24,10 @@ export type CloudHandoffUiState = Record<string, CloudHandoffUiEntry>;
 
 export type CloudHandoffUiAction =
 	| {
+			type: "start";
+			sourceSessionId: string;
+	  }
+	| {
 			type: "progress";
 			sourceSessionId: string;
 			phase: HandoffProgressPhase;
@@ -52,6 +56,14 @@ export function cloudHandoffUiReducer(
 ): CloudHandoffUiState {
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
+		case "start":
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					status: "progress",
+					phase: "checking",
+				},
+			};
 		case "progress":
 			if (
 				current?.status === "complete" ||

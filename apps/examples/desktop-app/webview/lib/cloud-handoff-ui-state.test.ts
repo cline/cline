@@ -85,4 +85,29 @@ describe("cloudHandoffUiReducer", () => {
 			}),
 		).toBe(failed);
 	});
+
+	it("lets an explicit retry replace recovery while ignoring late old progress", () => {
+		const recovery = {
+			"local-1": {
+				status: "recovery" as const,
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+		};
+		expect(
+			cloudHandoffUiReducer(recovery, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+			}),
+		).toBe(recovery);
+
+		const retry = cloudHandoffUiReducer(recovery, {
+			type: "start",
+			sourceSessionId: "local-1",
+		});
+		expect(retry["local-1"]).toEqual({
+			status: "progress",
+			phase: "checking",
+		});
+	});
 });

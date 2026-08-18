@@ -93,6 +93,24 @@ export function readHandoffReceipt(
 		: null;
 }
 
+export function readPendingHandoffRecovery(
+	metadata?: SessionMetadata,
+): HandoffReceipt | null {
+	const raw = metadata?.handoff;
+	if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+		return null;
+	}
+	const handoff = raw as Record<string, unknown>;
+	if (handoff.status !== "pending") {
+		return null;
+	}
+	const targetSessionId = stringField(handoff.toCloudSessionId);
+	const dashboardUrl = stringField(handoff.dashboardUrl);
+	return targetSessionId && dashboardUrl
+		? { targetSessionId, dashboardUrl }
+		: null;
+}
+
 export function shouldOpenHandoffInApp(
 	destination: HandoffResult["destination"],
 	isSourceStillActive: boolean,

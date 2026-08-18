@@ -103,6 +103,7 @@ class FakeHubClient {
 	invalidMessagesSnapshot = false;
 	malformedQueueReply = false;
 	listedModel?: string;
+	sessionRows?: Array<Record<string, unknown>>;
 	messages: unknown[] = [{ role: "user", content: "hi" }];
 	prompts: Array<Record<string, unknown>> = [
 		{
@@ -155,17 +156,19 @@ class FakeHubClient {
 			return {
 				ok: true,
 				payload: {
-					sessions: this.hasExistingInner
-						? [
-								{
-									sessionId: "inner-1",
-									updatedAt: 20,
-									...(this.listedModel
-										? { metadata: { model: this.listedModel } }
-										: {}),
-								},
-							]
-						: [],
+					sessions:
+						this.sessionRows ??
+						(this.hasExistingInner
+							? [
+									{
+										sessionId: "inner-1",
+										updatedAt: 20,
+										...(this.listedModel
+											? { metadata: { model: this.listedModel } }
+											: {}),
+									},
+								]
+							: []),
 				},
 			};
 		}
@@ -2198,6 +2201,80 @@ describe("CloudSessionManager", () => {
 		await expect(
 			manager.verifyHandoffTranscript("ses-handoff", expected),
 		).rejects.toThrow("must use @cline/core 0.0.72 or newer");
+	});
+
+	it("reuses only one inner session owned by the same handoff source", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = [
+			{
+				sessionId: "inner-handoff",
+				metadata: {
+					handoff: { sourceSessionId: "local-1" },
+				},
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		const seeded = await manager.seedHandoff("ses-outer", {
+			sourceSessionId: "local-1",
+			messages: [{ role: "user", content: "continue" }],
+		});
+
+		expect(seeded.innerSessionId).toBe("inner-handoff");
+		expect(
+			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
+	});
+
+	it.each([
+		{
+			name: "an unrelated inner session",
+			rows: [
+				{
+					sessionId: "inner-unrelated",
+					metadata: { handoff: { sourceSessionId: "another-local" } },
+				},
+			],
+		},
+		{
+			name: "multiple inner sessions",
+			rows: [
+				{
+					sessionId: "inner-handoff",
+					metadata: { handoff: { sourceSessionId: "local-1" } },
+				},
+				{
+					sessionId: "inner-other",
+					metadata: { handoff: { sourceSessionId: "local-1" } },
+				},
+			],
+		},
+	])("refuses handoff adoption with $name", async ({ rows }) => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionRows = rows;
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		await expect(
+			manager.seedHandoff("ses-outer", {
+				sourceSessionId: "local-1",
+				messages: [{ role: "user", content: "continue" }],
+			}),
+		).rejects.toThrow("already contains another conversation");
+		expect(
+			hub.commands.some((entry) => entry.command === "session.create"),
+		).toBe(false);
 	});
 
 	it("updates the cloud model before sending and skips redundant updates", async () => {
