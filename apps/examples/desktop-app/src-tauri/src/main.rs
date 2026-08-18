@@ -1250,7 +1250,13 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let menu = MenuBuilder::new(app)
         .text(
             TRAY_OPEN_MENU_ID,
-            format!("Cline Code v{}", app.package_info().version),
+            // package_info().name is the configured productName, so beta
+            // builds ("Cline Code Beta") identify themselves in the tray too.
+            format!(
+                "{} v{}",
+                app.package_info().name,
+                app.package_info().version
+            ),
         )
         .item(&status)
         .separator()
@@ -1277,7 +1283,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
     let tray = TrayIconBuilder::with_id(TRAY_ICON_ID)
         .icon(icon)
         .menu(&menu)
-        .tooltip("Cline Code");
+        .tooltip(app.package_info().name.as_str());
     #[cfg(target_os = "macos")]
     let tray = tray.icon_as_template(true);
 
