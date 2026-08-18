@@ -40,13 +40,13 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		signupUrl: "https://app.baseten.co/settings/api_keys",
 	},
 	deepseek: {
-		signupUrl: "https://www.deepseek.com/",
+		signupUrl: "https://platform.deepseek.com/api_keys",
 	},
 	doubao: {
 		signupUrl: "https://console.volcengine.com/home",
 	},
 	fireworks: {
-		signupUrl: "https://fireworks.ai/",
+		signupUrl: "https://app.fireworks.ai/settings/users/api-keys",
 	},
 	groq: {
 		signupUrl: "https://console.groq.com/keys",
