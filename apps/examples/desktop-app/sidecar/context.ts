@@ -83,6 +83,7 @@ export function sendEventToClient(
 		return true;
 	} catch {
 		ctx.wsClients.delete(client);
+		cancelSidecarToolApprovalsForOwner(ctx, client);
 		void syncSidecarApprovalReadiness(ctx).catch((error) =>
 			ctx.logger?.error?.("Hub approval readiness update failed", { error }),
 		);

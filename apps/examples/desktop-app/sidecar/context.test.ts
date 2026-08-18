@@ -626,6 +626,59 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(ctx.wsClients.has(approvalClient)).toBe(false);
 	});
 
+	it("rejects sibling approvals when a targeted state update fails", async () => {
+		const { createSidecarContext, createSidecarRuntimeCapabilities } =
+			await import("./context");
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi
+				.fn()
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => undefined)
+				.mockImplementationOnce(() => {
+					throw new Error("socket closed");
+				}),
+		};
+		ctx.wsClients.add(approvalClient);
+		const capabilities = createSidecarRuntimeCapabilities(ctx);
+		const request = (toolCallId: string) =>
+			capabilities.requestToolApproval?.({
+				sessionId: "sess-1",
+				agentId: "agent-1",
+				conversationId: "conversation-1",
+				iteration: 1,
+				toolCallId,
+				toolName: "run_commands",
+				input: { commands: ["echo hi"] },
+				policy: { autoApprove: false },
+			});
+		const firstApproval = request("tool-call-1");
+		const siblingApproval = request("tool-call-2");
+		const [{ requestId }] = (await handleCommand(
+			ctx,
+			"poll_tool_approvals",
+			{ sessionId: "sess-1" },
+			{ connection: approvalClient },
+		)) as Array<{ requestId: string }>;
+
+		await handleCommand(
+			ctx,
+			"respond_tool_approval",
+			{ sessionId: "sess-1", requestId, approved: true },
+			{ connection: approvalClient },
+		);
+
+		await expect(firstApproval).resolves.toEqual({ approved: true });
+		await expect(siblingApproval).resolves.toEqual({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+		expect(ctx.pendingApprovals.size).toBe(0);
+		expect(ctx.wsClients.has(approvalClient)).toBe(false);
+	});
+
 	it("forwards Hub-owned task session approvals to the live desktop", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
