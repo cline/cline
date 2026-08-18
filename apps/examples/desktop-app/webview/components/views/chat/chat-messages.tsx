@@ -506,9 +506,10 @@ function ChatMessagesImpl({
 					<SessionContent
 						className={cn(
 							"relative min-h-full",
-							// Bottom padding only needs to clear a pinned action pill —
-							// the composer sits below the scroller, not over it.
-							showIdleDetails ? "p-0" : "pt-6 pb-8",
+							// Bottom padding clears a pinned action pill (~40px with its
+							// offset) plus a small visible gap before the composer, which
+							// sits below the scroller, not over it.
+							showIdleDetails ? "p-0" : "pt-6 pb-12",
 						)}
 					>
 						{showIdleDetails ? null : (
