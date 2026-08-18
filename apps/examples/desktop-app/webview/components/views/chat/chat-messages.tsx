@@ -7,7 +7,7 @@ import {
 	ConversationScrollButton,
 	ConversationViewport,
 } from "@cline/ui/components/agent-chat";
-import { Clock3, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
@@ -38,7 +38,6 @@ import {
 import { ChatImageLightbox } from "./messages/image-lightbox";
 import { MessageBubble } from "./messages/message-bubble";
 import {
-	formatApprovalTimestamp,
 	ToolApprovalPanel,
 	type ToolApprovalRequestItem,
 } from "./messages/tool-approval-panel";
@@ -197,21 +196,7 @@ function ChatMessagesImpl({
 	const askQuestionItems = useMemo(
 		() =>
 			pendingAskQuestions.map((item) => ({
-				description: (
-					<>
-						Request {item.requestId}
-						{item.context?.iteration != null
-							? ` · Iteration ${item.context.iteration}`
-							: ""}
-					</>
-				),
 				id: item.requestId,
-				meta: (
-					<>
-						<Clock3 className="h-3 w-3" />
-						{formatApprovalTimestamp(item.createdAt)}
-					</>
-				),
 				options: item.options,
 				question: item.question,
 			})),

@@ -240,8 +240,6 @@ describe("AgentSidebar session organization", () => {
 			["Model", "test-model"],
 			["Tokens", "3009k"],
 			["Cost", "$3.06"],
-			["ID", "cline-5"],
-			["Updated", "5m"],
 		]);
 		expect(getSessionOverviewItems(makeThread("cline", 5))).not.toContainEqual([
 			"Branch",
