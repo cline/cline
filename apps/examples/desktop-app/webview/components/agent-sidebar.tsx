@@ -38,7 +38,6 @@ import {
 } from "react";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
-import { BotsPanel } from "@/components/views/bots/bots-panel";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -74,6 +73,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
 import { normalizeTitle } from "@/components/utils";
+import { BotsPanel } from "@/components/views/bots/bots-panel";
 import {
 	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
@@ -84,8 +84,8 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
-import type { BotSummary } from "@/lib/bots";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import type { BotSummary } from "@/lib/bots";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -307,9 +307,13 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
-	const [listMode, setListMode] = useState<SidebarListMode>(
-		readStoredSidebarListMode,
-	);
+	// Starts as "chats" on both server and first client render (hydration-safe);
+	// the effect below reads the persisted mode right after mount.
+	const [listMode, setListMode] = useState<SidebarListMode>("chats");
+
+	useEffect(() => {
+		setListMode(readStoredSidebarListMode());
+	}, []);
 
 	const switchListMode = useCallback((mode: SidebarListMode) => {
 		setListMode(mode);
@@ -319,7 +323,6 @@ export function AgentSidebar({
 			// Non-persistent environments still switch for the session.
 		}
 	}, []);
-
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -828,158 +831,160 @@ export function AgentSidebar({
 							/>
 						) : (
 							<>
-						<div className="mt-1 shrink-0 pl-4 pr-2">
-							<div className="flex h-8 items-center justify-between gap-2">
-								<button
-									className={cn(
-										"min-w-0 truncate text-sm font-medium text-muted-foreground",
-										view === "sessions" && "text-sidebar-foreground",
-									)}
-									onClick={openSessions}
-									type="button"
-								>
-									{sortMode === "time" ? "Sessions" : "Projects"}
-								</button>
-								<div className="flex shrink-0 items-center gap-0.5">
-									<Button
-										aria-label="Search sessions"
-										className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
-										onClick={() => setSearchOpen((current) => !current)}
-										size="icon"
-										title="Search sessions"
-										type="button"
-										variant="ghost"
-									>
-										<Search className="size-3.5" />
-									</Button>
-									{sortMenu}
-									{filterMenu}
-								</div>
-							</div>
-							{searchOpen ? (
-								<div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-sidebar-border bg-background/70 px-2 py-1">
-									<Search className="size-4 shrink-0" />
-									<Input
-										className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-sidebar-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0"
-										autoFocus={true}
-										onChange={(e) => setSearchQuery(e.target.value)}
-										placeholder="Search sessions..."
-										value={searchQuery}
-									/>
-								</div>
-							) : null}
-						</div>
-
-						<div className="mt-1 min-h-0 w-full flex-1">
-							<ScrollArea className="h-full min-h-0 w-full min-w-0">
-								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
-									{isLoadingHistory && threads.length === 0 ? (
-										<div className="p-4 text-xs text-muted-foreground">
-											Loading session history...
-										</div>
-									) : (
-										<>
-											{sortMode === "time"
-												? displayedThreads.map(threadItem)
-												: projectGroups.map((project) => {
-														const visibleCount =
-															projectVisibleCounts[project.id] ??
-															INITIAL_VISIBLE_THREAD_COUNT;
-														return (
-															<ProjectSection
-																collapsed={collapsedProjects.has(project.id)}
-																key={project.id}
-																label={project.label}
-																onToggle={() => toggleProject(project.id)}
-															>
-																{project.threads
-																	.slice(0, visibleCount)
-																	.map(threadItem)}
-																{project.threads.length > visibleCount ? (
-																	<Button
-																		className="pl-2!"
-																		onClick={() =>
-																			showMoreForProject(project.id)
-																		}
-																		type="button"
-																		variant="sidebarText"
-																	>
-																		Show more in {project.label}
-																		<ChevronDown className="size-3" />
-																	</Button>
-																) : null}
-															</ProjectSection>
-														);
-													})}
-
-											{(sortMode === "time"
-												? displayedThreads.length === 0
-												: projectGroups.length === 0) && (
-												<div className="px-2 py-4 text-xs text-muted-foreground">
-													{searchQuery
-														? "No sessions match your search."
-														: "No sessions found in history."}
-												</div>
+								<div className="mt-1 shrink-0 pl-4 pr-2">
+									<div className="flex h-8 items-center justify-between gap-2">
+										<button
+											className={cn(
+												"min-w-0 truncate text-sm font-medium text-muted-foreground",
+												view === "sessions" && "text-sidebar-foreground",
 											)}
-										</>
-									)}
-									{sortMode === "time" && showTimeShowMore && (
-										<Button
-											// `pl-0!`: the default button size adds
-											// `has-[>svg]:px-3`, and that modifier beats a plain
-											// `pl-0` on specificity, so the icon child was
-											// re-indenting the row.
-											className="pl-0!"
-											disabled={isLoadingMore}
-											onClick={() => {
-												const nextCount =
-													showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
-												setShowMoreCount(nextCount);
-												void loadMoreSessions(nextCount);
-											}}
+											onClick={openSessions}
 											type="button"
-											variant="sidebarText"
 										>
-											{isLoadingMore ? (
-												<>
-													<Loader2 className="size-3 animate-spin" />
-													Loading...
-												</>
-											) : (
-												<div className="ml-2 flex items-center gap-1">
-													Show more
-													<ChevronDown className="size-3" />
-												</div>
-											)}
-										</Button>
-									)}
-									{sortMode === "project" &&
-										filter === "All" &&
-										!searchQuery &&
-										mayHaveMoreSessions && (
+											{sortMode === "time" ? "Sessions" : "Projects"}
+										</button>
+										<div className="flex shrink-0 items-center gap-0.5">
 											<Button
-												className="pl-0!"
-												disabled={isLoadingMore}
-												onClick={() => void loadOlderSessions()}
+												aria-label="Search sessions"
+												className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
+												onClick={() => setSearchOpen((current) => !current)}
+												size="icon"
+												title="Search sessions"
 												type="button"
-												variant="sidebarText"
+												variant="ghost"
 											>
-												{isLoadingMore ? (
-													<>
-														<Loader2 className="size-3 animate-spin" />
-														Loading older projects...
-													</>
-												) : (
-													<>
-														Load older projects
-														<ChevronDown className="size-3" />
-													</>
-												)}
+												<Search className="size-3.5" />
 											</Button>
-										)}
+											{sortMenu}
+											{filterMenu}
+										</div>
+									</div>
+									{searchOpen ? (
+										<div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden rounded-md border border-sidebar-border bg-background/70 px-2 py-1">
+											<Search className="size-4 shrink-0" />
+											<Input
+												className="h-7 min-w-0 flex-1 border-0 bg-transparent px-0 text-sm text-sidebar-foreground shadow-none outline-none placeholder:text-muted-foreground focus-visible:ring-0"
+												autoFocus={true}
+												onChange={(e) => setSearchQuery(e.target.value)}
+												placeholder="Search sessions..."
+												value={searchQuery}
+											/>
+										</div>
+									) : null}
 								</div>
-							</ScrollArea>
-						</div>
+
+								<div className="mt-1 min-h-0 w-full flex-1">
+									<ScrollArea className="h-full min-h-0 w-full min-w-0">
+										<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
+											{isLoadingHistory && threads.length === 0 ? (
+												<div className="p-4 text-xs text-muted-foreground">
+													Loading session history...
+												</div>
+											) : (
+												<>
+													{sortMode === "time"
+														? displayedThreads.map(threadItem)
+														: projectGroups.map((project) => {
+																const visibleCount =
+																	projectVisibleCounts[project.id] ??
+																	INITIAL_VISIBLE_THREAD_COUNT;
+																return (
+																	<ProjectSection
+																		collapsed={collapsedProjects.has(
+																			project.id,
+																		)}
+																		key={project.id}
+																		label={project.label}
+																		onToggle={() => toggleProject(project.id)}
+																	>
+																		{project.threads
+																			.slice(0, visibleCount)
+																			.map(threadItem)}
+																		{project.threads.length > visibleCount ? (
+																			<Button
+																				className="pl-2!"
+																				onClick={() =>
+																					showMoreForProject(project.id)
+																				}
+																				type="button"
+																				variant="sidebarText"
+																			>
+																				Show more in {project.label}
+																				<ChevronDown className="size-3" />
+																			</Button>
+																		) : null}
+																	</ProjectSection>
+																);
+															})}
+
+													{(sortMode === "time"
+														? displayedThreads.length === 0
+														: projectGroups.length === 0) && (
+														<div className="px-2 py-4 text-xs text-muted-foreground">
+															{searchQuery
+																? "No sessions match your search."
+																: "No sessions found in history."}
+														</div>
+													)}
+												</>
+											)}
+											{sortMode === "time" && showTimeShowMore && (
+												<Button
+													// `pl-0!`: the default button size adds
+													// `has-[>svg]:px-3`, and that modifier beats a plain
+													// `pl-0` on specificity, so the icon child was
+													// re-indenting the row.
+													className="pl-0!"
+													disabled={isLoadingMore}
+													onClick={() => {
+														const nextCount =
+															showMoreCount + INITIAL_VISIBLE_THREAD_COUNT;
+														setShowMoreCount(nextCount);
+														void loadMoreSessions(nextCount);
+													}}
+													type="button"
+													variant="sidebarText"
+												>
+													{isLoadingMore ? (
+														<>
+															<Loader2 className="size-3 animate-spin" />
+															Loading...
+														</>
+													) : (
+														<div className="ml-2 flex items-center gap-1">
+															Show more
+															<ChevronDown className="size-3" />
+														</div>
+													)}
+												</Button>
+											)}
+											{sortMode === "project" &&
+												filter === "All" &&
+												!searchQuery &&
+												mayHaveMoreSessions && (
+													<Button
+														className="pl-0!"
+														disabled={isLoadingMore}
+														onClick={() => void loadOlderSessions()}
+														type="button"
+														variant="sidebarText"
+													>
+														{isLoadingMore ? (
+															<>
+																<Loader2 className="size-3 animate-spin" />
+																Loading older projects...
+															</>
+														) : (
+															<>
+																Load older projects
+																<ChevronDown className="size-3" />
+															</>
+														)}
+													</Button>
+												)}
+										</div>
+									</ScrollArea>
+								</div>
 							</>
 						)}
 					</>

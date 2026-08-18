@@ -158,10 +158,7 @@ describe("bot tools", () => {
 		const tool = getTool(ctx, bot.id, "update_memory");
 		await tool.execute({ content: "# Role\nHelper." }, toolContext);
 		expect(readBotMemory(bot.id)).toBe("# Role\nHelper.");
-		await tool.execute(
-			{ content: "New note.", mode: "append" },
-			toolContext,
-		);
+		await tool.execute({ content: "New note.", mode: "append" }, toolContext);
 		expect(readBotMemory(bot.id)).toBe("# Role\nHelper.\n\nNew note.");
 		const result = (await tool.execute({ content: "  " }, toolContext)) as {
 			error?: string;
@@ -178,12 +175,12 @@ describe("bot tools", () => {
 			bots: Array<{ bot_id: string; is_you: boolean }>;
 		};
 		expect(result.bots).toHaveLength(2);
-		expect(
-			result.bots.find((entry) => entry.bot_id === self.id)?.is_you,
-		).toBe(true);
-		expect(
-			result.bots.find((entry) => entry.bot_id === other.id)?.is_you,
-		).toBe(false);
+		expect(result.bots.find((entry) => entry.bot_id === self.id)?.is_you).toBe(
+			true,
+		);
+		expect(result.bots.find((entry) => entry.bot_id === other.id)?.is_you).toBe(
+			false,
+		);
 	});
 
 	it("read_bot_memory reads another bot's memory", async () => {
@@ -192,10 +189,9 @@ describe("bot tools", () => {
 		const other = createBot({ name: "Other" });
 		writeBotMemory(other.id, "Other bot memory.");
 		const tool = getTool(ctx, self.id, "read_bot_memory");
-		const result = (await tool.execute(
-			{ bot_id: other.id },
-			toolContext,
-		)) as { memory?: string };
+		const result = (await tool.execute({ bot_id: other.id }, toolContext)) as {
+			memory?: string;
+		};
 		expect(result.memory).toBe("Other bot memory.");
 		const missing = (await tool.execute(
 			{ bot_id: "bot_missing" },
@@ -209,10 +205,9 @@ describe("bot tools", () => {
 		const self = createBot({ name: "Self" });
 		const other = createBot({ name: "Other" });
 		const tool = getTool(ctx, self.id, "read_bot_chat");
-		const result = (await tool.execute(
-			{ bot_id: other.id },
-			toolContext,
-		)) as { messages?: unknown[] };
+		const result = (await tool.execute({ bot_id: other.id }, toolContext)) as {
+			messages?: unknown[];
+		};
 		expect(result.messages).toEqual([]);
 	});
 });
@@ -239,7 +234,9 @@ describe("deliverBotMessage", () => {
 		const receiver = createBot({ name: "Researcher" });
 		ctx.liveBotSessions.set(receiver.id, "session_receiver");
 		const send = vi.fn().mockResolvedValue(undefined);
-		ctx.sessionManager = { send } as unknown as SidecarContext["sessionManager"];
+		ctx.sessionManager = {
+			send,
+		} as unknown as SidecarContext["sessionManager"];
 
 		const result = (await deliverBotMessage(
 			ctx,
@@ -270,7 +267,9 @@ describe("deliverBotMessage", () => {
 			.fn()
 			.mockRejectedValueOnce(new Error("session_run_in_progress"))
 			.mockResolvedValueOnce(undefined);
-		ctx.sessionManager = { send } as unknown as SidecarContext["sessionManager"];
+		ctx.sessionManager = {
+			send,
+		} as unknown as SidecarContext["sessionManager"];
 
 		await deliverBotMessage(ctx, sender.id, receiver.id, "Queued message.");
 		await vi.waitFor(() => {
@@ -294,9 +293,7 @@ describe("handleBotsCommand", () => {
 			color: "#10b981",
 		}) as { id: string };
 		expect(created.id).toMatch(/^bot_/);
-		expect(
-			(handleBotsCommand(ctx, "list_bots") as unknown[]).length,
-		).toBe(1);
+		expect((handleBotsCommand(ctx, "list_bots") as unknown[]).length).toBe(1);
 		handleBotsCommand(ctx, "update_bot_memory", {
 			botId: created.id,
 			memory: "Hello.",
@@ -304,9 +301,9 @@ describe("handleBotsCommand", () => {
 		expect(
 			handleBotsCommand(ctx, "read_bot_memory", { botId: created.id }),
 		).toMatchObject({ memory: "Hello." });
-		expect(
-			handleBotsCommand(ctx, "delete_bot", { botId: created.id }),
-		).toBe(true);
+		expect(handleBotsCommand(ctx, "delete_bot", { botId: created.id })).toBe(
+			true,
+		);
 		// Mutations broadcast roster refreshes to connected webviews.
 		expect(
 			ctx.sentEvents.filter((event) => event.name === "bots_changed").length,

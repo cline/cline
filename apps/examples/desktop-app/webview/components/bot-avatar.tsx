@@ -37,12 +37,15 @@ function ShapePath({ shape, color }: { shape: BotShape; color: string }) {
 		case "circle":
 			return <circle cx="16" cy="16" fill={color} r="14" />;
 		case "square":
-			return (
-				<rect fill={color} height="26" rx="6" width="26" x="3" y="3" />
-			);
+			return <rect fill={color} height="26" rx="6" width="26" x="3" y="3" />;
 		case "triangle":
 			// Slightly wider than tall so the eyes fit on the lower half.
-			return <path d="M16 2.5 30.5 27.5 Q31 29 29 29 H3 Q1 29 1.5 27.5 Z" fill={color} />;
+			return (
+				<path
+					d="M16 2.5 30.5 27.5 Q31 29 29 29 H3 Q1 29 1.5 27.5 Z"
+					fill={color}
+				/>
+			);
 		case "diamond":
 			return (
 				<path

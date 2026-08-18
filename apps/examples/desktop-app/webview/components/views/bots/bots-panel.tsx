@@ -456,7 +456,11 @@ export function BotMemoryDialog({
 				<DialogHeader>
 					<DialogTitle className="flex items-center gap-2">
 						{bot ? (
-							<BotAvatar className="size-6" color={bot.color} shape={bot.shape} />
+							<BotAvatar
+								className="size-6"
+								color={bot.color}
+								shape={bot.shape}
+							/>
 						) : null}
 						{bot?.name} — memory
 					</DialogTitle>

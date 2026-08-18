@@ -95,7 +95,8 @@ export function botWorkspaceDir(botId: string): string {
 
 function isBotShape(value: unknown): value is BotShape {
 	return (
-		typeof value === "string" && (BOT_SHAPES as readonly string[]).includes(value)
+		typeof value === "string" &&
+		(BOT_SHAPES as readonly string[]).includes(value)
 	);
 }
 
@@ -328,7 +329,9 @@ export function buildBotRules(bot: BotRecord): string {
 		"When you receive a message prefixed with `[Bot message from ...]`, it came from another bot rather than the user. Reply to that bot with `send_bot_message` when a response is expected.",
 		"",
 		"## Your memory file",
-		memory.length > 0 ? memory : "(empty — you have not written any memory yet)",
+		memory.length > 0
+			? memory
+			: "(empty — you have not written any memory yet)",
 	].join("\n");
 }
 
@@ -336,7 +339,9 @@ export function buildBotRules(bot: BotRecord): string {
 // Persisted chat helpers
 // ---------------------------------------------------------------------------
 
-function readPersistedMessages(sessionId: string): MessageWithMetadata[] | null {
+function readPersistedMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = join(
 		sharedSessionDataDir(),
 		sessionId,
@@ -400,7 +405,9 @@ function resolveBotCredentials(
 	const provider = String(
 		config?.provider ?? config?.providerId ?? bot.provider ?? "",
 	).trim();
-	const model = String(config?.model ?? config?.modelId ?? bot.model ?? "").trim();
+	const model = String(
+		config?.model ?? config?.modelId ?? bot.model ?? "",
+	).trim();
 	if (!provider || !model) {
 		throw new Error(
 			`Bot "${bot.name}" has no model configured yet. Open its chat once to initialize it.`,
@@ -535,7 +542,9 @@ export async function deliverBotMessage(
 	const fromBot = requireBot(fromBotId);
 	const toBot = getBot(toBotId);
 	if (!toBot) {
-		return { error: `No bot with bot_id ${toBotId}. Use list_bots to see the roster.` };
+		return {
+			error: `No bot with bot_id ${toBotId}. Use list_bots to see the roster.`,
+		};
 	}
 	if (toBot.id === fromBot.id) {
 		return { error: "You cannot send a bot message to yourself." };
@@ -598,7 +607,10 @@ export async function deliverBotMessage(
 // Bot tools (registered as extraTools on every bot session)
 // ---------------------------------------------------------------------------
 
-export function createBotTools(ctx: SidecarContext, botId: string): AgentTool[] {
+export function createBotTools(
+	ctx: SidecarContext,
+	botId: string,
+): AgentTool[] {
 	const updateMemory = createTool({
 		name: "update_memory",
 		description:
@@ -613,7 +625,8 @@ export function createBotTools(ctx: SidecarContext, botId: string): AgentTool[] 
 				mode: {
 					type: "string",
 					enum: ["replace", "append"],
-					description: "replace (default) rewrites the file; append adds to the end.",
+					description:
+						"replace (default) rewrites the file; append adds to the end.",
 				},
 			},
 			required: ["content"],
@@ -667,10 +680,14 @@ export function createBotTools(ctx: SidecarContext, botId: string): AgentTool[] 
 			required: ["bot_id"],
 		},
 		execute: async (input) => {
-			const targetId = String((input as { bot_id?: unknown }).bot_id ?? "").trim();
+			const targetId = String(
+				(input as { bot_id?: unknown }).bot_id ?? "",
+			).trim();
 			const target = getBot(targetId);
 			if (!target) {
-				return { error: `No bot with bot_id ${targetId}. Use list_bots to see the roster.` };
+				return {
+					error: `No bot with bot_id ${targetId}. Use list_bots to see the roster.`,
+				};
 			}
 			const memory = readBotMemory(targetId);
 			return {
@@ -704,7 +721,9 @@ export function createBotTools(ctx: SidecarContext, botId: string): AgentTool[] 
 			const targetId = String(bot_id ?? "").trim();
 			const target = getBot(targetId);
 			if (!target) {
-				return { error: `No bot with bot_id ${targetId}. Use list_bots to see the roster.` };
+				return {
+					error: `No bot with bot_id ${targetId}. Use list_bots to see the roster.`,
+				};
 			}
 			if (!target.sessionId) {
 				return { bot_id: target.id, name: target.name, messages: [] };

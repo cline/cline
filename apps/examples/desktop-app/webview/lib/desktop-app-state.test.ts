@@ -115,10 +115,13 @@ describe("desktopAppReducer", () => {
 		expect(botThread?.historySession).toBeUndefined();
 
 		// Re-opening with a resolved session attaches it to the same thread.
-		state = desktopAppReducer(state, { type: "navigate", destination: {
-			...state.navigation.current,
-			activeThreadId: "welcome",
-		} });
+		state = desktopAppReducer(state, {
+			type: "navigate",
+			destination: {
+				...state.navigation.current,
+				activeThreadId: "welcome",
+			},
+		});
 		state = desktopAppReducer(state, {
 			type: "open-bot",
 			botId: "bot_a",

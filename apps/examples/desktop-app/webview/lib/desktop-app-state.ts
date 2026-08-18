@@ -177,10 +177,8 @@ export function desktopAppReducer<SettingsSection extends string>(
 										...botThread,
 										// Keep an already-hydrated session when re-opening the
 										// same bot thread without a fresh lookup.
-										historySession:
-											action.session ?? thread.historySession,
-										hasStarted:
-											thread.hasStarted || Boolean(action.session),
+										historySession: action.session ?? thread.historySession,
+										hasStarted: thread.hasStarted || Boolean(action.session),
 									}
 								: thread,
 						)

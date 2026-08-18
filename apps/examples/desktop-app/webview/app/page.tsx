@@ -1604,122 +1604,122 @@ function ChatThreadPane({
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
 			<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
-			{bot ? (
-				<div className="z-30 flex shrink-0 items-center gap-2.5 border-b border-border/70 bg-background/85 px-4 py-2 backdrop-blur-sm">
-					<BotAvatar className="size-7" color={bot.color} shape={bot.shape} />
-					<div className="flex min-w-0 flex-1 flex-col leading-tight">
-						<span className="truncate text-sm font-medium">{bot.name}</span>
-						<span className="truncate text-[11px] text-muted-foreground">
-							Bot with persistent memory
-						</span>
-					</div>
-					<Button
-						onClick={() => setMemoryDialogOpen(true)}
-						size="sm"
-						type="button"
-						variant="outline"
-					>
-						<Brain className="size-3.5" />
-						Memory
-					</Button>
-				</div>
-			) : null}
-			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
-			<div
-				className={
-					isWelcomeState
-						? "relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
-				}
-				onDragEnter={handleDragEnter}
-				onDragLeave={handleDragLeave}
-				onDragOver={handleDragOver}
-				onDrop={handleDrop}
-			>
-				{isDraggingFiles ? (
-					<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-						<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
-							<ImagePlus className="h-8 w-8 text-primary" />
-							<p className="text-sm font-medium text-foreground">
-								Drop to attach
-							</p>
-							<p className="text-xs text-muted-foreground">
-								Screenshots and files will be added to your next message
-							</p>
+				{bot ? (
+					<div className="z-30 flex shrink-0 items-center gap-2.5 border-b border-border/70 bg-background/85 px-4 py-2 backdrop-blur-sm">
+						<BotAvatar className="size-7" color={bot.color} shape={bot.shape} />
+						<div className="flex min-w-0 flex-1 flex-col leading-tight">
+							<span className="truncate text-sm font-medium">{bot.name}</span>
+							<span className="truncate text-[11px] text-muted-foreground">
+								Bot with persistent memory
+							</span>
 						</div>
+						<Button
+							onClick={() => setMemoryDialogOpen(true)}
+							size="sm"
+							type="button"
+							variant="outline"
+						>
+							<Brain className="size-3.5" />
+							Memory
+						</Button>
 					</div>
 				) : null}
-				{!isWelcomeState ? (
-					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
-						<AgentHeader
-							agentActivity={agentActivity}
-							agents={agents}
-							agentsError={agentsError}
-							agentsLoading={agentsLoading}
-							onAgentsOpenChange={setAgentPanelOpen}
-							onOpenAgentSession={onOpenAgentSession}
-							onOpenParentSession={onOpenSessionById}
-							parentSession={hideDeletedSessionUi ? undefined : parentSession}
-							canEditTitle={Boolean(activeSessionForTitle)}
-							canDeleteSession={Boolean(activeSessionToDelete)}
-							deletingSession={deletingSession}
-							diff={headerDiff}
-							onDeleteSession={requestDeleteSession}
-							onNewThread={onNewThread}
-							onOpenDiff={handleOpenDiff}
-							onRenameTitle={handleRenameTitle}
-							renamingTitle={renamingSession}
-							status={status}
-							title={threadTitle}
-						/>
-					</div>
-				) : null}
-				<WelcomeScreen
-					active={isWelcomeState}
-					body={
-						showDiffView ? (
-							<DiffView
-								cwd={config.cwd || config.workspaceRoot}
-								fileDiffs={fileDiffs}
-								onClose={() => setShowDiffView(false)}
-							/>
-						) : (
-							<ChatMessages
-								onAnswerAskQuestion={handleAnswerAskQuestion}
-								onApproveToolApproval={handleApproveToolApproval}
-								onRejectToolApproval={handleRejectToolApproval}
-								chatTransportState={chatTransportState}
-								error={displayedError}
-								messages={displayedMessages}
-								onEditMessage={handleEditMessage}
-								onRestoreCheckpoint={handleRestoreCheckpoint}
-								onForkSession={handleForkSession}
-								pendingToolApprovals={pendingToolApprovals}
-								pendingAskQuestions={pendingAskQuestions}
-								sessionId={displayedSessionId}
-								streamingMessageId={activeAssistantMessageId}
-								isSessionSwitching={displayedIsSwitching}
-								status={displayedStatus}
-							/>
-						)
+				{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
+				<div
+					className={
+						isWelcomeState
+							? "relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+							: "relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
 					}
-					composer={composer}
-					gitBranch={gitBranch}
-					notice={
-						providersLoaded &&
-						hasConnectedProvider === false &&
-						onOpenSetup &&
-						onOpenModelSettings ? (
-							<WelcomeSetupNotice
-								onOpenModelSettings={onOpenModelSettings}
-								onOpenSetup={onOpenSetup}
+					onDragEnter={handleDragEnter}
+					onDragLeave={handleDragLeave}
+					onDragOver={handleDragOver}
+					onDrop={handleDrop}
+				>
+					{isDraggingFiles ? (
+						<div className="pointer-events-none absolute inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-sm">
+							<div className="flex flex-col items-center gap-2 rounded-xl border-2 border-dashed border-primary/60 bg-card px-10 py-8 shadow-lg">
+								<ImagePlus className="h-8 w-8 text-primary" />
+								<p className="text-sm font-medium text-foreground">
+									Drop to attach
+								</p>
+								<p className="text-xs text-muted-foreground">
+									Screenshots and files will be added to your next message
+								</p>
+							</div>
+						</div>
+					) : null}
+					{!isWelcomeState ? (
+						<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
+							<AgentHeader
+								agentActivity={agentActivity}
+								agents={agents}
+								agentsError={agentsError}
+								agentsLoading={agentsLoading}
+								onAgentsOpenChange={setAgentPanelOpen}
+								onOpenAgentSession={onOpenAgentSession}
+								onOpenParentSession={onOpenSessionById}
+								parentSession={hideDeletedSessionUi ? undefined : parentSession}
+								canEditTitle={Boolean(activeSessionForTitle)}
+								canDeleteSession={Boolean(activeSessionToDelete)}
+								deletingSession={deletingSession}
+								diff={headerDiff}
+								onDeleteSession={requestDeleteSession}
+								onNewThread={onNewThread}
+								onOpenDiff={handleOpenDiff}
+								onRenameTitle={handleRenameTitle}
+								renamingTitle={renamingSession}
+								status={status}
+								title={threadTitle}
 							/>
-						) : undefined
-					}
-					onListGitBranches={listGitBranches}
-					onSwitchGitBranch={switchGitBranch}
-				/>
-			</div>
+						</div>
+					) : null}
+					<WelcomeScreen
+						active={isWelcomeState}
+						body={
+							showDiffView ? (
+								<DiffView
+									cwd={config.cwd || config.workspaceRoot}
+									fileDiffs={fileDiffs}
+									onClose={() => setShowDiffView(false)}
+								/>
+							) : (
+								<ChatMessages
+									onAnswerAskQuestion={handleAnswerAskQuestion}
+									onApproveToolApproval={handleApproveToolApproval}
+									onRejectToolApproval={handleRejectToolApproval}
+									chatTransportState={chatTransportState}
+									error={displayedError}
+									messages={displayedMessages}
+									onEditMessage={handleEditMessage}
+									onRestoreCheckpoint={handleRestoreCheckpoint}
+									onForkSession={handleForkSession}
+									pendingToolApprovals={pendingToolApprovals}
+									pendingAskQuestions={pendingAskQuestions}
+									sessionId={displayedSessionId}
+									streamingMessageId={activeAssistantMessageId}
+									isSessionSwitching={displayedIsSwitching}
+									status={displayedStatus}
+								/>
+							)
+						}
+						composer={composer}
+						gitBranch={gitBranch}
+						notice={
+							providersLoaded &&
+							hasConnectedProvider === false &&
+							onOpenSetup &&
+							onOpenModelSettings ? (
+								<WelcomeSetupNotice
+									onOpenModelSettings={onOpenModelSettings}
+									onOpenSetup={onOpenSetup}
+								/>
+							) : undefined
+						}
+						onListGitBranches={listGitBranches}
+						onSwitchGitBranch={switchGitBranch}
+					/>
+				</div>
 			</div>
 			{bot ? (
 				<BotMemoryDialog
