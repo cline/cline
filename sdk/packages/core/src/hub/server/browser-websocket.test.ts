@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
@@ -79,7 +80,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 		}
 	});
 
-	it("binds client identity and workspace authority to one connection", async () => {
+	it("binds client identity and validated workspace authority to one connection", async () => {
 		const transport = {
 			command: vi.fn(
 				async (
@@ -137,8 +138,8 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command.mock.calls[1]?.[1]).toEqual({
 			clientId: "client-1",
 			workspaceContext: {
-				workspaceRoot: "/server-workspace",
-				cwd: "/server-workspace",
+				workspaceRoot: resolve("/trusted"),
+				cwd: resolve("/trusted/project"),
 			},
 		});
 

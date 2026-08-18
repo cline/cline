@@ -868,7 +868,9 @@ describe("Code sidecar runtime capabilities", () => {
 	});
 
 	it.each([
+		"task.create",
 		"task.approve",
+		"task.cancel",
 		"task.run",
 		"task.automation.set",
 	])("rejects untrusted %s commands before they reach the shared Hub", async (command) => {

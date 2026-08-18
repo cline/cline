@@ -124,12 +124,17 @@ function stripServerOwnedSessionMetadata(
 	metadata: Record<string, JsonValue | undefined> | undefined,
 ): Record<string, JsonValue | undefined> | undefined {
 	// Clients may echo old records back through session.update; keep ownership
-	// on the live hub state only.
-	if (!metadata || !(CAPABILITY_OWNER_METADATA_KEY in metadata)) {
+	// and approval policy on server-created session state only.
+	if (
+		!metadata ||
+		(!("autoApproveTools" in metadata) &&
+			!(CAPABILITY_OWNER_METADATA_KEY in metadata))
+	) {
 		return metadata;
 	}
 	const sanitized = { ...metadata };
 	delete sanitized[CAPABILITY_OWNER_METADATA_KEY];
+	delete sanitized.autoApproveTools;
 	return sanitized;
 }
 

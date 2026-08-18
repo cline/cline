@@ -1256,7 +1256,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 					Math.max(0, policy.maxConcurrentRuns - this.activeRuns.size),
 					Math.max(0, policy.maxStartsPerHour - recentStarts),
 				);
-				if (capacity <= 0) return;
+				if (capacity <= 0) continue;
 				const candidates = this.store.listTasks({
 					statuses: ["pending_approval", "approved"],
 					...(scopeKey === "global"

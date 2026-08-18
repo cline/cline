@@ -178,6 +178,48 @@ describe("HubAgendaTaskCommandService", () => {
 		});
 	});
 
+	it("lists and permits access to global tasks from a workspace client", async () => {
+		const globalTask = task({
+			taskId: "task_global",
+			scope: "global",
+			workspaceRoot: undefined,
+		});
+		const manager = managerMock();
+		vi.mocked(manager.listTasks).mockImplementation(async (input) =>
+			input?.scope === "global" ? [globalTask] : [task()],
+		);
+		vi.mocked(manager.getTask).mockResolvedValue(globalTask);
+		vi.mocked(manager.updateTask).mockResolvedValue(globalTask);
+		const service = new HubAgendaTaskCommandService(manager);
+
+		const listed = await service.handleCommand(
+			envelope("task.list"),
+			AUTHORITY,
+		);
+		const fetched = await service.handleCommand(
+			envelope("task.get", { taskId: globalTask.taskId }),
+			AUTHORITY,
+		);
+		await service.handleCommand(
+			envelope("task.update", {
+				taskId: globalTask.taskId,
+				title: "Updated global task",
+			}),
+			AUTHORITY,
+		);
+
+		expect(listed.payload?.tasks).toEqual([task(), globalTask]);
+		expect(fetched.payload?.task).toEqual(globalTask);
+		expect(manager.updateTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				taskId: globalTask.taskId,
+				scope: "global",
+				workspaceRoot: null,
+				cwd: null,
+			}),
+		);
+	});
+
 	it.each([
 		"task.approve",
 		"task.cancel",

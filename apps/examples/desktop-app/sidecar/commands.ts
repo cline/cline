@@ -760,7 +760,9 @@ const AGENDA_TASK_COMMANDS = new Set([
 ]);
 
 const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.create",
 	"task.approve",
+	"task.cancel",
 	"task.run",
 	"task.automation.set",
 ]);

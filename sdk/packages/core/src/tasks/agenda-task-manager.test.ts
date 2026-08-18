@@ -701,6 +701,46 @@ describe("AgendaTaskManager", () => {
 		});
 	});
 
+	it("drains saturated automation scopes without a microtask loop", async () => {
+		const { manager, runtime } = createHarness();
+		await manager.start();
+		await manager.setAutomationPolicy(
+			{
+				scopeKey: "global",
+				mode: "auto_start",
+				applyToAgentCreated: true,
+				maxConcurrentRuns: 1,
+				maxChainDepth: 3,
+				maxStartsPerHour: 20,
+			},
+			{ kind: "user" },
+		);
+		const task = await createPending(manager);
+		await vi.waitFor(async () => {
+			expect((await manager.getTask(task.taskId))?.status).toBe("completed");
+		});
+
+		const saturatedPolicy = (scopeKey: string) =>
+			manager.setAutomationPolicy(
+				{
+					scopeKey,
+					mode: "auto_start",
+					applyToAgentCreated: true,
+					maxConcurrentRuns: 1,
+					maxChainDepth: 3,
+					maxStartsPerHour: 1,
+				},
+				{ kind: "user" },
+			);
+		await Promise.all([
+			saturatedPolicy("/workspace-a"),
+			saturatedPolicy("/workspace-b"),
+		]);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+
+		expect(runtime.startSession).toHaveBeenCalledTimes(1);
+	});
+
 	it("does not auto-approve agent-edited or raw-file intent", async () => {
 		const { root, manager, runtime } = createHarness();
 		await manager.start();

@@ -77,14 +77,24 @@ export class HubAgendaTaskCommandService {
 					});
 					return okReply(envelope, { task });
 				}
-				case "task.list":
-					return okReply(envelope, {
-						tasks: await this.tasks.listTasks({
-							...(payload as unknown as AgendaTaskListInput),
+				case "task.list": {
+					const listInput = payload as unknown as AgendaTaskListInput;
+					const [workspaceTasks, globalTasks] = await Promise.all([
+						this.tasks.listTasks({
+							...listInput,
 							scope: "workspace",
 							workspaceRoot,
 						}),
+						this.tasks.listTasks({
+							...listInput,
+							scope: "global",
+							workspaceRoot: undefined,
+						}),
+					]);
+					return okReply(envelope, {
+						tasks: [...workspaceTasks, ...globalTasks],
 					});
+				}
 				case "task.get": {
 					const task = await this.requireScopedTask(payload, workspaceRoot);
 					return okReply(envelope, {
@@ -92,12 +102,12 @@ export class HubAgendaTaskCommandService {
 					});
 				}
 				case "task.update": {
-					await this.requireScopedTask(payload, workspaceRoot);
+					const current = await this.requireScopedTask(payload, workspaceRoot);
 					const task = await this.tasks.updateTask({
 						...(payload as unknown as AgendaTaskUpdateInput),
-						scope: "workspace",
-						workspaceRoot,
-						cwd: workspaceRoot,
+						scope: current.scope,
+						workspaceRoot: current.workspaceRoot ?? null,
+						cwd: current.cwd ?? null,
 						updatedBy: actor,
 					});
 					return okReply(envelope, { task });
@@ -183,9 +193,8 @@ export class HubAgendaTaskCommandService {
 		const task = await this.tasks.getTask(taskIdOf(payload));
 		if (
 			!task ||
-			task.scope !== "workspace" ||
-			!task.workspaceRoot ||
-			resolve(task.workspaceRoot) !== workspaceRoot
+			(task.scope === "workspace" &&
+				(!task.workspaceRoot || resolve(task.workspaceRoot) !== workspaceRoot))
 		) {
 			throw new Error("task does not exist in this workspace");
 		}

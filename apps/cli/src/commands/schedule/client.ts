@@ -97,6 +97,7 @@ export class LocalScheduleClient {
 		runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
 	});
 	private readonly commands = new HubScheduleCommandService(this.service);
+	constructor(private readonly workspaceRoot: string) {}
 
 	close(): void {
 		void this.service.dispose();
@@ -106,12 +107,21 @@ export class LocalScheduleClient {
 		command: string,
 		payload?: Record<string, unknown>,
 	): Promise<Record<string, unknown>> {
-		const reply = await this.commands.handleCommand({
-			version: "v1",
-			clientId: "cline-schedule-local",
-			command: command as never,
-			payload,
-		});
+		const reply = await this.commands.handleCommand(
+			{
+				version: "v1",
+				clientId: "cline-schedule-local",
+				command: command as never,
+				payload,
+			},
+			{
+				clientId: "cline-schedule-local",
+				workspaceContext: {
+					workspaceRoot: this.workspaceRoot,
+					cwd: this.workspaceRoot,
+				},
+			},
+		);
 		if (!reply.ok) {
 			throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
 		}
@@ -185,7 +195,9 @@ export async function ensureSchedulerHub(
 	if (!address?.trim()) {
 		return {
 			ok: true,
-			client: new LocalScheduleClient() as unknown as HubScheduleClient,
+			client: new LocalScheduleClient(
+				workspaceRoot,
+			) as unknown as HubScheduleClient,
 		};
 	}
 	try {
@@ -202,7 +214,9 @@ export async function ensureSchedulerHub(
 	} catch (_error) {
 		return {
 			ok: true,
-			client: new LocalScheduleClient() as unknown as HubScheduleClient,
+			client: new LocalScheduleClient(
+				workspaceRoot,
+			) as unknown as HubScheduleClient,
 		};
 	}
 }
