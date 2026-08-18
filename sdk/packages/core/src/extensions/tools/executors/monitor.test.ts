@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import { describe, expect, it, vi } from "vitest";
 import {
 	formatMonitorNotification,
@@ -37,6 +38,12 @@ function createCollector() {
 const allLines = (notifications: MonitorNotification[]): string[] =>
 	notifications.flatMap((notification) => notification.lines);
 
+/** Builds a shell command that behaves identically in Bash and PowerShell. */
+const nodeCommand = (script: string): string => {
+	const encoded = Buffer.from(script, "utf8").toString("base64");
+	return `node -e "eval(Buffer.from('${encoded}','base64').toString('utf8'))"`;
+};
+
 describe("MonitorRegistry", () => {
 	it("delivers output lines as notifications after the tool call returns", async () => {
 		const collector = createCollector();
@@ -47,7 +54,7 @@ describe("MonitorRegistry", () => {
 		try {
 			const record = registry.start({
 				name: "greeter",
-				command: "printf 'first\\nsecond\\n'",
+				command: nodeCommand("process.stdout.write('first\\nsecond\\n')"),
 				description: "prints two lines",
 			});
 			// start() must not block on output.
@@ -59,7 +66,7 @@ describe("MonitorRegistry", () => {
 			);
 			expect(allLines(collector.notifications)).toEqual(["first", "second"]);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -72,7 +79,7 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "chatty",
-				command: "printf 'a\\nb\\nc\\nd\\ne\\n'",
+				command: nodeCommand("process.stdout.write('a\\nb\\nc\\nd\\ne\\n')"),
 				description: "prints five lines at once",
 			});
 
@@ -89,7 +96,7 @@ describe("MonitorRegistry", () => {
 			// Five lines written in one burst should not become five interruptions.
 			expect(collector.notifications.length).toBeLessThan(5);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -102,7 +109,7 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "unterminated",
-				command: "printf 'no trailing newline'",
+				command: nodeCommand("process.stdout.write('no trailing newline')"),
 				description: "prints without a trailing newline",
 			});
 
@@ -113,7 +120,7 @@ describe("MonitorRegistry", () => {
 				"no trailing newline",
 			]);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -126,7 +133,9 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "chunked",
-				command: "printf 'half-'; sleep 0.2; printf 'whole\\n'",
+				command: nodeCommand(
+					"process.stdout.write('half-'); setTimeout(() => process.stdout.write('whole\\n'), 200)",
+				),
 				description: "writes one line in two chunks",
 			});
 
@@ -135,7 +144,7 @@ describe("MonitorRegistry", () => {
 			);
 			expect(allLines(collector.notifications)).toEqual(["half-whole"]);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -148,7 +157,9 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "failing",
-				command: "printf 'bad\\n' >&2; exit 3",
+				command: nodeCommand(
+					"process.stderr.write('bad\\n'); process.exitCode = 3",
+				),
 				description: "fails immediately",
 			});
 
@@ -159,7 +170,7 @@ describe("MonitorRegistry", () => {
 			const final = collector.notifications.at(-1);
 			expect(final?.exit).toMatchObject({ status: "exited", code: 3 });
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -173,7 +184,7 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "verbose",
-				command: "printf '%0.sx' $(seq 1 500); printf '\\n'",
+				command: nodeCommand("process.stdout.write('x'.repeat(500) + '\\n')"),
 				description: "prints one very long line",
 			});
 
@@ -184,7 +195,7 @@ describe("MonitorRegistry", () => {
 			expect(line).toHaveLength(40);
 			expect(line).toContain("truncated");
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -198,7 +209,9 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "flood",
-				command: "for i in 1 2 3 4 5 6 7 8; do printf '%s\\n' \"$i\"; done",
+				command: nodeCommand(
+					"process.stdout.write(Array.from({ length: 8 }, (_, index) => String(index + 1)).join('\\n') + '\\n')",
+				),
 				description: "prints eight lines at once",
 			});
 
@@ -214,7 +227,7 @@ describe("MonitorRegistry", () => {
 			);
 			expect(dropped).toBeGreaterThan(0);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -227,7 +240,9 @@ describe("MonitorRegistry", () => {
 		try {
 			const record = registry.start({
 				name: "ticker",
-				command: "while true; do printf 'tick\\n'; sleep 0.1; done",
+				command: nodeCommand(
+					"setInterval(() => process.stdout.write('tick\\n'), 100)",
+				),
 				description: "ticks forever",
 			});
 
@@ -243,22 +258,22 @@ describe("MonitorRegistry", () => {
 			await new Promise((resolve) => setTimeout(resolve, 300));
 			expect(collector.notifications.length).toBe(seen);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
-	it("refuses a duplicate name while the first is running", () => {
+	it("refuses a duplicate name while the first is running", async () => {
 		const registry = new MonitorRegistry({ notifier: () => {} });
 		try {
 			const start = {
 				name: "same",
-				command: "sleep 30",
+				command: nodeCommand("setTimeout(() => {}, 30_000)"),
 				description: "watch",
 			};
 			registry.start(start);
 			expect(() => registry.start(start)).toThrow(MonitorError);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -267,30 +282,31 @@ describe("MonitorRegistry", () => {
 		try {
 			const start = {
 				name: "reused",
-				command: "sleep 30",
+				command: nodeCommand("setTimeout(() => {}, 30_000)"),
 				description: "watch",
 			};
 			registry.start(start);
 			await registry.stop("reused");
 			expect(() => registry.start(start)).not.toThrow();
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
-	it("enforces the concurrent monitor limit", () => {
+	it("enforces the concurrent monitor limit", async () => {
 		const registry = new MonitorRegistry({
 			notifier: () => {},
 			maxMonitors: 2,
 		});
 		try {
-			registry.start({ name: "a", command: "sleep 30", description: "a" });
-			registry.start({ name: "b", command: "sleep 30", description: "b" });
+			const command = nodeCommand("setTimeout(() => {}, 30_000)");
+			registry.start({ name: "a", command, description: "a" });
+			registry.start({ name: "b", command, description: "b" });
 			expect(() =>
-				registry.start({ name: "c", command: "sleep 30", description: "c" }),
+				registry.start({ name: "c", command, description: "c" }),
 			).toThrow(/limit/);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
@@ -301,7 +317,7 @@ describe("MonitorRegistry", () => {
 		});
 		registry.start({
 			name: "leaky",
-			command: "sleep 30",
+			command: nodeCommand("setTimeout(() => {}, 30_000)"),
 			description: "would outlive the session",
 		});
 		expect(registry.listRunning()).toHaveLength(1);
@@ -309,7 +325,11 @@ describe("MonitorRegistry", () => {
 		await registry.dispose();
 		expect(registry.list()).toHaveLength(0);
 		expect(() =>
-			registry.start({ name: "after", command: "sleep 1", description: "x" }),
+			registry.start({
+				name: "after",
+				command: nodeCommand("setTimeout(() => {}, 1_000)"),
+				description: "x",
+			}),
 		).toThrow(MonitorError);
 	});
 
@@ -339,7 +359,7 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "resilient",
-				command: "printf 'one\\n'",
+				command: nodeCommand("process.stdout.write('one\\n')"),
 				description: "prints a line",
 			});
 
@@ -351,7 +371,7 @@ describe("MonitorRegistry", () => {
 			// The monitor still settles rather than hanging in "running".
 			expect(registry.listRunning()).toHaveLength(0);
 		} finally {
-			registry.dispose();
+			await registry.dispose();
 		}
 	});
 
