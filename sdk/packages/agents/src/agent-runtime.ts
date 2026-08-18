@@ -41,6 +41,7 @@ import {
 	omitUndefinedValues,
 	TASK_CANCELLED_EVENT,
 	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_MAX_TOKENS_RECOVERY_EVENT,
 	TASK_PROVIDER_REQUEST_STARTED_EVENT,
 	TASK_PROVIDER_STREAM_FAILED_EVENT,
 	TASK_PROVIDER_STREAM_STARTED_EVENT,
@@ -509,6 +510,8 @@ export class AgentRuntime {
 	};
 	/** One automatic overflow-recovery attempt per run. */
 	private overflowRecoveryAttempted = false;
+	/** One automatic recovery attempt per run for max-tokens-truncated turns. */
+	private maxTokensRecoveryAttempted = false;
 	private initialization?: Promise<void>;
 	private abortController?: AbortController;
 	private readonly telemetryProviderId?: string;
@@ -702,6 +705,7 @@ export class AgentRuntime {
 		this.state.lastErrorReported = false;
 		this.state.usage = cloneUsage(DEFAULT_USAGE);
 		this.overflowRecoveryAttempted = false;
+		this.maxTokensRecoveryAttempted = false;
 
 		try {
 			await this.callBeforeRunHooks();
@@ -952,16 +956,23 @@ export class AgentRuntime {
 	}
 
 	/**
-	 * Run a model turn, recovering once per run from a provider-rejected
-	 * context-window overflow: force a compaction through `prepareTurn` and
-	 * retry the request. Terminal (unrecoverable) overflow states throw with
-	 * an actionable message instead of the raw provider error.
+	 * Run a model turn, recovering once per run from each of two conditions:
+	 * a provider-rejected context-window overflow, and a response truncated
+	 * at the output-token limit on a turn with no tool calls. Both recoveries
+	 * force a compaction through `prepareTurn` and retry the request.
+	 * Terminal (unrecoverable) overflow states throw with an actionable
+	 * message instead of the raw provider error; an unrecoverable truncated
+	 * turn is returned as-is so the loop surfaces the max-tokens error with
+	 * the partial content preserved.
 	 */
 	private async generateAssistantMessageWithOverflowRecovery(): Promise<{
 		message: AgentMessage;
 		finishReason: AgentModelFinishReason;
 	}> {
 		const first = await this.generateAssistantMessage();
+		if (this.isRecoverableMaxTokensTurn(first)) {
+			return await this.retryTruncatedTurnWithCompaction(first);
+		}
 		if (!this.isRecoverableOverflowTurn(first)) {
 			return first;
 		}
@@ -1015,6 +1026,97 @@ export class AgentRuntime {
 		// normal loop (matching existing behavior); a retry would discard that
 		// partial work.
 		return !turn.message.content.some((part) => part.type === "tool-call");
+	}
+
+	private isRecoverableMaxTokensTurn(turn: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): boolean {
+		if (
+			turn.finishReason !== "max-tokens" ||
+			this.maxTokensRecoveryAttempted ||
+			!this.config.prepareTurn
+		) {
+			return false;
+		}
+		// A truncated turn that produced tool calls proceeds through the normal
+		// loop, which executes them; only text-only truncations are terminal
+		// and worth a recovery attempt.
+		return !turn.message.content.some((part) => part.type === "tool-call");
+	}
+
+	/**
+	 * A response cut off at the output-token limit is often a symptom of a
+	 * nearly-full context: local OpenAI-compatible servers (llama.cpp, ollama,
+	 * LM Studio) cap generation at whatever context remains, regardless of the
+	 * requested output budget. Compacting the conversation frees that room, so
+	 * one forced compaction + retry rescues those turns. When compaction has
+	 * nothing to remove, or the retried turn is truncated again, the original
+	 * turn is surfaced (the loop throws the max-tokens error with the partial
+	 * content already persisted).
+	 */
+	private async retryTruncatedTurnWithCompaction(first: {
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}): Promise<{
+		message: AgentMessage;
+		finishReason: AgentModelFinishReason;
+	}> {
+		this.maxTokensRecoveryAttempted = true;
+		const noticeMetadata = {
+			kind: "max_tokens_recovery",
+			reason: "max_tokens_recovery",
+			iteration: this.state.iteration,
+		};
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: "started",
+		});
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: "response hit the output token limit — compacting and retrying",
+			metadata: { ...noticeMetadata, phase: "started" },
+		});
+		let retry: { message: AgentMessage; finishReason: AgentModelFinishReason };
+		try {
+			retry = await this.generateAssistantMessage({
+				overflowRecovery: true,
+			});
+		} catch (error) {
+			if (error instanceof ContextWindowOverflowError) {
+				// Nothing to compact — keep the truncated turn so the loop
+				// surfaces the max-tokens error rather than an overflow error.
+				this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+					phase: "failed",
+					eventType: "nothing_to_compact",
+				});
+				await this.emit({
+					type: "status-notice",
+					snapshot: this.snapshot(),
+					message: "output-token-limit recovery failed: nothing to compact",
+					metadata: { ...noticeMetadata, phase: "failed" },
+				});
+				return first;
+			}
+			throw error;
+		}
+		const succeeded = retry.finishReason !== "max-tokens";
+		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+			phase: succeeded ? "succeeded" : "failed",
+			eventType: succeeded ? undefined : "truncated_again",
+		});
+		await this.emit({
+			type: "status-notice",
+			snapshot: this.snapshot(),
+			message: succeeded
+				? "recovered from the output token limit after compaction"
+				: "output-token-limit recovery failed: response truncated again",
+			metadata: {
+				...noticeMetadata,
+				phase: succeeded ? "succeeded" : "failed",
+			},
+		});
+		return retry;
 	}
 
 	private async generateAssistantMessage(options?: {
