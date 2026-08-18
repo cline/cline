@@ -6,3 +6,4 @@ export * from "./specs/task-spec-parser";
 export * from "./store/sqlite-task-store";
 export * from "./store/task-schema";
 export * from "./task-location";
+export * from "./task-tool";

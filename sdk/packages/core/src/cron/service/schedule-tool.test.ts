@@ -13,9 +13,9 @@ import {
 import { describe, expect, it, vi } from "vitest";
 import {
 	type AgentScheduleServiceApi,
-	createSchedulePromptExtension,
-	createScheduleTool,
-	SCHEDULE_SYSTEM_PROMPT_RULE,
+	executeScheduleOperation,
+	type ScheduledTaskInput,
+	type ScheduleTaskOperationOptions,
 } from "./schedule-tool";
 
 const WORKSPACE_ROOT = process.cwd();
@@ -86,12 +86,19 @@ const context = {
 	iteration: 1,
 };
 
+function scheduleOperations(options: ScheduleTaskOperationOptions) {
+	return {
+		execute: (input: ScheduledTaskInput, toolContext = context) =>
+			executeScheduleOperation(options, input, toolContext),
+	};
+}
+
 describe("schedule agent tool", () => {
 	it("creates a one-time schedule using current session defaults", async () => {
 		const schedules = serviceMock();
 		const publish = vi.fn();
 		const capture = vi.fn();
-		const tool = createScheduleTool({
+		const tool = scheduleOperations({
 			schedules,
 			publish,
 			telemetry: { capture } as never,
@@ -118,7 +125,7 @@ describe("schedule agent tool", () => {
 		expect(capture).toHaveBeenCalledWith({
 			event: "task.tool_used",
 			properties: expect.objectContaining({
-				tool: "schedule.create",
+				tool: "tasks.scheduled.create",
 				success: true,
 			}),
 		});
@@ -156,7 +163,7 @@ describe("schedule agent tool", () => {
 				workspaceRoot: OTHER_WORKSPACE_ROOT,
 			}),
 		]);
-		const tool = createScheduleTool({
+		const tool = scheduleOperations({
 			schedules,
 			resolveSessionDefaults: async () => ({
 				workspaceRoot: WORKSPACE_ROOT,
@@ -200,7 +207,7 @@ describe("schedule agent tool", () => {
 			.mockReturnValueOnce(
 				schedule({ workspaceRoot: WORKSPACE_ROOT, cwd: OTHER_WORKSPACE_ROOT }),
 			);
-		const interactiveTool = createScheduleTool({
+		const interactiveTool = scheduleOperations({
 			schedules,
 			resolveSessionDefaults: async () => ({
 				workspaceRoot: WORKSPACE_ROOT,
@@ -228,7 +235,7 @@ describe("schedule agent tool", () => {
 		});
 		expect(schedules.triggerScheduleNowDetached).not.toHaveBeenCalled();
 
-		const unattendedTool = createScheduleTool({
+		const unattendedTool = scheduleOperations({
 			schedules,
 			resolveSessionDefaults: async () => ({
 				workspaceRoot: WORKSPACE_ROOT,
@@ -278,7 +285,7 @@ describe("schedule agent tool", () => {
 			vi.mocked(schedules.getSchedule).mockReturnValueOnce(
 				schedule({ workspaceRoot: escapingWorkspace }),
 			);
-			const tool = createScheduleTool({
+			const tool = scheduleOperations({
 				schedules,
 				resolveSessionDefaults: async () => ({
 					workspaceRoot: sessionWorkspace,
@@ -299,17 +306,5 @@ describe("schedule agent tool", () => {
 		} finally {
 			rmSync(root, { recursive: true, force: true });
 		}
-	});
-
-	it("registers prompt guidance conditional on the schedule tool", async () => {
-		const extension = createSchedulePromptExtension();
-		const registerRule = vi.fn();
-		await extension.setup?.({ registerRule } as never, {});
-
-		expect(registerRule).toHaveBeenCalledWith({
-			id: "hub:schedule-guidance",
-			content: SCHEDULE_SYSTEM_PROMPT_RULE,
-			whenToolAvailable: "schedule",
-		});
 	});
 });

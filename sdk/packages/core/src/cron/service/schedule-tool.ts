@@ -1,7 +1,6 @@
 import { realpathSync, statSync } from "node:fs";
 import { isAbsolute, relative, sep } from "node:path";
 import type {
-	AgentExtension,
 	AgentTool,
 	GatewayModelSelection,
 	HubScheduleCreateInput,
@@ -11,7 +10,6 @@ import type {
 	ScheduleRecord,
 } from "@cline/shared";
 import {
-	createTool,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
 	ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY,
 } from "@cline/shared";
@@ -35,20 +33,7 @@ const ModelSelectionSchema = z.object({
 	model_id: z.string().min(1).optional(),
 });
 
-export const SCHEDULE_TOOL_NAME = "schedule";
-
-export const SCHEDULE_SYSTEM_PROMPT_RULE = `# Scheduled work
-
-Use the \`schedule\` tool only when the user explicitly asks Cline to run work at a future time or on a recurrence.
-
-- Keep schedules and Agenda items distinct. \`schedule\` starts autonomous sessions at a time or cadence. When available, \`todo_list\` records durable follow-ups, handoffs, ideas, and reminders that remain subject to Agenda review; \`available_at\` is not a timer.
-- A phrase such as "remind me" is ambiguous. Use \`schedule\` when the user wants an agent to execute work at that time. Use \`todo_list\`, when available, when they want a reviewed note on their Agenda. Ask a concise clarifying question if the intended behavior, date, time, or timezone is unclear.
-- Never create a schedule proactively and never create both a schedule and an Agenda item unless the user asks for both. Check existing schedules first when a duplicate is plausible.
-- For a one-time schedule, provide an exact future ISO 8601 \`run_at\` with an offset or Z. For recurring work, provide a five-field \`cron_pattern\` and an IANA \`timezone\` when the user's timezone matters.
-- Make the scheduled \`prompt\` self-contained because it will run in a new unattended session. Include the goal, constraints, expected output, and relevant project context.
-- Inherit the current workspace and model unless the user explicitly requests a different model. Only update, pause, resume, delete, or run a schedule immediately when the user asks for that action.`;
-
-export const ScheduleToolInputSchema = z.object({
+export const ScheduledTaskInputSchema = z.object({
 	operation: ScheduleOperationSchema,
 	schedule_id: z.string().min(1).optional(),
 	schedule_type: z.enum(["once", "recurring"]).optional(),
@@ -68,7 +53,7 @@ export const ScheduleToolInputSchema = z.object({
 	limit: z.number().int().positive().max(200).optional(),
 });
 
-type ScheduleToolInput = z.infer<typeof ScheduleToolInputSchema>;
+export type ScheduledTaskInput = z.infer<typeof ScheduledTaskInputSchema>;
 
 export interface ScheduleSessionDefaults {
 	workspaceRoot: string;
@@ -93,7 +78,7 @@ export interface AgentScheduleServiceApi {
 	): ScheduleExecutionRecord | undefined;
 }
 
-export interface CreateScheduleToolOptions {
+export interface ScheduleTaskOperationOptions {
 	schedules: AgentScheduleServiceApi;
 	telemetry?: ITelemetryService;
 	resolveSessionDefaults: (
@@ -111,26 +96,26 @@ export interface CreateScheduleToolOptions {
 }
 
 function captureScheduleMutation(
-	options: CreateScheduleToolOptions,
-	input: ScheduleToolInput,
+	options: ScheduleTaskOperationOptions,
+	input: ScheduledTaskInput,
 	context: Parameters<
-		AgentTool<ScheduleToolInput, ScheduleToolResult>["execute"]
+		AgentTool<ScheduledTaskInput, ScheduledTaskResult>["execute"]
 	>[1],
 	success: boolean,
 ): void {
 	if (!MUTATING_OPERATIONS.has(input.operation)) return;
 	captureToolUsage(options.telemetry, {
 		ulid: context.sessionId ?? context.conversationId ?? context.agentId,
-		tool: `${SCHEDULE_TOOL_NAME}.${input.operation}`,
+		tool: `tasks.scheduled.${input.operation}`,
 		success,
 		agentId: context.agentId,
 	});
 }
 
-type ScheduleToolResult =
+export type ScheduledTaskResult =
 	| {
 			ok: true;
-			operation: ScheduleToolInput["operation"];
+			operation: ScheduledTaskInput["operation"];
 			schedule?: ScheduleRecord;
 			schedules?: ScheduleRecord[];
 			execution?: ScheduleExecutionRecord;
@@ -138,11 +123,11 @@ type ScheduleToolResult =
 	  }
 	| {
 			ok: false;
-			operation?: ScheduleToolInput["operation"];
+			operation?: ScheduledTaskInput["operation"];
 			error: { code: string; message: string };
 	  };
 
-const MUTATING_OPERATIONS = new Set<ScheduleToolInput["operation"]>([
+const MUTATING_OPERATIONS = new Set<ScheduledTaskInput["operation"]>([
 	"create",
 	"update",
 	"pause",
@@ -240,7 +225,7 @@ function assertScheduleScope(
 }
 
 function modelSelectionOf(
-	value: ScheduleToolInput["model_selection"],
+	value: ScheduledTaskInput["model_selection"],
 ): GatewayModelSelection | undefined {
 	if (!value) return undefined;
 	return {
@@ -263,7 +248,7 @@ function parseRunAt(value: string | undefined): number {
 }
 
 function createTiming(
-	input: ScheduleToolInput,
+	input: ScheduledTaskInput,
 ): Pick<HubScheduleCreateInput, "cronPattern" | "timezone" | "metadata"> {
 	if (input.schedule_type === "once") {
 		if (input.cron_pattern) {
@@ -292,7 +277,7 @@ function createTiming(
 }
 
 function updateTiming(
-	input: ScheduleToolInput,
+	input: ScheduledTaskInput,
 ): Pick<HubScheduleUpdateInput, "cronPattern" | "timezone" | "metadata"> {
 	if (input.run_at && input.cron_pattern) {
 		throw new Error("run_at and cron_pattern cannot be updated together");
@@ -325,220 +310,177 @@ function updateTiming(
 	};
 }
 
-function requireScheduleId(input: ScheduleToolInput): string {
+function requireScheduleId(input: ScheduledTaskInput): string {
 	return requiredString(input.schedule_id, "schedule_id");
 }
 
-/**
- * Creates the Hub-backed scheduling tool available to interactive agent
- * sessions. The existing Hub schedule service remains the sole scheduler and
- * persistence boundary, so agent-created entries appear in Routine settings.
- */
-export function createScheduleTool(
-	options: CreateScheduleToolOptions,
-): AgentTool<ScheduleToolInput, ScheduleToolResult> {
-	return createTool({
-		name: SCHEDULE_TOOL_NAME,
-		description:
-			"Create and manage timed or recurring agent runs in the current workspace. " +
-			"Use only for explicit requests to execute work later; use todo_list for reviewed Agenda notes and follow-ups. " +
-			"One-time schedules require an exact future ISO run_at. Recurring schedules require a five-field cron_pattern and may include an IANA timezone.",
-		inputSchema: ScheduleToolInputSchema,
-		retryable: false,
-		maxRetries: 0,
-		execute: async (rawInput, context) => {
-			const parsed = ScheduleToolInputSchema.safeParse(rawInput);
-			if (!parsed.success) {
-				return {
-					ok: false,
-					error: {
-						code: "invalid_schedule_input",
-						message:
-							parsed.error.issues[0]?.message ?? "Invalid schedule input",
-					},
-				};
+/** Execute a scheduled-work operation through the Hub schedule service. */
+export async function executeScheduleOperation(
+	options: ScheduleTaskOperationOptions,
+	rawInput: unknown,
+	context: Parameters<
+		AgentTool<ScheduledTaskInput, ScheduledTaskResult>["execute"]
+	>[1],
+): Promise<ScheduledTaskResult> {
+	const parsed = ScheduledTaskInputSchema.safeParse(rawInput);
+	if (!parsed.success) {
+		return {
+			ok: false,
+			error: {
+				code: "invalid_schedule_input",
+				message: parsed.error.issues[0]?.message ?? "Invalid schedule input",
+			},
+		};
+	}
+	const input = parsed.data;
+	try {
+		if (!context.sessionId) {
+			throw new Error("tasks requires a Hub session");
+		}
+		const resolvedDefaults = await options.resolveSessionDefaults(
+			context.sessionId,
+		);
+		if (!resolvedDefaults?.workspaceRoot.trim()) {
+			throw new Error("tasks could not resolve the current workspace");
+		}
+		const defaults = canonicalSessionDefaults(resolvedDefaults);
+		if (MUTATING_OPERATIONS.has(input.operation) && !defaults.interactive) {
+			throw new Error("schedule mutations require an interactive user session");
+		}
+
+		switch (input.operation) {
+			case "create": {
+				const schedule = options.schedules.createSchedule({
+					name: requiredString(input.name, "name"),
+					...createTiming(input),
+					prompt: requiredString(input.prompt, "prompt"),
+					workspaceRoot: defaults.workspaceRoot,
+					cwd: defaults.cwd,
+					modelSelection:
+						modelSelectionOf(input.model_selection) ?? defaults.modelSelection,
+					enabled: input.enabled,
+					mode: input.mode ?? "yolo",
+					systemPrompt: input.system_prompt ?? undefined,
+					maxIterations: input.max_iterations ?? undefined,
+					timeoutSeconds: input.timeout_seconds ?? undefined,
+					maxParallel: input.max_parallel ?? 1,
+					createdBy: `agent:${context.agentId}`,
+					tags: normalizedTags(input.tags),
+				});
+				options.publish?.("schedule.created", { schedule }, context.sessionId);
+				captureScheduleMutation(options, input, context, true);
+				return { ok: true, operation: input.operation, schedule };
 			}
-			const input = parsed.data;
-			try {
-				if (!context.sessionId) {
-					throw new Error("schedule requires a Hub session");
-				}
-				const resolvedDefaults = await options.resolveSessionDefaults(
+			case "update": {
+				const scheduleId = requireScheduleId(input);
+				assertScheduleScope(
+					options.schedules.getSchedule(scheduleId),
+					defaults,
+				);
+				const schedule = options.schedules.updateSchedule(scheduleId, {
+					scheduleId,
+					...updateTiming(input),
+					name: input.name?.trim() || undefined,
+					prompt: input.prompt?.trim() || undefined,
+					modelSelection: modelSelectionOf(input.model_selection),
+					enabled: input.enabled,
+					mode: input.mode,
+					systemPrompt: input.system_prompt,
+					maxIterations: input.max_iterations,
+					timeoutSeconds: input.timeout_seconds,
+					maxParallel: input.max_parallel,
+					tags: normalizedTags(input.tags),
+				});
+				if (!schedule) throw new Error("schedule does not exist");
+				options.publish?.("schedule.updated", { schedule }, context.sessionId);
+				captureScheduleMutation(options, input, context, true);
+				return { ok: true, operation: input.operation, schedule };
+			}
+			case "list": {
+				const schedules = options.schedules
+					.listSchedules({
+						enabled: input.enabled,
+						tags: normalizedTags(input.tags),
+						workspaceRoot: defaults.workspaceRoot,
+						limit: input.limit ?? 50,
+					})
+					.filter((schedule) => {
+						try {
+							assertScheduleScope(schedule, defaults);
+							return true;
+						} catch {
+							return false;
+						}
+					})
+					.slice(0, input.limit ?? 50);
+				return { ok: true, operation: input.operation, schedules };
+			}
+			case "get": {
+				const schedule = options.schedules.getSchedule(
+					requireScheduleId(input),
+				);
+				assertScheduleScope(schedule, defaults);
+				return { ok: true, operation: input.operation, schedule };
+			}
+			case "pause":
+			case "resume": {
+				const scheduleId = requireScheduleId(input);
+				assertScheduleScope(
+					options.schedules.getSchedule(scheduleId),
+					defaults,
+				);
+				const schedule =
+					input.operation === "pause"
+						? options.schedules.pauseSchedule(scheduleId)
+						: options.schedules.resumeSchedule(scheduleId);
+				if (!schedule) throw new Error("schedule does not exist");
+				options.publish?.("schedule.updated", { schedule }, context.sessionId);
+				captureScheduleMutation(options, input, context, true);
+				return { ok: true, operation: input.operation, schedule };
+			}
+			case "delete": {
+				const scheduleId = requireScheduleId(input);
+				assertScheduleScope(
+					options.schedules.getSchedule(scheduleId),
+					defaults,
+				);
+				const deleted = options.schedules.deleteSchedule(scheduleId);
+				if (!deleted) throw new Error("schedule does not exist");
+				options.publish?.(
+					"schedule.deleted",
+					{ deleted, scheduleId },
 					context.sessionId,
 				);
-				if (!resolvedDefaults?.workspaceRoot.trim()) {
-					throw new Error("schedule could not resolve the current workspace");
-				}
-				const defaults = canonicalSessionDefaults(resolvedDefaults);
-				if (MUTATING_OPERATIONS.has(input.operation) && !defaults.interactive) {
-					throw new Error(
-						"schedule mutations require an interactive user session",
-					);
-				}
-
-				switch (input.operation) {
-					case "create": {
-						const schedule = options.schedules.createSchedule({
-							name: requiredString(input.name, "name"),
-							...createTiming(input),
-							prompt: requiredString(input.prompt, "prompt"),
-							workspaceRoot: defaults.workspaceRoot,
-							cwd: defaults.cwd,
-							modelSelection:
-								modelSelectionOf(input.model_selection) ??
-								defaults.modelSelection,
-							enabled: input.enabled,
-							mode: input.mode ?? "yolo",
-							systemPrompt: input.system_prompt ?? undefined,
-							maxIterations: input.max_iterations ?? undefined,
-							timeoutSeconds: input.timeout_seconds ?? undefined,
-							maxParallel: input.max_parallel ?? 1,
-							createdBy: `agent:${context.agentId}`,
-							tags: normalizedTags(input.tags),
-						});
-						options.publish?.(
-							"schedule.created",
-							{ schedule },
-							context.sessionId,
-						);
-						captureScheduleMutation(options, input, context, true);
-						return { ok: true, operation: input.operation, schedule };
-					}
-					case "update": {
-						const scheduleId = requireScheduleId(input);
-						assertScheduleScope(
-							options.schedules.getSchedule(scheduleId),
-							defaults,
-						);
-						const schedule = options.schedules.updateSchedule(scheduleId, {
-							scheduleId,
-							...updateTiming(input),
-							name: input.name?.trim() || undefined,
-							prompt: input.prompt?.trim() || undefined,
-							modelSelection: modelSelectionOf(input.model_selection),
-							enabled: input.enabled,
-							mode: input.mode,
-							systemPrompt: input.system_prompt,
-							maxIterations: input.max_iterations,
-							timeoutSeconds: input.timeout_seconds,
-							maxParallel: input.max_parallel,
-							tags: normalizedTags(input.tags),
-						});
-						if (!schedule) throw new Error("schedule does not exist");
-						options.publish?.(
-							"schedule.updated",
-							{ schedule },
-							context.sessionId,
-						);
-						captureScheduleMutation(options, input, context, true);
-						return { ok: true, operation: input.operation, schedule };
-					}
-					case "list": {
-						const schedules = options.schedules
-							.listSchedules({
-								enabled: input.enabled,
-								tags: normalizedTags(input.tags),
-								workspaceRoot: defaults.workspaceRoot,
-								limit: input.limit ?? 50,
-							})
-							.filter((schedule) => {
-								try {
-									assertScheduleScope(schedule, defaults);
-									return true;
-								} catch {
-									return false;
-								}
-							})
-							.slice(0, input.limit ?? 50);
-						return { ok: true, operation: input.operation, schedules };
-					}
-					case "get": {
-						const schedule = options.schedules.getSchedule(
-							requireScheduleId(input),
-						);
-						assertScheduleScope(schedule, defaults);
-						return { ok: true, operation: input.operation, schedule };
-					}
-					case "pause":
-					case "resume": {
-						const scheduleId = requireScheduleId(input);
-						assertScheduleScope(
-							options.schedules.getSchedule(scheduleId),
-							defaults,
-						);
-						const schedule =
-							input.operation === "pause"
-								? options.schedules.pauseSchedule(scheduleId)
-								: options.schedules.resumeSchedule(scheduleId);
-						if (!schedule) throw new Error("schedule does not exist");
-						options.publish?.(
-							"schedule.updated",
-							{ schedule },
-							context.sessionId,
-						);
-						captureScheduleMutation(options, input, context, true);
-						return { ok: true, operation: input.operation, schedule };
-					}
-					case "delete": {
-						const scheduleId = requireScheduleId(input);
-						assertScheduleScope(
-							options.schedules.getSchedule(scheduleId),
-							defaults,
-						);
-						const deleted = options.schedules.deleteSchedule(scheduleId);
-						if (!deleted) throw new Error("schedule does not exist");
-						options.publish?.(
-							"schedule.deleted",
-							{ deleted, scheduleId },
-							context.sessionId,
-						);
-						captureScheduleMutation(options, input, context, true);
-						return { ok: true, operation: input.operation, deleted };
-					}
-					case "run_now": {
-						const scheduleId = requireScheduleId(input);
-						assertScheduleScope(
-							options.schedules.getSchedule(scheduleId),
-							defaults,
-						);
-						const execution =
-							options.schedules.triggerScheduleNowDetached(scheduleId);
-						if (!execution) throw new Error("schedule does not exist");
-						options.publish?.(
-							"schedule.triggered",
-							{ execution },
-							context.sessionId,
-						);
-						captureScheduleMutation(options, input, context, true);
-						return { ok: true, operation: input.operation, execution };
-					}
-				}
-			} catch (error) {
-				captureScheduleMutation(options, input, context, false);
-				return {
-					ok: false,
-					operation: input.operation,
-					error: {
-						code: "schedule_operation_failed",
-						message: error instanceof Error ? error.message : String(error),
-					},
-				};
+				captureScheduleMutation(options, input, context, true);
+				return { ok: true, operation: input.operation, deleted };
 			}
-		},
-	});
-}
-
-/** Adds scheduling guidance only when the paired schedule tool is enabled. */
-export function createSchedulePromptExtension(): AgentExtension {
-	return {
-		name: "hub-schedule-guidance",
-		manifest: { capabilities: ["rules"] },
-		setup: (api) => {
-			api.registerRule({
-				id: "hub:schedule-guidance",
-				content: SCHEDULE_SYSTEM_PROMPT_RULE,
-				whenToolAvailable: SCHEDULE_TOOL_NAME,
-			});
-		},
-	};
+			case "run_now": {
+				const scheduleId = requireScheduleId(input);
+				assertScheduleScope(
+					options.schedules.getSchedule(scheduleId),
+					defaults,
+				);
+				const execution =
+					options.schedules.triggerScheduleNowDetached(scheduleId);
+				if (!execution) throw new Error("schedule does not exist");
+				options.publish?.(
+					"schedule.triggered",
+					{ execution },
+					context.sessionId,
+				);
+				captureScheduleMutation(options, input, context, true);
+				return { ok: true, operation: input.operation, execution };
+			}
+		}
+	} catch (error) {
+		captureScheduleMutation(options, input, context, false);
+		return {
+			ok: false,
+			operation: input.operation,
+			error: {
+				code: "schedule_operation_failed",
+				message: error instanceof Error ? error.message : String(error),
+			},
+		};
+	}
 }

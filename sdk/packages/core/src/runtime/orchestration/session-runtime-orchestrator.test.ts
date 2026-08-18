@@ -376,13 +376,13 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 			setup: (api) => {
 				api.registerRule({
 					id: "conditional-tool-rule:guidance",
-					content: "Use todo_list for durable follow-up work.",
-					whenToolAvailable: "todo_list",
+					content: "Use tasks for durable follow-up work.",
+					whenToolAvailable: "tasks",
 				});
 			},
 		};
 		const todoListTool: AgentTool = {
-			name: "todo_list",
+			name: "tasks",
 			description: "Manage durable agenda items.",
 			inputSchema: { type: "object", properties: {} },
 			execute: async () => ({ ok: true }),
@@ -400,7 +400,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		await enabledSession.run("go");
 
 		expect(enabledCapture.configs[0]?.systemPrompt).toBe(
-			"Base prompt.\n\nUse todo_list for durable follow-up work.",
+			"Base prompt.\n\nUse tasks for durable follow-up work.",
 		);
 		expect(enabledCapture.configs[0]?.tools).toContainEqual(todoListTool);
 
@@ -410,7 +410,7 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 				systemPrompt: "Base prompt.",
 				tools: [todoListTool],
 				extensions: [conditionalRuleExtension],
-				toolPolicies: { todo_list: { enabled: false } },
+				toolPolicies: { tasks: { enabled: false } },
 			}),
 			disabledCapture.deps,
 		);

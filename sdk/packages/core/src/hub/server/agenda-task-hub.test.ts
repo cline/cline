@@ -224,22 +224,13 @@ describe("Hub agenda task vertical slice", () => {
 			});
 			expect(
 				capturedStart?.localRuntime?.extraTools?.some(
-					(tool) => tool.name === "todo_list",
+					(tool) => tool.name === "tasks",
 				),
 			).toBe(true);
-			expect(
-				capturedStart?.localRuntime?.extraTools?.some(
-					(tool) => tool.name === "schedule",
-				),
-			).toBe(true);
+			expect(capturedStart?.localRuntime?.extraTools).toHaveLength(1);
 			expect(
 				capturedStart?.localRuntime?.extensions?.some(
-					(extension) => extension.name === "agenda-task-todo-list-guidance",
-				),
-			).toBe(true);
-			expect(
-				capturedStart?.localRuntime?.extensions?.some(
-					(extension) => extension.name === "hub-schedule-guidance",
+					(extension) => extension.name === "hub-task-guidance",
 				),
 			).toBe(true);
 			expect(capturedStart?.config.workspaceRoot).toBeUndefined();
@@ -247,12 +238,13 @@ describe("Hub agenda task vertical slice", () => {
 				"*": { autoApprove: true, enabled: true },
 			});
 
-			const scheduleTool = capturedStart?.localRuntime?.extraTools?.find(
-				(tool) => tool.name === "schedule",
+			const tasksTool = capturedStart?.localRuntime?.extraTools?.find(
+				(tool) => tool.name === "tasks",
 			);
-			expect(scheduleTool).toBeDefined();
-			const scheduled = await scheduleTool?.execute(
+			expect(tasksTool).toBeDefined();
+			const scheduled = await tasksTool?.execute(
 				{
+					kind: "scheduled",
 					operation: "create",
 					schedule_type: "recurring",
 					name: "Review task output",
@@ -268,6 +260,7 @@ describe("Hub agenda task vertical slice", () => {
 			);
 			expect(scheduled).toMatchObject({
 				ok: true,
+				kind: "scheduled",
 				schedule: {
 					name: "Review task output",
 					workspaceRoot: canonicalChatWorkspace,

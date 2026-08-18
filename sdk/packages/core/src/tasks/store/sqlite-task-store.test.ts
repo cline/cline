@@ -49,12 +49,7 @@ describe("SqliteAgendaTaskStore", () => {
 			availableAt: "2035-01-01T00:00:00.000Z",
 			expiresAt: "2035-01-10T00:00:00.000Z",
 			createdBy: AGENT,
-			specPath: join(
-				WORKSPACE_ROOT,
-				".cline",
-				"tasks",
-				`${taskId}.task.md`,
-			),
+			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", `${taskId}.task.md`),
 		};
 	}
 

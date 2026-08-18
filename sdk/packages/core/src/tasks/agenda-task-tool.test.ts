@@ -2,9 +2,9 @@ import type { AgendaTaskRecord } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import type { AgendaTaskManagerApi } from "./agenda-task-api";
 import {
-	createTodoListPromptExtension,
-	createTodoListTool,
-	TODO_LIST_SYSTEM_PROMPT_RULE,
+	executeTodoTaskOperation,
+	type TodoTaskInput,
+	type TodoTaskOperationOptions,
 } from "./agenda-task-tool";
 
 function task(overrides: Partial<AgendaTaskRecord> = {}): AgendaTaskRecord {
@@ -68,10 +68,17 @@ const context = {
 	iteration: 1,
 };
 
-describe("todo_list", () => {
+function todoOperations(options: TodoTaskOperationOptions) {
+	return {
+		execute: (input: TodoTaskInput, toolContext = context) =>
+			executeTodoTaskOperation(options, input, toolContext),
+	};
+}
+
+describe("Todo task operations", () => {
 	it("captures usage telemetry for durable mutations", async () => {
 		const capture = vi.fn();
-		const tool = createTodoListTool({
+		const tool = todoOperations({
 			manager: managerMock(),
 			telemetry: { capture } as never,
 			resolveSessionDefaults: async () => ({ workspaceRoot: "/repo" }),
@@ -91,7 +98,7 @@ describe("todo_list", () => {
 		expect(capture).toHaveBeenCalledWith({
 			event: "task.tool_used",
 			properties: expect.objectContaining({
-				tool: "todo_list.create",
+				tool: "tasks.todo.create",
 				success: true,
 			}),
 		});
@@ -99,7 +106,7 @@ describe("todo_list", () => {
 
 	it("pins list and create operations to the current session workspace", async () => {
 		const manager = managerMock();
-		const tool = createTodoListTool({
+		const tool = todoOperations({
 			manager,
 			resolveSessionDefaults: async () => ({
 				workspaceRoot: "/repo",
@@ -132,7 +139,7 @@ describe("todo_list", () => {
 		vi.mocked(manager.getTask).mockResolvedValueOnce(
 			task({ scope: "global", workspaceRoot: undefined }),
 		);
-		const tool = createTodoListTool({
+		const tool = todoOperations({
 			manager,
 			resolveSessionDefaults: async () => ({ workspaceRoot: "/repo" }),
 		});
@@ -147,17 +154,5 @@ describe("todo_list", () => {
 			),
 		).toMatchObject({ ok: false, error: { code: "invalid_task_input" } });
 		expect(manager.cancelTask).not.toHaveBeenCalled();
-	});
-
-	it("registers prompt guidance conditional on the todo_list tool", async () => {
-		const extension = createTodoListPromptExtension();
-		const registerRule = vi.fn();
-		await extension.setup?.({ registerRule } as never, {});
-
-		expect(registerRule).toHaveBeenCalledWith({
-			id: "agenda-task:todo-list-guidance",
-			content: TODO_LIST_SYSTEM_PROMPT_RULE,
-			whenToolAvailable: "todo_list",
-		});
 	});
 });

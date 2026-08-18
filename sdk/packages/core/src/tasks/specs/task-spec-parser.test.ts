@@ -23,12 +23,7 @@ afterEach(() => {
 describe("parseAgendaTaskSpec", () => {
 	it("parses canonical frontmatter and derives workspace scope", () => {
 		const result = parseAgendaTaskSpec({
-			specPath: join(
-				WORKSPACE_ROOT,
-				".cline",
-				"tasks",
-				"check-pr.task.md",
-			),
+			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", "check-pr.task.md"),
 			scope: "workspace",
 			workspaceRoot: WORKSPACE_ROOT,
 			raw: `---

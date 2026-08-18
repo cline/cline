@@ -3,12 +3,11 @@ export { HubScheduleCommandService } from "../cron/service/schedule-command-serv
 export { HubScheduleService } from "../cron/service/schedule-service";
 export {
 	type AgentScheduleServiceApi,
-	type CreateScheduleToolOptions,
-	createSchedulePromptExtension,
-	createScheduleTool,
-	SCHEDULE_SYSTEM_PROMPT_RULE,
-	SCHEDULE_TOOL_NAME,
-	ScheduleToolInputSchema,
+	executeScheduleOperation,
+	type ScheduledTaskInput,
+	ScheduledTaskInputSchema,
+	type ScheduledTaskResult,
+	type ScheduleTaskOperationOptions,
 } from "../cron/service/schedule-tool";
 /**
  * Re-exported so detached hub daemon entry points (e.g. the VS Code
@@ -30,6 +29,16 @@ export {
 	createConfiguredTelemetryHandle,
 	createConfiguredTelemetryService,
 } from "../services/telemetry/OpenTelemetryProvider";
+export {
+	type CreateTasksToolOptions,
+	createTasksPromptExtension,
+	createTasksTool,
+	TASKS_SYSTEM_PROMPT_RULE,
+	TASKS_TOOL_NAME,
+	type TasksToolInput,
+	TasksToolInputSchema,
+	type TasksToolResult,
+} from "../tasks/task-tool";
 export * from "./client";
 export * from "./client/connect";
 export * from "./client/managed-hub-build-watcher";

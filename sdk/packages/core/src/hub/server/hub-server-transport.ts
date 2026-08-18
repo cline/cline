@@ -20,10 +20,6 @@ import { isChatWorkspacePath } from "@cline/shared/storage";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
-import {
-	createSchedulePromptExtension,
-	createScheduleTool,
-} from "../../cron/service/schedule-tool";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
 	PendingPromptsRuntimeService,
@@ -41,8 +37,8 @@ import {
 import {
 	AgendaTaskManager,
 	type AgendaTaskRuntimeResult,
-	createTodoListPromptExtension,
-	createTodoListTool,
+	createTasksPromptExtension,
+	createTasksTool,
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
@@ -284,32 +280,6 @@ export class HubServerTransport implements NativeHubTransport {
 			},
 		});
 		this.taskCommands = new HubAgendaTaskCommandService(this.tasks);
-		this.sessionTools.push(
-			createTodoListTool({
-				manager: this.tasks,
-				telemetry: options.telemetry,
-				resolveSessionDefaults: async (sessionId) => {
-					const session = await this.sessionHost.getSession(sessionId);
-					if (!session) return undefined;
-					const projectWorkspace = !isChatWorkspacePath(session.workspaceRoot)
-						? session.workspaceRoot
-						: undefined;
-					return {
-						workspaceRoot: projectWorkspace,
-						cwd: projectWorkspace ? session.cwd : undefined,
-						modelSelection: {
-							providerId: session.provider,
-							modelId: session.model,
-						},
-						originTaskId:
-							typeof session.metadata?.agendaTaskId === "string"
-								? session.metadata.agendaTaskId
-								: undefined,
-					};
-				},
-			}) as AgentTool,
-		);
-		this.sessionExtensions.push(createTodoListPromptExtension());
 		this.schedules = new HubScheduleService({
 			...options.scheduleOptions,
 			runtimeHandlers: options.runtimeHandlers,
@@ -335,28 +305,53 @@ export class HubServerTransport implements NativeHubTransport {
 		});
 		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
 		this.sessionTools.push(
-			createScheduleTool({
-				schedules: this.schedules,
-				telemetry: options.telemetry,
-				publish: (event, payload, sessionId) => {
-					this.publish(buildHubEvent(event, payload, sessionId));
+			createTasksTool({
+				todo: {
+					manager: this.tasks,
+					telemetry: options.telemetry,
+					resolveSessionDefaults: async (sessionId) => {
+						const session = await this.sessionHost.getSession(sessionId);
+						if (!session) return undefined;
+						const projectWorkspace = !isChatWorkspacePath(session.workspaceRoot)
+							? session.workspaceRoot
+							: undefined;
+						return {
+							workspaceRoot: projectWorkspace,
+							cwd: projectWorkspace ? session.cwd : undefined,
+							modelSelection: {
+								providerId: session.provider,
+								modelId: session.model,
+							},
+							originTaskId:
+								typeof session.metadata?.agendaTaskId === "string"
+									? session.metadata.agendaTaskId
+									: undefined,
+						};
+					},
 				},
-				resolveSessionDefaults: async (sessionId) => {
-					const session = await this.sessionHost.getSession(sessionId);
-					if (!session) return undefined;
-					return {
-						workspaceRoot: session.workspaceRoot,
-						cwd: session.cwd,
-						modelSelection: {
-							providerId: session.provider,
-							modelId: session.model,
-						},
-						interactive: session.interactive,
-					};
+				scheduled: {
+					schedules: this.schedules,
+					telemetry: options.telemetry,
+					publish: (event, payload, sessionId) => {
+						this.publish(buildHubEvent(event, payload, sessionId));
+					},
+					resolveSessionDefaults: async (sessionId) => {
+						const session = await this.sessionHost.getSession(sessionId);
+						if (!session) return undefined;
+						return {
+							workspaceRoot: session.workspaceRoot,
+							cwd: session.cwd,
+							modelSelection: {
+								providerId: session.provider,
+								modelId: session.model,
+							},
+							interactive: session.interactive,
+						};
+					},
 				},
 			}) as AgentTool,
 		);
-		this.sessionExtensions.push(createSchedulePromptExtension());
+		this.sessionExtensions.push(createTasksPromptExtension());
 		this.settings = options.settingsService ?? new CoreSettingsService();
 		if (options.cronOptions) {
 			this.cronService = new CronService({

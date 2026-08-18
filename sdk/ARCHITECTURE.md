@@ -569,30 +569,23 @@ and `AgendaTaskRunRecord`; orchestration and persistence remain in
   Events are invalidation and lifecycle signals; clients re-read the current
   task or policy projection rather than rebuilding authority state from the
   event stream.
-- Hub-hosted agent sessions receive the snake-case `todo_list` tool. It can
-  create, update, list, and get tasks within the current session's workspace
-  (or the global scope for chat sessions) and returns structured errors. It
-  cannot approve, cancel, or start a task, so an agent cannot self-authorize or
-  terminate queue work.
-- The Hub also contributes a tool-conditional system-prompt rule for
-  `todo_list`. The runtime appends it only after the tool survives global and
-  per-session enablement filtering. It tells agents to record useful follow-up,
-  handoff, reminder, suggestion, and idea work with self-contained instructions,
-  priority, expiry, and relevant paths while avoiding trivial or duplicate
-  agenda items.
-- Hub-hosted sessions also receive a separate `schedule` tool backed directly
-  by `HubScheduleService`. It creates and manages the same records shown by the
-  desktop Routine view; there is no agent-only scheduler or duplicate store.
-  The tool inherits the current session workspace, cwd, and model, filters all
-  reads and mutations to that workspace, and allows mutations only from an
-  interactive session. One-time schedules accept an exact future ISO timestamp;
-  recurring schedules accept a five-field cron expression and optional IANA
-  timezone.
-- A paired tool-conditional rule makes the routing boundary explicit:
-  `schedule` is only for an explicit request to execute work later, while
-  `todo_list` is for reviewed Agenda notes and follow-ups. The agent must ask
-  when a phrase such as “remind me” does not establish which behavior the user
-  wants, and it must not create both records unless requested.
+- Hub-hosted agent sessions receive one snake-case `tasks` tool with a required
+  `kind` discriminator. `kind: "todo"` creates, updates, lists, and gets durable
+  Agenda items within the current session's workspace (or the global scope for
+  chat sessions). It cannot approve, cancel, or start a Todo, so an agent cannot
+  self-authorize or terminate queue work.
+- `kind: "scheduled"` routes to `HubScheduleService` and manages the same
+  records shown by the desktop Routine view; the unified tool does not merge
+  the two persistence or lifecycle domains. Scheduled operations inherit the
+  current session workspace, cwd, and model, filter reads and mutations to that
+  workspace, and allow mutations only from an interactive session. One-time
+  schedules accept an exact future ISO timestamp; recurring schedules accept a
+  five-field cron expression and optional IANA timezone.
+- The Hub contributes one tool-conditional system-prompt rule for `tasks`. It
+  distinguishes reviewed Todo work from autonomous scheduled execution, states
+  that Todo `available_at` is not a timer, requires clarification for ambiguous
+  “remind me” requests, and prevents creating both record kinds unless the user
+  explicitly requests both.
 - `AgendaAutomationPolicy` is user-owned Hub state. `manual` preserves the
   per-task review gate; `auto_start` and `unattended` are explicit opt-ins. The
   manager's automation pump enforces the policy's concurrency, chain-depth,
