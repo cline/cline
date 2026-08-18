@@ -12,6 +12,7 @@ import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import {
 	type CheckpointEntry,
+	checkpointScratchDir,
 	createCheckpointHooks,
 } from "../hooks/checkpoint-hooks";
 import {
@@ -22,6 +23,7 @@ import {
 	trimMessagesBeforeUserRun,
 	trimMessagesToCheckpoint,
 } from "./checkpoint-restore";
+import { SessionVersioningService } from "./session-versioning-service";
 
 function git(cwd: string, args: string[]): string {
 	return execFileSync("git", ["-C", cwd, ...args], {
@@ -38,11 +40,13 @@ function git(cwd: string, args: string[]): string {
 async function snapshotCurrentWorktree(
 	cwd: string,
 	sessionId = "snap",
+	options: { maxUntrackedFileBytes?: number } = {},
 ): Promise<CheckpointEntry> {
 	let metadata: Record<string, unknown> | undefined;
 	const hooks = createCheckpointHooks({
 		cwd,
 		sessionId,
+		...options,
 		readSessionMetadata: async () => metadata,
 		writeSessionMetadata: async (next) => {
 			metadata = next;
@@ -75,6 +79,9 @@ async function snapshotCurrentWorktree(
 	const checkpoint = (
 		metadata?.checkpoint as { latest?: CheckpointEntry } | undefined
 	)?.latest;
+	// Each call acts as a one-shot session, so drop the persistent untracked
+	// index instead of leaking it into the runner's tmpdir.
+	rmSync(checkpointScratchDir(sessionId), { recursive: true, force: true });
 	if (!checkpoint) {
 		throw new Error("failed to record a checkpoint for the current worktree");
 	}
@@ -308,6 +315,121 @@ describe("applyCheckpointToWorktree", () => {
 				"refs/cline/restore-transactions",
 			]),
 		).toBe("");
+	});
+
+	it("keeps preserved untracked files in the worktree through the restore transaction", async () => {
+		// The recovery stash must not swallow files the checkpoint never
+		// captured: stash push removes untracked files from the worktree, and
+		// nothing on the restore path would put a size-capped file back.
+		writeFileSync(join(dir, "big.bin"), "capped content", "utf8");
+		writeFileSync(join(dir, "other.txt"), "rewindable\n", "utf8");
+
+		const transaction = await beginWorktreeRestoreTransaction(dir, ["big.bin"]);
+		// The preserved file never left the worktree; the other untracked file
+		// was captured (and removed) as usual.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe("capped content");
+		expect(existsSync(join(dir, "other.txt"))).toBe(false);
+
+		await transaction.rollback();
+		// Rollback's clean also spares the preserved file while restoring the
+		// captured one.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe("capped content");
+		expect(readFileSync(join(dir, "other.txt"), "utf8")).toBe("rewindable\n");
+	});
+
+	it("keeps size-capped files on disk through a full workspace restore (transaction + apply)", async () => {
+		// Composition-level regression test: the per-function guards passed
+		// while the real restore path (transaction first, then apply) deleted
+		// the capped file, because the recovery stash swallowed it.
+		writeFileSync(join(dir, "big.bin"), "capped content", "utf8");
+		writeFileSync(join(dir, "small.txt"), "keep me\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-full-restore", {
+			maxUntrackedFileBytes: 8,
+		});
+		expect(checkpoint.skippedUntracked).toEqual(["big.bin"]);
+
+		writeFileSync(join(dir, "big.bin"), "capped content v2", "utf8");
+		writeFileSync(join(dir, "small.txt"), "changed after checkpoint\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+
+		const session = {
+			sessionId: "restore-session",
+			cwd: dir,
+			metadata: { checkpoint: { latest: checkpoint, history: [checkpoint] } },
+		} as unknown as import("../types/sessions").SessionRecord;
+		await new SessionVersioningService().restoreCheckpoint({
+			sessionId: "restore-session",
+			checkpointRunCount: 1,
+			cwd: dir,
+			restore: { messages: false, workspace: true },
+			getSession: async () => session,
+			readMessages: async () => {
+				throw new Error("messages should not be read");
+			},
+		});
+
+		// The capped file stays at its *current* content — it was never part
+		// of the snapshot, so restore must not touch it in either direction.
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe(
+			"capped content v2",
+		);
+		expect(readFileSync(join(dir, "small.txt"), "utf8")).toBe("keep me\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+	});
+
+	it("leaves size-capped untracked files on disk when rewinding a snapshot", async () => {
+		// A file over the snapshot's size cap was never captured in ^3, so the
+		// pre-apply `git clean` must spare it — deleting it would be
+		// unrecoverable data loss (the reporter's case is a 4.8 GB data file).
+		const bigContent = "B".repeat(64);
+		writeFileSync(join(dir, "big.bin"), bigContent, "utf8");
+		writeFileSync(join(dir, "small.txt"), "keep me\n", "utf8");
+		const checkpoint = await snapshotCurrentWorktree(dir, "snap-skip", {
+			maxUntrackedFileBytes: 16,
+		});
+		expect(checkpoint.skippedUntracked).toEqual(["big.bin"]);
+
+		// Post-checkpoint changes that the restore is expected to rewind.
+		writeFileSync(join(dir, "small.txt"), "changed after checkpoint\n", "utf8");
+		writeFileSync(join(dir, "created-after.txt"), "remove me\n", "utf8");
+
+		await applyCheckpointToWorktree(dir, checkpoint);
+
+		expect(readFileSync(join(dir, "big.bin"), "utf8")).toBe(bigContent);
+		expect(readFileSync(join(dir, "small.txt"), "utf8")).toBe("keep me\n");
+		expect(existsSync(join(dir, "created-after.txt"))).toBe(false);
+	});
+
+	it("preserves skippedUntracked when reading checkpoint history from session metadata", () => {
+		const metadata = createRestoredCheckpointMetadata(
+			{
+				metadata: {
+					checkpoint: {
+						latest: {
+							ref: "aaaa",
+							createdAt: 1,
+							runCount: 1,
+							kind: "stash",
+							skippedUntracked: ["big.bin", 7, ""],
+						},
+						history: [
+							{
+								ref: "aaaa",
+								createdAt: 1,
+								runCount: 1,
+								kind: "stash",
+								skippedUntracked: ["big.bin", 7, ""],
+							},
+						],
+					},
+				},
+			},
+			1,
+		);
+
+		// Non-string and empty entries are dropped; real paths survive the
+		// round-trip so the restore-side clean can exempt them.
+		expect(metadata?.latest.skippedUntracked).toEqual(["big.bin"]);
 	});
 
 	it("carries checkpoint metadata through the restored run", () => {

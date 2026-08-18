@@ -1,4 +1,5 @@
 import type * as LlmsProviders from "@cline/llms";
+import type { ITelemetryService } from "@cline/shared";
 import type {
 	CheckpointEntry,
 	CheckpointMetadata,
@@ -90,6 +91,13 @@ export interface SessionCheckpointRestoreInput<
 		sessionId: string,
 		history: CheckpointEntry[],
 	) => Promise<void>;
+	/**
+	 * Emits one `checkpoint.restore` event per restore attempt. Restores are
+	 * rare and destructive, so field visibility matters: duration (the
+	 * worktree transaction still hashes all untracked files), outcome, and
+	 * whether the restored entry had size-capped files that cannot be rewound.
+	 */
+	telemetry?: Pick<ITelemetryService, "capture">;
 }
 
 function validateRestoreOptions(input: {
@@ -176,6 +184,26 @@ export class SessionVersioningService {
 			session: sourceSession,
 			messages: sourceMessages,
 		});
+		const restoreStartedAt = Date.now();
+		const captureRestore = (
+			outcome: "success" | "failed",
+			extra?: Record<string, string | number | boolean>,
+		): void => {
+			input.telemetry?.capture({
+				event: "checkpoint.restore",
+				properties: {
+					sessionId: sourceSessionId,
+					checkpointRunCount: input.checkpointRunCount,
+					restoreWorkspace,
+					restoreMessages,
+					checkpointKind: plan.checkpoint.kind ?? "unknown",
+					skippedUntrackedCount: plan.checkpoint.skippedUntracked?.length ?? 0,
+					outcome,
+					durationMs: Date.now() - restoreStartedAt,
+					...extra,
+				},
+			});
+		};
 		let restoredCheckpointMetadata: CheckpointMetadata | undefined;
 		let initialMessages: LlmsProviders.MessageWithMetadata[] = [];
 		let startInput: TStartInput | undefined;
@@ -239,7 +267,14 @@ export class SessionVersioningService {
 			input.beginWorkspaceRestoreTransaction ??
 			(input.applyWorkspaceCheckpoint
 				? undefined
-				: beginWorktreeRestoreTransaction);
+				: // Untracked files the snapshot skipped (size cap) exist only in the
+					// worktree; the recovery stash must leave them in place or nothing
+					// ever puts them back.
+					(transactionCwd: string) =>
+						beginWorktreeRestoreTransaction(
+							transactionCwd,
+							plan.checkpoint.skippedUntracked ?? [],
+						));
 		const transaction =
 			restoreWorkspace && beginWorkspaceRestoreTransaction
 				? await beginWorkspaceRestoreTransaction(plan.cwd)
@@ -258,6 +293,7 @@ export class SessionVersioningService {
 			if (!messageRestoreOperations) {
 				await transaction?.commit();
 				workspaceCommitted = true;
+				captureRestore("success");
 				return { checkpoint: plan.checkpoint, sourceSnapshot };
 			}
 
@@ -292,6 +328,7 @@ export class SessionVersioningService {
 				: undefined;
 			await transaction?.commit();
 			workspaceCommitted = true;
+			captureRestore("success");
 			return {
 				sessionId: newSessionId,
 				startResult,
@@ -316,6 +353,10 @@ export class SessionVersioningService {
 					recoveryErrors.push(rollbackError);
 				}
 			}
+			captureRestore("failed", {
+				workspaceRolledBack: !!transaction && !workspaceCommitted,
+				recovered: recoveryErrors.length === 0,
+			});
 			if (recoveryErrors.length > 0) {
 				throw new AggregateError(
 					[error, ...recoveryErrors],
