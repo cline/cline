@@ -21,6 +21,7 @@ export const SUPPORTED_MARKDOWN_LANGUAGES = [
 	"markdown",
 	"python",
 	"shellscript",
+	"sql",
 	"tsx",
 	"typescript",
 	"yaml",
@@ -38,6 +39,9 @@ const LANGUAGE_ALIASES: Record<string, SupportedMarkdownLanguage> = {
 	json5: "jsonc",
 	md: "markdown",
 	mjs: "javascript",
+	pgsql: "sql",
+	postgres: "sql",
+	postgresql: "sql",
 	py: "python",
 	sh: "shellscript",
 	shell: "shellscript",
@@ -64,6 +68,7 @@ const LANGUAGE_LOADERS: Record<
 		import("@shikijs/langs/python").then((module) => module.default),
 	shellscript: () =>
 		import("@shikijs/langs/shellscript").then((module) => module.default),
+	sql: () => import("@shikijs/langs/sql").then((module) => module.default),
 	tsx: () => import("@shikijs/langs/tsx").then((module) => module.default),
 	typescript: () =>
 		import("@shikijs/langs/typescript").then((module) => module.default),
@@ -132,19 +137,18 @@ function rawHighlight(code: string): HighlightResult {
 	return {
 		bg: "transparent",
 		fg: "inherit",
-		tokens: code.split("\n").map((line) =>
-			line
-				? [
-						{
-							bgColor: "transparent",
-							color: "inherit",
-							content: line,
-							htmlStyle: {},
-							offset: 0,
-						},
-					]
-				: [],
-		),
+		// Always emit one token per line, including empty lines. Returning an
+		// empty token array for a blank line makes streamdown collapse it,
+		// which destroys the vertical spacing of unsupported-language blocks.
+		tokens: code.split("\n").map((line) => [
+			{
+				bgColor: "transparent",
+				color: "inherit",
+				content: line,
+				htmlStyle: {},
+				offset: 0,
+			},
+		]),
 	};
 }
 
