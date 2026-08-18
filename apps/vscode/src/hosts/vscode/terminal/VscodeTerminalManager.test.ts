@@ -167,6 +167,7 @@ describe("VscodeTerminalManager", () => {
 	it("does not reuse a terminal after its command stream fails", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-stream-error")
+		sandbox.stub(terminalInfo.terminal, "processId").get(() => Promise.resolve(1))
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => ({
 			cwd: vscode.Uri.file("/tmp/cline-stream-error"),
 			executeCommand: () => ({ read: () => createFailingStream(new Error("command stream failed")) }),
@@ -240,6 +241,7 @@ describe("VscodeTerminalManager", () => {
 	it("preserves an unobserved fallback terminal across the next terminal acquisition", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal()
+		sandbox.stub(terminalInfo.terminal, "processId").get(() => Promise.resolve(1))
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => undefined)
 		sandbox.stub(terminalInfo.terminal, "sendText")
 		const disposeSpy = sandbox.spy(terminalInfo.terminal, "dispose")
@@ -281,6 +283,7 @@ describe("VscodeTerminalManager", () => {
 	it("preserves a detached fallback terminal across the next terminal acquisition", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal()
+		sandbox.stub(terminalInfo.terminal, "processId").get(() => Promise.resolve(1))
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => undefined)
 		sandbox.stub(terminalInfo.terminal, "sendText")
 		const disposeSpy = sandbox.spy(terminalInfo.terminal, "dispose")
@@ -313,6 +316,7 @@ describe("VscodeTerminalManager", () => {
 	it("preserves a continued fallback terminal across the next terminal acquisition", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal()
+		sandbox.stub(terminalInfo.terminal, "processId").get(() => Promise.resolve(1))
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => undefined)
 		sandbox.stub(terminalInfo.terminal, "sendText")
 		const disposeSpy = sandbox.spy(terminalInfo.terminal, "dispose")
@@ -345,6 +349,7 @@ describe("VscodeTerminalManager", () => {
 	it("preserves a markerless shell-integration terminal across the next terminal acquisition", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal()
+		sandbox.stub(terminalInfo.terminal, "processId").get(() => Promise.resolve(1))
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => ({
 			executeCommand: () => ({ read: createMarkerlessStream }),
 		}))
