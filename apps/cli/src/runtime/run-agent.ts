@@ -33,6 +33,7 @@ import {
 	writeErr,
 	writeln,
 } from "../utils/output";
+import { loadInteractiveResumeMessages } from "../utils/resume";
 import type { Config } from "../utils/types";
 import { shouldShowCliUsageCost } from "../utils/usage-cost-display";
 import { setActiveRuntimeAbort } from "./active-runtime";
@@ -138,6 +139,7 @@ export async function runAgent(
 	options?: {
 		clineApiBaseUrl?: string;
 		clineProviderSettings?: ProviderSettings;
+		resumeSessionId?: string;
 	},
 ): Promise<void> {
 	// A clean one-shot run should not inherit a stale nonzero process exit code
@@ -212,7 +214,9 @@ export async function runAgent(
 		}
 		handleEvent(event, config);
 	};
-	const plannedSessionId = createSessionId();
+	const plannedSessionId =
+		options?.resumeSessionId?.trim() || createSessionId();
+
 	const unsubscribe = subscribeToAgentEvents(sessionManager, onAgentEvent, {
 		sessionId: plannedSessionId,
 	});
@@ -278,6 +282,12 @@ export async function runAgent(
 			userImages,
 			userFiles,
 		} = await buildUserInputMessage(prompt, userInstructionService);
+		const initialMessages = options?.resumeSessionId?.trim()
+			? await loadInteractiveResumeMessages(
+					sessionManager,
+					options.resumeSessionId,
+				)
+			: undefined;
 		const started = await sessionManager.start({
 			source: SessionSource.CLI,
 			config: {
@@ -296,6 +306,7 @@ export async function runAgent(
 				) => resolveMistakeLimitDecision(config, context),
 			},
 			prompt: userInput,
+			initialMessages,
 			userImages: userImages.length > 0 ? userImages : undefined,
 			userFiles: userFiles.length > 0 ? userFiles : undefined,
 			interactive: false,
