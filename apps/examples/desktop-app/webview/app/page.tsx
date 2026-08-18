@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Loader2 } from "lucide-react";
+import { Brain, ImagePlus, Loader2 } from "lucide-react";
 import dynamic from "next/dynamic";
 import {
 	useCallback,
@@ -12,6 +12,7 @@ import {
 } from "react";
 import { AgentHeader } from "@/components/agent-header";
 import { AgentSidebar } from "@/components/agent-sidebar";
+import { BotAvatar } from "@/components/bot-avatar";
 import { HubUpdateRequiredDialog } from "@/components/hub-update-required-dialog";
 import {
 	AlertDialog,
@@ -23,6 +24,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Button } from "@/components/ui/button";
 import {
 	Sidebar,
 	SidebarInset,
@@ -30,6 +32,7 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { BotMemoryDialog } from "@/components/views/bots/bots-panel";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
@@ -39,14 +42,17 @@ import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
+import { useBots } from "@/hooks/use-bots";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
 import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
+import type { BotSummary } from "@/lib/bots";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	botThreadIdFor,
 	createDesktopAppState,
 	type DesktopAppLocation,
 	type DesktopAppView,
@@ -241,6 +247,40 @@ export default function Home() {
 		[],
 	);
 
+	const { bots, botsLoaded, refreshBots } = useBots();
+
+	const handleOpenBot = useCallback(async (bot: BotSummary) => {
+		// Attach the bot's persisted session (when it has one) so opening the
+		// bot lands on its chat history rather than an empty thread.
+		let session: SessionHistoryItem | undefined;
+		if (bot.sessionId) {
+			try {
+				session =
+					(await desktopClient.invoke<SessionHistoryItem | null>(
+						"get_discovered_session",
+						{ session_id: bot.sessionId },
+					)) ?? undefined;
+			} catch {
+				// A missing session record just opens the bot fresh; the sidecar
+				// still resumes the bot's persisted session on the next message.
+			}
+		}
+		dispatchApp({ type: "open-bot", botId: bot.id, session });
+	}, []);
+
+	const handleBotDeleted = useCallback(
+		(botId: string) => {
+			const deletedBot = bots.find((bot) => bot.id === botId);
+			dispatchApp({
+				type: "delete-session",
+				deletedSessionId: deletedBot?.sessionId ?? `bot-session-${botId}`,
+				deletedThreadId: botThreadIdFor(botId),
+				fallbackThreadId: makeThreadId(),
+			});
+		},
+		[bots],
+	);
+
 	const handleDeleteSession = useCallback(
 		(deletedSessionId: string, deletedThreadId?: string) => {
 			dispatchApp({
@@ -281,6 +321,9 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const activeBot = activeThread?.botId
+		? (bots.find((bot) => bot.id === activeThread.botId) ?? null)
+		: null;
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			handleNewThread();
@@ -419,10 +462,16 @@ export default function Home() {
 					>
 						<AgentSidebar
 							activeSessionId={activeHistorySessionId}
+							activeBotId={activeBot?.id ?? null}
+							bots={bots}
+							botsLoaded={botsLoaded}
+							onBotDeleted={handleBotDeleted}
 							onHome={handleHome}
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
+							onOpenBot={handleOpenBot}
+							onRefreshBots={refreshBots}
 							onSettingsSectionChange={handleSettingsSectionChange}
 							sessionHistory={sessionHistory}
 							setView={handleViewChange}
@@ -448,6 +497,7 @@ export default function Home() {
 							>
 								<ChatThreadPane
 									key={activeThread.id}
+									bot={activeBot ?? undefined}
 									historySession={activeThread.historySession}
 									initialPromptDraft={activeThread.initialPromptDraft}
 									knownWorkspacePaths={historyWorkspacePaths}
@@ -506,6 +556,7 @@ let workspacesLoadedOnce = false;
 
 function ChatThreadPane({
 	threadId,
+	bot,
 	historySession,
 	initialPromptDraft,
 	knownWorkspacePaths,
@@ -522,6 +573,7 @@ function ChatThreadPane({
 	onThreadStarted,
 }: {
 	threadId: string;
+	bot?: BotSummary;
 	historySession?: SessionHistoryItem;
 	initialPromptDraft?: string;
 	knownWorkspacePaths: string[];
@@ -724,6 +776,17 @@ function ChatThreadPane({
 
 	const modelContextWindow =
 		providerModelContextWindows[config.provider.trim()]?.[config.model.trim()];
+
+	// Bot threads tag every start/send with the bot id so the sidecar routes
+	// them through the bot's persistent session (persona rules + bot tools).
+	const botId = bot?.id;
+	useEffect(() => {
+		if (!botId) {
+			return;
+		}
+		setConfig((prev) => (prev.botId === botId ? prev : { ...prev, botId }));
+	}, [botId, setConfig]);
+	const [memoryDialogOpen, setMemoryDialogOpen] = useState(false);
 
 	useEffect(() => {
 		const selected = providerCredentials[config.provider];
@@ -1344,12 +1407,14 @@ function ChatThreadPane({
 	)?.content;
 	const metadataTitle =
 		manualTitle || getSessionMetadataTitle(visibleHistorySession?.metadata);
-	const threadTitle = toThreadTitle({
-		title: hideDeletedSessionUi ? undefined : metadataTitle,
-		prompt: hideDeletedSessionUi
-			? undefined
-			: (visibleHistorySession?.prompt ?? firstUserMessage),
-	});
+	const threadTitle = bot
+		? bot.name
+		: toThreadTitle({
+				title: hideDeletedSessionUi ? undefined : metadataTitle,
+				prompt: hideDeletedSessionUi
+					? undefined
+					: (visibleHistorySession?.prompt ?? firstUserMessage),
+			});
 	const hasDiffChanges = summary.additions + summary.deletions > 0;
 	const headerDiff = useMemo(
 		() => ({
@@ -1538,12 +1603,33 @@ function ChatThreadPane({
 
 	return (
 		<WorkspaceProvider value={workspaceContextValue}>
+			<div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden">
+			{bot ? (
+				<div className="z-30 flex shrink-0 items-center gap-2.5 border-b border-border/70 bg-background/85 px-4 py-2 backdrop-blur-sm">
+					<BotAvatar className="size-7" color={bot.color} shape={bot.shape} />
+					<div className="flex min-w-0 flex-1 flex-col leading-tight">
+						<span className="truncate text-sm font-medium">{bot.name}</span>
+						<span className="truncate text-[11px] text-muted-foreground">
+							Bot with persistent memory
+						</span>
+					</div>
+					<Button
+						onClick={() => setMemoryDialogOpen(true)}
+						size="sm"
+						type="button"
+						variant="outline"
+					>
+						<Brain className="size-3.5" />
+						Memory
+					</Button>
+				</div>
+			) : null}
 			{/* biome-ignore lint/a11y/noStaticElementInteractions: Drag-and-drop target only; the paperclip button is the accessible attach path. */}
 			<div
 				className={
 					isWelcomeState
-						? "relative grid h-full min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
-						: "relative grid h-full min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+						? "relative grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] overflow-hidden"
+						: "relative grid min-h-0 flex-1 grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
 				}
 				onDragEnter={handleDragEnter}
 				onDragLeave={handleDragLeave}
@@ -1634,6 +1720,13 @@ function ChatThreadPane({
 					onSwitchGitBranch={switchGitBranch}
 				/>
 			</div>
+			</div>
+			{bot ? (
+				<BotMemoryDialog
+					bot={memoryDialogOpen ? bot : null}
+					onClose={() => setMemoryDialogOpen(false)}
+				/>
+			) : null}
 			<AlertDialog
 				open={deleteConfirmOpen}
 				onOpenChange={(open) => {

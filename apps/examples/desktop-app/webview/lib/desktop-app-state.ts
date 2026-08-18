@@ -12,7 +12,13 @@ export type DesktopThread = {
 	historySession?: SessionHistoryItem;
 	hasStarted?: boolean;
 	initialPromptDraft?: string;
+	/** Set when this thread is a bot's persistent chat (see lib/bots.ts). */
+	botId?: string;
 };
+
+export function botThreadIdFor(botId: string): string {
+	return `bot_thread_${botId}`;
+}
 
 export type DesktopAppLocation<SettingsSection extends string> = {
 	activeThreadId: string;
@@ -34,6 +40,11 @@ export type DesktopAppAction<SettingsSection extends string> =
 			type: "open-session";
 			session: SessionHistoryItem;
 			initialPromptDraft?: string;
+	  }
+	| {
+			type: "open-bot";
+			botId: string;
+			session?: SessionHistoryItem;
 	  }
 	| { type: "consume-initial-prompt-draft"; threadId: string }
 	| {
@@ -134,6 +145,46 @@ export function desktopAppReducer<SettingsSection extends string>(
 								initialPromptDraft: action.initialPromptDraft,
 							},
 						];
+			return {
+				threads,
+				navigation: navigationHistoryReducer(state.navigation, {
+					type: "navigate",
+					destination: {
+						...state.navigation.current,
+						activeThreadId: threadId,
+						view: "chat",
+					},
+				}),
+			};
+		}
+		case "open-bot": {
+			const threadId = botThreadIdFor(action.botId);
+			const existingIdx = state.threads.findIndex(
+				(thread) => thread.id === threadId,
+			);
+			const botThread: DesktopThread = {
+				id: threadId,
+				botId: action.botId,
+				hasStarted: Boolean(action.session),
+				historySession: action.session,
+			};
+			const threads =
+				existingIdx >= 0
+					? state.threads.map((thread, index) =>
+							index === existingIdx
+								? {
+										...thread,
+										...botThread,
+										// Keep an already-hydrated session when re-opening the
+										// same bot thread without a fresh lookup.
+										historySession:
+											action.session ?? thread.historySession,
+										hasStarted:
+											thread.hasStarted || Boolean(action.session),
+									}
+								: thread,
+						)
+					: [...state.threads, botThread];
 			return {
 				threads,
 				navigation: navigationHistoryReducer(state.navigation, {

@@ -38,6 +38,7 @@ import {
 } from "react";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
+import { BotsPanel } from "@/components/views/bots/bots-panel";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -83,6 +84,7 @@ import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
+import type { BotSummary } from "@/lib/bots";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -100,6 +102,22 @@ import { cn } from "@/lib/utils";
 
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
+type SidebarListMode = "chats" | "bots";
+
+const SIDEBAR_LIST_MODE_STORAGE_KEY = "cline.code.sidebar-list-mode.v1";
+
+function readStoredSidebarListMode(): SidebarListMode {
+	if (typeof window === "undefined") {
+		return "chats";
+	}
+	try {
+		return window.localStorage.getItem(SIDEBAR_LIST_MODE_STORAGE_KEY) === "bots"
+			? "bots"
+			: "chats";
+	} catch {
+		return "chats";
+	}
+}
 
 const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
@@ -216,6 +234,12 @@ export function AgentSidebar({
 	view,
 	activeSessionId,
 	sessionHistory,
+	bots,
+	botsLoaded,
+	activeBotId,
+	onOpenBot,
+	onBotDeleted,
+	onRefreshBots,
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
@@ -229,6 +253,12 @@ export function AgentSidebar({
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
+	bots: BotSummary[];
+	botsLoaded: boolean;
+	activeBotId: string | null;
+	onOpenBot: (bot: BotSummary) => void;
+	onBotDeleted: (botId: string) => void;
+	onRefreshBots: () => Promise<void>;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
@@ -277,6 +307,19 @@ export function AgentSidebar({
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const [listMode, setListMode] = useState<SidebarListMode>(
+		readStoredSidebarListMode,
+	);
+
+	const switchListMode = useCallback((mode: SidebarListMode) => {
+		setListMode(mode);
+		try {
+			window.localStorage.setItem(SIDEBAR_LIST_MODE_STORAGE_KEY, mode);
+		} catch {
+			// Non-persistent environments still switch for the session.
+		}
+	}, []);
+
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -355,6 +398,14 @@ export function AgentSidebar({
 			closeMobileSidebar();
 		},
 		[closeMobileSidebar, openHistoryThread],
+	);
+
+	const openBot = useCallback(
+		(bot: BotSummary) => {
+			onOpenBot(bot);
+			closeMobileSidebar();
+		},
+		[closeMobileSidebar, onOpenBot],
 	);
 
 	const openNewThread = useCallback(() => {
@@ -732,7 +783,52 @@ export function AgentSidebar({
 					</div>
 				) : (
 					<>
-						<div className="mt-5 shrink-0 pl-4 pr-2">
+						<div className="mt-4 shrink-0 px-2">
+							<div
+								className="flex items-center gap-0.5 rounded-lg bg-surface-hover/50 p-0.5"
+								role="tablist"
+							>
+								<button
+									aria-selected={listMode === "chats"}
+									className={cn(
+										"flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-medium text-muted-foreground",
+										listMode === "chats" &&
+											"bg-background text-sidebar-foreground shadow-sm",
+									)}
+									onClick={() => switchListMode("chats")}
+									role="tab"
+									type="button"
+								>
+									Chats
+								</button>
+								<button
+									aria-selected={listMode === "bots"}
+									className={cn(
+										"flex h-7 flex-1 items-center justify-center gap-1.5 rounded-md text-xs font-medium text-muted-foreground",
+										listMode === "bots" &&
+											"bg-background text-sidebar-foreground shadow-sm",
+									)}
+									onClick={() => switchListMode("bots")}
+									role="tab"
+									type="button"
+								>
+									<Bot className="size-3.5" />
+									Bots
+								</button>
+							</div>
+						</div>
+						{listMode === "bots" ? (
+							<BotsPanel
+								activeBotId={activeBotId}
+								bots={bots}
+								botsLoaded={botsLoaded}
+								onBotDeleted={onBotDeleted}
+								onOpenBot={openBot}
+								onRefreshBots={onRefreshBots}
+							/>
+						) : (
+							<>
+						<div className="mt-1 shrink-0 pl-4 pr-2">
 							<div className="flex h-8 items-center justify-between gap-2">
 								<button
 									className={cn(
@@ -884,6 +980,8 @@ export function AgentSidebar({
 								</div>
 							</ScrollArea>
 						</div>
+							</>
+						)}
 					</>
 				)}
 

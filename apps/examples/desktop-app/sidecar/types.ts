@@ -118,6 +118,12 @@ export type SidecarContext = {
 	sessionManager: ClineCore | null;
 	hubClient: NodeHubClient | null;
 	workspaceRoot: string;
+	/**
+	 * Bot sessions started by this sidecar process (botId → sessionId). A bot
+	 * session in this map still has its bot tools registered as hub client
+	 * contributions, so messages can be delivered without restarting it.
+	 */
+	liveBotSessions: Map<string, string>;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
 	unsubscribeSessionEvents: (() => void) | null;

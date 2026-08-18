@@ -58,6 +58,7 @@ import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import packageJson from "../package.json";
 import { CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT } from "../webview/lib/cline-account-state";
 import { MAX_RECORDED_AUDIO_BYTES } from "../webview/lib/voice-input-limits";
+import { handleBotsCommand, isBotsCommand } from "./bots";
 import {
 	connectorChannelsPayload,
 	startConnectorChannel,
@@ -1159,6 +1160,11 @@ export async function handleCommand(
 			(args?.request as ChatSessionCommandRequest | undefined) ??
 				(args as ChatSessionCommandRequest),
 		);
+	}
+
+	// ── Bots ──────────────────────────────────────────────────────────
+	if (isBotsCommand(command)) {
+		return handleBotsCommand(ctx, command, args);
 	}
 
 	// ── Session data reading ──────────────────────────────────────────

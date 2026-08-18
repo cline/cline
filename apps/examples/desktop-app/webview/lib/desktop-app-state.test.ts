@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { createDesktopAppState, desktopAppReducer } from "./desktop-app-state";
+import {
+	botThreadIdFor,
+	createDesktopAppState,
+	desktopAppReducer,
+} from "./desktop-app-state";
 import type { SessionHistoryItem } from "./session-history";
 
 const settingsSection = "General" as const;
@@ -98,5 +102,66 @@ describe("desktopAppReducer", () => {
 
 		state = desktopAppReducer(state, deletion);
 		expect(desktopAppReducer(state, deletion)).toBe(state);
+	});
+
+	it("opens a bot thread once and reuses it on re-open", () => {
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, { type: "open-bot", botId: "bot_a" });
+
+		const threadId = botThreadIdFor("bot_a");
+		expect(state.navigation.current.activeThreadId).toBe(threadId);
+		const botThread = state.threads.find((thread) => thread.id === threadId);
+		expect(botThread?.botId).toBe("bot_a");
+		expect(botThread?.historySession).toBeUndefined();
+
+		// Re-opening with a resolved session attaches it to the same thread.
+		state = desktopAppReducer(state, { type: "navigate", destination: {
+			...state.navigation.current,
+			activeThreadId: "welcome",
+		} });
+		state = desktopAppReducer(state, {
+			type: "open-bot",
+			botId: "bot_a",
+			session: createSession("bot-session"),
+		});
+		const reopened = state.threads.filter((thread) => thread.id === threadId);
+		expect(reopened).toHaveLength(1);
+		expect(reopened[0]?.historySession?.sessionId).toBe("bot-session");
+		expect(reopened[0]?.hasStarted).toBe(true);
+		expect(state.navigation.current.activeThreadId).toBe(threadId);
+	});
+
+	it("keeps a hydrated bot session when re-opened without a fresh lookup", () => {
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, {
+			type: "open-bot",
+			botId: "bot_a",
+			session: createSession("bot-session"),
+		});
+		state = desktopAppReducer(state, { type: "open-bot", botId: "bot_a" });
+		const thread = state.threads.find(
+			(candidate) => candidate.id === botThreadIdFor("bot_a"),
+		);
+		expect(thread?.historySession?.sessionId).toBe("bot-session");
+		expect(thread?.hasStarted).toBe(true);
+	});
+
+	it("removes a bot thread through delete-session", () => {
+		let state = createDesktopAppState("welcome", settingsSection);
+		state = desktopAppReducer(state, {
+			type: "open-bot",
+			botId: "bot_a",
+			session: createSession("bot-session"),
+		});
+		state = desktopAppReducer(state, {
+			type: "delete-session",
+			deletedSessionId: "bot-session",
+			deletedThreadId: botThreadIdFor("bot_a"),
+			fallbackThreadId: "fallback-a",
+		});
+		expect(
+			state.threads.some((thread) => thread.id === botThreadIdFor("bot_a")),
+		).toBe(false);
+		expect(state.navigation.current.activeThreadId).toBe("fallback-a");
 	});
 });

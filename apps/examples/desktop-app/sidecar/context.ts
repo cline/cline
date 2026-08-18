@@ -504,6 +504,7 @@ export function createSidecarContext(
 		sessionManager: null,
 		hubClient: null,
 		workspaceRoot,
+		liveBotSessions: new Map(),
 		logger: observability.logger,
 		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,

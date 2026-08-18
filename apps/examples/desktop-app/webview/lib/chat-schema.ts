@@ -3,6 +3,8 @@ import { z } from "zod";
 
 export const ChatSessionConfigSchema = z.object({
 	sessionId: z.string().min(1).optional(),
+	/** When set, this chat is a bot's persistent session (see lib/bots.ts). */
+	botId: z.string().min(1).optional(),
 	workspaceRoot: z.string(),
 	cwd: z.string().optional(),
 	provider: z.string().min(1),

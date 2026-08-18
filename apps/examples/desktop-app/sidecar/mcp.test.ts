@@ -20,6 +20,7 @@ function createContext(workspaceRoot: string): SidecarContext {
 		sessionManager: null,
 		hubClient: null,
 		workspaceRoot,
+		liveBotSessions: new Map(),
 		unsubscribeSessionEvents: null,
 		hubBuildMismatch: null,
 	};

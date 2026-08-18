@@ -26,6 +26,7 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
+import { startBotChatSession } from "./bots";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import type {
@@ -635,11 +636,48 @@ function getSessionManager(ctx: SidecarContext): ClineCore {
 // Chat session action handlers
 // ---------------------------------------------------------------------------
 
+async function handleBotStart(
+	ctx: SidecarContext,
+	botId: string,
+	config: JsonRecord,
+): Promise<unknown> {
+	// Bot sessions are owned by the bots module: it resumes the bot's
+	// persistent session, injects the persona rules + memory, registers the
+	// bot tools, and pins the session to the bot's private workspace.
+	const started = await startBotChatSession(ctx, botId, { config });
+	const sessionConfig: JsonRecord = {
+		...config,
+		sessionId: started.sessionId,
+		cwd: started.cwd,
+		workspaceRoot: started.workspaceRoot,
+	};
+	ctx.liveSessions.set(
+		started.sessionId,
+		createLiveSession(sessionConfig, {
+			messages: started.initialMessages ?? [],
+			prompt: started.initialMessages
+				? derivePromptFromMessages(started.initialMessages)
+				: undefined,
+			title: readSessionMetadataTitle(started.sessionId),
+			status: "idle",
+		}),
+	);
+	return {
+		sessionId: started.sessionId,
+		cwd: started.cwd,
+		workspaceRoot: started.workspaceRoot,
+	};
+}
+
 async function handleStart(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
 	if (!request.config) throw new Error("config is required");
+	const botId = String(request.config.botId ?? "").trim();
+	if (botId) {
+		return handleBotStart(ctx, botId, request.config);
+	}
 	const manager = getSessionManager(ctx);
 	const systemPrompt = await resolveSystemPrompt(request.config);
 	const requestedSessionId = String(
