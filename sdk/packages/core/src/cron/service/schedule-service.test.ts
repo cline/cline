@@ -336,11 +336,19 @@ describe("HubScheduleService", () => {
 				},
 			});
 			try {
-				const commands = new HubScheduleCommandService(service);
+				const commands = new HubScheduleCommandService(service, {
+					resolveClientWorkspace: (clientId) =>
+						clientId === "workspace-client"
+							? { workspaceRoot: "/workspace", cwd: "/workspace" }
+							: clientId === "other-client"
+								? { workspaceRoot: "/other-workspace" }
+								: undefined,
+				});
 
 				const createdReply = await commands.handleCommand({
 					version: "v1",
 					command: "schedule.create",
+					clientId: "workspace-client",
 					payload: {
 						name: "Command routine",
 						cronPattern: "15 * * * *",
@@ -362,6 +370,7 @@ describe("HubScheduleService", () => {
 				const planReply = await commands.handleCommand({
 					version: "v1",
 					command: "schedule.update",
+					clientId: "workspace-client",
 					payload: { scheduleId: created.scheduleId, mode: "plan" },
 				});
 				expect(planReply.ok).toBe(true);
@@ -372,6 +381,7 @@ describe("HubScheduleService", () => {
 				const omittedModeReply = await commands.handleCommand({
 					version: "v1",
 					command: "schedule.update",
+					clientId: "workspace-client",
 					payload: { scheduleId: created.scheduleId, name: "Renamed routine" },
 				});
 				expect(omittedModeReply.ok).toBe(true);
@@ -383,6 +393,7 @@ describe("HubScheduleService", () => {
 					const invalidUpdateReply = await commands.handleCommand({
 						version: "v1",
 						command: "schedule.update",
+						clientId: "workspace-client",
 						payload: { scheduleId: created.scheduleId, mode: invalidMode },
 					});
 					expect(invalidUpdateReply).toMatchObject({
@@ -397,6 +408,7 @@ describe("HubScheduleService", () => {
 				const invalidCreateReply = await commands.handleCommand({
 					version: "v1",
 					command: "schedule.create",
+					clientId: "workspace-client",
 					payload: {
 						name: "Invalid routine",
 						cronPattern: "30 * * * *",
@@ -416,6 +428,7 @@ describe("HubScheduleService", () => {
 				const listReply = await commands.handleCommand({
 					version: "v1",
 					command: "schedule.list",
+					clientId: "workspace-client",
 					payload: { limit: 10 },
 				});
 				expect(listReply.ok).toBe(true);
@@ -426,6 +439,35 @@ describe("HubScheduleService", () => {
 					}>
 				).find((item) => item.scheduleId === created.scheduleId);
 				expect(listedSchedule).toMatchObject({ mode: "plan" });
+
+				const foreignGet = await commands.handleCommand({
+					version: "v1",
+					command: "schedule.get",
+					clientId: "other-client",
+					payload: { scheduleId: created.scheduleId },
+				});
+				expect(foreignGet).toMatchObject({
+					ok: false,
+					error: {
+						code: "schedule_command_failed",
+						message: "schedule does not exist in this workspace",
+					},
+				});
+
+				const spoofedCreate = await commands.handleCommand({
+					version: "v1",
+					command: "schedule.create",
+					clientId: "workspace-client",
+					payload: {
+						name: "Scoped routine",
+						cronPattern: "30 * * * *",
+						prompt: "Stay in scope",
+						workspaceRoot: "/other-workspace",
+					},
+				});
+				expect(spoofedCreate.payload?.schedule).toMatchObject({
+					workspaceRoot: "/workspace",
+				});
 			} finally {
 				await service.dispose();
 			}

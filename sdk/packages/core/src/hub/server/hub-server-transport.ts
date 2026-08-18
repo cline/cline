@@ -303,7 +303,10 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			},
 		});
-		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
+		this.scheduleCommands = new HubScheduleCommandService(this.schedules, {
+			resolveClientWorkspace: (clientId) =>
+				this.clients.get(clientId)?.workspaceContext,
+		});
 		this.sessionTools.push(
 			createTasksTool({
 				todo: {

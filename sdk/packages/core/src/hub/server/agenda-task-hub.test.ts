@@ -243,10 +243,24 @@ describe("Hub agenda task vertical slice", () => {
 					createdBy: "agent:task-agent",
 				},
 			});
+			await transport.handleCommand({
+				version: "v1",
+				command: "client.register",
+				clientId: "schedule-client",
+				payload: {
+					clientId: "schedule-client",
+					clientType: "test-client",
+					transport: "native",
+					workspaceContext: {
+						workspaceRoot: canonicalChatWorkspace,
+						cwd: canonicalChatWorkspace,
+					},
+				},
+			});
 			const listedSchedules = await transport.handleCommand({
 				version: "v1",
 				command: "schedule.list",
-				clientId: "desktop",
+				clientId: "schedule-client",
 				payload: { workspaceRoot: canonicalChatWorkspace },
 			});
 			expect(listedSchedules.payload?.schedules).toEqual([
