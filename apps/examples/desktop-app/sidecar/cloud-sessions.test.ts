@@ -1538,6 +1538,52 @@ describe("CloudSessionManager", () => {
 		).toBe(true);
 	});
 
+	it("keeps an org connection when reconnect cleanup cannot resolve its scope", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		hub.commandHook = (command) => {
+			if (command === "session.get") throw new Error("rehydration failed");
+		};
+		let resolveHeaders:
+			| (() =>
+					| Readonly<Record<string, string>>
+					| Promise<Readonly<Record<string, string>>>)
+			| undefined;
+		let organizationLookups = 0;
+		const listScopes: Array<string | undefined> = [];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async (organizationId?: string) => {
+					listScopes.push(organizationId);
+					return organizationId ? [REMOTE_SESSION] : [];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async () => {
+				organizationLookups += 1;
+				if (organizationLookups > 1) throw new Error("account endpoint down");
+				return "org-cline-bot";
+			},
+			createHubClient: (options) => {
+				resolveHeaders = options.resolveConnectionHeaders;
+				return hub as never;
+			},
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		await resolveHeaders?.();
+		await resolveHeaders?.();
+		await vi.waitFor(() => expect(organizationLookups).toBe(2));
+
+		expect(hub.disposed).toBe(false);
+		expect(listScopes).toEqual(["org-cline-bot"]);
+		expect(
+			events.some((event) => event.name === "cloud_session_sync_failed"),
+		).toBe(true);
+	});
+
 	it("keeps buffered queue state when the queue snapshot reply is malformed", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -2927,6 +2973,42 @@ describe("CloudSessionManager", () => {
 			repoUrl: "https://github.com/cline/test",
 		});
 		expect(createInput).toMatchObject({ organizationId: "org-cline-bot" });
+	});
+
+	it("refreshes the active organization before creating a session", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		let serverScope = "org-a";
+		let cachedScope = serverScope;
+		const lookupOptions: Array<{ fresh?: boolean } | undefined> = [];
+		let createInput: Record<string, unknown> | undefined;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => [],
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-created", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: async (options) => {
+				lookupOptions.push(options);
+				if (options?.fresh) cachedScope = serverScope;
+				return cachedScope;
+			},
+			createHubClient: () => hub as never,
+		});
+
+		await manager.list();
+		serverScope = "org-b";
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+		});
+
+		expect(lookupOptions).toEqual([undefined, { fresh: true }]);
+		expect(createInput).toMatchObject({ organizationId: "org-b" });
 	});
 
 	it("keeps refresh-after-connect-failure in the active organization", async () => {
