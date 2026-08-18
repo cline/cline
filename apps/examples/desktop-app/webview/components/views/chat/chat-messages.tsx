@@ -507,9 +507,9 @@ function ChatMessagesImpl({
 						className={cn(
 							"relative min-h-full",
 							// Bottom padding clears a pinned action pill (~40px with its
-							// offset) plus a small visible gap before the composer, which
+							// offset) plus a comfortable gap before the composer, which
 							// sits below the scroller, not over it.
-							showIdleDetails ? "p-0" : "pt-6 pb-12",
+							showIdleDetails ? "p-0" : "pt-6 pb-16",
 						)}
 					>
 						{showIdleDetails ? null : (
