@@ -14,6 +14,7 @@ import { isOpenTelemetryConfigValid, remoteConfigToOtelConfig } from "@/shared/s
 import { Logger } from "@/shared/services/Logger"
 import { syncWorker } from "@/shared/services/worker/sync"
 import { BlobStoreSettings } from "@/shared/storage"
+import { deleteRemoteConfigFromCache } from "../disk"
 import { StateManager } from "../StateManager"
 import { syncRemoteMcpServersToSettings } from "./syncRemoteMcpServers"
 
@@ -269,7 +270,7 @@ async function applyRemoteSyncQueueConfig(transformed: Partial<RemoteConfigField
 	}
 }
 
-export function clearRemoteConfig() {
+export function clearRemoteConfig(organizationId?: string) {
 	try {
 		const stateManager = StateManager.get()
 
@@ -279,9 +280,22 @@ export function clearRemoteConfig() {
 		stateManager.setGlobalState("remoteRulesToggles", {})
 		stateManager.setGlobalState("remoteWorkflowToggles", {})
 		stateManager.setGlobalState("remoteSkillsToggles", {})
+		stateManager.setGlobalState("lastManagedOrganizationId", undefined)
 
 		// clear secrets
 		stateManager.setSecret("remoteLiteLlmApiKey", undefined)
+
+		// The per-org disk cache holds the full config, including any
+		// enterprise blob-store secrets, and would otherwise resurrect the
+		// cleared policy via the offline fallback. Best-effort async removal.
+		// Sign-out deauths before clearing, so callers that know the org must
+		// pass it explicitly; otherwise fall back to the live lookup.
+		const cachedOrganizationId = organizationId ?? AuthService.getInstance().getActiveOrganizationId()
+		if (cachedOrganizationId) {
+			void deleteRemoteConfigFromCache(cachedOrganizationId).catch((err) =>
+				Logger.error("[REMOTE CONFIG] Failed to delete cached remote config", err),
+			)
+		}
 	} catch (err) {
 		Logger.error("[REMOTE CONFIG] Failed to clear remote config", err)
 	}

@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
@@ -10,6 +11,25 @@ afterEach(() => {
 	clearPrivateModelsCatalogCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
+});
+
+describe("isPrivateModelCatalogProvider", () => {
+	it.each([
+		"baseten",
+		"hicap",
+		"litellm",
+		"poolside",
+	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
+	});
+
+	it.each([
+		"openrouter",
+		"requesty",
+		"anthropic",
+	])("does not classify %s as endpoint-specific", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
 });
 
 describe("resolveProviderConfig", () => {
@@ -513,6 +533,8 @@ describe("resolveProviderConfig", () => {
 								model_name: "private-proxy-model",
 								litellm_params: { model: "openai/gpt-4o-mini" },
 								model_info: {
+									max_output_tokens: 64_000,
+									max_input_tokens: 500_000,
 									supports_vision: true,
 									supports_reasoning: true,
 								},
@@ -543,12 +565,16 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
 		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
