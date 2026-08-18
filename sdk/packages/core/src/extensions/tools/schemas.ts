@@ -135,14 +135,12 @@ export const StructuredCommandInputSchema = z.object({
 		.string()
 		.min(1)
 		.describe(
-			"When args is provided: the bare executable name or path only (no arguments or shell syntax), spawned directly without shell parsing. When args is omitted: treated as a complete shell command line.",
+			"The executable to run directly, or a full shell command line when args is omitted.",
 		),
 	args: z
 		.array(z.string())
 		.optional()
-		.describe(
-			"Argv list passed directly to the executable, one argument per entry. Put all arguments here instead of embedding them in command.",
-		),
+		.describe("Optional argv list passed directly to the executable."),
 });
 
 export const StructuredCommandEntrySchema = z.union([
