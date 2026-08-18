@@ -109,7 +109,7 @@ describe("preflightCloudHandoffGit", () => {
 		const error = await preflightCloudHandoffGit({
 			cwd: "/repo",
 			git: fakeGit({
-					"remote get-url origin": "git@gitlab.com:cline/cline.git\n",
+				"remote get-url origin": "git@gitlab.com:cline/cline.git\n",
 			}),
 		}).catch((caught) => caught);
 
