@@ -181,7 +181,9 @@ export const ToolMessageBlock = memo(
 	function ToolMessageBlock({ messages }: { messages: ChatMessage[] }) {
 		if (messages.length === 0) return null;
 		return (
-			<div className="flex flex-col gap-1">
+			// Positioned so the group (incl. its internal gaps) paints above earlier
+			// messages' hover bridges and keeps its own hover and clicks.
+			<div className="relative flex flex-col gap-1">
 				{messages.map((message) => (
 					<ToolCallRow key={message.id} message={message} />
 				))}
