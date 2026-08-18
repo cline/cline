@@ -64,6 +64,13 @@ export function getShellInvocation(
 			// Windows code page. Keep the command line ASCII-only, send the command
 			// through UTF-8 stdin, and make redirected output UTF-8. Stdin also avoids
 			// reducing Windows' process command-line limit with base64 expansion.
+			//
+			// The script runs with $ErrorActionPreference='Stop' so pipelines fail
+			// fast on the first error. Under the default 'Continue', a pipeline that
+			// errors per item (e.g. a bad Where-Object over Get-ChildItem -Recurse)
+			// emits one error record per file — flooding stderr for minutes on large
+			// trees — and can still exit 0. The preamble is concatenated on the same
+			// line as the user command so error line numbers stay unshifted.
 			return {
 				args: [
 					"-NoProfile",
@@ -71,7 +78,7 @@ export function getShellInvocation(
 					"-Command",
 					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
 						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
-						"$c=[Console]::In.ReadToEnd();" +
+						"$c='$ErrorActionPreference=''Stop'';'+[Console]::In.ReadToEnd();" +
 						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
 						"& ([ScriptBlock]::Create($c))",
 				],

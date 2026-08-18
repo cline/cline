@@ -32,6 +32,22 @@ describe("shell helpers", () => {
 		}
 	});
 
+	it("runs the PowerShell script under fail-fast error semantics", () => {
+		for (const shell of [
+			"powershell",
+			"C:\\Program Files\\PowerShell\\7\\pwsh.exe",
+		]) {
+			const { args } = getShellInvocation(shell, "Get-ChildItem");
+			// The executed script content must be prefixed with
+			// $ErrorActionPreference='Stop' (single quotes doubled inside the
+			// PowerShell single-quoted bootstrap string) so per-item pipeline
+			// errors terminate immediately instead of flooding stderr.
+			expect(args[3]).toContain(
+				"$c='$ErrorActionPreference=''Stop'';'+[Console]::In.ReadToEnd();",
+			);
+		}
+	});
+
 	it("keeps getShellArgs self-contained for PowerShell callers", () => {
 		expect(getShellArgs("powershell", "Write-Output 'hi'")).toEqual([
 			"-NoProfile",
