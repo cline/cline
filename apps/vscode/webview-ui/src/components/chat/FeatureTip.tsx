@@ -8,9 +8,6 @@ interface FeatureTipItem {
 
 const FEATURE_TIPS: FeatureTipItem[] = [
 	{
-		text: 'Enable "Double-Check Completion" in settings to have Cline verify its work before finishing a task.',
-	},
-	{
 		text: "Add a .clinerules file to your project root to give Cline project-specific instructions.",
 	},
 	{

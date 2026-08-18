@@ -429,6 +429,7 @@ message UpdateSettingsRequest {
   optional bool worktrees_enabled = 40;
   optional bool show_feature_tips = 42;
   optional string compaction_strategy = 44;
+  optional bool web_search_enabled = 45;
 }
 
 message UpdateTerminalConnectionTimeoutRequest {

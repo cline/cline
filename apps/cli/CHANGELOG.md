@@ -1,5 +1,36 @@
 # Cline CLI Changelog
 
+## 3.0.55
+
+- Auto-updates no longer install while a CLI is attached to the Hub. The update is recorded at startup and installed on exit, once the Hub confirms nothing else is attached, so a background update can no longer swap the package out from under a live session and kill it with `Hub connection closed (code=1006)`. `cline update` still installs immediately and now tells you the update applies on next start
+- Added protections for an update landing under CLI 3.0.54 and earlier, whose updater restarts the Hub mid-session and then rejects every replacement, bricking a running session. The newly installed package defuses that path during install instead of leaving it to fire
+- Fixed two Cline installations on different builds shutting each other's Hub daemon down in a loop, which killed every live session with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can ever decide to retire the other (from SDK v0.0.75)
+- A newer build no longer replaces a Hub that is still serving sessions — it attaches to it and the swap happens on a later launch, instead of the sessions dying mid-handshake (from SDK v0.0.75)
+- Removed the "outdated Hub" notice. It reported a state you cannot act on, and the toast was capped narrower than the message, so it rendered cut off before the reassuring half of the sentence at every terminal width. The prompt for a genuine build mismatch, where there is something to do, is unchanged
+- Streaming assistant markdown no longer flashes back to raw text. Settled headings, links, and code stay rendered as new chunks arrive instead of the whole message being rebuilt and re-highlighted on every chunk, which also stops the transcript from jumping vertically mid-stream
+- Web search calls and their results from models that run search natively now render in the transcript (from SDK v0.0.75)
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session (from SDK v0.0.75)
+- `cline doctor fix` now reports honestly: processes that survived a kill are separated from ones that appeared while the fix ran, a live parent respawning a daemon is named, and a startup lock held by a running process is reported as held rather than leaked (from SDK v0.0.75)
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board (from SDK v0.0.75)
+
+## 3.0.54
+
+- Fixed the Claude Code provider being unusable for agentic work: the provider now runs its own native tools instead of receiving tool definitions it cannot bridge, the session is anchored on your workspace directory instead of inheriting the host's cwd, and `~/.claude` plus project settings are loaded so your permission rules apply. File edits under the workspace are auto-approved; command execution stays gated by your own Claude settings (from SDK v0.0.74)
+- Fixed truncated tool-call JSON being silently "repaired" into wrong arguments — a payload with an unterminated string is now rejected rather than getting an invented terminator (from SDK v0.0.74)
+- Fixed strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts (from SDK v0.0.74)
+- Fixed a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough (from SDK v0.0.74)
+- Managed Hub daemons now upgrade directionally: when another Cline install ships a newer Hub build, the CLI attaches to the newer daemon and prompts you to update and restart instead of the two installs repeatedly retiring each other's daemons. Yolo and sandbox sessions, which never attach to the shared Hub, are not interrupted by that prompt (from SDK v0.0.74)
+- Fixed the Hub daemon logging an unhandled `hub server close failed` error and exiting non-zero whenever a client was still connected at shutdown (from SDK v0.0.74)
+- Fixed per-task token totals being inflated roughly 5x on cache-heavy sessions — token telemetry now reports disjoint uncached-input, cache-read, and cache-write buckets instead of re-counting the whole cached conversation on every request (from SDK v0.0.74)
+- Upgrading the CLI now retires an already-running Hub daemon and respawns it on the new code, instead of the upgraded CLI continuing to talk to a daemon executing the previous release
+
+## 3.0.53
+
+- Fixed the CLI reconnecting to a stale Hub daemon after an upgrade. Hub daemons now carry a runtime build fingerprint, so an upgraded CLI retires and respawns a daemon still running older code instead of attaching to it (from SDK v0.0.73)
+- Fixed compaction being silently skipped on reasoning models. The summarizer no longer hardcodes a 1024-token output cap — it honors your max output tokens setting, defaults to 4096 (lowered when the model reports less), and logs a diagnostic when a summary comes back empty (from SDK v0.0.73)
+- Added Fable 5 (`claude-fable-5`) to the Vertex model catalog. Pricing is intentionally omitted because Vertex bills region-dependently, so cost shows as unknown rather than wrong (from SDK v0.0.73)
+- Custom Vertex model IDs are now passed through unchanged, routing Claude-style IDs to the Anthropic-on-Vertex path (from SDK v0.0.73)
+
 ## 3.0.52
 
 - Added `cline mcp uninstall` for removing an installed MCP server

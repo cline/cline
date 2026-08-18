@@ -2,6 +2,7 @@
 
 import {
 	ArrowLeft,
+	Brain,
 	ChevronRight,
 	Copy,
 	ExternalLink,
@@ -11,6 +12,7 @@ import {
 	ImageIcon,
 	Link as LinkIcon,
 	Loader2,
+	Mic,
 	Plus,
 	PlusCircle,
 	RefreshCw,
@@ -25,11 +27,16 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Switch } from "@/components/ui/switch";
 import { openExternalUrl } from "@/lib/desktop-client";
 import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
+import {
+	isDedicatedTranscriptionModel,
+	supportsAudio,
+} from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderConfigField,
 	ProviderConfigFieldPrimitive,
 	ProviderSettingsUpdate,
+	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 
@@ -124,15 +131,21 @@ export function ProviderListContent({
 	onToggle,
 	onConfigure,
 	onAddProvider,
+	onVoiceInputChange,
 	selectedProviderId,
 	variant = "page",
+	voiceInput,
+	voiceInputSaving = false,
 }: {
 	providers: Provider[];
 	onToggle: (id: string) => void;
 	onConfigure: (id: string) => void;
 	onAddProvider: () => void;
+	onVoiceInputChange: (selection: VoiceInputSelection | undefined) => void;
 	selectedProviderId?: string | null;
 	variant?: "page" | "panel";
+	voiceInput?: VoiceInputSelection;
+	voiceInputSaving?: boolean;
 }) {
 	const [providerSearchOpen, setProviderSearchOpen] = useState(false);
 	const [providerSearch, setProviderSearch] = useState("");
@@ -146,6 +159,17 @@ export function ProviderListContent({
 			)
 		: providers;
 	const isPanel = variant === "panel";
+	const voiceProviders = providers
+		.filter((provider) => provider.enabled)
+		.map((provider) => ({
+			provider,
+			models: (provider.modelList ?? []).filter(isDedicatedTranscriptionModel),
+		}))
+		.filter((entry) => entry.models.length > 0);
+	const selectedVoiceProvider = voiceProviders.find(
+		(entry) => entry.provider.id === voiceInput?.providerId,
+	);
+	const selectedVoiceModels = selectedVoiceProvider?.models ?? [];
 
 	return (
 		<ScrollArea className="h-full">
@@ -164,7 +188,7 @@ export function ProviderListContent({
 					<div className="min-w-0">
 						<h1
 							className={cn(
-								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+								"truncate font-semibold leading-[1.15] text-foreground",
 								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
@@ -194,6 +218,84 @@ export function ProviderListContent({
 							<PlusCircle className="size-4" />
 							Add provider
 						</Button>
+					</div>
+				</div>
+
+				<div
+					className={cn(
+						"mb-7 border-y py-4",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
+					<div className="mb-3">
+						<h2 className="text-[17px] font-semibold text-foreground">
+							Voice input
+						</h2>
+						<p className="mt-1 text-sm leading-5 text-muted-foreground">
+							Choose the configured audio-to-text model used by the microphone
+							in chat. Streaming models show text live; other models transcribe
+							after recording stops.
+						</p>
+					</div>
+					<div className="grid grid-cols-2 gap-3 max-[720px]:grid-cols-1">
+						<label className="space-y-1.5 text-sm text-muted-foreground">
+							<span>Provider</span>
+							<select
+								aria-label="Voice input provider"
+								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+								disabled={voiceInputSaving}
+								onChange={(event) => {
+									const providerId = event.target.value;
+									if (!providerId) {
+										onVoiceInputChange(undefined);
+										return;
+									}
+									const entry = voiceProviders.find(
+										(candidate) => candidate.provider.id === providerId,
+									);
+									const modelId = entry?.models[0]?.id;
+									if (modelId) {
+										onVoiceInputChange({ providerId, modelId });
+									}
+								}}
+								value={selectedVoiceProvider?.provider.id ?? ""}
+							>
+								<option value="">Not configured</option>
+								{voiceProviders.map(({ provider }) => (
+									<option key={provider.id} value={provider.id}>
+										{provider.name}
+									</option>
+								))}
+							</select>
+						</label>
+						<label className="space-y-1.5 text-sm text-muted-foreground">
+							<span>Model</span>
+							<select
+								aria-label="Voice input model"
+								className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring disabled:opacity-50"
+								disabled={!selectedVoiceProvider || voiceInputSaving}
+								onChange={(event) => {
+									if (!selectedVoiceProvider || !event.target.value) return;
+									onVoiceInputChange({
+										providerId: selectedVoiceProvider.provider.id,
+										modelId: event.target.value,
+									});
+								}}
+								value={voiceInput?.modelId ?? ""}
+							>
+								{selectedVoiceModels.length === 0 ? (
+									<option value="">Enable an audio provider first</option>
+								) : null}
+								{selectedVoiceModels.map((model) => (
+									<option key={model.id} value={model.id}>
+										{model.name}
+										{model.operationModes?.includes("streaming")
+											? " (Live)"
+											: ""}
+									</option>
+								))}
+							</select>
+						</label>
 					</div>
 				</div>
 
@@ -238,7 +340,7 @@ export function ProviderListContent({
 								type="button"
 							>
 								<div className="flex min-w-0 flex-1 items-baseline gap-2">
-									<p className="truncate text-[17px] font-semibold text-foreground">
+									<p className="truncate text-lg font-semibold text-foreground">
 										{prov.name}
 									</p>
 									<p className="shrink-0 truncate font-mono text-xs text-muted-foreground">
@@ -439,8 +541,8 @@ export function ProviderDetailContent({
 					<div className="flex min-w-0 items-baseline gap-2">
 						<h1
 							className={cn(
-								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
-								isPanel ? "text-[24px]" : "text-[32px]",
+								"truncate font-semibold leading-[1.15] text-foreground",
+								isPanel ? "text-2xl" : "text-3xl",
 							)}
 						>
 							{provider.name}
@@ -465,7 +567,7 @@ export function ProviderDetailContent({
 										key={field.path}
 									>
 										<header>
-											<h3 className="text-[17px] font-semibold text-foreground">
+											<h3 className="text-lg font-semibold text-foreground">
 												{field.label}
 											</h3>
 											{field.description ? (
@@ -610,12 +712,12 @@ export function ProviderDetailContent({
 				<section
 					className={cn(
 						"overflow-hidden rounded-lg border",
-						isPanel ? "max-w-none" : "max-w-[46rem]",
+						isPanel ? "max-w-none" : "max-w-184",
 					)}
 				>
 					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
 						<div className="flex items-center gap-1">
-							<h2 className="mr-1 text-[17px] font-medium text-muted-foreground">
+							<h2 className="mr-1 text-lg font-medium text-muted-foreground">
 								Models
 							</h2>
 							<Button
@@ -715,14 +817,52 @@ export function ProviderDetailContent({
 													<span className="truncate">{model.name}</span>
 													{/* Capability icons */}
 													{model.supportsAttachments && (
-														<div title="File Support">
-															<FileIcon className="h-3.5 w-3.5 text-muted-foreground" />
-														</div>
+														<span
+															aria-label="File support"
+															role="img"
+															title="File support"
+														>
+															<FileIcon
+																aria-hidden="true"
+																className="h-3.5 w-3.5 text-muted-foreground"
+															/>
+														</span>
 													)}
 													{model.supportsVision && (
-														<div title="Image Support">
-															<ImageIcon className="h-3.5 w-3.5 text-muted-foreground" />
-														</div>
+														<span
+															aria-label="Image support"
+															role="img"
+															title="Image support"
+														>
+															<ImageIcon
+																aria-hidden="true"
+																className="h-3.5 w-3.5 text-muted-foreground"
+															/>
+														</span>
+													)}
+													{supportsAudio(model) && (
+														<span
+															aria-label="Audio support"
+															role="img"
+															title="Audio support"
+														>
+															<Mic
+																aria-hidden="true"
+																className="h-3.5 w-3.5 text-muted-foreground"
+															/>
+														</span>
+													)}
+													{model.supportsReasoning && (
+														<span
+															aria-label="Reasoning support"
+															role="img"
+															title="Reasoning support"
+														>
+															<Brain
+																aria-hidden="true"
+																className="h-3.5 w-3.5 text-muted-foreground"
+															/>
+														</span>
 													)}
 												</div>
 												<button

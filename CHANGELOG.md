@@ -1,5 +1,64 @@
 # Changelog
 
+## [4.1.10]
+
+Everything in this release lands through the SDK bundle, so it applies to windows running that bundle and not the legacy one. The legacy bundle is unchanged from 4.1.9.
+
+### Added
+
+- Let models that support it search the web during a task, with a toggle in Feature Settings to turn it on. Search calls and their results appear in the conversation and persist across reloads.
+
+### Fixed
+
+- Stop two Cline installations on different builds from shutting each other's Hub daemon down in a loop, which killed live sessions with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can decide to retire the other.
+- Leave a Hub that is still serving sessions in place instead of replacing it mid-handshake; the swap happens once it goes idle.
+- Reclaim idle plugin sandbox processes instead of leaving them running for the life of the session.
+
+### Changed
+
+- Refresh the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
+## [4.1.9]
+
+### Changed
+
+- Use the editor's foreground color for diff block text, so diffs stay legible in themes where the previous hardcoded color washed them out.
+- Switch the interface to Inter and Geist Mono.
+
+### Fixed
+
+- Don't discard a successfully refreshed Cline token when the old one was already past expiry, which made the first request after a long idle period fail despite valid credentials.
+- Stop the legacy-task migration backlog from spamming telemetry, and record a migration outcome only once the seeded session actually persists, so a failed migration is no longer reported as a success.
+- Report involuntary Cline logouts (a rejected refresh token) instead of clearing credentials silently.
+
+### Fixed (SDK bundle only)
+
+These land through SDK v0.0.74 and therefore apply to windows running the SDK bundle, not the legacy one.
+
+- Fix the Claude Code provider being unusable for agentic work: it now runs its own native tools instead of receiving tool definitions it cannot bridge, anchors the session on your workspace directory, and loads `~/.claude` plus project settings so your permission rules apply.
+- Reject truncated tool-call JSON instead of silently "repairing" it into wrong arguments.
+- Fix strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts.
+- Fix a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough.
+- Report disjoint per-request token buckets instead of re-counting the whole cached conversation on every request, which inflated per-task totals roughly 5x on cache-heavy sessions.
+
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
 ## [4.1.7]
 
 ### Added

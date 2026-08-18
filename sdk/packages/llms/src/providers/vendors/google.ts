@@ -13,11 +13,26 @@ export async function createGoogleProviderModule(
 	const apiKey = await resolveApiKey(config);
 	const provider = createGoogleGenerativeAI({
 		apiKey,
+		baseURL: config.baseUrl,
 		headers: config.headers,
 		fetch: config.fetch,
 		name: context.provider.id,
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		buildModelTools: (tools) => {
+			const result: ReturnType<
+				NonNullable<ProviderFactoryResult["buildModelTools"]>
+			> = {};
+			for (const tool of tools) {
+				if (tool.name === "web_search") {
+					result.web_search = { tool: provider.tools.googleSearch({}) };
+				}
+			}
+			return result;
+		},
+		operations: {
+			language: (modelId) => provider(modelId),
+			imageGeneration: (modelId) => provider.image(modelId),
+		},
 	};
 }
