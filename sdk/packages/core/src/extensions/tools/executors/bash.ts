@@ -331,12 +331,9 @@ export function createShellExecutor(
 		MAX_COMMAND_OUTPUT_CHARS;
 
 	return (command, cwd, context) => {
-		// Direct exec only applies when the caller already split the argv:
-		// a non-empty args list means `command` is a bare executable. The
-		// object form without args usually carries a full command line
-		// (models emit e.g. { command: "echo hello" }), which would fail
-		// with ENOENT if spawned verbatim — route it through the shell
-		// exactly like the string form.
+		// Spawn without a shell only when args are provided. An object with
+		// no args, like { command: "echo hello" }, holds a full command
+		// line, and spawning that string as an executable fails with ENOENT.
 		const directExec = typeof command !== "string" && !!command.args?.length;
 		const invocation = directExec
 			? { args: command.args ?? [] }
