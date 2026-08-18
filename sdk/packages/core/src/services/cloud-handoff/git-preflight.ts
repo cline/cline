@@ -225,7 +225,7 @@ export async function preflightCloudHandoffGit(input: {
 	const rawRemoteUrl = await runRequired(
 		git,
 		cwd,
-		["config", "--get", `remote.${remoteName}.url`],
+		["remote", "get-url", remoteName],
 		"missing_upstream",
 		`Could not resolve the ${remoteName} remote.`,
 		input.signal,

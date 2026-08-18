@@ -18,7 +18,7 @@ export type CloudHandoffModelSelection = {
 export function selectCloudHandoffModel(input: {
 	localModelId?: string;
 	models: readonly CloudHandoffModel[];
-	isOrganizationSession?: boolean;
+	isOrganizationSession: boolean;
 }): CloudHandoffModelSelection {
 	const models = input.isOrganizationSession
 		? input.models.filter((model) => model.catalogId !== "cline-pass")

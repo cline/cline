@@ -16,7 +16,7 @@ function fakeGit(overrides: Record<string, string | Error> = {}): GitCommand {
 		"config --get branch.feature/handoff.remote": "origin\n",
 		"config --get branch.feature/handoff.merge": "refs/heads/feature/handoff\n",
 		"rev-parse HEAD": `${HEAD}\n`,
-		"config --get remote.origin.url": "git@github.com:cline/cline.git\n",
+		"remote get-url origin": "git@github.com:cline/cline.git\n",
 		"ls-remote --exit-code origin refs/heads/feature/handoff": `${HEAD}\trefs/heads/feature/handoff\n`,
 		...overrides,
 	};
@@ -109,7 +109,7 @@ describe("preflightCloudHandoffGit", () => {
 		const error = await preflightCloudHandoffGit({
 			cwd: "/repo",
 			git: fakeGit({
-				"config --get remote.origin.url": "git@gitlab.com:cline/cline.git\n",
+					"remote get-url origin": "git@gitlab.com:cline/cline.git\n",
 			}),
 		}).catch((caught) => caught);
 

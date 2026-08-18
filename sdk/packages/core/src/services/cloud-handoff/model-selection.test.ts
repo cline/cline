@@ -13,9 +13,10 @@ const MODELS: CloudHandoffModel[] = [
 describe("selectCloudHandoffModel", () => {
 	it("keeps an available local model", () => {
 		expect(
-			selectCloudHandoffModel({
-				localModelId: "paid/model",
-				models: MODELS,
+				selectCloudHandoffModel({
+					localModelId: "paid/model",
+					models: MODELS,
+					isOrganizationSession: false,
 			}),
 		).toEqual({
 			modelId: "paid/model",
@@ -26,9 +27,10 @@ describe("selectCloudHandoffModel", () => {
 
 	it("falls back to Cline Cloud before the base catalog", () => {
 		expect(
-			selectCloudHandoffModel({
-				localModelId: "local-only/model",
-				models: MODELS,
+				selectCloudHandoffModel({
+					localModelId: "local-only/model",
+					models: MODELS,
+					isOrganizationSession: false,
 			}),
 		).toEqual({
 			modelId: "cloud/model",
