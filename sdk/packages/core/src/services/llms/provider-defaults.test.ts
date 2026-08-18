@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
@@ -10,6 +11,25 @@ afterEach(() => {
 	clearPrivateModelsCatalogCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
+});
+
+describe("isPrivateModelCatalogProvider", () => {
+	it.each([
+		"baseten",
+		"hicap",
+		"litellm",
+		"poolside",
+	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
+	});
+
+	it.each([
+		"openrouter",
+		"requesty",
+		"anthropic",
+	])("does not classify %s as endpoint-specific", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
 });
 
 describe("resolveProviderConfig", () => {

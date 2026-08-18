@@ -1,4 +1,5 @@
 import {
+	isPrivateModelCatalogProvider,
 	readModelsFileSync,
 	resolveModelsRegistryPath,
 	type StoredModelEntry,
@@ -417,37 +418,52 @@ interface BaseModelInfoHint {
 	source: "catalog" | "state"
 }
 
+interface BaseModelInfoCandidate {
+	modelInfo: ModelInfo
+	source: "catalog" | "state" | "fallback"
+}
+
 function resolveSelection(selection: ModelSelection, baseModelInfoHint?: BaseModelInfoHint): ResolvedModelSelection {
 	const overrides = normalizeModelSelectionOverrides(
 		selection.overrides ?? readModelOverrides(selection.providerId, selection.modelId),
 	)
 	// A host catalog hint is the exact live entry the user selected, so it must
 	// win even when a private/dynamic provider reuses an id from the static SDK
-	// catalog. Persisted state is weaker: static metadata should supersede an
-	// older snapshot when no live catalog entry accompanies the commit.
+	// catalog. Persisted state is weaker by default; the private-catalog
+	// exception is applied below.
 	const catalogModelInfo = readBaseModelInfoForProvider(selection.providerId, selection.modelId)
 	const liveCatalogHint = baseModelInfoHint?.source === "catalog" ? baseModelInfoHint.modelInfo : undefined
 	const stateModelInfoHint = baseModelInfoHint?.source === "state" ? baseModelInfoHint.modelInfo : undefined
-	// LiteLLM's catalog belongs to the configured self-hosted endpoint. Its
+	const liveCatalogCandidate: BaseModelInfoCandidate | undefined = liveCatalogHint
+		? { modelInfo: liveCatalogHint, source: "catalog" }
+		: undefined
+	const staticCatalogCandidate: BaseModelInfoCandidate | undefined = catalogModelInfo
+		? { modelInfo: catalogModelInfo, source: "catalog" }
+		: undefined
+	const stateCandidate: BaseModelInfoCandidate | undefined = stateModelInfoHint
+		? { modelInfo: stateModelInfoHint, source: "state" }
+		: undefined
+
+	// Private catalogs belong to the customer's configured endpoint. Their
 	// persisted snapshot therefore remains authoritative after the live cache
-	// is gone, including when the endpoint reuses the built-in fallback model
-	// id. Other providers retain static-catalog-over-snapshot semantics so SDK
-	// catalog updates can refresh an existing selection.
-	const authoritativeStateHint = providerKey(selection.providerId) === "litellm" ? stateModelInfoHint : undefined
-	const baseModelInfo =
-		liveCatalogHint ??
-		authoritativeStateHint ??
-		catalogModelInfo ??
-		stateModelInfoHint ??
-		fallbackModelInfo(selection.modelId)
-	const modelInfoSource =
-		liveCatalogHint || (catalogModelInfo && !authoritativeStateHint) ? "catalog" : stateModelInfoHint ? "state" : "fallback"
+	// is gone, including when that endpoint reuses an id from the static SDK
+	// catalog. Public providers retain static-catalog-over-snapshot semantics so
+	// SDK catalog updates can refresh an existing selection.
+	const authoritativeStateCandidate = isPrivateModelCatalogProvider(providerKey(selection.providerId))
+		? stateCandidate
+		: undefined
+	const base =
+		liveCatalogCandidate ??
+		authoritativeStateCandidate ??
+		staticCatalogCandidate ??
+		stateCandidate ??
+		({ modelInfo: fallbackModelInfo(selection.modelId), source: "fallback" } satisfies BaseModelInfoCandidate)
 	return {
 		...selection,
 		overrides,
-		modelInfoSource,
-		baseModelInfo,
-		modelInfo: sanitizeResolvedModelInfo(applyModelOverrides(baseModelInfo, overrides)),
+		modelInfoSource: base.source,
+		baseModelInfo: base.modelInfo,
+		modelInfo: sanitizeResolvedModelInfo(applyModelOverrides(base.modelInfo, overrides)),
 	}
 }
 
