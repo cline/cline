@@ -98,18 +98,16 @@
 		overflow-wrap: anywhere;
 	}
 
-	/* Invisible hover bridge spanning the full width of the band the floating
-	 * actions occupy, so hovering anywhere in that horizontal strip — not just
-	 * the message box — reveals them. Sibling rows are position: relative and
-	 * therefore paint above this bridge, so their own content keeps its hover
-	 * and clicks; the bridge only wins in the band's empty space. */
+	/* Invisible hover bridge across only the gap before the absolutely-positioned
+	 * actions. Keeping it narrow avoids intercepting pointer events intended for
+	 * the following message. */
 	.cline-chat-message::after {
 		content: "";
 		position: absolute;
 		top: 100%;
 		left: 0;
 		right: 0;
-		height: 2.25rem;
+		height: 0.5rem;
 	}
 
 	.cline-chat-message[data-role="user"] {
@@ -253,7 +251,7 @@
 
 	.cline-chat-disclosure-icon {
 		flex: 0 0 auto;
-		transition: transform 240ms cubic-bezier(0.45, 0, 0.55, 1);
+		transition: transform 180ms cubic-bezier(0.45, 0, 0.55, 1);
 	}
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
@@ -279,9 +277,9 @@
 		opacity: 0;
 		visibility: hidden;
 		transition:
-			grid-template-rows 240ms cubic-bezier(0.45, 0, 0.55, 1),
-			opacity 240ms cubic-bezier(0.45, 0, 0.55, 1),
-			visibility 0s linear 240ms;
+			grid-template-rows 180ms cubic-bezier(0.45, 0, 0.55, 1),
+			opacity 180ms cubic-bezier(0.45, 0, 0.55, 1),
+			visibility 0s linear 180ms;
 	}
 
 	.cline-chat-disclosure-content-motion[data-state="open"] {
@@ -311,9 +309,6 @@
 	}
 
 	.cline-chat-tool {
-		/* Positioned so the row paints above earlier messages' hover bridges
-		 * and keeps its own hover and clicks. */
-		position: relative;
 		width: 100%;
 		min-width: 0;
 		margin: 0.5rem 0;
@@ -427,7 +422,6 @@
 	}
 
 	.cline-chat-work {
-		position: relative;
 		width: 100%;
 		min-width: 0;
 	}

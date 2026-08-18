@@ -567,7 +567,7 @@ function ChatMessagesImpl({
 									if (item.type === "run") {
 										return (
 											<div
-												className="relative flex flex-col gap-1"
+												className="flex flex-col gap-1"
 												key={`run_${item.id}`}
 											>
 												{item.items.map(renderWorkingRow)}
