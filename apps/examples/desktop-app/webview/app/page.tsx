@@ -786,11 +786,7 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
-	const [handoffConfirmOpen, setHandoffConfirmOpen] = useState(false);
-	const [handoffPreflight, setHandoffPreflight] =
-		useState<HandoffPreflight | null>(null);
-	const [handoffNextCommand, setHandoffNextCommand] = useState("");
-	const handoffConfirmingRef = useRef(false);
+	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
 		? handoffUiState[sourceSessionId]
@@ -1371,11 +1367,125 @@ function ChatThreadPane({
 		threadId,
 	]);
 
-	const restoreHandoffDraft = useCallback(() => {
-		setPromptInput(
-			handoffNextCommand ? `/handoff ${handoffNextCommand}` : "/handoff",
-		);
-	}, [handoffNextCommand, setPromptInput]);
+	const runHandoff = useCallback(
+		async (
+			preflight: HandoffPreflight,
+			nextCommand: string,
+			sourceAttachments: File[],
+			sourceSessionId: string,
+		) => {
+			onHandoffUiAction({
+				type: "progress",
+				sourceSessionId,
+				phase: "creating",
+			});
+			setPendingAttachments([]);
+			try {
+				const attachments = await serializeAttachments(sourceAttachments);
+				const result = await desktopClient.invoke<HandoffResult>(
+					"chat_session_command",
+					{
+						request: {
+							action: "handoff",
+							sessionId: sourceSessionId,
+							config,
+							fingerprint: preflight.fingerprint,
+							nextCommand: nextCommand || undefined,
+							attachments:
+								attachments.userImages.length > 0 ? attachments : undefined,
+						},
+					},
+					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
+				);
+				const targetSessionId = (
+					result.outerSessionId ||
+					result.sessionId ||
+					""
+				).trim();
+				const dashboardUrl = result.dashboardUrl?.trim();
+				if (!targetSessionId || !dashboardUrl) {
+					throw new Error("Cloud handoff did not return a cloud session.");
+				}
+				const receipt = { targetSessionId, dashboardUrl };
+				const destination =
+					result.destination ?? (cloudAgentsEnabled ? "in_app" : "external");
+				onHandoffUiAction({
+					type: "complete",
+					sourceSessionId,
+					receipt,
+					externalPresentation: destination === "external",
+				});
+				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
+					const opened = await onOpenSessionById?.(targetSessionId, {
+						silent: true,
+					}).catch(() => false);
+					if (!opened) {
+						onHandoffUiAction({ type: "external", sourceSessionId });
+						await openExternalUrl(dashboardUrl).catch(() => undefined);
+						toast({
+							title: "Opened handoff in your browser",
+							description:
+								"The cloud session could not be attached inside Cline Code.",
+						});
+					}
+				} else if (destination === "external") {
+					await openExternalUrl(dashboardUrl).catch(() =>
+						toast({
+							title: "Cloud handoff complete",
+							description: "Use the recovery link to open the cloud session.",
+						}),
+					);
+				} else {
+					toast({
+						title: "Cloud handoff complete",
+						description: "The cloud session is ready in your session list.",
+					});
+				}
+				if (result.warning) {
+					toast({
+						title: "Handoff completed with a warning",
+						description: result.warning,
+					});
+				}
+			} catch (error) {
+				onHandoffUiAction({
+					type: "failed",
+					sourceSessionId,
+					exposeRecovery: !cloudAgentsEnabled,
+					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+					retryAttachments: sourceAttachments,
+				});
+				const cloudError = parseCloudSessionError(
+					error instanceof Error ? error.message : String(error),
+				);
+				const connectUrl = cloudError?.connectUrl;
+				toast({
+					title: "Handoff failed",
+					description:
+						cloudError?.message ??
+						humanizeCloudSessionError(
+							error instanceof Error ? error.message : String(error),
+						),
+					variant: "destructive",
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				});
+			}
+		},
+		[
+			cloudAgentsEnabled,
+			config,
+			isThreadActive,
+			onOpenSessionById,
+			onHandoffUiAction,
+		],
+	);
 
 	const prepareHandoff = useCallback(
 		async (nextCommand: string) => {
@@ -1424,7 +1534,15 @@ function ChatThreadPane({
 				return;
 			}
 
-			setHandoffNextCommand(nextCommand);
+			if (handoffStartingRef.current) {
+				toast({
+					title: "Handoff is already starting",
+					description: "Wait for the current handoff request to finish.",
+				});
+				return;
+			}
+			handoffStartingRef.current = true;
+			const sourceAttachments = [...pendingAttachments];
 			try {
 				const preflight = await desktopClient.invoke<HandoffPreflight>(
 					"chat_session_command",
@@ -1436,8 +1554,12 @@ function ChatThreadPane({
 						},
 					},
 				);
-				setHandoffPreflight(preflight);
-				setHandoffConfirmOpen(true);
+				await runHandoff(
+					preflight,
+					nextCommand,
+					sourceAttachments,
+					sourceSessionId,
+				);
 			} catch (error) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				const cloudError = parseCloudSessionError(
@@ -1461,6 +1583,8 @@ function ChatThreadPane({
 						</ToastAction>
 					) : undefined,
 				});
+			} finally {
+				handoffStartingRef.current = false;
 			}
 		},
 		[
@@ -1469,140 +1593,12 @@ function ChatThreadPane({
 			isCloudSession,
 			pendingAttachments,
 			promptsInQueue.length,
+			runHandoff,
 			sessionId,
 			setPromptInput,
 			status,
 		],
 	);
-
-	const runHandoff = useCallback(async () => {
-		const preflight = handoffPreflight;
-		const sourceSessionId = sessionId ?? historySession?.sessionId;
-		if (!preflight || !sourceSessionId) {
-			return;
-		}
-		const sourceAttachments = [...pendingAttachments];
-		handoffConfirmingRef.current = true;
-		setHandoffConfirmOpen(false);
-		onHandoffUiAction({
-			type: "progress",
-			sourceSessionId,
-			phase: "creating",
-		});
-		setPendingAttachments([]);
-		try {
-			const attachments = await serializeAttachments(sourceAttachments);
-			const result = await desktopClient.invoke<HandoffResult>(
-				"chat_session_command",
-				{
-					request: {
-						action: "handoff",
-						sessionId: sourceSessionId,
-						config,
-						fingerprint: preflight.fingerprint,
-						nextCommand: handoffNextCommand || undefined,
-						attachments:
-							attachments.userImages.length > 0 ? attachments : undefined,
-					},
-				},
-				{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
-			);
-			const targetSessionId = (
-				result.outerSessionId ||
-				result.sessionId ||
-				""
-			).trim();
-			const dashboardUrl = result.dashboardUrl?.trim();
-			if (!targetSessionId || !dashboardUrl) {
-				throw new Error("Cloud handoff did not return a cloud session.");
-			}
-			const receipt = { targetSessionId, dashboardUrl };
-			const destination =
-				result.destination ?? (cloudAgentsEnabled ? "in_app" : "external");
-			onHandoffUiAction({
-				type: "complete",
-				sourceSessionId,
-				receipt,
-				externalPresentation: destination === "external",
-			});
-			if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
-				const opened = await onOpenSessionById?.(targetSessionId, {
-					silent: true,
-				}).catch(() => false);
-				if (!opened) {
-					onHandoffUiAction({ type: "external", sourceSessionId });
-					await openExternalUrl(dashboardUrl).catch(() => undefined);
-					toast({
-						title: "Opened handoff in your browser",
-						description:
-							"The cloud session could not be attached inside Cline Code.",
-					});
-				}
-			} else if (destination === "external") {
-				await openExternalUrl(dashboardUrl).catch(() =>
-					toast({
-						title: "Cloud handoff complete",
-						description: "Use the recovery link to open the cloud session.",
-					}),
-				);
-			} else {
-				toast({
-					title: "Cloud handoff complete",
-					description: "The cloud session is ready in your session list.",
-				});
-			}
-			if (result.warning) {
-				toast({
-					title: "Handoff completed with a warning",
-					description: result.warning,
-				});
-			}
-		} catch (error) {
-			onHandoffUiAction({
-				type: "failed",
-				sourceSessionId,
-				exposeRecovery: !cloudAgentsEnabled,
-				retryDraft: handoffNextCommand
-					? `/handoff ${handoffNextCommand}`
-					: "/handoff",
-				retryAttachments: sourceAttachments,
-			});
-			const cloudError = parseCloudSessionError(
-				error instanceof Error ? error.message : String(error),
-			);
-			const connectUrl = cloudError?.connectUrl;
-			toast({
-				title: "Handoff failed",
-				description:
-					cloudError?.message ??
-					humanizeCloudSessionError(
-						error instanceof Error ? error.message : String(error),
-					),
-				variant: "destructive",
-				action: connectUrl ? (
-					<ToastAction
-						altText="Connect GitHub"
-						onClick={() => void openExternalUrl(connectUrl)}
-					>
-						Connect GitHub
-					</ToastAction>
-				) : undefined,
-			});
-		} finally {
-			handoffConfirmingRef.current = false;
-		}
-	}, [
-		cloudAgentsEnabled,
-		config,
-		handoffNextCommand,
-		handoffPreflight,
-		historySession?.sessionId,
-		isThreadActive,
-		onOpenSessionById,
-		onHandoffUiAction,
-		pendingAttachments,
-		sessionId,
-	]);
 
 	const handleSend = useCallback(
 		async (prompt: string) => {
@@ -2472,73 +2468,6 @@ function ChatThreadPane({
 							onClick={() => void handleDeleteSession()}
 						>
 							{deletingSession ? "Deleting..." : "Delete"}
-						</AlertDialogAction>
-					</AlertDialogFooter>
-				</AlertDialogContent>
-			</AlertDialog>
-			<AlertDialog
-				open={handoffConfirmOpen}
-				onOpenChange={(open) => {
-					setHandoffConfirmOpen(open);
-					if (!open && !handoffConfirmingRef.current) {
-						restoreHandoffDraft();
-					}
-				}}
-			>
-				<AlertDialogContent>
-					<AlertDialogHeader>
-						<AlertDialogTitle>Continue in Cline Cloud?</AlertDialogTitle>
-						<AlertDialogDescription>
-							The conversation will be copied to a fresh cloud workspace. Your
-							local session stays available as read-only history.
-						</AlertDialogDescription>
-					</AlertDialogHeader>
-					{handoffPreflight ? (
-						<div className="grid gap-2 rounded-md border bg-muted/30 p-3 text-sm">
-							<div className="grid grid-cols-[5rem_1fr] gap-2">
-								<span className="text-muted-foreground">Repository</span>
-								<span className="min-w-0 truncate font-medium">
-									{cloudRepositoryLabel(
-										handoffPreflight.repoUrl,
-										handoffPreflight.repoUrl,
-									)}
-								</span>
-								<span className="text-muted-foreground">Branch</span>
-								<span className="min-w-0 truncate font-medium">
-									{handoffPreflight.branch}
-								</span>
-								<span className="text-muted-foreground">Model</span>
-								<span className="min-w-0 truncate font-medium">
-									{handoffPreflight.modelId}
-									{handoffPreflight.modelFallback
-										? ` (fallback from ${handoffPreflight.modelFallback.from})`
-										: ""}
-								</span>
-								{handoffNextCommand ? (
-									<>
-										<span className="text-muted-foreground">Continue</span>
-										<span className="line-clamp-2 font-medium">
-											{handoffNextCommand}
-										</span>
-									</>
-								) : null}
-								{pendingAttachments.length > 0 ? (
-									<>
-										<span className="text-muted-foreground">Images</span>
-										<span className="font-medium">
-											{pendingAttachments.length}
-										</span>
-									</>
-								) : null}
-							</div>
-						</div>
-					) : null}
-					<AlertDialogFooter>
-						<AlertDialogCancel onClick={restoreHandoffDraft}>
-							Cancel
-						</AlertDialogCancel>
-						<AlertDialogAction onClick={() => void runHandoff()}>
-							Continue in Cloud
 						</AlertDialogAction>
 					</AlertDialogFooter>
 				</AlertDialogContent>
