@@ -55,6 +55,12 @@ lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
 
+There is also a beta channel ("Cline Code Beta", a separate app that installs
+side by side with stable) cut from the `desktop-experimental` branch and
+served by the rolling `desktop-beta` release — the same never-delete rule
+applies to it. The experimental-branch process and beta release flow live in
+[`EXPERIMENTAL.md`](./EXPERIMENTAL.md).
+
 ## Shareable Desktop Packages (manual fallback)
 
 Tauri desktop bundles are OS-specific, so build each package on the target OS:
