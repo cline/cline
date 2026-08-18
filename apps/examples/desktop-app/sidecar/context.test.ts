@@ -828,6 +828,10 @@ describe("Code sidecar runtime capabilities", () => {
 
 		const ctx = createSidecarContext("/workspace/project");
 		await initializeSessionManager(ctx);
+		const approvalClient = {
+			data: { canApproveTools: true },
+			send: vi.fn(),
+		};
 
 		await expect(
 			handleCommand(ctx, "task.list", {
@@ -845,10 +849,15 @@ describe("Code sidecar runtime capabilities", () => {
 			payload: { task: { ...task, status: "in_progress", revision: 4 } },
 		});
 		await expect(
-			handleCommand(ctx, "task.run", {
-				taskId: "task-1",
-				expectedRevision: 4,
-			}),
+			handleCommand(
+				ctx,
+				"task.run",
+				{
+					taskId: "task-1",
+					expectedRevision: 4,
+				},
+				{ connection: approvalClient },
+			),
 		).resolves.toEqual({
 			task: { ...task, status: "in_progress", revision: 4 },
 		});
@@ -856,6 +865,28 @@ describe("Code sidecar runtime capabilities", () => {
 			taskId: "task-1",
 			expectedRevision: 4,
 		});
+	});
+
+	it.each([
+		"task.approve",
+		"task.run",
+		"task.automation.set",
+	])("rejects untrusted %s commands before they reach the shared Hub", async (command) => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+		const untrustedClient = {
+			data: { canApproveTools: false },
+			send: vi.fn(),
+		};
+
+		await expect(
+			handleCommand(ctx, command, {}, { connection: untrustedClient }),
+		).rejects.toThrow("task execution requires a trusted desktop connection");
+		expect(hubCommandMock).not.toHaveBeenCalled();
 	});
 
 	it("forwards Hub task events that do not have a session", async () => {

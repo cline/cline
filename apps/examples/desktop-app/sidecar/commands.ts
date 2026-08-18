@@ -759,6 +759,12 @@ const AGENDA_TASK_COMMANDS = new Set([
 	"task.automation.set",
 ]);
 
+const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.approve",
+	"task.run",
+	"task.automation.set",
+]);
+
 async function handleAgendaTaskCommand(
 	ctx: SidecarContext,
 	command: string,
@@ -2037,6 +2043,12 @@ export async function handleCommand(
 
 	// ── Agenda task queue ─────────────────────────────────────────────
 	if (AGENDA_TASK_COMMANDS.has(command)) {
+		if (
+			AGENDA_TASK_EXECUTION_COMMANDS.has(command) &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("task execution requires a trusted desktop connection");
+		}
 		return await handleAgendaTaskCommand(ctx, command, args);
 	}
 
