@@ -21,20 +21,17 @@ on:
                 options:
                     - pre-release
                     - release
-            branch:
-                description: "Branch holding the legacy extension code"
-                required: true
-                default: "legacy-extension"
-                type: string
 
+# Read-only by default. The publish job elevates itself to contents: write for
+# the tag push and GitHub release; nothing here needs packages/checks/PR
+# write. Keeping the default minimal matters doubly in this workflow because
+# the test job runs BEFORE any environment approval — it must never hold a
+# write token while executing checked-out code.
 permissions:
-    contents: write
-    packages: write
-    checks: write
-    pull-requests: write
+    contents: read
 
 concurrency:
-    group: ext-vscode-publish-legacy-${{ github.event.inputs.branch }}
+    group: ext-vscode-publish-legacy
     cancel-in-progress: false
 
 jobs:
@@ -50,9 +47,16 @@ jobs:
           run:
             working-directory: apps/vscode
         steps:
+            # Always the protected legacy-extension branch — deliberately not
+            # an input. This job runs full npm lifecycle scripts from the
+            # checked-out code with no environment approval, and the publish
+            # job below does the same next to the marketplace PATs; an
+            # arbitrary ref here would hand both of them attacker-controlled
+            # code. Hardcoding the branch makes its protection rules
+            # load-bearing for releases.
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.branch }}
+                  ref: legacy-extension
 
             - name: Setup Node.js
               uses: actions/setup-node@v4
@@ -99,16 +103,20 @@ jobs:
         name: Publish Legacy Extension
         runs-on: ubuntu-latest
         environment: publish
+        # For the tag push in Resolve Release Tag and the GitHub release.
+        permissions:
+            contents: write
         defaults:
           run:
             working-directory: apps/vscode
 
         steps:
-            # Check out the legacy branch (NOT main). fetch-depth: 0 + tags so we
-            # can create/push the release tag and compute the previous tag.
+            # Check out the legacy branch (NOT main; hardcoded — see the test
+            # job's checkout comment). fetch-depth: 0 + tags so we can
+            # create/push the release tag and compute the previous tag.
             - uses: actions/checkout@v4
               with:
-                  ref: ${{ github.event.inputs.branch }}
+                  ref: legacy-extension
                   fetch-depth: 0
                   fetch-tags: true
                   lfs: true
@@ -117,7 +125,7 @@ jobs:
               id: resolve_tag
               working-directory: ${{ github.workspace }}
               env:
-                  BRANCH: ${{ github.event.inputs.branch }}
+                  BRANCH: legacy-extension
               run: |
                   # Tag is derived from the package version on the legacy branch.
                   VERSION=$(node -p "require('./apps/vscode/package.json').version")
