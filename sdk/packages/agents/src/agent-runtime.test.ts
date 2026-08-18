@@ -626,6 +626,55 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("records a hook-stopped compacted retry as an aborted recovery", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		let modelCalls = 0;
+		const runtime = new AgentRuntime({
+			model,
+			prepareTurn,
+			telemetry,
+			hooks: {
+				// Let the first model call through; stop the compacted retry.
+				beforeModel: () => {
+					modelCalls += 1;
+					return modelCalls > 1
+						? { stop: true, reason: "approval required" }
+						: undefined;
+				},
+			},
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("aborted");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		// A deliberate stop is not a recovery defect — it must not be
+		// classified as retry_threw in the failure breakdown.
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "aborted" }),
+		);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
