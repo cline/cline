@@ -1100,17 +1100,27 @@ export class AgentRuntime {
 			}
 			throw error;
 		}
-		const succeeded = retry.finishReason !== "max-tokens";
+		// Only a cleanly finished retry counts as recovered — an errored or
+		// aborted retry still fails the run downstream and must be recorded
+		// as a failure or the recovery metric overreports success.
+		const succeeded =
+			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 			phase: succeeded ? "succeeded" : "failed",
-			eventType: succeeded ? undefined : "truncated_again",
+			eventType: succeeded
+				? undefined
+				: retry.finishReason === "max-tokens"
+					? "truncated_again"
+					: retry.finishReason,
 		});
 		await this.emit({
 			type: "status-notice",
 			snapshot: this.snapshot(),
 			message: succeeded
 				? "recovered from the output token limit after compaction"
-				: "output-token-limit recovery failed: response truncated again",
+				: retry.finishReason === "max-tokens"
+					? "output-token-limit recovery failed: response truncated again"
+					: `output-token-limit recovery failed: retry ${retry.finishReason}`,
 			metadata: {
 				...noticeMetadata,
 				phase: succeeded ? "succeeded" : "failed",
