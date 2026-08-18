@@ -166,7 +166,9 @@ export function buildAgentHooks(
 			}
 		},
 
-		async afterTool(ctx: AgentAfterToolContext): Promise<undefined> {
+		async afterTool(
+			ctx: AgentAfterToolContext,
+		): Promise<{ stop?: boolean; reason?: string; appendContext?: string } | undefined> {
 			let runningTs: number | undefined
 			try {
 				if (!hooksEnabled()) {
@@ -203,7 +205,15 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				return undefined
+				const stopControl = mapStopControl(result)
+				if (stopControl) {
+					return stopControl
+				}
+				// The runtime injects appendContext into the conversation as a
+				// <hook_context> block, restoring the documented contextModification
+				// behavior. HookFactory already truncates it at 50KB.
+				const contextModification = result.contextModification?.trim()
+				return contextModification ? { appendContext: contextModification } : undefined
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
