@@ -46,6 +46,13 @@ describe("desktop window title", () => {
 		expect(buildDesktopWindowTitle("")).toBe(DEFAULT_DESKTOP_WINDOW_TITLE);
 	});
 
+	it("titles beta builds with the beta product name", async () => {
+		const { buildDesktopWindowTitle } = await importFresh();
+		expect(buildDesktopWindowTitle("0.0.14-beta.1")).toBe(
+			"Cline Code Beta v0.0.14-beta.1",
+		);
+	});
+
 	it("does nothing outside the Tauri shell", async () => {
 		const { syncDesktopWindowTitle } = await importFresh();
 		await syncDesktopWindowTitle();
