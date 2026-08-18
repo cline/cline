@@ -484,6 +484,7 @@ export function useChatSession() {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
@@ -1728,8 +1729,13 @@ export function useChatSession() {
 				) {
 					return;
 				}
-				activeAssistantMessageIdRef.current = null;
-				setActiveAssistantMessageId(null);
+				// The Hub publishes the terminal event before the blocking send RPC
+				// returns. Keep the streamed message id until that reply can reconcile
+				// its full text into the same bubble; the send's finally block clears it.
+				if (!pendingDirectSendSessionIdsRef.current.has(targetSessionId)) {
+					activeAssistantMessageIdRef.current = null;
+					setActiveAssistantMessageId(null);
+				}
 				clearLiveToolRefs();
 				turnSettledEpochRef.current = turnEpochRef.current;
 				const endReason = record.reason?.trim() || "idle";
@@ -2180,6 +2186,9 @@ export function useChatSession() {
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
+				if (!shouldQueue) {
+					pendingDirectSendSessionIdsRef.current.add(activeSessionId);
+				}
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -2579,6 +2588,7 @@ export function useChatSession() {
 			} finally {
 				clearAbortFallbackTimeout();
 				if (!shouldQueue) {
+					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();
