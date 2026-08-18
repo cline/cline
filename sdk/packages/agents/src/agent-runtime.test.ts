@@ -577,6 +577,55 @@ describe("AgentRuntime", () => {
 		]);
 	});
 
+	it("records a failed recovery when a listener throws on the terminal notice", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			() => [
+				{ type: "text-delta", text: "recovered" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				event.metadata?.kind === "max_tokens_recovery" &&
+				event.metadata?.phase === "succeeded"
+			) {
+				throw new Error("terminal listener exploded");
+			}
+		});
+
+		const result = await runtime.run(longPrompt);
+
+		// The throwing listener fails the run, so telemetry must not have
+		// recorded the recovery as succeeded.
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("terminal listener exploded");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+		expect(recoveryEvents[1]?.properties).toEqual(
+			expect.objectContaining({ eventType: "notice_threw" }),
+		);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],

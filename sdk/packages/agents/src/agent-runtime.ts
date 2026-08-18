@@ -1115,6 +1115,29 @@ export class AgentRuntime {
 		// as a failure or the recovery metric overreports success.
 		const succeeded =
 			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
+		try {
+			// Emitted before the outcome capture: a throwing listener fails
+			// the run, so recording success first would contradict the result.
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message: succeeded
+					? "recovered from the output token limit after compaction"
+					: retry.finishReason === "max-tokens"
+						? "output-token-limit recovery failed: response truncated again"
+						: `output-token-limit recovery failed: retry ${retry.finishReason}`,
+				metadata: {
+					...noticeMetadata,
+					phase: succeeded ? "succeeded" : "failed",
+				},
+			});
+		} catch (error) {
+			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+				phase: "failed",
+				eventType: this.isAbortError(error) ? "aborted" : "notice_threw",
+			});
+			throw error;
+		}
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 			phase: succeeded ? "succeeded" : "failed",
 			eventType: succeeded
@@ -1122,19 +1145,6 @@ export class AgentRuntime {
 				: retry.finishReason === "max-tokens"
 					? "truncated_again"
 					: retry.finishReason,
-		});
-		await this.emit({
-			type: "status-notice",
-			snapshot: this.snapshot(),
-			message: succeeded
-				? "recovered from the output token limit after compaction"
-				: retry.finishReason === "max-tokens"
-					? "output-token-limit recovery failed: response truncated again"
-					: `output-token-limit recovery failed: retry ${retry.finishReason}`,
-			metadata: {
-				...noticeMetadata,
-				phase: succeeded ? "succeeded" : "failed",
-			},
 		});
 		return retry;
 	}
