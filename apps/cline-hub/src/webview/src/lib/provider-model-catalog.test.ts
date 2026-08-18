@@ -20,6 +20,11 @@ describe("buildProviderModelCatalog", () => {
 			provider([
 				{ id: "legacy", name: "Legacy" },
 				{
+					id: "operation-only-transcription",
+					name: "Operation-only Transcription",
+					operation: "transcription",
+				},
+				{
 					id: "mixed",
 					name: "Mixed",
 					inputModalities: ["text", "image"],
@@ -37,6 +42,11 @@ describe("buildProviderModelCatalog", () => {
 					name: "Image",
 					inputModalities: ["text"],
 					outputModalities: ["image"],
+				},
+				{
+					id: "image-operation",
+					name: "Image Operation",
+					operation: "image-generation",
 				},
 			]),
 		]);

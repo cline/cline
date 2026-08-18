@@ -1,6 +1,7 @@
 import { describe, expect, expectTypeOf, it } from "vitest";
 import {
 	type ChatModelModalities,
+	isChatCompatibleModel,
 	supportsChatModalities,
 } from "./index.browser";
 
@@ -13,5 +14,6 @@ describe("browser entry point", () => {
 
 		expectTypeOf(modalities).toMatchTypeOf<ChatModelModalities>();
 		expect(supportsChatModalities(modalities)).toBe(true);
+		expect(isChatCompatibleModel({ operation: "transcription" })).toBe(false);
 	});
 });

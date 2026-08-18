@@ -27,6 +27,7 @@ describe("chat model filtering", () => {
 
 	it("removes dedicated transcription and media-generation models", () => {
 		const models = {
+			operationOnly: { operation: "speech-generation" as const },
 			whisper: {
 				modalities: { input: ["audio"] as const, output: ["text"] as const },
 			},
@@ -39,6 +40,7 @@ describe("chat model filtering", () => {
 	});
 
 	it("filters flattened provider model responses with the same rule", () => {
+		expect(isChatProviderModel({ operation: "transcription" })).toBe(false);
 		expect(
 			isChatProviderModel({
 				inputModalities: ["audio"],

@@ -150,7 +150,9 @@ describe("provider model catalog handlers", () => {
 			apiFormat: ApiFormat.OPENAI_CHAT,
 		})
 		expect(response.models["whisper-large-v3"]).toBeUndefined()
-		expect(response.defaultModelId).toBe("deepseek-v4-flash")
+		// Do not invent an order-dependent default when the declared default is
+		// filtered out. The picker can leave the selection unset instead.
+		expect(response.defaultModelId).toBeUndefined()
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
 	})
 

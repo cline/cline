@@ -1,4 +1,8 @@
-import type { ChatModelModalities, ModelModality } from "@cline/shared";
+import type {
+	ChatModelModalities,
+	ModelModality,
+	ModelOperation,
+} from "@cline/shared";
 import { isChatProviderModel } from "../../../utils/chat-models";
 import { isOpenAICodexCliProvider } from "../../../utils/codex-cli";
 import { isOAuthProvider } from "../../../utils/provider-auth";
@@ -153,6 +157,7 @@ export interface ProviderModelItem {
 	id: string;
 	name?: string;
 	supportsReasoning?: boolean;
+	operation?: ModelOperation;
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
 }
@@ -160,6 +165,7 @@ export interface ProviderModelItem {
 export interface KnownModelInfo {
 	name?: string;
 	capabilities?: string[];
+	operation?: ModelOperation;
 	modalities?: ChatModelModalities;
 }
 
@@ -192,6 +198,7 @@ export function toModelEntriesFromKnownModels(
 	return Object.entries(knownModels)
 		.filter(([, info]) =>
 			isChatProviderModel({
+				operation: info.operation,
 				inputModalities: info.modalities?.input,
 				outputModalities: info.modalities?.output,
 			}),

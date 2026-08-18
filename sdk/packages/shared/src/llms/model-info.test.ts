@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	isChatCompatibleModel,
 	ModelInfoSchema,
 	modelHasCapability,
 	modelSupportsToolCalling,
@@ -34,6 +35,37 @@ describe("supportsChatModalities", () => {
 		expect(supportsChatModalities({ input: ["text"], output: ["image"] })).toBe(
 			false,
 		);
+	});
+});
+
+describe("isChatCompatibleModel", () => {
+	it("keeps legacy and explicit language models", () => {
+		expect(isChatCompatibleModel({})).toBe(true);
+		expect(
+			isChatCompatibleModel({
+				operation: "language",
+				modalities: { input: ["text"], output: ["text"] },
+			}),
+		).toBe(true);
+	});
+
+	it("rejects non-language operations even without modality metadata", () => {
+		expect(isChatCompatibleModel({ operation: "transcription" })).toBe(false);
+		expect(isChatCompatibleModel({ operation: "speech-generation" })).toBe(
+			false,
+		);
+		expect(isChatCompatibleModel({ operation: "image-generation" })).toBe(
+			false,
+		);
+	});
+
+	it("rejects language models without text chat modalities", () => {
+		expect(
+			isChatCompatibleModel({
+				operation: "language",
+				modalities: { input: ["text"], output: ["image"] },
+			}),
+		).toBe(false);
 	});
 });
 

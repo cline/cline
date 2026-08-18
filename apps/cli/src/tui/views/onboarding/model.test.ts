@@ -131,6 +131,10 @@ describe("onboarding model helpers", () => {
 	it("keeps non-chat models out of the onboarding model picker", () => {
 		expect(
 			toModelEntriesFromKnownModels({
+				"operation-only-whisper": {
+					name: "Operation-only Whisper",
+					operation: "transcription",
+				},
 				"whisper-large-v3": {
 					name: "Whisper Large V3",
 					modalities: { input: ["audio"], output: ["text"] },

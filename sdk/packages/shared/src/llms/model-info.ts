@@ -129,6 +129,26 @@ export const ModelOperationSchema = z.enum([
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
 
+export type ChatCompatibleModelDescriptor = {
+	readonly operation?: ModelOperation;
+	readonly modalities?: ChatModelModalities;
+};
+
+/**
+ * Returns whether a model uses the language operation and supports a text chat
+ * turn. Missing operation and modality metadata remain chat-compatible for
+ * backwards compatibility, while any explicitly non-language operation is
+ * excluded even when its modalities are absent.
+ */
+export function isChatCompatibleModel(
+	model: ChatCompatibleModelDescriptor,
+): boolean {
+	return (
+		(model.operation === undefined || model.operation === "language") &&
+		supportsChatModalities(model.modalities)
+	);
+}
+
 /**
  * Execution modes supported by a non-language model operation.
  *

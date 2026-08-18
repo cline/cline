@@ -1,10 +1,12 @@
 import {
 	type ChatModelModalities,
+	isChatCompatibleModel,
 	type ModelModality,
-	supportsChatModalities,
+	type ModelOperation,
 } from "@cline/shared";
 
 export type ChatCatalogModel = {
+	readonly operation?: ModelOperation;
 	readonly modalities?: ChatModelModalities;
 	readonly [key: string]: unknown;
 };
@@ -13,18 +15,20 @@ export function filterChatModels<T extends ChatCatalogModel>(
 	models: Readonly<Record<string, T>>,
 ): Record<string, T> {
 	return Object.fromEntries(
-		Object.entries(models).filter(([, model]) =>
-			supportsChatModalities(model.modalities),
-		),
+		Object.entries(models).filter(([, model]) => isChatCompatibleModel(model)),
 	);
 }
 
 export function isChatProviderModel(model: {
+	readonly operation?: ModelOperation;
 	readonly inputModalities?: readonly ModelModality[];
 	readonly outputModalities?: readonly ModelModality[];
 }): boolean {
-	return supportsChatModalities({
-		input: model.inputModalities,
-		output: model.outputModalities,
+	return isChatCompatibleModel({
+		operation: model.operation,
+		modalities: {
+			input: model.inputModalities,
+			output: model.outputModalities,
+		},
 	});
 }

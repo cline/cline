@@ -30,6 +30,7 @@ describe("VS Code chat model filtering", () => {
 
 	it("removes dedicated transcription and media-generation models", () => {
 		const models = new Map([
+			["operation-only", { operation: "transcription" as const }],
 			[
 				"whisper",
 				{
@@ -53,10 +54,11 @@ describe("VS Code chat model filtering", () => {
 		expect(filterChatModelMap(models).size).toBe(0)
 	})
 
-	it("falls back when the catalog default is not chat-compatible", () => {
+	it("preserves only a declared chat-compatible catalog default", () => {
 		const models = new Map([["chat", {}]])
-		expect(resolveChatModelDefault("whisper", models)).toBe("chat")
+		expect(resolveChatModelDefault("whisper", models)).toBeUndefined()
 		expect(resolveChatModelDefault("chat", models)).toBe("chat")
 		expect(resolveChatModelDefault("whisper", new Map())).toBeUndefined()
+		expect(resolveChatModelDefault(undefined, models)).toBeUndefined()
 	})
 })

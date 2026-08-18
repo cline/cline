@@ -211,7 +211,9 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
 	type ChatModelModalities,
+	isChatCompatibleModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,

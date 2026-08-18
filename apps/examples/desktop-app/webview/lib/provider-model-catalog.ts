@@ -1,6 +1,6 @@
 "use client";
 
-import { supportsChatModalities } from "@cline/shared/browser";
+import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -45,10 +45,16 @@ export function filterChatModels(
 
 export function isChatModel(model: ProviderModel): boolean {
 	return (
+		// Desktop supports image generation directly from its composer. Other
+		// chat-only clients intentionally use isChatCompatibleModel without this
+		// operation-specific exception.
 		model.operation === "image-generation" ||
-		supportsChatModalities({
-			input: model.inputModalities,
-			output: model.outputModalities,
+		isChatCompatibleModel({
+			operation: model.operation,
+			modalities: {
+				input: model.inputModalities,
+				output: model.outputModalities,
+			},
 		})
 	);
 }

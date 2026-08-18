@@ -1,4 +1,4 @@
-import { supportsChatModalities } from "@cline/shared";
+import { isChatCompatibleModel } from "@cline/shared";
 import type {
 	ModelCollection,
 	ModelInfo,
@@ -13,9 +13,7 @@ export interface GetModelsForProviderOptions {
 }
 
 const PROVIDER_MODEL_FILTERS = {
-	chat: (model: ModelInfo) =>
-		(model.operation === undefined || model.operation === "language") &&
-		supportsChatModalities(model.modalities),
+	chat: (model: ModelInfo) => isChatCompatibleModel(model),
 } satisfies Record<ProviderModelFilter, (model: ModelInfo) => boolean>;
 
 function buildInitialRegistry(): Map<string, ModelCollection> {
