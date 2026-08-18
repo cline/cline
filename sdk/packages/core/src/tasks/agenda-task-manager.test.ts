@@ -628,6 +628,48 @@ describe("AgendaTaskManager", () => {
 		expect(runtime.startSession).toHaveBeenCalledTimes(1);
 	});
 
+	it("only automates tasks in the policy workspace", async () => {
+		const { root, manager, runtime } = createHarness();
+		await manager.start();
+		const repoA = join(root, "repo-a");
+		const repoB = join(root, "repo-b");
+		mkdirSync(repoA, { recursive: true });
+		mkdirSync(repoB, { recursive: true });
+		const createWorkspaceTask = (workspaceRoot: string, title: string) =>
+			manager.createTask({
+				type: "follow-up",
+				title,
+				instructions: title,
+				scope: "workspace",
+				workspaceRoot,
+				cwd: workspaceRoot,
+				expiresAt: future(),
+				createdBy: { kind: "user", clientId: "desktop" },
+			});
+		const inScope = await createWorkspaceTask(repoA, "In scope");
+		const outOfScope = await createWorkspaceTask(repoB, "Out of scope");
+
+		await manager.setAutomationPolicy(
+			{
+				scopeKey: repoA,
+				mode: "auto_start",
+				applyToAgentCreated: true,
+				maxConcurrentRuns: 1,
+				maxChainDepth: 3,
+				maxStartsPerHour: 20,
+			},
+			{ kind: "user", clientId: "desktop" },
+		);
+
+		await vi.waitFor(async () => {
+			expect((await manager.getTask(inScope.taskId))?.status).toBe("completed");
+		});
+		expect((await manager.getTask(outOfScope.taskId))?.status).toBe(
+			"pending_approval",
+		);
+		expect(runtime.startSession).toHaveBeenCalledTimes(1);
+	});
+
 	it("keeps auto-start work approved until an interactive client is available", async () => {
 		const { manager, runtime, setInteractiveClientAvailable } = createHarness(
 			"completed",

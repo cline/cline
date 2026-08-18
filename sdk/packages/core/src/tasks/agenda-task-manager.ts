@@ -271,7 +271,7 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 	>();
 	private readonly backgroundRuns = new Set<Promise<void>>();
 	private maintenanceTimer?: ReturnType<typeof setInterval>;
-	private automationQueued = false;
+	private readonly queuedAutomationScopes = new Set<string>();
 	private automationPumping = false;
 	private automationPolicyGeneration = 0;
 	private started = false;
@@ -711,7 +711,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 				{
 					unattended:
 						actor.kind === "automation_policy" &&
-						this.store.getAutomationPolicy().mode === "unattended",
+						this.store.getAutomationPolicy(
+							task.scope === "workspace" && task.workspaceRoot
+								? task.workspaceRoot
+								: "global",
+						).mode === "unattended",
 				},
 			);
 			const latestRun = this.store.getRun(run.runId);
@@ -777,9 +781,11 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 	}
 
-	async getAutomationPolicy(): Promise<AgendaAutomationPolicy> {
+	async getAutomationPolicy(
+		scopeKey = "global",
+	): Promise<AgendaAutomationPolicy> {
 		this.assertUsable();
-		return this.store.getAutomationPolicy();
+		return this.store.getAutomationPolicy(scopeKey);
 	}
 
 	async setAutomationPolicy(
@@ -790,13 +796,12 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		const now = nowIso();
 		const next = this.store.setAutomationPolicy({
 			...policy,
-			scopeKey: "global",
 			enabledBy: policy.mode === "manual" ? undefined : actor,
 			enabledAt: policy.mode === "manual" ? undefined : now,
 		});
 		this.automationPolicyGeneration += 1;
 		this.publishEvent("task.automation.updated", { policy: next });
-		this.queueAutomation();
+		this.queueAutomation(next.scopeKey);
 		return next;
 	}
 
@@ -1213,12 +1218,17 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		}
 	}
 
-	private queueAutomation(): void {
-		if (this.disposed || this.automationQueued) return;
-		this.automationQueued = true;
+	private queueAutomation(scopeKey?: string): void {
+		if (this.disposed) return;
+		if (scopeKey) {
+			this.queuedAutomationScopes.add(scopeKey);
+		} else {
+			for (const policy of this.store.listAutomationPolicies()) {
+				this.queuedAutomationScopes.add(policy.scopeKey);
+			}
+		}
 		if (this.automationPumping) return;
 		queueMicrotask(() => {
-			this.automationQueued = false;
 			void this.pumpAutomation().catch((error) =>
 				this.logError("agenda task automation pump failed", error, {}),
 			);
@@ -1230,61 +1240,68 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		this.automationPumping = true;
 		const policyGeneration = this.automationPolicyGeneration;
 		try {
-			const policy = this.store.getAutomationPolicy();
-			if (policy.mode === "manual") return;
-			this.expireTasks();
-			const recentStarts = this.store
-				.listRuns({ limit: 1000 })
-				.filter(
-					(run) => Date.parse(run.claimedAt) >= Date.now() - 3_600_000,
-				).length;
-			let capacity = Math.min(
-				Math.max(0, policy.maxConcurrentRuns - this.activeRuns.size),
-				Math.max(0, policy.maxStartsPerHour - recentStarts),
-			);
-			if (capacity <= 0) return;
-			const candidates = this.store.listTasks({
-				statuses: ["pending_approval", "approved"],
-				automationEligible: true,
-				availableBefore: nowIso(),
-				limit: 1000,
-			});
-			for (const candidate of candidates) {
-				if (capacity <= 0) break;
-				if (policyGeneration !== this.automationPolicyGeneration) return;
-				try {
-					let runnable = candidate;
-					if (runnable.status === "pending_approval") {
-						if (!this.canAutomaticallyApprove(runnable, policy)) continue;
-						runnable = await this.approveTask(
+			while (this.queuedAutomationScopes.size > 0) {
+				const scopeKey = this.queuedAutomationScopes.values().next().value;
+				if (!scopeKey) break;
+				this.queuedAutomationScopes.delete(scopeKey);
+				const policy = this.store.getAutomationPolicy(scopeKey);
+				if (policy.mode === "manual") continue;
+				this.expireTasks();
+				const recentStarts = this.store
+					.listRuns({ limit: 1000 })
+					.filter(
+						(run) => Date.parse(run.claimedAt) >= Date.now() - 3_600_000,
+					).length;
+				let capacity = Math.min(
+					Math.max(0, policy.maxConcurrentRuns - this.activeRuns.size),
+					Math.max(0, policy.maxStartsPerHour - recentStarts),
+				);
+				if (capacity <= 0) return;
+				const candidates = this.store.listTasks({
+					statuses: ["pending_approval", "approved"],
+					...(scopeKey === "global"
+						? {}
+						: { scope: "workspace" as const, workspaceRoot: scopeKey }),
+					automationEligible: true,
+					availableBefore: nowIso(),
+					limit: 1000,
+				});
+				for (const candidate of candidates) {
+					if (capacity <= 0) break;
+					if (policyGeneration !== this.automationPolicyGeneration) return;
+					try {
+						let runnable = candidate;
+						if (runnable.status === "pending_approval") {
+							if (!this.canAutomaticallyApprove(runnable, policy)) continue;
+							runnable = await this.approveTask(
+								runnable.taskId,
+								AUTOMATION_ACTOR,
+								runnable.revision,
+							);
+						}
+						if (policyGeneration !== this.automationPolicyGeneration) return;
+						if (
+							policy.mode === "auto_start" &&
+							this.runtime.isInteractiveClientAvailable?.() !== true
+						) {
+							continue;
+						}
+						await this.runTask(
 							runnable.taskId,
 							AUTOMATION_ACTOR,
 							runnable.revision,
 						);
+						capacity -= 1;
+					} catch (error) {
+						this.logError("agenda task automation start failed", error, {
+							taskId: candidate.taskId,
+						});
 					}
-					if (policyGeneration !== this.automationPolicyGeneration) return;
-					if (
-						policy.mode === "auto_start" &&
-						this.runtime.isInteractiveClientAvailable?.() !== true
-					) {
-						continue;
-					}
-					await this.runTask(
-						runnable.taskId,
-						AUTOMATION_ACTOR,
-						runnable.revision,
-					);
-					capacity -= 1;
-				} catch (error) {
-					this.logError("agenda task automation start failed", error, {
-						taskId: candidate.taskId,
-					});
 				}
 			}
 		} finally {
 			this.automationPumping = false;
-			if (this.automationQueued) {
-				this.automationQueued = false;
+			if (this.queuedAutomationScopes.size > 0) {
 				this.queueAutomation();
 			}
 		}

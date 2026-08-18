@@ -712,11 +712,32 @@ export class SqliteAgendaTaskStore {
 	}
 
 	public getAutomationPolicy(scopeKey = "global"): AgendaAutomationPolicy {
-		const row = this.db
+		let row = this.db
 			.prepare("SELECT * FROM agenda_task_automation WHERE scope_key = ?")
 			.get(scopeKey);
-		if (!row) throw new Error(`automation policy ${scopeKey} does not exist`);
+		if (!row) {
+			this.db
+				.prepare(
+					`INSERT OR IGNORE INTO agenda_task_automation (
+						scope_key, mode, apply_to_agent_created, max_concurrent_runs,
+						max_chain_depth, max_starts_per_hour, updated_at
+					) VALUES (?, 'manual', 1, 2, 1, 20, ?)`,
+				)
+				.run(scopeKey, nowIso());
+			row = this.db
+				.prepare("SELECT * FROM agenda_task_automation WHERE scope_key = ?")
+				.get(scopeKey);
+		}
+		if (!row)
+			throw new Error(`failed to initialize automation policy ${scopeKey}`);
 		return policyRowToRecord(row);
+	}
+
+	public listAutomationPolicies(): AgendaAutomationPolicy[] {
+		return this.db
+			.prepare("SELECT * FROM agenda_task_automation ORDER BY scope_key")
+			.all()
+			.map((row) => policyRowToRecord(row));
 	}
 
 	public setAutomationPolicy(

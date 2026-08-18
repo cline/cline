@@ -210,4 +210,22 @@ describe("HubAgendaTaskCommandService", () => {
 			error: { code: "task_command_failed" },
 		});
 	});
+
+	it("binds automation policy access to the Hub-authorized workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		await service.handleCommand(envelope("task.automation.get"), AUTHORITY);
+		await service.handleCommand(
+			envelope("task.automation.set", {
+				policy: { ...policy, scopeKey: "/spoofed" },
+			}),
+			AUTHORITY,
+		);
+
+		expect(manager.getAutomationPolicy).toHaveBeenCalledWith("/repo");
+		expect(manager.setAutomationPolicy).toHaveBeenCalledWith(
+			expect.objectContaining({ scopeKey: "/repo" }),
+			expect.anything(),
+		);
+	});
 });

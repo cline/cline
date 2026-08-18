@@ -133,7 +133,7 @@ export class HubAgendaTaskCommandService {
 				}
 				case "task.automation.get":
 					return okReply(envelope, {
-						policy: await this.tasks.getAutomationPolicy(),
+						policy: await this.tasks.getAutomationPolicy(workspaceRoot),
 					});
 				case "task.automation.set": {
 					const rawPolicy =
@@ -146,7 +146,10 @@ export class HubAgendaTaskCommandService {
 						throw new Error("task.automation.set requires a policy object");
 					}
 					return okReply(envelope, {
-						policy: await this.tasks.setAutomationPolicy(rawPolicy, actor),
+						policy: await this.tasks.setAutomationPolicy(
+							{ ...rawPolicy, scopeKey: workspaceRoot },
+							actor,
+						),
 					});
 				}
 				default:

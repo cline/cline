@@ -35,7 +35,7 @@ export interface AgendaTaskManagerApi {
 		expectedRevision: number,
 		requestedByClientId?: string,
 	): Promise<{ task: AgendaTaskRecord; run?: AgendaTaskRunRecord }>;
-	getAutomationPolicy(): Promise<AgendaAutomationPolicy>;
+	getAutomationPolicy(scopeKey?: string): Promise<AgendaAutomationPolicy>;
 	setAutomationPolicy(
 		policy: Omit<AgendaAutomationPolicy, "updatedAt">,
 		actor: AgendaTaskActor,
