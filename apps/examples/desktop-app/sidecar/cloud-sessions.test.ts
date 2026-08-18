@@ -1,4 +1,4 @@
-import { HubTransportError } from "@cline/core";
+import { cloudHandoffTranscriptsEqual, HubTransportError } from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
@@ -25,6 +25,37 @@ const REMOTE_SESSION: CloudSessionRecord = {
 	createdAt: "2026-08-05T10:00:00.000Z",
 	updatedAt: "2026-08-05T10:01:00.000Z",
 };
+
+describe("cloud handoff transcript comparison", () => {
+	it("compares roles and rich image content exactly", () => {
+		const expected = [
+			{
+				role: "user",
+				content: [
+					{ type: "text", text: "inspect this" },
+					{ type: "image", source: { type: "base64", data: "abc" } },
+				],
+				metadata: { localOnly: true },
+			},
+		];
+		expect(
+			cloudHandoffTranscriptsEqual(expected, [
+				{ ...expected[0], metadata: { cloudOnly: true } },
+			]),
+		).toBe(true);
+		expect(
+			cloudHandoffTranscriptsEqual(expected, [
+				{
+					...expected[0],
+					content: [
+						{ type: "text", text: "inspect this" },
+						{ type: "image", source: { type: "base64", data: "xyz" } },
+					],
+				},
+			]),
+		).toBe(false);
+	});
+});
 
 function jsonResponse(body: unknown, status = 200): Response {
 	return new Response(JSON.stringify(body), {
@@ -190,6 +221,122 @@ class FakeHubClient {
 }
 
 describe("CloudSessionApi", () => {
+	it("reports the outer id before returning and keeps handoff hooks off the wire", async () => {
+		let postedBody: Record<string, unknown> | undefined;
+		const order: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				postedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-handoff",
+						sandboxUrl: "https://pod.example",
+						status: "ready",
+					},
+				});
+			},
+		});
+
+		const created = await api.create({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+			handoff: {
+				sourceSessionId: "local-1",
+				resolveMessages: async () => [],
+				onOuterSessionCreated: async (sessionId) => {
+					order.push(`pending:${sessionId}`);
+				},
+			},
+		});
+		order.push("returned");
+
+		expect(order).toEqual(["pending:ses-handoff", "returned"]);
+		expect(created.sessionId).toBe("ses-handoff");
+		expect(postedBody).toEqual({
+			modelId: "model",
+			repoUrl: "https://github.com/cline/test",
+		});
+	});
+
+	it("deletes a new outer session when its local recovery record cannot be saved", async () => {
+		const methods: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				methods.push(init?.method ?? "GET");
+				if (init?.method === "DELETE") {
+					return new Response(undefined, { status: 204 });
+				}
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-unrecorded",
+						sandboxUrl: "https://pod.example",
+						status: "ready",
+					},
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => {
+						throw new Error("metadata write failed");
+					},
+				},
+			}),
+		).rejects.toThrow("metadata write failed");
+		expect(methods).toEqual(["POST", "DELETE"]);
+	});
+
+	it("surfaces the recovery URL when an unrecorded outer session cannot be cleaned up", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) => {
+				if (init?.method === "DELETE") {
+					return jsonResponse({ error: "cleanup unavailable" }, 503);
+				}
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-needs-recovery",
+						sandboxUrl: "https://pod.example",
+						status: "ready",
+					},
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => {
+						throw new Error("metadata write failed");
+					},
+				},
+			}),
+		).rejects.toThrow(
+			"Cloud session ses-needs-recovery: https://app.example/agents?sessionId=ses-needs-recovery",
+		);
+	});
+
 	it("resolves a fresh bearer token for every REST request", async () => {
 		const tokens = ["workos:first", "workos:second"];
 		const authorizations: string[] = [];
@@ -1888,6 +2035,81 @@ describe("CloudSessionManager", () => {
 			command: "session.attach",
 			sessionId: "inner-created",
 		});
+	});
+
+	it("persists the outer handoff before seeding rich initial messages", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const order: string[] = [];
+		const initialMessages = [
+			{
+				role: "user" as const,
+				content: [
+					{ type: "text" as const, text: "continue with this image" },
+					{
+						type: "image" as const,
+						data: "abc",
+						mediaType: "image/png",
+					},
+				],
+			},
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async (input: {
+					handoff?: {
+						onOuterSessionCreated(id: string): Promise<void>;
+					};
+				}) => {
+					await input.handoff?.onOuterSessionCreated("ses-handoff");
+					order.push("provisioned");
+					return { sessionId: "ses-handoff", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+
+		const created = await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			branch: "main",
+			handoff: {
+				sourceSessionId: "local-1",
+				onOuterSessionCreated: async () => {
+					order.push("pending");
+				},
+				resolveMessages: async () => {
+					order.push("read-live");
+					return initialMessages;
+				},
+				onSeeding: () => order.push("seeding"),
+			},
+		});
+
+		expect(order).toEqual(["pending", "provisioned", "read-live", "seeding"]);
+		expect(created).toMatchObject({
+			sessionId: "ses-handoff",
+			innerSessionId: "inner-created",
+		});
+		const innerCreate = hub.commands.find(
+			(entry) => entry.command === "session.create",
+		);
+		expect(innerCreate?.payload).toMatchObject({
+			initialMessages,
+			metadata: {
+				handoff: {
+					from: "local",
+					sourceSessionId: "local-1",
+					outerSessionId: "ses-handoff",
+				},
+			},
+		});
+		expect(
+			(innerCreate?.payload?.sessionConfig as { systemPrompt?: string })
+				.systemPrompt,
+		).toContain("fresh clone");
 	});
 
 	it("updates the cloud model before sending and skips redundant updates", async () => {

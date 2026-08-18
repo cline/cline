@@ -89,7 +89,11 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "handoff",
+		description: "Continue this local session in Cline Cloud",
+	},
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",

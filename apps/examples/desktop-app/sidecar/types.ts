@@ -21,6 +21,8 @@ export type ChatSessionCommandRequest = {
 		| "start"
 		| "attach"
 		| "send"
+		| "prepare_handoff"
+		| "handoff"
 		| "stop"
 		| "abort"
 		| "fork"
@@ -38,6 +40,10 @@ export type ChatSessionCommandRequest = {
 	delivery?: "queue" | "steer";
 	config?: JsonRecord;
 	attachments?: ChatTurnAttachments;
+	/** Opaque preflight result returned by prepare_handoff and revalidated by handoff. */
+	fingerprint?: JsonRecord;
+	/** Optional first prompt to queue after ownership moves to the cloud session. */
+	nextCommand?: string;
 };
 
 export type PromptInQueue = {

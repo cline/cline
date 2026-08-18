@@ -2,31 +2,47 @@ import { existsSync, readFileSync } from "node:fs";
 import { basename, join, resolve } from "node:path";
 import { isDeepStrictEqual } from "node:util";
 import {
+	buildCloudHandoffDashboardUrl,
 	buildConnectionUpdate,
 	buildWorkspaceMetadata,
 	type ClineCore,
 	type ClineCoreStartConfig,
+	type CloudHandoffFingerprint,
+	type CloudHandoffModel,
+	CloudHandoffTranscriptMismatchError,
+	clearCloudHandoffMetadata,
+	cloudHandoffFingerprintsEqual,
+	cloudHandoffTranscriptsEqual,
+	createCloudHandoffFingerprint,
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	mergeCloudHandoffMetadata,
+	preflightCloudHandoffGit,
 	projectSessionCompactionState,
+	readCloudHandoffMetadata,
 	readGlobalSettings,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
 	SessionSource,
+	selectCloudHandoffModel,
 	splitCoreSessionConfig,
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
+import {
+	buildClineSystemPrompt,
+	formatUserCommandBlock,
+	getClineEnvironmentConfig,
+} from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
-import { getCloudSessionManager } from "./cloud-sessions";
+import { CloudSessionError, getCloudSessionManager } from "./cloud-sessions";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
@@ -99,7 +115,7 @@ function workspacePathKey(
  * token: the slash menu hides same-named user commands, so expansion must
  * not hijack them either.
  */
-const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
+const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "handoff", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
@@ -894,7 +910,24 @@ async function handleSend(
 	if (!prompt && !hasAttachments) {
 		throw new Error("prompt or attachment is required");
 	}
+	if (handoffRequests.get(ctx)?.has(sessionId)) {
+		throw new Error(
+			"Cloud handoff is in progress. Wait for it to finish before sending another prompt.",
+		);
+	}
 	const manager = getSessionManager(ctx);
+	const persistedSession =
+		typeof manager.get === "function"
+			? await manager.get(sessionId)
+			: undefined;
+	const completedHandoff = readCloudHandoffMetadata(
+		persistedSession?.metadata ?? readSessionMetadata(sessionId),
+	);
+	if (completedHandoff?.status === "complete") {
+		throw new Error(
+			`This session continued in Cline Cloud: ${completedHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, completedHandoff.toCloudSessionId)}. Fork locally to continue here.`,
+		);
+	}
 	const session = ctx.liveSessions.get(sessionId);
 	const lockedWorkspaceKey = workspacePathKey(
 		session?.config ?? request.config,
@@ -1138,6 +1171,9 @@ async function handleFork(
 ): Promise<unknown> {
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (handoffRequests.get(ctx)?.has(sourceSessionId)) {
+		throw new Error("Wait for the cloud handoff to finish before forking.");
+	}
 	const forkBeforeRunCount = request.forkBeforeRunCount;
 	if (
 		forkBeforeRunCount !== undefined &&
@@ -1252,7 +1288,7 @@ async function handleForkUnlocked(
 			? sourceMessages
 			: trimMessagesBeforeUserRun(sourceMessages, forkBeforeRunCount);
 	const forkMetadata: JsonRecord = {
-		...(sourceMetadata ?? {}),
+		...clearCloudHandoffMetadata(sourceMetadata),
 		fork: {
 			forkedFromSessionId: sourceSessionId,
 			forkedAt: new Date().toISOString(),
@@ -1529,6 +1565,574 @@ async function handleRemovePendingPrompt(
 	};
 }
 
+type PreparedCloudHandoff = {
+	fingerprint: CloudHandoffFingerprint;
+	repoUrl: string;
+	branch: string;
+	headSha: string;
+	modelId: string;
+	modelFallback?: { from: string; to: string };
+};
+
+function readCloudHandoffModel(
+	value: unknown,
+	catalogId: CloudHandoffModel["catalogId"],
+): CloudHandoffModel | undefined {
+	if (!value || typeof value !== "object") return undefined;
+	const record = value as Record<string, unknown>;
+	const id = typeof record.id === "string" ? record.id.trim() : "";
+	if (!id) return undefined;
+	const displayName =
+		typeof record.display_name === "string"
+			? record.display_name.trim()
+			: typeof record.displayName === "string"
+				? record.displayName.trim()
+				: "";
+	const name = typeof record.name === "string" ? record.name.trim() : "";
+	return { id, name: displayName || name || id, catalogId };
+}
+
+function readCloudHandoffModels(
+	value: unknown,
+	catalogId: CloudHandoffModel["catalogId"],
+): CloudHandoffModel[] {
+	return Array.isArray(value)
+		? value.flatMap((entry) => {
+				const model = readCloudHandoffModel(entry, catalogId);
+				return model ? [model] : [];
+			})
+		: [];
+}
+
+async function loadCloudHandoffModels(): Promise<CloudHandoffModel[]> {
+	const { apiBaseUrl } = getClineEnvironmentConfig();
+	const baseUrl = apiBaseUrl.trim().replace(/\/+$/, "");
+	const load = async (path: string): Promise<unknown> => {
+		const response = await fetch(`${baseUrl}${path}`, {
+			headers: { Accept: "application/json" },
+			signal: AbortSignal.timeout(10_000),
+		});
+		if (!response.ok) throw new Error(`HTTP ${response.status}`);
+		return await response.json();
+	};
+	let catalogPayload: unknown;
+	try {
+		catalogPayload = await load("/api/v1/ai/cline/models");
+	} catch (error) {
+		throw new Error("Could not load the cloud model catalog.", {
+			cause: error,
+		});
+	}
+	const recommendedPayload = await load(
+		"/api/v1/ai/cline/recommended-models",
+	).catch(() => undefined);
+	const catalogRecord =
+		catalogPayload && typeof catalogPayload === "object"
+			? (catalogPayload as Record<string, unknown>)
+			: undefined;
+	const catalog = readCloudHandoffModels(
+		Array.isArray(catalogPayload) ? catalogPayload : catalogRecord?.data,
+		"cline",
+	);
+	const recommendedEnvelope =
+		recommendedPayload && typeof recommendedPayload === "object"
+			? (recommendedPayload as Record<string, unknown>)
+			: undefined;
+	const recommended =
+		recommendedEnvelope?.data && typeof recommendedEnvelope.data === "object"
+			? (recommendedEnvelope.data as Record<string, unknown>)
+			: recommendedEnvelope;
+	const pass = readCloudHandoffModels(recommended?.clinePass, "cline-pass");
+	const cloud = readCloudHandoffModels(recommended?.clineCloud, "cline-cloud");
+	const prioritizedIds = new Set([...pass, ...cloud].map((model) => model.id));
+	return [
+		...catalog.filter((model) => !prioritizedIds.has(model.id)),
+		...pass,
+		...cloud,
+	];
+}
+
+async function assertHandoffIdle(
+	ctx: SidecarContext,
+	manager: ClineCore,
+	sessionId: string,
+): Promise<void> {
+	const live = ctx.liveSessions.get(sessionId);
+	const persisted = await manager.get(sessionId);
+	if (!live && !persisted) {
+		throw new Error(`Session ${sessionId} was not found.`);
+	}
+	if (
+		live?.busy ||
+		live?.transitioningProvider ||
+		live?.status === "starting" ||
+		live?.status === "running" ||
+		live?.status === "stopping" ||
+		persisted?.status === "running" ||
+		persisted?.status === "pending"
+	) {
+		throw new Error("Stop the current run before handing off to cloud.");
+	}
+	const queued = await manager.pendingPrompts.list({ sessionId });
+	if (queued.length > 0 || (live?.promptsInQueue.length ?? 0) > 0) {
+		throw new Error("Remove queued prompts before handing off to cloud.");
+	}
+}
+
+async function prepareCloudHandoff(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<PreparedCloudHandoff> {
+	const sessionId = request.sessionId?.trim();
+	if (!sessionId) throw new Error("sessionId is required");
+	const manager = getSessionManager(ctx);
+	await assertHandoffIdle(ctx, manager, sessionId);
+	if ((await manager.readLiveMessages(sessionId)).length === 0) {
+		throw new Error("Start a conversation before handing it off to cloud.");
+	}
+	const persisted = await manager.get(sessionId);
+	const existingHandoff = readCloudHandoffMetadata(
+		persisted?.metadata ?? readSessionMetadata(sessionId),
+	);
+	if (existingHandoff?.status === "complete") {
+		throw new Error(
+			`This session already continued in Cline Cloud: ${existingHandoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, existingHandoff.toCloudSessionId)}`,
+		);
+	}
+	const config = {
+		...(ctx.liveSessions.get(sessionId)?.config ?? {}),
+		...(request.config ?? {}),
+	};
+	const cwd = readWorkspacePath(config) ?? readWorkspacePath(persisted);
+	if (!cwd) throw new Error("Cloud handoff requires a workspace path.");
+	const git = await preflightCloudHandoffGit({ cwd });
+	const cloud = getCloudSessionManager(ctx);
+	const { organizationId } = await cloud.prepareHandoffRepository(git.repoUrl);
+	const localModelId = String(
+		config.model ?? config.modelId ?? persisted?.model ?? "",
+	).trim();
+	const selection = selectCloudHandoffModel({
+		localModelId,
+		models: await loadCloudHandoffModels(),
+		isOrganizationSession: Boolean(organizationId),
+	});
+	const fingerprint = createCloudHandoffFingerprint({
+		repoUrl: git.repoUrl,
+		branch: git.branch,
+		headSha: git.headSha,
+		modelId: selection.modelId,
+		...(organizationId ? { organizationId } : {}),
+	});
+	return {
+		fingerprint,
+		repoUrl: git.repoUrl,
+		branch: git.branch,
+		headSha: git.headSha,
+		modelId: selection.modelId,
+		...(selection.usedFallback && localModelId
+			? { modelFallback: { from: localModelId, to: selection.modelId } }
+			: {}),
+	};
+}
+
+function readRequestedHandoffFingerprint(
+	request: ChatSessionCommandRequest,
+): CloudHandoffFingerprint {
+	const value = request.fingerprint;
+	if (!value) throw new Error("Run handoff preflight again before continuing.");
+	return createCloudHandoffFingerprint({
+		repoUrl: String(value.repoUrl ?? ""),
+		branch: String(value.branch ?? ""),
+		headSha: String(value.headSha ?? ""),
+		modelId: String(value.modelId ?? ""),
+		...(typeof value.organizationId === "string"
+			? { organizationId: value.organizationId }
+			: {}),
+	});
+}
+
+async function handlePrepareHandoff(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<PreparedCloudHandoff> {
+	return await prepareCloudHandoff(ctx, request);
+}
+
+async function handleHandoffOnce(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	if (request.attachments?.userFiles?.length) {
+		throw new Error("Only image attachments can be sent with a cloud handoff.");
+	}
+	const nextCommand = request.nextCommand?.trim() ?? "";
+	if (!nextCommand && request.attachments?.userImages?.length) {
+		throw new Error("Add a command to send the attached images after handoff.");
+	}
+	const expectedFingerprint = readRequestedHandoffFingerprint(request);
+	const prepared = await prepareCloudHandoff(ctx, request);
+	if (
+		!cloudHandoffFingerprintsEqual(expectedFingerprint, prepared.fingerprint)
+	) {
+		throw new Error(
+			"The repository, branch, commit, or cloud model changed after confirmation. Review the handoff details and try again.",
+		);
+	}
+	const manager = getSessionManager(ctx);
+	const cloud = getCloudSessionManager(ctx);
+	const environment = getClineEnvironmentConfig();
+	const emitProgress = (
+		phase:
+			| "creating"
+			| "provisioning"
+			| "connecting"
+			| "seeding"
+			| "verifying"
+			| "complete",
+		message: string,
+		outerSessionId?: string,
+	) => {
+		sendEvent(ctx, "cloud_handoff_progress", {
+			sourceSessionId,
+			phase,
+			message,
+			...(outerSessionId
+				? {
+						sessionId: outerSessionId,
+						dashboardUrl: buildCloudHandoffDashboardUrl(
+							environment.appBaseUrl,
+							outerSessionId,
+						),
+					}
+				: {}),
+		});
+	};
+
+	const persistedBefore = await manager.get(sourceSessionId);
+	const metadataBefore =
+		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
+		readSessionMetadata(sourceSessionId);
+	let pending = readCloudHandoffMetadata(metadataBefore);
+	if (
+		pending?.status === "pending" &&
+		!cloudHandoffFingerprintsEqual(pending.fingerprint, prepared.fingerprint)
+	) {
+		await cloud.delete(pending.toCloudSessionId).catch((error) => {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				return;
+			}
+			throw new Error(
+				"The previous cloud handoff no longer matches this workspace and could not be cleaned up. Delete it from Cline Cloud before retrying.",
+				{ cause: error },
+			);
+		});
+		await manager.update(sourceSessionId, {
+			metadata: clearCloudHandoffMetadata(metadataBefore),
+		});
+		pending = undefined;
+	}
+
+	let outerSessionId = pending?.toCloudSessionId ?? "";
+	let innerSessionId = pending?.innerSessionId ?? "";
+	let seededMessages: MessageWithMetadata[] | undefined;
+	const readSeedMessages = async (): Promise<MessageWithMetadata[]> => {
+		await assertHandoffIdle(ctx, manager, sourceSessionId);
+		emitProgress(
+			"connecting",
+			"Connecting securely to the cloud workspace…",
+			outerSessionId || undefined,
+		);
+		const messages = await manager.readLiveMessages(sourceSessionId);
+		if (messages.length === 0) {
+			throw new Error("Start a conversation before handing it off to cloud.");
+		}
+		seededMessages = messages;
+		return messages;
+	};
+	const clearPendingTarget = async (sessionId: string): Promise<void> => {
+		try {
+			await cloud.delete(sessionId);
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				// An authoritative gone response means there is no target left to adopt.
+			} else {
+				// Preserve the pending lineage and recovery URL on transient cleanup
+				// failures. Clearing them here would let the next retry create a
+				// duplicate sandbox with no way to recover the first one.
+				throw new Error(
+					"Could not clean up the previous cloud handoff; retry after deleting it from Cline Cloud.",
+					{ cause: error },
+				);
+			}
+		}
+		const current = await manager.get(sourceSessionId);
+		await manager.update(sourceSessionId, {
+			metadata: clearCloudHandoffMetadata(
+				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore,
+			),
+		});
+	};
+
+	if (outerSessionId) {
+		if (!pending) {
+			throw new Error("The pending cloud handoff metadata is incomplete.");
+		}
+		const pendingHandoff = pending;
+		const dashboardUrl = buildCloudHandoffDashboardUrl(
+			environment.appBaseUrl,
+			outerSessionId,
+		);
+		emitProgress(
+			"provisioning",
+			"Resuming the existing cloud handoff…",
+			outerSessionId,
+		);
+		try {
+			const seed = await readSeedMessages();
+			const resumed = await cloud.seedHandoff(outerSessionId, {
+				sourceSessionId,
+				messages: seed,
+				onSeeding: () =>
+					emitProgress(
+						"seeding",
+						"Copying the local conversation to cloud…",
+						outerSessionId,
+					),
+			});
+			innerSessionId = resumed.innerSessionId;
+			if (!pendingHandoff.dashboardUrl) {
+				await manager.update(sourceSessionId, {
+					metadata: mergeCloudHandoffMetadata(metadataBefore, {
+						...pendingHandoff,
+						dashboardUrl,
+						innerSessionId,
+					}),
+				});
+			}
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				await clearPendingTarget(outerSessionId);
+				outerSessionId = "";
+				innerSessionId = "";
+				seededMessages = undefined;
+			} else {
+				throw error;
+			}
+		}
+	}
+	if (!outerSessionId) {
+		emitProgress("creating", "Creating the cloud workspace…");
+		const created = await cloud.create({
+			repoUrl: prepared.repoUrl,
+			branch: prepared.branch,
+			modelId: prepared.modelId,
+			...(prepared.fingerprint.organizationId
+				? { organizationId: prepared.fingerprint.organizationId }
+				: {}),
+			...(typeof request.config?.autoApproveTools === "boolean"
+				? { autoApproveTools: request.config.autoApproveTools }
+				: {}),
+			...(typeof request.config?.thinking === "boolean"
+				? { thinking: request.config.thinking }
+				: {}),
+			...(readReasoningEffort(request.config?.reasoningEffort)
+				? {
+						reasoningEffort: readReasoningEffort(
+							request.config?.reasoningEffort,
+						),
+					}
+				: {}),
+			handoff: {
+				sourceSessionId,
+				resolveMessages: readSeedMessages,
+				onOuterSessionCreated: async (createdSessionId) => {
+					outerSessionId = createdSessionId;
+					const dashboardUrl = buildCloudHandoffDashboardUrl(
+						environment.appBaseUrl,
+						createdSessionId,
+					);
+					const current = await manager.get(sourceSessionId);
+					await manager.update(sourceSessionId, {
+						metadata: mergeCloudHandoffMetadata(
+							(current?.metadata as JsonRecord | null | undefined) ??
+								metadataBefore,
+							{
+								toCloudSessionId: createdSessionId,
+								handedOffAt: new Date().toISOString(),
+								status: "pending",
+								dashboardUrl,
+								fingerprint: prepared.fingerprint,
+							},
+						),
+					});
+					emitProgress(
+						"provisioning",
+						"Preparing the cloud workspace…",
+						createdSessionId,
+					);
+				},
+				onSeeding: () =>
+					emitProgress(
+						"seeding",
+						"Copying the local conversation to cloud…",
+						outerSessionId,
+					),
+			},
+		});
+		outerSessionId = String(created.sessionId ?? "").trim();
+		innerSessionId = String(created.innerSessionId ?? "").trim();
+	}
+
+	if (!outerSessionId || !innerSessionId || !seededMessages) {
+		throw new Error("Cloud handoff did not initialize a conversation.");
+	}
+	emitProgress(
+		"verifying",
+		"Verifying the transferred conversation…",
+		outerSessionId,
+	);
+	try {
+		await cloud.verifyHandoffTranscript(outerSessionId, seededMessages);
+	} catch (error) {
+		if (!(error instanceof CloudHandoffTranscriptMismatchError)) {
+			throw error;
+		}
+		try {
+			await clearPendingTarget(outerSessionId);
+		} catch (cleanupError) {
+			throw new AggregateError(
+				[error, cleanupError],
+				"Cloud transcript verification failed and the incomplete cloud handoff could not be cleaned up.",
+			);
+		}
+		throw error;
+	}
+	try {
+		await assertHandoffIdle(ctx, manager, sourceSessionId);
+		const finalLocalMessages = await manager.readLiveMessages(sourceSessionId);
+		if (!cloudHandoffTranscriptsEqual(finalLocalMessages, seededMessages)) {
+			throw new Error(
+				"The local conversation changed during handoff. Nothing was closed; try again when the session is idle.",
+			);
+		}
+	} catch (error) {
+		try {
+			await clearPendingTarget(outerSessionId);
+		} catch (cleanupError) {
+			throw new AggregateError(
+				[error, cleanupError],
+				"The local conversation changed during handoff and the incomplete cloud handoff could not be cleaned up.",
+			);
+		}
+		throw error;
+	}
+	const dashboardUrl = buildCloudHandoffDashboardUrl(
+		environment.appBaseUrl,
+		outerSessionId,
+	);
+	const latest = await manager.get(sourceSessionId);
+	const latestMetadata =
+		(latest?.metadata as JsonRecord | null | undefined) ?? metadataBefore;
+	const handedOffAt =
+		readCloudHandoffMetadata(latestMetadata)?.handedOffAt ??
+		new Date().toISOString();
+	await manager.update(sourceSessionId, {
+		metadata: mergeCloudHandoffMetadata(latestMetadata, {
+			toCloudSessionId: outerSessionId,
+			handedOffAt,
+			status: "complete",
+			innerSessionId,
+			dashboardUrl,
+			fingerprint: prepared.fingerprint,
+		}),
+	});
+
+	let warning: string | undefined;
+	if (nextCommand) {
+		try {
+			await cloud.send(
+				outerSessionId,
+				nextCommand,
+				"queue",
+				prepared.modelId,
+				request.attachments?.userImages,
+			);
+		} catch (error) {
+			warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
+		}
+	}
+	const destination = isCloudAgentsEnabled() ? "in_app" : "external";
+	emitProgress("complete", "Ready in Cline Cloud.", outerSessionId);
+	return {
+		sessionId: outerSessionId,
+		outerSessionId,
+		innerSessionId,
+		dashboardUrl,
+		destination,
+		...(warning ? { warning } : {}),
+	};
+}
+
+type HandoffRequestIdentity = {
+	fingerprint: JsonRecord | null;
+	nextCommand: string;
+	userImages: string[];
+	userFiles: Array<{ name: string; content: string }>;
+};
+
+const handoffRequests = new WeakMap<
+	SidecarContext,
+	Map<string, { identity: HandoffRequestIdentity; promise: Promise<unknown> }>
+>();
+
+async function handleHandoff(
+	ctx: SidecarContext,
+	request: ChatSessionCommandRequest,
+): Promise<unknown> {
+	const sourceSessionId = request.sessionId?.trim();
+	if (!sourceSessionId) throw new Error("sessionId is required");
+	let requests = handoffRequests.get(ctx);
+	if (!requests) {
+		requests = new Map();
+		handoffRequests.set(ctx, requests);
+	}
+	const identity: HandoffRequestIdentity = {
+		fingerprint: request.fingerprint ?? null,
+		nextCommand: request.nextCommand?.trim() ?? "",
+		userImages: [...(request.attachments?.userImages ?? [])],
+		userFiles: (request.attachments?.userFiles ?? []).map((file) => ({
+			...file,
+		})),
+	};
+	const existing = requests.get(sourceSessionId);
+	if (existing) {
+		if (!isDeepStrictEqual(existing.identity, identity)) {
+			throw new Error(
+				"A different cloud handoff is already in progress for this session.",
+			);
+		}
+		return await existing.promise;
+	}
+	const running = handleHandoffOnce(ctx, request).finally(() => {
+		if (requests?.get(sourceSessionId)?.promise === running) {
+			requests.delete(sourceSessionId);
+		}
+	});
+	requests.set(sourceSessionId, { identity, promise: running });
+	return await running;
+}
+
 // ---------------------------------------------------------------------------
 // Action dispatch
 // ---------------------------------------------------------------------------
@@ -1540,6 +2144,8 @@ const ACTION_HANDLERS: Record<
 	start: handleStart,
 	attach: handleAttach,
 	send: handleSend,
+	prepare_handoff: handlePrepareHandoff,
+	handoff: handleHandoff,
 	stop: handleStop,
 	abort: handleAbort,
 	fork: handleFork,

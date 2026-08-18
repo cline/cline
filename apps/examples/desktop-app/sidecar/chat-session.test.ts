@@ -482,6 +482,13 @@ describe("session forks", () => {
 					model: "anthropic/claude-sonnet-4.6",
 					cwd: "/workspace/project",
 					workspaceRoot: "/workspace/project",
+					metadata: {
+						handoff: {
+							toCloudSessionId: "ses-cloud-copy",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+							status: "complete",
+						},
+					},
 				})),
 				readMessages,
 				restore,
@@ -502,7 +509,12 @@ describe("session forks", () => {
 
 		expect(restore).not.toHaveBeenCalled();
 		expect(start).toHaveBeenCalledWith(
-			expect.objectContaining({ initialMessages: sourceMessages }),
+			expect.objectContaining({
+				initialMessages: sourceMessages,
+				sessionMetadata: expect.not.objectContaining({
+					handoff: expect.anything(),
+				}),
+			}),
 		);
 	});
 
@@ -1361,6 +1373,100 @@ describe("workspace metadata prewarming", () => {
 			),
 		).resolves.toBe("current metadata");
 		expect(load).toHaveBeenCalledTimes(2);
+	});
+});
+
+describe("cloud handoff gates", () => {
+	function createHandoffGateContext(options: {
+		busy?: boolean;
+		messages?: Array<{ role: "user" | "assistant"; content: string }>;
+		metadata?: Record<string, unknown>;
+	}) {
+		const sessionId = "local-handoff-source";
+		const send = vi.fn();
+		const messages = options.messages ?? [
+			{ role: "user" as const, content: "continue this work" },
+		];
+		const ctx = {
+			workspaceRoot: "/workspace/project",
+			liveSessions: new Map([
+				[
+					sessionId,
+					{
+						config: {
+							cwd: "/workspace/project",
+							provider: "cline",
+							model: "anthropic/claude-sonnet-4.6",
+						},
+						messages,
+						promptsInQueue: [],
+						busy: options.busy ?? false,
+						startedAt: Date.now(),
+						status: options.busy ? "running" : "idle",
+					},
+				],
+			]),
+			restoringWorkspacePaths: new Set(),
+			streamIndices: new Map(),
+			wsClients: new Set(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId,
+					status: options.busy ? "running" : "completed",
+					cwd: "/workspace/project",
+					model: "anthropic/claude-sonnet-4.6",
+					metadata: options.metadata,
+				})),
+				readLiveMessages: vi.fn(async () => messages),
+				send,
+				pendingPrompts: { list: vi.fn(async () => []) },
+			},
+		} as unknown as SidecarContext;
+		return { ctx, send, sessionId };
+	}
+
+	it("rejects a busy source before provisioning", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: true });
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Stop the current run");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("rejects an empty source before provisioning", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Start a conversation");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("rejects normal sends after ownership moved to cloud", async () => {
+		const { ctx, send, sessionId } = createHandoffGateContext({
+			metadata: {
+				handoff: {
+					toCloudSessionId: "ses-cloud-target",
+					handedOffAt: "2026-08-18T00:00:00.000Z",
+					status: "complete",
+					dashboardUrl:
+						"https://app.cline.bot/agents?sessionId=ses-cloud-target",
+				},
+			},
+		});
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "send",
+				sessionId,
+				prompt: "keep editing locally",
+			}),
+		).rejects.toThrow("Fork locally");
+		expect(send).not.toHaveBeenCalled();
 	});
 });
 

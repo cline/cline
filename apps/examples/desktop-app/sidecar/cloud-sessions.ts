@@ -1,6 +1,11 @@
 import { randomUUID } from "node:crypto";
 import {
+	buildCloudHandoffDashboardUrl,
+	buildCloudHandoffSystemPrompt,
+	CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
 	ClineAccountService,
+	CloudHandoffTranscriptMismatchError,
+	cloudHandoffTranscriptsEqual,
 	isHubReconnectableTransportError,
 	NodeHubClient,
 	ProviderSettingsManager,
@@ -41,12 +46,6 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
-const GITHUB_AUTH_SYSTEM_PROMPT =
-	"IMPORTANT: GitHub API authentication is handled automatically by the infrastructure. " +
-	"A secrets-proxy sidecar injects the necessary authentication credentials into all GitHub API requests. " +
-	"You do NOT need to set up, configure, or manage any authentication tokens, API keys, or credentials for GitHub API calls. " +
-	"Simply make your GitHub API calls normally — authentication will be injected transparently.";
-
 type FetchLike = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -83,6 +82,19 @@ export type CreateCloudSessionInput = {
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
 	/** Omit for a personal session; otherwise scopes billing to this org. */
 	organizationId?: string;
+	/** Desktop handoff-only hooks; never serialized into the provisioning API body. */
+	handoff?: {
+		sourceSessionId: string;
+		resolveMessages: () => Promise<MessageWithMetadata[]>;
+		onOuterSessionCreated: (sessionId: string) => Promise<void>;
+		onSeeding?: () => void;
+	};
+};
+
+type CloudHandoffSeed = {
+	sourceSessionId: string;
+	messages: MessageWithMetadata[];
+	onSeeding?: () => void;
 };
 
 // The repository/branch wire contract is owned by the webview lib so the two
@@ -495,6 +507,11 @@ export class CloudSessionApi {
 			this.claimedSessionIds.add(sessionId);
 			createdSessionId = sessionId;
 			settlePost();
+			await this.persistHandoffOuterSession(
+				input,
+				sessionId,
+				creationAuthToken,
+			);
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
 				await this.waitUntilReady(sessionId, controller.signal);
 			}
@@ -561,6 +578,11 @@ export class CloudSessionApi {
 				await Promise.allSettled(latePeers.map(([, settled]) => settled));
 				const recovered = this.claimFirstUnclaimed(candidates);
 				if (recovered) {
+					await this.persistHandoffOuterSession(
+						input,
+						recovered.id,
+						creationAuthToken,
+					);
 					if (
 						recovered.status === "provisioning" ||
 						!recovered.sandboxUrl?.trim()
@@ -658,6 +680,41 @@ export class CloudSessionApi {
 			return candidate;
 		}
 		return undefined;
+	}
+
+	private async persistHandoffOuterSession(
+		input: CreateCloudSessionInput,
+		sessionId: string,
+		authToken: string,
+	): Promise<void> {
+		const persist = input.handoff?.onOuterSessionCreated;
+		if (!persist) return;
+		try {
+			await persist(sessionId);
+		} catch (persistenceError) {
+			try {
+				await this.delete(sessionId, authToken);
+			} catch (cleanupError) {
+				if (
+					!(
+						cleanupError instanceof CloudSessionError &&
+						(cleanupError.code === "session_not_found" ||
+							cleanupError.code === "session_expired")
+					)
+				) {
+					const dashboardUrl = buildCloudHandoffDashboardUrl(
+						this.appBaseUrl,
+						sessionId,
+					);
+					throw new AggregateError(
+						[persistenceError, cleanupError],
+						`The cloud session was created, but its local recovery record could not be saved or cleaned up. Cloud session ${sessionId}: ${dashboardUrl}`,
+					);
+				}
+			}
+			this.claimedSessionIds.delete(sessionId);
+			throw persistenceError;
+		}
 	}
 
 	async delete(sessionId: string, authToken?: string): Promise<void> {
@@ -1236,6 +1293,39 @@ export class CloudSessionManager {
 		);
 	}
 
+	/** Validates account auth and GitHub access before provisioning a handoff. */
+	async prepareHandoffRepository(repoUrl: string): Promise<{
+		organizationId?: string;
+	}> {
+		const organizationId = await this.resolveActiveOrganizationId();
+		const listed = await this.options.api.listRepositories(organizationId);
+		if (!listed.connected) {
+			throw new CloudSessionError(
+				"github_not_connected",
+				"Connect GitHub before handing this session off to cloud.",
+				listed.connectUrl,
+			);
+		}
+		const normalize = (value: string) =>
+			value
+				.trim()
+				.replace(/\.git$/i, "")
+				.replace(/\/+$/, "")
+				.toLowerCase();
+		if (
+			!listed.repositories.some(
+				(repository) => normalize(repository.url) === normalize(repoUrl),
+			)
+		) {
+			throw new CloudSessionError(
+				"github_not_connected",
+				`The GitHub integration cannot access ${cloudRepositoryLabel(repoUrl, repoUrl)}. Grant repository access before handing off.`,
+				listed.connectUrl,
+			);
+		}
+		return organizationId ? { organizationId } : {};
+	}
+
 	async listBranches(
 		repositoryId: number,
 		options: CloudBranchListOptions = {},
@@ -1332,6 +1422,7 @@ export class CloudSessionManager {
 			String(input.thinking ?? ""),
 			input.reasoningEffort ?? "",
 			String(input.autoApproveTools ?? ""),
+			input.handoff?.sourceSessionId ?? "",
 		].join("\u0000");
 		const existing = this.createRequests.get(key);
 		if (existing) return await existing;
@@ -1342,6 +1433,34 @@ export class CloudSessionManager {
 		});
 		this.createRequests.set(key, creating);
 		return await creating;
+	}
+
+	/** Seeds an already-provisioned outer session when retrying a pending handoff. */
+	async seedHandoff(
+		outerSessionId: string,
+		seed: CloudHandoffSeed,
+	): Promise<{ innerSessionId: string }> {
+		const connection = await this.ensureConnection(outerSessionId, {
+			createInner: true,
+			handoffSeed: seed,
+		});
+		if (!connection.innerSessionId) {
+			throw new Error("Cloud Hub did not return an inner session id");
+		}
+		return { innerSessionId: connection.innerSessionId };
+	}
+
+	async verifyHandoffTranscript(
+		outerSessionId: string,
+		expected: readonly MessageWithMetadata[],
+	): Promise<void> {
+		const actual = await this.readMessages(outerSessionId);
+		if (!cloudHandoffTranscriptsEqual(expected, actual)) {
+			throw new CloudHandoffTranscriptMismatchError(
+				expected.length,
+				actual.length,
+			);
+		}
 	}
 
 	private async createOnce(
@@ -1467,10 +1586,22 @@ export class CloudSessionManager {
 			live.config.reasoningEffort = input.reasoningEffort;
 		}
 		this.ctx.liveSessions.set(record.id, live);
-		// Provisioning succeeded; a transient Hub connect must not report create failure.
+		const handoffSeed = input.handoff
+			? {
+					sourceSessionId: input.handoff.sourceSessionId,
+					messages: await input.handoff.resolveMessages(),
+					onSeeding: input.handoff.onSeeding,
+				}
+			: undefined;
+		// A handoff must seed durably before it can report success. Ordinary cloud
+		// creation keeps its existing best-effort initial-connect behavior.
 		try {
-			await this.ensureConnection(record.id, { createInner: true });
+			await this.ensureConnection(record.id, {
+				createInner: true,
+				handoffSeed,
+			});
 		} catch (error) {
+			if (handoffSeed) throw error;
 			this.ctx.logger?.log(
 				"Cloud session provisioned but initial connect failed; will connect on demand",
 				{ sessionId: record.id, error },
@@ -1497,6 +1628,9 @@ export class CloudSessionManager {
 			cwd: CLOUD_WORKSPACE_ROOT,
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			...(live.prompt ? { prompt: live.prompt } : {}),
+			...(this.connections.get(record.id)?.innerSessionId
+				? { innerSessionId: this.connections.get(record.id)?.innerSessionId }
+				: {}),
 		};
 	}
 
@@ -2181,7 +2315,7 @@ export class CloudSessionManager {
 
 	private async ensureConnection(
 		outerSessionId: string,
-		options: { createInner?: boolean } = {},
+		options: { createInner?: boolean; handoffSeed?: CloudHandoffSeed } = {},
 	): Promise<CloudConnection> {
 		if (this.disposed) {
 			throw new Error("Cloud session manager was disposed");
@@ -2195,7 +2329,7 @@ export class CloudSessionManager {
 		const existing = this.connections.get(outerSessionId);
 		if (existing) {
 			if (options.createInner && !existing.innerSessionId) {
-				await this.createInnerSession(existing);
+				await this.createInnerSession(existing, options.handoffSeed);
 			}
 			return existing;
 		}
@@ -2203,7 +2337,7 @@ export class CloudSessionManager {
 		if (pending) {
 			const connection = await pending;
 			if (options.createInner && !connection.innerSessionId) {
-				await this.createInnerSession(connection);
+				await this.createInnerSession(connection, options.handoffSeed);
 			}
 			return connection;
 		}
@@ -2296,7 +2430,7 @@ export class CloudSessionManager {
 				}
 				this.connections.set(outerSessionId, connection);
 				if (options.createInner && !connection.innerSessionId) {
-					await this.createInnerSession(connection);
+					await this.createInnerSession(connection, options.handoffSeed);
 				}
 				return connection;
 			} catch (error) {
@@ -2322,14 +2456,20 @@ export class CloudSessionManager {
 		return await connecting;
 	}
 
-	private async createInnerSession(connection: CloudConnection): Promise<void> {
+	private async createInnerSession(
+		connection: CloudConnection,
+		handoffSeed?: CloudHandoffSeed,
+	): Promise<void> {
 		if (connection.innerSessionId) {
 			return;
 		}
 		if (connection.innerSessionCreation) {
 			return await connection.innerSessionCreation;
 		}
-		const creation = this.createInnerSessionOnce(connection).finally(() => {
+		const creation = this.createInnerSessionOnce(
+			connection,
+			handoffSeed,
+		).finally(() => {
 			connection.innerSessionCreation = undefined;
 		});
 		connection.innerSessionCreation = creation;
@@ -2338,21 +2478,32 @@ export class CloudSessionManager {
 
 	private async createInnerSessionOnce(
 		connection: CloudConnection,
+		handoffSeed?: CloudHandoffSeed,
 	): Promise<void> {
 		const modelId = connection.remote.metadata.modelId?.trim();
 		if (!modelId) {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.ctx.liveSessions.get(connection.remote.id);
+		handoffSeed?.onSeeding?.();
 		const reply = await connection.client.command("session.create", {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			cwd: CLOUD_WORKSPACE_ROOT,
+			...(handoffSeed ? { initialMessages: handoffSeed.messages } : {}),
 			sessionConfig: {
 				providerId: "cline",
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
-				systemPrompt: GITHUB_AUTH_SYSTEM_PROMPT,
+				systemPrompt: handoffSeed
+					? buildCloudHandoffSystemPrompt({
+							repoUrl:
+								connection.remote.repoContext.repoUrl ?? "the repository",
+							branch:
+								connection.remote.repoContext.branch ?? "the selected branch",
+							workspaceRoot: CLOUD_WORKSPACE_ROOT,
+						})
+					: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
 				mode: "act",
 				enableTools: true,
 				...(typeof live?.config.thinking === "boolean"
@@ -2367,6 +2518,15 @@ export class CloudSessionManager {
 				provider: "cline",
 				model: modelId,
 				interactive: true,
+				...(handoffSeed
+					? {
+							handoff: {
+								from: "local",
+								sourceSessionId: handoffSeed.sourceSessionId,
+								outerSessionId: connection.remote.id,
+							},
+						}
+					: {}),
 			},
 			runtimeOptions: { mode: "act" },
 			modelSelection: { provider: "cline", model: modelId },
