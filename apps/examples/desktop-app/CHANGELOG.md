@@ -1,5 +1,36 @@
 # Cline Code Desktop Changelog
 
+## 0.0.13
+
+- Added an app font size setting. A slider in Settings scales the interface, and your size is applied before the window paints, so launching no longer flashes at the old size first.
+- Models that support it can now search the web during a task. Turn it on with the Web Search toggle in Settings; the searches and their results appear in the transcript and are still there when you reopen the session.
+- Extended thinking budgets reach the provider again on Cline Pass — they had silently stopped applying when the gateway moved off the generic OpenAI-compatible path.
+- Two Cline installs on different builds no longer shut each other's Hub down in a loop, which was killing live sessions with an abnormal disconnect.
+- The app no longer replaces a Hub that is still serving sessions. It attaches to it instead, and the swap happens once that Hub goes idle.
+- The "update required" dialog no longer interrupts when the Hub is only finishing an update on its own. This app is already the newer build, nothing was being asked of you, and the Hub replaces itself once its sessions end.
+- Idle plugin sandbox processes are now reclaimed instead of lingering for the life of the session.
+- Refreshed the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
+## 0.0.12
+
+- Every tool call now gets its own row in the transcript, with its own icon, status, and expandable detail — no more "Read 3 files · Ran 2 commands" grouping. Commands read like a terminal (`$ bun test`) with their captured output on expand, and edits show their diffs inline, one per hunk.
+- Running tool rows are highlighted in brand violet and settle to gray when they finish; errors stay red.
+- File diffs — both in chat rows and the diff panel — now render through a shared syntax-highlighted renderer that follows the app's theme instead of the browser's.
+- Refreshed session transcript layout, message surfaces, and composer, with new Inter and Geist Mono typography.
+- The thinking indicator now stays up during quiet stretches of a turn, such as while tool arguments are streaming, so the turn no longer looks frozen.
+- Message actions (copy, fork, timestamp) no longer crowd the message text, and expanded panels render at full opacity instead of faded.
+- On the welcome screen the chat input is centered and top-aligned, and prompt suggestions are temporarily hidden.
+- The first turn of a fresh session no longer wedges the composer on "Agent is working…" forever.
+- Scheduled runs no longer appear in the session sidebar and history list.
+- Reconnecting to a stale managed Cline Hub daemon is fixed. When another Cline install ships a newer Hub, the app now prompts to update and restart — and stages the app update first, so it no longer relaunches into the same version and immediately re-prompts.
+- The Hub daemon now shuts down cleanly instead of exiting with an error when a client is still connected.
+- The Claude Code provider is usable for agentic work again: sessions are anchored on the workspace folder, your `~/.claude` and project settings are loaded, and file edits under the workspace are allowed instead of every write being refused with no approval prompt.
+- Truncated tool-call JSON is now rejected instead of being silently "repaired" into wrong arguments.
+- Fixed strict providers (seen on Vercel with kimi-k3) rejecting a turn with "user message must have content" when a message held only empty text.
+- Fixed a mid-turn crash on streamed tool calls with non-zero indexes, hit through LiteLLM's Anthropic passthrough.
+- Compaction now respects your Max Output Tokens setting instead of a hardcoded 1024-token cap — reasoning models were spending the entire budget thinking, so no summary arrived and compaction was skipped every time.
+- Vertex AI: added Fable 5 and custom model IDs, and the global-region picker no longer hides models from the live catalog.
+
 ## 0.0.11
 
 - Images can now be pasted straight from the clipboard into the composer.

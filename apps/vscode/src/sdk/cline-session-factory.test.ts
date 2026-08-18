@@ -713,6 +713,80 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.family).toBe(expectedModel.family)
 	})
 
+	it("injects cached LiteLLM max input tokens when the dynamic model is absent from the SDK registry", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "openai/grok-4.6",
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				maxTokens: 64_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["openai/grok-4.6"]
+
+		expect(config.providerId).toBe("litellm")
+		expect(knownModel).toMatchObject({
+			id: "openai/grok-4.6",
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+		})
+		expect(config.knownModels?.["openai/grok-4.6"]).toEqual(knownModel)
+		getModelsSpy.mockRestore()
+	})
+
+	it("keeps an explicit max-input override ahead of cached LiteLLM metadata", async () => {
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: modelId,
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(providerId, "act", {
+			providerId,
+			modelId,
+			overrides: { maxInputTokens: 300_000 },
+		})
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels[modelId]
+
+		expect(knownModel.contextWindow).toBe(500_000)
+		expect(knownModel.maxInputTokens).toBe(300_000)
+		getModelsSpy.mockRestore()
+	})
+
+	it("does not inject fabricated max input metadata for an unknown LiteLLM model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "custom/no-metadata",
+			liteLlmApiKey: "litellm-key",
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.knownModels).toBeUndefined()
+		expect(config.providerConfig).not.toHaveProperty("knownModels")
+		getModelsSpy.mockRestore()
+	})
+
 	it("keeps session creation non-fatal when known-model lookup fails", async () => {
 		const lookupError = new Error("registry unavailable")
 		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(lookupError)
@@ -804,6 +878,75 @@ describe("buildSessionConfig", () => {
 			temperature: 0,
 			pricing: { input: 1, output: 2, cacheRead: 0.1, cacheWrite: 0.5 },
 		})
+	})
+
+	it("defaults tool-calling on for dynamic-list models without preserved SDK capabilities", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/custom-model",
+			openRouterApiKey: "openrouter-key",
+			// Dynamic-list picker snapshot: legacy boolean flags but no SDK
+			// capability list. The reconstructed capabilities array must still
+			// carry "tools" — the SDK treats a populated list without it as
+			// "cannot call tools" and silently drops every tool from the session
+			// (the file-edit e2e regression).
+			actModeOpenRouterModelInfo: {
+				name: "Mock Custom Model",
+				contextWindow: 16_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
+		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/no-tools-model",
+			openRouterApiKey: "openrouter-key",
+			actModeOpenRouterModelInfo: {
+				name: "No Tools",
+				supportsPromptCache: true,
+				supportsTools: false,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/no-tools-model"]
+
+		expect(knownModel.capabilities).toContain("prompt-cache")
+		expect(knownModel.capabilities).not.toContain("tools")
+	})
+
+	it("trusts a preserved SDK capability list instead of injecting tools", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/media-model",
+			openRouterApiKey: "openrouter-key",
+			// A capability list preserved from the SDK catalog boundary is
+			// authoritative: when it omits "tools", the session must not
+			// re-enable tool calling.
+			actModeOpenRouterModelInfo: {
+				name: "Media Model",
+				supportsPromptCache: false,
+				capabilities: ["images"],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/media-model"]
+
+		expect(knownModel.capabilities).toContain("images")
+		expect(knownModel.capabilities).not.toContain("tools")
 	})
 
 	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {

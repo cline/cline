@@ -17,6 +17,7 @@ const TOOL_KIND_MAP: Record<string, ToolKind> = {
 	WebFetch: "fetch",
 	fetch_web_content: "fetch",
 	WebSearch: "search",
+	web_search: "search",
 	Agent: "think",
 	spawn_agent: "think",
 	NotebookEdit: "edit",

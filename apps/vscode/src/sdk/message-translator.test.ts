@@ -1,6 +1,6 @@
 import type { CoreSessionEvent } from "@cline/core"
 import type { Message as SdkMessage } from "@cline/llms"
-import type { AgentEvent } from "@cline/shared"
+import type { AgentEvent, MessageWithMetadata } from "@cline/shared"
 import type { ClineAskUseMcpServer, ClineSayTool } from "@shared/ExtensionMessage"
 import { describe, expect, it } from "vitest"
 import { getDesktopDir } from "@/utils/path"
@@ -225,6 +225,57 @@ describe("translateSessionEvent — pending prompts", () => {
 			expect.objectContaining({
 				say: "user_feedback",
 				text: "please just finish",
+			}),
+		])
+	})
+
+	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
+		// A bare Resume that races the abort settling is auto-queued by the
+		// runtime; when it drains, the submitted-prompt echo must not leak the
+		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
+		// hidden from every other transcript surface, and a visible bubble
+		// would shift edit/regenerate ordinal mapping).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "[TASK RESUMPTION] Please continue where you left off.",
+				delivery: "queue",
+				attachmentCount: 0,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([])
+	})
+
+	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+		// Attachment-only follow-ups ride on the synthetic prompt; the user's
+		// images/files are real content and must stay visible (matching
+		// isSyntheticSdkUserMessage, which counts such messages as visible).
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				delivery: "queue",
+				attachmentCount: 1,
+				userImages: ["image.png"],
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "",
+				images: ["image.png"],
 			}),
 		])
 	})
@@ -574,6 +625,44 @@ describe("translateSessionEvent — agent_event content_end", () => {
 		expect(result.messages[0].say).toBe("text")
 		expect(result.messages[0].text).toBe("Hello world")
 		expect(result.messages[0].partial).toBe(false)
+	})
+
+	it("translates generated media content_end to the shared media payload", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_end",
+					contentType: "media",
+					media: {
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				} as AgentEvent,
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				text: "",
+				media: [
+					{
+						id: "generated-1",
+						modality: "image",
+						mediaType: "image/png",
+						source: { type: "base64", data: "aGVsbG8=" },
+					},
+				],
+				partial: false,
+			}),
+		])
 	})
 
 	it("translates tool content_end with error", () => {
@@ -3999,5 +4088,64 @@ describe("tool display paths are relativized to the cwd", () => {
 		const toolMessage = clineMessages.find((m) => m.say === "tool")
 		expect(toolMessage).toBeDefined()
 		expect(parseTool(toolMessage?.text).path).toBe("src/index.ts")
+	})
+
+	it("rehydrates generated images from persisted SDK history", () => {
+		const messages: SdkMessage[] = [
+			{
+				role: "assistant",
+				content: [{ type: "image", data: "aGVsbG8=", mediaType: "image/webp" }],
+			} as SdkMessage,
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const imageMessage = clineMessages.find((message) => message.media?.length)
+		expect(imageMessage).toEqual(
+			expect.objectContaining({
+				type: "say",
+				say: "text",
+				media: [
+					expect.objectContaining({
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: "aGVsbG8=" },
+					}),
+				],
+			}),
+		)
+	})
+
+	it("renders provider model activities through the persisted local-tool path", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "assistant",
+				content: "Bun 1.3.14 is current.",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest Bun release" },
+							output: "Bun 1.3.14",
+						},
+					],
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const toolMessage = clineMessages.find((message) => message.say === "tool")
+
+		expect(toolMessage).toBeDefined()
+		expect(parseTool(toolMessage?.text)).toMatchObject({
+			tool: "webSearch",
+		})
+		expect(clineMessages).toContainEqual(
+			expect.objectContaining({
+				type: "say",
+				text: "Bun 1.3.14 is current.",
+			}),
+		)
 	})
 })

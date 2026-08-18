@@ -21,6 +21,7 @@ function createContext(workspaceRoot: string): SidecarContext {
 		hubClient: null,
 		workspaceRoot,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 
