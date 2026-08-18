@@ -16,7 +16,7 @@ import {
 	zodToJsonSchema,
 } from "@cline/shared";
 import { captureRunCommandsTimeout } from "../../services/telemetry/core-events";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, DEFAULT_SHELL_TIMEOUT_MS } from "./executors/bash";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
 	MAX_READ_LINES,
@@ -460,7 +460,9 @@ export function createShellTool(
 		shell?: string | (() => string);
 	} = {},
 ): AgentTool<unknown, ToolOperationResult[]> {
-	const timeoutMs = config.bashTimeoutMs ?? 30000;
+	// Shell commands routinely include builds and test runs, so the default
+	// is 1 hour — far larger than the 30s used by the other tool timeouts.
+	const timeoutMs = config.bashTimeoutMs ?? DEFAULT_SHELL_TIMEOUT_MS;
 	const timeoutSource =
 		config.bashTimeoutMs === undefined
 			? "default_setting"

@@ -9,7 +9,7 @@ import {
 	createShellTool,
 	createSkillsTool,
 } from "./definitions";
-import { CommandExitError } from "./executors/bash";
+import { CommandExitError, DEFAULT_SHELL_TIMEOUT_MS } from "./executors/bash";
 import { RUN_COMMAND_QUERY_PREVIEW_LIMIT, TimeoutError } from "./helpers";
 import { type EditFileInput, INPUT_ARG_CHAR_LIMIT } from "./schemas";
 import type { SkillsExecutorWithMetadata } from "./types";
@@ -567,6 +567,53 @@ describe("default run_commands tool", () => {
 			.map((call) => call[0])
 			.filter((event) => event.event === "sdk.tool_timeout");
 	}
+
+	it("defaults the command timeout to 1 hour (DEFAULT_SHELL_TIMEOUT_MS)", () => {
+		// Shell commands routinely include builds and test runs; a 30s default
+		// killed them in background exec mode (cline/cline#13246).
+		expect(DEFAULT_SHELL_TIMEOUT_MS).toBe(60 * 60 * 1000);
+
+		// The tool wrapper timeout is derived as 2x the per-command timeout,
+		// so it reflects the default the tool was built with.
+		const tool = createShellTool(async () => "ok");
+		expect(tool.timeoutMs).toBe(DEFAULT_SHELL_TIMEOUT_MS * 2);
+	});
+
+	it("does not time out long-running commands at the old 30s default", async () => {
+		vi.useFakeTimers();
+		try {
+			// Never resolves, so only the tool's own timeout can settle it.
+			const execute = vi.fn(
+				(): Promise<string> => new Promise<string>(() => {}),
+			);
+			const tool = createShellTool(execute);
+			const pending = Promise.resolve(
+				tool.execute({ commands: ["bun run build"] } as never, {
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 1,
+				}),
+			);
+			let settled: unknown;
+			pending.then((value) => {
+				settled = value;
+			});
+
+			// Well past the previous 30s default: still running.
+			await vi.advanceTimersByTimeAsync(30_000 + 1);
+			expect(settled).toBeUndefined();
+
+			// The 1-hour default eventually fires and reports the timeout.
+			await vi.advanceTimersByTimeAsync(DEFAULT_SHELL_TIMEOUT_MS);
+			const result = await pending;
+			expect(result[0].success).toBe(false);
+			expect(result[0].error).toContain(
+				`timed out after ${DEFAULT_SHELL_TIMEOUT_MS}ms`,
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 
 	it("accepts object input with commands as a single string", async () => {
 		const execute = vi.fn(async (command: string | { command: string }) =>

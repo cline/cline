@@ -34,6 +34,7 @@ export { PATCH_MARKERS, PatchActionType } from "./apply-patch-parser";
 export {
 	CommandExitError,
 	createShellExecutor,
+	DEFAULT_SHELL_TIMEOUT_MS,
 	type ShellExecutorOptions,
 } from "./bash";
 export { createEditorExecutor, type EditorExecutorOptions } from "./editor";

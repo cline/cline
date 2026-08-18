@@ -39,6 +39,7 @@ export {
 	createSearchExecutor,
 	createShellExecutor,
 	createWebFetchExecutor,
+	DEFAULT_SHELL_TIMEOUT_MS,
 	type DefaultExecutorsOptions,
 	type EditorExecutorOptions,
 	type FileReadExecutorOptions,

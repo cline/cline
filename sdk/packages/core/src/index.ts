@@ -910,6 +910,7 @@ export {
 	createShellExecutor,
 	createShellTool,
 	createToolPoliciesWithPreset,
+	DEFAULT_SHELL_TIMEOUT_MS,
 	type DefaultExecutorsOptions,
 	type DefaultToolName,
 	DefaultToolNames,

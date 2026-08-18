@@ -18,6 +18,17 @@ import {
 	truncateCommandOutput,
 } from "./output-limits";
 
+/**
+ * Default timeout for shell command execution: 1 hour.
+ *
+ * Shell commands routinely include builds and test runs that take many
+ * minutes, so the shell path deliberately uses a much larger default than
+ * the other executors (which default to 30 seconds). This matches the VS
+ * Code foreground-terminal timeout so both run_commands execution modes
+ * behave consistently across hosts.
+ */
+export const DEFAULT_SHELL_TIMEOUT_MS = 60 * 60 * 1000;
+
 export class CommandExitError extends Error {
 	constructor(
 		readonly exitCode: number,
@@ -40,7 +51,7 @@ export interface ShellExecutorOptions {
 
 	/**
 	 * Timeout for command execution in milliseconds
-	 * @default 30000 (30 seconds)
+	 * @default 3600000 (1 hour) — see DEFAULT_SHELL_TIMEOUT_MS
 	 */
 	timeoutMs?: number;
 
@@ -321,7 +332,7 @@ export function createShellExecutor(
 ): ShellExecutor {
 	const {
 		shell = getDefaultShell(process.platform),
-		timeoutMs = 30000,
+		timeoutMs = DEFAULT_SHELL_TIMEOUT_MS,
 		env = {},
 		combineOutput = true,
 	} = options;
