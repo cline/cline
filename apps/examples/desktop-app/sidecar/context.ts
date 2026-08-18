@@ -41,6 +41,7 @@ const hubClientInitialization = new WeakMap<
 	SidecarContext,
 	Promise<NodeHubClient>
 >();
+const approvalReadinessUpdates = new WeakMap<SidecarContext, Promise<void>>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -105,19 +106,33 @@ export function cancelSidecarToolApprovalsForOwner(
 	}
 }
 
-export async function syncSidecarApprovalReadiness(
+export function syncSidecarApprovalReadiness(
 	ctx: SidecarContext,
 ): Promise<void> {
-	await ctx.hubClient?.updateCapabilities(
-		[...ctx.wsClients].some((client) => client.data?.canApproveTools === true)
-			? [
-					{
-						name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
-						description: "Cline Code has a live user surface for tool review.",
-					},
-				]
-			: [],
-	);
+	const previous = approvalReadinessUpdates.get(ctx) ?? Promise.resolve();
+	const update = previous.catch(() => undefined).then(async () => {
+		const hubClient = ctx.hubClient;
+		if (!hubClient) return;
+		await hubClient.updateCapabilities(
+			[...ctx.wsClients].some(
+				(client) => client.data?.canApproveTools === true,
+			)
+				? [
+						{
+							name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+							description:
+								"Cline Code has a live user surface for tool review.",
+						},
+					]
+				: [],
+		);
+	});
+	approvalReadinessUpdates.set(ctx, update);
+	return update.finally(() => {
+		if (approvalReadinessUpdates.get(ctx) === update) {
+			approvalReadinessUpdates.delete(ctx);
+		}
+	});
 }
 
 // Session log appends are chained per session so writes stay ordered, but
