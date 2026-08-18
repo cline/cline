@@ -6,13 +6,8 @@ import type {
 	HubScheduleUpdateInput,
 } from "@cline/shared";
 import { createSessionId, readHubScheduleMode } from "@cline/shared";
+import type { HubConnectionAuthority } from "../../hub/server/command-transport";
 import type { HubScheduleService } from "./schedule-service";
-
-export interface HubScheduleCommandServiceOptions {
-	resolveClientWorkspace(
-		clientId: string,
-	): { workspaceRoot?: string; cwd?: string } | undefined;
-}
 
 interface ScheduleCommandScope {
 	workspaceRoot: string;
@@ -62,16 +57,14 @@ function errorReply(
 }
 
 export class HubScheduleCommandService {
-	constructor(
-		private readonly schedules: HubScheduleService,
-		private readonly options: HubScheduleCommandServiceOptions,
-	) {}
+	constructor(private readonly schedules: HubScheduleService) {}
 
 	public async handleCommand(
 		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		try {
-			const scope = this.resolveScope(envelope);
+			const scope = this.resolveScope(authority);
 			switch (envelope.command) {
 				case "schedule.create":
 					return okReply(envelope, {
@@ -182,12 +175,11 @@ export class HubScheduleCommandService {
 		}
 	}
 
-	private resolveScope(envelope: HubCommandEnvelope): ScheduleCommandScope {
-		const clientId = envelope.clientId?.trim();
-		const context = clientId
-			? this.options.resolveClientWorkspace(clientId)
-			: undefined;
-		if (!clientId || !context?.workspaceRoot?.trim()) {
+	private resolveScope(
+		authority: HubConnectionAuthority | undefined,
+	): ScheduleCommandScope {
+		const context = authority?.workspaceContext;
+		if (!authority?.clientId || !context?.workspaceRoot?.trim()) {
 			throw new Error(
 				"schedule commands require a registered workspace client",
 			);

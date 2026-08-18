@@ -42,6 +42,7 @@ import {
 } from "../../tasks";
 import { SessionSource } from "../../types/common";
 import type { CoreSessionEvent } from "../../types/events";
+import type { HubConnectionAuthority } from "./command-transport";
 import {
 	handleApprovalRespond,
 	requestToolApproval as requestToolApprovalHandler,
@@ -303,10 +304,7 @@ export class HubServerTransport implements NativeHubTransport {
 				);
 			},
 		});
-		this.scheduleCommands = new HubScheduleCommandService(this.schedules, {
-			resolveClientWorkspace: (clientId) =>
-				this.clients.get(clientId)?.workspaceContext,
-		});
+		this.scheduleCommands = new HubScheduleCommandService(this.schedules);
 		this.sessionTools.push(
 			createTasksTool({
 				todo: {
@@ -570,9 +568,12 @@ export class HubServerTransport implements NativeHubTransport {
 		}
 	}
 
-	async handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
+	async handleCommand(
+		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority,
+	): Promise<HubReplyEnvelope> {
 		try {
-			const reply = await this.dispatchCommand(envelope);
+			const reply = await this.dispatchCommand(envelope, authority);
 			this.captureFailedReply(envelope, reply);
 			return reply;
 		} catch (error) {
@@ -590,6 +591,7 @@ export class HubServerTransport implements NativeHubTransport {
 
 	private async dispatchCommand(
 		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority,
 	): Promise<HubReplyEnvelope> {
 		if (isAgendaTaskCommand(envelope.command)) {
 			return await this.taskCommands.handleCommand(envelope);
@@ -699,7 +701,10 @@ export class HubServerTransport implements NativeHubTransport {
 					},
 				};
 			default: {
-				const reply = await this.scheduleCommands.handleCommand(envelope);
+				const reply = await this.scheduleCommands.handleCommand(
+					envelope,
+					authority,
+				);
 				if (reply.ok) {
 					const event = eventNameForScheduleCommand(envelope.command);
 					if (event) {

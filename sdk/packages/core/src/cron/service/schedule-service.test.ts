@@ -336,30 +336,30 @@ describe("HubScheduleService", () => {
 				},
 			});
 			try {
-				const commands = new HubScheduleCommandService(service, {
-					resolveClientWorkspace: (clientId) =>
-						clientId === "workspace-client"
-							? { workspaceRoot: "/workspace", cwd: "/workspace" }
-							: clientId === "other-client"
-								? { workspaceRoot: "/other-workspace" }
-								: undefined,
-				});
-
-				const createdReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
+				const commands = new HubScheduleCommandService(service);
+				const workspaceAuthority = {
 					clientId: "workspace-client",
-					payload: {
-						name: "Command routine",
-						cronPattern: "15 * * * *",
-						prompt: "Run from command",
-						workspaceRoot: "/workspace",
-						modelSelection: {
-							providerId: "openai",
-							modelId: "gpt-5.3-codex",
+					workspaceContext: { workspaceRoot: "/workspace", cwd: "/workspace" },
+				};
+
+				const createdReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Command routine",
+							cronPattern: "15 * * * *",
+							prompt: "Run from command",
+							workspaceRoot: "/workspace",
+							modelSelection: {
+								providerId: "openai",
+								modelId: "gpt-5.3-codex",
+							},
 						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(createdReply.ok).toBe(true);
 				const created = createdReply.payload?.schedule as {
 					scheduleId: string;
@@ -367,35 +367,47 @@ describe("HubScheduleService", () => {
 				};
 				expect(created.mode).toBe("yolo");
 
-				const planReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.update",
-					clientId: "workspace-client",
-					payload: { scheduleId: created.scheduleId, mode: "plan" },
-				});
+				const planReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: { scheduleId: created.scheduleId, mode: "plan" },
+					},
+					workspaceAuthority,
+				);
 				expect(planReply.ok).toBe(true);
 				expect((planReply.payload?.schedule as { mode: string }).mode).toBe(
 					"plan",
 				);
 
-				const omittedModeReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.update",
-					clientId: "workspace-client",
-					payload: { scheduleId: created.scheduleId, name: "Renamed routine" },
-				});
+				const omittedModeReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.update",
+						clientId: "workspace-client",
+						payload: {
+							scheduleId: created.scheduleId,
+							name: "Renamed routine",
+						},
+					},
+					workspaceAuthority,
+				);
 				expect(omittedModeReply.ok).toBe(true);
 				expect(
 					(omittedModeReply.payload?.schedule as { mode: string }).mode,
 				).toBe("plan");
 
 				for (const invalidMode of [null, "", "invalid"]) {
-					const invalidUpdateReply = await commands.handleCommand({
-						version: "v1",
-						command: "schedule.update",
-						clientId: "workspace-client",
-						payload: { scheduleId: created.scheduleId, mode: invalidMode },
-					});
+					const invalidUpdateReply = await commands.handleCommand(
+						{
+							version: "v1",
+							command: "schedule.update",
+							clientId: "workspace-client",
+							payload: { scheduleId: created.scheduleId, mode: invalidMode },
+						},
+						workspaceAuthority,
+					);
 					expect(invalidUpdateReply).toMatchObject({
 						ok: false,
 						error: {
@@ -405,18 +417,21 @@ describe("HubScheduleService", () => {
 					});
 				}
 
-				const invalidCreateReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
-					clientId: "workspace-client",
-					payload: {
-						name: "Invalid routine",
-						cronPattern: "30 * * * *",
-						prompt: "Do not create",
-						workspaceRoot: "/workspace",
-						mode: "invalid",
+				const invalidCreateReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Invalid routine",
+							cronPattern: "30 * * * *",
+							prompt: "Do not create",
+							workspaceRoot: "/workspace",
+							mode: "invalid",
+						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(invalidCreateReply).toMatchObject({
 					ok: false,
 					error: {
@@ -425,12 +440,15 @@ describe("HubScheduleService", () => {
 					},
 				});
 
-				const listReply = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.list",
-					clientId: "workspace-client",
-					payload: { limit: 10 },
-				});
+				const listReply = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.list",
+						clientId: "workspace-client",
+						payload: { limit: 10 },
+					},
+					workspaceAuthority,
+				);
 				expect(listReply.ok).toBe(true);
 				const listedSchedule = (
 					listReply.payload?.schedules as Array<{
@@ -440,12 +458,18 @@ describe("HubScheduleService", () => {
 				).find((item) => item.scheduleId === created.scheduleId);
 				expect(listedSchedule).toMatchObject({ mode: "plan" });
 
-				const foreignGet = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.get",
-					clientId: "other-client",
-					payload: { scheduleId: created.scheduleId },
-				});
+				const foreignGet = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.get",
+						clientId: "other-client",
+						payload: { scheduleId: created.scheduleId },
+					},
+					{
+						clientId: "other-client",
+						workspaceContext: { workspaceRoot: "/other-workspace" },
+					},
+				);
 				expect(foreignGet).toMatchObject({
 					ok: false,
 					error: {
@@ -454,17 +478,20 @@ describe("HubScheduleService", () => {
 					},
 				});
 
-				const spoofedCreate = await commands.handleCommand({
-					version: "v1",
-					command: "schedule.create",
-					clientId: "workspace-client",
-					payload: {
-						name: "Scoped routine",
-						cronPattern: "30 * * * *",
-						prompt: "Stay in scope",
-						workspaceRoot: "/other-workspace",
+				const spoofedCreate = await commands.handleCommand(
+					{
+						version: "v1",
+						command: "schedule.create",
+						clientId: "workspace-client",
+						payload: {
+							name: "Scoped routine",
+							cronPattern: "30 * * * *",
+							prompt: "Stay in scope",
+							workspaceRoot: "/other-workspace",
+						},
 					},
-				});
+					workspaceAuthority,
+				);
 				expect(spoofedCreate.payload?.schedule).toMatchObject({
 					workspaceRoot: "/workspace",
 				});

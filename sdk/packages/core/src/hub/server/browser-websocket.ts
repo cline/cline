@@ -11,7 +11,10 @@ import {
 	resolveHubCommandTimeoutMs,
 	safeJsonParse,
 } from "@cline/shared";
-import type { HubCommandTransport } from "./command-transport";
+import type {
+	HubCommandTransport,
+	HubConnectionAuthority,
+} from "./command-transport";
 import { logHubMessage } from "./hub-server-logging";
 
 type HubCommandFrame = HubTransportFrame & { kind: "command" };
@@ -61,6 +64,7 @@ export class BrowserWebSocketHubAdapter {
 	attach(socket: BrowserHubSocketLike): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
+		let authority: HubConnectionAuthority | undefined;
 		let closed = false;
 
 		const sendFrame = (frame: HubTransportFrame): void => {
@@ -86,6 +90,31 @@ export class BrowserWebSocketHubAdapter {
 				const frame = JSON.parse(event.data) as HubTransportFrame;
 				switch (frame.kind) {
 					case "command": {
+						if (authority && frame.envelope.command === "client.register") {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_already_registered",
+									"This connection already owns a registered client.",
+								),
+							});
+							break;
+						}
+						if (
+							authority &&
+							frame.envelope.clientId?.trim() !== authority.clientId
+						) {
+							sendFrame({
+								kind: "reply",
+								envelope: commandErrorReply(
+									frame,
+									"client_authority_mismatch",
+									"Command clientId does not belong to this connection.",
+								),
+							});
+							break;
+						}
 						const startedAt = performance.now();
 						let settled = false;
 						const context = commandLogContext(frame);
@@ -97,7 +126,10 @@ export class BrowserWebSocketHubAdapter {
 								elapsedMs: Math.round(performance.now() - startedAt),
 							});
 						}, HUB_COMMAND_SLOW_LOG_MS);
-						const commandPromise = this.transport.command(frame.envelope);
+						const commandPromise = this.transport.command(
+							frame.envelope,
+							authority,
+						);
 						commandPromise.then(
 							(lateReply) => {
 								if (!settled) return;
@@ -193,6 +225,12 @@ export class BrowserWebSocketHubAdapter {
 								frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.add(clientId);
+								authority = {
+									clientId,
+									workspaceContext: registration.workspaceContext
+										? JSON.parse(JSON.stringify(registration.workspaceContext))
+										: undefined,
+								};
 							}
 						} else if (
 							frame.envelope.command === "client.unregister" &&
@@ -201,6 +239,7 @@ export class BrowserWebSocketHubAdapter {
 							const clientId = frame.envelope.clientId?.trim();
 							if (clientId) {
 								registeredClientIds.delete(clientId);
+								authority = undefined;
 							}
 						}
 						sendFrame({

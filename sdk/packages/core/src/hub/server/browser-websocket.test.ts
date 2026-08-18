@@ -1,6 +1,7 @@
-import type { HubReplyEnvelope } from "@cline/shared";
+import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
+import type { HubConnectionAuthority } from "./command-transport";
 
 function createSocket() {
 	const messageListeners = new Set<(event: { data: string }) => void>();
@@ -76,6 +77,93 @@ describe("BrowserWebSocketHubAdapter", () => {
 		} finally {
 			errorSpy.mockRestore();
 		}
+	});
+
+	it("binds client identity and workspace authority to one connection", async () => {
+		const transport = {
+			command: vi.fn(
+				async (
+					envelope: HubCommandEnvelope,
+					_authority?: HubConnectionAuthority,
+				) => ({
+					version: "v1" as const,
+					requestId: envelope.requestId,
+					ok: true,
+				}),
+			),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "client.register",
+					requestId: "register",
+					clientId: "client-1",
+					payload: {
+						clientId: "client-1",
+						clientType: "test",
+						transport: "websocket",
+						workspaceContext: {
+							workspaceRoot: "/trusted",
+							cwd: "/trusted/project",
+						},
+					},
+				},
+			}),
+		);
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "schedule.list",
+					requestId: "list",
+					clientId: "client-1",
+				},
+			}),
+		);
+		await vi.waitFor(() => expect(transport.command).toHaveBeenCalledTimes(2));
+		expect(transport.command.mock.calls[1]?.[1]).toEqual({
+			clientId: "client-1",
+			workspaceContext: {
+				workspaceRoot: "/trusted",
+				cwd: "/trusted/project",
+			},
+		});
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "schedule.list",
+					requestId: "spoofed",
+					clientId: "other-client",
+				},
+			}),
+		);
+		await vi.waitFor(() =>
+			expect(socket.sent.map((entry) => JSON.parse(entry))).toContainEqual({
+				kind: "reply",
+				envelope: {
+					version: "v1",
+					requestId: "spoofed",
+					ok: false,
+					error: {
+						code: "client_authority_mismatch",
+						message: "Command clientId does not belong to this connection.",
+					},
+				},
+			}),
+		);
+		expect(transport.command).toHaveBeenCalledTimes(2);
 	});
 
 	it("keeps run.start open past the default command timeout", async () => {
