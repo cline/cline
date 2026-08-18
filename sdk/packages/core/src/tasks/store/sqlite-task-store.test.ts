@@ -103,6 +103,26 @@ describe("SqliteAgendaTaskStore", () => {
 		expect(store.getTask(created.taskId)).toBeUndefined();
 	});
 
+	it("auto-approves user-authored tasks but keeps agent suggestions pending", () => {
+		const userTask = store.createTask({
+			...createInput("user-authored"),
+			createdBy: USER,
+			requiresApproval: false,
+		});
+		const agentSuggestion = store.createTask(createInput("agent-suggestion"));
+
+		expect(userTask).toMatchObject({
+			status: "approved",
+			approvedRevision: 1,
+			createdBy: USER,
+		});
+		expect(agentSuggestion).toMatchObject({
+			status: "pending_approval",
+			createdBy: AGENT,
+		});
+		expect(agentSuggestion.approvedRevision).toBeUndefined();
+	});
+
 	it("orders ready work P0 first and applies workspace-view scope semantics", () => {
 		store.createTask(createInput("p4", 4));
 		store.createTask(createInput("p0", 0));

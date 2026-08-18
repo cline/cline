@@ -261,6 +261,9 @@ export class SqliteAgendaTaskStore {
 			input.timeoutSeconds,
 			"timeoutSeconds",
 		);
+		const requiresApproval = input.requiresApproval !== false;
+		const initialStatus = requiresApproval ? "pending_approval" : "approved";
+		const approvedRevision = requiresApproval ? null : 1;
 		this.db
 			.prepare(
 				`INSERT INTO agenda_tasks (
@@ -268,16 +271,17 @@ export class SqliteAgendaTaskStore {
 					workspace_root, cwd, resource_paths_json, priority, assignee,
 					model_selection_json, mode, system_prompt, max_iterations,
 					timeout_seconds, available_at, expires_at, automation_eligible,
-					revision, created_by_json, updated_by_json, origin_session_id,
+					revision, approved_revision, created_by_json, updated_by_json, origin_session_id,
 					origin_task_id, spec_path, created_at, updated_at
 				) VALUES (
-					?, ?, 'pending_approval', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-					?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?
+					?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+					?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?
 				)`,
 			)
 			.run(
 				taskId,
 				input.type,
+				initialStatus,
 				requiredText(input.title, "title"),
 				optionalText(input.description) ?? null,
 				requiredText(input.instructions, "instructions"),
@@ -295,6 +299,7 @@ export class SqliteAgendaTaskStore {
 				availableAt,
 				expiresAt,
 				input.automationEligible === false ? 0 : 1,
+				approvedRevision,
 				JSON.stringify(input.createdBy),
 				JSON.stringify(input.createdBy),
 				optionalText(input.originSessionId) ?? null,

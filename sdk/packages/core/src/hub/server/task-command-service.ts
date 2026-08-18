@@ -63,6 +63,7 @@ export class HubAgendaTaskCommandService {
 				case "task.create": {
 					const task = await this.tasks.createTask({
 						...(payload as unknown as AgendaTaskCreateInput),
+						requiresApproval: false,
 						createdBy: actor,
 					});
 					return okReply(envelope, { task });

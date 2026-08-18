@@ -98,6 +98,7 @@ describe("HubAgendaTaskCommandService", () => {
 		expect(reply.ok).toBe(true);
 		expect(manager.createTask).toHaveBeenCalledWith(
 			expect.objectContaining({
+				requiresApproval: false,
 				createdBy: {
 					kind: "user",
 					id: "desktop",

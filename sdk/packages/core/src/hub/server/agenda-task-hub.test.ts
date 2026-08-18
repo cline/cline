@@ -19,7 +19,7 @@ import type {
 import { HubServerTransport } from "./hub-server-transport";
 
 describe("Hub agenda task vertical slice", () => {
-	it("creates, approves, starts, links, and completes a file-backed task", async () => {
+	it("creates an approved user task, starts it, and completes it", async () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-hub-agenda-"));
 		const chatWorkspace = join(root, "chat-workspace");
 		mkdirSync(chatWorkspace);
@@ -173,48 +173,23 @@ describe("Hub agenda task vertical slice", () => {
 				},
 			});
 			expect(created.ok).toBe(true);
-			const pending = created.payload?.task as {
+			const approved = created.payload?.task as {
 				taskId: string;
 				status: string;
 				revision: number;
 				createdBy: { kind: string; clientId?: string };
 			};
-			expect(pending).toMatchObject({
-				status: "pending_approval",
+			expect(approved).toMatchObject({
+				status: "approved",
 				createdBy: { kind: "user", clientId: "desktop" },
 			});
-
-			const blocked = await transport.handleCommand({
-				version: "v1",
-				command: "task.run",
-				clientId: "desktop",
-				payload: {
-					taskId: pending.taskId,
-					expectedRevision: pending.revision,
-				},
-			});
-			expect(blocked).toMatchObject({
-				ok: false,
-				error: { code: "task_command_failed" },
-			});
-
-			const approved = await transport.handleCommand({
-				version: "v1",
-				command: "task.approve",
-				clientId: "desktop",
-				payload: {
-					taskId: pending.taskId,
-					expectedRevision: pending.revision,
-				},
-			});
-			expect(approved.payload?.task).toMatchObject({ status: "approved" });
 			const started = await transport.handleCommand({
 				version: "v1",
 				command: "task.run",
 				clientId: "desktop",
 				payload: {
-					taskId: pending.taskId,
-					expectedRevision: pending.revision,
+					taskId: approved.taskId,
+					expectedRevision: approved.revision,
 				},
 			});
 			expect(started.ok).toBe(true);
@@ -287,7 +262,7 @@ describe("Hub agenda task vertical slice", () => {
 				});
 				expect(listed.payload?.tasks).toEqual([
 					expect.objectContaining({
-						taskId: pending.taskId,
+						taskId: approved.taskId,
 						status: "completed",
 						lastSessionId: expect.any(String),
 					}),
@@ -307,7 +282,7 @@ describe("Hub agenda task vertical slice", () => {
 				expect.objectContaining({
 					event: "approval.requested",
 					payload: expect.objectContaining({
-						agendaTaskId: pending.taskId,
+						agendaTaskId: approved.taskId,
 						toolName: "write_to_file",
 					}),
 				}),

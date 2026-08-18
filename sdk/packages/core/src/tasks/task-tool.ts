@@ -20,7 +20,7 @@ export const TASKS_SYSTEM_PROMPT_RULE = `# Tasks
 
 Use the \`tasks\` tool to manage durable Todo items and explicitly requested scheduled agent work.
 
-- Use \`kind: "todo"\` for meaningful follow-ups, handoffs, ideas, reminders, and other work that should remain visible for user review after this session. Todo \`available_at\` controls availability in the list; it never schedules execution.
+- Use \`kind: "todo"\` for meaningful follow-ups, handoffs, ideas, reminders, and other work that should remain visible after this session. This includes useful work you identify and suggest proactively. Agent-created Todos require user approval; Todos created directly by the user are approved immediately. Todo \`available_at\` controls availability in the list; it never schedules execution.
 - Use \`kind: "scheduled"\` only when the user explicitly asks Cline to execute work once at a future time or on a recurrence. One-time schedules require an exact future ISO 8601 \`run_at\` with an offset or Z. Recurring schedules require a five-field \`cron_pattern\` and may include an IANA \`timezone\`.
 - "Remind me" is ambiguous: ask whether the user wants a reviewed Todo note or an agent to execute work at that time when intent is unclear.
 - Never create both kinds for the same request unless the user explicitly requests both. Check existing items before creating a likely duplicate.

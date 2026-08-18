@@ -120,6 +120,8 @@ export interface AgendaTaskCreateInput {
 	availableAt?: string;
 	expiresAt: string;
 	automationEligible?: boolean;
+	/** False only when a trusted interactive user directly authored the item. */
+	requiresApproval?: boolean;
 	createdBy: AgendaTaskActor;
 	originSessionId?: string;
 	originTaskId?: string;
