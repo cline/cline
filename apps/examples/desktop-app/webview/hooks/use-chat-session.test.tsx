@@ -61,6 +61,33 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(optimisticStates.has("optimistic-2")).toBe(false);
 	});
 
+	it("reconciles a wrapped cloud prompt with its optimistic bubble", () => {
+		const optimisticStates = new Map([
+			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				message(
+					"saved",
+					"user",
+					'<user_input mode="act">one prompt</user_input>',
+					2,
+				),
+			],
+			[message("optimistic", "user", "one prompt", 1)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(merged.filter((item) => item.role === "user")).toHaveLength(1);
+		expect(merged[0]?.id).toBe("saved");
+		expect(optimisticStates.has("optimistic")).toBe(false);
+	});
+
 	it("keeps a new assistant reply when an older reply has identical text", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("saved-old", "assistant", "Done", 1)],
@@ -2409,6 +2436,103 @@ describe("useChatSession", () => {
 			endedHandler?.({ sessionId: current.sessionId, reason: "aborted" });
 		});
 		expect(current.status).toBe("cancelled");
+	});
+
+	it("keeps one assistant message when the end event precedes the send reply", async () => {
+		let resolveSend!: (value: {
+			ok: true;
+			result: { text: string; finishReason: "completed" };
+		}) => void;
+		const sendReply = new Promise<{
+			ok: true;
+			result: { text: string; finishReason: "completed" };
+		}>((resolve) => {
+			resolveSend = resolve;
+		});
+		let markSendStarted!: () => void;
+		const sendStarted = new Promise<void>((resolve) => {
+			markSendStarted = resolve;
+		});
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: "ses-cloud",
+							status: "completed",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+						};
+					}
+					if (request?.action === "send") {
+						markSendStarted();
+						return await sendReply;
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: "ses-cloud",
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-17T00:00:00.000Z",
+			});
+		});
+
+		let sendPromise!: Promise<void>;
+		await act(async () => {
+			sendPromise = current.sendPrompt("Answer once");
+			await sendStarted;
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const endedHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_session_ended",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_text",
+				chunk: "One response",
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: "ses-cloud",
+				stream: "chat_usage",
+				chunk: "{}",
+				ts: Date.now(),
+				index: 2,
+			});
+			endedHandler?.({ sessionId: "ses-cloud", reason: "completed" });
+			resolveSend({
+				ok: true,
+				result: { text: "One response", finishReason: "completed" },
+			});
+			await sendPromise;
+		});
+
+		expect(
+			current.messages.filter(
+				(message) =>
+					message.role === "assistant" && message.content === "One response",
+			),
+		).toHaveLength(1);
 	});
 
 	it("never attributes an earlier turn's core error to a later detail-less failure", async () => {

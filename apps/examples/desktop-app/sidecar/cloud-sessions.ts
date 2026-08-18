@@ -769,7 +769,9 @@ type CloudSessionManagerOptions = {
 	getAuthToken: () => Promise<string | undefined>;
 	apiBaseUrl: string;
 	/** Resolves the active billing org; undefined means a personal session. */
-	getActiveOrganizationId?: () => Promise<string | undefined>;
+	getActiveOrganizationId?: (options?: {
+		fresh?: boolean;
+	}) => Promise<string | undefined>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
@@ -1222,8 +1224,10 @@ export class CloudSessionManager {
 		return scoped;
 	}
 
-	private async resolveActiveOrganizationId(): Promise<string | undefined> {
-		return await this.options.getActiveOrganizationId?.();
+	private async resolveActiveOrganizationId(options?: {
+		fresh?: boolean;
+	}): Promise<string | undefined> {
+		return await this.options.getActiveOrganizationId?.(options);
 	}
 
 	async listRepositories(): Promise<CloudRepositoryListResult> {
@@ -1416,7 +1420,8 @@ export class CloudSessionManager {
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
 		const organizationId =
-			input.organizationId ?? (await this.resolveActiveOrganizationId());
+			input.organizationId ??
+			(await this.resolveActiveOrganizationId({ fresh: true }));
 		const created = await this.options.api.create({
 			...input,
 			organizationId,
@@ -2591,9 +2596,12 @@ export class CloudSessionManager {
 		connection: CloudConnection,
 	): Promise<void> {
 		if (connection.disposed || this.disposed) return;
-		const organizationId = await this.resolveActiveOrganizationId().catch(
-			() => undefined,
-		);
+		let organizationId: string | undefined;
+		try {
+			organizationId = await this.resolveActiveOrganizationId();
+		} catch {
+			return;
+		}
 		const sessions = await this.options.api
 			.list(organizationId)
 			.catch(() => undefined);
@@ -2638,8 +2646,14 @@ export function getCloudSessionManager(
 	});
 	// Cache successful org lookups across sidebar polls; never cache failures.
 	let activeOrgCache: { id: string | undefined; at: number } | undefined;
-	const getActiveOrganizationId = async (): Promise<string | undefined> => {
-		if (activeOrgCache && Date.now() - activeOrgCache.at < 60_000) {
+	const getActiveOrganizationId = async (options?: {
+		fresh?: boolean;
+	}): Promise<string | undefined> => {
+		if (
+			!options?.fresh &&
+			activeOrgCache &&
+			Date.now() - activeOrgCache.at < 60_000
+		) {
 			return activeOrgCache.id;
 		}
 		const organizations = await accountService.fetchUserOrganizations();

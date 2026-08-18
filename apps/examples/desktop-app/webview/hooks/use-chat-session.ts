@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayUserInput } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -189,11 +190,16 @@ type CloudOptimisticState = {
 	state: "pending" | "failed";
 };
 
+function comparableUserContent(content: string): string {
+	return formatDisplayUserInput(content.trim());
+}
+
 function userMessageCounts(messages: ChatMessage[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const message of messages) {
 		if (message.role !== "user") continue;
-		counts.set(message.content, (counts.get(message.content) ?? 0) + 1);
+		const content = comparableUserContent(message.content);
+		counts.set(content, (counts.get(content) ?? 0) + 1);
 	}
 	return counts;
 }
@@ -213,7 +219,11 @@ export function mergeCloudSnapshotWithLive(
 		if (message.role === "tool" && message.meta?.toolCallId) {
 			return `tool\u0000${message.meta.toolCallId}`;
 		}
-		return `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const content =
+			message.role === "user"
+				? comparableUserContent(message.content)
+				: message.content;
+		return `${message.role}\u0000${content}\u0000${message.reasoning ?? ""}`;
 	};
 	const hydratedKeyCounts = new Map<string, number>();
 	for (const message of hydrated) {
@@ -281,13 +291,14 @@ export function mergeCloudSnapshotWithLive(
 	// Reconcile pending prompts by count delta; always retain failed bubbles.
 	for (const message of optimistic) {
 		const optimisticState = options.optimisticStates.get(message.id);
-		const budget = reflectedPromptBudget.get(message.content) ?? 0;
+		const content = comparableUserContent(message.content);
+		const budget = reflectedPromptBudget.get(content) ?? 0;
 		if (
 			options.transcriptKnown &&
 			optimisticState?.state === "pending" &&
 			budget > 0
 		) {
-			reflectedPromptBudget.set(message.content, budget - 1);
+			reflectedPromptBudget.set(content, budget - 1);
 			options.optimisticStates.delete(message.id);
 			continue;
 		}
@@ -477,6 +488,7 @@ export function useChatSession(environmentId: string) {
 	const sessionStartPromiseRef = useRef<Promise<string> | null>(null);
 	const promptDispatchTailRef = useRef<Promise<void>>(Promise.resolve());
 	const activePromptSubmissionsRef = useRef(0);
+	const pendingDirectSendSessionIdsRef = useRef<Set<string>>(new Set());
 	const activeTurnCostTrackerRef = useRef<TurnCostTracker | null>(null);
 	const unpersistedCostUsdRef = useRef(0);
 	const lastPersistedCostUsdRef = useRef(0);
@@ -1841,8 +1853,13 @@ export function useChatSession(environmentId: string) {
 				) {
 					return;
 				}
-				activeAssistantMessageIdRef.current = null;
-				setActiveAssistantMessageId(null);
+				// The Hub publishes the terminal event before the blocking send RPC
+				// returns. Keep the streamed message id until that reply can reconcile
+				// its full text into the same bubble; the send's finally block clears it.
+				if (!pendingDirectSendSessionIdsRef.current.has(targetSessionId)) {
+					activeAssistantMessageIdRef.current = null;
+					setActiveAssistantMessageId(null);
+				}
 				clearLiveToolRefs();
 				turnSettledEpochRef.current = turnEpochRef.current;
 				const endReason = record.reason?.trim() || "idle";
@@ -2312,6 +2329,9 @@ export function useChatSession(environmentId: string) {
 				}
 				await precedingPromptDispatch;
 				turnEpochAtDispatch = turnEpochRef.current;
+				if (!shouldQueue) {
+					pendingDirectSendSessionIdsRef.current.add(activeSessionId);
+				}
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -2726,6 +2746,7 @@ export function useChatSession(environmentId: string) {
 			} finally {
 				clearAbortFallbackTimeout();
 				if (!shouldQueue) {
+					pendingDirectSendSessionIdsRef.current.delete(activeSessionId);
 					activeAssistantMessageIdRef.current = null;
 					setActiveAssistantMessageId(null);
 					clearLiveToolRefs();

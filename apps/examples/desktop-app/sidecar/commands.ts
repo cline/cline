@@ -2208,9 +2208,11 @@ export async function handleCommand(
 	}
 	if (command === "list_provider_models") {
 		const manager = new ProviderSettingsManager();
+		const providerId = String(args?.provider ?? "").trim();
 		return await getLocalProviderModels(
-			String(args?.provider ?? ""),
-			manager.getProviderConfig(String(args?.provider ?? "").trim()),
+			providerId,
+			manager.getProviderConfig(providerId),
+			{ loadLatest: providerId === "cline" },
 		);
 	}
 	if (command === "create_mode_session") {
