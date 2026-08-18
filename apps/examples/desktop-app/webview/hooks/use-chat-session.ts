@@ -1940,6 +1940,7 @@ export function useChatSession(environmentId: string) {
 			options: {
 				preserveStatus?: boolean;
 				source?: "realtime";
+				initialPrompt?: string;
 			} = {},
 		): Promise<string> => {
 			const boundConfig = { ...validatedConfig, environmentId };
@@ -1947,6 +1948,9 @@ export function useChatSession(environmentId: string) {
 				action: "start",
 				config: validatedConfig,
 				...(options.source ? { source: options.source } : {}),
+				...(options.initialPrompt?.trim()
+					? { prompt: options.initialPrompt.trim() }
+					: {}),
 			});
 			if (
 				payload.environmentId !== undefined &&
@@ -2223,7 +2227,12 @@ export function useChatSession(environmentId: string) {
 							...parsed,
 							sessionId: plannedSessionId,
 						},
-						{ preserveStatus: true, source: options.source },
+						{
+							preserveStatus: true,
+							source: options.source,
+							initialPrompt:
+								parsed.executionTarget === "cloud" ? userLabel : undefined,
+						},
 					);
 					sessionStartPromiseRef.current = startPromise;
 					try {
@@ -3108,12 +3117,14 @@ export function useChatSession(environmentId: string) {
 				}
 
 				const synthesized: ChatMessage[] = [];
-				if (session.prompt?.trim()) {
+				const initialPrompt =
+					attached?.prompt?.trim() || session.prompt?.trim();
+				if (initialPrompt) {
 					synthesized.push({
 						id: makeId("history_user"),
 						sessionId: session.sessionId,
 						role: "user",
-						content: session.prompt.trim(),
+						content: initialPrompt,
 						createdAt: Date.now(),
 					});
 				}

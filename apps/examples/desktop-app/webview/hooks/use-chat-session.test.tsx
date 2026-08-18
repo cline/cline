@@ -531,6 +531,7 @@ describe("useChatSession", () => {
 	});
 
 	it("retains the first cloud prompt's bubble across a lagging rehydration snapshot", async () => {
+		let startPrompt = "";
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
 				if (command === "get_process_context") {
@@ -540,8 +541,11 @@ describe("useChatSession", () => {
 					return [];
 				}
 				if (command === "chat_session_command") {
-					const request = args?.request as { action?: string } | undefined;
+					const request = args?.request as
+						| { action?: string; prompt?: string }
+						| undefined;
 					if (request?.action === "start") {
+						startPrompt = request.prompt ?? "";
 						// A cloud create returns a server-assigned id, never the
 						// client-planned one.
 						return {
@@ -572,6 +576,7 @@ describe("useChatSession", () => {
 		// The send itself creates the session, so the optimistic bubble is
 		// born under the client-planned id and must be re-keyed to ses-cloud.
 		await act(async () => current.sendPrompt("build the feature"));
+		expect(startPrompt).toBe("build the feature");
 
 		const rehydratedHandler = subscribeMock.mock.calls.find(
 			([eventName]) => eventName === "cloud_session_rehydrated",
@@ -603,6 +608,55 @@ describe("useChatSession", () => {
 				.filter((message) => message.role === "user")
 				.map((message) => message.content),
 		).toContain("build the feature");
+	});
+
+	it("hydrates the initial prompt from a provisioning attach", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: "cloud-provisioning-test",
+							status: "provisioning",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace",
+							workspaceRoot: "/workspace",
+							prompt: "Fix the provisioning flow",
+						};
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: "cloud-provisioning-test",
+				origin: "cloud",
+				repoUrl: "https://github.com/cline/test",
+				status: "provisioning",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace",
+				workspaceRoot: "/workspace",
+				startedAt: "2026-08-17T00:00:00.000Z",
+			});
+		});
+
+		expect(current.messages).toEqual([
+			expect.objectContaining({
+				role: "user",
+				content: "Fix the provisioning flow",
+			}),
+		]);
 	});
 
 	it("replaces the first cloud prompt with its canonical snapshot copy", async () => {

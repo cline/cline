@@ -2429,8 +2429,6 @@ function ChatThreadPane({
 									</p>
 								</div>
 							</div>
-						) : isProvisioningCloudSession ? (
-							<CloudProvisioningPane phase={provisioningPhase} />
 						) : isCloudSession &&
 							displayedIsSwitching &&
 							displayedMessages.length === 0 ? (
@@ -2469,16 +2467,20 @@ function ChatThreadPane({
 								onForkSession={isCloudSession ? undefined : handleForkSession}
 								onOpenVoiceOutputSettings={onOpenVoiceOutputSettings}
 								startingLabel={
-									isCloudSession && !displayedSessionId
+									isProvisioningCloudSession
 										? provisioningPhase
-										: undefined
+										: isCloudSession && !displayedSessionId
+											? provisioningPhase
+											: undefined
 								}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}
 								streamingMessageId={activeAssistantMessageId}
 								isSessionSwitching={displayedIsSwitching}
-								status={displayedStatus}
+								status={
+									isProvisioningCloudSession ? "starting" : displayedStatus
+								}
 							/>
 						)
 					}
