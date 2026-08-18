@@ -28,7 +28,7 @@ export function ReasoningBlock({
 			redacted={redacted}
 		>
 			<MemoizedMarkdown
-				classNames="text-sm font-thin"
+				classNames="text-sm"
 				content={displayContent}
 				streaming={streaming}
 			/>
