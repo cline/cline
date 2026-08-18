@@ -30,6 +30,7 @@ import { getCloudSessionManager } from "./cloud-sessions";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
+import { persistSessionMessages } from "./session-data/messages";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -1416,6 +1417,11 @@ async function handleRestoreCheckpoint(
 				status: "idle",
 			}),
 		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		persistSessionMessages(sessionId, restoredMessages);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {

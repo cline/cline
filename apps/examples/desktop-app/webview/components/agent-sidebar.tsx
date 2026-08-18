@@ -49,6 +49,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -85,6 +86,11 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import {
+	BETA_PRODUCT_NAME,
+	isBetaVersion,
+	productNameForVersion,
+} from "@/lib/app-channel";
 import { isCloudProvisioningSessionId } from "@/lib/cloud-repositories";
 import { desktopClient } from "@/lib/desktop-client";
 import {
@@ -660,7 +666,9 @@ export function AgentSidebar({
 								className="w-64 p-3"
 								side="bottom"
 							>
-								<p className="text-sm font-medium">Cline Code</p>
+								<p className="text-sm font-medium">
+									{productNameForVersion(appVersion)}
+								</p>
 								<p className="mt-0.5 text-xs text-muted-foreground">
 									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
 								</p>
@@ -687,6 +695,15 @@ export function AgentSidebar({
 								</div>
 							</HoverCardContent>
 						</HoverCard>
+						{!isCollapsed && isBetaVersion(appVersion) ? (
+							<Badge
+								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
+								variant="secondary"
+							>
+								Beta
+							</Badge>
+						) : null}
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 					</div>
 					{!isCollapsed ? (
