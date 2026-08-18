@@ -157,9 +157,7 @@ describe("MonitorRegistry", () => {
 		try {
 			registry.start({
 				name: "failing",
-				command: nodeCommand(
-					"process.stderr.write('bad\\n'); process.exitCode = 3",
-				),
+				command: `${nodeCommand("process.stderr.write('bad\\n')")}; exit 3`,
 				description: "fails immediately",
 			});
 
@@ -364,7 +362,11 @@ describe("MonitorRegistry", () => {
 			});
 
 			const deadline = Date.now() + 5_000;
-			while (notifier.mock.calls.length === 0 && Date.now() < deadline) {
+			while (
+				(notifier.mock.calls.length === 0 ||
+					registry.listRunning().length > 0) &&
+				Date.now() < deadline
+			) {
 				await new Promise((resolve) => setTimeout(resolve, 25));
 			}
 			expect(notifier).toHaveBeenCalled();
