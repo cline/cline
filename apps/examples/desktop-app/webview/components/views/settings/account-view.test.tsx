@@ -33,7 +33,7 @@ afterEach(async () => {
 });
 
 describe("AccountView usage table", () => {
-	it("opens the full usage dashboard from the table footer", async () => {
+	it("opens the full usage dashboard from the empty table footer", async () => {
 		invoke.mockImplementation(
 			async (_command: string, args?: Record<string, unknown>) => {
 				switch (args?.operation) {
@@ -51,16 +51,7 @@ describe("AccountView usage table", () => {
 					case "fetchUserOrganizations":
 						return [];
 					case "fetchUsageTransactions":
-						return [
-							{
-								id: "usage-1",
-								aiModelName: "claude-fable-latest",
-								aiInferenceProviderName: "openrouter",
-								totalTokens: 57_167,
-								creditsUsed: 110_000,
-								createdAt: "2026-08-17T15:54:00Z",
-							},
-						];
+						return [];
 					default:
 						return {};
 				}
@@ -82,6 +73,7 @@ describe("AccountView usage table", () => {
 
 		await vi.waitFor(() => {
 			expect(container.textContent).toContain("See More");
+			expect(container.textContent).toContain("No usage transactions yet.");
 		});
 		const seeMoreButton = Array.from(container.querySelectorAll("button")).find(
 			(button) => button.textContent?.includes("See More"),
