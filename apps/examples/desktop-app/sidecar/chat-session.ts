@@ -30,6 +30,7 @@ import {
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { normalizeSessionTitle } from "./session-data/common";
+import { persistSessionMessages } from "./session-data/messages";
 import { displayPromptFor, recordTypedPrompt } from "./slash-command-display";
 import type {
 	ChatSessionCommandRequest,
@@ -1475,6 +1476,11 @@ async function handleRestoreCheckpoint(
 				status: "idle",
 			}),
 		);
+		// A restore that reuses the source session id leaves the persisted
+		// transcript describing the discarded turns, and read_session_messages
+		// prefers that file over the live session. Write the trimmed history so
+		// the transcript matches the workspace the restore just rolled back to.
+		persistSessionMessages(sessionId, restoredMessages);
 		sendPromptsInQueueSnapshot(ctx, sourceSessionId);
 		sendPromptsInQueueSnapshot(ctx, sessionId);
 		return {
