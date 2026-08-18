@@ -54,6 +54,15 @@ export interface ExtensionState {
 		sessionId: string
 	}
 	/**
+	 * Message ts → untracked paths that the checkpoint a restore from that
+	 * message would use skipped over the size cap. Lets the restore UI warn
+	 * that those files stay at their current content when the workspace is
+	 * reset. Resolved host-side with the same mapping restore uses, so the
+	 * webview only does a ts lookup. Only messages with a non-empty skip
+	 * list appear. SDK sessions only.
+	 */
+	checkpointSkippedUntrackedByTs?: Record<number, string[]>
+	/**
 	 * The single authoritative UI mode for the current turn, owned by the extension. The webview
 	 * renders the footer/buttons/thinking indicator from this, NOT from the tail of clineMessages.
 	 * Optional for classic/legacy (absent => webview falls back to legacy tail heuristics).

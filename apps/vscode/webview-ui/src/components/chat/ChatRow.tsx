@@ -155,6 +155,7 @@ export const ChatRowContent = memo(
 			clineMessages,
 			showFeatureTips,
 			enableCheckpointsSetting,
+			checkpointSkippedUntrackedByTs,
 		} = useExtensionState()
 		const [quoteButtonState, setQuoteButtonState] = useState<QuoteButtonState>({
 			visible: false,
@@ -910,6 +911,7 @@ export const ChatRowContent = memo(
 								images={message.images}
 								messageTs={message.ts}
 								sendMessageFromChatRow={sendMessageFromChatRow}
+								skippedUntracked={checkpointSkippedUntrackedByTs?.[message.ts]}
 								text={message.text}
 							/>
 						)

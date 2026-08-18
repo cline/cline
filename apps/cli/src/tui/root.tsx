@@ -372,6 +372,7 @@ function App(props: TuiProps) {
 					<CheckpointConfirmContent
 						{...ctx}
 						messagePreview={picked.messagePreview}
+						skippedUntracked={picked.skippedUntracked}
 					/>
 				),
 			});

@@ -66,6 +66,28 @@ describe("buildCheckpointPickerItems", () => {
 		]);
 	});
 
+	it("carries skippedUntracked through so the confirm dialog can warn", () => {
+		const items = buildCheckpointPickerItems(
+			[userPrompt("first request")],
+			[
+				{
+					ref: "ref1",
+					createdAt: 1,
+					runCount: 1,
+					kind: "stash",
+					skippedUntracked: ["big.bin"],
+				},
+			],
+		);
+
+		expect(items).toEqual([
+			expect.objectContaining({
+				runCount: 1,
+				skippedUntracked: ["big.bin"],
+			}),
+		]);
+	});
+
 	it("counts a compaction summary as spanning the runs it folded", () => {
 		const compaction = {
 			role: "user",

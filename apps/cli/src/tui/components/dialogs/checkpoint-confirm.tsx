@@ -26,9 +26,12 @@ const OPTIONS: Array<{
 export function CheckpointConfirmContent(
 	props: ChoiceContext<CheckpointRestoreMode> & {
 		messagePreview: string;
+		/** Untracked files the snapshot excluded (size cap) — not rewound. */
+		skippedUntracked?: string[];
 	},
 ) {
-	const { resolve, dismiss, dialogId, messagePreview } = props;
+	const { resolve, dismiss, dialogId, messagePreview, skippedUntracked } =
+		props;
 	const [selected, setSelected] = useState(0);
 	const selectedRef = useRef(0);
 	const selectedMode = OPTIONS[selected]?.value;
@@ -101,9 +104,18 @@ export function CheckpointConfirmContent(
 			</box>
 
 			{selectedMode === "chat-and-workspace" && (
-				<text fg="yellow">
-					This runs git reset --hard and git clean -fd in the workspace.
-				</text>
+				<box flexDirection="column">
+					<text fg="yellow">
+						This runs git reset --hard and git clean -fd in the workspace.
+					</text>
+					{(skippedUntracked?.length ?? 0) > 0 && (
+						<text fg="yellow">
+							{skippedUntracked?.length === 1
+								? `1 large file was not captured by this checkpoint and stays at its current content: ${skippedUntracked[0]}`
+								: `${skippedUntracked?.length} large files were not captured by this checkpoint and stay at their current content: ${skippedUntracked?.slice(0, 3).join(", ")}${(skippedUntracked?.length ?? 0) > 3 ? ", …" : ""}`}
+						</text>
+					)}
+				</box>
 			)}
 
 			<text fg="gray">

@@ -57,7 +57,14 @@ const editorFeatures: FeatureToggle[] = [
 	{
 		id: "checkpoints",
 		label: "Checkpoints",
-		description: "Save progress at key points for easy rollback",
+		description: (
+			<>
+				Save progress at key points for easy rollback
+				<span className="block mt-0.5 opacity-70">
+					Untracked files over 100 MB aren't captured, so restoring a checkpoint leaves them unchanged.
+				</span>
+			</>
+		),
 		stateKey: "enableCheckpointsSetting",
 		settingKey: "enableCheckpointsSetting",
 	},
