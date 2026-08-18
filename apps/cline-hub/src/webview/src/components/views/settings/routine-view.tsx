@@ -1154,9 +1154,7 @@ export function RoutineSchedulesContent() {
 			>
 				<DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
 					<DialogHeader>
-						<DialogTitle>
-							{editingSchedule ? "Edit Routine" : "Create Routine"}
-						</DialogTitle>
+						<DialogTitle>Schedule</DialogTitle>
 						<DialogDescription>
 							{editingSchedule
 								? "Update this scheduler routine."
