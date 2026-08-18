@@ -19,6 +19,7 @@ import {
 	SessionVersioningError,
 	SessionVersioningService,
 } from "../../../session/session-versioning-service";
+import { TASKS_TOOL_NAME } from "../../../tasks/task-tool";
 import {
 	createHubClientContributionRuntime,
 	parseHubClientContributions,
@@ -39,6 +40,15 @@ import {
 } from "./context";
 
 const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
+
+export function selectSessionTools<T extends { name: string }>(
+	tools: readonly T[],
+	mode: string,
+): T[] {
+	return mode === "yolo"
+		? tools.filter((tool) => tool.name !== TASKS_TOOL_NAME)
+		: [...tools];
+}
 
 function readConnectionString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim().length > 0
@@ -273,6 +283,11 @@ export async function handleSessionCreate(
 					? metadata.model
 					: "hub"),
 	});
+	const sessionMode =
+		sessionConfig?.mode ??
+		(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+			? runtimeOptions.mode
+			: "act");
 	const started = await ctx.sessionHost.startSession({
 		source: typeof metadata.source === "string" ? metadata.source : undefined,
 		interactive: metadata.interactive !== false,
@@ -295,10 +310,13 @@ export async function handleSessionCreate(
 				...(ctx.sessionExtensions ?? []),
 				...(clientContributionRuntime.localRuntime.extensions ?? []),
 			],
-			extraTools: [
-				...(ctx.sessionTools ?? []),
-				...(clientContributionRuntime.localRuntime.extraTools ?? []),
-			],
+			extraTools: selectSessionTools(
+				[
+					...(ctx.sessionTools ?? []),
+					...(clientContributionRuntime.localRuntime.extraTools ?? []),
+				],
+				sessionMode,
+			),
 		},
 		capabilities: {
 			toolExecutors: clientContributionRuntime.toolExecutors,
@@ -337,11 +355,7 @@ export async function handleSessionCreate(
 				(typeof runtimeOptions.systemPrompt === "string"
 					? runtimeOptions.systemPrompt
 					: ""),
-			mode:
-				sessionConfig?.mode ??
-				(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-					? runtimeOptions.mode
-					: "act"),
+			mode: sessionMode,
 			maxIterations:
 				sessionConfig?.maxIterations ??
 				(typeof runtimeOptions.maxIterations === "number"
@@ -550,6 +564,11 @@ export async function handleSessionRestore(
 							? payload.cwd.trim()
 							: context.sourceSession.workspaceRoot ||
 								context.sourceSession.cwd;
+				const sessionMode =
+					sessionConfig?.mode ??
+					(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
+						? runtimeOptions.mode
+						: "act");
 				return {
 					source:
 						typeof metadata.source === "string" ? metadata.source : undefined,
@@ -572,10 +591,13 @@ export async function handleSessionRestore(
 							...(ctx.sessionExtensions ?? []),
 							...(clientContributionRuntime.localRuntime.extensions ?? []),
 						],
-						extraTools: [
-							...(ctx.sessionTools ?? []),
-							...(clientContributionRuntime.localRuntime.extraTools ?? []),
-						],
+						extraTools: selectSessionTools(
+							[
+								...(ctx.sessionTools ?? []),
+								...(clientContributionRuntime.localRuntime.extraTools ?? []),
+							],
+							sessionMode,
+						),
 					},
 					capabilities: {
 						toolExecutors: clientContributionRuntime.toolExecutors,
@@ -606,11 +628,7 @@ export async function handleSessionRestore(
 							(typeof runtimeOptions.systemPrompt === "string"
 								? runtimeOptions.systemPrompt
 								: ""),
-						mode:
-							sessionConfig?.mode ??
-							(runtimeOptions.mode === "plan" || runtimeOptions.mode === "yolo"
-								? runtimeOptions.mode
-								: "act"),
+						mode: sessionMode,
 						maxIterations:
 							sessionConfig?.maxIterations ??
 							(typeof runtimeOptions.maxIterations === "number"

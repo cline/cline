@@ -2,7 +2,32 @@ import { describe, expect, it } from "vitest";
 import {
 	readSessionConnectionUpdate,
 	resolveSessionAutoApproveTools,
+	selectSessionTools,
 } from "./session-handlers";
+
+const tool = (name: string) => ({ name });
+
+describe("selectSessionTools", () => {
+	it("excludes tasks in yolo mode only", () => {
+		const tools = [tool("read_files"), tool("tasks")];
+
+		expect(selectSessionTools(tools, "act").map(({ name }) => name)).toEqual([
+			"read_files",
+			"tasks",
+		]);
+		expect(selectSessionTools(tools, "plan").map(({ name }) => name)).toEqual([
+			"read_files",
+			"tasks",
+		]);
+		expect(selectSessionTools(tools, "zen").map(({ name }) => name)).toEqual([
+			"read_files",
+			"tasks",
+		]);
+		expect(selectSessionTools(tools, "yolo").map(({ name }) => name)).toEqual([
+			"read_files",
+		]);
+	});
+});
 
 describe("readSessionConnectionUpdate", () => {
 	it("enables thinking when a positive budget is supplied without thinking", () => {
