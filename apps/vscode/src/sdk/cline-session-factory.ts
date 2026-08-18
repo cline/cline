@@ -279,6 +279,10 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	const cacheRead = nonNegativeFiniteNumber(modelInfo.cacheReadsPrice)
 	const cacheWrite = nonNegativeFiniteNumber(modelInfo.cacheWritesPrice)
 	const apiFormat = toSdkApiFormat(modelInfo.apiFormat)
+	const requestModelId =
+		typeof modelInfo.requestModelId === "string" && modelInfo.requestModelId.trim().length > 0
+			? modelInfo.requestModelId.trim()
+			: undefined
 	const hasPricing =
 		inputPrice !== undefined || outputPrice !== undefined || cacheRead !== undefined || cacheWrite !== undefined
 
@@ -293,6 +297,7 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 		...(modelInfo.operationModes !== undefined ? { operationModes: [...modelInfo.operationModes] } : {}),
 		...(modelInfo.modalities !== undefined ? { modalities: modelInfo.modalities } : {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(requestModelId !== undefined ? { metadata: { requestModelId } } : {}),
 		...(temperature !== undefined ? { temperature } : {}),
 		...(hasPricing
 			? {

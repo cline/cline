@@ -520,7 +520,7 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
-	it("falls back to /model/info for LiteLLM private models", async () => {
+	it("falls back to /model/info and prefers LiteLLM aliases as model IDs", async () => {
 		const fetchMock = vi
 			.fn()
 			.mockResolvedValueOnce(new Response("no v1 route", { status: 404 }))
@@ -530,14 +530,29 @@ describe("resolveProviderConfig", () => {
 					JSON.stringify({
 						data: [
 							{
-								model_name: "private-proxy-model",
-								litellm_params: { model: "openai/gpt-4o-mini" },
+								model_name: "xai/grok-4.6",
+								litellm_params: { model: "openai/grok-4.6" },
 								model_info: {
 									max_output_tokens: 64_000,
 									max_input_tokens: 500_000,
 									supports_vision: true,
 									supports_reasoning: true,
 								},
+							},
+							{
+								model_name: "   ",
+								litellm_params: { model: " openai/backend-only " },
+								model_info: {},
+							},
+							{
+								model_name: "alias-only",
+								litellm_params: {},
+								model_info: {},
+							},
+							{
+								model_name: "   ",
+								litellm_params: { model: "   " },
+								model_info: {},
 							},
 						],
 					}),
@@ -562,25 +577,36 @@ describe("resolveProviderConfig", () => {
 			"http://localhost:4000/v1/model/info",
 			"http://localhost:4000/model/info",
 		]);
-		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
+		expect(resolved?.knownModels?.["xai/grok-4.6"]).toEqual(
 			expect.objectContaining({
-				name: "private-proxy-model",
+				id: "xai/grok-4.6",
+				name: "xai/grok-4.6",
 				maxTokens: 64_000,
 				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
+				metadata: { requestModelId: "openai/grok-4.6" },
 			}),
 		);
-		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
+		expect(resolved?.knownModels?.["openai/grok-4.6"]).toBeUndefined();
+		expect(resolved?.knownModels?.["openai/backend-only"]).toEqual(
 			expect.objectContaining({
-				name: "private-proxy-model",
-				maxTokens: 64_000,
-				maxInputTokens: 500_000,
-				capabilities: expect.arrayContaining(["images", "reasoning"]),
+				id: "openai/backend-only",
+				name: "openai/backend-only",
 			}),
 		);
+		expect(resolved?.knownModels?.["alias-only"]).toEqual(
+			expect.objectContaining({
+				id: "alias-only",
+				name: "alias-only",
+			}),
+		);
+		expect(
+			resolved?.knownModels?.["alias-only"]?.metadata?.requestModelId,
+		).toBeUndefined();
 		expect(Object.keys(resolved?.knownModels ?? {}).sort()).toEqual([
-			"openai/gpt-4o-mini",
-			"private-proxy-model",
+			"alias-only",
+			"openai/backend-only",
+			"xai/grok-4.6",
 		]);
 		expect(resolved?.knownModels?.["gpt-5.4"]).toBeUndefined();
 	});

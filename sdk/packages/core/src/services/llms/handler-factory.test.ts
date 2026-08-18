@@ -234,6 +234,48 @@ describe("createAgentModelFromConfig", () => {
 		);
 	});
 
+	it("preserves a provider request model id while selecting the catalog alias", async () => {
+		const { createAgentModelFromConfig } = await import("./handler-factory");
+
+		createAgentModelFromConfig(
+			{
+				providerId: "litellm",
+				modelId: "xai/grok-4.6",
+				apiKey: "test-key",
+				systemPrompt: "",
+				tools: [],
+				knownModels: {
+					"xai/grok-4.6": {
+						id: "xai/grok-4.6",
+						name: "xai/grok-4.6",
+						metadata: { requestModelId: "openai/grok-4.6" },
+					},
+				},
+			} satisfies AgentConfig,
+			undefined,
+		);
+
+		const gatewayConfig = (
+			gatewayMock.createGateway.mock.calls as unknown as Array<
+				[
+					{
+						providerConfigs: Array<{
+							models: Array<Record<string, unknown>>;
+						}>;
+					},
+				]
+			>
+		)[0][0];
+		expect(gatewayConfig.providerConfigs[0].models[0]).toMatchObject({
+			id: "xai/grok-4.6",
+			metadata: { requestModelId: "openai/grok-4.6" },
+		});
+		expect(gatewayMock.createAgentModel).toHaveBeenLastCalledWith(
+			{ providerId: "litellm", modelId: "xai/grok-4.6" },
+			expect.anything(),
+		);
+	});
+
 	it("forwards Bedrock AWS settings as gateway provider options", async () => {
 		const { createAgentModelFromConfig } = await import("./handler-factory");
 

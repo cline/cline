@@ -120,6 +120,7 @@ message OpenRouterModelInfo {
   optional double temperature = 14;
   optional bool supports_reasoning = 15;
   optional ApiFormat api_format = 16;
+  optional string request_model_id = 17;
 }
 
 // User-authored per-model metadata stored in models.json.
@@ -664,6 +665,7 @@ message LiteLLMModelInfo {
   optional double temperature = 13;
   optional ApiFormat api_format = 14;
   optional bool supports_reasoning = 15;
+  optional string request_model_id = 16;
 }
 
 // Main ApiConfiguration message

@@ -841,8 +841,8 @@ describe("addLocalProvider – capabilities", () => {
 				json: async () => ({
 					data: [
 						{
-							model_name: "private-proxy-model",
-							litellm_params: { model: "openai/gpt-4o-mini" },
+							model_name: "xai/grok-4.6",
+							litellm_params: { model: "openai/grok-4.6" },
 							model_info: {
 								supports_vision: true,
 								supports_reasoning: true,
@@ -858,14 +858,10 @@ describe("addLocalProvider – capabilities", () => {
 			manager.getProviderConfig("litellm"),
 		);
 
-		expect(models.map((model) => model.id).sort()).toEqual([
-			"openai/gpt-4o-mini",
-			"private-proxy-model",
-		]);
+		expect(models.map((model) => model.id)).toEqual(["xai/grok-4.6"]);
+		expect(models.map((model) => model.id)).not.toContain("openai/grok-4.6");
 		expect(models.map((model) => model.id)).not.toContain("gpt-5.4");
-		expect(
-			models.find((model) => model.id === "private-proxy-model"),
-		).toMatchObject({
+		expect(models[0]).toMatchObject({
 			supportsVision: true,
 			supportsReasoning: true,
 		});

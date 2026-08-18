@@ -15,6 +15,8 @@ import {
 	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
 	estimateRequestInputTokens,
 	type GatewayModelHandleOptions,
+	type GatewayProviderContext,
+	type GatewayStreamRequest,
 	IMAGE_UNSUPPORTED_PLACEHOLDER,
 	type ITelemetryService,
 	resetSdkErrorRateLimiterForTests,
@@ -561,6 +563,114 @@ describe("sdk-gateway", () => {
 				modelId: "large-output",
 				messages: baseMessages,
 			}),
+		);
+	});
+
+	it("keeps the catalog alias as model identity while routing the provider request", async () => {
+		const stream = vi.fn(async function* (
+			_request: GatewayStreamRequest,
+			_context: GatewayProviderContext,
+		) {
+			yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+		});
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "litellm",
+						name: "LiteLLM",
+						defaultModelId: "xai/grok-4.6",
+						models: [
+							{
+								id: "xai/grok-4.6",
+								name: "xai/grok-4.6",
+								providerId: "litellm",
+								metadata: {
+									requestModelId: "  openai/grok-4.6  ",
+								},
+							},
+						],
+					},
+					createProvider: () => ({ stream }),
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "litellm",
+				modelId: "xai/grok-4.6",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "openai/grok-4.6" }),
+			expect.objectContaining({
+				model: expect.objectContaining({ id: "xai/grok-4.6" }),
+			}),
+		);
+		expect(gateway.listModels("litellm")).toEqual([
+			expect.objectContaining({ id: "xai/grok-4.6" }),
+		]);
+
+		stream.mockClear();
+		await collect(
+			await gateway.stream({
+				providerId: "litellm",
+				modelId: "openai/grok-4.6",
+				messages: baseMessages,
+			}),
+		);
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "openai/grok-4.6" }),
+			expect.objectContaining({
+				model: expect.objectContaining({ id: "openai/grok-4.6" }),
+			}),
+		);
+	});
+
+	it.each([
+		["blank", "   "],
+		["non-string", 42],
+	])("ignores a %s request model id", async (_label, requestModelId) => {
+		const stream = vi.fn(async function* (_request: GatewayStreamRequest) {
+			yield { type: "finish", reason: "stop" } satisfies AgentModelEvent;
+		});
+		const gateway = createGateway({
+			builtins: false,
+			providers: [
+				{
+					manifest: {
+						id: "custom-provider",
+						name: "Custom Provider",
+						defaultModelId: "catalog-model",
+						models: [
+							{
+								id: "catalog-model",
+								name: "Catalog Model",
+								providerId: "custom-provider",
+								metadata: { requestModelId },
+							},
+						],
+					},
+					createProvider: () => ({ stream }),
+				},
+			],
+		});
+
+		await collect(
+			await gateway.stream({
+				providerId: "custom-provider",
+				modelId: "catalog-model",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(stream).toHaveBeenCalledWith(
+			expect.objectContaining({ modelId: "catalog-model" }),
+			expect.anything(),
 		);
 	});
 
