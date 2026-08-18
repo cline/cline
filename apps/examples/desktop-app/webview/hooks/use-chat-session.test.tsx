@@ -61,6 +61,33 @@ describe("mergeCloudSnapshotWithLive", () => {
 		expect(optimisticStates.has("optimistic-2")).toBe(false);
 	});
 
+	it("reconciles a wrapped cloud prompt with its optimistic bubble", () => {
+		const optimisticStates = new Map([
+			["optimistic", { sessionId: "ses-cloud", state: "pending" as const }],
+		]);
+		const merged = mergeCloudSnapshotWithLive(
+			[
+				message(
+					"saved",
+					"user",
+					'<user_input mode="act">one prompt</user_input>',
+					2,
+				),
+			],
+			[message("optimistic", "user", "one prompt", 1)],
+			{
+				sessionId: "ses-cloud",
+				transcriptKnown: true,
+				previousUserCounts: new Map(),
+				optimisticStates,
+			},
+		);
+
+		expect(merged.filter((item) => item.role === "user")).toHaveLength(1);
+		expect(merged[0]?.id).toBe("saved");
+		expect(optimisticStates.has("optimistic")).toBe(false);
+	});
+
 	it("keeps a new assistant reply when an older reply has identical text", () => {
 		const merged = mergeCloudSnapshotWithLive(
 			[message("saved-old", "assistant", "Done", 1)],

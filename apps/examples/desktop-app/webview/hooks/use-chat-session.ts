@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDisplayUserInput } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	serializeAttachments,
@@ -187,11 +188,16 @@ type CloudOptimisticState = {
 	state: "pending" | "failed";
 };
 
+function comparableUserContent(content: string): string {
+	return formatDisplayUserInput(content.trim());
+}
+
 function userMessageCounts(messages: ChatMessage[]): Map<string, number> {
 	const counts = new Map<string, number>();
 	for (const message of messages) {
 		if (message.role !== "user") continue;
-		counts.set(message.content, (counts.get(message.content) ?? 0) + 1);
+		const content = comparableUserContent(message.content);
+		counts.set(content, (counts.get(content) ?? 0) + 1);
 	}
 	return counts;
 }
@@ -211,7 +217,11 @@ export function mergeCloudSnapshotWithLive(
 		if (message.role === "tool" && message.meta?.toolCallId) {
 			return `tool\u0000${message.meta.toolCallId}`;
 		}
-		return `${message.role}\u0000${message.content}\u0000${message.reasoning ?? ""}`;
+		const content =
+			message.role === "user"
+				? comparableUserContent(message.content)
+				: message.content;
+		return `${message.role}\u0000${content}\u0000${message.reasoning ?? ""}`;
 	};
 	const hydratedKeyCounts = new Map<string, number>();
 	for (const message of hydrated) {
@@ -279,13 +289,14 @@ export function mergeCloudSnapshotWithLive(
 	// Reconcile pending prompts by count delta; always retain failed bubbles.
 	for (const message of optimistic) {
 		const optimisticState = options.optimisticStates.get(message.id);
-		const budget = reflectedPromptBudget.get(message.content) ?? 0;
+		const content = comparableUserContent(message.content);
+		const budget = reflectedPromptBudget.get(content) ?? 0;
 		if (
 			options.transcriptKnown &&
 			optimisticState?.state === "pending" &&
 			budget > 0
 		) {
-			reflectedPromptBudget.set(message.content, budget - 1);
+			reflectedPromptBudget.set(content, budget - 1);
 			options.optimisticStates.delete(message.id);
 			continue;
 		}
