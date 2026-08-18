@@ -1,0 +1,118 @@
+import { describe, expect, it, vi } from "vitest";
+import {
+	CloudHandoffGitPreflightError,
+	type GitCommand,
+	normalizeGitHubRemoteUrl,
+	preflightCloudHandoffGit,
+} from "./git-preflight";
+
+const HEAD = "a".repeat(40);
+
+function fakeGit(overrides: Record<string, string | Error> = {}): GitCommand {
+	const outputs: Record<string, string | Error> = {
+		"rev-parse --is-inside-work-tree": "true\n",
+		"status --porcelain=v1 --untracked-files=all": "",
+		"symbolic-ref --quiet --short HEAD": "feature/handoff\n",
+		"config --get branch.feature/handoff.remote": "origin\n",
+		"config --get branch.feature/handoff.merge": "refs/heads/feature/handoff\n",
+		"rev-parse HEAD": `${HEAD}\n`,
+		"config --get remote.origin.url": "git@github.com:cline/cline.git\n",
+		"ls-remote --exit-code origin refs/heads/feature/handoff": `${HEAD}\trefs/heads/feature/handoff\n`,
+		...overrides,
+	};
+	return vi.fn(async (args) => {
+		const result = outputs[args.join(" ")];
+		if (result instanceof Error) throw result;
+		if (result === undefined) throw new Error(`Unexpected git args: ${args}`);
+		return { stdout: result };
+	});
+}
+
+describe("normalizeGitHubRemoteUrl", () => {
+	it.each([
+		["git@github.com:cline/cline.git", "https://github.com/cline/cline"],
+		["https://github.com/cline/cline.git", "https://github.com/cline/cline"],
+		["ssh://git@github.com/cline/cline.git", "https://github.com/cline/cline"],
+		["git://github.com/cline/cline", "https://github.com/cline/cline"],
+	])("normalizes %s", (remote, expected) => {
+		expect(normalizeGitHubRemoteUrl(remote)).toBe(expected);
+	});
+
+	it("rejects non-GitHub and nested paths", () => {
+		expect(
+			normalizeGitHubRemoteUrl("git@gitlab.com:cline/cline.git"),
+		).toBeNull();
+		expect(normalizeGitHubRemoteUrl("https://github.com/a/b/c.git")).toBeNull();
+	});
+});
+
+describe("preflightCloudHandoffGit", () => {
+	it("returns the exact pushed upstream context", async () => {
+		await expect(
+			preflightCloudHandoffGit({ cwd: "/repo", git: fakeGit() }),
+		).resolves.toEqual({
+			repoUrl: "https://github.com/cline/cline",
+			branch: "feature/handoff",
+			remoteName: "origin",
+			headSha: HEAD,
+		});
+	});
+
+	it("refuses tracked or untracked worktree changes with a compact summary", async () => {
+		const dirty = Array.from(
+			{ length: 8 },
+			(_, index) => ` M changed-${index + 1}.ts`,
+		).join("\n");
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"status --porcelain=v1 --untracked-files=all": dirty,
+			}),
+		}).catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudHandoffGitPreflightError);
+		expect(error.code).toBe("dirty_worktree");
+		expect(error.message).toContain("Uncommitted files are not transferred");
+		expect(error.message).toContain("changed-5.ts");
+		expect(error.message).not.toContain("changed-6.ts");
+		expect(error.message).toContain("...and 3 more");
+	});
+
+	it("classifies detached HEAD errors", async () => {
+		const detached = Object.assign(new Error("not a symbolic ref"), {
+			stderr: "fatal: ref HEAD is not a symbolic ref",
+		});
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"symbolic-ref --quiet --short HEAD": detached,
+			}),
+		}).catch((caught) => caught);
+
+		expect(error.code).toBe("detached_head");
+	});
+
+	it("refuses when local HEAD differs from the remote branch", async () => {
+		const remoteHead = "b".repeat(40);
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"ls-remote --exit-code origin refs/heads/feature/handoff": `${remoteHead}\trefs/heads/feature/handoff\n`,
+			}),
+		}).catch((caught) => caught);
+
+		expect(error.code).toBe("unpushed_commits");
+		expect(error.message).toContain("Push the current commit");
+	});
+
+	it("refuses non-GitHub upstreams", async () => {
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"config --get remote.origin.url": "git@gitlab.com:cline/cline.git\n",
+			}),
+		}).catch((caught) => caught);
+
+		expect(error.code).toBe("unsupported_remote");
+	});
+});
