@@ -1098,6 +1098,13 @@ export class AgentRuntime {
 				});
 				return first;
 			}
+			// Close the recovery's telemetry before rethrowing so every
+			// started phase has a terminal phase; the thrown error itself is
+			// surfaced by the run's own failure path, so no notice here.
+			this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
+				phase: "failed",
+				eventType: this.isAbortError(error) ? "aborted" : "retry_threw",
+			});
 			throw error;
 		}
 		// Only a cleanly finished retry counts as recovered — an errored or
