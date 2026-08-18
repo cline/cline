@@ -44,23 +44,62 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		].join("\n"),
 	);
 
-	it("claims survivors by group once the leader is gone", () => {
+	it("adopts no new group members once the leader is gone", () => {
 		const owned = new Map<number, string>();
-		// The wrapper (100) exited and was reaped, so it is absent from the
-		// table. A group cannot exist without a live leader pid, so whatever is
-		// still in group 100 can only be its descendants.
+		// The leader (100) is absent. That is not proof the group is still ours:
+		// after pid reuse the new holder can create a group, spawn children and
+		// exit, leaving a live foreign group whose leader is also absent.
 		const orphaned = parseProcessTable(
+			[
+				"  101     1   100 Mon Aug 18 10:00:01 2026",
+				"  102     1   100 Mon Aug 18 10:00:02 2026",
+			].join("\n"),
+		);
+		observeOwnedProcessTree(owned, [100], orphaned, [
+			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+		]);
+
+		expect(owned.size).toBe(0);
+	});
+
+	it("keeps members recorded while the leader lived, after it dies", () => {
+		const owned = new Map<number, string>();
+		// Observed once while the leader was alive and provable...
+		observeOwnedProcessTree(owned, [100], table, [
+			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+		]);
+		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
+
+		// ...and they survive its death on their own (pid, startedAt) generation,
+		// which is what teardown actually relies on.
+		const afterLeaderDeath = parseProcessTable(
 			[
 				"  101     1   100 Mon Aug 18 10:00:01 2026",
 				"  102     1   100 Mon Aug 18 10:00:02 2026",
 				"  200     1   200 Mon Aug 18 10:00:03 2026",
 			].join("\n"),
 		);
-		observeOwnedProcessTree(owned, [100], orphaned, [{ processGroupId: 100 }]);
-
-		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([101, 102]);
+		observeOwnedProcessTree(owned, [], afterLeaderDeath, [
+			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+		]);
+		expect(owned.has(101)).toBe(true);
+		expect(owned.has(102)).toBe(true);
 		// An unrelated process in its own group is never claimed.
 		expect(owned.has(200)).toBe(false);
+	});
+
+	it("disowns a group whose leader vanished and left foreign children", () => {
+		const owned = new Map<number, string>();
+		// The exact sequence the absent-leader shortcut used to miss: pid 100 was
+		// reused by a group leader that spawned 301 and then exited, so group 100
+		// is live and foreign while its own leader is absent.
+		const reusedThenOrphaned = parseProcessTable(
+			"  301     1   100 Tue Aug 19 04:00:00 2026",
+		);
+		observeOwnedProcessTree(owned, [100], reusedThenOrphaned, [
+			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+		]);
+		expect(owned.size).toBe(0);
 	});
 
 	it("claims by group while the leader still matches its recorded generation", () => {

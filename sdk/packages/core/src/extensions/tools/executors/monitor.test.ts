@@ -362,6 +362,45 @@ describe("MonitorRegistry", () => {
 	);
 
 	it.skipIf(process.platform === "win32")(
+		"settles when a descendant holds the inherited stdio pipes open",
+		async () => {
+			const collector = createCollector();
+			const registry = new MonitorRegistry({
+				notifier: collector.notifier,
+				flushIntervalMs: 20,
+			});
+
+			try {
+				registry.start({
+					name: "pipe-holder",
+					command:
+						"node src/extensions/tools/executors/fixtures/pipe-holding-monitor-process.cjs",
+					description: "exits while a descendant keeps stdout open",
+				});
+
+				// `close` cannot fire until the descendant releases the pipes 3s
+				// later. Settlement must come from `exit` well before that, or an
+				// ended monitor sits in "running" with its name and slot held.
+				const startedAt = Date.now();
+				await collector.waitFor(
+					(all) => all.some((notification) => notification.exit),
+					2_000,
+				);
+				expect(Date.now() - startedAt).toBeLessThan(2_000);
+
+				expect(registry.listRunning()).toHaveLength(0);
+				const final = collector.notifications.at(-1);
+				expect(final?.exit).toMatchObject({ status: "exited" });
+				// The output written before exiting is still reported.
+				expect(allLines(collector.notifications)).toContain("parent-exiting");
+			} finally {
+				await registry.dispose();
+			}
+		},
+		15_000,
+	);
+
+	it.skipIf(process.platform === "win32")(
 		"terminates an escaped descendant after its direct parent exits",
 		async () => {
 			const tempDir = await mkdtemp(join(tmpdir(), "monitor-tree-"));

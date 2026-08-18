@@ -105,26 +105,31 @@ export interface OwnedProcessGroup {
  * Decides whether a process group may still be claimed as this owner's.
  *
  * A group id is just the pid of its leader, so it carries no generation of its
- * own and cannot be trusted on its own the way a (pid, startedAt) pair can.
- * Two cases are safe:
+ * own and cannot be trusted the way a (pid, startedAt) pair can. Ownership is
+ * therefore asserted only from positive evidence: the leader is present in the
+ * table with exactly the generation recorded while it was unambiguously ours.
  *
- * - **The leader is gone from the table.** A group cannot be created without a
- *   live process holding that pid, so an orphaned group can only contain
- *   descendants of the original leader.
- * - **The leader is present with the generation we recorded** while it was
- *   unambiguously ours.
+ * An absent leader is deliberately *not* treated as proof. It is tempting to
+ * argue that a group cannot be recreated without a live process holding that
+ * pid, so an orphaned group must contain only the original descendants — but
+ * that misses a sequence: after pid reuse, the new holder can create a group,
+ * spawn children, and exit. The group id is then live and foreign while its
+ * leader is once again absent, and signaling it would reach unrelated work.
  *
- * Anything else means the pid has been reused, so the group is disowned. That
- * errs toward leaking a process rather than signaling unrelated work, which is
- * the only acceptable direction for a mistake here.
+ * Consequence: once the leader is gone, no *new* group members are adopted.
+ * Members recorded while it was alive keep their own (pid, startedAt)
+ * generation and survive its death independently, which is what teardown
+ * actually relies on. A descendant that appears only after the leader is gone —
+ * or one that calls setsid() and leaves the group — cannot be attributed by any
+ * means available here, and is left running rather than risking a stray kill.
  */
 function isGroupStillOwned(
 	group: OwnedProcessGroup,
 	table: ProcessTable,
 ): boolean {
 	const leader = table.byPid.get(group.processGroupId);
-	if (!leader) return true;
 	return (
+		leader !== undefined &&
 		group.leaderStartedAt !== undefined &&
 		leader.startedAt === group.leaderStartedAt
 	);

@@ -105,6 +105,13 @@ export interface MonitorRegistryOptions {
 	 * @default 2000
 	 */
 	killTimeoutMs?: number;
+	/**
+	 * Grace window after the process exits for late stdio to flush before the
+	 * monitor settles anyway. Keeps a descendant holding an inherited pipe from
+	 * stranding an ended monitor in "running".
+	 * @default 250
+	 */
+	exitFlushGraceMs?: number;
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 750;
@@ -113,6 +120,7 @@ const DEFAULT_MAX_LINE_CHARS = 2_000;
 const DEFAULT_MAX_MONITORS = 10;
 const DEFAULT_TERMINATION_GRACE_PERIOD_MS = 2_000;
 const DEFAULT_KILL_TIMEOUT_MS = 2_000;
+const DEFAULT_EXIT_FLUSH_GRACE_MS = 250;
 const PROCESS_TREE_TRACK_INTERVAL_MS = 250;
 const PROCESS_EXIT_POLL_INTERVAL_MS = 50;
 const TRUNCATION_SUFFIX = "… [truncated]";
@@ -145,6 +153,10 @@ interface MonitorEntry extends MonitorRecord {
 	terminationAbandoned?: boolean;
 	/** Windows only: guards against issuing the tree kill twice. */
 	windowsTreeKilled?: boolean;
+	/** Recorded at `exit`, since `close` may never arrive. */
+	exitOutcome?: { code: number | null; signal: NodeJS.Signals | null };
+	/** Grace window letting late stdio flush before settling from `exit`. */
+	settleTimer?: NodeJS.Timeout;
 	pending: string[];
 	droppedInBatch: number;
 	flushTimer?: NodeJS.Timeout;
@@ -295,7 +307,7 @@ export class MonitorRegistry {
 				error: error.message,
 			});
 		});
-		child.on("exit", () => {
+		child.on("exit", (code, signal) => {
 			// Windows has no process groups and no ownership table here, so a
 			// wrapper that exits on its own strands any descendants: by teardown
 			// its pid may name unrelated work, making a tree kill unsafe. Firing
@@ -305,14 +317,27 @@ export class MonitorRegistry {
 				entry.windowsTreeKilled = true;
 				this.killWindowsTree(child);
 			}
+			// Settlement is driven from `exit`, not `close`. `close` additionally
+			// waits for every copy of the stdio pipes to be released, and a
+			// background descendant that inherited stdout or stderr holds them
+			// open for as long as it runs — potentially forever. Waiting for it
+			// would leave an ended monitor listed as running, silently: no
+			// terminal notification, its name unusable, and a slot consumed.
+			//
+			// `close` is still preferred when it arrives promptly, because it
+			// guarantees the last buffered output has been read. So allow a short
+			// grace window for the tail, then settle regardless.
+			entry.exitOutcome = { code, signal };
+			this.scheduleSettleAfterExit(entry);
 		});
 		child.on("close", (code, signal) => {
 			// A monitor stopped on request has already been settled; `close` here
 			// is just the kill landing.
+			this.clearSettleTimer(entry);
 			this.settle(entry, {
 				status: entry.status === "stopped" ? "stopped" : "exited",
-				code,
-				signal,
+				code: code ?? entry.exitOutcome?.code ?? null,
+				signal: signal ?? entry.exitOutcome?.signal ?? null,
 			});
 		});
 		this.scheduleProcessTracking();
@@ -376,6 +401,7 @@ export class MonitorRegistry {
 	private async terminateEntry(entry: MonitorEntry): Promise<void> {
 		if (entry.status === "running") entry.status = "stopped";
 		this.clearFlushTimer(entry);
+		this.clearSettleTimer(entry);
 		entry.settled = true;
 
 		const child = entry.child;
@@ -684,6 +710,31 @@ export class MonitorRegistry {
 		entry.flushTimer.unref?.();
 	}
 
+	/**
+	 * Settles shortly after the process itself ended, whether or not the stdio
+	 * pipes have been released. See the `exit` handler for why `close` alone is
+	 * not a safe settlement trigger.
+	 */
+	private scheduleSettleAfterExit(entry: MonitorEntry): void {
+		if (entry.settled || entry.settleTimer) return;
+		const grace = this.options.exitFlushGraceMs ?? DEFAULT_EXIT_FLUSH_GRACE_MS;
+		entry.settleTimer = setTimeout(() => {
+			entry.settleTimer = undefined;
+			this.settle(entry, {
+				status: entry.status === "stopped" ? "stopped" : "exited",
+				code: entry.exitOutcome?.code ?? null,
+				signal: entry.exitOutcome?.signal ?? null,
+			});
+		}, grace);
+		entry.settleTimer.unref?.();
+	}
+
+	private clearSettleTimer(entry: MonitorEntry): void {
+		if (!entry.settleTimer) return;
+		clearTimeout(entry.settleTimer);
+		entry.settleTimer = undefined;
+	}
+
 	private clearFlushTimer(entry: MonitorEntry): void {
 		if (!entry.flushTimer) return;
 		clearTimeout(entry.flushTimer);
@@ -729,6 +780,7 @@ export class MonitorRegistry {
 		if (entry.settled) return;
 		entry.settled = true;
 		this.clearFlushTimer(entry);
+		this.clearSettleTimer(entry);
 
 		entry.status = outcome.status;
 		entry.exitCode = outcome.code ?? undefined;
