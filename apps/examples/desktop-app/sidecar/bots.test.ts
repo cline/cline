@@ -1,10 +1,11 @@
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	buildBotRules,
 	createBot,
+	createBotRepoGuardHook,
 	createBotTools,
 	deleteBot,
 	deliverBotMessage,
@@ -129,6 +130,18 @@ describe("bot persona rules", () => {
 		expect(rules).toContain("send_bot_message");
 	});
 
+	it("instructs bots to use worktrees inside their workspace for shared repos", () => {
+		const bot = createBot({ name: "Coder" });
+		const rules = buildBotRules(getBot(bot.id) ?? bot);
+		expect(rules).toContain(
+			"MANDATORY procedure for modifying any git repository",
+		);
+		expect(rules).toContain(
+			`git -C <repo> worktree add ${join(dataDir, bot.id, "workspace")}/worktrees/`,
+		);
+		expect(rules).toContain("report the branch name and worktree path");
+	});
+
 	it("notes an empty memory and empty roster", () => {
 		const bot = createBot({ name: "Solo" });
 		const rules = buildBotRules(getBot(bot.id) ?? bot);
@@ -209,6 +222,100 @@ describe("bot tools", () => {
 			messages?: unknown[];
 		};
 		expect(result.messages).toEqual([]);
+	});
+});
+
+describe("createBotRepoGuardHook", () => {
+	function guardContext(toolName: string, input: unknown) {
+		return {
+			snapshot: {},
+			tool: { name: toolName },
+			toolCall: { toolCallId: "call_1", toolName, input },
+			input,
+		} as unknown as Parameters<ReturnType<typeof createBotRepoGuardHook>>[0];
+	}
+
+	let repoDir: string;
+
+	beforeEach(() => {
+		repoDir = mkdtempSync(join(tmpdir(), "cline-bots-repo-"));
+		mkdirSync(join(repoDir, ".git"), { recursive: true });
+	});
+
+	afterEach(() => {
+		rmSync(repoDir, { recursive: true, force: true });
+	});
+
+	it("blocks editor writes into a shared git repo and teaches the worktree procedure", async () => {
+		const bot = createBot({ name: "Guarded" });
+		const guard = createBotRepoGuardHook(bot.id);
+		const result = await guard(
+			guardContext("editor", { path: join(repoDir, "src", "app.py") }),
+		);
+		expect(result?.skip).toBe(true);
+		expect(result?.reason).toContain(repoDir);
+		expect(result?.reason).toContain("worktree add");
+	});
+
+	it("allows writes inside the bot workspace, including worktrees", async () => {
+		const bot = createBot({ name: "Guarded" });
+		const guard = createBotRepoGuardHook(bot.id);
+		const workspace = join(dataDir, bot.id, "workspace");
+		expect(
+			await guard(
+				guardContext("editor", { path: join(workspace, "notes.md") }),
+			),
+		).toBeUndefined();
+		expect(
+			await guard(
+				guardContext("editor", {
+					path: join(workspace, "worktrees", "demo-repo", "app.py"),
+				}),
+			),
+		).toBeUndefined();
+	});
+
+	it("allows writes to non-repo paths outside the workspace", async () => {
+		const bot = createBot({ name: "Guarded" });
+		const guard = createBotRepoGuardHook(bot.id);
+		const outside = mkdtempSync(join(tmpdir(), "cline-bots-plain-"));
+		try {
+			expect(
+				await guard(
+					guardContext("editor", { path: join(outside, "todo.txt") }),
+				),
+			).toBeUndefined();
+		} finally {
+			rmSync(outside, { recursive: true, force: true });
+		}
+	});
+
+	it("blocks apply_patch payloads targeting a shared repo but allows relative paths", async () => {
+		const bot = createBot({ name: "Guarded" });
+		const guard = createBotRepoGuardHook(bot.id);
+		const blocked = await guard(
+			guardContext("apply_patch", {
+				input: `*** Begin Patch\n*** Update File: ${join(repoDir, "app.py")}\n@@\n-x\n+y\n*** End Patch`,
+			}),
+		);
+		expect(blocked?.skip).toBe(true);
+		const allowed = await guard(
+			guardContext("apply_patch", {
+				input:
+					"*** Begin Patch\n*** Add File: notes/todo.md\n+hello\n*** End Patch",
+			}),
+		);
+		expect(allowed).toBeUndefined();
+	});
+
+	it("ignores non-write tools", async () => {
+		const bot = createBot({ name: "Guarded" });
+		const guard = createBotRepoGuardHook(bot.id);
+		expect(
+			await guard(
+				guardContext("bash", { command: `echo hacked > ${repoDir}/x` }),
+			),
+		).toBeUndefined();
 	});
 });
 

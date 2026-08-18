@@ -8,8 +8,9 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
-import { join } from "node:path";
+import { basename, dirname, isAbsolute, join, resolve, sep } from "node:path";
 import {
+	type AgentHooks,
 	type AgentTool,
 	type ClineCore,
 	type ClineCoreStartConfig,
@@ -301,6 +302,7 @@ export function broadcastBotsChanged(ctx: SidecarContext): void {
 
 export function buildBotRules(bot: BotRecord): string {
 	const memory = readBotMemory(bot.id).trim();
+	const workspace = botWorkspaceDir(bot.id);
 	const roster = listBots().filter((other) => other.id !== bot.id);
 	const rosterLines =
 		roster.length > 0
@@ -328,11 +330,115 @@ export function buildBotRules(bot: BotRecord): string {
 		"",
 		"When you receive a message prefixed with `[Bot message from ...]`, it came from another bot rather than the user. Reply to that bot with `send_bot_message` when a response is expected.",
 		"",
+		"## Working in repositories",
+		`Your private workspace (${workspace}) is the ONLY place you may edit files directly. Every folder outside it is shared: other bots may be modifying it at the same moment, so direct edits there WILL conflict with and clobber their work.`,
+		"MANDATORY procedure for modifying any git repository outside your workspace — no exceptions, even for a one-line change:",
+		`1. FIRST, before any edit, create your own worktree inside your workspace: \`git -C <repo> worktree add ${workspace}/worktrees/<repo-name> -b bot/<your-name-slug>/<short-task-slug>\` (if a worktree for that repo already exists from earlier work, reuse it or add another with a different name).`,
+		"2. Make every edit and commit inside that worktree only. NEVER run a write operation (file edits, `git add`, `git commit`, `git checkout`, etc.) against the shared checkout itself.",
+		"3. When done, report the branch name and worktree path back to the user or the requesting bot so the changes can be reviewed and merged. Do not merge into the repo's default branch yourself unless explicitly asked to.",
+		"Read-only inspection of a shared repo (reading files, `git log`, `git diff`) is fine directly.",
+		"",
 		"## Your memory file",
 		memory.length > 0
 			? memory
 			: "(empty — you have not written any memory yet)",
 	].join("\n");
+}
+
+// ---------------------------------------------------------------------------
+// Shared-repo write guard
+//
+// Bots may read anything, but direct writes into a git checkout outside their
+// private workspace conflict with other bots (and the user) working in the
+// same repo. The persona rules ask for a worktree; this hook enforces it for
+// the file-editing tools by blocking the call with a corrective message that
+// teaches the worktree procedure. (bash remains an escape hatch by design —
+// the rules cover it — but models overwhelmingly edit through these tools.)
+// ---------------------------------------------------------------------------
+
+const GUARDED_WRITE_TOOLS = new Set(["editor", "apply_patch"]);
+const APPLY_PATCH_FILE_HEADER =
+	/^\*{3}\s+(?:Add|Update|Delete) File:\s*(.+)\s*$/gm;
+
+function isInsideDir(path: string, dir: string): boolean {
+	return path === dir || path.startsWith(`${dir}${sep}`);
+}
+
+function findGitRoot(startDir: string): string | null {
+	let current = startDir;
+	while (true) {
+		if (existsSync(join(current, ".git"))) {
+			return current;
+		}
+		const parent = dirname(current);
+		if (parent === current) {
+			return null;
+		}
+		current = parent;
+	}
+}
+
+function extractWritePaths(toolName: string, input: unknown): string[] {
+	if (!input || typeof input !== "object") {
+		if (toolName === "apply_patch" && typeof input === "string") {
+			return [...input.matchAll(APPLY_PATCH_FILE_HEADER)].map((m) =>
+				(m[1] ?? "").trim(),
+			);
+		}
+		return [];
+	}
+	const record = input as Record<string, unknown>;
+	if (toolName === "editor") {
+		return typeof record.path === "string" ? [record.path] : [];
+	}
+	if (toolName === "apply_patch" && typeof record.input === "string") {
+		return [...record.input.matchAll(APPLY_PATCH_FILE_HEADER)].map((m) =>
+			(m[1] ?? "").trim(),
+		);
+	}
+	return [];
+}
+
+/**
+ * beforeTool hook for bot sessions: blocks editor/apply_patch writes into a
+ * git repository outside the bot's workspace, with a reason that teaches the
+ * worktree procedure. Relative paths resolve against the bot workspace (the
+ * session cwd), so worktrees under the workspace are always allowed.
+ */
+export function createBotRepoGuardHook(
+	botId: string,
+): NonNullable<AgentHooks["beforeTool"]> {
+	return (context) => {
+		const toolName = context?.toolCall?.toolName ?? context?.tool?.name ?? "";
+		if (!GUARDED_WRITE_TOOLS.has(toolName)) {
+			return undefined;
+		}
+		const workspace = resolve(botWorkspaceDir(botId));
+		for (const rawPath of extractWritePaths(toolName, context.input)) {
+			if (!rawPath) {
+				continue;
+			}
+			const absolute = isAbsolute(rawPath)
+				? resolve(rawPath)
+				: resolve(workspace, rawPath);
+			if (isInsideDir(absolute, workspace)) {
+				continue;
+			}
+			const repoRoot = findGitRoot(dirname(absolute));
+			if (!repoRoot) {
+				continue;
+			}
+			return {
+				skip: true,
+				reason:
+					`Blocked: ${absolute} is inside the shared git repository at ${repoRoot}, outside your private workspace. ` +
+					`Other bots may be working in that checkout at the same time, so you must not modify it in place. ` +
+					`Create your own worktree first: \`git -C ${repoRoot} worktree add ${workspace}/worktrees/${basename(repoRoot)} -b bot/<your-name-slug>/<short-task-slug>\`, ` +
+					`then make this edit inside that worktree and report the branch back when done.`,
+			};
+		}
+		return undefined;
+	};
 }
 
 // ---------------------------------------------------------------------------
@@ -484,6 +590,7 @@ export async function startBotChatSession(
 		systemPrompt,
 		enableTools: true,
 		extraTools: createBotTools(ctx, bot.id),
+		hooks: { beforeTool: createBotRepoGuardHook(bot.id) },
 		checkpoint: { enabled: true },
 		...(options.config?.thinking !== undefined
 			? { thinking: options.config.thinking }
