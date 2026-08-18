@@ -99,6 +99,8 @@ const DEFAULT_MAX_LINES_PER_NOTIFICATION = 40;
 const DEFAULT_MAX_LINE_CHARS = 2_000;
 const DEFAULT_MAX_MONITORS = 10;
 const DEFAULT_TERMINATION_GRACE_PERIOD_MS = 2_000;
+const PROCESS_TREE_DISCOVERY_TIMEOUT_MS = 1_000;
+const PROCESS_EXIT_POLL_INTERVAL_MS = 20;
 const TRUNCATION_SUFFIX = "… [truncated]";
 
 /** Thrown for conditions the model can correct by calling the tool again. */
@@ -324,27 +326,133 @@ export class MonitorRegistry {
 
 		const child = entry.child;
 		if (!child || child.exitCode !== null || child.signalCode !== null) return;
+		const pid = child.pid;
+		if (!pid) {
+			child.kill();
+			await this.waitForExit(child);
+			return;
+		}
 
-		const exited = this.waitForExit(child);
-		this.killEntry(entry);
+		// A child can call setsid(2) and leave the process group created for the
+		// monitor. Snapshot the ancestry before signaling the shell, while those
+		// escaped descendants can still be traced back to it.
+		const processTree = await this.captureProcessTree(pid);
+		const exited = this.waitForProcessTreeExit(child, processTree);
+		this.killEntry(entry, "SIGTERM", processTree);
 		const gracePeriod =
 			this.options.terminationGracePeriodMs ??
 			DEFAULT_TERMINATION_GRACE_PERIOD_MS;
 		if (await this.waitUntil(exited, gracePeriod)) return;
 
-		this.killEntry(entry, "SIGKILL");
+		this.killEntry(entry, "SIGKILL", processTree);
 		// SIGKILL cannot be trapped on POSIX. Keep the handle until process exit
 		// is observed so teardown never loses ownership of a live process tree.
 		await exited;
 	}
 
 	private waitForExit(child: ChildProcess): Promise<void> {
+		if (child.exitCode !== null || child.signalCode !== null) {
+			return Promise.resolve();
+		}
 		return new Promise((resolve) => {
 			// `close` also waits for stdio streams. An escaped descendant can keep
 			// an inherited pipe open indefinitely even after this child is dead;
 			// `exit` tracks the owned process itself and cannot be held by that pipe.
-			child.once("exit", () => resolve());
+			const onExit = () => resolve();
+			child.once("exit", onExit);
+			// Cover an exit between the state check above and listener registration.
+			if (child.exitCode !== null || child.signalCode !== null) {
+				child.off("exit", onExit);
+				resolve();
+			}
 		});
+	}
+
+	private async captureProcessTree(rootPid: number): Promise<number[]> {
+		if (process.platform === "win32") return [rootPid];
+
+		const processTable = await this.readProcessTable();
+		if (!processTable) return [rootPid];
+
+		const childrenByParent = new Map<number, number[]>();
+		for (const line of processTable.split(/\r?\n/)) {
+			const [pidText, parentPidText] = line.trim().split(/\s+/, 2);
+			const pid = Number.parseInt(pidText ?? "", 10);
+			const parentPid = Number.parseInt(parentPidText ?? "", 10);
+			if (!Number.isInteger(pid) || !Number.isInteger(parentPid)) continue;
+			const children = childrenByParent.get(parentPid) ?? [];
+			children.push(pid);
+			childrenByParent.set(parentPid, children);
+		}
+
+		const processTree = [rootPid];
+		const seen = new Set(processTree);
+		for (let index = 0; index < processTree.length; index += 1) {
+			const parentPid = processTree[index];
+			if (parentPid === undefined) continue;
+			for (const childPid of childrenByParent.get(parentPid) ?? []) {
+				if (seen.has(childPid)) continue;
+				seen.add(childPid);
+				processTree.push(childPid);
+			}
+		}
+		return processTree;
+	}
+
+	private readProcessTable(): Promise<string | undefined> {
+		return new Promise((resolve) => {
+			let output = "";
+			let finished = false;
+			let watchdog: NodeJS.Timeout | undefined;
+			const finish = (result?: string) => {
+				if (finished) return;
+				finished = true;
+				if (watchdog) clearTimeout(watchdog);
+				resolve(result);
+			};
+			let ps: ChildProcess;
+			try {
+				ps = spawn("ps", ["-A", "-o", "pid=,ppid="], {
+					stdio: ["ignore", "pipe", "ignore"],
+					windowsHide: true,
+				});
+			} catch {
+				finish();
+				return;
+			}
+			watchdog = setTimeout(() => {
+				ps.kill();
+				finish();
+			}, PROCESS_TREE_DISCOVERY_TIMEOUT_MS);
+			ps.stdout?.setEncoding("utf8");
+			ps.stdout?.on("data", (chunk: string) => {
+				output += chunk;
+			});
+			ps.once("error", () => finish());
+			ps.once("close", (code) => finish(code === 0 ? output : undefined));
+		});
+	}
+
+	private async waitForProcessTreeExit(
+		child: ChildProcess,
+		processTree: readonly number[],
+	): Promise<void> {
+		await this.waitForExit(child);
+		if (process.platform === "win32") return;
+		while (processTree.some((pid) => this.isProcessAlive(pid))) {
+			await new Promise((resolve) =>
+				setTimeout(resolve, PROCESS_EXIT_POLL_INTERVAL_MS),
+			);
+		}
+	}
+
+	private isProcessAlive(pid: number): boolean {
+		try {
+			process.kill(pid, 0);
+			return true;
+		} catch (error) {
+			return (error as NodeJS.ErrnoException).code !== "ESRCH";
+		}
 	}
 
 	private async waitUntil(
@@ -377,6 +485,7 @@ export class MonitorRegistry {
 	private killEntry(
 		entry: MonitorEntry,
 		signal: NodeJS.Signals = "SIGTERM",
+		processTree: readonly number[] = [],
 	): void {
 		const child = entry.child;
 		const pid = child?.pid;
@@ -392,11 +501,20 @@ export class MonitorRegistry {
 			}
 			return;
 		}
-		try {
-			// Negative pid targets the process group created by `detached`.
-			process.kill(-pid, signal);
-		} catch {
-			child.kill(signal);
+		for (const ownedPid of new Set([pid, ...processTree])) {
+			try {
+				// Negative pid targets any process group led by this descendant. This
+				// covers both the original detached group and descendants that called
+				// setsid(2) or setpgid(2) after launch.
+				process.kill(-ownedPid, signal);
+			} catch {
+				// Most descendants are not group leaders.
+			}
+			try {
+				process.kill(ownedPid, signal);
+			} catch {
+				// The process may already have exited after the tree snapshot.
+			}
 		}
 	}
 

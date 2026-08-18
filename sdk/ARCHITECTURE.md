@@ -132,8 +132,10 @@ the lead session, and the local host routes its batched output into that
 session's pending-prompt queue so output can steer the next agent iteration.
 Plan mode does not expose monitors because their background shell commands
 cannot use the synchronous read-only command guard. During session shutdown,
-the registry sends `SIGTERM` to each monitor process group, waits for graceful
-exit, and escalates to `SIGKILL` before releasing its process handles.
+the registry snapshots each monitor's descendant tree, sends `SIGTERM` to the
+original process group and any descendants that created their own groups, waits
+for the whole tree to exit, and escalates to `SIGKILL` before releasing its
+process handles.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local

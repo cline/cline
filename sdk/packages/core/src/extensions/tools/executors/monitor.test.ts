@@ -1,4 +1,7 @@
 import { Buffer } from "node:buffer";
+import { access, mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it, vi } from "vitest";
 import {
 	formatMonitorNotification,
@@ -37,6 +40,15 @@ function createCollector() {
 
 const allLines = (notifications: MonitorNotification[]): string[] =>
 	notifications.flatMap((notification) => notification.lines);
+
+const fileExists = async (path: string): Promise<boolean> => {
+	try {
+		await access(path);
+		return true;
+	} catch {
+		return false;
+	}
+};
 
 /** Builds a shell command that behaves identically in Bash and PowerShell. */
 const nodeCommand = (script: string): string => {
@@ -346,6 +358,46 @@ describe("MonitorRegistry", () => {
 
 			await registry.dispose();
 			expect(registry.list()).toHaveLength(0);
+		},
+	);
+
+	it.skipIf(process.platform === "win32")(
+		"terminates descendants that escape the monitor process group",
+		async () => {
+			const tempDir = await mkdtemp(join(tmpdir(), "monitor-tree-"));
+			const readyPath = join(tempDir, "ready");
+			const survivedPath = join(tempDir, "survived");
+			const registry = new MonitorRegistry({
+				notifier: () => {},
+				terminationGracePeriodMs: 50,
+			});
+			const escapedScript = [
+				'const { writeFileSync } = require("node:fs")',
+				`writeFileSync(${JSON.stringify(readyPath)}, "ready")`,
+				`setTimeout(() => { writeFileSync(${JSON.stringify(survivedPath)}, "survived"); process.exit(0) }, 1_000)`,
+			].join(";");
+			const parentScript = [
+				'const { spawn } = require("node:child_process")',
+				`const escaped = spawn(process.execPath, ["-e", ${JSON.stringify(escapedScript)}], { detached: true, stdio: "ignore" })`,
+				"escaped.unref()",
+				"setInterval(() => {}, 1_000)",
+			].join(";");
+
+			try {
+				registry.start({
+					name: "escaped-descendant",
+					command: nodeCommand(parentScript),
+					description: "spawns a child in a new session",
+				});
+				await expect.poll(() => fileExists(readyPath)).toBe(true);
+
+				await registry.dispose();
+				await new Promise((resolve) => setTimeout(resolve, 1_200));
+				expect(await fileExists(survivedPath)).toBe(false);
+			} finally {
+				await registry.dispose();
+				await rm(tempDir, { recursive: true, force: true });
+			}
 		},
 	);
 
