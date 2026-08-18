@@ -76,7 +76,7 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 		},
 	},
 	mistral: {
-		signupUrl: "https://console.mistral.ai/codestral",
+		signupUrl: "https://console.mistral.ai/api-keys",
 	},
 	nebius: {
 		signupUrl: "https://auth.tokenfactory.nebius.com/ui/login",
