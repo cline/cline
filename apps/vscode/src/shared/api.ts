@@ -72,6 +72,8 @@ export interface ModelInfo {
 	name?: string
 	maxTokens?: number
 	contextWindow?: number
+	/** Prompt/input token budget reported by the provider. Kept separate from the total context window. */
+	maxInputTokens?: number
 	supportsImages?: boolean
 	supportsPromptCache: boolean // this value is hardcoded for now
 	supportsReasoning?: boolean // Whether the model supports reasoning/thinking mode

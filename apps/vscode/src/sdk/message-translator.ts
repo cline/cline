@@ -49,7 +49,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
-import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
+import { isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -2109,10 +2109,19 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { prompt, userImages, userFiles } = event.payload
+			// Synthetic prompts (task resumption, plan -> act auto-continue) are
+			// hidden from every other transcript surface, and this echo must
+			// hide them too: a send that races a settling abort is auto-queued
+			// by the runtime, so a bare Resume can arrive here carrying the
+			// synthetic resumption prompt. Echoing it would leak model-facing
+			// text as a user bubble and shift the visible-user-message ordinals
+			// that edit/regenerate mapping relies on. Attachments the user
+			// supplied alongside a synthetic prompt still render (matching
+			// isSyntheticSdkUserMessage, which counts those as visible).
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
-			const displayPrompt = formatDisplayUserInput(prompt)
+			const displayPrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(prompt)
 			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
