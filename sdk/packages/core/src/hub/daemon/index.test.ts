@@ -7,11 +7,13 @@ const {
 	openSync,
 	rememberRecoverableLocalHubUrl,
 	verifyHubConnection,
+	localHubHasNoActiveSessions,
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 	createHubServerUrl,
 	clearHubDiscovery,
 	getManagedHubCompatibility,
+	isManagedHubReusable,
 	probeHubServer,
 	requestHubShutdown,
 	readHubDiscovery,
@@ -27,6 +29,8 @@ const {
 	openSync: vi.fn(() => 17),
 	rememberRecoverableLocalHubUrl: vi.fn((url: string) => url),
 	verifyHubConnection: vi.fn(),
+	// Idle by default, so existing replacement cases are unaffected.
+	localHubHasNoActiveSessions: vi.fn(async () => true),
 	resolveProductionHubOwnerContext: vi.fn(() => ({
 		discoveryPath: "/tmp/hub-discovery.json",
 	})),
@@ -43,6 +47,17 @@ const {
 			compatible:
 				record.protocolVersion === "v1" && record.buildId === "current-build",
 		}),
+	),
+	// Mirrors the real semantics: same build, or a strictly newer build epoch.
+	isManagedHubReusable: vi.fn(
+		(record: {
+			protocolVersion?: string;
+			buildId?: string;
+			buildEpochMs?: number;
+		}) =>
+			record.protocolVersion === "v1" &&
+			(record.buildId === "current-build" ||
+				(record.buildEpochMs ?? 0) > 1_000_000),
 	),
 	probeHubServer: vi.fn(),
 	requestHubShutdown: vi.fn(async () => true),
@@ -84,6 +99,7 @@ vi.mock("@cline/shared", () => ({
 }));
 
 vi.mock("../client", () => ({
+	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
 	verifyHubConnection,
@@ -98,6 +114,7 @@ vi.mock("../discovery", () => ({
 	clearHubDiscovery,
 	createHubServerUrl,
 	getManagedHubCompatibility,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
@@ -109,7 +126,11 @@ vi.mock("../discovery", () => ({
 describe("ensureDetachedHubServer", () => {
 	const fetchMock = vi.fn(async () => ({ ok: true }));
 
-	beforeEach(() => {
+	beforeEach(async () => {
+		// The retire circuit breaker is module state keyed by Hub URL, and these
+		// cases all retire the same URL.
+		const { __test__ } = await import(".");
+		__test__.resetRetireAttempts();
 		delete process.env[CLINE_RUN_AS_HUB_DAEMON_ENV];
 		spawn.mockReset();
 		spawn.mockImplementation(() => ({ unref: vi.fn() }));
@@ -120,6 +141,8 @@ describe("ensureDetachedHubServer", () => {
 		rememberRecoverableLocalHubUrl.mockReset();
 		rememberRecoverableLocalHubUrl.mockImplementation((url: string) => url);
 		verifyHubConnection.mockReset();
+		localHubHasNoActiveSessions.mockReset();
+		localHubHasNoActiveSessions.mockResolvedValue(true);
 		clearHubDiscovery.mockReset();
 		clearHubDiscovery.mockResolvedValue(undefined);
 		probeHubServer.mockReset();
@@ -387,6 +410,71 @@ describe("ensureDetachedHubServer", () => {
 		}
 	});
 
+	it("attaches to an older hub that is still serving sessions instead of retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			localHubHasNoActiveSessions.mockResolvedValue(false);
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "old-build",
+				pid: 12345,
+			});
+			// Reuse is rejected by build id before any connection check, so the
+			// only verify call is the one guarding the deferred attach.
+			verifyHubConnection.mockResolvedValue(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+
+			await expect(ensureDetachedHubServer("/workspace")).resolves.toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "busy-token",
+			});
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
+	it("reuses a healthy hub from a newer build without retiring it", async () => {
+		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
+		try {
+			readHubDiscovery.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "newer-hub-token",
+			});
+			probeHubServer.mockResolvedValueOnce({
+				url: "ws://127.0.0.1:25463/hub",
+				protocolVersion: "v1",
+				buildId: "newer-build",
+				buildEpochMs: 2_000_000,
+				pid: 12345,
+			});
+			verifyHubConnection.mockResolvedValueOnce(true);
+
+			const { ensureDetachedHubServer } = await import(".");
+			const result = await ensureDetachedHubServer("/workspace");
+
+			expect(result).toEqual({
+				url: "ws://127.0.0.1:25463/hub",
+				authToken: "newer-hub-token",
+			});
+			expect(requestHubShutdown).not.toHaveBeenCalled();
+			expect(kill).not.toHaveBeenCalled();
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
+			expect(spawn).not.toHaveBeenCalled();
+		} finally {
+			kill.mockRestore();
+		}
+	});
+
 	it("retires an existing hub with an empty discovery auth token before starting a replacement", async () => {
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
@@ -598,6 +686,7 @@ describe("ensureDetachedHubServer", () => {
 	});
 
 	it("does not reuse a healthy hub without protocol metadata", async () => {
+		vi.useFakeTimers();
 		const kill = vi.spyOn(process, "kill").mockImplementation(() => true);
 		try {
 			readHubDiscovery
@@ -635,7 +724,9 @@ describe("ensureDetachedHubServer", () => {
 			verifyHubConnection.mockResolvedValueOnce(true);
 
 			const { ensureDetachedHubServer } = await import(".");
-			const result = await ensureDetachedHubServer("/workspace");
+			const pending = ensureDetachedHubServer("/workspace");
+			await vi.runAllTimersAsync();
+			const result = await pending;
 
 			expect(result).toEqual({
 				url: "ws://127.0.0.1:25463/hub",
@@ -654,6 +745,7 @@ describe("ensureDetachedHubServer", () => {
 			expect(verifyHubConnection).toHaveBeenCalledOnce();
 		} finally {
 			kill.mockRestore();
+			vi.useRealTimers();
 		}
 	});
 });

@@ -6,6 +6,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { ChatMessages } from "./chat-messages";
 
+// @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
+// does not implement; without this the suite exits nonzero on an unhandled
+// error even with every test passing.
+CSSStyleSheet.prototype.replaceSync ??= function replaceSync() {} as never;
+
 let container: HTMLDivElement;
 let root: Root;
 
@@ -107,7 +112,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const summary = [...container.querySelectorAll("span")].find((element) =>
-			element.textContent?.includes("Explored"),
+			element.textContent?.includes("Searched"),
 		);
 		expect(summary).toBeDefined();
 		expect(summary?.closest("button")).toBeNull();
@@ -172,7 +177,7 @@ describe("ChatMessages tool disclosures", () => {
 		]);
 
 		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Explored 1 search"),
+			element.textContent?.includes("Searched workspace selector"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
 		const panelId = trigger?.getAttribute("aria-controls");
@@ -185,7 +190,7 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
-	it("groups consecutive tool calls and combines matching activity totals", async () => {
+	it("renders consecutive tool calls as individual rows", async () => {
 		const tools: ChatMessage[] = [
 			{
 				id: "read",
@@ -215,8 +220,130 @@ describe("ChatMessages tool disclosures", () => {
 
 		await renderMessages(tools);
 
-		expect(container.textContent).toContain("Read 2 files. Edited 4 files");
-		expect(container.textContent?.match(/Read 2 files/g)).toHaveLength(1);
+		// One row per call — the multi-file read keeps its own count, and each
+		// edit stands alone; nothing merges across calls.
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(5);
+		expect(container.textContent).toContain("Read 2 files");
+		for (const path of ["one.ts", "two.ts", "three.ts", "four.ts"]) {
+			expect(container.textContent).toContain(`Edited file ${path}`);
+		}
+		expect(container.textContent).not.toContain("·");
+	});
+
+	it("leads a command row with the action and shows output on expand", async () => {
+		await renderMessages([
+			{
+				id: "command",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["bun run test"] },
+					result: "45 tests passed",
+				}),
+				createdAt: 1,
+			},
+		]);
+
+		const trigger = [...container.querySelectorAll("button")].find((element) =>
+			element.textContent?.includes("Ran command bun run test"),
+		);
+		expect(trigger).toBeDefined();
+		await act(async () => trigger?.click());
+		expect(container.textContent).toContain("45 tests passed");
+	});
+
+	it("pre-expands tool groups that contain edit diffs", async () => {
+		await renderMessages([
+			{
+				id: "edit-open",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "open.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 1,
+			},
+			{
+				id: "between",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "Splitting the groups",
+				createdAt: 2,
+			},
+			{
+				id: "read-closed",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "read_files",
+					input: { paths: ["closed.ts"] },
+					result: {},
+				}),
+				createdAt: 3,
+			},
+		]);
+
+		const [editBlock, readBlock] = [
+			...container.querySelectorAll(".cline-chat-tool"),
+		];
+		// The edit group's diff panel is visible without a click…
+		expect(
+			editBlock
+				?.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("open");
+		// …while the read group stays collapsed.
+		expect(
+			readBlock
+				?.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("closed");
+	});
+
+	it("opens a streaming group when an edit diff arrives after mount", async () => {
+		const read: ChatMessage = {
+			id: "stream-read",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["app.ts"] },
+				result: {},
+			}),
+			createdAt: 1,
+		};
+		// The group mounts with only the read call, so it starts collapsed.
+		await renderMessages([read]);
+		expect(
+			container
+				.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("closed");
+
+		// The edit call joins the same group mid-stream; the diff should
+		// surface without a click.
+		await renderMessages([
+			read,
+			{
+				id: "stream-edit",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "editor",
+					input: { path: "app.ts", old_text: "before", new_text: "after" },
+					result: {},
+				}),
+				createdAt: 2,
+			},
+		]);
+		expect(
+			[
+				...container.querySelectorAll(".cline-chat-disclosure-content-motion"),
+			].some((panel) => panel.getAttribute("data-state") === "open"),
+		).toBe(true);
 	});
 
 	it("summarizes spawned teammates and expands their agent IDs", async () => {
@@ -236,11 +363,13 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		);
 
-		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Spawned 3 teammates"),
+		const triggers = [...container.querySelectorAll("button")].filter(
+			(element) => element.textContent?.includes("Spawned 1 teammate"),
 		);
-		expect(trigger).toBeDefined();
-		await act(async () => trigger?.click());
+		expect(triggers).toHaveLength(3);
+		for (const trigger of triggers) {
+			await act(async () => trigger.click());
+		}
 		expect(container.textContent).toContain("reviewer");
 		expect(container.textContent).toContain("tester");
 		expect(container.textContent).toContain("writer");
@@ -263,11 +392,13 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		);
 
-		const trigger = [...container.querySelectorAll("button")].find((element) =>
-			element.textContent?.includes("Assigned 2 team tasks"),
+		const triggers = [...container.querySelectorAll("button")].filter(
+			(element) => element.textContent?.includes("Assigned 1 team task"),
 		);
-		expect(trigger).toBeDefined();
-		await act(async () => trigger?.click());
+		expect(triggers).toHaveLength(2);
+		for (const trigger of triggers) {
+			await act(async () => trigger.click());
+		}
 		expect(container.textContent).toContain("async reviewer queued");
 		expect(container.textContent).toContain("async tester queued");
 	});
@@ -381,9 +512,13 @@ describe("ChatMessages tool disclosures", () => {
 			read("read-after", "after.ts", 3),
 		]);
 
-		expect(container.textContent).toContain(
-			"Read 1 file. Edited 1 file. Read 1 file",
+		// Rows keep call order, each with its own specific label.
+		const labels = [...container.querySelectorAll(".cline-chat-tool")].map(
+			(row) => row.textContent ?? "",
 		);
+		expect(labels[0]).toContain("Read file before.ts");
+		expect(labels[1]).toContain("Edited file change.ts");
+		expect(labels[2]).toContain("Read file after.ts");
 	});
 
 	it("starts a new tool group after non-tool content", async () => {
@@ -411,7 +546,8 @@ describe("ChatMessages tool disclosures", () => {
 			tool("second", 3),
 		]);
 
-		expect(container.textContent?.match(/Read 1 file/g)).toHaveLength(2);
+		expect(container.textContent).toContain("Read file first.ts");
+		expect(container.textContent).toContain("Read file second.ts");
 	});
 
 	it("normalizes payload-backed configured subagent names", async () => {
@@ -442,9 +578,8 @@ describe("ChatMessages tool disclosures", () => {
 			),
 		]);
 
-		expect(container.textContent).toContain(
-			"Ran 2 commands. spawn_agent. spawn_agent. spawn_agent",
-		);
+		expect(container.textContent).toContain("Ran 2 commands");
+		expect(container.textContent?.match(/Spawned agent/g)).toHaveLength(3);
 		expect(container.textContent).not.toContain("subagent_subagent");
 	});
 
@@ -494,8 +629,9 @@ describe("ChatMessages tool disclosures", () => {
 		const messageList = message?.parentElement;
 		const content = message?.querySelector(".cline-chat-message-content");
 
-		// The list and the content column each own their spacing via gap-2...
-		expect(messageList?.classList.contains("gap-2")).toBe(true);
+		// The list owns conversation spacing via gap-8, while the content column
+		// keeps the tighter gap-2 spacing between blocks within one message.
+		expect(messageList?.classList.contains("gap-8")).toBe(true);
 		expect(content?.classList.contains("flex")).toBe(true);
 		expect(content?.classList.contains("flex-col")).toBe(true);
 		expect(content?.classList.contains("gap-2")).toBe(true);
@@ -547,19 +683,12 @@ describe("ChatMessages tool disclosures", () => {
 		);
 
 		expect(userMessage?.classList.contains("relative")).toBe(true);
-		expect(userActions?.classList.contains("absolute")).toBe(true);
-		expect(userActions?.classList.contains("right-0")).toBe(true);
-		expect(userActions?.classList.contains("top-full")).toBe(true);
-		expect(userActions?.classList.contains("-translate-y-1")).toBe(true);
+		expect(userActions?.getAttribute("data-side")).toBe("end");
 		expect(assistantMessage?.classList.contains("relative")).toBe(true);
-		expect(assistantActions?.classList.contains("absolute")).toBe(true);
-		expect(assistantActions?.classList.contains("left-0")).toBe(true);
-		expect(assistantActions?.classList.contains("top-full")).toBe(true);
-		expect(assistantActions?.classList.contains("-translate-y-1")).toBe(true);
+		expect(assistantActions?.getAttribute("data-side")).toBe("start");
 		expect(assistantActions?.getAttribute("data-visible")).toBe("true");
 		const userAction = userActions?.querySelector(".cline-chat-message-action");
-		expect(userAction?.classList.contains("min-w-0")).toBe(true);
-		expect(userAction?.classList.contains("p-0")).toBe(true);
+		expect(userAction?.getAttribute("data-slot")).toBe("icon-button");
 		const assistantActionButtons = [
 			...(assistantActions?.querySelectorAll(".cline-chat-message-action") ??
 				[]),
@@ -567,9 +696,7 @@ describe("ChatMessages tool disclosures", () => {
 		expect(assistantActionButtons).toHaveLength(2);
 		expect(
 			assistantActionButtons.every(
-				(action) =>
-					action.classList.contains("min-w-0") &&
-					action.classList.contains("p-0"),
+				(action) => action.getAttribute("data-slot") === "icon-button",
 			),
 		).toBe(true);
 		expect(userActions?.querySelector("time")?.getAttribute("datetime")).toBe(
@@ -816,10 +943,16 @@ describe("ChatMessages follow-up questions", () => {
 			},
 		);
 
-		const answer = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Continue",
+		const answer = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
+		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
+
+		const submit = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Submit",
+		);
+		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
@@ -847,6 +980,83 @@ describe("ChatMessages image attachments", () => {
 		expect(image?.className).toContain("max-h-56.25");
 		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
+	});
+
+	it("renders an image-only assistant response", async () => {
+		await renderMessages([
+			{
+				id: "assistant-image",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/webp",
+						data: "aGVsbG8=",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/webp;base64,aGVsbG8=");
+	});
+
+	it("shows one generated image at a time and navigates the result set", async () => {
+		await renderMessages([
+			{
+				id: "assistant-images",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/png",
+						data: "Zmlyc3Q=",
+					},
+					{
+						id: "generated-image-2",
+						mediaType: "image/png",
+						data: "c2Vjb25k",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const previous = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Previous generated image"]',
+		);
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		expect(previous?.disabled).toBe(true);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+		expect(next?.disabled).toBe(true);
+
+		await act(async () => previous?.click());
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
 	});
 
 	it("expands an attachment within the conversation and closes it", async () => {
@@ -963,14 +1173,7 @@ describe("ChatMessages reasoning disclosure", () => {
 		const content = container.querySelector(".cline-chat-reasoning-content");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
 		expect(content?.textContent).toContain("Carefully considered the request.");
-		expect(content?.classList.contains("border-l")).toBe(true);
-		expect(content?.classList.contains("rounded-none")).toBe(true);
-		expect(content?.classList.contains("bg-transparent")).toBe(true);
-		// Inset off the rail, without pinning the exact step — the shared-rail
-		// test owns the specific values.
-		expect(
-			[...(content?.classList ?? [])].some((name) => /^p[lx]-/.test(name)),
-		).toBe(true);
+		expect(content?.classList.contains("cline-chat-panel-rail")).toBe(true);
 	});
 
 	it("hangs expanded reasoning and tool panels off the same left rail", async () => {
@@ -989,7 +1192,9 @@ describe("ChatMessages reasoning disclosure", () => {
 				role: "tool",
 				content: JSON.stringify({
 					toolName: "run_commands",
-					input: { commands: ["git status"] },
+					// Two commands so the expanded panel renders detail rows (a
+					// single untruncated command lives in the label alone).
+					input: { commands: ["git status", "git diff"] },
 					result: {},
 				}),
 				createdAt: 3_000,
@@ -1014,16 +1219,10 @@ describe("ChatMessages reasoning disclosure", () => {
 		expect(reasoningContent).not.toBeNull();
 		expect(toolContent).not.toBeNull();
 
-		// Compared as sets rather than pinned to literals, so retuning the rail
-		// stays a one-line change but can never drift between the two panels.
-		const railClasses = (element: Element | null) =>
-			[...(element?.classList ?? [])]
-				.filter((name) =>
-					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max-w)-/.test(name),
-				)
-				.sort();
-		expect(railClasses(reasoningContent).length).toBeGreaterThan(0);
-		expect(railClasses(toolContent)).toEqual(railClasses(reasoningContent));
+		expect(reasoningContent?.classList.contains("cline-chat-panel-rail")).toBe(
+			true,
+		);
+		expect(toolContent?.classList.contains("cline-chat-panel-rail")).toBe(true);
 
 		// Reasoning remains capped; tool output grows into the conversation scroller.
 		expect(
@@ -1036,11 +1235,6 @@ describe("ChatMessages reasoning disclosure", () => {
 				name.startsWith("max-h-"),
 			),
 		).toBe(false);
-		for (const panel of [reasoningContent, toolContent]) {
-			expect(
-				[...(panel?.classList ?? [])].some((name) => name.startsWith("max-w-")),
-			).toBe(true);
-		}
 
 		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
 		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
@@ -1268,15 +1462,43 @@ describe("ChatMessages thinking indicator", () => {
 					id: "tool-1",
 					sessionId: "session-1",
 					role: "tool",
-					content: "not-json",
+					content: JSON.stringify({
+						toolName: "read_files",
+						input: { paths: ["pending.ts"] },
+						result: null,
+					}),
 					createdAt: 2,
-					meta: { toolName: "search" },
+					meta: { hookEventName: "tool_call_start" },
 				},
 			],
 			{ status: "running" },
 		);
 
 		expect(container.textContent).not.toContain("Thinking...");
+	});
+
+	it("shows between a finished tool and the next output", async () => {
+		// The quiet stretch while the model composes its next step (e.g.
+		// streams tool-call arguments) used to render nothing and look frozen.
+		await renderMessages(
+			[
+				userMessage,
+				{
+					id: "tool-1",
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "read_files",
+						input: { paths: ["done.ts"] },
+						result: { content: "done" },
+					}),
+					createdAt: 2,
+				},
+			],
+			{ status: "running" },
+		);
+
+		expect(container.textContent).toContain("Thinking...");
 	});
 
 	it("hides while a tool approval is pending", async () => {

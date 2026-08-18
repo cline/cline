@@ -15,7 +15,7 @@ export interface TelemetryServiceOptions {
 	/**
 	 * Deterministic per-device identifier attached to every event as
 	 * `device_id`. Defaults to {@link resolveCoreDeviceId}
-	*/
+	 */
 	deviceId?: string;
 	commonProperties?: TelemetryProperties;
 	logger?: BasicLogger;

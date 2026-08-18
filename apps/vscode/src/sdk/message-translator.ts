@@ -27,8 +27,8 @@
 // - SDK "ended" event → finalizes the session
 
 import type { CoreSessionEvent } from "@cline/core"
-import { PATCH_MARKERS } from "@cline/core"
-import type { Message as SdkMessage } from "@cline/llms"
+import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
+import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
 import { COMMAND_OUTPUT_STRING } from "@shared/combineCommandSequences"
 import type {
@@ -1507,6 +1507,21 @@ function translateAgentEvent(event: AgentEvent, state: MessageTranslatorState): 
 					})
 					break
 				}
+				case "media": {
+					const media = event.media
+					if (!media) {
+						break
+					}
+					messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "text",
+						text: "",
+						media: [media],
+						partial: false,
+					})
+					break
+				}
 				case "tool": {
 					const toolName = event.toolName ?? "unknown"
 
@@ -2147,13 +2162,6 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 type SdkContentBlock = Exclude<SdkMessage["content"], string>[number]
 type SdkToolUseBlock = Extract<SdkContentBlock, { type: "tool_use" }>
 type SdkMessageWithMetrics = SdkMessage & {
-	metrics?: {
-		inputTokens?: number
-		outputTokens?: number
-		cacheReadTokens?: number
-		cacheWriteTokens?: number
-		cost?: number
-	}
 	/**
 	 * Plan/act mode recovered from the persisted <user_input mode="..."> wrapper before display
 	 * sanitization strips it (see sanitizeSdkUserMessagesForDisplay in sdk-task-history.ts).
@@ -2343,7 +2351,8 @@ export function sdkMessagesToClineMessages(
 		state.clearTurnOutcome()
 	}
 
-	for (const message of messages) {
+	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
+		const sourceMessage = messages[sourceIndex]
 		if (message.role === "assistant") {
 			flushUnmatchedToolUses()
 
@@ -2358,7 +2367,7 @@ export function sdkMessagesToClineMessages(
 				continue
 			}
 
-			for (const block of message.content) {
+			for (const [blockIndex, block] of message.content.entries()) {
 				switch (block.type) {
 					case "text":
 						if (block.text.trim()) {
@@ -2388,6 +2397,37 @@ export function sdkMessagesToClineMessages(
 							)
 						}
 						break
+					case "image":
+						if (block.data && block.mediaType.startsWith("image/")) {
+							clineMessages.push(
+								...agentEventToMessages(
+									{
+										type: "content_end",
+										contentType: "media",
+										media: {
+											id: `${message.id ?? `history-${sourceIndex}`}:media:${blockIndex}`,
+											modality: "image",
+											mediaType: block.mediaType,
+											source: { type: "base64", data: block.data },
+										},
+									} as AgentEvent,
+									state,
+								),
+							)
+						}
+						break
+					case "media":
+						clineMessages.push(
+							...agentEventToMessages(
+								{
+									type: "content_end",
+									contentType: "media",
+									media: block.media,
+								} as AgentEvent,
+								state,
+							),
+						)
+						break
 					case "tool_use":
 						// Tool activity after a text block means that text wasn't the
 						// turn-final response (also covers dangling tool_use blocks whose
@@ -2410,7 +2450,7 @@ export function sdkMessagesToClineMessages(
 				// (task resumption, plan -> act auto-continue) still advance the turn/mode
 				// state but never had a visible bubble live, so don't emit one here either.
 				state.clearTurnOutcome()
-				currentMode = message.uiMode ?? currentMode
+				currentMode = sourceMessage.uiMode ?? currentMode
 				if (!isSyntheticSdkUserMessage(message)) {
 					clineMessages.push({
 						ts: state.nextTs(),
@@ -2427,7 +2467,7 @@ export function sdkMessagesToClineMessages(
 		const userText = textContentBlocksToText(message.content)
 		if (userText) {
 			state.clearTurnOutcome()
-			currentMode = message.uiMode ?? currentMode
+			currentMode = sourceMessage.uiMode ?? currentMode
 			if (!isSyntheticSdkUserMessage(message)) {
 				clineMessages.push({
 					ts: state.nextTs(),
