@@ -1405,6 +1405,60 @@ describe("ChatMessages reasoning disclosure", () => {
 	});
 });
 
+describe("ChatMessages send auto-scroll", () => {
+	const baseMessages: ChatMessage[] = [
+		{
+			id: "user-1",
+			sessionId: "session-1",
+			role: "user",
+			content: "First",
+			createdAt: 1_000,
+		},
+		{
+			id: "assistant-1",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Reply",
+			createdAt: 2_000,
+		},
+	];
+
+	it("scrolls to the bottom when a new user message lands, but not for assistant output", async () => {
+		await renderMessages(baseMessages);
+		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
+		scrollTo.mockClear();
+
+		// Assistant output alone must not force the reader back down.
+		await renderMessages([
+			...baseMessages,
+			{
+				id: "assistant-2",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "More output",
+				createdAt: 3_000,
+			},
+		]);
+		expect(scrollTo).not.toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+
+		await renderMessages([
+			...baseMessages,
+			{
+				id: "user-2",
+				sessionId: "session-1",
+				role: "user",
+				content: "Second",
+				createdAt: 4_000,
+			},
+		]);
+		expect(scrollTo).toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+	});
+});
+
 describe("ChatMessages work collapse", () => {
 	const completedRun: ChatMessage[] = [
 		{

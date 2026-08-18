@@ -42,7 +42,7 @@ function assignRef<T>(ref: Ref<T> | undefined, value: T | null): void {
 	}
 }
 
-type ConversationContextValue = {
+export type ConversationContextValue = {
 	setContent: (element: HTMLDivElement | null) => void;
 	setViewport: (element: HTMLDivElement | null) => void;
 	showScrollButton: boolean;
@@ -53,7 +53,12 @@ const ConversationContext = createContext<ConversationContextValue | null>(
 	null,
 );
 
-function useConversation(): ConversationContextValue {
+/**
+ * Access the surrounding Conversation's scroll controls — e.g. to force a
+ * scroll to the latest message when the user submits, regardless of where
+ * they had scrolled. Must be called under a `Conversation`.
+ */
+export function useConversation(): ConversationContextValue {
 	const context = useContext(ConversationContext);
 	if (!context) {
 		throw new Error(

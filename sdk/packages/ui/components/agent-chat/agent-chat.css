@@ -107,7 +107,7 @@
 		top: 100%;
 		left: 0;
 		right: 0;
-		height: 0.4rem;
+		height: 0.5rem;
 	}
 
 	.cline-chat-message[data-role="user"] {
@@ -156,8 +156,8 @@
 		min-height: 1.5rem;
 		align-items: center;
 		gap: 0.125rem;
-		margin-top: 0.125rem;
-		padding: 0.125rem 0.375rem;
+		margin-top: 0.375rem;
+		padding: 0.25rem 0.5rem;
 		border: 1px solid var(--border);
 		border-radius: 9999px;
 		background: color-mix(in oklab, var(--background) 92%, transparent);
@@ -200,8 +200,11 @@
 		height: 0.875rem;
 	}
 
+	/* The timestamp ends flush against the pill border without a trailing
+	 * inset of its own, so give it one. */
 	.cline-chat-message-actions > time {
 		margin-inline-start: 0.25rem;
+		margin-inline-end: 0.1875rem;
 	}
 
 	.cline-chat-reasoning {
@@ -253,6 +256,17 @@
 
 	[aria-expanded="true"] > .cline-chat-disclosure-icon {
 		transform: rotate(180deg);
+	}
+
+	/* The work summary's chevron points right while collapsed and continues
+	 * counterclockwise to point up when expanded. */
+	.cline-chat-work-trigger > .cline-chat-disclosure-icon {
+		transform: rotate(-90deg);
+		transition: transform 120ms ease;
+	}
+
+	.cline-chat-work-trigger[aria-expanded="true"] > .cline-chat-disclosure-icon {
+		transform: rotate(-180deg);
 	}
 
 	.cline-chat-disclosure-content-motion {
@@ -451,7 +465,8 @@
 	}
 
 	@media (prefers-reduced-motion: reduce) {
-		.cline-chat-disclosure-icon {
+		.cline-chat-disclosure-icon,
+		.cline-chat-work-trigger > .cline-chat-disclosure-icon {
 			transition: none;
 		}
 

@@ -6,9 +6,10 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 	ConversationViewport,
+	useConversation,
 } from "@cline/ui/components/agent-chat";
 import { Loader2 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -505,12 +506,14 @@ function ChatMessagesImpl({
 					<SessionContent
 						className={cn(
 							"relative min-h-full",
-							showIdleDetails ? "p-0" : "pt-6 pb-20",
+							// Bottom padding only needs to clear a pinned action pill —
+							// the composer sits below the scroller, not over it.
+							showIdleDetails ? "p-0" : "pt-6 pb-8",
 						)}
 					>
 						{showIdleDetails ? null : (
 							<div className="flex min-h-full w-full min-w-0 flex-col gap-4">
-								{renderItems.map((item) => {
+								{renderItems.map((item, itemIndex) => {
 									// Working rows — live (`run`) or folded (`work`) — render
 									// through one child renderer so a row keeps its exact look
 									// and position when the run collapses. Those rows keep
@@ -571,9 +574,17 @@ function ChatMessagesImpl({
 										);
 									}
 									const { agentRole, message, reasoningMessages } = item;
+									// An answer directly under its run's working rows belongs
+									// to them — pull it closer than the full transcript gap.
+									const previousItem = renderItems[itemIndex - 1];
+									const followsWorkingRows =
+										message.role === "assistant" &&
+										previousItem !== undefined &&
+										previousItem.type !== "message";
 									return (
 										<MessageBubble
 											agentRole={agentRole}
+											followsWorkingRows={followsWorkingRows}
 											isLastAssistantMessage={
 												message.role === "assistant" &&
 												lastConversationMessage === message
@@ -714,6 +725,7 @@ function ChatMessagesImpl({
 				</ConversationContent>
 			</ConversationViewport>
 			<ConversationScrollButton />
+			<AutoScrollOnSend messages={messages} />
 			{visibleExpandedImage ? (
 				<ChatImageLightbox
 					image={visibleExpandedImage}
@@ -799,6 +811,32 @@ function ChatMessagesImpl({
 }
 
 export const ChatMessages = memo(ChatMessagesImpl);
+
+/**
+ * Sending a message returns the reader to the newest content: whenever a new
+ * user message lands in the transcript, scroll to the bottom even if the user
+ * had scrolled up. Keyed off the count (not the id) because optimistic user
+ * bubbles are re-keyed to their runtime id, which must not re-trigger.
+ */
+function AutoScrollOnSend({ messages }: { messages: ChatMessage[] }) {
+	const { scrollToBottom } = useConversation();
+	const userMessageCount = useMemo(
+		() =>
+			messages.reduce(
+				(count, message) => (message.role === "user" ? count + 1 : count),
+				0,
+			),
+		[messages],
+	);
+	const previousCount = useRef(userMessageCount);
+	useEffect(() => {
+		if (userMessageCount > previousCount.current) {
+			scrollToBottom();
+		}
+		previousCount.current = userMessageCount;
+	}, [scrollToBottom, userMessageCount]);
+	return null;
+}
 
 function pruneRequestMap<T extends string>(
 	prev: Record<string, T>,
