@@ -6,12 +6,13 @@ import {
 	symlinkSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgendaTaskSpecFileStore } from "./task-spec-file-store";
 import { parseAgendaTaskSpec } from "./task-spec-parser";
 
 const roots: string[] = [];
+const WORKSPACE_ROOT = resolve("/workspace");
 
 afterEach(() => {
 	for (const root of roots.splice(0)) {
@@ -22,9 +23,14 @@ afterEach(() => {
 describe("parseAgendaTaskSpec", () => {
 	it("parses canonical frontmatter and derives workspace scope", () => {
 		const result = parseAgendaTaskSpec({
-			specPath: "/workspace/.cline/tasks/check-pr.task.md",
+			specPath: join(
+				WORKSPACE_ROOT,
+				".cline",
+				"tasks",
+				"check-pr.task.md",
+			),
 			scope: "workspace",
-			workspaceRoot: "/workspace",
+			workspaceRoot: WORKSPACE_ROOT,
 			raw: `---
 taskId: task_check_pr
 type: follow-up
@@ -55,8 +61,8 @@ Inspect the CI checks and fix any regressions.
 			type: "follow-up",
 			priority: 0,
 			scope: "workspace",
-			workspaceRoot: "/workspace",
-			resourcePaths: ["apps/api/router.ts"],
+			workspaceRoot: WORKSPACE_ROOT,
+			resourcePaths: [join("apps", "api", "router.ts")],
 			instructions: "Inspect the CI checks and fix any regressions.",
 			modelSelection: { providerId: "anthropic", modelId: "claude" },
 		});
@@ -138,9 +144,9 @@ Read it.
 		});
 
 		const traversal = parseAgendaTaskSpec({
-			specPath: "/workspace/.cline/tasks/task.task.md",
+			specPath: join(WORKSPACE_ROOT, ".cline", "tasks", "task.task.md"),
 			scope: "workspace",
-			workspaceRoot: "/workspace",
+			workspaceRoot: WORKSPACE_ROOT,
 			raw: `---
 type: todo
 title: Unsafe traversal

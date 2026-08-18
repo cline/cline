@@ -14,6 +14,8 @@ const AGENT: AgendaTaskActor = {
 	id: "agent-1",
 	sessionId: "origin-session",
 };
+const WORKSPACE_ROOT = resolve("/workspace");
+const OTHER_WORKSPACE_ROOT = resolve("/other-workspace");
 
 describe("SqliteAgendaTaskStore", () => {
 	let directory: string;
@@ -41,13 +43,18 @@ describe("SqliteAgendaTaskStore", () => {
 			title: `Task ${taskId}`,
 			instructions: "Complete the task.",
 			scope: "workspace",
-			workspaceRoot: "/workspace",
+			workspaceRoot: WORKSPACE_ROOT,
 			resourcePaths: ["src/index.ts", "src/index.ts"],
 			priority,
 			availableAt: "2035-01-01T00:00:00.000Z",
 			expiresAt: "2035-01-10T00:00:00.000Z",
 			createdBy: AGENT,
-			specPath: `/workspace/.cline/tasks/${taskId}.task.md`,
+			specPath: join(
+				WORKSPACE_ROOT,
+				".cline",
+				"tasks",
+				`${taskId}.task.md`,
+			),
 		};
 	}
 
@@ -58,7 +65,7 @@ describe("SqliteAgendaTaskStore", () => {
 			status: "pending_approval",
 			priority: 2,
 			revision: 1,
-			resourcePaths: ["src/index.ts"],
+			resourcePaths: [join("src", "index.ts")],
 			createdBy: AGENT,
 		});
 		expect(store.getTaskBySpecPath(created.specPath ?? "")).toEqual(created);
@@ -107,8 +114,13 @@ describe("SqliteAgendaTaskStore", () => {
 		store.createTask(createInput("p2", 2));
 		store.createTask({
 			...createInput("other-workspace", 1),
-			workspaceRoot: "/other-workspace",
-			specPath: "/other-workspace/.cline/tasks/other-workspace.task.md",
+			workspaceRoot: OTHER_WORKSPACE_ROOT,
+			specPath: join(
+				OTHER_WORKSPACE_ROOT,
+				".cline",
+				"tasks",
+				"other-workspace.task.md",
+			),
 		});
 		store.createTask({
 			...createInput("global-p0", 0),
@@ -128,7 +140,7 @@ describe("SqliteAgendaTaskStore", () => {
 		]);
 		expect(
 			store
-				.listTasks({ workspaceRoot: "/workspace" })
+				.listTasks({ workspaceRoot: WORKSPACE_ROOT })
 				.map((task) => task.taskId),
 		).toEqual(["global-p0", "p0", "p2", "p4"]);
 		expect(
@@ -136,13 +148,13 @@ describe("SqliteAgendaTaskStore", () => {
 				.listTasks({
 					statuses: ["pending_approval"],
 					scope: "workspace",
-					workspaceRoot: "/workspace",
+					workspaceRoot: WORKSPACE_ROOT,
 				})
 				.map((task) => task.taskId),
 		).toEqual(["p0", "p2", "p4"]);
 		expect(
 			store
-				.listTasks({ scope: "global", workspaceRoot: "/workspace" })
+				.listTasks({ scope: "global", workspaceRoot: WORKSPACE_ROOT })
 				.map((task) => task.taskId),
 		).toEqual(["global-p0"]);
 	});
@@ -175,7 +187,7 @@ describe("SqliteAgendaTaskStore", () => {
 		});
 
 		expect(store.listWorkspaceRoots()).toEqual(
-			[resolve("/workspace"), canonicalOther].sort((left, right) =>
+			[WORKSPACE_ROOT, canonicalOther].sort((left, right) =>
 				left.localeCompare(right),
 			),
 		);
