@@ -362,40 +362,49 @@ describe("MonitorRegistry", () => {
 	);
 
 	it.skipIf(process.platform === "win32")(
-		"terminates descendants that escape the monitor process group",
+		"terminates an escaped descendant after its direct parent exits",
 		async () => {
 			const tempDir = await mkdtemp(join(tmpdir(), "monitor-tree-"));
 			const readyPath = join(tempDir, "ready");
 			const survivedPath = join(tempDir, "survived");
+			const previousReadyPath = process.env.CLINE_MONITOR_TEST_READY_PATH;
+			const previousSurvivedPath = process.env.CLINE_MONITOR_TEST_SURVIVED_PATH;
+			process.env.CLINE_MONITOR_TEST_READY_PATH = readyPath;
+			process.env.CLINE_MONITOR_TEST_SURVIVED_PATH = survivedPath;
+			const collector = createCollector();
 			const registry = new MonitorRegistry({
-				notifier: () => {},
+				notifier: collector.notifier,
 				terminationGracePeriodMs: 50,
 			});
-			const escapedScript = [
-				'const { writeFileSync } = require("node:fs")',
-				`writeFileSync(${JSON.stringify(readyPath)}, "ready")`,
-				`setTimeout(() => { writeFileSync(${JSON.stringify(survivedPath)}, "survived"); process.exit(0) }, 1_000)`,
-			].join(";");
-			const parentScript = [
-				'const { spawn } = require("node:child_process")',
-				`const escaped = spawn(process.execPath, ["-e", ${JSON.stringify(escapedScript)}], { detached: true, stdio: "ignore" })`,
-				"escaped.unref()",
-				"setInterval(() => {}, 1_000)",
-			].join(";");
 
 			try {
 				registry.start({
 					name: "escaped-descendant",
-					command: nodeCommand(parentScript),
+					command:
+						"node src/extensions/tools/executors/fixtures/escaped-monitor-process.cjs",
 					description: "spawns a child in a new session",
 				});
 				await expect.poll(() => fileExists(readyPath)).toBe(true);
+				await collector.waitFor((all) =>
+					all.some((notification) => notification.exit),
+				);
+				expect(registry.listRunning()).toHaveLength(0);
 
 				await registry.dispose();
-				await new Promise((resolve) => setTimeout(resolve, 1_200));
+				await new Promise((resolve) => setTimeout(resolve, 2_100));
 				expect(await fileExists(survivedPath)).toBe(false);
 			} finally {
 				await registry.dispose();
+				if (previousReadyPath === undefined) {
+					delete process.env.CLINE_MONITOR_TEST_READY_PATH;
+				} else {
+					process.env.CLINE_MONITOR_TEST_READY_PATH = previousReadyPath;
+				}
+				if (previousSurvivedPath === undefined) {
+					delete process.env.CLINE_MONITOR_TEST_SURVIVED_PATH;
+				} else {
+					process.env.CLINE_MONITOR_TEST_SURVIVED_PATH = previousSurvivedPath;
+				}
 				await rm(tempDir, { recursive: true, force: true });
 			}
 		},

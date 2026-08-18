@@ -131,11 +131,13 @@ an individual agent turn. The runtime builder creates one `MonitorRegistry` for
 the lead session, and the local host routes its batched output into that
 session's pending-prompt queue so output can steer the next agent iteration.
 Plan mode does not expose monitors because their background shell commands
-cannot use the synchronous read-only command guard. During session shutdown,
-the registry snapshots each monitor's descendant tree, sends `SIGTERM` to the
-original process group and any descendants that created their own groups, waits
-for the whole tree to exit, and escalates to `SIGKILL` before releasing its
-process handles.
+cannot use the synchronous read-only command guard. While a POSIX monitor runs,
+the registry records descendant PID generations (PID plus process start time),
+which keeps detached children owned even if their direct shell exits. During
+session shutdown it revalidates those identities, sends `SIGTERM` to the
+original and escaped process groups, waits for the owned tree to exit, and
+escalates to `SIGKILL` before releasing its process handles. Revalidation keeps
+a reused numeric PID from targeting unrelated work.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local
