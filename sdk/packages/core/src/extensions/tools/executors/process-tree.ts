@@ -91,11 +91,50 @@ export function readProcessTable(): Promise<ProcessTable | undefined> {
  * Extends an owner's remembered PID generations from current roots and any
  * still-live descendants observed in an earlier snapshot.
  */
+export interface OwnedProcessGroup {
+	/** Group id, which is the pid of the leader that created it. */
+	processGroupId: number;
+	/**
+	 * Leader's start time, recorded while the leader was verifiably ours. Absent
+	 * when the leader was never observed alive.
+	 */
+	leaderStartedAt?: string;
+}
+
+/**
+ * Decides whether a process group may still be claimed as this owner's.
+ *
+ * A group id is just the pid of its leader, so it carries no generation of its
+ * own and cannot be trusted on its own the way a (pid, startedAt) pair can.
+ * Two cases are safe:
+ *
+ * - **The leader is gone from the table.** A group cannot be created without a
+ *   live process holding that pid, so an orphaned group can only contain
+ *   descendants of the original leader.
+ * - **The leader is present with the generation we recorded** while it was
+ *   unambiguously ours.
+ *
+ * Anything else means the pid has been reused, so the group is disowned. That
+ * errs toward leaking a process rather than signaling unrelated work, which is
+ * the only acceptable direction for a mistake here.
+ */
+function isGroupStillOwned(
+	group: OwnedProcessGroup,
+	table: ProcessTable,
+): boolean {
+	const leader = table.byPid.get(group.processGroupId);
+	if (!leader) return true;
+	return (
+		group.leaderStartedAt !== undefined &&
+		leader.startedAt === group.leaderStartedAt
+	);
+}
+
 export function observeOwnedProcessTree(
 	ownedProcesses: Map<number, string>,
 	rootPids: readonly number[],
 	table: ProcessTable,
-	ownedProcessGroupIds: readonly number[] = [],
+	ownedProcessGroups: readonly OwnedProcessGroup[] = [],
 ): void {
 	const roots: number[] = [];
 	for (const rootPid of rootPids) {
@@ -105,19 +144,23 @@ export function observeOwnedProcessTree(
 		const current = table.byPid.get(pid);
 		if (current?.startedAt === startedAt) roots.push(pid);
 	}
-	// Process-group membership is the only ownership marker that outlives the
-	// wrapper. A monitor spawns detached, so the wrapper leads a group its
-	// descendants inherit; when the wrapper exits before the first snapshot,
-	// parent links point at a reaped PID and the group is all that still ties
-	// the survivors back to this monitor. A descendant that calls setsid()
-	// leaves the group and cannot be attributed by any means available here.
-	if (ownedProcessGroupIds.length > 0) {
-		const groups = new Set(
-			ownedProcessGroupIds.filter((groupId) => groupId > 0),
-		);
-		if (groups.size > 0) {
-			for (const processInfo of table.byPid.values()) {
-				if (groups.has(processInfo.processGroupId)) roots.push(processInfo.pid);
+	// Process-group membership is the one ownership marker that outlives the
+	// wrapper: a monitor spawns detached, so the wrapper leads a group its
+	// descendants inherit, and that still ties survivors back here once parent
+	// links point at a reaped pid. It is only consulted for groups that pass
+	// the reuse check above. A descendant that calls setsid() leaves the group
+	// and cannot be attributed by any means available here.
+	const claimableGroups = new Set(
+		ownedProcessGroups
+			.filter(
+				(group) => group.processGroupId > 0 && isGroupStillOwned(group, table),
+			)
+			.map((group) => group.processGroupId),
+	);
+	if (claimableGroups.size > 0) {
+		for (const processInfo of table.byPid.values()) {
+			if (claimableGroups.has(processInfo.processGroupId)) {
+				roots.push(processInfo.pid);
 			}
 		}
 	}

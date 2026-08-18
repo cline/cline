@@ -135,6 +135,12 @@ interface MonitorEntry extends MonitorRecord {
 	 * descendants once parent links point at a reaped PID.
 	 */
 	ownedProcessGroupId?: number;
+	/**
+	 * The group leader's start time, recorded on the first snapshot taken while
+	 * the child was still running. Distinguishes our group from one whose id
+	 * was reused after the leader exited.
+	 */
+	ownedProcessGroupStartedAt?: string;
 	/** Set once teardown gives up, so the exit poll stops looping. */
 	terminationAbandoned?: boolean;
 	/** Windows only: guards against issuing the tree kill twice. */
@@ -508,17 +514,33 @@ export class MonitorRegistry {
 
 		for (const entry of entries) {
 			const child = entry.child;
-			// The pid is offered as a root whether or not the child still runs;
-			// observeOwnedProcessTree ignores pids absent from the table. Gating
-			// on isChildRunning here was the bug: a command that daemonized and
-			// exited its wrapper before this first snapshot left no root at all,
-			// so its survivors were never recorded and escaped teardown.
-			const rootPids = child?.pid ? [child.pid] : [];
+			// A live child's pid is unambiguously ours, so this is the one moment
+			// its generation can be recorded without trusting the pid alone.
+			// Everything downstream is then guarded by that generation rather
+			// than by a bare numeric pid, which the OS is free to reuse.
+			if (child?.pid && this.isChildRunning(child)) {
+				const leader = table.byPid.get(child.pid);
+				if (leader && entry.ownedProcessGroupStartedAt === undefined) {
+					entry.ownedProcessGroupStartedAt = leader.startedAt;
+				}
+			}
+			// Gated on the child still running: an exited pid may already name
+			// unrelated work, and rooting from it would enrol that work as
+			// monitor-owned and later signal it.
+			const rootPids =
+				child?.pid && this.isChildRunning(child) ? [child.pid] : [];
 			observeOwnedProcessTree(
 				entry.ownedProcesses,
 				rootPids,
 				table,
-				entry.ownedProcessGroupId ? [entry.ownedProcessGroupId] : [],
+				entry.ownedProcessGroupId
+					? [
+							{
+								processGroupId: entry.ownedProcessGroupId,
+								leaderStartedAt: entry.ownedProcessGroupStartedAt,
+							},
+						]
+					: [],
 			);
 		}
 		return table;
