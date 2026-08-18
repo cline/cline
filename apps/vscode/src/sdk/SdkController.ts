@@ -800,6 +800,7 @@ export class Controller {
 		this.mcpHub?.clearToolListChangeCallback()
 		await this.diffEdits.discardAllPreviews("controller dispose")
 		await this.clearTask()
+		this._terminalManager?.disposeAll()
 		await this.sessions.dispose("SdkController.dispose")
 		await this.taskHistory.dispose()
 		this.mcpHub?.dispose?.()
@@ -1338,6 +1339,8 @@ export class Controller {
 		// No active task — UI returns to idle (input enabled, no buttons/thinking).
 		this.turnStateTracker.set("idle")
 		await this.taskControl.clearTask()
+		// Keep the controller-lifetime manager alive; only reclaim terminals at task boundaries.
+		this._terminalManager?.disposeAll(false)
 		await this.postStateToWebview()
 	}
 

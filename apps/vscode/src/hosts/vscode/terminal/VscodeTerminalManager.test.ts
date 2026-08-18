@@ -6,14 +6,6 @@ import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
 import { VscodeTerminalManager } from "./VscodeTerminalManager"
 import { TerminalInfo, TerminalRegistry } from "./VscodeTerminalRegistry"
 
-function createNeverEndingStream(): AsyncIterable<string> {
-	return {
-		async *[Symbol.asyncIterator]() {
-			await new Promise(() => {})
-		},
-	}
-}
-
 function createMarkerlessStream(): AsyncIterable<string> {
 	return {
 		async *[Symbol.asyncIterator]() {
@@ -47,201 +39,86 @@ describe("VscodeTerminalManager", () => {
 		sandbox.restore()
 	})
 
-	it("creates a fresh terminal after timing out an unconfirmed reused-terminal cwd change", async () => {
-		setVscodeHostProviderMock()
-		const targetCwd = "/tmp/cline-target"
-		const executeCommandStub = sandbox.stub().returns({
-			read: () => createNeverEndingStream(),
-		})
+	it("reuses a terminal without shell integration using its tracked cwd", async () => {
+		const cwd = "/tmp/cline-target"
+		const showStub = sandbox.stub()
 		const terminalInfo: TerminalInfo = {
 			id: 1,
 			busy: false,
 			lastCommand: "",
 			lastActive: Date.now(),
+			trackedCwd: cwd,
 			terminal: {
-				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
-					executeCommand: executeCommandStub,
-				},
-				show: sandbox.stub(),
-			} as unknown as vscode.Terminal,
-		}
-		const getAllTerminalsStub = sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
-
-		let didResolve = false
-		const terminalPromise = manager.getOrCreateTerminal(targetCwd).then((terminal) => {
-			didResolve = true
-			return terminal
-		})
-
-		await sandbox.clock.tickAsync(4999)
-		assert.equal(didResolve, false)
-
-		await sandbox.clock.tickAsync(1)
-		const terminal = (await terminalPromise) as unknown as TerminalInfo
-
-		try {
-			assert.notEqual(terminal, terminalInfo)
-			assert.equal(terminalInfo.busy, false)
-			assert.equal(terminalInfo.pendingCwdChange, undefined)
-			assert.equal(terminalInfo.cwdResolved, undefined)
-			assert.equal(terminal.busy, true)
-			assert.equal(getAllTerminalsStub.called, true)
-			assert.equal(executeCommandStub.calledOnceWith(`cd "${targetCwd}"`), true)
-		} finally {
-			terminal.terminal.dispose()
-			TerminalRegistry.removeTerminal(terminal.id)
-		}
-	})
-
-	it("reuses a terminal after its cwd change is confirmed", async () => {
-		const targetCwd = "/tmp/cline-target"
-		let currentCwd = vscode.Uri.file("/tmp/cline-original")
-		const terminalInfo: TerminalInfo = {
-			id: 1,
-			busy: false,
-			lastCommand: "",
-			lastActive: Date.now(),
-			terminal: {
-				shellIntegration: {
-					get cwd() {
-						return currentCwd
-					},
-					executeCommand: () => ({
-						read: () => ({
-							async *[Symbol.asyncIterator]() {
-								currentCwd = vscode.Uri.file(targetCwd)
-							},
-						}),
-					}),
-				},
-				show: sandbox.stub(),
+				processId: Promise.resolve(1),
+				shellIntegration: undefined,
+				show: showStub,
 			} as unknown as vscode.Terminal,
 		}
 		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		const terminalPromise = manager.getOrCreateTerminal(targetCwd)
-		await sandbox.clock.tickAsync(100)
-		const terminal = await terminalPromise
+		const terminal = await manager.getOrCreateTerminal(cwd)
 
 		assert.equal(terminal, terminalInfo)
 		assert.equal(terminalInfo.busy, true)
-		assert.equal(terminalInfo.pendingCwdChange, undefined)
-		assert.equal(terminalInfo.cwdResolved, undefined)
+		assert.equal(showStub.called, false)
 	})
 
-	it("releases a reused terminal reservation when showing it fails", async () => {
+	it("prefixes cross-directory commands without showing the terminal", async () => {
+		const originalCwd = "/tmp/cline-original"
+		const targetCwd = "/tmp/cline-target"
+		const executeCommandStub = sandbox.stub().throws(new Error("stop after capture"))
+		const showStub = sandbox.stub()
 		const terminalInfo: TerminalInfo = {
 			id: 1,
-			busy: false,
+			busy: true,
 			lastCommand: "",
 			lastActive: Date.now(),
+			trackedCwd: originalCwd,
 			terminal: {
-				shellIntegration: { cwd: vscode.Uri.file("/tmp/cline-original") },
-				show: sandbox.stub().throws(new Error("terminal closed")),
-			} as unknown as vscode.Terminal,
-		}
-		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
-
-		await assert.rejects(manager.getOrCreateTerminal("/tmp/cline-target"), /terminal closed/)
-
-		assert.equal(terminalInfo.busy, false)
-		assert.equal(terminalInfo.pendingCwdChange, undefined)
-		assert.equal(terminalInfo.cwdResolved, undefined)
-	})
-
-	it("creates a fresh terminal when the reused-terminal cwd command cannot start", async () => {
-		setVscodeHostProviderMock()
-		const terminalInfo: TerminalInfo = {
-			id: 1,
-			busy: false,
-			lastCommand: "",
-			lastActive: Date.now(),
-			terminal: {
+				processId: Promise.resolve(1),
 				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
-					executeCommand: () => {
-						throw new Error("cwd command failed")
-					},
+					cwd: vscode.Uri.file(originalCwd),
+					executeCommand: executeCommandStub,
 				},
-				show: sandbox.stub(),
+				show: showStub,
 			} as unknown as vscode.Terminal,
 		}
-		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
 
-		const terminal = (await manager.getOrCreateTerminal("/tmp/cline-target")) as unknown as TerminalInfo
-		try {
-			assert.notEqual(terminal, terminalInfo)
-			assert.equal(terminal.busy, true)
-			assert.equal(terminalInfo.busy, false)
-			assert.equal(terminalInfo.pendingCwdChange, undefined)
-			assert.equal(terminalInfo.cwdResolved, undefined)
-			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined)
-		} finally {
-			terminal.terminal.dispose()
-			TerminalRegistry.removeTerminal(terminal.id)
-		}
+		const process = manager.runCommand(
+			terminalInfo as unknown as Parameters<VscodeTerminalManager["runCommand"]>[0],
+			"echo hi",
+			targetCwd,
+		)
+		await assert.rejects(process)
+
+		assert.equal(executeCommandStub.calledOnceWith(`cd "${targetCwd}" && echo hi`), true)
+		assert.equal(showStub.called, false)
 	})
 
-	it("creates a fresh terminal when the reused-terminal cwd command stream fails", async () => {
-		setVscodeHostProviderMock()
-		const terminalInfo: TerminalInfo = {
-			id: 1,
-			busy: false,
-			lastCommand: "",
-			lastActive: Date.now(),
-			terminal: {
-				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
-					executeCommand: () => ({ read: () => createFailingStream(new Error("cwd stream failed")) }),
-				},
-				show: sandbox.stub(),
-			} as unknown as vscode.Terminal,
-		}
-		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
+	it("queues an idle evicted terminal for disposal", () => {
+		const terminalInfo = TerminalRegistry.createTerminal("/tmp/cline-evicted")
+		const disposeSpy = sandbox.spy(terminalInfo.terminal, "dispose")
 
-		const terminal = (await manager.getOrCreateTerminal("/tmp/cline-target")) as unknown as TerminalInfo
-		try {
-			assert.notEqual(terminal, terminalInfo)
-			assert.equal(terminal.busy, true)
-			assert.equal(terminalInfo.busy, false)
-			assert.equal(terminalInfo.pendingCwdChange, undefined)
-			assert.equal(terminalInfo.cwdResolved, undefined)
-			assert.equal(TerminalRegistry.getTerminal(terminalInfo.id), undefined)
-		} finally {
-			terminal.terminal.dispose()
-			TerminalRegistry.removeTerminal(terminal.id)
-		}
+		;(manager as unknown as { evictTerminal: (info: TerminalInfo) => void }).evictTerminal(terminalInfo)
+		TerminalRegistry.disposeTerminalsPendingCleanup()
+
+		assert.equal(disposeSpy.calledOnce, true)
 	})
 
-	it("releases a reused terminal reservation when it closes during cwd setup", async () => {
-		let exitStatus: vscode.TerminalExitStatus | undefined
-		const terminalInfo: TerminalInfo = {
-			id: 1,
-			busy: false,
-			lastCommand: "",
-			lastActive: Date.now(),
-			terminal: {
-				get exitStatus() {
-					return exitStatus
-				},
-				shellIntegration: {
-					cwd: vscode.Uri.file("/tmp/cline-original"),
-					executeCommand: () => ({ read: createNeverEndingStream }),
-				},
-				show: sandbox.stub(),
-			} as unknown as vscode.Terminal,
-		}
-		sandbox.stub(TerminalRegistry, "getAllTerminals").returns([terminalInfo])
+	it("disposes idle terminals while preserving busy terminals", () => {
+		const idleTerminal = TerminalRegistry.createTerminal("/tmp/cline-idle")
+		const busyTerminal = TerminalRegistry.createTerminal("/tmp/cline-busy")
+		busyTerminal.busy = true
+		const idleDisposeSpy = sandbox.spy(idleTerminal.terminal, "dispose")
+		const busyDisposeSpy = sandbox.spy(busyTerminal.terminal, "dispose")
 
-		const rejectedAcquisition = assert.rejects(manager.getOrCreateTerminal("/tmp/cline-target"), /exited while preparing/)
-		exitStatus = { code: undefined, reason: vscode.TerminalExitReason.Unknown }
-		await sandbox.clock.tickAsync(5000)
-		await rejectedAcquisition
+		manager.disposeAll()
 
-		assert.equal(terminalInfo.busy, false)
-		assert.equal(terminalInfo.pendingCwdChange, undefined)
-		assert.equal(terminalInfo.cwdResolved, undefined)
+		assert.equal(idleDisposeSpy.calledOnce, true)
+		assert.equal(busyDisposeSpy.called, false)
+		assert.equal(TerminalRegistry.getTerminal(busyTerminal.id), busyTerminal)
+		busyTerminal.terminal.dispose()
+		TerminalRegistry.removeTerminal(busyTerminal.id)
 	})
 
 	it("reserves different terminals for parallel acquisitions", async () => {
@@ -267,6 +144,7 @@ describe("VscodeTerminalManager", () => {
 			busy: true,
 			lastCommand: "",
 			lastActive: Date.now(),
+			trackedCwd: "",
 			terminal: {
 				shellIntegration: {
 					executeCommand: () => {

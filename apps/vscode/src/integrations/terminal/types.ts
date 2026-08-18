@@ -126,12 +126,10 @@ export interface TerminalInfo {
 	lastCommand: string
 	/** The shell path used by this terminal (e.g., /bin/bash, /bin/zsh) */
 	shellPath?: string
+	/** The last working directory requested for this terminal */
+	trackedCwd: string
 	/** Timestamp of last activity */
 	lastActive: number
-	/** Pending CWD change path (used for tracking directory changes) */
-	pendingCwdChange?: string
-	/** Promise resolver for CWD change completion */
-	cwdResolved?: { resolve: () => void; reject: (err: Error) => void }
 }
 
 /**
