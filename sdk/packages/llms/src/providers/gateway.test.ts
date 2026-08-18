@@ -734,7 +734,8 @@ describe("sdk-gateway", () => {
 					toolName: "Bash",
 					error: new Error("command failed"),
 				},
-				{ type: "text-delta", text: "done" },
+				// Deliberately no trailing text: a tool-only stream must still
+				// surface the activity and finish cleanly.
 				{ type: "finish", finishReason: "stop" },
 			]),
 		});
