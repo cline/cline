@@ -1,5 +1,5 @@
 import type { AgentExtension, AgentTool } from "@cline/shared";
-import { createTool } from "@cline/shared";
+import { createTool, zodToJsonSchema } from "@cline/shared";
 import { z } from "zod";
 import {
 	executeScheduleOperation,
@@ -40,6 +40,28 @@ export const TasksToolInputSchema = z.discriminatedUnion("kind", [
 	ScheduledRequestSchema,
 ]);
 
+// Anthropic requires a plain object at the top level of a tool input schema and
+// rejects the oneOf emitted by a discriminated union. Advertise the union of
+// both domains' fields as one object, then retain strict domain validation with
+// TasksToolInputSchema inside execute().
+const TasksToolProviderInputSchema = z
+	.object({
+		...ScheduledTaskInputSchema.shape,
+		...TodoTaskInputSchema.shape,
+		kind: z.enum(["todo", "scheduled"]),
+		operation: z.enum([
+			"create",
+			"update",
+			"list",
+			"get",
+			"pause",
+			"resume",
+			"delete",
+			"run_now",
+		]),
+	})
+	.strict();
+
 export type TasksToolInput = z.infer<typeof TasksToolInputSchema>;
 
 export type TasksToolResult =
@@ -64,14 +86,14 @@ export interface CreateTasksToolOptions {
 export function createTasksTool(
 	options: CreateTasksToolOptions,
 ): AgentTool<TasksToolInput, TasksToolResult> {
-	return createTool({
+	return createTool<TasksToolInput, TasksToolResult>({
 		name: TASKS_TOOL_NAME,
 		description:
 			"Create and manage reviewed Todo items or explicitly requested scheduled agent work. " +
 			'Use kind "todo" for durable Agenda items that require user or automation approval. ' +
 			'Use kind "scheduled" for one-time or recurring autonomous execution. ' +
 			"Todo available_at is not an execution timer; schedules use run_at or cron_pattern.",
-		inputSchema: TasksToolInputSchema,
+		inputSchema: zodToJsonSchema(TasksToolProviderInputSchema),
 		retryable: false,
 		maxRetries: 0,
 		execute: async (rawInput, context) => {

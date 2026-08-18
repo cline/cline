@@ -54,6 +54,34 @@ describe("tasks agent tool", () => {
 		expect(schedules.listSchedules).toHaveBeenCalledOnce();
 	});
 
+	it("advertises an Anthropic-compatible top-level object schema", () => {
+		const { tool } = options();
+		const schema = tool.inputSchema as Record<string, unknown>;
+
+		expect(schema.type).toBe("object");
+		expect(schema).not.toHaveProperty("oneOf");
+		expect(schema).not.toHaveProperty("anyOf");
+		expect(schema).not.toHaveProperty("allOf");
+		expect(schema.required).toEqual(
+			expect.arrayContaining(["kind", "operation"]),
+		);
+		expect(schema.properties).toMatchObject({
+			kind: { enum: ["todo", "scheduled"] },
+			operation: {
+				enum: [
+					"create",
+					"update",
+					"list",
+					"get",
+					"pause",
+					"resume",
+					"delete",
+					"run_now",
+				],
+			},
+		});
+	});
+
 	it("rejects missing and mixed domain discriminators", async () => {
 		const { tool } = options();
 		await expect(
