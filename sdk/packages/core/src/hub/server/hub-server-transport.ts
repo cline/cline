@@ -570,21 +570,25 @@ export class HubServerTransport implements NativeHubTransport {
 
 	async handleCommand(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope> {
 		try {
 			const clientId = envelope.clientId?.trim();
+			// Omitted authority is reserved for trusted in-process callers. A remote
+			// transport passes null until registration so caller-controlled envelope
+			// fields can never acquire daemon workspace authority implicitly.
 			const effectiveAuthority =
-				authority ??
-				(this.options.workspaceRoot?.trim() && clientId
-					? {
-							clientId,
-							workspaceContext: {
-								workspaceRoot: this.options.workspaceRoot,
-								cwd: this.options.workspaceRoot,
-							},
-						}
-					: undefined);
+				authority === undefined
+					? this.options.workspaceRoot?.trim() && clientId
+						? {
+								clientId,
+								workspaceContext: {
+									workspaceRoot: this.options.workspaceRoot,
+									cwd: this.options.workspaceRoot,
+								},
+							}
+						: undefined
+					: (authority ?? undefined);
 			const reply = await this.dispatchCommand(envelope, effectiveAuthority);
 			this.captureFailedReply(envelope, reply);
 			return reply;

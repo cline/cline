@@ -14,7 +14,8 @@ export interface HubConnectionAuthority {
 export interface HubCommandTransport {
 	command(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		/** `null` means the remote connection has not registered yet. */
+		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope>;
 	subscribe(
 		clientId: string,

@@ -129,7 +129,7 @@ export class BrowserWebSocketHubAdapter {
 						}, HUB_COMMAND_SLOW_LOG_MS);
 						const commandPromise = this.transport.command(
 							frame.envelope,
-							authority,
+							authority ?? null,
 						);
 						commandPromise.then(
 							(lateReply) => {

@@ -244,6 +244,21 @@ describe("Hub agenda task vertical slice", () => {
 					createdBy: "agent:task-agent",
 				},
 			});
+			const beforeRegistration = await transport.handleCommand(
+				{
+					version: "v1",
+					command: "schedule.list",
+					clientId: "unregistered-client",
+				},
+				null,
+			);
+			expect(beforeRegistration).toMatchObject({
+				ok: false,
+				error: {
+					code: "schedule_command_failed",
+					message: "schedule commands require a registered workspace client",
+				},
+			});
 			await transport.handleCommand({
 				version: "v1",
 				command: "client.register",

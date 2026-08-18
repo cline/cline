@@ -11,7 +11,7 @@ import type {
 export interface NativeHubTransport {
 	handleCommand(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope>;
 	subscribe(
 		clientId: string,
@@ -25,7 +25,7 @@ export class NativeHubTransportAdapter implements HubCommandTransport {
 
 	command(
 		envelope: HubCommandEnvelope,
-		authority?: HubConnectionAuthority,
+		authority?: HubConnectionAuthority | null,
 	): Promise<HubReplyEnvelope> {
 		return this.transport.handleCommand(envelope, authority);
 	}

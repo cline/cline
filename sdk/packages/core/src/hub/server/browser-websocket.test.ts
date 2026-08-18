@@ -170,6 +170,41 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command).toHaveBeenCalledTimes(2);
 	});
 
+	it("marks commands before registration as explicitly unauthorized", async () => {
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
+				version: "v1" as const,
+				requestId: envelope.requestId,
+				ok: false,
+			})),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(
+			transport,
+			undefined,
+			"/server-workspace",
+		).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "schedule.list",
+					requestId: "before-register",
+					clientId: "spoofed-client",
+				},
+			}),
+		);
+
+		await vi.waitFor(() => expect(transport.command).toHaveBeenCalledOnce());
+		expect(transport.command).toHaveBeenCalledWith(
+			expect.objectContaining({ command: "schedule.list" }),
+			null,
+		);
+	});
+
 	it("keeps run.start open past the default command timeout", async () => {
 		vi.useFakeTimers();
 		vi.spyOn(console, "error").mockImplementation(() => {});
