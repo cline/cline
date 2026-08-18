@@ -32,6 +32,7 @@ import { invalidateProviderCatalogCache } from "@/lib/provider-model-catalog";
 import { cn } from "@/lib/utils";
 
 const DASHBOARD_URL = "https://app.cline.bot/dashboard";
+const USAGE_DASHBOARD_URL = "https://app.cline.bot/dashboard/usage";
 const USER_CREDITS_URL =
 	"https://app.cline.bot/dashboard/account?tab=credits&redirect=true";
 const ORGANIZATION_CREDITS_URL =
@@ -749,7 +750,7 @@ export function AccountView() {
 								</p>
 							) : (
 								<div className="rounded-lg border border-border overflow-hidden">
-									<div className="grid grid-cols-[1fr_auto_auto_auto] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
+									<div className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 border-b border-border bg-secondary/50 px-4 py-2.5 text-xs font-medium text-muted-foreground">
 										<span>Model</span>
 										<span className="text-right">Tokens</span>
 										<span className="text-right">Credits</span>
@@ -759,7 +760,7 @@ export function AccountView() {
 										{usageTransactions.map((tx) => (
 											<div
 												key={tx.id}
-												className="grid grid-cols-[1fr_auto_auto_auto] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
+												className="grid grid-cols-[minmax(0,1fr)_5.5rem_4.5rem_5.5rem] gap-4 px-4 py-3 text-sm hover:bg-surface-hover"
 											>
 												<div className="min-w-0">
 													<p className="font-medium text-foreground truncate">
@@ -781,6 +782,16 @@ export function AccountView() {
 												</div>
 											</div>
 										))}
+									</div>
+									<div className="flex justify-center border-t border-border px-4 py-3">
+										<button
+											type="button"
+											onClick={() => void openExternalUrl(USAGE_DASHBOARD_URL)}
+											className="flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground"
+										>
+											See More
+											<ExternalLink className="h-3.5 w-3.5" />
+										</button>
 									</div>
 								</div>
 							))}
