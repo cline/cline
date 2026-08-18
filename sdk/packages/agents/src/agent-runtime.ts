@@ -1071,14 +1071,17 @@ export class AgentRuntime {
 		this.captureTaskLifecycle(TASK_MAX_TOKENS_RECOVERY_EVENT, {
 			phase: "started",
 		});
-		await this.emit({
-			type: "status-notice",
-			snapshot: this.snapshot(),
-			message: "response hit the output token limit — compacting and retrying",
-			metadata: { ...noticeMetadata, phase: "started" },
-		});
 		let retry: { message: AgentMessage; finishReason: AgentModelFinishReason };
 		try {
+			// Emitted inside the try so a throwing listener still funnels
+			// through the terminal-phase catch below.
+			await this.emit({
+				type: "status-notice",
+				snapshot: this.snapshot(),
+				message:
+					"response hit the output token limit — compacting and retrying",
+				metadata: { ...noticeMetadata, phase: "started" },
+			});
 			retry = await this.generateAssistantMessage({
 				overflowRecovery: true,
 			});

@@ -544,6 +544,39 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("closes recovery telemetry as failed when a listener throws on the recovery notice", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+		]);
+		const prepareTurn = vi.fn(async () => undefined);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+		runtime.subscribe((event) => {
+			if (
+				event.type === "status-notice" &&
+				event.metadata?.kind === "max_tokens_recovery" &&
+				event.metadata?.phase === "started"
+			) {
+				throw new Error("listener exploded");
+			}
+		});
+
+		const result = await runtime.run("Hi");
+
+		expect(result.status).toBe("failed");
+		expect(result.error?.message).toBe("listener exploded");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"failed",
+		]);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
