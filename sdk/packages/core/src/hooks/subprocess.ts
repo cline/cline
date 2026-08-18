@@ -211,7 +211,8 @@ function toHookControl(value: unknown): AgentHookControl | undefined {
 				? maybe.contextModification
 				: undefined;
 	const errorMessage =
-		typeof maybe.errorMessage === "string" && maybe.errorMessage.length > 0
+		typeof maybe.errorMessage === "string" &&
+		maybe.errorMessage.trim().length > 0
 			? maybe.errorMessage
 			: undefined;
 	const cancel = typeof maybe.cancel === "boolean" ? maybe.cancel : undefined;

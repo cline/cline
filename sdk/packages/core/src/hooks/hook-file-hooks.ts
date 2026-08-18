@@ -172,7 +172,8 @@ function parseHookControl(value: unknown): HookCommandControl | undefined {
 				? record.contextModification
 				: undefined;
 	const errorMessage =
-		typeof record.errorMessage === "string" && record.errorMessage.length > 0
+		typeof record.errorMessage === "string" &&
+		record.errorMessage.trim().length > 0
 			? record.errorMessage
 			: undefined;
 	const cancel = typeof record.cancel === "boolean" ? record.cancel : undefined;

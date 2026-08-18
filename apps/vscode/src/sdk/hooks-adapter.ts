@@ -37,13 +37,20 @@ function toStringRecord(input: unknown): Record<string, string> {
 	return result
 }
 
-function mapStopControl(hookOutput: { cancel?: boolean; errorMessage?: string }): AgentStopControl | undefined {
+function mapStopControl(hookOutput: {
+	cancel?: boolean
+	errorMessage?: string
+	contextModification?: string
+}): AgentStopControl | undefined {
 	if (!hookOutput.cancel) {
 		return undefined
 	}
+	// A cancelling hook's contextModification is never injected as context;
+	// it serves as the fallback explanation when no errorMessage was given.
+	const reason = hookOutput.errorMessage?.trim() || hookOutput.contextModification?.trim() || undefined
 	return {
 		stop: true,
-		reason: hookOutput.errorMessage || undefined,
+		reason,
 	}
 }
 
