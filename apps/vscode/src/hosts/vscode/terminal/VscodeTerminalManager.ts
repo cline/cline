@@ -3,7 +3,6 @@ import { getShell, getShellForProfile } from "@utils/shell"
 import pWaitFor from "p-wait-for"
 import * as vscode from "vscode"
 import {
-	getUnobservedTerminalCommandDisposition,
 	type TerminalInfo as ITerminalInfo,
 	type TerminalProcessResultPromise as ITerminalProcessResultPromise,
 } from "@/integrations/terminal/types"
@@ -133,13 +132,8 @@ export class VscodeTerminalManager {
 		process.once("unobserved_command", (outcome) => {
 			Logger.log(`unobserved_command (${outcome.source}) received for terminal ${vscodeTerminalInfo.id}`)
 			this.evictTerminal(vscodeTerminalInfo)
-			// Markerless streams (for example, an SSH session) and commands Cline no
-			// longer owns remain open. Ordinary managed sendText fallbacks are
-			// reclaimed at the next acquisition, after this tool result can report
-			// that their completion is indeterminate.
-			if (getUnobservedTerminalCommandDisposition(outcome) === "disposeBeforeNextTerminalAcquisition") {
-				TerminalRegistry.queueTerminalForCleanup(vscodeTerminalInfo)
-			}
+			// Completion is unobservable and the command may still be running, so
+			// leave the terminal open for the user to manage.
 		})
 
 		const promise = new Promise<void>((resolve, reject) => {

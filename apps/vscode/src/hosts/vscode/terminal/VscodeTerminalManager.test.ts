@@ -237,7 +237,7 @@ describe("VscodeTerminalManager", () => {
 		assert.equal(disposeSpy.calledOnce, true)
 	})
 
-	it("defers fallback terminal disposal until the next terminal acquisition", async () => {
+	it("preserves an unobserved fallback terminal across the next terminal acquisition", async () => {
 		setVscodeHostProviderMock()
 		const terminalInfo = TerminalRegistry.createTerminal()
 		sandbox.stub(terminalInfo.terminal, "shellIntegration").get(() => undefined)
@@ -264,7 +264,7 @@ describe("VscodeTerminalManager", () => {
 
 			nextManager = new VscodeTerminalManager()
 			nextTerminal = (await nextManager.getOrCreateTerminal("/tmp/cline-next-command")) as unknown as TerminalInfo
-			assert.equal(disposeSpy.calledOnce, true, "the next acquisition must reclaim the fallback terminal")
+			assert.equal(disposeSpy.called, false, "an unobserved command remains user-owned")
 		} finally {
 			nextManager?.disposeAll()
 			nextTerminal?.terminal.dispose()

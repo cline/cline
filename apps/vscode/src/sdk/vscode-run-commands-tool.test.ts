@@ -395,7 +395,7 @@ describe("executeForeground", () => {
 			expect(error).toBeInstanceOf(CommandExitError)
 			expect((error as InstanceType<typeof CommandExitError>).output).toContain("must not be assumed to have succeeded")
 			expect((error as InstanceType<typeof CommandExitError>).output).toContain(
-				"The terminal remains open for now, but starting another foreground command will attempt to close it",
+				"The terminal has been left open and will not be closed automatically",
 			)
 			expect((error as InstanceType<typeof CommandExitError>).output).toContain("partial output")
 		}

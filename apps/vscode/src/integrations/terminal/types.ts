@@ -25,11 +25,11 @@ export interface UnobservedTerminalCommand {
 
 export type UnobservedTerminalCommandDisposition = "disposeBeforeNextTerminalAcquisition" | "preserve"
 
-/** Derive cleanup and reporting policy from the same unobserved-command snapshot. */
+/** Unobserved commands may still be running, so never dispose their terminals automatically. */
 export function getUnobservedTerminalCommandDisposition(
-	command: UnobservedTerminalCommand,
+	_command: UnobservedTerminalCommand,
 ): UnobservedTerminalCommandDisposition {
-	return command.source === "sendText" && command.ownership === "managed" ? "disposeBeforeNextTerminalAcquisition" : "preserve"
+	return "preserve"
 }
 
 export interface TerminalCompletionDetails {
