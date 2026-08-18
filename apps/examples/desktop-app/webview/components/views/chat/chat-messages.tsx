@@ -198,6 +198,17 @@ function ChatMessagesImpl({
 			}),
 		[messages, sessionActive],
 	);
+	// Mid-run the thinking indicator's replacement (the next tool or thinking
+	// row) joins the tight run group, so the indicator must sit at that same
+	// tight offset; only at the start of a run, directly under the user
+	// message, does the response block open at the normal transcript gap.
+	const lastRenderItem = renderItems.at(-1);
+	const indicatorFollowsWorkingRows =
+		lastRenderItem !== undefined &&
+		(lastRenderItem.type === "tools" ||
+			lastRenderItem.type === "run" ||
+			(lastRenderItem.type === "message" &&
+				lastRenderItem.message.role === "assistant"));
 	// Built once per pendingAskQuestions change instead of per render: the
 	// list re-renders on every stream flush and these rows carry JSX.
 	const askQuestionItems = useMemo(
@@ -649,7 +660,12 @@ function ChatMessagesImpl({
 								    in place with no jump. */}
 								{(status === "starting" || isAwaitingFirstOutput) &&
 								!isSessionSwitching ? (
-									<div className="flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground">
+									<div
+										className={cn(
+											"flex min-h-7 items-center gap-2 py-1 text-sm font-medium text-muted-foreground",
+											indicatorFollowsWorkingRows && "-mt-3",
+										)}
+									>
 										<Loader2 className="size-4 animate-spin" />
 										<span className={STREAMING_TITLE_CLASS}>Thinking...</span>
 									</div>
