@@ -15,6 +15,7 @@ import {
 	CommandExitError,
 	createShellExecutor,
 	createShellTool,
+	DEFAULT_SHELL_TIMEOUT_MS,
 	MAX_COMMAND_OUTPUT_CHARS,
 	type ShellExecutor,
 	type StructuredCommandInput,
@@ -43,8 +44,13 @@ import type { SdkForegroundCommandCoordinator } from "./sdk-foreground-command-c
 type ShellCommand = string | StructuredCommandInput
 type VscodeTerminalExecutionMode = "vscodeTerminal" | "backgroundExec"
 
-/** Foreground VS Code terminals cannot be forcibly terminated; give long-running commands room to finish. */
-export const VSCODE_FOREGROUND_RUN_COMMANDS_TIMEOUT_MS = 60 * 60 * 1000
+/**
+ * Timeout for run_commands in both execution modes (1 hour, the SDK shell
+ * default). Foreground VS Code terminals cannot be forcibly terminated and
+ * background commands routinely include builds/test runs, so both modes give
+ * long-running commands the same room to finish.
+ */
+export const VSCODE_RUN_COMMANDS_TIMEOUT_MS = DEFAULT_SHELL_TIMEOUT_MS
 
 /** Release the agent turn if a foreground command is still running after 300 seconds. */
 export const FOREGROUND_COMMAND_AUTO_PROCEED_MS = 300 * 1000

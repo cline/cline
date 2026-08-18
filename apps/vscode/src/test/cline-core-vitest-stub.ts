@@ -138,6 +138,9 @@ export {
 	type PatchFileChange,
 } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch"
 export { PATCH_MARKERS, PatchActionType } from "../../../../sdk/packages/core/src/extensions/tools/executors/apply-patch-parser"
+// The real shared shell timeout default, so the VS Code run_commands timeout
+// stays in lockstep with the SDK in tests.
+export { DEFAULT_SHELL_TIMEOUT_MS } from "../../../../sdk/packages/core/src/extensions/tools/executors/bash"
 export { createEditorExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/editor"
 export type { EditFileInput } from "../../../../sdk/packages/core/src/extensions/tools/schemas"
 export type { ApplyPatchExecutor, EditorExecutor, ToolExecutors } from "../../../../sdk/packages/core/src/extensions/tools/types"
