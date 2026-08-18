@@ -202,6 +202,14 @@ function cloudErrorForResponse(
 				`${trimTrailingSlash(appBaseUrl)}/dashboard/integrations`,
 		);
 	}
+	if (status === 403 && message.trim().toLowerCase() === "forbidden") {
+		return new CloudSessionError(
+			"request_failed",
+			"Your active account or organization cannot create cloud sessions. Switch to Personal or another organization in Settings → Account, then try again.",
+			undefined,
+			status,
+		);
+	}
 	return new CloudSessionError("request_failed", message, undefined, status);
 }
 

@@ -1437,7 +1437,9 @@ function ChatThreadPane({
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				toast({
 					title: "Handoff is not ready",
-					description: error instanceof Error ? error.message : String(error),
+					description: humanizeCloudSessionError(
+						error instanceof Error ? error.message : String(error),
+					),
 					variant: "destructive",
 				});
 			}
@@ -1548,7 +1550,9 @@ function ChatThreadPane({
 			});
 			toast({
 				title: "Handoff failed",
-				description: error instanceof Error ? error.message : String(error),
+				description: humanizeCloudSessionError(
+					error instanceof Error ? error.message : String(error),
+				),
 				variant: "destructive",
 			});
 		} finally {

@@ -706,6 +706,27 @@ describe("CloudSessionApi", () => {
 		expect(error.code).toBe("authentication_required");
 	});
 
+	it("turns a generic forbidden response into actionable account guidance", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "forbidden" }, 403),
+		});
+
+		const error = await api
+			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.code).toBe("request_failed");
+		expect(error.status).toBe(403);
+		expect(error.message).toContain(
+			"Switch to Personal or another organization in Settings → Account",
+		);
+	});
+
 	it("lists connected GitHub repositories and their branches", async () => {
 		const requestedPaths: string[] = [];
 		const api = new CloudSessionApi({
