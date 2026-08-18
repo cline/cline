@@ -20,7 +20,7 @@ import { CommandExitError } from "./executors/bash";
 import {
 	MonitorError,
 	type MonitorRecord,
-	MonitorRegistry,
+	type MonitorRegistry,
 } from "./executors/monitor";
 import {
 	MAX_COMMAND_OUTPUT_CHARS,
@@ -1013,21 +1013,20 @@ export function createDefaultTools(
 		tools.push(createSkillsTool(executors.skills, config));
 	}
 
-	// A monitor with nowhere to deliver its output is useless, so the tool is
-	// offered only when the host supplies a registry or a notifier — the same
-	// "executor provided" rule the other tools follow.
-	if (enableMonitor) {
-		const registry =
-			config.monitorRegistry ??
-			(config.monitorNotifier
-				? new MonitorRegistry({
-						notifier: config.monitorNotifier,
-						cwd: config.cwd,
-					})
-				: undefined);
-		if (registry) {
-			tools.push(createMonitorTool(registry, config));
-		}
+	// Two independent gates, both required.
+	//
+	// The registry must be supplied by the caller rather than built here: it
+	// owns live background processes, and a registry created inside this
+	// factory would give the caller no handle to dispose, letting monitors
+	// outlive the agent that started them.
+	//
+	// Shell access is the host's call. A monitor spawns its own child process,
+	// so offering it to a host that withheld the shell executor — or turned the
+	// shell tool off — would hand back the very capability that host declined.
+	// Both the flag and the executor are checked, since either alone is a
+	// sufficient signal that the host wants no shell.
+	if (enableMonitor && config.monitorRegistry && enableBash && executors.bash) {
+		tools.push(createMonitorTool(config.monitorRegistry, config));
 	}
 
 	const submitExecutor = enableSubmitAndExit ? executors.submit : undefined;

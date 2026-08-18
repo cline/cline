@@ -10,7 +10,7 @@ import type {
 	ITelemetryService,
 	TextContent,
 } from "@cline/shared";
-import type { MonitorNotifier, MonitorRegistry } from "./executors/monitor";
+import type { MonitorRegistry } from "./executors/monitor";
 import type {
 	ApplyPatchInput,
 	EditFileInput,
@@ -295,19 +295,13 @@ export interface DefaultToolsConfig {
 	enableMonitor?: boolean;
 
 	/**
-	 * Delivers monitor output to the agent. Monitors report asynchronously,
-	 * long after the tool call that started them has settled, so the host owns
-	 * routing each notification to the right session.
+	 * Monitor registry owned by the caller.
 	 *
-	 * Ignored when {@link monitorRegistry} is set. Without either, the monitor
-	 * tool is not created.
-	 */
-	monitorNotifier?: MonitorNotifier;
-
-	/**
-	 * Pre-built monitor registry. Supply one when the host needs to own monitor
-	 * lifecycle — most importantly to call `stopAll()` on session teardown, so
-	 * background processes do not outlive the session that started them.
+	 * Required for the monitor tool to be created at all, and deliberately not
+	 * built here from a notifier: the registry owns live background processes,
+	 * so whoever constructs it must keep the handle needed to `dispose()` them
+	 * at teardown. The tool is also withheld unless a `bash` executor is
+	 * present, since a monitor spawns its own shell.
 	 */
 	monitorRegistry?: MonitorRegistry;
 

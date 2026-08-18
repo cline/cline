@@ -23,24 +23,49 @@ describe("monitor tool", () => {
 		iteration: 1,
 	};
 
-	it("is omitted when the host provides no way to deliver output", () => {
-		const tools = createDefaultTools({ executors: {} });
+	const shellExecutors = { bash: async () => "ok" };
+
+	it("is omitted when the caller supplies no registry", () => {
+		const tools = createDefaultTools({ executors: shellExecutors });
 		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 
-	it("is created once a notifier is supplied", () => {
+	it("is created once a caller-owned registry is supplied", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
 		const tools = createDefaultTools({
-			executors: {},
-			monitorNotifier: () => {},
+			executors: shellExecutors,
+			monitorRegistry: registry,
 		});
 		expect(tools.map((tool) => tool.name)).toContain("monitor");
 	});
 
-	it("can be disabled even with a notifier", () => {
+	it("can be disabled even with a registry", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		const tools = createDefaultTools({
+			executors: shellExecutors,
+			monitorRegistry: registry,
+			enableMonitor: false,
+		});
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("is withheld from a host that supplies no shell executor", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
 		const tools = createDefaultTools({
 			executors: {},
-			monitorNotifier: () => {},
-			enableMonitor: false,
+			monitorRegistry: registry,
+		});
+		// A monitor spawns its own shell, so a host that withheld the bash
+		// executor must not get shell execution back through this door.
+		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+	});
+
+	it("is withheld when the shell tool is turned off", () => {
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		const tools = createDefaultTools({
+			executors: shellExecutors,
+			monitorRegistry: registry,
+			enableBash: false,
 		});
 		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});

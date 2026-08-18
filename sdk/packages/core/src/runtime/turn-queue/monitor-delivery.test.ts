@@ -89,8 +89,11 @@ describe("monitor delivery into a session", () => {
 			expect(emitted.payload.sessionId).toBe(sessionId);
 			expect(emitted.payload.prompts[0]?.prompt).toContain("build failed");
 			expect(emitted.payload.prompts[0]?.prompt).toContain(
-				"[monitor: ci] CI status for PR #42",
+				'Background monitor "ci" (CI status for PR #42)',
 			);
+			// The steer carries user authority, so the process output must reach
+			// the agent fenced as untrusted data.
+			expect(emitted.payload.prompts[0]?.prompt).toContain("<monitor-output>");
 			expect(emitted.payload.prompts[0]?.delivery).toBe("steer");
 		} finally {
 			registry.dispose();

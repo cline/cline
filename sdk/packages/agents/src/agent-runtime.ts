@@ -181,10 +181,11 @@ function resolveToolPolicy(
 	policies: BaseAgentRuntimeConfig["toolPolicies"],
 ): ToolPolicy {
 	const fallbackName = TOOL_POLICY_FALLBACKS[toolName];
-	const fallback =
-		fallbackName && policies?.[toolName] === undefined
-			? (policies?.[fallbackName] ?? {})
-			: {};
+	// Merged field-wise rather than all-or-nothing. A host that sets only
+	// `monitor: { enabled: true }` must still inherit run_commands'
+	// `autoApprove`; treating any explicit monitor key as a full override
+	// would silently drop an approval requirement the host never waived.
+	const fallback = fallbackName ? (policies?.[fallbackName] ?? {}) : {};
 	return {
 		...(policies?.["*"] ?? {}),
 		...fallback,

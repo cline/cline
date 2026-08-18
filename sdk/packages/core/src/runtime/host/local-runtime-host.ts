@@ -102,6 +102,7 @@ import {
 } from "../orchestration/runtime-oauth-token-manager";
 import type { RuntimeBuilder } from "../orchestration/session-runtime";
 import { SessionRuntime } from "../orchestration/session-runtime-orchestrator";
+import { MonitorSteerQueue } from "../turn-queue/monitor-steer-queue";
 import { PendingPromptsController } from "../turn-queue/pending-prompt-service";
 import { manifestToSessionRecord } from "./history";
 import { AgentEventBridge } from "./local/agent-event-bridge";
@@ -250,6 +251,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	>();
 	private readonly subAgentStarts: SubAgentStartTracker = new Map();
 	private readonly pendingPromptsController: PendingPromptsController;
+	private readonly monitorSteerQueue: MonitorSteerQueue;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
 
@@ -283,6 +285,12 @@ export class LocalRuntimeHost implements RuntimeHost {
 			getSession: (sid) => this.sessions.get(sid),
 			emit: (event) => this.emit(event),
 			send: (input) => this.runTurn(input),
+		});
+		this.monitorSteerQueue = new MonitorSteerQueue({
+			list: (sid) => this.pendingPromptsController.list(sid),
+			enqueue: (sid, entry) =>
+				this.pendingPromptsController.enqueue(sid, entry),
+			update: (input) => this.pendingPromptsController.update(input),
 		});
 		this.pendingPrompts = {
 			list: async (input) =>
@@ -549,11 +557,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// if a turn is running, otherwise starting one. `steer` rather than
 			// `queue` because a monitor firing is news the agent should act on
 			// now, not after whatever else the user lined up.
+			//
+			// Routed through MonitorSteerQueue rather than enqueued directly: a
+			// watched process controls how often this fires, so without merging
+			// and pacing a chatty log would grow the queue without bound and
+			// start a paid turn per report.
 			monitorNotifier: (notification) => {
-				this.pendingPromptsController.enqueue(sessionId, {
-					prompt: formatMonitorNotification(notification),
-					delivery: "steer",
-				});
+				this.monitorSteerQueue.deliver(
+					sessionId,
+					formatMonitorNotification(notification),
+				);
 			},
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(
@@ -2225,6 +2238,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
 		this.sessions.delete(session.sessionId);
+		// Drops any buffered monitor output and its pending cooldown timer;
+		// without this a torn-down session leaves a timer holding a closure
+		// over a queue nobody will ever drain.
+		this.monitorSteerQueue.forget(session.sessionId);
 		this.emit({
 			type: "ended",
 			payload: {
@@ -2296,6 +2313,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			recordCleanupError("plugin_sandbox_shutdown", error);
 		}
 		this.sessions.delete(session.sessionId);
+		// Drops any buffered monitor output and its pending cooldown timer;
+		// without this a torn-down session leaves a timer holding a closure
+		// over a queue nobody will ever drain.
+		this.monitorSteerQueue.forget(session.sessionId);
 		if (cleanupErrors.length > 0) {
 			throw cleanupErrors[0];
 		}

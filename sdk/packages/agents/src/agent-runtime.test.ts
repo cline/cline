@@ -1219,6 +1219,61 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("keeps the run_commands fallback when the monitor policy is partial", async () => {
+		const executeTool = vi.fn(async () => "started");
+		const requestToolApproval = vi.fn(async () => ({
+			approved: false,
+			reason: "denied by test",
+		}));
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "call_monitor",
+					toolName: "monitor",
+					inputText: '{"action":"start"}',
+				},
+				{ type: "finish", reason: "tool-calls" },
+			],
+			() => [
+				{ type: "text-delta", text: "approval handled" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({
+			sessionId: "session_test",
+			agentId: "agent_test",
+			conversationId: "conversation_test",
+			model,
+			tools: [
+				{
+					name: "monitor",
+					description: "Watch something in the background",
+					inputSchema: { type: "object" },
+					execute: executeTool,
+				},
+			],
+			// The monitor entry sets `enabled` but says nothing about approval.
+			// Treating any explicit key as a full override would silently drop
+			// run_commands' `autoApprove: false` and run the tool unapproved.
+			toolPolicies: {
+				run_commands: { autoApprove: false },
+				monitor: { enabled: true },
+			},
+			requestToolApproval,
+		});
+
+		await runtime.run("Start");
+
+		expect(executeTool).not.toHaveBeenCalled();
+		expect(requestToolApproval).toHaveBeenCalledWith(
+			expect.objectContaining({
+				toolName: "monitor",
+				policy: expect.objectContaining({ autoApprove: false }),
+			}),
+		);
+	});
+
 	it("prefers an explicit monitor policy over the inherited run_commands one", async () => {
 		const executeTool = vi.fn(async () => "started");
 		const requestToolApproval = vi.fn(async () => ({ approved: true }));

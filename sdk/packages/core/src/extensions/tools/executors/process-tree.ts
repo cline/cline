@@ -95,6 +95,7 @@ export function observeOwnedProcessTree(
 	ownedProcesses: Map<number, string>,
 	rootPids: readonly number[],
 	table: ProcessTable,
+	ownedProcessGroupIds: readonly number[] = [],
 ): void {
 	const roots: number[] = [];
 	for (const rootPid of rootPids) {
@@ -103,6 +104,22 @@ export function observeOwnedProcessTree(
 	for (const [pid, startedAt] of ownedProcesses) {
 		const current = table.byPid.get(pid);
 		if (current?.startedAt === startedAt) roots.push(pid);
+	}
+	// Process-group membership is the only ownership marker that outlives the
+	// wrapper. A monitor spawns detached, so the wrapper leads a group its
+	// descendants inherit; when the wrapper exits before the first snapshot,
+	// parent links point at a reaped PID and the group is all that still ties
+	// the survivors back to this monitor. A descendant that calls setsid()
+	// leaves the group and cannot be attributed by any means available here.
+	if (ownedProcessGroupIds.length > 0) {
+		const groups = new Set(
+			ownedProcessGroupIds.filter((groupId) => groupId > 0),
+		);
+		if (groups.size > 0) {
+			for (const processInfo of table.byPid.values()) {
+				if (groups.has(processInfo.processGroupId)) roots.push(processInfo.pid);
+			}
+		}
 	}
 
 	const processTree = [...new Set(roots)];

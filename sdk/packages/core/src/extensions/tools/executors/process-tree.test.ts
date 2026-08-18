@@ -32,3 +32,39 @@ describe("process tree ownership", () => {
 		expect(getLiveOwnedProcesses(owned, reused)).toEqual([]);
 	});
 });
+
+describe("observeOwnedProcessTree process-group roots", () => {
+	// pid ppid pgid lstart
+	const table = parseProcessTable(
+		[
+			"  100     1   100 Mon Aug 18 10:00:00 2026",
+			"  101   100   100 Mon Aug 18 10:00:01 2026",
+			"  102     1   100 Mon Aug 18 10:00:02 2026",
+			"  200     1   200 Mon Aug 18 10:00:03 2026",
+		].join("\n"),
+	);
+
+	it("claims survivors by group once the wrapper is gone", () => {
+		const owned = new Map<number, string>();
+		// The wrapper (100) already exited and was reaped, so it is offered as a
+		// root but is absent from the table; only the group still ties 101 and
+		// the reparented 102 back to this monitor.
+		observeOwnedProcessTree(owned, [100], table, [100]);
+
+		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
+		// An unrelated process in its own group is never claimed.
+		expect(owned.has(200)).toBe(false);
+	});
+
+	it("claims nothing by group when no group is owned", () => {
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [999], table);
+		expect(owned.size).toBe(0);
+	});
+
+	it("ignores a zero group id", () => {
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [], table, [0]);
+		expect(owned.size).toBe(0);
+	});
+});
