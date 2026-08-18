@@ -388,6 +388,24 @@ describe.runIf(process.platform === "win32")("createWindowsExecutor", () => {
 		);
 
 		it.runIf(shell === "powershell.exe" || hasPwsh)(
+			`honors an explicit non-terminating error override through ${shell}`,
+			async () => {
+				const executor = createShellExecutor({ shell });
+				const output = await executor(
+					'1..3 | ForEach-Object { Write-Error "override $_" -ErrorAction Continue; Write-Output "processed $_" }',
+					process.cwd(),
+					ctx,
+				);
+				expect(output).toContain("override 1");
+				expect(output).toContain("override 2");
+				expect(output).toContain("override 3");
+				expect(output).toContain("processed 1");
+				expect(output).toContain("processed 2");
+				expect(output).toContain("processed 3");
+			},
+		);
+
+		it.runIf(shell === "powershell.exe" || hasPwsh)(
 			`preserves a terminating error through ${shell}`,
 			async () => {
 				const executor = createShellExecutor({ shell });
