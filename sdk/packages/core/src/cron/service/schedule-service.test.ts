@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from "node:fs/promises";
 import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import {
 	type CronScheduleSpec,
 	ONE_TIME_SCHEDULE_CRON_PATTERN,
@@ -493,7 +493,7 @@ describe("HubScheduleService", () => {
 					workspaceAuthority,
 				);
 				expect(spoofedCreate.payload?.schedule).toMatchObject({
-					workspaceRoot: "/workspace",
+					workspaceRoot: resolve("/workspace"),
 				});
 			} finally {
 				await service.dispose();

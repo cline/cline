@@ -1,3 +1,4 @@
+import { resolve } from "node:path";
 import type {
 	AgendaAutomationPolicy,
 	AgendaTaskRecord,
@@ -222,9 +223,9 @@ describe("HubAgendaTaskCommandService", () => {
 			AUTHORITY,
 		);
 
-		expect(manager.getAutomationPolicy).toHaveBeenCalledWith("/repo");
+		expect(manager.getAutomationPolicy).toHaveBeenCalledWith(resolve("/repo"));
 		expect(manager.setAutomationPolicy).toHaveBeenCalledWith(
-			expect.objectContaining({ scopeKey: "/repo" }),
+			expect.objectContaining({ scopeKey: resolve("/repo") }),
 			expect.anything(),
 		);
 	});
