@@ -13,7 +13,7 @@ import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
 
 export interface HubWebSocketServerOptions {
-	/** Default workspace for trusted clients that register without one. */
+	/** Workspace authority assigned by the Hub to authenticated clients. */
 	workspaceRoot?: string;
 	host?: string;
 	port?: number;

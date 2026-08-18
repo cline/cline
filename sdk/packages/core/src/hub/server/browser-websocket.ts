@@ -67,11 +67,15 @@ function registrationAuthority(
 	if (!clientId || (envelopeClientId && clientId !== envelopeClientId)) {
 		throw new Error("Registration clientId must match the command connection");
 	}
-	const requestedRoot =
-		registration.workspaceContext?.workspaceRoot?.trim() ||
-		serverWorkspaceRoot?.trim();
-	if (!requestedRoot) return { clientId };
-	const workspaceRoot = resolve(requestedRoot);
+	const authorizedRoot = serverWorkspaceRoot?.trim();
+	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
+	if (!authorizedRoot) return { clientId };
+	const workspaceRoot = resolve(authorizedRoot);
+	if (requestedRoot && resolve(requestedRoot) !== workspaceRoot) {
+		throw new Error(
+			"Registration workspace must match the Hub-authorized workspace",
+		);
+	}
 	const cwd = resolve(
 		registration.workspaceContext?.cwd?.trim() || workspaceRoot,
 	);

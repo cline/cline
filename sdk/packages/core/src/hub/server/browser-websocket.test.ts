@@ -80,7 +80,7 @@ describe("BrowserWebSocketHubAdapter", () => {
 		}
 	});
 
-	it("binds client identity and validated workspace authority to one connection", async () => {
+	it("binds client identity to the Hub-authorized workspace", async () => {
 		const transport = {
 			command: vi.fn(
 				async (
@@ -114,8 +114,8 @@ describe("BrowserWebSocketHubAdapter", () => {
 						clientType: "test",
 						transport: "websocket",
 						workspaceContext: {
-							workspaceRoot: "/trusted",
-							cwd: "/trusted/project",
+							workspaceRoot: "/server-workspace",
+							cwd: "/server-workspace/project",
 						},
 					},
 				},
@@ -138,8 +138,8 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command.mock.calls[1]?.[1]).toEqual({
 			clientId: "client-1",
 			workspaceContext: {
-				workspaceRoot: resolve("/trusted"),
-				cwd: resolve("/trusted/project"),
+				workspaceRoot: resolve("/server-workspace"),
+				cwd: resolve("/server-workspace/project"),
 			},
 		});
 
@@ -169,6 +169,55 @@ describe("BrowserWebSocketHubAdapter", () => {
 			}),
 		);
 		expect(transport.command).toHaveBeenCalledTimes(2);
+	});
+
+	it("rejects a client-declared workspace outside Hub authority", async () => {
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
+				version: "v1" as const,
+				requestId: envelope.requestId,
+				ok: true,
+			})),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(
+			transport,
+			undefined,
+			"/server-workspace",
+		).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "command",
+				envelope: {
+					version: "v1",
+					command: "client.register",
+					requestId: "register-spoofed-workspace",
+					clientId: "client-1",
+					payload: {
+						clientId: "client-1",
+						workspaceContext: {
+							workspaceRoot: "/other-workspace",
+						},
+					},
+				},
+			}),
+		);
+
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+		expect(JSON.parse(socket.sent[0] ?? "")).toMatchObject({
+			kind: "reply",
+			envelope: {
+				ok: false,
+				error: {
+					code: "invalid_client_registration",
+					message:
+						"Registration workspace must match the Hub-authorized workspace",
+				},
+			},
+		});
+		expect(transport.command).not.toHaveBeenCalled();
 	});
 
 	it("marks commands before registration as explicitly unauthorized", async () => {
