@@ -4637,7 +4637,12 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		await expect(
-			manager.runTurn({ sessionId, prompt: "queued first", delivery: "queue" }),
+			manager.runTurn({
+				sessionId,
+				prompt: "queued first",
+				clientTurnId: "turn-queued-first",
+				delivery: "queue",
+			}),
 		).resolves.toBeUndefined();
 		await expect(
 			manager.runTurn({
@@ -4668,6 +4673,7 @@ describe("LocalRuntimeHost", () => {
 				}),
 				expect.objectContaining({
 					prompt: "queued first",
+					clientTurnId: "turn-queued-first",
 					delivery: "queue",
 					attachmentCount: 0,
 				}),
@@ -4690,6 +4696,21 @@ describe("LocalRuntimeHost", () => {
 				);
 			}),
 		).toBe(true);
+		await vi.waitFor(() => {
+			expect(
+				events.some((event) => {
+					return (
+						typeof event === "object" &&
+						event !== null &&
+						"type" in event &&
+						event.type === "pending_prompt_submitted" &&
+						"payload" in event &&
+						(event.payload as { clientTurnId?: string }).clientTurnId ===
+							"turn-queued-first"
+					);
+				}),
+			).toBe(true);
+		});
 	});
 
 	it("emits canonical session snapshots for local lifecycle updates", async () => {

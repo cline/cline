@@ -250,6 +250,8 @@ export interface StartSessionResult {
 export interface SendSessionInput {
 	sessionId: string;
 	prompt: string;
+	/** Opaque caller-owned id carried through queued execution and turn events. */
+	clientTurnId?: string;
 	mode?: AgentMode;
 	userImages?: string[];
 	userFiles?: string[];

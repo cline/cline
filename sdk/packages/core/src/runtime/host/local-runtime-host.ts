@@ -1007,6 +1007,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (delivery === "queue" || delivery === "steer") {
 			this.pendingPromptsController.enqueue(input.sessionId, {
 				prompt: input.prompt,
+				...(input.clientTurnId ? { clientTurnId: input.clientTurnId } : {}),
 				mode: input.mode,
 				delivery,
 				userImages: input.userImages,
@@ -1014,6 +1015,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			return undefined;
 		}
+		session.activeClientTurnId = input.clientTurnId;
 		try {
 			const result = await this.executeTurn(session, {
 				prompt: input.prompt,
@@ -1057,6 +1059,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			});
 			await this.failSession(session);
 			throw error;
+		} finally {
+			if (session.activeClientTurnId === input.clientTurnId) {
+				session.activeClientTurnId = undefined;
+			}
 		}
 	}
 
@@ -2217,6 +2223,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 				sessionId: session.sessionId,
 				reason: input.endReason,
 				ts: Date.now(),
+				...(session.activeClientTurnId
+					? { clientTurnId: session.activeClientTurnId }
+					: {}),
 			},
 		});
 		if (cleanupErrors.length > 0 && input.status === "failed") {
@@ -2487,9 +2496,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 
 	private emitStatus(sessionId: string, status: string): void {
 		void this.emitSessionSnapshot(sessionId);
+		const clientTurnId = this.sessions.get(sessionId)?.activeClientTurnId;
 		this.emit({
 			type: "status",
-			payload: { sessionId, status },
+			payload: {
+				sessionId,
+				status,
+				...(clientTurnId ? { clientTurnId } : {}),
+			},
 		});
 	}
 

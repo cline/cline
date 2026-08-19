@@ -1,0 +1,26 @@
+{
+	"name": "cline-plugin-propose-bot",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Lets the default 'cline' bot propose creating a new bot for the user to review and create via the app's existing bot-creation UI.",
+	"type": "module",
+	"exports": {
+		".": "./index.js"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": ["./index.js"],
+				"capabilities": ["tools"]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	}
+}

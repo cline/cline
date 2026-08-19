@@ -1,0 +1,58 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Cline",
+	"version": "0.0.1",
+	"identifier": "bot.cline.sandbox",
+	"build": {
+		"beforeDevCommand": "bun run build:sidecar:bin && bun run dev:web",
+		"devUrl": "http://localhost:3125",
+		"beforeBuildCommand": "bun run build",
+		"frontendDist": "../webview/out"
+	},
+	"plugins": {
+		"updater": {
+			"pubkey": "UNCONFIGURED",
+			"endpoints": [
+				"https://github.com/cline/cline/releases/download/cline-app-latest/latest.json"
+			]
+		}
+	},
+	"app": {
+		"windows": [
+			{
+				"label": "main",
+				"title": "Cline",
+				"width": 1500,
+				"height": 980,
+				"resizable": true,
+				"titleBarStyle": "Overlay",
+				"hiddenTitle": true,
+				"dragDropEnabled": false
+			}
+		],
+		"security": {
+			"csp": null,
+			"assetProtocol": {
+				"enable": true,
+				"scope": ["$HOME/**"]
+			}
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"externalBin": ["bin/cline-sidecar"],
+		"resources": ["icons/dock/*.png"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		],
+		"macOS": {
+			"entitlements": "entitlements.plist",
+			"hardenedRuntime": true
+		}
+	}
+}

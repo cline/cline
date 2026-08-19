@@ -567,6 +567,17 @@ function doneEventFromPayload(
 	};
 }
 
+function readClientTurnId(
+	payload: Record<string, unknown> | undefined,
+): string | undefined {
+	const value = payload?.clientTurnId;
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function clientTurnKey(sessionId: string, clientTurnId: string): string {
+	return `${sessionId}\u0000${clientTurnId}`;
+}
+
 function hubReplyErrorMessage(
 	reply: { error?: { message?: string } },
 	command: string,
@@ -764,6 +775,7 @@ export class HubRuntimeHost implements RuntimeHost {
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
 	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
+	private readonly agentDoneEmittedClientTurnIds = new Set<string>();
 	private readonly activeCapabilityAbortControllers = new Map<
 		string,
 		AbortController
@@ -1136,6 +1148,7 @@ export class HubRuntimeHost implements RuntimeHost {
 			{
 				sessionId: input.sessionId,
 				input: input.prompt,
+				...(input.clientTurnId ? { clientTurnId: input.clientTurnId } : {}),
 				mode: input.mode,
 				attachments:
 					(input.userImages?.length ?? 0) > 0 ||
@@ -1260,6 +1273,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.clear();
 		this.sessionCapabilities.clear();
 		this.agentDoneEmittedForCurrentRunBySession.clear();
+		this.agentDoneEmittedClientTurnIds.clear();
 		for (const controller of this.activeCapabilityAbortControllers.values()) {
 			controller.abort("Hub runtime host disposed.");
 		}
@@ -1536,6 +1550,27 @@ export class HubRuntimeHost implements RuntimeHost {
 		sessionId: string;
 		payload: Record<string, unknown> | undefined;
 	}): void {
+		const clientTurnId = readClientTurnId(input.payload);
+		if (clientTurnId) {
+			const key = clientTurnKey(input.sessionId, clientTurnId);
+			if (this.agentDoneEmittedClientTurnIds.has(key)) return;
+			this.agentDoneEmittedClientTurnIds.add(key);
+			if (this.agentDoneEmittedClientTurnIds.size > 512) {
+				const oldest = this.agentDoneEmittedClientTurnIds.values().next().value;
+				if (oldest !== undefined) {
+					this.agentDoneEmittedClientTurnIds.delete(oldest);
+				}
+			}
+			this.events.emit({
+				type: "agent_event",
+				payload: {
+					sessionId: input.sessionId,
+					clientTurnId,
+					event: doneEventFromPayload(input.payload),
+				},
+			});
+			return;
+		}
 		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
 			input.sessionId,
 		);
@@ -1584,7 +1619,14 @@ export class HubRuntimeHost implements RuntimeHost {
 
 		switch (event.event) {
 			case "run.started": {
-				this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
+				const clientTurnId = readClientTurnId(event.payload);
+				if (clientTurnId) {
+					this.agentDoneEmittedClientTurnIds.delete(
+						clientTurnKey(sessionId, clientTurnId),
+					);
+				} else {
+					this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
+				}
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
 				if (snapshot) {
@@ -1907,6 +1949,9 @@ export class HubRuntimeHost implements RuntimeHost {
 						sessionId,
 						id: prompt.id,
 						prompt: prompt.prompt,
+						...(prompt.clientTurnId
+							? { clientTurnId: prompt.clientTurnId }
+							: {}),
 						delivery: prompt.delivery,
 						attachmentCount: prompt.attachmentCount,
 						userImages: prompt.userImages,
@@ -1946,6 +1991,9 @@ export class HubRuntimeHost implements RuntimeHost {
 						sessionId,
 						reason,
 						ts: event.timestamp ?? Date.now(),
+						...(readClientTurnId(event.payload)
+							? { clientTurnId: readClientTurnId(event.payload) }
+							: {}),
 					},
 				});
 				return;

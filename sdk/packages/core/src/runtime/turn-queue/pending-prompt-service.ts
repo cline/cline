@@ -16,6 +16,7 @@ export type PendingPromptDelivery = "queue" | "steer";
 export interface PendingPromptEntry {
 	id: string;
 	prompt: string;
+	clientTurnId?: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
@@ -32,6 +33,7 @@ export interface PendingPromptsControllerDeps {
 	send(input: {
 		sessionId: string;
 		prompt: string;
+		clientTurnId?: string;
 		mode?: AgentMode;
 		userImages?: string[];
 		userFiles?: string[];
@@ -40,6 +42,7 @@ export interface PendingPromptsControllerDeps {
 
 export interface PendingPromptEnqueueInput {
 	prompt: string;
+	clientTurnId?: string;
 	mode?: AgentMode;
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
@@ -138,9 +141,12 @@ export class PendingPromptService {
 		state: PendingPromptQueueState,
 		input: PendingPromptEnqueueInput,
 	): SessionPendingPrompt[] {
-		const { prompt, mode, delivery, userImages, userFiles } = input;
+		const { prompt, clientTurnId, mode, delivery, userImages, userFiles } =
+			input;
 		const existingIndex = state.pendingPrompts.findIndex(
-			(queued) => queued.prompt === prompt,
+			(queued) =>
+				queued.prompt === prompt &&
+				(clientTurnId === undefined || queued.clientTurnId === clientTurnId),
 		);
 		if (existingIndex >= 0) {
 			const [existing] = state.pendingPrompts.splice(existingIndex, 1);
@@ -160,6 +166,7 @@ export class PendingPromptService {
 			const newEntry: PendingPromptEntry = {
 				id: `pending_${Date.now()}_${nanoid(5)}`,
 				prompt,
+				...(clientTurnId ? { clientTurnId } : {}),
 				mode,
 				delivery,
 				userImages,
@@ -239,6 +246,7 @@ export class PendingPromptsController {
 		sessionId: string,
 		entry: {
 			prompt: string;
+			clientTurnId?: string;
 			mode?: AgentMode;
 			delivery: "queue" | "steer";
 			userImages?: string[];
@@ -322,6 +330,7 @@ export class PendingPromptsController {
 			const result = await this.deps.send({
 				sessionId,
 				prompt: next.prompt,
+				...(next.clientTurnId ? { clientTurnId: next.clientTurnId } : {}),
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
@@ -361,6 +370,7 @@ export class PendingPromptsController {
 				sessionId: session.sessionId,
 				id: prompt.id,
 				prompt: prompt.prompt,
+				...(prompt.clientTurnId ? { clientTurnId: prompt.clientTurnId } : {}),
 				delivery: prompt.delivery,
 				attachmentCount: prompt.attachmentCount,
 				userImages: prompt.userImages,
@@ -383,6 +393,7 @@ function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 	return {
 		id: entry.id,
 		prompt: entry.prompt,
+		...(entry.clientTurnId ? { clientTurnId: entry.clientTurnId } : {}),
 		delivery: entry.delivery,
 		attachmentCount:
 			(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),

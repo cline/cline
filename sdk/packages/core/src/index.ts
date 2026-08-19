@@ -269,6 +269,7 @@ export {
 	createSkillsConfigDefinition,
 	createUserInstructionConfigService,
 	createWorkflowsConfigDefinition,
+	generateSystemPromptFromDescription,
 	parseRuleConfigFromMarkdown,
 	parseSkillConfigFromMarkdown,
 	parseWorkflowConfigFromMarkdown,

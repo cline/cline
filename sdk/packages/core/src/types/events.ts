@@ -11,6 +11,7 @@ export interface SessionEndedEvent {
 	sessionId: string;
 	reason: string;
 	ts: number;
+	clientTurnId?: string;
 }
 
 export interface SessionToolEvent {
@@ -41,6 +42,7 @@ export interface SessionTeamProgressEvent {
 export interface SessionPendingPrompt {
 	id: string;
 	prompt: string;
+	clientTurnId?: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
 	userImages?: string[];
@@ -56,6 +58,7 @@ export interface SessionPendingPromptSubmittedEvent {
 	sessionId: string;
 	id: string;
 	prompt: string;
+	clientTurnId?: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
 	userImages?: string[];
@@ -74,6 +77,8 @@ export type CoreSessionEvent =
 			payload: {
 				sessionId: string;
 				event: import("@cline/shared").AgentEvent;
+				/** Correlates root-agent events to the caller that submitted the turn. */
+				clientTurnId?: string;
 				/** Identifies the named agent within the team (e.g. "educator", "assessor", "coordinator") for both lead and teammate agents */
 				teamAgentId?: string;
 				/** Whether this is the lead agent or a teammate */
@@ -89,4 +94,7 @@ export type CoreSessionEvent =
 	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
-	| { type: "status"; payload: { sessionId: string; status: string } };
+	| {
+			type: "status";
+			payload: { sessionId: string; status: string; clientTurnId?: string };
+	  };

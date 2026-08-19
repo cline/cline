@@ -369,6 +369,46 @@ describe("SessionRuntime.getExtensionRegistry", () => {
 		);
 	});
 
+	it("appends the trusted host prompt on every turn after optional rules", async () => {
+		const previous = process.env.CLINE_HOST_SYSTEM_PROMPT;
+		process.env.CLINE_HOST_SYSTEM_PROMPT =
+			'Your app-assigned name is "Recipe Bot".';
+		try {
+			const extension: AgentExtension = {
+				name: "rules-ext",
+				manifest: { capabilities: ["rules"] },
+				setup: (api) => {
+					api.registerRule({
+						id: "rules-ext:primary",
+						content: "Optional user rule.",
+					});
+				},
+			};
+			const { deps, configs } = withCapturingFakeRuntime();
+			const session = new SessionRuntime(
+				makeAgentConfig({
+					systemPrompt: "Base prompt.",
+					extensions: [extension],
+				}),
+				deps,
+			);
+
+			await session.run("first");
+			await session.run("second");
+
+			expect(configs.map((config) => config.systemPrompt)).toEqual([
+				'Base prompt.\n\nOptional user rule.\n\nYour app-assigned name is "Recipe Bot".',
+				'Base prompt.\n\nOptional user rule.\n\nYour app-assigned name is "Recipe Bot".',
+			]);
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_HOST_SYSTEM_PROMPT;
+			} else {
+				process.env.CLINE_HOST_SYSTEM_PROMPT = previous;
+			}
+		}
+	});
+
 	it("passes session, caller, and logger context into extension setup()", async () => {
 		const logger = {
 			debug: vi.fn(),

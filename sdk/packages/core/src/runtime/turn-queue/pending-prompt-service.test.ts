@@ -29,6 +29,27 @@ describe("PendingPromptService", () => {
 		expect(state.pendingPrompts).toHaveLength(2);
 	});
 
+	it("keeps identical caller-correlated turns distinct", () => {
+		const service = new PendingPromptService();
+		const state = createState();
+
+		service.enqueue(state, {
+			prompt: "same prompt",
+			clientTurnId: "turn-1",
+			delivery: "queue",
+		});
+		service.enqueue(state, {
+			prompt: "same prompt",
+			clientTurnId: "turn-2",
+			delivery: "queue",
+		});
+
+		expect(service.list(state)).toMatchObject([
+			{ prompt: "same prompt", clientTurnId: "turn-1" },
+			{ prompt: "same prompt", clientTurnId: "turn-2" },
+		]);
+	});
+
 	it("updates prompts and reorders when delivery changes", () => {
 		const service = new PendingPromptService();
 		const state = createState();
@@ -200,5 +221,41 @@ describe("PendingPromptService", () => {
 					event.payload.prompts.some((prompt) => prompt.prompt === "try later"),
 			),
 		).toBe(true);
+	});
+
+	it("carries the caller turn id from queue submission into execution", async () => {
+		const sessionId = "sess-correlated-drain";
+		const session = {
+			sessionId,
+			pendingPrompts: [],
+			aborting: false,
+			drainingPendingPrompts: false,
+			status: "idle",
+			agent: { canStartRun: () => true },
+		} as unknown as ActiveSession;
+		const events: CoreSessionEvent[] = [];
+		const send = vi.fn().mockResolvedValue({ finishReason: "completed" });
+		const controller = new PendingPromptsController({
+			getSession: () => session,
+			emit: (event) => events.push(event),
+			send,
+		});
+
+		controller.enqueue(sessionId, {
+			prompt: "relayed",
+			clientTurnId: "turn-relay-1",
+			delivery: "queue",
+		});
+		await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({ clientTurnId: "turn-relay-1" }),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "pending_prompt_submitted",
+				payload: expect.objectContaining({ clientTurnId: "turn-relay-1" }),
+			}),
+		);
 	});
 });

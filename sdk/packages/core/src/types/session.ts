@@ -34,6 +34,8 @@ export type ActiveSession = {
 	teamRunWaiters: Array<() => void>;
 	pendingPrompts: PendingPrompt[];
 	drainingPendingPrompts: boolean;
+	/** Correlation id for the root turn currently executing in this session. */
+	activeClientTurnId?: string;
 	pluginSandboxShutdown?: () => Promise<void>;
 	turnUsageBaseline?: SessionAccumulatedUsage;
 	turnAggregateUsageBaseline?: SessionAccumulatedUsage;
@@ -61,6 +63,7 @@ export type ActiveSession = {
 export type PendingPrompt = {
 	id: string;
 	prompt: string;
+	clientTurnId?: string;
 	mode?: CoreAgentMode;
 	delivery: "queue" | "steer";
 	userImages?: string[];

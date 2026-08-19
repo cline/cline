@@ -227,12 +227,17 @@ export async function handleSessionInput(
 	if (!session) {
 		return sessionNotFoundReply(envelope, sessionId);
 	}
+	const clientTurnId =
+		typeof payload.clientTurnId === "string" && payload.clientTurnId.trim()
+			? payload.clientTurnId.trim()
+			: undefined;
 	ctx.publish(
 		ctx.buildEvent(
 			"run.started",
 			{
 				...(envelope.requestId ? { requestId: envelope.requestId } : {}),
 				...(envelope.clientId ? { clientId: envelope.clientId } : {}),
+				...(clientTurnId ? { clientTurnId } : {}),
 			},
 			sessionId,
 		),
@@ -247,8 +252,20 @@ export async function handleSessionInput(
 		? attachments.userFiles.filter((filePath) => typeof filePath === "string")
 		: undefined;
 	const timeoutMs = parseRunTimeoutMs(payload);
-	ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
-	const releaseActiveRpcTurn = trackActiveRpcTurn(ctx, sessionId);
+	const delivery =
+		payload.delivery === "queue" || payload.delivery === "steer"
+			? payload.delivery
+			: undefined;
+	// An explicitly queued turn completes after this RPC has returned, so its
+	// streamed terminal event is authoritative. Counting it as an awaiting RPC
+	// can suppress a very fast queued failure before this handler unwinds.
+	const reportsTerminalResult = delivery !== "queue";
+	if (reportsTerminalResult) {
+		ctx.suppressNextTerminalEventBySession.set(sessionId, "run.start.reply");
+	}
+	const releaseActiveRpcTurn = reportsTerminalResult
+		? trackActiveRpcTurn(ctx, sessionId)
+		: () => {};
 	let result: AgentResult | undefined;
 	try {
 		try {
@@ -258,11 +275,9 @@ export async function handleSessionInput(
 				{
 					sessionId,
 					prompt,
+					...(clientTurnId ? { clientTurnId } : {}),
 					mode: parseTurnMode(payload.mode),
-					delivery:
-						payload.delivery === "queue" || payload.delivery === "steer"
-							? payload.delivery
-							: undefined,
+					delivery,
 					userImages: Array.isArray(attachments?.userImages)
 						? (attachments.userImages as string[])
 						: undefined,
@@ -287,6 +302,7 @@ export async function handleSessionInput(
 					{
 						reason: "error",
 						error: error instanceof Error ? error.message : String(error),
+						...(clientTurnId ? { clientTurnId } : {}),
 					},
 					sessionId,
 				),
@@ -301,6 +317,7 @@ export async function handleSessionInput(
 					terminalRunEventForReason(result.finishReason),
 					{
 						reason: result.finishReason,
+						...(clientTurnId ? { clientTurnId } : {}),
 						...(error ? { error } : {}),
 						result,
 						...(snapshot ? { snapshot } : {}),

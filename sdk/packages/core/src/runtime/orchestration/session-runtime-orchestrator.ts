@@ -708,7 +708,16 @@ export class SessionRuntime {
 				rules.push(content);
 			}
 		}
-		return mergeSystemPromptRules(this.config.systemPrompt, rules);
+		// A trusted embedding host can attach an invariant system instruction to
+		// every turn in this process. Unlike configurable rules, this is applied
+		// to resumed sessions and cannot disappear when rule extensions are
+		// disabled. Desktop uses it for the registry-owned bot identity; the
+		// value arrives as a process environment entry (never shell-expanded).
+		const hostSystemPrompt = process.env.CLINE_HOST_SYSTEM_PROMPT?.trim();
+		return mergeSystemPromptRules(this.config.systemPrompt, [
+			...rules,
+			...(hostSystemPrompt ? [hostSystemPrompt] : []),
+		]);
 	}
 
 	private executeRun(input: {

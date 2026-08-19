@@ -1542,6 +1542,7 @@ describe("HubServerTransport boundaries", () => {
 			type: "agent_event",
 			payload: {
 				sessionId: "session-1",
+				clientTurnId: "turn-failed-1",
 				event: {
 					type: "error",
 					error: new Error("Model claude-3-haiku is unavailable"),
@@ -1555,6 +1556,7 @@ describe("HubServerTransport boundaries", () => {
 		expect(failed).toHaveLength(1);
 		expect(failed[0]?.payload).toMatchObject({
 			reason: "error",
+			clientTurnId: "turn-failed-1",
 			error: "Model claude-3-haiku is unavailable",
 			text: "Model claude-3-haiku is unavailable",
 		});

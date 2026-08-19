@@ -80,6 +80,9 @@ export async function projectSessionEvent(
 			const prompt: SessionPendingPrompt = {
 				id: event.payload.id,
 				prompt: event.payload.prompt,
+				...(event.payload.clientTurnId
+					? { clientTurnId: event.payload.clientTurnId }
+					: {}),
 				delivery: event.payload.delivery,
 				attachmentCount: event.payload.attachmentCount,
 				userImages: event.payload.userImages,
@@ -349,6 +352,9 @@ async function projectAgentEvent(
 					text: agentEvent.text,
 					iterations: agentEvent.iterations,
 					usage: agentEvent.usage,
+					...(event.payload.clientTurnId
+						? { clientTurnId: event.payload.clientTurnId }
+						: {}),
 				},
 				sessionId,
 			),
@@ -399,6 +405,9 @@ async function projectAgentErrorEvent(
 			{
 				reason: "error",
 				...(message ? { error: message, text: message } : {}),
+				...(event.payload.clientTurnId
+					? { clientTurnId: event.payload.clientTurnId }
+					: {}),
 				...(snapshot ? { snapshot } : {}),
 			},
 			sessionId,
@@ -443,7 +452,13 @@ async function projectSessionEnded(
 				: event.payload.reason === "error" || event.payload.reason === "failed"
 					? "run.failed"
 					: "run.completed",
-			{ reason: event.payload.reason, ...(snapshot ? { snapshot } : {}) },
+			{
+				reason: event.payload.reason,
+				...(event.payload.clientTurnId
+					? { clientTurnId: event.payload.clientTurnId }
+					: {}),
+				...(snapshot ? { snapshot } : {}),
+			},
 			event.payload.sessionId,
 		),
 	);

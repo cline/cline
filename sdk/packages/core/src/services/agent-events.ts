@@ -317,6 +317,9 @@ export function handleAgentEvent(
 		payload: {
 			sessionId,
 			event,
+			...(liveSession?.activeClientTurnId
+				? { clientTurnId: liveSession.activeClientTurnId }
+				: {}),
 			teamAgentId: overrides?.teamAgentId,
 			teamRole:
 				overrides !== undefined

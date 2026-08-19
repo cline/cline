@@ -44,3 +44,4 @@ export type {
 	UserInstructionConfigService,
 } from "./user-instruction-service";
 export { createUserInstructionConfigService } from "./user-instruction-service";
+export { generateSystemPromptFromDescription } from "./system-prompt-generation";

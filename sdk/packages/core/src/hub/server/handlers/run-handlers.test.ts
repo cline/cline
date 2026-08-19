@@ -54,16 +54,20 @@ describe("run handlers", () => {
 				requestId: "req-input",
 				clientId: "client-1",
 				sessionId: "session-1",
-				payload: { prompt: "go" },
+				payload: { prompt: "go", clientTurnId: "turn-input" },
 			}),
 		).resolves.toMatchObject({ ok: true });
 
 		expect(runTurn).toHaveBeenCalledOnce();
+		expect(runTurn).toHaveBeenCalledWith(
+			expect.objectContaining({ clientTurnId: "turn-input" }),
+		);
 		expect(ctx.events).toContainEqual(
 			expect.objectContaining({
 				event: "run.started",
 				payload: {
 					clientId: "client-1",
+					clientTurnId: "turn-input",
 					requestId: "req-input",
 				},
 				sessionId: "session-1",
@@ -244,6 +248,32 @@ describe("run handlers", () => {
 		resolveRun?.(undefined);
 		await expect(promise).resolves.toMatchObject({ ok: true });
 		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+	});
+
+	it("leaves explicitly queued failures to the event projector", async () => {
+		let resolveRun: ((result: undefined) => void) | undefined;
+		const ctx = createContext({
+			runTurn: vi.fn(
+				() =>
+					new Promise<undefined>((resolve) => {
+						resolveRun = resolve;
+					}),
+			),
+		});
+		const response = handleSessionInput(ctx, {
+			version: "v1",
+			command: "run.start",
+			requestId: "req-queued",
+			sessionId: "session-1",
+			payload: { prompt: "queued", delivery: "queue" },
+		});
+
+		await vi.waitFor(() =>
+			expect(ctx.sessionHost.runTurn).toHaveBeenCalledOnce(),
+		);
+		expect(ctx.activeRpcTurnCountBySession.has("session-1")).toBe(false);
+		resolveRun?.(undefined);
+		await expect(response).resolves.toMatchObject({ ok: true });
 	});
 
 	it("clears the in-flight RPC turn when runTurn rejects", async () => {

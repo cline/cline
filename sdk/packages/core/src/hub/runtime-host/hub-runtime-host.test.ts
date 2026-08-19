@@ -344,6 +344,7 @@ describe("HubRuntimeHost", () => {
 		const sent = await host.runTurn({
 			sessionId: "sess-1",
 			prompt: "Hey",
+			clientTurnId: "turn-123",
 			mode: "plan",
 			delivery: "queue",
 		});
@@ -356,6 +357,7 @@ describe("HubRuntimeHost", () => {
 			{
 				sessionId: "sess-1",
 				input: "Hey",
+				clientTurnId: "turn-123",
 				mode: "plan",
 				attachments: undefined,
 				delivery: "queue",
@@ -982,6 +984,69 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+	});
+
+	it("does not let an older session completion suppress a correlated queued turn", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: 1,
+			event: "run.started",
+			sessionId: "sess-1",
+			payload: { clientTurnId: "queued-turn" },
+		});
+		onEvent?.({
+			version: 1,
+			event: "agent.done",
+			sessionId: "sess-1",
+			payload: { reason: "completed", text: "older reply" },
+		});
+		onEvent?.({
+			version: 1,
+			event: "agent.done",
+			sessionId: "sess-1",
+			payload: {
+				clientTurnId: "queued-turn",
+				reason: "completed",
+				text: "queued reply",
+			},
+		});
+		onEvent?.({
+			version: 1,
+			event: "run.completed",
+			sessionId: "sess-1",
+			payload: { clientTurnId: "queued-turn", reason: "completed" },
+		});
+
+		expect(agentDoneEvents(events)).toHaveLength(2);
+		expect(agentDoneEvents(events)[1]?.payload).toMatchObject({
+			clientTurnId: "queued-turn",
+			event: { type: "done", text: "queued reply" },
+		});
 	});
 
 	it("maps hub usage updates back to agent usage events with identity", async () => {
