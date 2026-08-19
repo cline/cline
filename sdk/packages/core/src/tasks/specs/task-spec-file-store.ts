@@ -47,19 +47,28 @@ export interface WriteAgendaTaskSpecOptions {
 
 export type WrittenAgendaTaskSpec = AgendaTaskSpec & { taskId: string };
 
+const TASK_FILENAME_DIGEST_LENGTH = 16;
+const TASK_FILENAME_DIGEST_SUFFIX = /-[0-9a-f]{16}$/;
+
 function safeTaskFilename(taskId: string): string {
 	const trimmed = taskId.trim();
 	const normalized = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-");
 	if (!normalized) {
 		throw new Error("taskId must contain at least one filename-safe character");
 	}
-	if (normalized === trimmed) {
+	// Sanitizing is lossy ("foo/bar" and "foo-bar" both map to "foo-bar"), so
+	// altered ids carry a digest of the raw id. Filename-safe ids that merely
+	// look digest-suffixed are pushed into the same suffixed namespace: every
+	// stem ending in "-<16 hex>" therefore embeds the digest of its own raw
+	// id, so a crafted literal id cannot occupy another id's spec path — a
+	// collision now requires matching sha256 prefixes, not string mimicry.
+	if (normalized === trimmed && !TASK_FILENAME_DIGEST_SUFFIX.test(normalized)) {
 		return `${normalized}.task.md`;
 	}
-	// Sanitizing is lossy ("foo/bar" and "foo-bar" both map to "foo-bar"), so
-	// altered ids carry a digest of the raw id to keep distinct ids on
-	// distinct spec files.
-	const digest = createHash("sha256").update(trimmed).digest("hex").slice(0, 8);
+	const digest = createHash("sha256")
+		.update(trimmed)
+		.digest("hex")
+		.slice(0, TASK_FILENAME_DIGEST_LENGTH);
 	return `${normalized}-${digest}.task.md`;
 }
 
@@ -200,8 +209,14 @@ export class AgendaTaskSpecFileStore {
 		if (existsSync(gitignorePath)) return;
 		try {
 			writeFileSync(gitignorePath, "*\n", { encoding: "utf8", flag: "wx" });
-		} catch {
-			// A concurrent writer already created the file; either copy wins.
+		} catch (error) {
+			// Losing the exclusive create to a concurrent writer is fine —
+			// either copy delivers the default. Any other failure means the
+			// promised exclusion was not installed and must surface.
+			if ((error as NodeJS.ErrnoException | undefined)?.code === "EEXIST") {
+				return;
+			}
+			throw error;
 		}
 	}
 

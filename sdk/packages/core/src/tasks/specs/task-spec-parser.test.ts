@@ -1,4 +1,5 @@
 import {
+	chmodSync,
 	existsSync,
 	mkdirSync,
 	mkdtempSync,
@@ -9,7 +10,7 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { basename, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { AgendaTaskSpecFileStore } from "./task-spec-file-store";
 import { parseAgendaTaskSpec } from "./task-spec-parser";
@@ -269,6 +270,14 @@ describe("AgendaTaskSpecFileStore", () => {
 		expect(literal).toBe(join(store.specsDir, "foo-bar.task.md"));
 		expect(store.resolveWritePath("foo/bar")).toBe(sanitized);
 		expect(store.resolveWritePath("foo\\bar")).not.toBe(sanitized);
+
+		// A filename-safe id crafted to equal a sanitized id's file stem must
+		// not occupy that id's spec path: digest-suffix lookalikes are pushed
+		// into the suffixed namespace where the stem embeds their own digest.
+		const mimicId = basename(sanitized).replace(/\.task\.md$/, "");
+		const mimicPath = store.resolveWritePath(mimicId);
+		expect(mimicPath).not.toBe(sanitized);
+		expect(store.resolveWritePath(mimicId)).toBe(mimicPath);
 	});
 
 	it("writes workspace cwd relative and reads it back absolute", () => {
@@ -329,6 +338,44 @@ describe("AgendaTaskSpecFileStore", () => {
 		globalStore.ensureSpecsDir();
 		expect(existsSync(join(globalStore.specsDir, ".gitignore"))).toBe(false);
 	});
+
+	it("tolerates losing the gitignore creation race", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+		roots.push(root);
+		const store = new AgendaTaskSpecFileStore({
+			scope: "workspace",
+			workspaceRoot: root,
+		});
+		mkdirSync(store.specsDir, { recursive: true });
+		// A dangling symlink is invisible to the existsSync guard but still
+		// makes the exclusive create fail with EEXIST, exactly like a
+		// concurrent writer winning the race between the check and the write.
+		symlinkSync(
+			join(root, "missing-target"),
+			join(store.specsDir, ".gitignore"),
+		);
+
+		expect(() => store.ensureSpecsDir()).not.toThrow();
+	});
+
+	it.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
+		"surfaces gitignore install failures instead of dropping the default",
+		() => {
+			const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+			roots.push(root);
+			const store = new AgendaTaskSpecFileStore({
+				scope: "workspace",
+				workspaceRoot: root,
+			});
+			mkdirSync(store.specsDir, { recursive: true });
+			chmodSync(store.specsDir, 0o555);
+			try {
+				expect(() => store.ensureSpecsDir()).toThrow(/EACCES|permission/i);
+			} finally {
+				chmodSync(store.specsDir, 0o755);
+			}
+		},
+	);
 
 	it("rejects a workspace task directory that escapes through a symlink", () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
