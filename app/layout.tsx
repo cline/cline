@@ -5,8 +5,9 @@ export const metadata: Metadata = {
   title: "Cline Gateway",
   description: "Connect directly and securely to your Cline Gateway.",
   icons: {
-    icon: "/favicon.svg",
-    shortcut: "/favicon.svg",
+    icon: "/favicon.png",
+    shortcut: "/favicon.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 

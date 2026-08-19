@@ -32,6 +32,7 @@ interface Approval extends GatewayServerRequest {
 }
 
 type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
+const RUN_PROVIDER_ID = "cline";
 
 const connectionStages: Array<{
 	id: Exclude<ConnectionStage, "idle">;
@@ -42,6 +43,7 @@ const connectionStages: Array<{
 	{ id: "syncing", label: "Loading bots" },
 ];
 
+const environmentToken = import.meta.env.VITE_CLINE_GATEWAY_TOKEN?.trim() ?? "";
 export function App() {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
 	const [url, setUrl] = useState(() =>
@@ -66,6 +68,7 @@ export function App() {
 	const [events, setEvents] = useState<GatewayEvent[]>([]);
 	const [approvals, setApprovals] = useState<Approval[]>([]);
 	const [prompt, setPrompt] = useState("");
+	const [modelId, setModelId] = useState("");
 	const [sending, setSending] = useState(false);
 	const [steerMode, setSteerMode] = useState(false);
 
@@ -101,7 +104,7 @@ export function App() {
 		try {
 			const client = await BrowserGatewayClient.connect({
 				url,
-				auth: token,
+				auth: token.trim() || environmentToken,
 				clientId: localStorage.getItem("cline.gateway.clientId") ?? undefined,
 				allowInsecure,
 			});
@@ -164,11 +167,25 @@ export function App() {
 		);
 	}, [selectedBotId, sessions]);
 
+	useEffect(() => {
+		if (!selectedBotId) {
+			setModelId("");
+			return;
+		}
+		const savedModel = localStorage.getItem(modelStorageKey(selectedBotId));
+		setModelId(savedModel ?? selectedBot?.config.modelId ?? "");
+	}, [selectedBotId, selectedBot?.config.modelId]);
+
 	async function submit(event: FormEvent) {
 		event.preventDefault();
 		const client = clientRef.current;
 		const text = prompt.trim();
+		const selectedModelId = modelId.trim();
 		if (!client || !text || !selectedBotId) return;
+		if (!steerMode && !selectedModelId) {
+			setError("Enter a model ID before starting a run");
+			return;
+		}
 		setSending(true);
 		setError("");
 		try {
@@ -178,6 +195,10 @@ export function App() {
 				const accepted = (await client.mutate("run.start", {
 					botId: selectedBotId,
 					prompt: text,
+					overrides: {
+						providerId: RUN_PROVIDER_ID,
+						modelId: selectedModelId,
+					},
 				})) as { runId: string };
 				await client.request("run.subscribe", { runId: accepted.runId });
 			}
@@ -240,14 +261,19 @@ export function App() {
 							/>
 						</label>
 						<label>
-							Remote access token
+							<span className="field-title">
+								Remote access token <span className="optional">Optional</span>
+							</span>
 							<input
 								value={token}
 								onChange={(e) => setToken(e.target.value)}
 								type="password"
 								autoComplete="off"
-								placeholder="Paste token"
-								required
+								placeholder={
+									environmentToken
+										? "Using VITE_CLINE_GATEWAY_TOKEN"
+										: "Paste token or configure environment"
+								}
 							/>
 						</label>
 						<label className="check">
@@ -388,10 +414,21 @@ export function App() {
 				<header className="conversation-header">
 					<div>
 						<h2>{selectedBot?.identity.name ?? "Select a bot"}</h2>
-						<p>
-							{selectedBot?.config.providerId ?? "default provider"} /{" "}
-							{selectedBot?.config.modelId ?? "default model"}
-						</p>
+						<label className="model-selector">
+							<span>{RUN_PROVIDER_ID} /</span>
+							<input
+								aria-label="Model ID"
+								value={modelId}
+								onChange={(event) => {
+									const value = event.target.value;
+									setModelId(value);
+									if (selectedBotId)
+										localStorage.setItem(modelStorageKey(selectedBotId), value);
+								}}
+								placeholder="Enter model ID"
+								autoComplete="off"
+							/>
+						</label>
 					</div>
 					<div className="run-actions">
 						{activeRun && (
@@ -488,7 +525,9 @@ export function App() {
 					<button
 						type="submit"
 						className="send"
-						disabled={sending || !prompt.trim()}
+						disabled={
+							sending || !prompt.trim() || (!steerMode && !modelId.trim())
+						}
 					>
 						{sending ? "…" : "↑"}
 					</button>
@@ -540,7 +579,10 @@ function EventTimeline({ events }: { events: GatewayEvent[] }) {
 							<pre>{JSON.stringify(event.payload, null, 2)}</pre>
 						</details>
 					);
-				if (event.event.startsWith("run."))
+				if (event.event.startsWith("run.")) {
+					const runError = event.payload?.error as
+						| { message?: string }
+						| undefined;
 					return (
 						<div className={`run-event ${event.event}`} key={event.sequence}>
 							<span>{event.event.replace("run.", "")}</span>
@@ -548,8 +590,10 @@ function EventTimeline({ events }: { events: GatewayEvent[] }) {
 							{event.payload?.outputText ? (
 								<p>{String(event.payload.outputText)}</p>
 							) : null}
+							{runError?.message ? <p>{runError.message}</p> : null}
 						</div>
 					);
+				}
 				return null;
 			})}
 		</>
@@ -601,6 +645,9 @@ function mergeEvent(current: GatewayEvent[], incoming: GatewayEvent) {
 
 function shortId(value: string) {
 	return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+function modelStorageKey(botId: string) {
+	return `cline.gateway.bot.${botId}.modelId`;
 }
 function messageOf(cause: unknown) {
 	return cause instanceof Error ? cause.message : String(cause);
