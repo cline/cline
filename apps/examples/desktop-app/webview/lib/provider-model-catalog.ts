@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatCompatibleModel } from "@cline/shared/browser";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -39,8 +40,22 @@ export function supportsAudio(model: ProviderModel): boolean {
 export function filterChatModels(
 	models: ProviderModel[] | undefined,
 ): ProviderModel[] {
-	return (models ?? []).filter(
-		(model) => !isDedicatedTranscriptionModel(model),
+	return (models ?? []).filter(isChatModel);
+}
+
+export function isChatModel(model: ProviderModel): boolean {
+	return (
+		// Desktop supports image generation directly from its composer. Other
+		// chat-only clients intentionally use isChatCompatibleModel without this
+		// operation-specific exception.
+		model.operation === "image-generation" ||
+		isChatCompatibleModel({
+			operation: model.operation,
+			modalities: {
+				input: model.inputModalities,
+				output: model.outputModalities,
+			},
+		})
 	);
 }
 
@@ -85,7 +100,10 @@ export function buildProviderModelCatalog(
 	return {
 		providers,
 		enabledProviderIds: providers
-			.filter((provider) => provider.enabled)
+			.filter(
+				(provider) =>
+					provider.enabled && toModelIds(provider.modelList).length > 0,
+			)
 			.map((provider) => provider.id),
 		providerModels: Object.fromEntries(
 			providers.map((provider) => [

@@ -1,6 +1,10 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
-import type { ModelModality, ModelOperationMode } from "../llms/model-info";
+import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "../llms/model-info";
 import type { ReasoningLevel } from "../llms/reasoning-options";
 import type {
 	RuntimeConfigExtensionKind,
@@ -146,7 +150,7 @@ export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 export interface ProviderModel {
 	id: string;
 	name: string;
-	operation?: import("../llms/model-info").ModelOperation;
+	operation?: ModelOperation;
 	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
