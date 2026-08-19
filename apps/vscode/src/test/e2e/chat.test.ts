@@ -23,14 +23,28 @@ e2e("Chat - can send messages and switch between modes", async ({ helper, sideba
 	await expect(sidebar.getByText("Recent")).toBeVisible()
 	await expect(sidebar.getByText("Hello, Cline!")).toBeVisible()
 
-	// Makes sure the Plan/Act mode switch is working correctly.
-	// It's exposed as a single switch: aria-checked is true in Act mode and
-	// false in Plan mode, and clicking it toggles between the two.
-	const modeSwitch = sidebar.getByTestId("mode-switch")
+	// Makes sure the Plan/Act mode switch is working correctly. Querying by role
+	// and accessible name keeps the switch semantics under test, not just the state.
+	const modeSwitch = sidebar.getByRole("switch", { name: "Act mode" })
 
 	// Act mode is active by default, so the switch reads as checked.
 	await expect(modeSwitch).toHaveAttribute("aria-checked", "true")
 
+	// Focus check comes first: toggling refocuses the composer and would race it.
+	await modeSwitch.focus()
+	await expect(modeSwitch).toBeFocused()
+
+	// Space and Enter both toggle the mode.
+	await modeSwitch.press("Space")
+	await expect(modeSwitch).toHaveAttribute("aria-checked", "false")
+
+	// Toggling hands focus back to the composer, so wait for that before pressing
+	// again: otherwise the refocus can land between press()'s focus and its keydown.
+	await expect(inputbox).toBeFocused()
+	await modeSwitch.press("Enter")
+	await expect(modeSwitch).toHaveAttribute("aria-checked", "true")
+
+	// A pointer click toggles it too, leaving Plan mode active.
 	await modeSwitch.click()
 	await expect(modeSwitch).toHaveAttribute("aria-checked", "false")
 
