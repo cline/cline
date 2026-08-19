@@ -1,6 +1,6 @@
 /** Compile the broker and Gateway into target-named Tauri sidecars. */
 
-import { mkdirSync } from "node:fs";
+import { cpSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { $ } from "bun";
 
@@ -8,6 +8,22 @@ const appRoot = join(import.meta.dirname, "..");
 const repoRoot = join(appRoot, "..", "..");
 const outDir = join(appRoot, "src-tauri", "bin");
 mkdirSync(outDir, { recursive: true });
+
+const profileSource = join(
+	repoRoot,
+	"sdk",
+	"packages",
+	"gateway",
+	"default-agent",
+);
+const profileResources = join(
+	appRoot,
+	"src-tauri",
+	"resources",
+	"default-agent",
+);
+mkdirSync(profileResources, { recursive: true });
+cpSync(profileSource, profileResources, { recursive: true, force: true });
 
 const triple =
 	process.env.GATEWAY_DESKTOP_TARGET_TRIPLE ??
@@ -23,6 +39,10 @@ if (!triple) {
 
 const brokerOutfile = join(outDir, `gateway-desktop-broker-${triple}`);
 const gatewayOutfile = join(outDir, `cline-gateway-${triple}`);
+
+// The package entrypoint intentionally targets dist. Always rebuild it so the
+// desktop sidecar cannot silently bundle stale Gateway source.
+await $`bun -F @cline/gateway build`.cwd(repoRoot);
 
 await $`bun build ${join(appRoot, "native", "index.ts")} --compile --outfile ${brokerOutfile}`.cwd(
 	appRoot,
@@ -44,3 +64,4 @@ if (
 
 console.log(`broker sidecar written to ${brokerOutfile}`);
 console.log(`Gateway sidecar written to ${gatewayOutfile}`);
+console.log(`Gateway lead profiles copied to ${profileResources}`);

@@ -6,5 +6,6 @@ webview/next-env.d.ts
 src-tauri/target/
 src-tauri/bin/
 src-tauri/gen/
+src-tauri/resources/default-agent/
 *.tsbuildinfo
 .next/

@@ -720,6 +720,10 @@ export interface GatewayRuntimeOptions {
 	plugins?: PluginCatalog;
 	/** Phase 4: worker/execution health reported through gateway.status. */
 	executionHealth?: () => Record<string, unknown>;
+	/** Optional configuration applied to the single bootstrap lead. */
+	leadConfig?: BotRecord["config"];
+	/** Display name supplied by the selected lead profile. */
+	leadName?: string;
 }
 
 export interface RunStartParams {
@@ -784,6 +788,8 @@ export class GatewayRuntime {
 	private readonly onOutboxEnqueued: () => void;
 	private readonly plugins: PluginCatalog | undefined;
 	private readonly executionHealth: (() => Record<string, unknown>) | undefined;
+	private readonly leadConfig: BotRecord["config"] | undefined;
+	private readonly leadName: string | undefined;
 	/** Catalog generation pins held by active (non-terminal) runs. */
 	private readonly catalogPins = new Map<RunId, CatalogPin>();
 	private draining = false;
@@ -800,6 +806,8 @@ export class GatewayRuntime {
 		this.onOutboxEnqueued = options.onOutboxEnqueued ?? (() => {});
 		this.plugins = options.plugins;
 		this.executionHealth = options.executionHealth;
+		this.leadConfig = options.leadConfig;
+		this.leadName = options.leadName;
 		const sinks: InstrumentationSinks = {
 			stores: this.stores,
 			clock: this.clock,
@@ -855,7 +863,10 @@ export class GatewayRuntime {
 	bootstrap(): BotRecord {
 		this.defaultBot = this.database.transaction(() => {
 			const before = this.stores.bots.list().length;
-			const record = this.registry.bootstrap();
+			const record = this.registry.bootstrap({
+				config: this.leadConfig,
+				name: this.leadName,
+			});
 			if (this.stores.bots.list().length !== before) {
 				this.stores.meta.bumpCatalogGeneration();
 				this.stores.audit.record(

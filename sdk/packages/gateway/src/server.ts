@@ -17,6 +17,7 @@
 
 import { timingSafeEqual } from "node:crypto";
 import { createServer, type Server, type Socket } from "node:net";
+import { dirname } from "node:path";
 import type { EnginePort } from "@cline/bot";
 import type {
 	BotId,
@@ -54,6 +55,7 @@ import {
 	writeDiscoveryRecord,
 } from "./discovery";
 import { negotiateHello, SUPPORTED_PROTOCOL_VERSIONS } from "./hello";
+import type { ResolvedLeadProfile } from "./lead-profiles";
 import { GatewayLock } from "./lock";
 import { validateGatewayRequest } from "./methods";
 import {
@@ -101,6 +103,8 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	stopTimeoutMs?: number;
 	/** Phase 4: extra plugin discovery sources (global dir is implicit). */
 	pluginSources?: readonly PluginSource[];
+	/** Optional named configuration for the single bootstrap lead. */
+	leadProfile?: ResolvedLeadProfile;
 	/** Phase 4: worker/execution health surfaced in gateway.status. */
 	executionHealth?: () => Record<string, unknown>;
 	/** Phase 6: connector adapters (defaults: telegram + slack). */
@@ -314,6 +318,13 @@ export class GatewayServer {
 				onOutboxEnqueued: () => workerRef?.schedule(),
 				plugins,
 				executionHealth: options.executionHealth,
+				leadConfig: options.leadProfile
+					? {
+							profileId: options.leadProfile.id,
+							systemPrompt: options.leadProfile.systemPrompt,
+						}
+					: undefined,
+				leadName: options.leadProfile?.name,
 			});
 			const outboxWorker = new OutboxWorker(
 				stores,
@@ -370,6 +381,12 @@ export class GatewayServer {
 
 			// 3. Bootstrap + manual crash recovery before accepting clients.
 			const lead = runtime.bootstrap();
+			if (options.leadProfile?.pluginRoots.length) {
+				plugins.addSource({
+					scope: { kind: "bot", botId: lead.identity.botId },
+					dir: dirname(options.leadProfile.pluginRoots[0]),
+				});
+			}
 			// The lead bot's plugin dir is a standing source; reload imports
 			// global + bot plugins into the first published generation.
 			plugins.addSource({

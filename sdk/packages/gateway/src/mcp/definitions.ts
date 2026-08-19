@@ -16,6 +16,8 @@ export interface McpStdioTransportSpec {
 	readonly command: string;
 	readonly args?: readonly string[];
 	readonly env?: Readonly<Record<string, string>>;
+	/** Plugin root used to resolve portable relative server entrypoints. */
+	readonly cwd?: string;
 }
 
 export interface McpHttpTransportSpec {
@@ -74,6 +76,7 @@ export function definitionsFromPlugin(
 				transport: {
 					kind: "stdio",
 					command: server.command,
+					cwd: plugin.rootPath,
 					...(server.args ? { args: server.args } : {}),
 					...(server.env ? { env: server.env } : {}),
 				},

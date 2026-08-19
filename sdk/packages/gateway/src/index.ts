@@ -99,6 +99,19 @@ export {
 } from "./idempotency-ledger";
 export { GatewayLock, GatewayLockHeldError } from "./lock";
 export type {
+	LeadProfileSummary,
+	LeadProfileTemplateValues,
+	ResolvedLeadProfile,
+} from "./lead-profiles";
+export {
+	listLeadProfiles,
+	bundledLeadProfileFile,
+	loadBundledLeadProfile,
+	loadLeadProfile,
+	PLAIN_LEAD_PROFILE,
+	PLAIN_LEAD_PROFILE_ID,
+} from "./lead-profiles";
+export type {
 	McpHttpTransportSpec,
 	McpServerDefinition,
 	McpStdioTransportSpec,

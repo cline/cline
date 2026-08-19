@@ -6,9 +6,18 @@ import type {
 	EngineRunHandle,
 } from "@cline/bot";
 import { createEngineExecutionPort } from "@cline/bot";
-import type { EngineModelBinding } from "@cline/engine";
-import { SERVER_REQUEST_METHODS } from "@cline/shared/gateway";
+import type { AgentTool, EngineModelBinding } from "@cline/engine";
+import {
+	createPrincipalId,
+	SERVER_REQUEST_METHODS,
+} from "@cline/shared/gateway";
+import type { ResolvedLeadProfile } from "./lead-profiles";
+import { definitionsFromPlugin } from "./mcp/definitions";
+import { McpConnectionPool, type McpLease } from "./mcp/pool";
+import { createStdioTransportFactory } from "./mcp/transport";
+import { SessionMcpToolView } from "./mcp/views";
 import type { GatewayPaths } from "./paths";
+import { loadPlugin } from "./plugins/loader";
 import {
 	readSavedProviderSelection,
 	resolveSavedClineOAuthApiKey,
@@ -42,6 +51,8 @@ export interface ConfiguredEngineOptions {
 	paths?: GatewayPaths;
 	env?: Record<string, string | undefined>;
 	providerSettingsPath?: string;
+	/** Built-in lead profile whose Agent Plugin tools are available to runs. */
+	leadProfile?: ResolvedLeadProfile;
 }
 
 const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -171,6 +182,92 @@ export function createConfiguredEnginePort(
 	options: ConfiguredEngineOptions = {},
 ): EnginePort {
 	let clineRefreshInFlight: Promise<string | undefined> | undefined;
+	const mcpPool = new McpConnectionPool({
+		transportFactory: createStdioTransportFactory(),
+	});
+	const principalId = createPrincipalId();
+
+	async function acquireProfileTools(invocation: EngineInvocation): Promise<{
+		tools: AgentTool[];
+		leases: McpLease[];
+		definitionNames: string[];
+	}> {
+		if (
+			!options.leadProfile ||
+			invocation.effectiveConfig.profileId !== options.leadProfile.id
+		) {
+			return { tools: [], leases: [], definitionNames: [] };
+		}
+		const leases: McpLease[] = [];
+		const definitionNames: string[] = [];
+		const tools: AgentTool[] = [];
+		const names = new Set<string>();
+		try {
+			for (const root of options.leadProfile.pluginRoots) {
+				const loaded = loadPlugin(root);
+				if (!loaded.ok) {
+					throw new Error(
+						`Unable to load lead plugin ${root}: ${loaded.diagnostics.map((diagnostic) => diagnostic.message).join("; ")}`,
+					);
+				}
+				for (const definition of definitionsFromPlugin(loaded.plugin)) {
+					if (definition.transport.kind !== "stdio") continue;
+					const scopedDefinition = {
+						...definition,
+						name: `${definition.name}@${invocation.sessionId}`,
+						transport: {
+							...definition.transport,
+							env: {
+								...definition.transport.env,
+								CLINE_WORKSPACE_ROOT: invocation.workspaceRoot,
+								CLINE_SESSION_ID: invocation.sessionId,
+							},
+						},
+					} as const;
+					const lease = await mcpPool.acquire({
+						definition: scopedDefinition,
+						principalId,
+						botId: invocation.botId,
+						workspaceId: invocation.workspaceRoot,
+					});
+					leases.push(lease);
+					definitionNames.push(scopedDefinition.name);
+					const view = new SessionMcpToolView(lease);
+					for (const descriptor of await view.listTools()) {
+						if (!descriptor.name) continue;
+						if (names.has(descriptor.name)) {
+							throw new Error(
+								`Duplicate lead plugin tool name: ${descriptor.name}`,
+							);
+						}
+						names.add(descriptor.name);
+						tools.push({
+							name: descriptor.name,
+							description:
+								descriptor.description ?? `Tool provided by ${view.serverName}`,
+							inputSchema:
+								typeof descriptor.inputSchema === "object" &&
+								descriptor.inputSchema !== null &&
+								!Array.isArray(descriptor.inputSchema)
+									? (descriptor.inputSchema as Record<string, unknown>)
+									: { type: "object" },
+							execute: (input) =>
+								view.callTool(
+									descriptor.name,
+									typeof input === "object" && input !== null
+										? (input as Record<string, unknown>)
+										: {},
+								),
+						});
+					}
+				}
+			}
+			return { tools, leases, definitionNames };
+		} catch (error) {
+			for (const lease of leases) lease.release();
+			throw error;
+		}
+	}
 	return {
 		start(invocation): EngineRunHandle {
 			return deferredHandle(async () => {
@@ -219,8 +316,10 @@ export function createConfiguredEnginePort(
 					typeof options.approvals === "function"
 						? options.approvals()
 						: options.approvals;
-				return createEngineExecutionPort({
+				const profileTools = await acquireProfileTools(invocation);
+				const handle = createEngineExecutionPort({
 					model: () => model,
+					tools: () => profileTools.tools,
 					requestApproval: approvals
 						? async (request) => {
 								const answer = await approvals.request(
@@ -250,6 +349,13 @@ export function createConfiguredEnginePort(
 							}
 						: undefined,
 				}).start(invocation);
+				void handle.result.finally(() => {
+					for (const name of profileTools.definitionNames) {
+						mcpPool.drainDefinition(name);
+					}
+					for (const lease of profileTools.leases) lease.release();
+				});
+				return handle;
 			});
 		},
 	};

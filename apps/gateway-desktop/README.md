@@ -52,7 +52,7 @@ early with minimal product code.
 Tauri shell (Rust)          window, per-launch bridge secret, owns bundled Gateway
         |                   + broker, one native command: reveal diagnostics folder
 		v
-Bundled cline-gateway       dedicated `gateway-desktop-poc` namespace; reads the
+Bundled cline-gateway       standard `default` namespace; reads the
         |                   shared provider settings from ~/.cline/data/settings
         v
 Bun broker (native/)        connects with @cline/gateway/client, owns the
@@ -65,9 +65,9 @@ Next.js webview (webview/)  renders the projection; imports NO SDK protocol
 
 See `ARCHITECTURE.md` for the full contract. Key invariants:
 
-- The POC shell starts a bundled Gateway in the dedicated
-  `gateway-desktop-poc` namespace and never replaces another installation's
-  Gateway. A second app instance attaches to the existing POC authority.
+- The shell attaches to the standard `default` Gateway when it is already
+  running; otherwise it starts the bundled Gateway. A second app instance
+  attaches to the same authority.
 - Closing the app gracefully stops the Gateway only when that app instance
   started it.
 - There is no generic `invoke(method, payload)` bridge — the command
@@ -111,7 +111,10 @@ chips have real data.
 
 ### Provider credentials (Phase 3 secrets, no onboarding UI)
 
-Gateway Desktop deliberately has no credential onboarding. Real engine
+Gateway Desktop uses the standard `default` Gateway namespace, so it attaches
+to a Gateway started with `cline-gateway serve` unless
+`GATEWAY_DESKTOP_GATEWAY_NAMESPACE` or `CLINE_GATEWAY_NAMESPACE` selects a
+different namespace. Gateway Desktop deliberately has no credential onboarding. Real engine
 runs need provider credentials configured ON THE GATEWAY as mode-0600
 secret files (the desktop never sees them):
 
@@ -173,8 +176,8 @@ It is an opt-in local job (not yet wired into repo CI): run
 - Logs: `~/.cline/gateway-desktop/logs/*.jsonl` — structured, redacted
   (secret-shaped keys are stripped before serialization).
 - Override the root with `GATEWAY_DESKTOP_DATA_ROOT`.
-- Bundled Gateway namespace: `gateway-desktop-poc` (override with
-  `GATEWAY_DESKTOP_GATEWAY_NAMESPACE`). Provider credentials remain in the
+- Gateway namespace: `default` (override with
+  `GATEWAY_DESKTOP_GATEWAY_NAMESPACE` or `CLINE_GATEWAY_NAMESPACE`). Provider credentials remain in the
   shared `~/.cline/data/settings/providers.json` store and are not bundled.
 
 The app never reads or writes the Gateway's SQLite database or session

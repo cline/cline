@@ -64,6 +64,7 @@ export class StdioMcpTransport implements McpTransport {
 		}
 		const child = spawn(spec.command, [...(spec.args ?? [])], {
 			stdio: ["pipe", "pipe", "inherit"],
+			cwd: spec.cwd,
 			env: {
 				...process.env,
 				...spec.env,

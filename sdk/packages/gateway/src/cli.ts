@@ -20,6 +20,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { GatewayClient, GatewayRequestError } from "./client";
 import { type DiscoveryRecord, readDiscoveryRecord } from "./discovery";
 import { createConfiguredEnginePort } from "./engine-binding";
+import { loadBundledLeadProfile } from "./lead-profiles";
 import { GatewayLockHeldError } from "./lock";
 import { resolveGatewayPaths } from "./paths";
 import { writeSecretFile } from "./secrets";
@@ -55,6 +56,7 @@ interface ParsedArgs {
 	namespace?: string;
 	port?: number;
 	reason?: string;
+	leadProfile?: string;
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -63,6 +65,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 		throw new Error(
 			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
 				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
+				"       cline-gateway serve [--lead-profile <cline|cline-mom>]\n" +
 				"       cline-gateway secret-put <providerId>   (reads the secret from stdin)",
 		);
 	}
@@ -92,6 +95,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 				break;
 			case "--reason":
 				parsed.reason = value;
+				index += 1;
+				break;
+			case "--lead-profile":
+				parsed.leadProfile = value;
 				index += 1;
 				break;
 			default:
@@ -143,11 +150,22 @@ async function commandServe(
 ): Promise<number> {
 	let server: GatewayServer;
 	let serverRef: GatewayServer | undefined;
+	const profileId =
+		args.leadProfile ??
+		process.env.CLINE_GATEWAY_LEAD_PROFILE?.trim() ??
+		"cline";
+	const leadProfile = loadBundledLeadProfile(profileId, {
+		ADMIN_NAME: process.env.ADMIN_NAME,
+		ADMIN_FULL_NAME: process.env.ADMIN_FULL_NAME,
+		CLINE_HOME: process.env.CLINE_HOME,
+		PUBLIC_HOST: process.env.PUBLIC_HOST ?? process.env.CLINE_PUBLIC_HOST,
+	});
 	try {
 		server = await GatewayServer.start({
 			dataRoot: args.dataRoot,
 			namespace: args.namespace,
 			port: args.port,
+			leadProfile,
 			// The approvals broker lives on the runtime, which exists only
 			// after start; the getter closes over the server reference.
 			// Provider credentials come from the data directory's mode-0600
@@ -155,6 +173,7 @@ async function commandServe(
 			engine: createConfiguredEnginePort({
 				approvals: () => serverRef?.runtime.approvals,
 				paths: resolveGatewayPaths(args),
+				leadProfile,
 			}),
 		});
 		serverRef = server;
@@ -224,6 +243,9 @@ async function commandStart(
 	}
 	if (args.port !== undefined) {
 		serveArgs.push("--port", String(args.port));
+	}
+	if (args.leadProfile) {
+		serveArgs.push("--lead-profile", args.leadProfile);
 	}
 	// Re-invoke the same entrypoint (works from source under Bun and from
 	// the packaged bin under Node).

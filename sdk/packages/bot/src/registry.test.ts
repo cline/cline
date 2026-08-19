@@ -32,6 +32,19 @@ describe("bootstrap", () => {
 		expect(registry.list()).toHaveLength(1);
 	});
 
+	it("uses the selected profile name for the same bootstrap lead", () => {
+		const { registry } = setup();
+		const first = registry.bootstrap();
+		const named = registry.bootstrap({
+			name: "Cline Mom",
+			config: { profileId: "cline-mom" },
+		});
+		expect(named.identity.botId).toBe(first.identity.botId);
+		expect(named.identity.name).toBe("Cline Mom");
+		expect(named.config.profileId).toBe("cline-mom");
+		expect(registry.list()).toHaveLength(1);
+	});
+
 	it("identity records are frozen", () => {
 		const { registry } = setup();
 		const first = registry.bootstrap();

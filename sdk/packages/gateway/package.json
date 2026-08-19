@@ -32,7 +32,8 @@
 	},
 	"files": [
 		"dist",
-		"bin"
+		"bin",
+		"default-agent"
 	],
 	"license": "Apache-2.0",
 	"scripts": {

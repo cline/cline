@@ -41,6 +41,8 @@ export interface BotIdentity {
 
 /** Bot-level configuration; per-turn overrides layer on top of this. */
 export interface BotConfig {
+	/** Named host profile used to assemble this bot's prompt and extensions. */
+	profileId?: string;
 	providerId?: string;
 	modelId?: string;
 	systemPrompt?: string;
