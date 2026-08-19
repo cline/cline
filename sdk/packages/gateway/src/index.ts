@@ -38,10 +38,15 @@ export {
 	removeDiscoveryRecord,
 	writeDiscoveryRecord,
 } from "./discovery";
-export type { ConfiguredEngineOptions } from "./engine-binding";
+export type {
+	ConfiguredEngineOptions,
+	ResolveProviderModelOptions,
+} from "./engine-binding";
 export {
 	createConfiguredEnginePort,
-	resolveModelFromEnvironment,
+	MissingProviderCredentialError,
+	ModelNotConfiguredError,
+	resolveProviderModel,
 } from "./engine-binding";
 export type { GatewayIdentityInfo, HelloNegotiation } from "./hello";
 export {
@@ -93,6 +98,11 @@ export {
 	MANAGED_WORKSPACE_ROOT,
 	toGatewayError,
 } from "./runtime";
+export {
+	readSecretFile,
+	SecretAccessError,
+	writeSecretFile,
+} from "./secrets";
 export type { GatewayServerOptions } from "./server";
 export { GatewayServer } from "./server";
 export type {

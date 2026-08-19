@@ -41,12 +41,17 @@ export interface GatewayPaths {
 	readonly discoveryFile: string;
 	readonly botsDir: string;
 	readonly projectionsDir: string;
+	/** Owner-only secret files (mode 0600, dir 0700). Never mounted. */
+	readonly secretsDir: string;
 	botDir(botId: BotId): string;
 	workspacesDir(botId: BotId): string;
 	sessionWorkspaceDir(botId: BotId, sessionId: SessionId): string;
 	memoriesDir(botId: BotId): string;
+	secretFile(name: string): string;
 	sessionProjectionFile(sessionId: SessionId): string;
 }
+
+const SECRET_NAME_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 
 export function defaultGatewayDataRoot(
 	env: Record<string, string | undefined> = process.env,
@@ -81,6 +86,7 @@ export function resolveGatewayPaths(
 	const dataDir = resolve(dataRoot, namespace);
 	const botsDir = join(dataDir, "bots");
 	const projectionsDir = join(dataDir, "projections");
+	const secretsDir = join(dataDir, "secrets");
 	return {
 		dataDir,
 		namespace,
@@ -89,11 +95,18 @@ export function resolveGatewayPaths(
 		discoveryFile: join(dataDir, "gateway.json"),
 		botsDir,
 		projectionsDir,
+		secretsDir,
 		botDir: (botId) => join(botsDir, botId),
 		workspacesDir: (botId) => join(botsDir, botId, "workspaces"),
 		sessionWorkspaceDir: (botId, sessionId) =>
 			join(botsDir, botId, "workspaces", sessionId),
 		memoriesDir: (botId) => join(botsDir, botId, "memories"),
+		secretFile: (name) => {
+			if (!SECRET_NAME_PATTERN.test(name)) {
+				throw new Error(`Invalid secret name "${name}"`);
+			}
+			return join(secretsDir, name);
+		},
 		sessionProjectionFile: (sessionId) =>
 			join(projectionsDir, "sessions", `${sessionId}.json`),
 	};
@@ -104,4 +117,5 @@ export function ensureGatewayDataDir(paths: GatewayPaths): void {
 	mkdirSync(paths.dataDir, { recursive: true, mode: 0o700 });
 	mkdirSync(paths.botsDir, { recursive: true, mode: 0o700 });
 	mkdirSync(paths.projectionsDir, { recursive: true, mode: 0o700 });
+	mkdirSync(paths.secretsDir, { recursive: true, mode: 0o700 });
 }

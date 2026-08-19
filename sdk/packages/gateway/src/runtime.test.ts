@@ -278,6 +278,112 @@ describe("canonical message history", () => {
 	});
 });
 
+describe("run config snapshot (credentials-free, captured at admission)", () => {
+	it("persists provider/model on the run row and never a credential", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const accepted = runtime.startRun("cli_test", {
+			botId,
+			prompt: "snapshot me",
+			overrides: { providerId: "anthropic", modelId: "claude-admission" },
+		});
+		const snapshot = stores.runs.getConfigSnapshot(accepted.runId);
+		expect(snapshot).toMatchObject({
+			providerId: "anthropic",
+			modelId: "claude-admission",
+		});
+		expect(JSON.stringify(snapshot)).not.toMatch(/apiKey|secret|sk-/i);
+	});
+
+	it("a queued run executes against its admission snapshot, not the live bot config", async () => {
+		const { runtime, stores, engine } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const active = runtime.startRun("cli_test", { botId, prompt: "hold" });
+		const queued = runtime.startRun("cli_test", {
+			botId,
+			prompt: "later",
+			overrides: { modelId: "model-at-admission" },
+		});
+
+		// The bot's live config changes while the run waits in the queue.
+		const record = stores.bots.get(botId);
+		if (!record) {
+			throw new Error("bot missing");
+		}
+		stores.bots.save({
+			...record,
+			config: { ...record.config, modelId: "model-changed-later" },
+			revision: record.revision + 1,
+		});
+
+		engine.handles[0].settle({});
+		await waitFor(() => stores.runs.get(queued.runId)?.state === "running");
+		expect(engine.handles[1].invocation.effectiveConfig.modelId).toBe(
+			"model-at-admission",
+		);
+		engine.handles[1].settle({});
+		await waitFor(() => stores.runs.get(active.runId)?.state === "completed");
+	});
+
+	it("retries execute against the same snapshot as the first attempt", async () => {
+		const engine = new ScriptedEnginePort();
+		engine.autoOutcome = (_invocation, attemptIndex) =>
+			attemptIndex === 0
+				? { status: "failed", error: { name: "Transient", message: "boom" } }
+				: { status: "completed" };
+		const { runtime, stores } = createRuntime({ engine, maxAttempts: 2 });
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const accepted = runtime.startRun("cli_test", {
+			botId,
+			prompt: "retry with snapshot",
+			overrides: { providerId: "anthropic", modelId: "pinned-model" },
+		});
+		await waitFor(() => stores.runs.get(accepted.runId)?.state === "completed");
+		const models = engine
+			.handlesFor(accepted.runId)
+			.map((handle) => handle.invocation.effectiveConfig.modelId);
+		expect(models).toEqual(["pinned-model", "pinned-model"]);
+	});
+
+	it("recovered queued runs keep their snapshot (in-memory overrides survive the crash)", async () => {
+		const dataRoot = tempDataRoot();
+		const first = createRuntime({ dataRoot });
+		const botId = first.runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		first.runtime.startRun("cli_test", { botId, prompt: "hold" });
+		const queued = first.runtime.startRun("cli_test", {
+			botId,
+			prompt: "recover me",
+			overrides: { providerId: "openrouter", modelId: "override-model" },
+		});
+		first.database.close();
+
+		const engine = new ScriptedEnginePort();
+		engine.autoOutcome = () => ({ status: "completed" });
+		const second = createRuntime({ dataRoot, engine });
+		second.runtime.recover();
+		await waitFor(
+			() => second.stores.runs.get(queued.runId)?.state === "completed",
+		);
+		const handle = engine.handlesFor(queued.runId)[0];
+		expect(handle.invocation.effectiveConfig).toMatchObject({
+			providerId: "openrouter",
+			modelId: "override-model",
+		});
+	});
+});
+
 describe("manual crash recovery", () => {
 	it("interrupts abandoned attempts and re-admits committed queued runs FIFO", async () => {
 		const dataRoot = tempDataRoot();

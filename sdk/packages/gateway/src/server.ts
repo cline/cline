@@ -418,9 +418,11 @@ export class GatewayServer {
 		});
 		const cleanup = () => {
 			this.connections.delete(connection);
-			if (connection.clientId) {
-				// Disconnect never implies abort: runs and pending server
-				// requests are untouched; only the connection registry shrinks.
+			// Disconnect never implies abort: runs and pending server
+			// requests are untouched; only the connection registry shrinks.
+			// During stop the database may already be closed — socket close
+			// events race shutdown, so the audit write is best-effort then.
+			if (connection.clientId && !this.stopping) {
 				this.stores.audit.record(
 					"gateway",
 					"client.disconnected",

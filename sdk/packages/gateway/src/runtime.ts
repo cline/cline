@@ -35,7 +35,12 @@ import type {
 	SessionRepository,
 	TurnOverrides,
 } from "@cline/bot";
-import { Bot, BotDomainError, BotRegistry } from "@cline/bot";
+import {
+	Bot,
+	BotDomainError,
+	BotRegistry,
+	resolveEffectiveConfig,
+} from "@cline/bot";
 import type {
 	BotId,
 	GatewayError,
@@ -485,8 +490,15 @@ export class AttemptingEnginePort implements EnginePort {
 	}
 
 	start(invocation: EngineInvocation): EngineRunHandle {
+		// Execute against the config snapshotted at admission (never the
+		// live bot config or in-memory overrides): every attempt of a run —
+		// including after a crash — binds the same provider/model.
+		const snapshot = this.sinks.stores.runs.getConfigSnapshot(invocation.runId);
+		const pinned = snapshot
+			? { ...invocation, effectiveConfig: snapshot }
+			: invocation;
 		return new AttemptingEngineHandle(
-			invocation,
+			pinned,
 			this.inner,
 			this.sinks,
 			this.database,
@@ -854,6 +866,14 @@ export class GatewayRuntime {
 			}
 		}
 		return this.database.transaction(() => {
+			// Effective config at admission (provider/model/prompt settings —
+			// never credentials). Persisted as the run's snapshot below;
+			// every attempt — retries, deferred queue starts, and crash
+			// recovery — executes against it instead of live bot config.
+			const snapshotConfig = resolveEffectiveConfig(
+				bot.record.config,
+				params.overrides,
+			);
 			const accepted = bot.submitPrompt(params.prompt, {
 				// An explicit workspace is always forwarded so a mismatch with
 				// an existing session's immutable workspace is rejected loudly.
@@ -864,6 +884,7 @@ export class GatewayRuntime {
 						: { rootPath: MANAGED_WORKSPACE_ROOT },
 				overrides: params.overrides,
 			});
+			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
 			this.stores.audit.record(
 				actor,
 				"run.start",

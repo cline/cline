@@ -336,6 +336,28 @@ export class SqliteRunRepository implements RunRepository {
 		return Number(row?.n ?? 0);
 	}
 
+	/**
+	 * Persist the effective config captured at admission. The snapshot
+	 * carries provider/model/prompt settings only — never credentials.
+	 * Retries and crash recovery execute against this snapshot, not the
+	 * live bot config.
+	 */
+	saveConfigSnapshot(runId: RunId, config: BotRecord["config"]): void {
+		this.database.db
+			.prepare("UPDATE runs SET config_json = ? WHERE run_id = ?;")
+			.run(JSON.stringify(config), runId);
+	}
+
+	getConfigSnapshot(runId: RunId): BotRecord["config"] | undefined {
+		const row = this.database.db
+			.prepare("SELECT config_json FROM runs WHERE run_id = ?;")
+			.get(runId);
+		if (!row || row.config_json === null) {
+			return undefined;
+		}
+		return JSON.parse(String(row.config_json)) as BotRecord["config"];
+	}
+
 	save(record: RunRecord): void {
 		this.database.db
 			.prepare(

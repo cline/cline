@@ -22,6 +22,7 @@ import { type DiscoveryRecord, readDiscoveryRecord } from "./discovery";
 import { createConfiguredEnginePort } from "./engine-binding";
 import { GatewayLockHeldError } from "./lock";
 import { resolveGatewayPaths } from "./paths";
+import { writeSecretFile } from "./secrets";
 import { GatewayServer } from "./server";
 
 export const GATEWAY_CLI_COMMANDS = [
@@ -31,6 +32,7 @@ export const GATEWAY_CLI_COMMANDS = [
 	"drain",
 	"upgrade",
 	"stop",
+	"secret-put",
 ] as const;
 
 export type GatewayCliCommand = (typeof GATEWAY_CLI_COMMANDS)[number];
@@ -47,6 +49,8 @@ const DEFAULT_IO: GatewayCliIo = {
 
 interface ParsedArgs {
 	command: GatewayCliCommand;
+	/** Positional argument (`secret-put <providerId>`). */
+	subject?: string;
 	dataRoot?: string;
 	namespace?: string;
 	port?: number;
@@ -58,12 +62,20 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 	if (!GATEWAY_CLI_COMMANDS.includes(command as GatewayCliCommand)) {
 		throw new Error(
 			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
-				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]",
+				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
+				"       cline-gateway secret-put <providerId>   (reads the secret from stdin)",
 		);
 	}
 	const parsed: ParsedArgs = { command: command as GatewayCliCommand };
 	for (let index = 0; index < rest.length; index += 1) {
 		const flag = rest[index];
+		if (!flag.startsWith("--")) {
+			if (parsed.subject !== undefined) {
+				throw new Error(`Unexpected argument: ${flag}`);
+			}
+			parsed.subject = flag;
+			continue;
+		}
 		const value = rest[index + 1];
 		switch (flag) {
 			case "--data-root":
@@ -138,8 +150,11 @@ async function commandServe(
 			port: args.port,
 			// The approvals broker lives on the runtime, which exists only
 			// after start; the getter closes over the server reference.
+			// Provider credentials come from the data directory's mode-0600
+			// secret files; env vars remain a local/dev override.
 			engine: createConfiguredEnginePort({
 				approvals: () => serverRef?.runtime.approvals,
+				paths: resolveGatewayPaths(args),
 			}),
 		});
 		serverRef = server;
@@ -361,6 +376,40 @@ async function commandUpgrade(
 	return commandStart(args, io);
 }
 
+/**
+ * Store a provider credential as an owner-only mode-0600 secret file.
+ * The value is read from stdin and is never echoed, logged, audited, or
+ * persisted anywhere but the secret file itself.
+ */
+async function commandSecretPut(
+	args: ParsedArgs,
+	io: GatewayCliIo,
+): Promise<number> {
+	const providerId = args.subject;
+	if (!providerId) {
+		io.err(
+			"Usage: cline-gateway secret-put <providerId>   (reads the secret from stdin)",
+		);
+		return 64;
+	}
+	const chunks: Buffer[] = [];
+	for await (const chunk of process.stdin) {
+		chunks.push(Buffer.from(chunk));
+	}
+	// Strip exactly one trailing newline (echo/heredoc convenience).
+	const value = Buffer.concat(chunks)
+		.toString("utf8")
+		.replace(/\r?\n$/, "");
+	if (!value) {
+		io.err(JSON.stringify({ status: "error", error: "Empty secret on stdin" }));
+		return 65;
+	}
+	const paths = resolveGatewayPaths(args);
+	const file = writeSecretFile(paths, providerId, value);
+	io.out(JSON.stringify({ status: "ok", provider: providerId, file }));
+	return 0;
+}
+
 /** Entry point. Returns the process exit code. */
 export async function runGatewayCli(
 	argv: readonly string[],
@@ -386,6 +435,8 @@ export async function runGatewayCli(
 			return commandAdmin(args, io, "gateway.stop");
 		case "upgrade":
 			return commandUpgrade(args, io);
+		case "secret-put":
+			return commandSecretPut(args, io);
 	}
 }
 

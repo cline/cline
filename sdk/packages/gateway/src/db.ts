@@ -60,7 +60,8 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 				ended_at INTEGER,
 				output_text TEXT,
 				error_name TEXT,
-				error_message TEXT
+				error_message TEXT,
+				config_json TEXT
 			);`,
 			`CREATE INDEX idx_runs_session ON runs(session_id, accepted_seq);`,
 			`CREATE INDEX idx_runs_state ON runs(state);`,

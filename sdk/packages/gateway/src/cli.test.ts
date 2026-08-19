@@ -7,6 +7,7 @@
  */
 
 import { type ChildProcess, spawn } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { readDiscoveryRecord } from "./discovery";
@@ -26,11 +27,19 @@ interface CliProcess {
 const spawned: CliProcess[] = [];
 const dataRoots: string[] = [];
 
-function runCli(args: string[], dataRoot: string): CliProcess {
+function runCli(
+	args: string[],
+	dataRoot: string,
+	options: { stdin?: string } = {},
+): CliProcess {
 	const child = spawn(BUN, [CLI, ...args, "--data-root", dataRoot], {
-		stdio: ["ignore", "pipe", "pipe"],
+		stdio: [options.stdin === undefined ? "ignore" : "pipe", "pipe", "pipe"],
 		env: { ...process.env },
 	});
+	if (options.stdin !== undefined) {
+		child.stdin?.write(options.stdin);
+		child.stdin?.end();
+	}
 	const stdout: string[] = [];
 	const stderr: string[] = [];
 	child.stdout?.setEncoding("utf8");
@@ -178,5 +187,43 @@ describe("concurrent starters (real processes)", () => {
 			{ timeoutMs: 20_000 },
 		);
 		await waitFor(() => !isAlive(record.pid), { timeoutMs: 20_000 });
+	});
+});
+
+describe("secret-put (real process)", () => {
+	it("stores a provider credential from stdin as a 0600 file and never echoes it", {
+		timeout: 30_000,
+	}, async () => {
+		const dataRoot = tempDataRoot();
+		const paths = resolveGatewayPaths({ dataRoot });
+		const secret = "sk-test-cli-SECRET-1a2b3c4d5e6f\n";
+
+		const put = runCli(["secret-put", "anthropic"], dataRoot, {
+			stdin: secret,
+		});
+		expect(await put.exit).toBe(0);
+
+		const file = paths.secretFile("anthropic");
+		expect(statSync(file).mode & 0o777).toBe(0o600);
+		expect(statSync(paths.secretsDir).mode & 0o777).toBe(0o700);
+		// Trailing newline from the pipe is stripped; the value is exact.
+		expect(readFileSync(file, "utf8")).toBe(secret.trimEnd());
+
+		// The CLI confirms without ever echoing the secret.
+		const allOutput = put.stdout.join("") + put.stderr.join("");
+		expect(allOutput).toContain('"status":"ok"');
+		expect(allOutput).not.toContain(secret.trimEnd());
+	});
+
+	it("rejects an empty secret and a missing provider id", {
+		timeout: 30_000,
+	}, async () => {
+		const dataRoot = tempDataRoot();
+		const empty = runCli(["secret-put", "anthropic"], dataRoot, {
+			stdin: "\n",
+		});
+		expect(await empty.exit).toBe(65);
+		const missing = runCli(["secret-put"], dataRoot, { stdin: "value\n" });
+		expect(await missing.exit).toBe(64);
 	});
 });

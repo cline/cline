@@ -50,12 +50,13 @@ machine-checked in `src/boundaries.test.ts` (and mirrored per-package).
 ### Lifecycle
 
 ```
-cline-gateway serve     # run the authority in the foreground
-cline-gateway start     # ensure one is running (spawn detached, wait ready)
-cline-gateway status    # read discovery, connect, report gateway.status
-cline-gateway drain     # refuse new mutating work while runs finish
-cline-gateway upgrade   # drain, wait idle, stop, start a fresh process
-cline-gateway stop      # graceful stop
+cline-gateway serve                    # run the authority in the foreground
+cline-gateway start                    # ensure one is running (spawn detached, wait ready)
+cline-gateway status                   # read discovery, connect, report gateway.status
+cline-gateway drain                    # refuse new mutating work while runs finish
+cline-gateway upgrade                  # drain, wait idle, stop, start a fresh process
+cline-gateway stop                     # graceful stop
+cline-gateway secret-put <providerId>  # store a provider credential (reads stdin)
 ```
 
 Flags: `--data-root <dir>`, `--namespace <name>`, `--port <n>`,
@@ -111,6 +112,31 @@ workspaces live under `bots/<botId>/workspaces/<sessionId>`; bot memories
 under `bots/<botId>/memories/`. Canonical message history is stored
 behind the `AgentMessage` messages contract from `@cline/shared`.
 
+### Provider credentials (ADR 0001: the Gateway owns credentials)
+
+LLM provider keys are owner-only **mode-0600 files** in the data
+directory's `secrets/` (dir 0700), one per provider (`anthropic`,
+`openai`, `openrouter`, `cline`, ...). Operators either drop a file there
+or pipe one in:
+
+```
+printf '%s' "$KEY" | cline-gateway secret-put anthropic
+```
+
+At execution time the Gateway resolves the run's **snapshotted** config
+(provider/model captured on the run row at `run.start` — retries and
+crash recovery always bind the same model, never live bot config or
+in-memory overrides; the snapshot never contains a key) and injects the
+credential in memory at the engine boundary: environment variables
+(`CLINE_GATEWAY_API_KEY`, `ANTHROPIC_API_KEY`, ...) act as a local/dev
+override, otherwise the provider's secret file is read. A missing
+credential fails the attempt with a stable
+`MissingProviderCredentialError` — an unauthenticated binding is never
+passed to the engine. Group/world-readable "secret" files are refused,
+and the key never reaches the database, event log, audit trail,
+projections, or logs (machine-checked in
+`src/credential-hygiene.test.ts`).
+
 ### What lives where
 
 | Concern | Location |
@@ -122,6 +148,7 @@ behind the `AgentMessage` messages contract from `@cline/shared`.
 | OS-backed exclusive lock | `src/lock.ts` |
 | SQLite authority + migrations | `src/db.ts`, `src/stores.ts` |
 | Discovery record + instance secret | `src/discovery.ts` |
+| Provider credentials (0600 secret files) + engine injection | `src/secrets.ts`, `src/engine-binding.ts` |
 | Async runtime (queue, attempts, recovery, approvals) | `src/runtime.ts` |
 | Loopback server + event replay | `src/server.ts` |
 | Loopback client | `src/client.ts` |
