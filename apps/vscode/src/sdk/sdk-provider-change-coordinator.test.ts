@@ -86,6 +86,19 @@ describe("SdkProviderChangeCoordinator", () => {
 		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
 	})
 
+	it("flushes a pending field-change restart without letting its timer fire again", () => {
+		vi.useFakeTimers()
+		const activeSession = makeActiveSession()
+		const { coordinator, options } = makeCoordinator({ activeSession, activeProvider: "lmstudio" })
+
+		coordinator.handleProviderConfigFieldsChanged(parseProviderId("lmstudio"))
+		coordinator.flushPendingProviderFieldsRebuild()
+
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+		vi.runAllTimers()
+		expect(options.rebuilds.request).toHaveBeenCalledTimes(1)
+	})
+
 	it("drops a debounced field restart when the active session is replaced", () => {
 		vi.useFakeTimers()
 		const activeSession = makeActiveSession()

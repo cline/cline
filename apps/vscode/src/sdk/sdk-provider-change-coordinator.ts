@@ -43,6 +43,7 @@ function providerForMode(config: ApiConfiguration, mode: Mode): string | undefin
 
 export class SdkProviderChangeCoordinator {
 	private providerFieldsRebuildTimer: ReturnType<typeof setTimeout> | undefined
+	private pendingProviderFieldsRebuild: (() => void) | undefined
 
 	constructor(private readonly options: SdkProviderChangeCoordinatorOptions) {}
 
@@ -62,8 +63,7 @@ export class SdkProviderChangeCoordinator {
 		}
 
 		this.cancelPendingProviderFieldsRebuild()
-		this.providerFieldsRebuildTimer = setTimeout(() => {
-			this.providerFieldsRebuildTimer = undefined
+		this.pendingProviderFieldsRebuild = () => {
 			const currentMode = this.getCurrentMode()
 			const currentProvider = providerForMode(this.options.stateManager.getApiConfiguration(), currentMode)
 			if (currentProvider !== changedProvider || this.options.sessions.getActiveSession() !== activeSession) {
@@ -72,7 +72,11 @@ export class SdkProviderChangeCoordinator {
 
 			Logger.log(`[SdkController] Active provider fields changed for ${currentMode}: ${changedProvider}`)
 			this.options.rebuilds.request("provider", () => this.performRestartActiveSessionForProviderChange(activeSession))
-		}, PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS)
+		}
+		this.providerFieldsRebuildTimer = setTimeout(
+			() => this.flushPendingProviderFieldsRebuild(),
+			PROVIDER_FIELDS_REBUILD_DEBOUNCE_MS,
+		)
 	}
 
 	handleApiConfigurationChanged(previous: ApiConfiguration, next: ApiConfiguration): void {
@@ -101,6 +105,20 @@ export class SdkProviderChangeCoordinator {
 
 	async restartActiveSessionForProviderChange(): Promise<void> {
 		await this.performRestartActiveSessionForProviderChange()
+	}
+
+	flushPendingProviderFieldsRebuild(): void {
+		const pendingRebuild = this.pendingProviderFieldsRebuild
+		if (!pendingRebuild) {
+			return
+		}
+
+		if (this.providerFieldsRebuildTimer !== undefined) {
+			clearTimeout(this.providerFieldsRebuildTimer)
+		}
+		this.providerFieldsRebuildTimer = undefined
+		this.pendingProviderFieldsRebuild = undefined
+		pendingRebuild()
 	}
 
 	private async performRestartActiveSessionForProviderChange(expectedSession?: ActiveSession): Promise<void> {
@@ -171,5 +189,6 @@ export class SdkProviderChangeCoordinator {
 			clearTimeout(this.providerFieldsRebuildTimer)
 			this.providerFieldsRebuildTimer = undefined
 		}
+		this.pendingProviderFieldsRebuild = undefined
 	}
 }

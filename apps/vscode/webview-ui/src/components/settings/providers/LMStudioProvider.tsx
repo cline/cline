@@ -78,6 +78,8 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 		() => config?.baseUrl ?? apiConfiguration?.lmStudioBaseUrl ?? "http://localhost:1234",
 		[apiConfiguration?.lmStudioBaseUrl, config?.baseUrl],
 	)
+	const endpointRef = useRef(endpoint)
+	endpointRef.current = endpoint
 
 	const handleBaseUrlChange = useCallback(
 		(value: string) => {
@@ -117,10 +119,10 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	// the model control gains focus (no interval polling — the endpoint is
 	// user-configurable, see ENG-2344), so a server started after mount is
 	// still discovered.
-	const requestLmStudioModels = useCallback(async () => {
+	const requestLmStudioModels = useCallback(async (requestEndpoint: string) => {
 		const requestId = ++lmStudioModelsRequestRef.current
 		try {
-			const response = await ModelsServiceClient.getLmStudioModels({ value: endpoint })
+			const response = await ModelsServiceClient.getLmStudioModels({ value: requestEndpoint })
 			if (requestId !== lmStudioModelsRequestRef.current) {
 				return
 			}
@@ -133,9 +135,9 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 				console.error("Failed to parse LM Studio models:", error)
 			}
 		}
-	}, [endpoint])
+	}, [])
 	const refreshModelsAfterApiKeyWrite = useCallback(() => {
-		void requestLmStudioModels()
+		void requestLmStudioModels(endpointRef.current)
 	}, [requestLmStudioModels])
 	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
 		apiKeyLength: config?.apiKeyLength,
@@ -145,8 +147,8 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 	})
 
 	useEffect(() => {
-		requestLmStudioModels()
-	}, [requestLmStudioModels])
+		requestLmStudioModels(endpoint)
+	}, [endpoint, requestLmStudioModels])
 
 	useEffect(
 		() => () => {
@@ -199,7 +201,10 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 
 			<div className="font-semibold">Model</div>
 			{lmStudioModels.length > 0 ? (
-				<DropdownContainer className="dropdown-container" onFocusCapture={() => void requestLmStudioModels()} zIndex={10}>
+				<DropdownContainer
+					className="dropdown-container"
+					onFocusCapture={() => void requestLmStudioModels(endpoint)}
+					zIndex={10}>
 					<VSCodeDropdown
 						className="w-full mb-3"
 						onChange={(e: any) => {
@@ -217,7 +222,7 @@ export const LMStudioProvider = ({ currentMode }: LMStudioProviderProps) => {
 					</VSCodeDropdown>
 				</DropdownContainer>
 			) : (
-				<div onFocusCapture={() => void requestLmStudioModels()}>
+				<div onFocusCapture={() => void requestLmStudioModels(endpoint)}>
 					<DebouncedTextField
 						initialValue={displayedSelectedModelId || ""}
 						onChange={handleModelChange}

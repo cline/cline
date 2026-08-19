@@ -136,4 +136,31 @@ describe("LMStudioProvider", () => {
 		expect(screen.queryByRole("option", { name: "stale-model" })).not.toBeInTheDocument()
 		expect(screen.getByRole("option", { name: "latest-model" })).toBeInTheDocument()
 	})
+
+	it("refreshes the latest endpoint after a delayed API-key write", async () => {
+		const apiKeyWrite = deferred<void>()
+		mocks.write.mockReturnValue(apiKeyWrite.promise)
+
+		const { rerender } = render(<LMStudioProvider currentMode="act" showModelOptions={false} />)
+		await waitFor(() => expect(mocks.getLmStudioModels).toHaveBeenLastCalledWith({ value: "http://localhost:1234" }))
+
+		fireEvent.change(screen.getByLabelText("LM Studio API key"), { target: { value: "new-key" } })
+		await waitFor(() => expect(mocks.write).toHaveBeenCalledWith({ apiKey: "new-key" }))
+
+		mocks.useProviderConfig.mockReturnValue({
+			config: { baseUrl: "http://localhost:5678", providerId: "lmstudio" },
+			commitSelection: mocks.commitSelection,
+			write: mocks.write,
+		})
+		rerender(<LMStudioProvider currentMode="act" showModelOptions={false} />)
+		await waitFor(() => expect(mocks.getLmStudioModels).toHaveBeenLastCalledWith({ value: "http://localhost:5678" }))
+		const refreshCountBeforeWriteCompletes = mocks.getLmStudioModels.mock.calls.length
+
+		await act(async () => {
+			apiKeyWrite.resolve(undefined)
+		})
+
+		await waitFor(() => expect(mocks.getLmStudioModels).toHaveBeenCalledTimes(refreshCountBeforeWriteCompletes + 1))
+		expect(mocks.getLmStudioModels).toHaveBeenLastCalledWith({ value: "http://localhost:5678" })
+	})
 })
