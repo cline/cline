@@ -83,38 +83,35 @@ export function selectTranscriptionModel(
 		: null;
 }
 
-function toModelIds(models: ProviderModel[] | undefined): string[] {
-	return filterChatModels(models).map((model) => model.id);
-}
-
-function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
-	return filterChatModels(models)
-		.filter((model) => model.supportsReasoning)
-		.map((model) => model.id);
-}
-
 export function buildProviderModelCatalog(
 	providers: Provider[],
 	voiceInput?: VoiceInputSelection,
 ): ProviderModelCatalog {
+	const providerEntries = providers.map((provider) => {
+		const chatModels = filterChatModels(provider.modelList);
+		return {
+			provider,
+			modelIds: chatModels.map((model) => model.id),
+			reasoningModelIds: chatModels
+				.filter((model) => model.supportsReasoning)
+				.map((model) => model.id),
+		};
+	});
+
 	return {
 		providers,
-		enabledProviderIds: providers
+		enabledProviderIds: providerEntries
 			.filter(
-				(provider) =>
-					provider.enabled && toModelIds(provider.modelList).length > 0,
+				({ provider, modelIds }) => provider.enabled && modelIds.length > 0,
 			)
-			.map((provider) => provider.id),
+			.map(({ provider }) => provider.id),
 		providerModels: Object.fromEntries(
-			providers.map((provider) => [
-				provider.id,
-				toModelIds(provider.modelList),
-			]),
+			providerEntries.map(({ provider, modelIds }) => [provider.id, modelIds]),
 		),
 		providerReasoningModels: Object.fromEntries(
-			providers.map((provider) => [
+			providerEntries.map(({ provider, reasoningModelIds }) => [
 				provider.id,
-				toReasoningModelIds(provider.modelList),
+				reasoningModelIds,
 			]),
 		),
 		voiceInput: selectTranscriptionModel(providers, voiceInput),
