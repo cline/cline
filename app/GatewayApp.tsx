@@ -34,6 +34,7 @@ interface Approval extends GatewayServerRequest {
 type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
 const RUN_PROVIDER_ID = "cline";
 const DEFAULT_MODEL_ID = "grok-5.4";
+const PROMPT_DRAFT_KEY = "cline.gateway.promptDraft";
 
 const connectionStages: Array<{
 	id: Exclude<ConnectionStage, "idle">;
@@ -45,8 +46,17 @@ const connectionStages: Array<{
 ];
 
 const environmentToken = "";
-export function App({ defaultUrl }: { defaultUrl?: string }) {
+export function App({
+	defaultUrl,
+	defaultToken,
+	userDisplayName,
+}: {
+	defaultUrl?: string;
+	defaultToken?: string;
+	userDisplayName?: string;
+} = {}) {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
+	const configuredToken = defaultToken?.trim() || environmentToken;
 	const [url, setUrl] = useState(() =>
 		defaultUrl?.trim() ||
 		(typeof window === "undefined"
@@ -70,7 +80,12 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 	const [selectedSessionId, setSelectedSessionId] = useState("");
 	const [events, setEvents] = useState<GatewayEvent[]>([]);
 	const [approvals, setApprovals] = useState<Approval[]>([]);
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(
+		() =>
+			(typeof window === "undefined"
+				? ""
+				: (localStorage.getItem(PROMPT_DRAFT_KEY) ?? "")),
+	);
 	const [modelId, setModelId] = useState("");
 	const [sending, setSending] = useState(false);
 	const [steerMode, setSteerMode] = useState(false);
@@ -108,7 +123,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 		try {
 			const client = await BrowserGatewayClient.connect({
 				url,
-				auth: token.trim() || environmentToken,
+				auth: token.trim() || configuredToken,
 				clientId: localStorage.getItem("cline.gateway.clientId") ?? undefined,
 				allowInsecure,
 			});
@@ -186,6 +201,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 		event.preventDefault();
 		const client = clientRef.current;
 		const text = prompt.trim();
+		const attributedText = withGatewayUserContext(text, userDisplayName);
 		const selectedModelId = modelId.trim();
 		if (!client || !text || !selectedBotId) return;
 		if (!steerMode && !selectedModelId) {
@@ -196,19 +212,35 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 		setError("");
 		try {
 			if (steerMode && activeRun) {
-				await client.mutate("run.steer", { runId: activeRun.runId, text });
+				await client.mutate("run.steer", {
+					runId: activeRun.runId,
+					text: attributedText,
+				});
+				if (userDisplayName) {
+					console.info("[Cline Gateway] run steered", {
+						runId: activeRun.runId,
+						submittedBy: userDisplayName,
+					});
+				}
 			} else {
 				const accepted = (await client.mutate("run.start", {
 					botId: selectedBotId,
-					prompt: text,
+					prompt: attributedText,
 					overrides: {
 						providerId: RUN_PROVIDER_ID,
 						modelId: selectedModelId,
 					},
 				})) as { runId: string };
+				if (userDisplayName) {
+					console.info("[Cline Gateway] run submitted", {
+						runId: accepted.runId,
+						submittedBy: userDisplayName,
+					});
+				}
 				await client.request("run.subscribe", { runId: accepted.runId });
 			}
 			setPrompt("");
+			localStorage.removeItem(PROMPT_DRAFT_KEY);
 			setSteerMode(false);
 			window.setTimeout(() => void refresh(client), 150);
 		} catch (cause) {
@@ -276,7 +308,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 								type="password"
 								autoComplete="off"
 								placeholder={
-									environmentToken
+									configuredToken
 										? "Using VITE_CLINE_GATEWAY_TOKEN"
 										: "Paste token or configure environment"
 								}
@@ -415,8 +447,12 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 							}
 							onClick={() => setSelectedSessionId(session.sessionId)}
 						>
-							<strong>{shortId(session.sessionId)}</strong>
-							<small>{new Date(session.createdAt).toLocaleString()}</small>
+							<time dateTime={new Date(session.createdAt).toISOString()}>
+								{new Date(session.createdAt).toLocaleString([], {
+									dateStyle: "medium",
+									timeStyle: "short",
+								})}
+							</time>
 						</button>
 					))}
 				</nav>
@@ -530,7 +566,11 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 					</div>
 					<textarea
 						value={prompt}
-						onChange={(e) => setPrompt(e.target.value)}
+						onChange={(e) => {
+							const value = e.target.value;
+							setPrompt(value);
+							localStorage.setItem(PROMPT_DRAFT_KEY, value);
+						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
@@ -669,9 +709,10 @@ function projectTimeline(events: GatewayEvent[]): TimelineItem[] {
 }
 
 function messageText(content: unknown): string {
-	if (typeof content === "string") return content;
+	if (typeof content === "string") return withoutGatewayUserContext(content);
 	if (Array.isArray(content))
-		return content
+		return withoutGatewayUserContext(
+			content
 			.map((part) =>
 				typeof part === "string"
 					? part
@@ -679,8 +720,19 @@ function messageText(content: unknown): string {
 						? String(part.text)
 						: "",
 			)
-			.join("\n");
+			.join("\n"),
+		);
 	return content ? JSON.stringify(content, null, 2) : "";
+}
+
+function withGatewayUserContext(text: string, userDisplayName?: string): string {
+	const submittedBy = userDisplayName?.trim();
+	if (!submittedBy) return text;
+	return `<gateway_context>${JSON.stringify({ submittedBy })}</gateway_context>\n\n${text}`;
+}
+
+function withoutGatewayUserContext(text: string): string {
+	return text.replace(/^<gateway_context>[^\n]*<\/gateway_context>\s*/u, "");
 }
 
 function projectRunStates(events: GatewayEvent[]) {

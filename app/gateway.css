@@ -868,14 +868,9 @@ button:disabled {
 	background: #1c1f27;
 	border-color: #30333d;
 }
-.session-list strong {
-	font:
-		11px ui-monospace,
-		monospace;
-}
-.session-list small {
-	color: #646873;
-	font-size: 9px;
+.session-list time {
+	color: #a4a7b0;
+	font-size: 10px;
 }
 .disconnect {
 	margin-top: auto;
