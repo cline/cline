@@ -18,6 +18,7 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	reconcilePendingCloudHandoff,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	updateHandoffMetadataOrThrow,
@@ -1598,6 +1599,100 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
+	const pendingFingerprint = {
+		repoUrl: "https://github.com/cline/cline.git",
+		branch: "main",
+		headSha: "old-head",
+		modelId: "anthropic/claude-sonnet-4.6",
+	};
+	const pendingMetadata = {
+		workspace: "preserved",
+		handoff: {
+			status: "pending" as const,
+			toCloudSessionId: "ses-old-target",
+			handedOffAt: "2026-08-18T00:00:00.000Z",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=ses-old-target",
+			fingerprint: pendingFingerprint,
+		},
+	};
+	const changedFingerprint = { ...pendingFingerprint, headSha: "new-head" };
+
+	it("preserves a mismatched pending handoff while its target exists", async () => {
+		const update = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{ handoffTargetExists: vi.fn(async () => true) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+				},
+			),
+		).rejects.toThrow("still pending for a different");
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("clears a mismatched pending handoff only after the target is gone", async () => {
+		const update = vi.fn(async () => ({ updated: true }));
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{ handoffTargetExists: vi.fn(async () => false) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+				},
+			),
+		).resolves.toEqual({ metadata: { workspace: "preserved" } });
+		expect(update).toHaveBeenCalledWith("local-1", {
+			metadata: { workspace: "preserved" },
+		});
+	});
+
+	it("preserves pending lineage when target lookup is uncertain", async () => {
+		const update = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update } as never,
+				{
+					handoffTargetExists: vi.fn(async () => {
+						throw new Error("network unavailable");
+					}),
+				},
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+				},
+			),
+		).rejects.toThrow("network unavailable");
+		expect(update).not.toHaveBeenCalled();
+	});
+
+	it("keeps the source locked when clearing gone lineage is not persisted", async () => {
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update: vi.fn(async () => ({ updated: false })) } as never,
+				{ handoffTargetExists: vi.fn(async () => false) },
+				{
+					sourceSessionId: "local-1",
+					metadata: pendingMetadata,
+					pending: pendingMetadata.handoff,
+					fingerprint: changedFingerprint,
+					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+				},
+			),
+		).rejects.toThrow("local pending handoff record could not be cleared");
+	});
+
 	it("fails when a required handoff metadata update is not persisted", async () => {
 		const update = vi.fn(async () => ({ updated: false }));
 		await expect(

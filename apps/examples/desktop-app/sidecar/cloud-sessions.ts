@@ -1318,6 +1318,27 @@ export class CloudSessionManager {
 		return scoped;
 	}
 
+	/**
+	 * Checks whether an exact handoff target still exists without waiting for
+	 * provisioning. Only an authoritative gone response is treated as absent;
+	 * auth, network, and server failures remain errors so callers preserve the
+	 * local recovery record.
+	 */
+	async handoffTargetExists(sessionId: string): Promise<boolean> {
+		try {
+			await this.options.api.status(sessionId);
+			return true;
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				return false;
+			}
+			throw error;
+		}
+	}
+
 	private async resolveActiveOrganizationId(options?: {
 		fresh?: boolean;
 	}): Promise<string | undefined> {

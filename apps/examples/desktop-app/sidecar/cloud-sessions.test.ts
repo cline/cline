@@ -94,6 +94,44 @@ function createContext(): {
 	return { ctx, events };
 }
 
+describe("cloud handoff target existence", () => {
+	function createManager(status: () => Promise<unknown>): CloudSessionManager {
+		const { ctx } = createContext();
+		return new CloudSessionManager(ctx, {
+			api: { status } as never,
+			getAuthToken: async () => "token",
+			apiBaseUrl: "https://api.example.com",
+		});
+	}
+
+	it("reports an existing target without waiting for provisioning", async () => {
+		await expect(
+			createManager(async () => ({
+				status: "provisioning",
+			})).handoffTargetExists("ses-existing"),
+		).resolves.toBe(true);
+	});
+
+	it.each([
+		"session_not_found",
+		"session_expired",
+	] as const)("treats %s as authoritative absence", async (code) => {
+		await expect(
+			createManager(async () => {
+				throw new CloudSessionError(code, "gone");
+			}).handoffTargetExists("ses-gone"),
+		).resolves.toBe(false);
+	});
+
+	it("does not treat transient lookup failures as absence", async () => {
+		await expect(
+			createManager(async () => {
+				throw new CloudSessionError("request_failed", "unavailable");
+			}).handoffTargetExists("ses-unknown"),
+		).rejects.toMatchObject({ code: "request_failed" });
+	});
+});
+
 class FakeHubClient {
 	events?: (event: HubEventEnvelope) => void;
 	disposed = false;
