@@ -139,7 +139,7 @@ function AccountActionRow(props: {
 					fg={props.selected ? palette.textOnSelection : "gray"}
 					flexShrink={0}
 				>
-					{props.selected ? ">" : " "}
+					{props.selected ? "❯" : " "}
 				</text>
 				<text fg={fg} flexShrink={0}>
 					{props.action.label}
@@ -179,7 +179,7 @@ function OrganizationRow(props: {
 					fg={props.selected ? palette.textOnSelection : "gray"}
 					flexShrink={0}
 				>
-					{props.selected ? ">" : " "}
+					{props.selected ? "❯" : " "}
 				</text>
 				<text
 					fg={props.selected ? palette.textOnSelection : undefined}
