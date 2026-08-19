@@ -279,3 +279,49 @@ describe("retired bots", () => {
 		expect(bot.session).toBeUndefined();
 	});
 });
+
+describe("crash recovery re-admission (Gateway RFC, Phase 3)", () => {
+	it("re-admits committed queued runs in call order and executes them FIFO", () => {
+		const { ports, lead, bot } = setup();
+		// Simulate a previous process: the session and two queued run
+		// records are durable, but the new Bot facade has an empty queue.
+		bot.submitPrompt("held", { workspace: { rootPath: "/repo/a" } });
+		const ackA = bot.submitPrompt("recovered A");
+		const ackB = bot.submitPrompt("recovered B");
+		const recordA = ports.runs.get(ackA.runId);
+		const recordB = ports.runs.get(ackB.runId);
+		if (!recordA || !recordB) {
+			throw new Error("run records missing");
+		}
+
+		const restarted = new Bot(lead.identity.botId, ports);
+		restarted.recoverQueuedRun(recordA);
+		restarted.recoverQueuedRun(recordB);
+		// Duplicate recovery is a no-op, not a duplicate admission.
+		restarted.recoverQueuedRun(recordA);
+
+		// The restarted facade starts A first (FIFO), then B.
+		const started = ports.engine.handles.map(
+			(handle) => handle.invocation.input,
+		);
+		expect(started[started.length - 1]).toBe("recovered A");
+		expect(ports.runs.get(ackA.runId)?.state).toBe("running");
+		expect(ports.runs.get(ackB.runId)?.state).toBe("queued");
+	});
+
+	it("rejects records that are not queued or belong elsewhere", () => {
+		const { ports, lead, bot } = setup();
+		ports.engine.autoOutcome = () => ({ outputText: "done" });
+		const ack = bot.submitPrompt("finish", {
+			workspace: { rootPath: "/repo/a" },
+		});
+		const running = ports.runs.get(ack.runId);
+		if (!running) {
+			throw new Error("run record missing");
+		}
+		const restarted = new Bot(lead.identity.botId, ports);
+		expect(() => restarted.recoverQueuedRun(running)).toThrow(
+			RunAdmissionError,
+		);
+	});
+});
