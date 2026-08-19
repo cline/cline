@@ -59,6 +59,7 @@ function commandErrorReply(
 function registrationAuthority(
 	frame: HubCommandFrame,
 	serverWorkspaceRoot?: string,
+	allowRegisteredWorkspace = false,
 ): HubConnectionAuthority {
 	const registration = (frame.envelope.payload ??
 		{}) as unknown as HubClientRegistration;
@@ -67,11 +68,17 @@ function registrationAuthority(
 	if (!clientId || (envelopeClientId && clientId !== envelopeClientId)) {
 		throw new Error("Registration clientId must match the command connection");
 	}
-	const authorizedRoot = serverWorkspaceRoot?.trim();
 	const requestedRoot = registration.workspaceContext?.workspaceRoot?.trim();
+	const authorizedRoot = allowRegisteredWorkspace
+		? requestedRoot || serverWorkspaceRoot?.trim()
+		: serverWorkspaceRoot?.trim();
 	if (!authorizedRoot) return { clientId };
 	const workspaceRoot = resolve(authorizedRoot);
-	if (requestedRoot && resolve(requestedRoot) !== workspaceRoot) {
+	if (
+		!allowRegisteredWorkspace &&
+		requestedRoot &&
+		resolve(requestedRoot) !== workspaceRoot
+	) {
 		throw new Error(
 			"Registration workspace must match the Hub-authorized workspace",
 		);
@@ -97,7 +104,10 @@ export class BrowserWebSocketHubAdapter {
 		private readonly workspaceRoot?: string,
 	) {}
 
-	attach(socket: BrowserHubSocketLike): () => void {
+	attach(
+		socket: BrowserHubSocketLike,
+		options: { allowRegisteredWorkspace?: boolean } = {},
+	): () => void {
 		const subscriptions = new Map<string, () => void>();
 		const registeredClientIds = new Set<string>();
 		let authority: HubConnectionAuthority | undefined;
@@ -154,7 +164,11 @@ export class BrowserWebSocketHubAdapter {
 						}
 						if (frame.envelope.command === "client.register") {
 							try {
-								registration = registrationAuthority(frame, this.workspaceRoot);
+								registration = registrationAuthority(
+									frame,
+									this.workspaceRoot,
+									options.allowRegisteredWorkspace,
+								);
 							} catch (error) {
 								sendFrame({
 									kind: "reply",

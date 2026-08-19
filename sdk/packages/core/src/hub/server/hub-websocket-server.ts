@@ -576,11 +576,12 @@ export async function startHubWebSocketServer(
 			socket.destroy();
 			return;
 		}
+		const isTokenAuthorized = isValidHubAuthToken(
+			readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
+			authToken,
+		);
 		const isAuthorized =
-			isValidHubAuthToken(
-				readWebSocketAuthToken(request.headers["sec-websocket-protocol"]),
-				authToken,
-			) ||
+			isTokenAuthorized ||
 			(isLocalHubHostName(host) && isLocalHubOrigin(request.headers.origin));
 		if (!isAuthorized) {
 			rejectUnauthorizedUpgradeSocket(socket);
@@ -598,7 +599,9 @@ export async function startHubWebSocketServer(
 						tracked.isAlive = true;
 					});
 					sockets.add(tracked);
-					const detach = adapter.attach(wrapWsSocket(websocket));
+					const detach = adapter.attach(wrapWsSocket(websocket), {
+						allowRegisteredWorkspace: isTokenAuthorized,
+					});
 					cleanup.add(detach);
 					websocket.once("close", () => {
 						sockets.delete(tracked);

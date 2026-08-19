@@ -220,6 +220,68 @@ describe("BrowserWebSocketHubAdapter", () => {
 		expect(transport.command).not.toHaveBeenCalled();
 	});
 
+	it("allows a token-authenticated client to bind its registered workspace", async () => {
+		const transport = {
+			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
+				version: "v1" as const,
+				requestId: envelope.requestId,
+				ok: true,
+			})),
+			subscribe: vi.fn(),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(
+			transport,
+			undefined,
+			"/daemon-workspace",
+		).attach(socket, { allowRegisteredWorkspace: true });
+
+		for (const [requestId, command] of [
+			["register", "client.register"],
+			["list", "schedule.list"],
+		] as const) {
+			socket.emitMessage(
+				JSON.stringify({
+					kind: "command",
+					envelope: {
+						version: "v1",
+						command,
+						requestId,
+						clientId: "client-1",
+						payload:
+							command === "client.register"
+								? {
+									clientId: "client-1",
+									clientType: "test",
+									transport: "websocket",
+									workspaceContext: {
+										workspaceRoot: "/second-workspace",
+										cwd: "/second-workspace/project",
+									},
+								}
+								: undefined,
+					},
+				}),
+			);
+			await vi.waitFor(() =>
+				expect(transport.command).toHaveBeenCalledTimes(
+					requestId === "register" ? 1 : 2,
+				),
+			);
+			if (requestId === "register") {
+				await vi.waitFor(() => expect(socket.sent).toHaveLength(1));
+			}
+		}
+
+		expect(transport.command.mock.calls[1]?.[1]).toEqual({
+			clientId: "client-1",
+			workspaceContext: {
+				workspaceRoot: resolve("/second-workspace"),
+				cwd: resolve("/second-workspace/project"),
+			},
+		});
+	});
+
 	it("marks commands before registration as explicitly unauthorized", async () => {
 		const transport = {
 			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
