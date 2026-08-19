@@ -801,6 +801,28 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("copies a user message without its transport envelope", async () => {
+		const writeText = vi.fn(async () => undefined);
+		Object.assign(navigator, { clipboard: { writeText } });
+		await renderMessages([
+			{
+				id: "copyable-user",
+				sessionId: "session-1",
+				role: "user",
+				content: '<user_input mode="act">Original prompt</user_input>',
+				createdAt: 1,
+			},
+		]);
+
+		const copyButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Copy user message"]',
+		);
+		await act(async () => copyButton?.click());
+
+		expect(writeText).toHaveBeenCalledOnce();
+		expect(writeText).toHaveBeenCalledWith("Original prompt");
+	});
+
 	it("counts folded system-displayed runs before an editable user message", async () => {
 		const onEditMessage = vi.fn(async () => undefined);
 		await renderMessages(
