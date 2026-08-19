@@ -1535,11 +1535,20 @@ export class AgentRuntime {
 		if (!consumePendingUserMessage) {
 			return undefined;
 		}
-		const pending = (await consumePendingUserMessage())?.trim();
+		const consumed = await consumePendingUserMessage();
+		const pending = (
+			typeof consumed === "string" ? consumed : consumed?.text
+		)?.trim();
 		if (!pending) {
 			return undefined;
 		}
+		// The object form carries display metadata (e.g. monitor provenance)
+		// that must survive on the persisted message; the model-facing text is
+		// unchanged either way.
+		const extraMetadata =
+			typeof consumed === "object" ? consumed.metadata : undefined;
 		const message = createMessage("user", [{ type: "text", text: pending }], {
+			...extraMetadata,
 			userRunSpan: 0,
 		});
 		this.state.messages.push(message);

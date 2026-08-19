@@ -63,6 +63,14 @@ export interface MonitorPromptOrigin {
 	kind: "monitor";
 	/** In delivery order; the steer queue appends as it merges reports. */
 	updates: MonitorPromptUpdate[];
+	/**
+	 * Updates dropped from the front of `updates` to bound the origin. The
+	 * model-facing text has its own (character) bound, so the card set can
+	 * shrink before the text does; a nonzero count tells UIs to say that
+	 * earlier updates were omitted instead of silently underreporting what
+	 * the model saw.
+	 */
+	droppedUpdates?: number;
 }
 
 /**

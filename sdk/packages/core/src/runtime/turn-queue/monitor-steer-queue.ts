@@ -77,9 +77,17 @@ export interface MonitorSteerQueueOptions {
 
 interface SessionState {
 	outstandingId?: string;
+	/**
+	 * The prompt text this queue last wrote to the outstanding entry. A
+	 * mismatch on the next report means the user edited the prompt, which
+	 * makes it theirs: reports must stop merging into it.
+	 */
+	outstandingText?: string;
 	lastEnqueuedAt: number;
 	buffered?: string;
 	bufferedUpdates: MonitorPromptUpdate[];
+	/** Updates dropped from bufferedUpdates while waiting out the cooldown. */
+	bufferedDropped: number;
 	timer?: NodeJS.Timeout;
 }
 
@@ -117,6 +125,7 @@ export class MonitorSteerQueue {
 		const state = this.sessions.get(sessionId) ?? {
 			lastEnqueuedAt: Number.NEGATIVE_INFINITY,
 			bufferedUpdates: [],
+			bufferedDropped: 0,
 		};
 		this.sessions.set(sessionId, state);
 		const updates = update ? [update] : [];
@@ -125,22 +134,23 @@ export class MonitorSteerQueue {
 		// report into it rather than adding a second one.
 		const outstanding = this.findOutstanding(sessionId, state);
 		if (outstanding) {
+			const merged = this.merge(outstanding.prompt, text);
 			this.deps.update({
 				sessionId,
 				promptId: outstanding.id,
-				prompt: this.merge(outstanding.prompt, text),
-				origin: this.mergeOrigin(originUpdates(outstanding.origin), updates),
+				prompt: merged,
+				origin: this.mergeOrigin(monitorOrigin(outstanding.origin), updates),
 			});
+			state.outstandingText = merged;
 			return;
 		}
 
 		const elapsed = this.now() - state.lastEnqueuedAt;
 		if (elapsed < this.cooldownMs) {
 			state.buffered = state.buffered ? this.merge(state.buffered, text) : text;
-			state.bufferedUpdates = this.cappedUpdates([
-				...state.bufferedUpdates,
-				...updates,
-			]);
+			const combined = [...state.bufferedUpdates, ...updates];
+			state.bufferedUpdates = this.cappedUpdates(combined);
+			state.bufferedDropped += combined.length - state.bufferedUpdates.length;
 			if (!state.timer) {
 				state.timer = setTimeout(() => {
 					state.timer = undefined;
@@ -151,7 +161,7 @@ export class MonitorSteerQueue {
 			return;
 		}
 
-		this.enqueue(sessionId, state, text, this.mergeOrigin([], updates));
+		this.enqueue(sessionId, state, text, this.mergeOrigin(undefined, updates));
 	}
 
 	/** Drops all state for a session. Call on teardown so timers cannot leak. */
@@ -171,22 +181,35 @@ export class MonitorSteerQueue {
 		if (!state?.buffered) return;
 		const text = state.buffered;
 		const updates = state.bufferedUpdates;
+		const dropped = state.bufferedDropped;
 		state.buffered = undefined;
 		state.bufferedUpdates = [];
+		state.bufferedDropped = 0;
 
 		// The agent may have gone quiet and left an earlier prompt queued while
 		// this was buffering; merge rather than stacking a second one.
 		const outstanding = this.findOutstanding(sessionId, state);
 		if (outstanding) {
+			const merged = this.merge(outstanding.prompt, text);
 			this.deps.update({
 				sessionId,
 				promptId: outstanding.id,
-				prompt: this.merge(outstanding.prompt, text),
-				origin: this.mergeOrigin(originUpdates(outstanding.origin), updates),
+				prompt: merged,
+				origin: this.mergeOrigin(
+					monitorOrigin(outstanding.origin),
+					updates,
+					dropped,
+				),
 			});
+			state.outstandingText = merged;
 			return;
 		}
-		this.enqueue(sessionId, state, text, this.mergeOrigin([], updates));
+		this.enqueue(
+			sessionId,
+			state,
+			text,
+			this.mergeOrigin(undefined, updates, dropped),
+		);
 	}
 
 	private enqueue(
@@ -203,6 +226,7 @@ export class MonitorSteerQueue {
 		state.outstandingId = this.deps
 			.list(sessionId)
 			.find((prompt) => prompt.prompt === text)?.id;
+		state.outstandingText = state.outstandingId ? text : undefined;
 	}
 
 	private findOutstanding(
@@ -213,17 +237,41 @@ export class MonitorSteerQueue {
 		const found = this.deps
 			.list(sessionId)
 			.find((prompt) => prompt.id === state.outstandingId);
-		if (!found) state.outstandingId = undefined;
+		if (!found) {
+			state.outstandingId = undefined;
+			state.outstandingText = undefined;
+			return undefined;
+		}
+		// A user edit rewrote the prompt (and cleared its monitor origin): it
+		// is their prompt now. Merging into it would splice fenced monitor
+		// text into what the user wrote and re-stamp the whole thing as
+		// monitor-originated, so UIs would render cards and hide the user's
+		// words. Disown it and let later reports enqueue a fresh prompt.
+		if (found.prompt !== state.outstandingText) {
+			state.outstandingId = undefined;
+			state.outstandingText = undefined;
+			return undefined;
+		}
 		return found;
 	}
 
 	private mergeOrigin(
-		existing: readonly MonitorPromptUpdate[],
+		existing: MonitorPromptOrigin | undefined,
 		additions: readonly MonitorPromptUpdate[],
+		alreadyDropped = 0,
 	): MonitorPromptOrigin | undefined {
-		const updates = this.cappedUpdates([...existing, ...additions]);
+		const combined = [...(existing?.updates ?? []), ...additions];
+		const updates = this.cappedUpdates(combined);
 		if (updates.length === 0) return undefined;
-		return { kind: "monitor", updates };
+		const droppedUpdates =
+			(existing?.droppedUpdates ?? 0) +
+			alreadyDropped +
+			(combined.length - updates.length);
+		return {
+			kind: "monitor",
+			updates,
+			...(droppedUpdates > 0 ? { droppedUpdates } : {}),
+		};
 	}
 
 	private cappedUpdates(
@@ -261,8 +309,8 @@ export class MonitorSteerQueue {
 	}
 }
 
-function originUpdates(
+function monitorOrigin(
 	origin: SessionPendingPrompt["origin"],
-): readonly MonitorPromptUpdate[] {
-	return origin?.kind === "monitor" ? origin.updates : [];
+): MonitorPromptOrigin | undefined {
+	return origin?.kind === "monitor" ? origin : undefined;
 }

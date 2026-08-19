@@ -15,6 +15,74 @@ function getDisplayRole(msg: MessageWithMetadata): string | undefined {
 	return typeof role === "string" ? role.trim().toLowerCase() : undefined;
 }
 
+type MonitorUpdateEntry = Extract<ChatEntry, { kind: "monitor_update" }>;
+
+function parseMonitorExit(value: unknown): MonitorUpdateEntry["exit"] {
+	if (!value || typeof value !== "object") return undefined;
+	const exit = value as Record<string, unknown>;
+	if (
+		exit.status !== "exited" &&
+		exit.status !== "stopped" &&
+		exit.status !== "failed"
+	) {
+		return undefined;
+	}
+	return {
+		status: exit.status,
+		stoppedBy: exit.stoppedBy === "user" ? "user" : undefined,
+		code: typeof exit.code === "number" ? exit.code : null,
+		signal: typeof exit.signal === "string" ? exit.signal : undefined,
+		error: typeof exit.error === "string" ? exit.error : undefined,
+	};
+}
+
+/**
+ * Rebuilds monitor cards from the display metadata persisted with a
+ * monitor-originated steer message. Without it a resumed transcript would
+ * fall back to echoing the fenced model-facing text at the user. The
+ * metadata round-trips through JSON, so every field is validated.
+ */
+function readMonitorOriginEntries(
+	msg: MessageWithMetadata,
+): MonitorUpdateEntry[] | undefined {
+	if (msg.role !== "user") return undefined;
+	const origin = msg.metadata?.monitorOrigin as
+		| { kind?: unknown; updates?: unknown; droppedUpdates?: unknown }
+		| undefined;
+	if (!origin || origin.kind !== "monitor" || !Array.isArray(origin.updates)) {
+		return undefined;
+	}
+	const entries: MonitorUpdateEntry[] = [];
+	for (const update of origin.updates) {
+		if (!update || typeof update !== "object") continue;
+		const fields = update as Record<string, unknown>;
+		if (typeof fields.name !== "string" || !Array.isArray(fields.lines)) {
+			continue;
+		}
+		entries.push({
+			kind: "monitor_update",
+			name: fields.name,
+			description:
+				typeof fields.description === "string" ? fields.description : "",
+			lines: fields.lines.filter(
+				(line): line is string => typeof line === "string",
+			),
+			droppedLines:
+				typeof fields.droppedLines === "number" && fields.droppedLines > 0
+					? fields.droppedLines
+					: undefined,
+			omittedEarlierUpdates:
+				entries.length === 0 &&
+				typeof origin.droppedUpdates === "number" &&
+				origin.droppedUpdates > 0
+					? origin.droppedUpdates
+					: undefined,
+			exit: parseMonitorExit(fields.exit),
+		});
+	}
+	return entries.length > 0 ? entries : undefined;
+}
+
 // The act-mode continuation prompt is runtime-generated, not typed by the
 // user, so it should not surface as a user bubble in the transcript.
 function isSyntheticUserText(text: string): boolean {
@@ -66,6 +134,14 @@ export function hydrateSessionMessages(
 	for (const { message: msg } of projectSessionMessagesForDisplay(messages)) {
 		const displayRole = getDisplayRole(msg);
 		if (displayRole === "system" || displayRole === "status") {
+			continue;
+		}
+
+		// Monitor-originated steer prompts render as the same compact cards
+		// they had live; the fenced model-facing text is never shown.
+		const monitorEntries = readMonitorOriginEntries(msg);
+		if (monitorEntries) {
+			entries.push(...monitorEntries);
 			continue;
 		}
 

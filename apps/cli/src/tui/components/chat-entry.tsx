@@ -799,6 +799,15 @@ export function ChatEntryView(props: {
 						<text fg={defaultFg}>{entry.name}</text>
 						<text fg="gray"> — {entry.description}</text>
 					</box>
+					{entry.omittedEarlierUpdates ? (
+						<box flexDirection="row">
+							<box width={2} />
+							<text fg="gray">
+								[{entry.omittedEarlierUpdates} earlier update
+								{entry.omittedEarlierUpdates === 1 ? "" : "s"} not shown]
+							</text>
+						</box>
+					) : null}
 					{entry.lines.map((line, index) => (
 						<box
 							flexDirection="row"

@@ -859,6 +859,12 @@ export const ChatRowContent = memo(
 										<span className="font-medium">{update.name}</span>
 										<span className="text-description"> {update.description}</span>
 									</div>
+									{update.omittedEarlierUpdates ? (
+										<div className="text-description text-sm">
+											[{update.omittedEarlierUpdates} earlier update
+											{update.omittedEarlierUpdates === 1 ? "" : "s"} not shown]
+										</div>
+									) : null}
 									{update.lines.length > 0 && (
 										<pre className="ph-no-capture mt-1 mb-0 max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-code text-sm text-foreground/90">
 											{update.lines.join("\n")}

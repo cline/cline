@@ -421,23 +421,29 @@ export function useAgentEventHandlers(deps: AgentEventDeps) {
 			// compact cards instead of echoing the model-facing fenced text
 			// (untrusted-content guidance and all) at the user.
 			if (event.origin?.kind === "monitor") {
-				for (const update of event.origin.updates) {
+				event.origin.updates.forEach((update, index) => {
 					appendEntry({
 						kind: "monitor_update",
 						name: update.name,
 						description: update.description,
 						lines: update.lines,
 						droppedLines: update.droppedLines,
+						// Earlier whole updates were dropped to bound the card
+						// set; announce them on the first card so the user is
+						// never shown less than the model received.
+						omittedEarlierUpdates:
+							index === 0 ? event.origin?.droppedUpdates : undefined,
 						exit: update.exit
 							? {
 									status: update.exit.status,
 									stoppedBy: update.exit.stoppedBy,
 									code: update.exit.code,
+									signal: update.exit.signal,
 									error: update.exit.error,
 								}
 							: undefined,
 					});
-				}
+				});
 				return;
 			}
 			// Display boundary: formatDisplayUserInput strips runtime-generated

@@ -836,12 +836,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			completionPolicy: runtime.completionPolicy,
 			consumePendingUserMessage: () => {
 				const entry = this.pendingPromptsController.consumeSteer(sessionId);
-				return entry
-					? formatModePrompt(
-							entry.prompt,
-							entry.mode ?? configWithProvider.mode,
-						)
-					: undefined;
+				if (!entry) {
+					return undefined;
+				}
+				const text = formatModePrompt(
+					entry.prompt,
+					entry.mode ?? configWithProvider.mode,
+				);
+				// Monitor provenance rides along as display metadata so resumed
+				// transcripts can render cards instead of the fenced text. The
+				// model-facing prompt is exactly `text` either way.
+				return entry.origin?.kind === "monitor"
+					? { text, metadata: { monitorOrigin: entry.origin } }
+					: text;
 			},
 			logger: runtime.logger ?? configWithProvider.logger,
 			extensionContext: configWithProvider.extensionContext,
@@ -1121,6 +1128,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				delivery,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				origin: input.origin,
 			});
 			return undefined;
 		}
@@ -1130,6 +1138,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				mode: input.mode,
 				userImages: input.userImages,
 				userFiles: input.userFiles,
+				origin: input.origin,
 			});
 			if (!session.interactive) {
 				await this.finalizeSingleRun(session, result.finishReason);
@@ -1749,6 +1758,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 			mode?: SendSessionInput["mode"];
 			userImages?: string[];
 			userFiles?: string[];
+			origin?: SendSessionInput["origin"];
 		},
 	): Promise<AgentResult> {
 		const preparedInput = await this.prepareTurnInput(session, input);
@@ -1791,6 +1801,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				prompt,
 				preparedInput.userImages,
 				preparedInput.userFiles,
+				input.origin,
 			);
 
 			while (shouldAutoContinueTeamRuns(session, result.finishReason)) {
@@ -1921,6 +1932,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		prompt: string,
 		userImages?: string[],
 		userFiles?: string[],
+		origin?: SendSessionInput["origin"],
 	): Promise<AgentResult> {
 		const shouldContinue =
 			session.started || session.agent.getMessages().length > 0;
@@ -1951,9 +1963,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		try {
+			// Monitor provenance persists as display metadata on the user turn
+			// so resumed transcripts can render cards instead of the fence.
+			const turnOptions =
+				origin?.kind === "monitor"
+					? { userMetadata: { monitorOrigin: origin } }
+					: undefined;
 			const runFn = shouldContinue
-				? () => session.agent.continue(prompt, userImages, userFiles)
-				: () => session.agent.run(prompt, userImages, userFiles);
+				? () =>
+						session.agent.continue(prompt, userImages, userFiles, turnOptions)
+				: () => session.agent.run(prompt, userImages, userFiles, turnOptions);
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,

@@ -15,6 +15,10 @@ export function parseMonitorUpdate(text: string | undefined): MonitorUpdatePaylo
 			description: typeof parsed.description === "string" ? parsed.description : "",
 			lines: parsed.lines.filter((line): line is string => typeof line === "string"),
 			droppedLines: typeof parsed.droppedLines === "number" ? parsed.droppedLines : undefined,
+			omittedEarlierUpdates:
+				typeof parsed.omittedEarlierUpdates === "number" && parsed.omittedEarlierUpdates > 0
+					? parsed.omittedEarlierUpdates
+					: undefined,
 			exit: parsed.exit,
 		}
 	} catch {
@@ -30,6 +34,9 @@ export function formatMonitorUpdateExit(exit: NonNullable<MonitorUpdatePayload["
 		case "failed":
 			return exit.error ? `failed: ${exit.error}` : "failed"
 		default:
-			return exit.code !== undefined && exit.code !== null ? `ended with exit code ${exit.code}` : "ended"
+			if (exit.code !== undefined && exit.code !== null) {
+				return `ended with exit code ${exit.code}`
+			}
+			return exit.signal ? `ended on signal ${exit.signal}` : "ended"
 	}
 }

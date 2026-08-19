@@ -893,12 +893,17 @@ export interface AgentConfig {
 
 	/**
 	 * Optional callback invoked at the top of each agent loop iteration
-	 * (after the first). If it returns a non-empty string, that string is
-	 * injected as a user message into the conversation before the next API
-	 * call. This allows the host to feed user input into a running loop
-	 * without waiting for the current run to finish.
+	 * (after the first). If it returns a non-empty string (or object form
+	 * with `text`), that text is injected as a user message into the
+	 * conversation before the next API call. This allows the host to feed
+	 * user input into a running loop without waiting for the current run to
+	 * finish. The object form additionally carries display metadata persisted
+	 * on the injected message (e.g. structured monitor provenance).
 	 */
-	consumePendingUserMessage?: () => string | undefined;
+	consumePendingUserMessage?: () =>
+		| string
+		| { text: string; metadata?: Record<string, unknown> }
+		| undefined;
 
 	// -------------------------------------------------------------------------
 	// Cancellation

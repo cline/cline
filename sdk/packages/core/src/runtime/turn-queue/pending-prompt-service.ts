@@ -336,6 +336,9 @@ export class PendingPromptsController {
 				...(next.mode ? { mode: next.mode } : {}),
 				userImages: next.userImages,
 				userFiles: next.userFiles,
+				// Provenance rides along so the executed turn persists it as
+				// display metadata on the user message.
+				...(next.origin ? { origin: next.origin } : {}),
 			});
 			// A turn that resolves with an error finish ran (the prompt is in
 			// the conversation and the error is surfaced), so the entry is not

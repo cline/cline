@@ -221,10 +221,17 @@ export interface MonitorUpdatePayload {
 	description: string
 	lines: string[]
 	droppedLines?: number
+	/**
+	 * Whole earlier updates dropped from this prompt's card set to bound it.
+	 * The model still saw their text (bounded separately by characters), so
+	 * the card says they exist instead of silently underreporting.
+	 */
+	omittedEarlierUpdates?: number
 	exit?: {
 		status: "exited" | "stopped" | "failed"
 		stoppedBy?: "user"
 		code?: number | null
+		signal?: string | null
 		error?: string
 	}
 }

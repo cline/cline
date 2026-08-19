@@ -292,6 +292,15 @@ export interface SessionRuntimeOrchestratorDeps {
 /** Connection overrides applied via `updateConnection`. */
 export type ConnectionOverrides = ConnectionUpdate;
 
+/** Optional per-turn extras for `run` / `continue`. */
+export interface SessionRunTurnOptions {
+	/**
+	 * Display metadata persisted on the appended user message (e.g. structured
+	 * monitor provenance). Never alters the model-facing content.
+	 */
+	userMetadata?: Record<string, unknown>;
+}
+
 // =============================================================================
 // SessionRuntime orchestrator
 // =============================================================================
@@ -672,6 +681,7 @@ export class SessionRuntime {
 		userMessage: string,
 		userImages?: string[],
 		userFiles?: string[],
+		options?: SessionRunTurnOptions,
 	): Promise<AgentResult> {
 		this.conversation.resetForRun();
 		this.resetConversationBoundaryTrackers();
@@ -679,6 +689,7 @@ export class SessionRuntime {
 			userMessage,
 			userImages,
 			userFiles,
+			userMetadata: options?.userMetadata,
 			isContinue: false,
 		});
 	}
@@ -687,11 +698,13 @@ export class SessionRuntime {
 		userMessage?: string,
 		userImages?: string[],
 		userFiles?: string[],
+		options?: SessionRunTurnOptions,
 	): Promise<AgentResult> {
 		return this.executeRun({
 			userMessage,
 			userImages,
 			userFiles,
+			userMetadata: options?.userMetadata,
 			isContinue: true,
 		});
 	}
@@ -715,6 +728,7 @@ export class SessionRuntime {
 		userMessage?: string;
 		userImages?: string[];
 		userFiles?: string[];
+		userMetadata?: Record<string, unknown>;
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
@@ -737,6 +751,7 @@ export class SessionRuntime {
 		userMessage?: string;
 		userImages?: string[];
 		userFiles?: string[];
+		userMetadata?: Record<string, unknown>;
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		const result = await this.executeRunInternal(input);
@@ -762,6 +777,7 @@ export class SessionRuntime {
 		userMessage?: string;
 		userImages?: string[];
 		userFiles?: string[];
+		userMetadata?: Record<string, unknown>;
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		if (this.shutdownCalled) {
@@ -811,7 +827,13 @@ export class SessionRuntime {
 				input.userFiles,
 				this.config.userFileContentLoader,
 			);
-			this.conversation.appendMessage({ role: "user", content });
+			this.conversation.appendMessage({
+				role: "user",
+				content,
+				// Display provenance (e.g. structured monitor origin) persists
+				// with the message; the model-facing content is untouched.
+				...(input.userMetadata ? { metadata: input.userMetadata } : {}),
+			});
 		}
 
 		// Build the AgentRuntime for this turn.

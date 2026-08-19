@@ -255,6 +255,16 @@ export interface AgentRuntimePrepareTurnResult {
 	systemPrompt?: string;
 }
 
+/**
+ * Object form of a consumed pending steer message: the model-facing text plus
+ * metadata to persist on the injected user message (display provenance only;
+ * the text the model receives is exactly `text`).
+ */
+export interface PendingUserSteerMessage {
+	text: string;
+	metadata?: Record<string, unknown>;
+}
+
 export type AgentModelFinishReason =
 	| "stop"
 	| "tool-calls"
@@ -517,11 +527,14 @@ export interface AgentRuntimeConfig {
 		| undefined;
 	// Optional host callback used by interactive sessions to inject a queued
 	// user steering message between agent loop iterations, before the next
-	// model request.
+	// model request. The object form carries display metadata (e.g. structured
+	// monitor provenance) that is persisted on the injected message without
+	// altering the model-facing text.
 	consumePendingUserMessage?: () =>
 		| string
+		| PendingUserSteerMessage
 		| undefined
-		| Promise<string | undefined>;
+		| Promise<string | PendingUserSteerMessage | undefined>;
 }
 
 // =============================================================================

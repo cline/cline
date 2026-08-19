@@ -13,8 +13,9 @@ export function formatMonitorExitLine(
 		case "failed":
 			return exit.error ? `failed: ${exit.error}` : "failed";
 		default:
-			return exit.code !== undefined && exit.code !== null
-				? `ended with exit code ${exit.code}`
-				: "ended";
+			if (exit.code !== undefined && exit.code !== null) {
+				return `ended with exit code ${exit.code}`;
+			}
+			return exit.signal ? `ended on signal ${exit.signal}` : "ended";
 	}
 }

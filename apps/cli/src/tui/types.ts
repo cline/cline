@@ -75,10 +75,18 @@ export type ChatEntry = (
 			description: string;
 			lines: string[];
 			droppedLines?: number;
+			/**
+			 * Whole earlier updates dropped from this prompt's card set to
+			 * bound it. The model still saw their text (bounded separately by
+			 * characters), so the card must say they exist rather than
+			 * silently underreport.
+			 */
+			omittedEarlierUpdates?: number;
 			exit?: {
 				status: "exited" | "stopped" | "failed";
 				stoppedBy?: "user";
 				code?: number | null;
+				signal?: string | null;
 				error?: string;
 			};
 	  }

@@ -258,4 +258,97 @@ describe("MonitorSteerQueue", () => {
 		expect(origin?.updates).toHaveLength(20);
 		expect(origin?.updates.at(-1)?.lines).toEqual(["line 24"]);
 	});
+
+	it("counts the origin updates dropped past the cap", () => {
+		// The prompt text is bounded by characters, the card set by count, so
+		// the cards can shrink before the text does. The dropped count is what
+		// lets UIs say so instead of silently showing less than the model saw.
+		const harness = createQueue();
+		for (let index = 0; index < 25; index += 1) {
+			harness.queue.deliver("s1", `report ${index}`, {
+				monitorId: "mon_1",
+				name: "ci",
+				description: "CI status",
+				lines: [`line ${index}`],
+			});
+		}
+
+		const origin = harness.prompts[0]?.origin;
+		expect(origin?.droppedUpdates).toBe(5);
+		expect(origin?.updates[0]?.lines).toEqual(["line 5"]);
+	});
+
+	it("counts updates dropped while buffering through the cooldown", async () => {
+		vi.useFakeTimers();
+		try {
+			const harness = createQueue({ cooldownMs: 100 });
+			harness.queue.deliver("s1", "first", {
+				monitorId: "mon_1",
+				name: "ci",
+				description: "CI status",
+				lines: ["first"],
+			});
+			harness.consumeAll();
+			for (let index = 0; index < 25; index += 1) {
+				harness.queue.deliver("s1", `buffered ${index}`, {
+					monitorId: "mon_1",
+					name: "ci",
+					description: "CI status",
+					lines: [`buffered ${index}`],
+				});
+			}
+			harness.advance(100);
+			await vi.advanceTimersByTimeAsync(100);
+
+			const origin = harness.prompts[0]?.origin;
+			expect(origin?.updates).toHaveLength(20);
+			expect(origin?.droppedUpdates).toBe(5);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("does not merge into a prompt the user has edited", async () => {
+		vi.useFakeTimers();
+		try {
+			const harness = createQueue({ cooldownMs: 100 });
+			harness.queue.deliver("s1", "monitor text", {
+				monitorId: "mon_1",
+				name: "ci",
+				description: "CI status",
+				lines: ["one"],
+			});
+
+			// A user edit rewrites the prompt and clears its origin: it is
+			// their prompt now. Later reports must not splice monitor output
+			// into it or re-stamp it as monitor-originated (which would hide
+			// the user's words behind a card).
+			const edited = harness.prompts[0];
+			expect(edited).toBeDefined();
+			if (edited) {
+				edited.prompt = "USER EDIT";
+				edited.origin = undefined;
+			}
+
+			harness.queue.deliver("s1", "later monitor text", {
+				monitorId: "mon_1",
+				name: "ci",
+				description: "CI status",
+				lines: ["two"],
+			});
+			// The disowned report waits out the normal cooldown before
+			// enqueueing fresh; it must never touch the edited prompt.
+			harness.advance(100);
+			await vi.advanceTimersByTimeAsync(100);
+
+			expect(harness.prompts).toHaveLength(2);
+			expect(harness.prompts[0]?.prompt).toBe("USER EDIT");
+			expect(harness.prompts[0]?.origin).toBeUndefined();
+			expect(harness.prompts[1]?.prompt).toBe("later monitor text");
+			expect(harness.prompts[1]?.origin?.kind).toBe("monitor");
+			expect(harness.prompts[1]?.origin?.updates[0]?.lines).toEqual(["two"]);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
 });
