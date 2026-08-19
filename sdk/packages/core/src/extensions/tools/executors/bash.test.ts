@@ -40,6 +40,40 @@ async function fileExists(path: string): Promise<boolean> {
 	}
 }
 
+/**
+ * Script that starts a long-lived background child inheriting the stdio
+ * pipes, prints its PID, and exits — the `my-server & echo started` shape
+ * where "exit" fires but "close" never does.
+ */
+function backgroundChildScript(extra = ""): string {
+	return [
+		'const { spawn } = require("node:child_process")',
+		`const child = spawn(process.execPath, ["-e", "setInterval(() => {}, 1_000)"], { stdio: "inherit" })`,
+		"child.unref()",
+		'process.stdout.write("started:" + child.pid + "\\n")',
+		extra,
+	]
+		.filter(Boolean)
+		.join(";");
+}
+
+function isProcessAlive(pid: number): boolean {
+	try {
+		process.kill(pid, 0);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function killProcess(pid: number): void {
+	try {
+		process.kill(pid, "SIGKILL");
+	} catch {
+		// Already gone.
+	}
+}
+
 function detachedCommandMarker(pid: number, processStartToken: string): string {
 	return `${JSON.stringify({
 		version: 1,
@@ -731,6 +765,113 @@ describe("createShellExecutor", () => {
 		await expect(shell(longRunningCommand, process.cwd(), ctx)).rejects.toThrow(
 			"timed out",
 		);
+	});
+
+	it("settles on exit when a background child keeps the stdio pipes open", async () => {
+		const shell = createShellExecutor({ timeoutMs: 30_000 });
+		let backgroundPid: number | undefined;
+		try {
+			const startedAt = Date.now();
+			const output = await shell(
+				{ command: process.execPath, args: ["-e", backgroundChildScript()] },
+				process.cwd(),
+				ctx,
+			);
+			const elapsedMs = Date.now() - startedAt;
+			expect(output).toContain("started:");
+			backgroundPid = Number(output.match(/started:(\d+)/)?.[1]);
+			expect(backgroundPid).toBeGreaterThan(0);
+			// Settled by the short stream-drain grace period after "exit",
+			// not by the 30s command timeout.
+			expect(elapsedMs).toBeLessThan(10_000);
+			// The deliberately started background child must not be killed.
+			expect(isProcessAlive(backgroundPid)).toBe(true);
+		} finally {
+			if (backgroundPid) killProcess(backgroundPid);
+		}
+	}, 15_000);
+
+	it("rejects with CommandExitError when the command fails but a background child lingers", async () => {
+		const shell = createShellExecutor({ timeoutMs: 30_000 });
+		let backgroundPid: number | undefined;
+		let error: unknown;
+		try {
+			try {
+				await shell(
+					{
+						command: process.execPath,
+						args: ["-e", backgroundChildScript("process.exitCode = 3")],
+					},
+					process.cwd(),
+					ctx,
+				);
+			} catch (caught) {
+				error = caught;
+			}
+
+			if (!(error instanceof CommandExitError)) {
+				throw new Error("Expected CommandExitError");
+			}
+			expect(error.exitCode).toBe(3);
+			expect(error.output).toContain("[Command exited with code 3]");
+			// The output collected before the drain settles must survive.
+			expect(error.output).toContain("started:");
+			backgroundPid = Number(error.output.match(/started:(\d+)/)?.[1]);
+		} finally {
+			if (backgroundPid) killProcess(backgroundPid);
+		}
+	}, 15_000);
+
+	it("returns full output for a large-output command despite exit racing close", async () => {
+		// "exit" fires while pipe data is still buffered; "close" arrives
+		// once it drains. The drain grace path must not cut this short or
+		// truncate what a normal command produced.
+		const payloadChars = 2_000_000;
+		const shell = createShellExecutor({
+			timeoutMs: 30_000,
+			maxOutputChars: payloadChars + 100,
+		});
+		const output = await shell(
+			{
+				command: process.execPath,
+				args: [
+					"-e",
+					`process.stdout.write("x".repeat(${payloadChars}) + "END")`,
+				],
+			},
+			process.cwd(),
+			ctx,
+		);
+		expect(output.length).toBe(payloadChars + 3);
+		expect(output.endsWith("END")).toBe(true);
+	}, 15_000);
+
+	it("still kills the process tree on timeout for a command that never exits", async () => {
+		const shell = createShellExecutor({ timeoutMs: 300 });
+		let commandPid: number | undefined;
+		await expect(
+			shell(
+				{
+					command: process.execPath,
+					args: [
+						"-e",
+						"process.stdout.write(String(process.pid)); setInterval(() => {}, 1_000)",
+					],
+				},
+				process.cwd(),
+				{
+					...ctx,
+					emitUpdate: (update) => {
+						const chunk = (update as Record<string, unknown>).chunk;
+						const match =
+							typeof chunk === "string" ? chunk.match(/\d+/) : undefined;
+						if (match) commandPid = Number(match[0]);
+					},
+				},
+			),
+		).rejects.toThrow("timed out");
+		expect(commandPid).toBeGreaterThan(0);
+		await expect.poll(() => isProcessAlive(commandPid as number)).toBe(false);
 	});
 
 	it("middle-truncates output exceeding maxOutputBytes, keeping head and tail", async () => {

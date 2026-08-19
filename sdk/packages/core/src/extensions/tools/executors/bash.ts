@@ -43,6 +43,11 @@ const DETACHED_LOG_FILENAME = "output.log";
 const DETACHED_LOG_ACTIVE_COMMAND_FILENAME = "active-command.json";
 const DETACHED_LOG_COMPLETED_FILENAME = "completed-at";
 const COMMAND_PROGRESS_FLUSH_INTERVAL_MS = 48;
+// How long after the child's "exit" event to keep waiting for "close"
+// (stdio fully drained) before settling on the exit code anyway. "close"
+// never fires when a background child inherited the stdio pipes and
+// outlives the shell (e.g. `my-server & echo started`).
+const EXIT_STREAM_DRAIN_GRACE_MS = 1_500;
 
 type CommandProgressStream = "stdout" | "stderr";
 
@@ -755,9 +760,11 @@ function spawnAndCollect(
 		};
 
 		let timeout: NodeJS.Timeout;
+		let drainTimer: NodeJS.Timeout | undefined;
 		const abortHandler = () => killAndReject(new Error("Command was aborted"));
 		const cleanup = () => {
 			clearTimeout(timeout);
+			if (drainTimer) clearTimeout(drainTimer);
 			context.signal?.removeEventListener("abort", abortHandler);
 			unregisterExecution();
 		};
@@ -896,18 +903,9 @@ function spawnAndCollect(
 			progress.append("stderr", chunk);
 		});
 
-		child.on("close", (code) => {
-			if (killed) return;
-
+		const settleWithExitCode = (code: number | null) => {
 			const out = stdout.snapshot();
 			const err = stderr.snapshot();
-			if (detached) {
-				detachedLog?.write(out.finalChunk);
-				detachedLog?.write(err.finalChunk);
-				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
-				detachedLog?.complete();
-				return;
-			}
 			if (out.finalChunk) {
 				progress.append("stdout", out.finalChunk);
 			}
@@ -953,6 +951,48 @@ function spawnAndCollect(
 				}
 				settle(() => resolve(output));
 			}
+		};
+
+		child.on("exit", (code) => {
+			if (killed || settled || detached) return;
+			// "close" normally follows within milliseconds once the stdio
+			// pipes drain, and settles the promise. But when the command left
+			// behind a background child that inherited the pipes (e.g.
+			// `my-server & echo started`), "close" never fires: the shell is
+			// gone yet the pipes stay open. Give the streams a short grace
+			// period to flush, then settle on the exit code instead of
+			// stalling until the timeout. Nothing is killed on this path —
+			// the shell exited on its own and any surviving background
+			// children are intentional.
+			drainTimer = setTimeout(() => {
+				if (killed || settled || detached) return;
+				settleWithExitCode(code);
+				child.stdout?.removeAllListeners("data");
+				child.stderr?.removeAllListeners("data");
+				child.stdout?.destroy();
+				child.stderr?.destroy();
+				child.stdin?.destroy();
+				child.unref();
+			}, EXIT_STREAM_DRAIN_GRACE_MS);
+			drainTimer.unref();
+		});
+
+		child.on("close", (code) => {
+			if (killed) return;
+
+			if (detached) {
+				const out = stdout.snapshot();
+				const err = stderr.snapshot();
+				detachedLog?.write(out.finalChunk);
+				detachedLog?.write(err.finalChunk);
+				detachedLog?.write(`\n[Command exited with code ${code ?? 1}]\n`);
+				detachedLog?.complete();
+				return;
+			}
+			// Already settled by the exit-drain path; the pipes closed later
+			// (e.g. our own stream destruction) and there is nothing to do.
+			if (settled) return;
+			settleWithExitCode(code);
 		});
 
 		child.on("error", (error) => {
