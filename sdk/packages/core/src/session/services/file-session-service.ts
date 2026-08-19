@@ -8,7 +8,11 @@ import {
 import { join } from "node:path";
 import type { BasicLogger } from "@cline/shared";
 import { resolveSessionDataDir } from "@cline/shared/storage";
-import type { SessionMessagesArtifactUploader } from "../../types/session";
+import type {
+	SessionDeleteGuard,
+	SessionListCursor,
+	SessionMessagesArtifactUploader,
+} from "../../types/session";
 import type { SessionRow } from "../models/session-row";
 import type {
 	PersistedSessionUpdateInput,
@@ -123,10 +127,11 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async listSessions(options: {
 		limit: number;
-		offset?: number;
+		startedBefore?: SessionListCursor;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]> {
+		const cursor = options.startedBefore;
 		return Object.values(this.readIndex().sessions)
 			.filter((row) =>
 				options.parentSessionId !== undefined
@@ -136,11 +141,23 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			.filter((row) =>
 				options.status !== undefined ? row.status === options.status : true,
 			)
-			.sort((a, b) => b.startedAt.localeCompare(a.startedAt))
-			.slice(
-				Math.max(0, Math.floor(options.offset ?? 0)),
-				Math.max(0, Math.floor(options.offset ?? 0)) + options.limit,
-			);
+			.filter((row) =>
+				cursor
+					? row.startedAt < cursor.startedAt ||
+						(row.startedAt === cursor.startedAt &&
+							row.sessionId < cursor.sessionId)
+					: true,
+			)
+			.sort((a, b) =>
+				a.startedAt === b.startedAt
+					? a.sessionId < b.sessionId
+						? 1
+						: -1
+					: a.startedAt < b.startedAt
+						? 1
+						: -1,
+			)
+			.slice(0, options.limit);
 	}
 
 	async updateSession(
@@ -214,9 +231,22 @@ class FileSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		return { updated: true, statusLock: next.statusLock };
 	}
 
-	async deleteSession(sessionId: string, cascade: boolean): Promise<boolean> {
+	async deleteSession(
+		sessionId: string,
+		cascade: boolean,
+		guard?: SessionDeleteGuard,
+	): Promise<boolean> {
 		const index = this.readIndex();
 		const existing = index.sessions[sessionId];
+		if (
+			guard &&
+			(!existing ||
+				existing.statusLock !== guard.expectedStatusLock ||
+				existing.updatedAt !== guard.expectedUpdatedAt)
+		) {
+			// The row changed since the caller observed it; do not delete.
+			return false;
+		}
 		if (existing) {
 			delete index.sessions[sessionId];
 		}

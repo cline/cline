@@ -27,6 +27,8 @@ import {
 } from "../../types/common";
 import type {
 	PersistedSessionUpdateInput,
+	SessionDeleteGuard,
+	SessionListCursor,
 	SessionMessagesArtifactUploader,
 	SessionPersistenceAdapter,
 	StoredMessageWithMetadata,
@@ -453,7 +455,7 @@ export class UnifiedSessionPersistenceService {
 	): Promise<SessionRow | undefined> {
 		if (
 			isNonTerminalSessionStatus(row.status) === false ||
-			!this.hasPersistedArtifacts(row) ||
+			!(await this.hasPersistedArtifacts(row)) ||
 			this.isPidAlive(row.pid)
 		) {
 			return row;
@@ -544,13 +546,48 @@ export class UnifiedSessionPersistenceService {
 		);
 	}
 
-	private hasPersistedArtifacts(row: SessionRow): boolean {
+	/**
+	 * Walks `parentSessionId` links up to the root (non-subagent) session row.
+	 * Subagent rows normally point straight at the root session, but nested
+	 * subagents may be chained through intermediate subagent rows; artifact
+	 * and liveness decisions must anchor at the root either way. Returns
+	 * `undefined` when the chain is broken (a parent row is missing) or
+	 * cyclic.
+	 */
+	private async resolveRootAncestorSession(
+		row: SessionRow,
+	): Promise<SessionRow | undefined> {
+		const seen = new Set<string>([row.sessionId]);
+		let current: SessionRow | undefined = row;
+		while (current?.isSubagent) {
+			const parentSessionId = this.normalizeArtifactPath(
+				current.parentSessionId,
+			);
+			if (!parentSessionId || seen.has(parentSessionId)) {
+				return undefined;
+			}
+			seen.add(parentSessionId);
+			current = await this.adapter.getSession(parentSessionId);
+		}
+		return current;
+	}
+
+	private async hasPersistedArtifacts(row: SessionRow): Promise<boolean> {
 		const messagesPath = this.normalizeArtifactPath(row.messagesPath);
 
 		if (row.isSubagent) {
 			if (messagesPath) {
 				return existsSync(messagesPath);
 			}
+			const root = await this.resolveRootAncestorSession(row);
+			if (root) {
+				return this.hasRootArtifacts(
+					root.sessionId,
+					this.normalizeArtifactPath(root.messagesPath),
+				);
+			}
+			// Parent chain broken: fall back to treating the direct parent id
+			// as the artifact anchor (flat parent-link topology).
 			const parentSessionId = this.normalizeArtifactPath(row.parentSessionId);
 			return parentSessionId ? this.hasRootArtifacts(parentSessionId) : false;
 		}
@@ -560,6 +597,81 @@ export class UnifiedSessionPersistenceService {
 
 	private isLiveNonTerminalSession(row: SessionRow): boolean {
 		return isNonTerminalSessionStatus(row.status) && this.isPidAlive(row.pid);
+	}
+
+	/**
+	 * True when any ancestor session along the `parentSessionId` chain is
+	 * still a live non-terminal session. Covers both flat (subagent -> root)
+	 * and nested (subagent -> subagent -> root) topologies.
+	 */
+	private async hasLiveAncestorSession(row: SessionRow): Promise<boolean> {
+		const seen = new Set<string>([row.sessionId]);
+		let current: SessionRow | undefined = row;
+		while (current?.isSubagent) {
+			const parentSessionId = this.normalizeArtifactPath(
+				current.parentSessionId,
+			);
+			if (!parentSessionId || seen.has(parentSessionId)) {
+				return false;
+			}
+			seen.add(parentSessionId);
+			current = await this.adapter.getSession(parentSessionId);
+			if (current && this.isLiveNonTerminalSession(current)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	/**
+	 * Returns whether the stale-row preconditions hold for `row`: it is not a
+	 * live non-terminal session, it is not a subagent row covered by a live
+	 * ancestor, and its artifacts are missing from disk.
+	 */
+	private async isPrunableStaleRow(row: SessionRow): Promise<boolean> {
+		if (this.isLiveNonTerminalSession(row)) {
+			return false;
+		}
+		if (
+			row.isSubagent &&
+			!this.normalizeArtifactPath(row.messagesPath) &&
+			(await this.hasLiveAncestorSession(row))
+		) {
+			return false;
+		}
+		return !(await this.hasPersistedArtifacts(row));
+	}
+
+	/**
+	 * Deletes a session row that was checked to be stale, guarding against
+	 * the row changing between the check and the delete (e.g. the session
+	 * resuming or its artifacts being recreated). The preconditions are
+	 * re-verified against a fresh read at the delete boundary, and the row
+	 * delete itself is conditional on the re-read `statusLock`/`updatedAt`
+	 * version, so a concurrent update always wins over the cleanup.
+	 */
+	private async deleteStaleSessionRow(
+		checked: SessionRow,
+	): Promise<{ deleted: boolean }> {
+		const latest = await this.adapter.getSession(checked.sessionId);
+		if (!latest) {
+			return { deleted: false };
+		}
+		if (
+			latest.statusLock !== checked.statusLock ||
+			latest.updatedAt !== checked.updatedAt ||
+			latest.startedAt !== checked.startedAt
+		) {
+			// Not the row we checked anymore; leave it alone.
+			return { deleted: false };
+		}
+		if (!(await this.isPrunableStaleRow(latest))) {
+			return { deleted: false };
+		}
+		return await this.deleteSessionRow(latest, {
+			expectedStatusLock: latest.statusLock,
+			expectedUpdatedAt: latest.updatedAt,
+		});
 	}
 
 	private async pruneMissingArtifactSessions(limit = 2000): Promise<number> {
@@ -575,23 +687,10 @@ export class UnifiedSessionPersistenceService {
 			) {
 				continue;
 			}
-			if (this.isLiveNonTerminalSession(row)) {
+			if (!(await this.isPrunableStaleRow(row))) {
 				continue;
 			}
-			if (
-				row.isSubagent &&
-				!this.normalizeArtifactPath(row.messagesPath) &&
-				row.parentSessionId
-			) {
-				const parent = await this.adapter.getSession(row.parentSessionId);
-				if (parent && this.isLiveNonTerminalSession(parent)) {
-					continue;
-				}
-			}
-			if (this.hasPersistedArtifacts(row)) {
-				continue;
-			}
-			const result = await this.deleteSession(row.sessionId);
+			const result = await this.deleteStaleSessionRow(row);
 			if (result.deleted) {
 				pruned++;
 				if (!row.isSubagent) {
@@ -674,54 +773,47 @@ export class UnifiedSessionPersistenceService {
 		return () => clearInterval(interval);
 	}
 
-	private withResolvedHistoryMetadata(row: SessionRow): SessionRow {
-		const meta = sanitizeMetadata(row.metadata ?? undefined);
-		const manifest = this.manifestStore.readSessionManifest(row.sessionId);
-		const manifestTitle = normalizeTitle(
-			typeof manifest?.metadata?.title === "string"
-				? (manifest.metadata.title as string)
-				: undefined,
-		);
-		const resolved = manifestTitle
-			? { ...(meta ?? {}), title: manifestTitle }
-			: meta;
-		return { ...row, metadata: resolved };
-	}
-
+	/**
+	 * Collects the most recent rows whose artifacts still exist on disk.
+	 *
+	 * Pagination uses a keyset cursor (the last row of the previous page)
+	 * instead of a positional OFFSET: the concurrent missing-artifact cleanup
+	 * deletes rows from this same ordered set, and with OFFSET a deletion in
+	 * an earlier page would shift surviving rows backwards across the offset
+	 * boundary and silently skip them. The cursor is a row value, so deletions
+	 * before it cannot move rows across the page boundary.
+	 *
+	 * The scan is not capped: an arbitrarily large prefix of stale rows must
+	 * not hide older valid sessions, so we keep paging until enough surviving
+	 * rows are found or the ordered set is exhausted.
+	 */
 	private async listRowsWithPersistedArtifacts(
 		requestedLimit: number,
 	): Promise<SessionRow[]> {
 		const rows: SessionRow[] = [];
-		const pageSize = Math.max(
-			requestedLimit,
-			Math.min(SESSION_LIST_PAGE_SIZE, MAX_SESSION_LIST_SCAN_ROWS),
-		);
-		const maxScanRows = Math.max(
-			DEFAULT_SESSION_CLEANUP_LIMIT,
-			Math.min(MAX_SESSION_LIST_SCAN_ROWS, requestedLimit * 10),
-		);
-		let offset = 0;
-		while (rows.length < requestedLimit && offset < maxScanRows) {
-			const batchLimit = Math.min(pageSize, maxScanRows - offset);
+		const pageSize = Math.max(requestedLimit, SESSION_LIST_PAGE_SIZE);
+		let cursor: SessionListCursor | undefined;
+		while (rows.length < requestedLimit) {
 			const batch = await this.adapter.listSessions({
-				limit: batchLimit,
-				offset,
+				limit: pageSize,
+				startedBefore: cursor,
 			});
 			if (batch.length === 0) {
 				break;
 			}
 			for (const row of batch) {
-				if (this.hasPersistedArtifacts(row)) {
+				if (rows.length >= requestedLimit) {
+					break;
+				}
+				if (await this.hasPersistedArtifacts(row)) {
 					rows.push(row);
-					if (rows.length >= requestedLimit) {
-						break;
-					}
 				}
 			}
-			if (batch.length < batchLimit) {
+			if (batch.length < pageSize) {
 				break;
 			}
-			offset += batch.length;
+			const last = batch[batch.length - 1];
+			cursor = { startedAt: last.startedAt, sessionId: last.sessionId };
 		}
 		return rows;
 	}
@@ -737,7 +829,22 @@ export class UnifiedSessionPersistenceService {
 		await this.reconcileDeadSessions(deadSessionScanLimit);
 
 		const rows = await this.listRowsWithPersistedArtifacts(requestedLimit);
-		return rows.map((row) => this.withResolvedHistoryMetadata(row));
+		// Resolve manifest titles concurrently and off-thread. Each row only needs
+		// the manifest's `metadata.title`, so read just that asynchronously instead
+		// of synchronously reading + Zod-parsing the entire manifest per row.
+		const manifestTitles = await Promise.all(
+			rows.map((row) =>
+				this.manifestStore.readSessionManifestTitle(row.sessionId),
+			),
+		);
+		return rows.map((row, index) => {
+			const meta = sanitizeMetadata(row.metadata ?? undefined);
+			const manifestTitle = normalizeTitle(manifestTitles[index]);
+			const resolved = manifestTitle
+				? { ...(meta ?? {}), title: manifestTitle }
+				: meta;
+			return { ...row, metadata: resolved };
+		});
 	}
 
 	async reconcileDeadSessions(limit = 2000): Promise<number> {
@@ -767,7 +874,25 @@ export class UnifiedSessionPersistenceService {
 		const row = await this.adapter.getSession(id);
 		if (!row) return { deleted: false };
 
-		await this.adapter.deleteSession(id, false);
+		return await this.deleteSessionRow(row);
+	}
+
+	/**
+	 * Deletes `row` plus its children and on-disk artifacts. When `guard` is
+	 * provided, the row delete is conditional on the row still matching the
+	 * observed `statusLock`/`updatedAt`; if the row changed concurrently the
+	 * delete is a no-op and neither children nor artifacts are touched.
+	 */
+	private async deleteSessionRow(
+		row: SessionRow,
+		guard?: SessionDeleteGuard,
+	): Promise<{ deleted: boolean }> {
+		const id = row.sessionId;
+		const rowDeleted = await this.adapter.deleteSession(id, false, guard);
+		if (guard && !rowDeleted) {
+			// Lost the race against a concurrent update; keep row + artifacts.
+			return { deleted: false };
+		}
 
 		if (!row.isSubagent) {
 			const children = await this.adapter.listSessions({

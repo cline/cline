@@ -102,20 +102,47 @@ export interface PersistedSessionUpdateInput {
 	setRunning?: boolean;
 }
 
+/**
+ * Keyset pagination cursor over the canonical
+ * `(startedAt DESC, sessionId DESC)` session ordering. Unlike a positional
+ * OFFSET, the boundary is a row value, so rows deleted (or inserted) before
+ * the boundary by concurrent cleanup cannot shift later rows across it.
+ */
+export interface SessionListCursor {
+	startedAt: string;
+	sessionId: string;
+}
+
+/**
+ * Guard for a conditional delete: the row is only removed when its current
+ * `statusLock`/`updatedAt` still match the values observed when the caller
+ * decided to delete it. Any concurrent update (e.g. a session resuming)
+ * changes at least one of them and makes the delete a no-op.
+ */
+export interface SessionDeleteGuard {
+	expectedStatusLock: number;
+	expectedUpdatedAt: string;
+}
+
 export interface SessionPersistenceAdapter {
 	ensureSessionsDir(): string;
 	upsertSession(row: SessionRow): Promise<void>;
 	getSession(sessionId: string): Promise<SessionRow | undefined>;
 	listSessions(options: {
 		limit: number;
-		offset?: number;
+		/** Only return rows strictly after this cursor in the list ordering. */
+		startedBefore?: SessionListCursor;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]>;
 	updateSession(
 		input: PersistedSessionUpdateInput,
 	): Promise<{ updated: boolean; statusLock: number }>;
-	deleteSession(sessionId: string, cascade: boolean): Promise<boolean>;
+	deleteSession(
+		sessionId: string,
+		cascade: boolean,
+		guard?: SessionDeleteGuard,
+	): Promise<boolean>;
 	enqueueSpawnRequest(input: {
 		rootSessionId: string;
 		parentAgentId: string;
