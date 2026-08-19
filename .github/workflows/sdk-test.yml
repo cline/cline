@@ -50,8 +50,10 @@ jobs:
             - name: Lint & Format
               run: bun run lint
 
+    # Runs in parallel with quality-checks instead of behind it: gating the
+    # matrix on lint/typecheck added ~3 minutes of serial wall time to every
+    # green run, and the test jobs build the SDK themselves anyway.
     test:
-        needs: quality-checks
         strategy:
             fail-fast: false
             matrix:

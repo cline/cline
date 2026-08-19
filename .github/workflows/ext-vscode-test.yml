@@ -122,8 +122,11 @@ jobs:
             - name: Run Quality Checks (Parallel)
               run: bun run ci:check-all
 
+    # Runs in parallel with quality-checks instead of behind it; the required
+    # aggregate "test" gate below still fails if quality-checks fails, so the
+    # merge bar is unchanged while the (long) Windows leg starts ~2 min sooner.
     vscode-test:
-        needs: [detect-changes, quality-checks]
+        needs: detect-changes
         if: needs.detect-changes.outputs.vscode == 'true'
         env:
             VSCODE_TEST_VERSION: 1.101.0
@@ -256,7 +259,10 @@ jobs:
 
             - name: Webview Tests with Coverage
               id: webview_tests
-              if: ${{ !cancelled() && steps.build_step.outcome == 'success' }}
+              # jsdom-only suite with no OS-specific behavior; running it on the
+              # (much slower) Windows leg added ~1.5 min for no extra signal, and
+              # coverage is only collected from Linux anyway.
+              if: ${{ !cancelled() && steps.build_step.outcome == 'success' && runner.os == 'Linux' }}
               run: |
                   cd webview-ui
                   bun run test:coverage
@@ -271,7 +277,7 @@ jobs:
                       apps/vscode/webview-ui/coverage/lcov.info
 
     test-platform-integration:
-        needs: [detect-changes, quality-checks]
+        needs: detect-changes
         if: needs.detect-changes.outputs.testing_platform == 'true'
         runs-on: ubuntu-latest
         defaults:
