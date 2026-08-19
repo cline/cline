@@ -1,3 +1,4 @@
+import { getUserRunSpan } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/shared";
 import { describe, expect, it, vi } from "vitest";
 import {
@@ -39,11 +40,17 @@ describe("monitor resume semantics", () => {
 				kind: "monitor_resume_notice",
 				displayRole: "system",
 				reason: "session_resumed",
+				userRunSpan: 0,
 			},
 		});
 		expect(notice?.content).toContain(
 			"[monitor mon_2 stopped because session resumed]",
 		);
+	});
+
+	it("does not contribute a user run to checkpoint numbering", () => {
+		const notice = createMonitorResumeNotice([{ id: "mon_2", name: "logs" }]);
+		expect(getUserRunSpan(notice as MessageWithMetadata)).toBe(0);
 	});
 
 	it("does not repeat the notice on a later resume", () => {

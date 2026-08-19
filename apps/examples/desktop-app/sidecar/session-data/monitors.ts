@@ -63,6 +63,10 @@ export function createMonitorResumeNotice(
 			kind: "monitor_resume_notice",
 			displayRole: "system",
 			reason: "session_resumed",
+			// System-injected notice: without an explicit span, getUserRunSpan
+			// would count this user-role message as a run and shift checkpoint
+			// numbering for every later prompt.
+			userRunSpan: 0,
 		},
 	};
 }
