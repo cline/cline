@@ -81,7 +81,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { buildActiveSessionMonitors } from "@/lib/session-monitors";
+import { useSessionMonitors } from "@/hooks/use-session-monitors";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -1419,10 +1419,11 @@ function ChatThreadPane({
 			}),
 		[agents, derivedAgentActivity, isSessionActive],
 	);
-	const activeMonitors = useMemo(
-		() => buildActiveSessionMonitors(displayedMessages),
-		[displayedMessages],
-	);
+	// Authoritative live roster from monitor_state snapshots (hydrated by
+	// list_monitors), not parsed from the transcript: transcript parsing went
+	// stale once start records aged out of the display window and treated
+	// watched-process output as evidence.
+	const activeMonitors = useSessionMonitors(displayedSessionId);
 	const [manuallyStoppedMonitors, setManuallyStoppedMonitors] = useState<
 		Set<string>
 	>(() => new Set());

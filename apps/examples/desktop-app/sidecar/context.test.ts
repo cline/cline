@@ -397,6 +397,57 @@ describe("Code sidecar runtime capabilities", () => {
 		).toHaveLength(2);
 	});
 
+	it("relays monitor_state snapshots to webview clients", async () => {
+		const { createSidecarContext, handleCoreSessionEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+
+		handleCoreSessionEvent(ctx, {
+			type: "monitor_state",
+			payload: {
+				sessionId: "session-1",
+				monitors: [
+					{
+						id: "mon_1",
+						name: "ci",
+						description: "CI status",
+						command: "gh pr checks --watch",
+						cwd: "/workspace/project",
+						startedAt: 1,
+						status: "running",
+						linesEmitted: 3,
+					},
+				],
+			},
+		});
+		// The empty disposal snapshot must relay too: it is what clears
+		// rosters when the session runtime is released.
+		handleCoreSessionEvent(ctx, {
+			type: "monitor_state",
+			payload: { sessionId: "session-1", monitors: [] },
+		});
+
+		expect(readEvents(ctx)).toEqual([
+			expect.objectContaining({
+				event: {
+					name: "monitor_state",
+					payload: expect.objectContaining({
+						sessionId: "session-1",
+						monitors: [expect.objectContaining({ id: "mon_1" })],
+					}),
+				},
+			}),
+			expect.objectContaining({
+				event: {
+					name: "monitor_state",
+					payload: { sessionId: "session-1", monitors: [] },
+				},
+			}),
+		]);
+	});
+
 	it("relays generated media for attach-only Hub sessions", async () => {
 		const { createSidecarContext, handleHubLiveEvent } = await import(
 			"./context"

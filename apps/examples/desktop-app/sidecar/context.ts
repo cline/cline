@@ -362,7 +362,7 @@ function emitQueuedPromptStart(
 	);
 }
 
-function handleCoreSessionEvent(
+export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {
@@ -478,6 +478,13 @@ function handleCoreSessionEvent(
 		}
 		case "team_progress": {
 			sendEvent(ctx, "team_progress", event.payload);
+			break;
+		}
+		case "monitor_state": {
+			// Full roster snapshot on every monitor lifecycle change, including
+			// the empty snapshot from registry disposal. The webview renders
+			// its monitor roster from these instead of parsing the transcript.
+			sendEvent(ctx, "monitor_state", event.payload);
 			break;
 		}
 	}

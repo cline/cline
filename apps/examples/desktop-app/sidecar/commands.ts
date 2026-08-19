@@ -1207,6 +1207,33 @@ export async function handleCommand(
 		}
 		return { stopped: reply.payload?.stopped === true };
 	}
+	if (command === "list_monitors") {
+		// Authoritative roster hydration for a session the webview is showing;
+		// live changes then arrive through monitor_state events. A session
+		// without a live runtime has no monitors, which reports as empty
+		// rather than an error.
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const hubClient = await ensureSharedHubClient(
+			ctx,
+			ctx.sessionManager?.runtimeAddress,
+		);
+		const reply = await hubClient.command(
+			"run.list_monitors",
+			{ sessionId },
+			sessionId,
+		);
+		if (!reply.ok) {
+			return { monitors: [] };
+		}
+		return {
+			monitors: Array.isArray(reply.payload?.monitors)
+				? reply.payload.monitors
+				: [],
+		};
+	}
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {

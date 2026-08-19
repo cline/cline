@@ -23,7 +23,7 @@ import {
 	type SessionAgentEntry,
 	type SessionAgentRunState,
 } from "@/lib/session-agents";
-import type { SessionMonitor } from "@/lib/session-monitors";
+import type { SessionMonitor } from "@/hooks/use-session-monitors";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
