@@ -1937,7 +1937,7 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
+				{renderProviderSelect("max-w-36")}
 				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
