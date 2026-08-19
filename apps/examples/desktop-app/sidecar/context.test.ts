@@ -80,7 +80,7 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 	});
 
-	it("registers Code App capability factory with core", async () => {
+	it("registers the desktop capability factory with core", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"
 		);
@@ -102,7 +102,7 @@ describe("Code sidecar runtime capabilities", () => {
 					workspaceRoot: "/workspace/project",
 					cwd: "/workspace/project",
 					clientType: "code-sidecar",
-					displayName: "Code App sidecar",
+					displayName: "Cline Desktop sidecar",
 				}),
 			}),
 		);
@@ -113,7 +113,7 @@ describe("Code sidecar runtime capabilities", () => {
 			expect.objectContaining({
 				url: "ws://127.0.0.1:25463/hub",
 				clientType: "code-sidecar-observer",
-				displayName: "Code App observer",
+				displayName: "Cline Desktop observer",
 			}),
 		);
 	});
@@ -578,7 +578,7 @@ describe("Code sidecar runtime capabilities", () => {
 				hub: expect.objectContaining({
 					strategy: "require-hub",
 					clientType: "code-sidecar",
-					displayName: "Code App sidecar",
+					displayName: "Cline Desktop sidecar",
 				}),
 			}),
 		);
