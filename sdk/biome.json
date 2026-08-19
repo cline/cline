@@ -71,7 +71,8 @@
 									"!@cline/shared/node",
 									"!@cline/shared/types",
 									"!@cline/shared/storage",
-									"!@cline/shared/db"
+									"!@cline/shared/db",
+									"!@cline/shared/gateway"
 								],
 								"message": "Use package entrypoints for cross-package imports. Do not import from another package's internal files."
 							}
