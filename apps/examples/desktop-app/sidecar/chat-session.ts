@@ -1893,6 +1893,16 @@ function readCloudHandoffModels(
 		: [];
 }
 
+export function combineCloudHandoffModels(input: {
+	catalog: CloudHandoffModel[];
+	clinePass: CloudHandoffModel[];
+	clineCloud: CloudHandoffModel[];
+}): CloudHandoffModel[] {
+	// Recommended entries stay first for personal selection, but retain catalog
+	// duplicates so organization filtering cannot remove the model entirely.
+	return [...input.clinePass, ...input.clineCloud, ...input.catalog];
+}
+
 async function loadCloudHandoffModels(): Promise<CloudHandoffModel[]> {
 	const { apiBaseUrl } = getClineEnvironmentConfig();
 	const baseUrl = apiBaseUrl.trim().replace(/\/+$/, "");
@@ -1933,12 +1943,11 @@ async function loadCloudHandoffModels(): Promise<CloudHandoffModel[]> {
 			: recommendedEnvelope;
 	const pass = readCloudHandoffModels(recommended?.clinePass, "cline-pass");
 	const cloud = readCloudHandoffModels(recommended?.clineCloud, "cline-cloud");
-	const prioritizedIds = new Set([...pass, ...cloud].map((model) => model.id));
-	return [
-		...catalog.filter((model) => !prioritizedIds.has(model.id)),
-		...pass,
-		...cloud,
-	];
+	return combineCloudHandoffModels({
+		catalog,
+		clinePass: pass,
+		clineCloud: cloud,
+	});
 }
 
 async function assertHandoffIdle(
@@ -2028,6 +2037,7 @@ export function shouldCleanupFailedHandoffVerification(
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
+	options: { pinnedModelId?: string } = {},
 ): Promise<PreparedCloudHandoff> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
@@ -2067,11 +2077,16 @@ async function prepareCloudHandoff(
 	const localModelId = String(
 		config.model ?? config.modelId ?? persisted?.model ?? "",
 	).trim();
-	const selection = selectCloudHandoffModel({
-		localModelId,
-		models: await loadCloudHandoffModels(),
-		isOrganizationSession: Boolean(organizationId),
-	});
+	const selection = options.pinnedModelId
+		? {
+				modelId: options.pinnedModelId,
+				usedFallback: options.pinnedModelId !== localModelId,
+			}
+		: selectCloudHandoffModel({
+				localModelId,
+				models: await loadCloudHandoffModels(),
+				isOrganizationSession: Boolean(organizationId),
+			});
 	const fingerprint = createCloudHandoffFingerprint({
 		repoUrl: git.repoUrl,
 		branch: git.branch,
@@ -2128,7 +2143,9 @@ async function handleHandoffOnce(
 		throw new Error("Add a command to send the attached images after handoff.");
 	}
 	const expectedFingerprint = readRequestedHandoffFingerprint(request);
-	const prepared = await prepareCloudHandoff(ctx, request);
+	const prepared = await prepareCloudHandoff(ctx, request, {
+		pinnedModelId: expectedFingerprint.modelId,
+	});
 	if (
 		!cloudHandoffFingerprintsEqual(expectedFingerprint, prepared.fingerprint)
 	) {
@@ -2289,9 +2306,7 @@ async function handleHandoffOnce(
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
-			...(prepared.fingerprint.organizationId
-				? { organizationId: prepared.fingerprint.organizationId }
-				: {}),
+			organizationId: prepared.fingerprint.organizationId ?? null,
 			...(typeof request.config?.autoApproveTools === "boolean"
 				? { autoApproveTools: request.config.autoApproveTools }
 				: {}),

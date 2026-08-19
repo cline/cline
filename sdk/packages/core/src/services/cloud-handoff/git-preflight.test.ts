@@ -105,6 +105,30 @@ describe("preflightCloudHandoffGit", () => {
 		expect(error.message).toContain("Push the current commit");
 	});
 
+	it("distinguishes a missing remote ref from an authentication failure", async () => {
+		const missing = Object.assign(new Error("missing"), { code: 2 });
+		const missingError = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"ls-remote --exit-code origin refs/heads/feature/handoff": missing,
+			}),
+		}).catch((caught) => caught);
+		expect(missingError.code).toBe("remote_branch_missing");
+
+		const auth = Object.assign(new Error("auth"), {
+			code: 128,
+			stderr: "fatal: could not read Username",
+		});
+		const authError = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({
+				"ls-remote --exit-code origin refs/heads/feature/handoff": auth,
+			}),
+		}).catch((caught) => caught);
+		expect(authError.code).toBe("git_command_failed");
+		expect(authError.message).toContain("GitHub authentication");
+	});
+
 	it("refuses non-GitHub upstreams", async () => {
 		const error = await preflightCloudHandoffGit({
 			cwd: "/repo",

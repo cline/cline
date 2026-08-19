@@ -15,6 +15,7 @@ export type CloudHandoffUiEntry =
 	  }
 	| { status: "recovery_dismissed"; dashboardUrl: string }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
+	| { status: "retry_restored" }
 	| {
 			status: "complete";
 			receipt: HandoffReceipt;
@@ -75,7 +76,8 @@ export function cloudHandoffUiReducer(
 				current?.status === "complete" ||
 				current?.status === "failed" ||
 				current?.status === "recovery" ||
-				current?.status === "recovery_dismissed"
+				current?.status === "recovery_dismissed" ||
+				current?.status === "retry_restored"
 			) {
 				return state;
 			}
@@ -142,8 +144,10 @@ export function cloudHandoffUiReducer(
 			};
 		case "retry_restored":
 			if (current?.status === "failed") {
-				const { [action.sourceSessionId]: _removed, ...rest } = state;
-				return rest;
+				return {
+					...state,
+					[action.sourceSessionId]: { status: "retry_restored" },
+				};
 			}
 			if (current?.status === "recovery") {
 				return {

@@ -92,6 +92,12 @@ function commandErrorMessage(error: unknown): string {
 	return typeof stderr === "string" ? stderr.trim() : "";
 }
 
+function commandExitCode(error: unknown): number | undefined {
+	if (!error || typeof error !== "object") return undefined;
+	const code = (error as { code?: unknown }).code;
+	return typeof code === "number" ? code : undefined;
+}
+
 async function runRequired(
 	git: GitCommand,
 	cwd: string,
@@ -238,14 +244,26 @@ export async function preflightCloudHandoffGit(input: {
 		);
 	}
 
-	const remoteOutput = await runRequired(
-		git,
-		cwd,
-		["ls-remote", "--exit-code", remoteName, mergeRef],
-		"remote_branch_missing",
-		`Remote branch ${remoteName}/${upstreamBranch} was not found. Push it before handing off.`,
-		input.signal,
-	);
+	let remoteOutput: string;
+	try {
+		remoteOutput = (
+			await git(["ls-remote", "--exit-code", remoteName, mergeRef], {
+				cwd,
+				signal: input.signal,
+			})
+		).stdout.trim();
+	} catch (error) {
+		const missing = commandExitCode(error) === 2;
+		const detail = commandErrorMessage(error);
+		const message = missing
+			? `Remote branch ${remoteName}/${upstreamBranch} was not found. Push it before handing off.`
+			: "Could not verify the remote branch. Check your network and GitHub authentication, then try again.";
+		throw new CloudHandoffGitPreflightError(
+			missing ? "remote_branch_missing" : "git_command_failed",
+			detail ? `${message} (${detail})` : message,
+			{ cause: error },
+		);
+	}
 	const remoteSha = parseRemoteHead(remoteOutput, upstreamBranch);
 	if (!remoteSha) {
 		throw new CloudHandoffGitPreflightError(
