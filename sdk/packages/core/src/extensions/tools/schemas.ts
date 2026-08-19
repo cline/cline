@@ -134,9 +134,7 @@ export const StructuredCommandInputSchema = z.object({
 	command: z
 		.string()
 		.min(1)
-		.describe(
-			"The executable to run directly, or a full shell command line when args is omitted.",
-		),
+		.describe("The executable to run directly without shell parsing."),
 	args: z
 		.array(z.string())
 		.optional()
