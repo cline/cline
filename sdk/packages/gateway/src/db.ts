@@ -307,9 +307,30 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 		],
 	},
 	{
-		version: 2,
+		version: 3,
 		name: "snapshot-run-config",
 		statements: ["ALTER TABLE runs ADD COLUMN config_json TEXT;"],
+	},
+	{
+		version: 4,
+		name: "gateway-tool-system",
+		statements: [
+			`ALTER TABLE run_attempts ADD COLUMN execution_snapshot_json TEXT;`,
+			`CREATE TABLE tool_profiles (
+				name TEXT PRIMARY KEY,
+				revision INTEGER NOT NULL,
+				definition_json TEXT NOT NULL,
+				updated_at INTEGER NOT NULL
+			);`,
+			`CREATE TABLE tool_configurations (
+				scope_type TEXT NOT NULL,
+				scope_key TEXT NOT NULL,
+				revision INTEGER NOT NULL,
+				config_json TEXT NOT NULL,
+				updated_at INTEGER NOT NULL,
+				PRIMARY KEY (scope_type, scope_key)
+			);`,
+		],
 	},
 ];
 

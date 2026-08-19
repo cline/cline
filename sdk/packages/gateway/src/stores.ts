@@ -30,6 +30,7 @@ import type {
 	GatewayId,
 	GatewayResponse,
 	IdempotencyKey,
+	RunExecutionSnapshot,
 	RunId,
 	RunState,
 	SessionId,
@@ -49,10 +50,10 @@ import {
 import type { GatewayDatabase } from "./db";
 import type { IdempotencyBeginOutcome } from "./idempotency-ledger";
 import { stableStringify } from "./idempotency-ledger";
-import { UsageStore, type UsageStoreOptions } from "./usage";
 import { PluginStateStore } from "./plugins/state-store";
 import { RunProvenanceStore } from "./provenance-store";
 import { ScheduleJobStore, ScheduleStore } from "./schedules/store";
+import { UsageStore, type UsageStoreOptions } from "./usage";
 
 // -----------------------------------------------------------------------------
 // Meta
@@ -422,6 +423,7 @@ export interface RunAttemptRecord {
 	readonly startedAt: number;
 	readonly endedAt?: number;
 	readonly error?: { name: string; message: string };
+	readonly executionSnapshot?: RunExecutionSnapshot;
 }
 
 function rowToAttempt(row: Record<string, unknown>): RunAttemptRecord {
@@ -432,6 +434,12 @@ function rowToAttempt(row: Record<string, unknown>): RunAttemptRecord {
 		instanceId: String(row.instance_id),
 		startedAt: Number(row.started_at),
 		endedAt: row.ended_at === null ? undefined : Number(row.ended_at),
+		executionSnapshot:
+			row.execution_snapshot_json == null
+				? undefined
+				: (JSON.parse(
+						String(row.execution_snapshot_json),
+					) as RunExecutionSnapshot),
 		error:
 			row.error_name === null && row.error_message === null
 				? undefined
@@ -471,6 +479,23 @@ export class RunAttemptStore {
 			instanceId: this.instanceId,
 			startedAt,
 		};
+	}
+
+	setExecutionSnapshot(
+		runId: RunId,
+		attempt: number,
+		snapshot: RunExecutionSnapshot,
+	): void {
+		const result = this.database.db
+			.prepare(
+				"UPDATE run_attempts SET execution_snapshot_json = ? WHERE run_id = ? AND attempt = ? AND execution_snapshot_json IS NULL;",
+			)
+			.run(JSON.stringify(snapshot), runId, attempt);
+		if (result.changes !== 1) {
+			throw new Error(
+				`Execution snapshot for ${runId} attempt ${attempt} is missing or already immutable`,
+			);
+		}
 	}
 
 	settle(

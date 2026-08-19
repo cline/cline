@@ -12,6 +12,7 @@ export interface TurnOverrides {
 	modelId?: string;
 	systemPrompt?: string;
 	toolPolicies?: BotConfig["toolPolicies"];
+	tools?: BotConfig["tools"];
 	maxIterations?: number;
 }
 
@@ -40,6 +41,7 @@ export function resolveEffectiveConfig(
 					},
 				}
 			: {}),
+		...(overrides?.tools !== undefined ? { tools: overrides.tools } : {}),
 	};
 	return Object.freeze(effective);
 }

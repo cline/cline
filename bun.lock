@@ -749,9 +749,10 @@
       "dependencies": {
         "@anthropic-ai/sandbox-runtime": "^0.0.73",
         "@cline/bot": "workspace:*",
-        "@cline/core": "workspace:*",
         "@cline/engine": "workspace:*",
+        "@cline/llms": "workspace:*",
         "@cline/shared": "workspace:*",
+        "@cline/tools": "workspace:*",
         "zod": "^4.3.6",
       },
     },
@@ -815,6 +816,13 @@
         "jsonrepair": "^3.13.2",
         "zod": "^4.3.6",
         "zod-to-json-schema": "^3.25.1",
+      },
+    },
+    "sdk/packages/tools": {
+      "name": "@cline/tools",
+      "version": "0.0.75",
+      "dependencies": {
+        "@cline/shared": "workspace:*",
       },
     },
     "sdk/packages/ui": {
@@ -1184,6 +1192,8 @@
     "@cline/sdk": ["@cline/sdk@workspace:sdk/packages/sdk"],
 
     "@cline/shared": ["@cline/shared@workspace:sdk/packages/shared"],
+
+    "@cline/tools": ["@cline/tools@workspace:sdk/packages/tools"],
 
     "@cline/ui": ["@cline/ui@workspace:sdk/packages/ui"],
 

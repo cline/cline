@@ -8,6 +8,7 @@ import type {
 import { createEngineExecutionPort } from "@cline/bot";
 import type { EngineModelBinding } from "@cline/engine";
 import { SERVER_REQUEST_METHODS } from "@cline/shared/gateway";
+import { createBuiltinCodingTools } from "@cline/tools";
 import type { GatewayPaths } from "./paths";
 import {
 	readSavedProviderSelection,
@@ -61,6 +62,33 @@ export interface ResolveProviderModelOptions {
 	resolvedApiKey?: string;
 }
 
+export function resolveProviderModelSelection(
+	invocation: EngineInvocation,
+	options: Pick<
+		ResolveProviderModelOptions,
+		"env" | "providerSettingsPath"
+	> = {},
+): { providerId: string; modelId: string } {
+	const env = options.env ?? process.env;
+	const explicitProviderId =
+		invocation.effectiveConfig.providerId ?? env.CLINE_GATEWAY_PROVIDER;
+	const saved = readSavedProviderSelection(explicitProviderId, {
+		filePath: options.providerSettingsPath,
+		env,
+	});
+	const providerId = explicitProviderId ?? saved?.providerId;
+	const modelId =
+		invocation.effectiveConfig.modelId ??
+		env.CLINE_GATEWAY_MODEL ??
+		saved?.settings.model;
+	if (!providerId || !modelId) {
+		throw new ModelNotConfiguredError(
+			"No model configured: configure providers.json, bot config, or Gateway environment overrides",
+		);
+	}
+	return { providerId, modelId };
+}
+
 function providerCredentialOverride(
 	providerId: string,
 	options: ResolveProviderModelOptions,
@@ -78,22 +106,12 @@ export function resolveProviderModel(
 	options: ResolveProviderModelOptions = {},
 ): Extract<EngineModelBinding, { kind: "provider" }> {
 	const env = options.env ?? process.env;
-	const explicitProviderId =
-		invocation.effectiveConfig.providerId ?? env.CLINE_GATEWAY_PROVIDER;
-	const saved = readSavedProviderSelection(explicitProviderId, {
+	const selection = resolveProviderModelSelection(invocation, options);
+	const saved = readSavedProviderSelection(selection.providerId, {
 		filePath: options.providerSettingsPath,
 		env,
 	});
-	const providerId = explicitProviderId ?? saved?.providerId;
-	const modelId =
-		invocation.effectiveConfig.modelId ??
-		env.CLINE_GATEWAY_MODEL ??
-		saved?.settings.model;
-	if (!providerId || !modelId) {
-		throw new ModelNotConfiguredError(
-			"No model configured: configure providers.json, bot config, or CLINE_GATEWAY_PROVIDER / CLINE_GATEWAY_MODEL",
-		);
-	}
+	const { providerId, modelId } = selection;
 	const apiKey =
 		options.resolvedApiKey ??
 		providerCredentialOverride(providerId, options) ??
@@ -221,6 +239,34 @@ export function createConfiguredEnginePort(
 						: options.approvals;
 				return createEngineExecutionPort({
 					model: () => model,
+					tools: (resolvedInvocation) =>
+						createBuiltinCodingTools({
+							workspaceRoot: resolvedInvocation.workspaceRoot,
+							enabledToolNames: resolvedInvocation.executionSnapshot?.tools
+								.filter(
+									(tool) =>
+										tool.executorId === "worker:builtin" ||
+										tool.executorId === "gateway:builtin",
+								)
+								.map((tool) => tool.modelFacingName),
+							...(approvals
+								? {
+										askQuestion: (
+											question: string,
+											choices: readonly string[],
+										) =>
+											approvals.request(
+												SERVER_REQUEST_METHODS.question,
+												{
+													botId: resolvedInvocation.botId,
+													sessionId: resolvedInvocation.sessionId,
+													runId: resolvedInvocation.runId,
+												},
+												{ question, options: choices },
+											),
+									}
+								: {}),
+						}),
 					requestApproval: approvals
 						? async (request) => {
 								const answer = await approvals.request(

@@ -3,10 +3,10 @@ export {};
 
 const external = [
 	"@cline/bot",
-	"@cline/core",
 	"@cline/engine",
 	"@cline/shared",
 	"@cline/shared/gateway",
+	"@cline/tools",
 	"zod",
 ];
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
