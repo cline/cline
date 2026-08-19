@@ -36,6 +36,7 @@ import {
 	emitSessionCreationTelemetry,
 } from "../../services/session-telemetry";
 import {
+	applySessionThinkingConnectionUpdate,
 	resolveSessionThinkingMetadata,
 	withSessionThinkingMetadata,
 } from "../../services/session-thinking";
@@ -885,6 +886,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.sessions.set(sessionId, active);
 		if (resumedArtifacts) {
 			await this.refreshActiveSessionGitMetadata(active, bootstrap.gitState);
+			await this.adoptSuppliedCheckpointMetadata(
+				active,
+				startInput.sessionMetadata,
+			);
 		}
 		// Sessions seeded with history (mode-switch restarts, forks, missing-
 		// session recovery) must be durable immediately. Lazy persistence
@@ -1566,13 +1571,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 		// Only when the update actually carries a reasoning field: a plain model
 		// switch leaves `session.config` without the effective level resolved from
 		// provider settings, and re-deriving it here would clobber what start
-		// recorded.
+		// recorded. Merge the partial update into the tracked state — exactly what
+		// `agent.updateConnection` did above — so a partial update (e.g. a budget
+		// with no level) keeps the reasoning the session inherited from provider
+		// settings and the saved metadata matches the live agent.
 		if (
 			Object.hasOwn(updates, "reasoningEffort") ||
 			Object.hasOwn(updates, "thinking") ||
 			Object.hasOwn(updates, "thinkingBudgetTokens")
 		) {
-			session.thinking = resolveSessionThinkingMetadata(session.config);
+			session.thinking = applySessionThinkingConnectionUpdate(
+				session.thinking,
+				updates,
+			);
 			await this.refreshActiveSessionThinkingMetadata(session);
 		}
 	}
@@ -2098,6 +2109,42 @@ export class LocalRuntimeHost implements RuntimeHost {
 				error,
 			});
 		}
+	}
+
+	/**
+	 * A same-id checkpoint restore resumes the existing session artifacts but
+	 * supplies newly trimmed checkpoint metadata in its start input; by the time
+	 * the session starts, the restore has already deleted the refs of the
+	 * checkpoints it dropped. The supplied record is authoritative, so replace
+	 * the stored checkpoint state instead of retaining stale future checkpoints.
+	 * A plain read-only resume supplies no `checkpoint` key and keeps stored
+	 * metadata untouched. Failures are logged and swallowed: throwing here would
+	 * make the restore's cleanup path delete the original session.
+	 */
+	private async adoptSuppliedCheckpointMetadata(
+		session: ActiveSession,
+		suppliedMetadata: Record<string, unknown> | undefined,
+	): Promise<void> {
+		if (!suppliedMetadata || !Object.hasOwn(suppliedMetadata, "checkpoint")) {
+			return;
+		}
+		const checkpoint = suppliedMetadata.checkpoint;
+		// persistSessionMetadata swaps the in-memory metadata for the persisted
+		// snapshot; keep the richer resume-time view (it already carries the
+		// supplied checkpoint) so start callers still see every supplied key.
+		const inMemoryMetadata = session.sessionMetadata;
+		try {
+			await this.persistSessionMetadata(session.sessionId, (current) => ({
+				...(current ?? {}),
+				checkpoint,
+			}));
+		} catch (error) {
+			session.config.logger?.debug?.(
+				"Failed to persist restored checkpoint metadata",
+				{ sessionId: session.sessionId, error },
+			);
+		}
+		session.sessionMetadata = inMemoryMetadata;
 	}
 
 	/**
