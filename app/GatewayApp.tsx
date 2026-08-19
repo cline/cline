@@ -44,13 +44,14 @@ const connectionStages: Array<{
 ];
 
 const environmentToken = import.meta.env.VITE_CLINE_GATEWAY_TOKEN?.trim() ?? "";
-export function App() {
+export function App({ defaultUrl }: { defaultUrl?: string }) {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
 	const [url, setUrl] = useState(() =>
-		typeof window === "undefined"
+		defaultUrl?.trim() ||
+		(typeof window === "undefined"
 			? "ws://127.0.0.1:8080"
 			: (localStorage.getItem("cline.gateway.url") ??
-				"ws://127.0.0.1:8080"),
+				"ws://127.0.0.1:8080")),
 	);
 	const [token, setToken] = useState("");
 	const [allowInsecure, setAllowInsecure] = useState(false);
