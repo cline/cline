@@ -1556,7 +1556,7 @@ export class CloudSessionManager {
 	async send(
 		outerSessionId: string,
 		prompt: string,
-		delivery?: "queue" | "steer",
+		requestedDelivery?: "queue" | "steer",
 		modelId?: string,
 		userImages?: string[],
 	): Promise<{
@@ -1587,6 +1587,7 @@ export class CloudSessionManager {
 			await this.rehydrateAfterTransportDrop(outerSessionId, connection);
 		}
 		const live = this.ctx.liveSessions.get(outerSessionId);
+		const delivery = requestedDelivery ?? (live?.busy ? "queue" : undefined);
 		const promptOccurrencesBeforeSend = countPromptOccurrences(
 			live?.messages ?? [],
 			live?.promptsInQueue ?? [],
