@@ -422,6 +422,43 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(readEvents(ctx)).toEqual([]);
 	});
 
+	it("does not treat a resident Hub process as an active turn after attach", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.liveSessions.set("forked-session", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: false,
+			startedAt: Date.now(),
+			status: "idle",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "session.updated",
+			sessionId: "forked-session",
+			payload: { session: { status: "running" } },
+		});
+
+		expect(ctx.liveSessions.get("forked-session")).toMatchObject({
+			status: "idle",
+			busy: false,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "run.started",
+			sessionId: "forked-session",
+		});
+
+		expect(ctx.liveSessions.get("forked-session")).toMatchObject({
+			status: "running",
+			busy: true,
+		});
+	});
+
 	it("resolves askQuestion through the websocket request/response protocol", async () => {
 		const { createSidecarContext, initializeSessionManager } = await import(
 			"./context"

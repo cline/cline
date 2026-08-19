@@ -41,6 +41,21 @@ describe("restore_checkpoint", () => {
 		// makes the read after a restore prefer the file over the live session.
 		persistSessionMessages(sessionId, fullMessages);
 
+		const sessionManager = {
+			get: vi.fn(async () => ({
+				sessionId,
+				status: "idle",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+			})),
+			// A restore that reuses the source id is what the hub does today.
+			restore: vi.fn(async () => ({
+				sessionId,
+				messages: restoredMessages,
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			})),
+			pendingPrompts: { list: vi.fn(async () => []) },
+		};
 		const ctx = {
 			liveSessions: new Map([
 				[
@@ -60,21 +75,23 @@ describe("restore_checkpoint", () => {
 			pendingQuestions: new Map(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
-			sessionManager: {
-				get: vi.fn(async () => ({
-					sessionId,
-					status: "idle",
-					cwd: "/tmp/project",
-					workspaceRoot: "/tmp/project",
-				})),
-				// A restore that reuses the source id is what the hub does today.
-				restore: vi.fn(async () => ({
-					sessionId,
-					messages: restoredMessages,
-					checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
-				})),
-				pendingPrompts: { list: vi.fn(async () => []) },
-			},
+			runtimeBindings: new Map([
+				[
+					"local",
+					{
+						environmentId: "local",
+						kind: "local",
+						workspaceRoot: "/tmp/project",
+						sessionManager,
+						hubClient: { command: vi.fn(async () => undefined) },
+						unsubscribeSessionEvents: () => {},
+					},
+				],
+			]),
+			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
+			activeEnvironmentId: "local",
+			remoteEnvironments: null,
+			localWorkspaceRoot: "/tmp/project",
 		} as unknown as SidecarContext;
 
 		await handleChatSessionCommand(ctx, {
