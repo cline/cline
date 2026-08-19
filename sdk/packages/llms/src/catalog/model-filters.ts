@@ -6,9 +6,10 @@ import type { ModelInfo } from "./types";
  * This includes both dedicated image-generation models and language models
  * that can return mixed text-and-image output. Cline deliberately applies
  * this temporary backend limitation in both `buildClineModels` (the bundled
- * catalog) and `mergeKnownModels` (the merged non-user runtime sources). User
- * model overrides are added after the runtime filter. Remove both filter call
- * sites together when the inference backend supports image output.
+ * catalog) and `mergeKnownModels` (the merged runtime sources, including
+ * user model overrides — the backend rejects image output regardless of
+ * where the model was configured). Remove both filter call sites together
+ * when the inference backend supports image output.
  */
 export function filterImageOutputModels(
 	models: Record<string, ModelInfo>,
