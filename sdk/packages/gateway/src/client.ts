@@ -71,10 +71,22 @@ export type GatewayServerRequestHandler = (
 ) => Promise<unknown> | unknown;
 
 // Re-exported so `@cline/gateway/client` consumers never reach into the
-// Gateway's internals for the types the typed surface returns.
+// Gateway's internals for the types the typed surface returns, nor for
+// discovery/path resolution (the supported client-side surface).
 export type { SessionSnapshot } from "./runtime";
 export type { RunAttemptRecord, StoredMessage } from "./stores";
 export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
+export type { DiscoveryRecord } from "./discovery";
+export { DiscoveryRecordSchema, readDiscoveryRecord } from "./discovery";
+export type { GatewayPaths, GatewayPathsOptions } from "./paths";
+export {
+	DEFAULT_GATEWAY_NAMESPACE,
+	defaultGatewayDataRoot,
+	GATEWAY_DATA_ROOT_ENV,
+	GATEWAY_NAMESPACE_ENV,
+	resolveGatewayNamespace,
+	resolveGatewayPaths,
+} from "./paths";
 
 /** `gateway.status` result (additive fields must not break clients). */
 export interface GatewayStatusSummary {
@@ -129,10 +141,12 @@ export class GatewayClient {
 	private readonly socket: Socket;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<GatewayEventListener>();
+	private readonly closeListeners = new Set<() => void>();
 	private serverRequestHandler: GatewayServerRequestHandler | undefined;
 	private buffer = "";
 	private nextRequestId = 0;
 	private closed = false;
+	private closeNotified = false;
 
 	private constructor(socket: Socket, hello: GatewayHelloResult) {
 		this.socket = socket;
@@ -334,6 +348,14 @@ export class GatewayClient {
 		};
 	}
 
+	/** Fires once when the connection is lost or closed locally. */
+	onClose(listener: () => void): () => void {
+		this.closeListeners.add(listener);
+		return () => {
+			this.closeListeners.delete(listener);
+		};
+	}
+
 	/** Register the handler answering server-initiated requests. */
 	onServerRequest(handler: GatewayServerRequestHandler): void {
 		this.serverRequestHandler = handler;
@@ -364,6 +386,7 @@ export class GatewayClient {
 			pending.reject(failure);
 		}
 		this.pending.clear();
+		this.notifyClosed();
 	}
 
 	// ---------------------------------------------------------------------
@@ -428,6 +451,17 @@ export class GatewayClient {
 			pending.reject(failure);
 		}
 		this.pending.clear();
+		this.notifyClosed();
+	}
+
+	private notifyClosed(): void {
+		if (this.closeNotified) {
+			return;
+		}
+		this.closeNotified = true;
+		for (const listener of this.closeListeners) {
+			listener();
+		}
 	}
 
 	private settleResponse(response: GatewayResponse): void {

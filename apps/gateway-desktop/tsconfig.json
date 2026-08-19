@@ -1,0 +1,17 @@
+{
+	"compilerOptions": {
+		"lib": ["esnext"],
+		"target": "ES2022",
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"strict": true,
+		"noEmit": true,
+		"skipLibCheck": true,
+		"esModuleInterop": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"types": ["bun", "node"]
+	},
+	"include": ["shared/**/*.ts", "native/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
+	"exclude": ["node_modules", "dist", "webview"]
+}

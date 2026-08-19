@@ -1,0 +1,41 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/geist-mono";
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@cline/ui/theme/index.css";
+@import "@cline/ui/components.css";
+
+@layer base {
+	html,
+	body {
+		height: 100%;
+		min-height: 100vh;
+		overflow: hidden;
+		overscroll-behavior: none;
+	}
+
+	#__next {
+		height: 100%;
+	}
+
+	/* Native-app chrome must not highlight on drag; conversation content
+	 * and inputs opt back in below (same rules as the Cline Code app). */
+	body {
+		-webkit-user-select: none;
+		user-select: none;
+	}
+
+	input,
+	textarea,
+	[contenteditable="true"] {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+
+	.gwd-selectable,
+	pre,
+	code {
+		-webkit-user-select: text;
+		user-select: text;
+	}
+}
