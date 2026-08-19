@@ -600,6 +600,7 @@ export class Controller {
 			},
 			setTurnPhase: (phase, anchorTs) => this.turnStateTracker.set(phase, anchorTs),
 			postStateToWebview: () => this.postStateToWebview(),
+			clearTaskSettings: () => this.stateManager.clearTaskSettings(),
 		})
 		this.taskStart = new SdkTaskStartCoordinator({
 			stateManager: this.stateManager,
