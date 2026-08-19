@@ -55,6 +55,8 @@ export {
 	PATCH_MARKERS,
 	PatchActionType,
 	type PatchFileChange,
+	RunCommandExecutionController,
+	type RunningCommandRegistration,
 	type SearchExecutorOptions,
 	type ShellExecutorOptions,
 	type WebFetchExecutorOptions,

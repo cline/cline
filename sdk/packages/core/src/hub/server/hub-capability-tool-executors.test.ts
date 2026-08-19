@@ -72,6 +72,64 @@ describe("hub capability custom tools", () => {
 			expect.any(Function),
 		);
 	});
+
+	it("forwards progress from client-contributed tool executors", async () => {
+		const request: ClientContributionRequest = vi.fn(
+			async (
+				_sessionId,
+				_capabilityName,
+				_payload,
+				_targetClientId,
+				onProgress,
+			) => {
+				onProgress?.({ update: { stream: "stderr", chunk: "warning\n" } });
+				return { result: "answered" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+			],
+			requestCapability: request,
+		});
+		const updates: unknown[] = [];
+
+		const result = await runtime.toolExecutors?.askQuestion?.(
+			"Continue?",
+			["Yes"],
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 2,
+				toolCallId: "call-1",
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(result).toBe("answered");
+		expect(updates).toEqual([{ stream: "stderr", chunk: "warning\n" }]);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"tool_executor.askQuestion",
+			expect.objectContaining({
+				context: expect.objectContaining({
+					sessionId: "session-1",
+					runId: "run-1",
+					toolCallId: "call-1",
+				}),
+			}),
+			"client-1",
+			expect.any(Function),
+		);
+	});
 });
 
 describe("handleCapabilityProgress", () => {

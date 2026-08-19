@@ -73,6 +73,10 @@ type ChatMessagesProps = {
 		runCount: number,
 	) => void | Promise<void>;
 	onForkSession?: () => void | Promise<void>;
+	onProceedWhileRunning?: (
+		sessionId: string,
+		toolCallId?: string,
+	) => void | Promise<void>;
 };
 
 type AskQuestionRequestItem = {
@@ -104,6 +108,7 @@ function ChatMessagesImpl({
 	onRestoreCheckpoint,
 	onEditMessage,
 	onForkSession,
+	onProceedWhileRunning,
 }: ChatMessagesProps) {
 	const hasMessages = messages.length > 0;
 	// Scanned from the tail without copying: this component re-renders on
@@ -540,6 +545,7 @@ function ChatMessagesImpl({
 												<ToolMessageBlock
 													key={`tools_${child.messages[0]?.id ?? "empty"}`}
 													messages={child.messages}
+													onProceedWhileRunning={onProceedWhileRunning}
 												/>
 											);
 										}

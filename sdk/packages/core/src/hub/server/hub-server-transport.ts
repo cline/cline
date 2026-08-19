@@ -11,6 +11,7 @@ import { HubScheduleCommandService } from "../../cron/service/schedule-command-s
 import { HubScheduleService } from "../../cron/service/schedule-service";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
@@ -51,6 +52,7 @@ import {
 } from "./handlers/context";
 import {
 	handleRunAbort,
+	handleRunProceedWhileRunning,
 	handleSessionHook,
 	handleSessionInput,
 } from "./handlers/run-handlers";
@@ -181,7 +183,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly settings: CoreSettingsService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService>;
+		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
 
@@ -393,6 +395,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionInput(this.ctx, envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
+			case "run.proceed_while_running":
+				return await handleRunProceedWhileRunning(this.ctx, envelope);
 			case "capability.request":
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":

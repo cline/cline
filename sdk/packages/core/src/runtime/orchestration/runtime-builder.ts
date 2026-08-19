@@ -25,6 +25,7 @@ import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	MonitorRegistry,
+	type RunCommandExecutionController,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -145,6 +146,7 @@ function createBuiltinToolsList(
 	// Lead-agent only. Sub-agents finish and disappear, so a monitor started by
 	// one would outlive every consumer of its output.
 	monitorRegistry?: MonitorRegistry,
+	runCommandExecutionController?: RunCommandExecutionController,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -158,6 +160,9 @@ function createBuiltinToolsList(
 		createBuiltinTools({
 			cwd,
 			telemetry,
+			executorOptions: {
+				bash: { executionController: runCommandExecutionController },
+			},
 			...preset,
 			enableSkills: !!skillsExecutor,
 			monitorRegistry,
@@ -526,6 +531,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					toolExecutors,
 					telemetry ?? config.telemetry,
 					monitorRegistry,
+					input.runCommandExecutionController,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -599,6 +605,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 													: undefined,
 												toolExecutors,
 												telemetry ?? config.telemetry,
+												undefined,
+												input.runCommandExecutionController,
 											),
 											agent,
 										)
@@ -704,6 +712,8 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									undefined,
 									toolExecutors,
 									telemetry ?? config.telemetry,
+									undefined,
+									input.runCommandExecutionController,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,

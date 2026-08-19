@@ -202,6 +202,78 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("forwards raw hub tool updates to attached desktop sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "tool.updated",
+			sessionId: "session-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live\n" },
+			},
+		});
+
+		const forwarded = readEvents(ctx).find(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_tool_call_update",
+		);
+		expect(forwarded?.event.payload).toMatchObject({
+			sessionId: "session-1",
+			stream: "chat_tool_call_update",
+		});
+		expect(
+			JSON.parse(
+				String((forwarded?.event.payload as { chunk?: string }).chunk),
+			),
+		).toEqual({
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			update: { stream: "stdout", chunk: "live\n" },
+		});
+	});
+
+	it("forwards proceed-while-running requests to the hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { detachedCount: 1 },
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				sessionId: "session-1",
+				toolCallId: "call-1",
+			}),
+		).resolves.toEqual({ detachedCount: 1 });
+		expect(hubCommandMock).toHaveBeenCalledWith(
+			"run.proceed_while_running",
+			{ sessionId: "session-1", toolCallId: "call-1" },
+			"session-1",
+		);
+	});
+
 	it("serializes queued image data when a queued prompt starts", async () => {
 		const { serializeQueuedPromptStart } = await import("./context");
 

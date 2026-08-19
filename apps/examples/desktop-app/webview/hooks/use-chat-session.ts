@@ -29,6 +29,7 @@ import type {
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
+	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
 import {
 	type ChatMessage,
@@ -38,6 +39,7 @@ import {
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
+import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -70,6 +72,7 @@ const RELEVANT_STREAMS = new Set([
 	"chat_media",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
+	"chat_tool_call_update",
 	"chat_tool_call_end",
 	"chat_core_log",
 	"chat_usage",
@@ -81,6 +84,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"running",
 	"stopping",
 ]);
+
+type PendingToolOutput = {
+	text: string;
+	truncated: boolean;
+	detachable?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
@@ -174,6 +183,49 @@ function mergeHydratedMessagesWithLive(options: {
 		return true;
 	});
 	return sortMessagesChronologically([...hydrated, ...nonDuplicateLive]);
+}
+
+function deriveLiveToolState(messages: ChatMessage[]): {
+	messageIds: Record<string, string>;
+	inputs: Record<string, unknown>;
+} {
+	const messageIds: Record<string, string> = {};
+	const inputs: Record<string, unknown> = {};
+	for (const message of sortMessagesChronologically(messages)) {
+		const toolCallId = message.meta?.toolCallId;
+		if (!toolCallId) continue;
+		const hookEventName = message.meta?.hookEventName;
+		if (
+			hookEventName === "tool_call_end" ||
+			hookEventName === "history_tool_result"
+		) {
+			delete messageIds[toolCallId];
+			delete inputs[toolCallId];
+			continue;
+		}
+		if (
+			hookEventName !== "tool_call_start" &&
+			hookEventName !== "history_tool_use"
+		) {
+			continue;
+		}
+		messageIds[toolCallId] = message.id;
+		try {
+			const payload = JSON.parse(message.content) as unknown;
+			if (
+				payload &&
+				typeof payload === "object" &&
+				!Array.isArray(payload) &&
+				Object.hasOwn(payload, "input")
+			) {
+				inputs[toolCallId] = (payload as { input?: unknown }).input;
+			}
+		} catch {
+			// Routing only needs the ids. A malformed display payload must not
+			// prevent later progress and completion events from reaching the card.
+		}
+	}
+	return { messageIds, inputs };
 }
 
 function updateMessageById(
@@ -326,6 +378,7 @@ export function useChatSession() {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
@@ -439,6 +492,7 @@ export function useChatSession() {
 	const clearLiveToolRefs = useCallback(() => {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
+		pendingToolOutputRef.current = new Map();
 	}, []);
 
 	const resetStreamDedupe = useCallback((targetSessionId?: string | null) => {
@@ -755,7 +809,7 @@ export function useChatSession() {
 
 	// ---- Stream coalescing ----
 	//
-	// Text/reasoning deltas can arrive per-token, and a React commit per token
+	// Text/reasoning deltas and command chunks can arrive rapidly, and a React commit
 	// re-renders the whole conversation for every word. Deltas are buffered in
 	// refs and flushed on a short timer, so streaming costs at most ~20 commits
 	// per second regardless of token rate while still feeling live.
@@ -788,6 +842,44 @@ export function useChatSession() {
 				appendMessageReasoning(id, entry.text, entry.redacted);
 			}
 		}
+		const toolOutputs = pendingToolOutputRef.current;
+		if (toolOutputs.size > 0) {
+			pendingToolOutputRef.current = new Map();
+			setMessages((prev) =>
+				prev.map((message) => {
+					const pending = toolOutputs.get(message.id);
+					if (!pending) return message;
+					const merged = appendCappedCommandOutput(
+						message.meta?.toolOutput ?? "",
+						pending.text,
+					);
+					const toolOutputTruncated = Boolean(
+						message.meta?.toolOutputTruncated ||
+							pending.truncated ||
+							merged.truncated,
+					);
+					const toolDetachable =
+						pending.detachable ?? message.meta?.toolDetachable;
+					if (
+						merged.output === (message.meta?.toolOutput ?? "") &&
+						toolOutputTruncated ===
+							Boolean(message.meta?.toolOutputTruncated) &&
+						toolDetachable === message.meta?.toolDetachable
+					) {
+						return message;
+					}
+					return {
+						...message,
+						meta: {
+							...message.meta,
+							toolOutput: merged.output,
+							toolOutputTruncated,
+							...(toolDetachable !== undefined ? { toolDetachable } : {}),
+						},
+					};
+				}),
+			);
+		}
 		const transcript = pendingStreamTranscriptRef.current;
 		if (transcript) {
 			pendingStreamTranscriptRef.current = "";
@@ -812,6 +904,7 @@ export function useChatSession() {
 		}
 		pendingStreamTextRef.current = new Map();
 		pendingStreamReasoningRef.current = new Map();
+		pendingToolOutputRef.current = new Map();
 		pendingStreamTranscriptRef.current = "";
 	}, []);
 
@@ -1113,6 +1206,51 @@ export function useChatSession() {
 					});
 					schedulePendingStreamFlush();
 				}
+				return;
+			}
+
+			if (payload.stream === "chat_tool_call_update") {
+				let parsed: ToolCallUpdateEvent = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as ToolCallUpdateEvent;
+				} catch {
+					return;
+				}
+				const toolCallId = parsed.toolCallId;
+				const messageId = toolCallId
+					? liveToolMessageIdsRef.current[toolCallId]
+					: undefined;
+				if (!messageId) return;
+				const update =
+					parsed.update &&
+					typeof parsed.update === "object" &&
+					!Array.isArray(parsed.update)
+						? (parsed.update as Record<string, unknown>)
+						: undefined;
+				if (!update) return;
+				const stream = update.stream;
+				const chunk =
+					(stream === "stdout" || stream === "stderr") &&
+					typeof update.chunk === "string"
+						? update.chunk
+						: "";
+				const detachable =
+					typeof update.detachable === "boolean"
+						? update.detachable
+						: undefined;
+				const sourceTruncated = update.truncated === true;
+				if (!chunk && detachable === undefined && !sourceTruncated) return;
+				const pending = pendingToolOutputRef.current;
+				const existing = pending.get(messageId);
+				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
+				pending.set(messageId, {
+					text: appended.output,
+					truncated: Boolean(
+						existing?.truncated || appended.truncated || sourceTruncated,
+					),
+					detachable: detachable ?? existing?.detachable,
+				});
+				schedulePendingStreamFlush();
 				return;
 			}
 
@@ -1427,7 +1565,11 @@ export function useChatSession() {
 						output: null,
 					}),
 					createdAt: chunkCreatedAt(payload),
-					meta: { toolName, hookEventName: "tool_call_start" },
+					meta: {
+						toolName,
+						toolCallId,
+						hookEventName: "tool_call_start",
+					},
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
@@ -1464,7 +1606,13 @@ export function useChatSession() {
 					updateMessageById(prev, messageId, (msg) => ({
 						...msg,
 						content: toolPayload,
-						meta: { ...msg.meta, toolName, hookEventName: "tool_call_end" },
+						meta: {
+							...msg.meta,
+							toolName,
+							toolCallId,
+							toolDetachable: false,
+							hookEventName: "tool_call_end",
+						},
 					})),
 				);
 				return;
@@ -2417,6 +2565,26 @@ export function useChatSession() {
 		}
 	}, [clearAbortFallbackTimeout, postSession, sessionId]);
 
+	const proceedWhileRunning = useCallback(
+		async (targetSessionId: string, toolCallId?: string) => {
+			const normalizedSessionId = targetSessionId.trim();
+			if (!normalizedSessionId) {
+				throw new Error("No active session.");
+			}
+			const response = await desktopClient.invoke<{ detachedCount?: number }>(
+				"proceed_while_running",
+				{
+					sessionId: normalizedSessionId,
+					...(toolCallId ? { toolCallId } : {}),
+				},
+			);
+			if ((response.detachedCount ?? 0) < 1) {
+				throw new Error("The command finished before it could be detached.");
+			}
+		},
+		[],
+	);
+
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;
 		setSessionId(null);
@@ -2515,6 +2683,12 @@ export function useChatSession() {
 					sessionId: session.sessionId,
 					hydrationStartedAt,
 				});
+				// Hub attachment starts forwarding future events but does not replay the
+				// tool.started event for a command already in flight. Rebuild its routing
+				// key from canonical history before those future updates can arrive.
+				const liveToolState = deriveLiveToolState(mergedMessages);
+				liveToolMessageIdsRef.current = liveToolState.messageIds;
+				liveToolInputsRef.current = liveToolState.inputs;
 				setMessages(mergedMessages);
 				setRawTranscript("");
 				resetCounters();
@@ -2779,6 +2953,7 @@ export function useChatSession() {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		abort,
 		stop: abort,
 		reset,

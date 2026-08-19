@@ -52,6 +52,10 @@ export {
 	type MonitorStartInput,
 	type MonitorStatus,
 } from "./monitor";
+export {
+	RunCommandExecutionController,
+	type RunningCommandRegistration,
+} from "./run-command-execution-controller";
 export { createSearchExecutor, type SearchExecutorOptions } from "./search";
 export {
 	createWebFetchExecutor,
