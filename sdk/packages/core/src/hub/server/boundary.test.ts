@@ -1519,6 +1519,65 @@ describe("HubServerTransport boundaries", () => {
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
 	});
 
+	it("projects in-flight tool updates onto the hub stream", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+
+		await projectSessionEvent(getContext(transport), {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "tool.updated",
+				sessionId: "session-1",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			}),
+		);
+	});
+
+	it("detaches a running command through the hub command boundary", async () => {
+		const proceedWhileRunning = vi.fn().mockResolvedValue(2);
+		const transport = createTransport({
+			sessionHost: { proceedWhileRunning },
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-proceed",
+			command: "run.proceed_while_running",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", toolCallId: "call-1" },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { detachedCount: 2 },
+		});
+		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
+	});
+
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {
 		const transport = createTransport({
 			sessionHost: {

@@ -8,14 +8,20 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 	ConversationViewport,
+	formatThoughtLabel,
+	formatWorkActivityLabel,
 	Message,
 	MessageContent,
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
+	ThinkingBlock,
 	ToolActivity,
 	ToolActivityContent,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "../components/agent-chat";
 import { getInertAttributeValue } from "../components/agent-chat/disclosure";
 
@@ -193,6 +199,106 @@ describe("@cline/ui agent chat primitives", () => {
 			document.getElementById(trigger?.getAttribute("aria-controls") ?? "")
 				?.textContent,
 		).toContain("theme.css");
+	});
+
+	it("labels the thinking row by streaming state and duration", async () => {
+		expect(formatThoughtLabel(undefined)).toBe("Thinking");
+		expect(formatThoughtLabel(0)).toBe("Thought for 0s");
+		expect(formatThoughtLabel(120)).toBe("Thought for 1s");
+		expect(formatThoughtLabel(2_600)).toBe("Thought for 3s");
+
+		await render(
+			<ThinkingBlock isStreaming>
+				<p>Considering the options.</p>
+			</ThinkingBlock>,
+		);
+		let trigger = container.querySelector("button") as HTMLButtonElement;
+		expect(trigger.textContent).toContain("Thinking");
+		expect(trigger.querySelector(".cline-chat-streaming-title")).not.toBeNull();
+
+		await render(
+			<ThinkingBlock durationMilliseconds={4_000}>
+				<p>Considering the options.</p>
+			</ThinkingBlock>,
+		);
+		trigger = container.querySelector("button") as HTMLButtonElement;
+		expect(trigger.textContent).toContain("Thought for 4s");
+		expect(trigger.querySelector(".cline-chat-streaming-title")).toBeNull();
+
+		await act(async () => trigger.click());
+		const panel = document.getElementById(
+			trigger.getAttribute("aria-controls") ?? "",
+		);
+		expect(panel?.textContent).toContain("Considering the options.");
+		expect(
+			panel?.querySelector(
+				".cline-chat-thinking-content.cline-chat-panel-rail",
+			),
+		).not.toBeNull();
+	});
+
+	it("falls back to a redaction notice without reasoning content", async () => {
+		await render(<ThinkingBlock durationMilliseconds={1_000} redacted />);
+		const trigger = container.querySelector("button") as HTMLButtonElement;
+		await act(async () => trigger.click());
+		expect(
+			document.getElementById(trigger.getAttribute("aria-controls") ?? "")
+				?.textContent,
+		).toContain("[redacted]");
+	});
+
+	it("formats work summary labels", () => {
+		expect(
+			formatWorkActivityLabel({
+				durationMilliseconds: 252_000,
+				toolCallCount: 14,
+			}),
+		).toBe("Worked for 4m 12s and made 14 tool calls");
+		expect(
+			formatWorkActivityLabel({ durationMilliseconds: 800, toolCallCount: 1 }),
+		).toBe("Worked for 1s and made 1 tool call");
+		expect(formatWorkActivityLabel({ durationMilliseconds: 3_720_000 })).toBe(
+			"Worked for 1h 2m",
+		);
+		expect(formatWorkActivityLabel({ toolCallCount: 3 })).toBe(
+			"Made 3 tool calls",
+		);
+		expect(formatWorkActivityLabel({})).toBe("Worked");
+	});
+
+	it("toggles the collapsed work summary open and closed", async () => {
+		await render(
+			<WorkActivity>
+				<WorkActivityTrigger durationMilliseconds={65_000} toolCallCount={2} />
+				<WorkActivityContent>Ran tests, edited theme.css</WorkActivityContent>
+			</WorkActivity>,
+		);
+
+		const trigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement;
+		expect(trigger.textContent).toContain(
+			"Worked for 1m 5s and made 2 tool calls",
+		);
+		expect(trigger.getAttribute("aria-expanded")).toBe("false");
+		const panel = document.getElementById(
+			trigger.getAttribute("aria-controls") ?? "",
+		);
+		expect(panel?.getAttribute("data-state")).toBe("closed");
+		// Collapsed content stays lazy until first opened.
+		expect(panel?.textContent).not.toContain("Ran tests");
+
+		await act(async () => trigger.click());
+		expect(trigger.getAttribute("aria-expanded")).toBe("true");
+		expect(panel?.getAttribute("data-state")).toBe("open");
+		expect(panel?.textContent).toContain("Ran tests, edited theme.css");
+		// Expanded rows sit at transcript level — no rail or extra indent.
+		const content = panel?.querySelector(".cline-chat-work-content");
+		expect(content).not.toBeNull();
+		expect(content?.classList.contains("cline-chat-panel-rail")).toBe(false);
+
+		await act(async () => trigger.click());
+		expect(panel?.getAttribute("data-state")).toBe("closed");
 	});
 
 	it("offers a scroll-to-latest action after the reader moves away", async () => {

@@ -16,9 +16,8 @@ import {
 import type { CliCompactionMode, Config } from "../../utils/types";
 import { getMcpManagerEntryStatus } from "../components/dialogs/mcp-manager-dialog";
 import { resolveModelDisplayName } from "../components/status-bar";
-import { useThemeController } from "../hooks/use-theme";
-import { palette } from "../palette";
-import { getDialogAccents, getThemeDefinition } from "../themes";
+import { useDialogPalette, useThemeController } from "../hooks/use-theme";
+import { type DialogPalette, getThemeDefinition } from "../themes";
 import {
 	type ConfigAction,
 	canDeleteConfigFooterRow,
@@ -118,11 +117,13 @@ function getVisibleWindow<T>(
 	return { items: items.slice(start, end), startIndex: start };
 }
 
-const COMPACTION_MODE_COLORS: Record<CliCompactionMode, string> = {
-	agentic: palette.success,
-	basic: "yellow",
-	off: "gray",
-};
+function getCompactionModeColor(
+	mode: CliCompactionMode,
+	palette: DialogPalette,
+): string {
+	if (mode === "agentic") return palette.success;
+	return mode === "basic" ? "yellow" : "gray";
+}
 
 export interface ConfigPanelProps extends ChoiceContext<ConfigAction> {
 	config: Config;
@@ -409,7 +410,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 	const [toggleError, setToggleError] = useState<string | undefined>();
 	const [navPos, setNavPos] = useState(0);
 	const themeController = useThemeController();
-	const dialogAccents = getDialogAccents(themeController.theme);
+	const palette = useDialogPalette();
 	const currentThemeLabel =
 		getThemeDefinition(themeController.selectedThemeId)?.label ?? "Auto";
 
@@ -823,11 +824,10 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 						let valueColor: string;
 						if (row.id === "mode") {
 							value = mode === "plan" ? "Plan" : "Act";
-							valueColor =
-								mode === "plan" ? dialogAccents.plan : dialogAccents.act;
+							valueColor = mode === "plan" ? palette.plan : palette.act;
 						} else if (row.id === "theme") {
 							value = currentThemeLabel;
-							valueColor = dialogAccents.act;
+							valueColor = palette.act;
 						} else if (row.id === "auto-approve") {
 							value = autoApprove ? "● on" : "○ off";
 							valueColor = autoApprove ? palette.success : "gray";
@@ -836,7 +836,7 @@ export function ConfigPanelContent(props: ConfigPanelProps) {
 							valueColor = autoUpdateEnabled ? palette.success : "gray";
 						} else if (row.id === "compaction") {
 							value = formatCliCompactionMode(compactionMode);
-							valueColor = COMPACTION_MODE_COLORS[compactionMode];
+							valueColor = getCompactionModeColor(compactionMode, palette);
 						} else {
 							value = verbose ? "● on" : "○ off";
 							valueColor = verbose ? palette.success : "gray";

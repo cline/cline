@@ -3,11 +3,38 @@ import type {
 	LanguageRegistration,
 	ThemeRegistration,
 } from "shiki/core";
-import type { CodeHighlighterPlugin } from "streamdown";
+import type { CodeHighlighterPlugin, ControlsConfig } from "streamdown";
+
+/**
+ * Shared Streamdown configuration for agent chat Markdown, so every product
+ * renders assistant prose the same way. Products keep their own Streamdown
+ * wrapper (link policy, image policy, extra plugins) and pass these in:
+ *
+ *   <Streamdown
+ *     className="cline-markdown"
+ *     controls={agentMarkdownControls}
+ *     plugins={{ code: markdownCodeHighlighter }}
+ *   >
+ *
+ * Pair with `@cline/ui/components/markdown.css` for the matching visual
+ * treatment (single quiet code blocks with a hover copy control, chat-scale
+ * headings, table cards).
+ *
+ * Runtime requirements (optional peer dependencies): `streamdown`, `shiki`,
+ * `@shikijs/langs`, and `@shikijs/themes`.
+ */
 
 type HighlightResult = NonNullable<
 	ReturnType<CodeHighlighterPlugin["highlight"]>
 >;
+
+/** Copy on code blocks; no downloads; no mermaid/table chrome. The matching
+ * CSS hides the code-block header and reveals the copy control on hover. */
+export const agentMarkdownControls = {
+	code: { copy: true, download: false },
+	mermaid: false,
+	table: false,
+} satisfies ControlsConfig;
 
 export const SUPPORTED_MARKDOWN_LANGUAGES = [
 	"bash",
@@ -214,7 +241,9 @@ function loadHighlight(
 	return loading;
 }
 
-export const markdownCodeHighlighter = {
+// Annotated (not `satisfies`) so the emitted declaration names the public
+// CodeHighlighterPlugin type instead of streamdown's unexported internals.
+export const markdownCodeHighlighter: CodeHighlighterPlugin = {
 	getSupportedLanguages: () => [...SUPPORTED_MARKDOWN_LANGUAGES],
 	getThemes: () => [LIGHT_THEME, DARK_THEME],
 	highlight: ({ code, language }, callback) => {
@@ -234,4 +263,4 @@ export const markdownCodeHighlighter = {
 	name: "shiki",
 	supportsLanguage: (language) => normalizeLanguage(language) !== null,
 	type: "code-highlighter",
-} satisfies CodeHighlighterPlugin;
+};
