@@ -48,11 +48,19 @@ export interface WorkspaceRef {
 	readonly rootPath: string;
 }
 
+/**
+ * Session kind (Gateway RFC, Phase 6). `canonical` is the bot's own
+ * desktop/CLI conversation; `dedicated` isolates one external
+ * (connector) conversation. Absent means `canonical` (pre-Phase 6 rows).
+ */
+export type SessionKind = "canonical" | "dedicated";
+
 export interface SessionRecord {
 	readonly sessionId: SessionId;
 	readonly botId: BotId;
 	readonly workspace: WorkspaceRef;
 	readonly state: SessionState;
+	readonly kind?: SessionKind;
 	readonly createdAt: number;
 	readonly revision: number;
 }

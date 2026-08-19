@@ -31,17 +31,27 @@ describe("method registry", () => {
 		expect(mutating.sort()).toEqual(
 			[
 				"bot.delegate",
+				"connector.register",
+				"connector.remove",
+				"connector.sendTest",
+				"connector.setCredential",
+				"connector.setEnabled",
+				"connector.updateConfig",
 				"gateway.drain",
 				"gateway.stop",
 				"run.abort",
 				"run.interrupt",
 				"run.start",
 				"run.steer",
+				"schedule.create",
 			].sort(),
 		);
 		expect(getMethodDefinition("gateway.hello")?.mutating).toBe(false);
 		expect(getMethodDefinition("run.subscribe")?.mutating).toBe(false);
 		expect(getMethodDefinition("run.list")?.mutating).toBe(false);
+		expect(getMethodDefinition("connector.list")?.mutating).toBe(false);
+		expect(getMethodDefinition("schedule.list")?.mutating).toBe(false);
+		expect(getMethodDefinition("schedule.report")?.mutating).toBe(false);
 	});
 });
 

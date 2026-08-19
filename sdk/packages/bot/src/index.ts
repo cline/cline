@@ -13,8 +13,23 @@
  * See `src/boundaries.test.ts` for the machine-checked rules.
  */
 
-export type { SubmitPromptOptions } from "./bot";
+export type { SubmitPromptOptions, SubmitToSessionOptions } from "./bot";
 export { Bot } from "./bot";
+export type {
+	ConnectorDescriptor,
+	ConnectorInboundResult,
+	ConnectorInboxPorts,
+	ConnectorReplyPort,
+	ConnectorRoute,
+	ConnectorRouteRepository,
+	ConnectorRunAdmission,
+	NormalizedConnectorMessage,
+} from "./connectors";
+export {
+	ConnectorInbox,
+	ConnectorScopeError,
+	formatConnectorPrompt,
+} from "./connectors";
 export type { EngineExecutionBindings } from "./engine-adapter";
 export { createEngineExecutionPort } from "./engine-adapter";
 export type { BotDomainErrorCode } from "./errors";
@@ -70,6 +85,7 @@ export type {
 	MemorySource,
 	RunRecord,
 	RunRepository,
+	SessionKind,
 	SessionRecord,
 	SessionRepository,
 	WorkspaceRef,

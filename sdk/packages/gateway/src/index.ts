@@ -23,6 +23,79 @@ export type {
 	GatewayServerRequestHandler,
 } from "./client";
 export { GatewayClient, GatewayRequestError } from "./client";
+export type {
+	ConnectorAdapter,
+	ConnectorAdapterContext,
+	ConnectorCredentialCheck,
+} from "./connectors/adapter";
+export { ConnectorDeliveryError } from "./connectors/adapter";
+export type {
+	DeliveryTickReport,
+	OutboundDeliveryWorkerOptions,
+} from "./connectors/delivery";
+export {
+	OutboundDeliveryWorker,
+	splitMessageForPlatform,
+} from "./connectors/delivery";
+export type { ConnectorManagerOptions } from "./connectors/manager";
+export { ConnectorManager } from "./connectors/manager";
+export type {
+	ConnectorDestination,
+	ConnectorMessengerOptions,
+	ProactiveSendParams,
+} from "./connectors/messenger";
+export {
+	ConnectorMessenger,
+	ProactiveSendRejectedError,
+} from "./connectors/messenger";
+export type {
+	EnqueueOutboundParams,
+	OutboundMessageOrigin,
+	OutboundMessageRecord,
+	OutboundMessageState,
+} from "./connectors/outbound-store";
+export { ConnectorOutboundStore } from "./connectors/outbound-store";
+export type {
+	SlackAdapterOptions,
+	SlackSocket,
+	SlackSocketFactory,
+} from "./connectors/slack";
+export {
+	parseSlackConversationId,
+	parseSlackCredential,
+	redactSlackTokens,
+	SLACK_MAX_MESSAGE_LENGTH,
+	SlackConnectorAdapter,
+	slackConversationId,
+} from "./connectors/slack";
+export type {
+	ConnectorInstanceClaim,
+	ConnectorRecord,
+	ConnectorStatus,
+} from "./connectors/store";
+export {
+	assertNonSecretConnectorConfig,
+	ConnectorCursorStore,
+	ConnectorInstanceStore,
+	ConnectorScopeViolationError,
+	ConnectorStore,
+	SqliteConnectorRouteStore,
+} from "./connectors/store";
+export type { TelegramAdapterOptions } from "./connectors/telegram";
+export {
+	redactTelegramToken,
+	TELEGRAM_MAX_MESSAGE_LENGTH,
+	TelegramConnectorAdapter,
+} from "./connectors/telegram";
+export type {
+	SendConnectorMessageInput,
+	SendConnectorMessageOutput,
+	SendConnectorMessageToolDeps,
+} from "./connectors/tool";
+export {
+	createSendConnectorMessageTool,
+	SEND_CONNECTOR_MESSAGE_TOOL,
+} from "./connectors/tool";
 export type { GatewayMigration } from "./db";
 export {
 	GATEWAY_MIGRATIONS,
@@ -60,6 +133,39 @@ export {
 } from "./idempotency-ledger";
 export { GatewayLock, GatewayLockHeldError } from "./lock";
 export type {
+	McpHttpTransportSpec,
+	McpServerDefinition,
+	McpStdioTransportSpec,
+	McpTransportSpec,
+} from "./mcp/definitions";
+export {
+	definitionRevision,
+	definitionsFromPlugin,
+} from "./mcp/definitions";
+export type {
+	McpAcquireContext,
+	McpClientConnection,
+	McpLease,
+	McpPoolOptions,
+	McpToolDescriptor,
+} from "./mcp/pool";
+export {
+	McpConnectBackoffError,
+	McpConnectionPool,
+	mcpPoolKey,
+} from "./mcp/pool";
+export type {
+	McpTransport,
+	McpTransportContext,
+	McpTransportFactory,
+} from "./mcp/transport";
+export {
+	createStdioTransportFactory,
+	StdioMcpTransport,
+} from "./mcp/transport";
+export type { McpToolPolicy } from "./mcp/views";
+export { McpToolDeniedError, SessionMcpToolView } from "./mcp/views";
+export type {
 	GatewayMethodDefinition,
 	ValidatedGatewayRequest,
 } from "./methods";
@@ -85,6 +191,49 @@ export {
 	resolveGatewayPaths,
 } from "./paths";
 export type {
+	BoundPlugin,
+	PluginViewPolicy,
+	SessionPluginContext,
+	SessionPluginView,
+} from "./plugins/bindings";
+export { createSessionPluginView } from "./plugins/bindings";
+export type {
+	CatalogDiagnostic,
+	CatalogEntry,
+	CatalogGenerationSnapshot,
+	CatalogPin,
+	CatalogReloadReport,
+	PluginCatalogOptions,
+	PluginScope,
+	PluginSource,
+} from "./plugins/catalog";
+export { PluginCatalog, pluginScopeKey } from "./plugins/catalog";
+export type {
+	LoadedMcpServer,
+	LoadedPlugin,
+	LoadedSkill,
+	PluginLoadResult,
+} from "./plugins/loader";
+export { fingerprintPluginDir, loadPlugin } from "./plugins/loader";
+export type {
+	AgentPluginManifest,
+	ManifestValidation,
+	PluginDiagnostic,
+	PluginDiagnosticSeverity,
+} from "./plugins/manifest";
+export {
+	AGENT_PLUGIN_SCHEMA_1_0_0,
+	isValidPluginName,
+	SUPPORTED_PLUGIN_SCHEMAS,
+	validatePluginManifest,
+} from "./plugins/manifest";
+export type {
+	PluginStateScope,
+	PluginStateStorePort,
+} from "./plugins/state-store";
+export { PluginStateStore } from "./plugins/state-store";
+export { RunProvenanceStore } from "./provenance-store";
+export type {
 	EngineRetryPolicy,
 	GatewayRecoveryReport,
 	GatewayRuntimeOptions,
@@ -98,11 +247,18 @@ export {
 	MANAGED_WORKSPACE_ROOT,
 	toGatewayError,
 } from "./runtime";
-export {
-	readSecretFile,
-	SecretAccessError,
-	writeSecretFile,
-} from "./secrets";
+export type {
+	SchedulerOptions,
+	SchedulerTickReport,
+} from "./schedules/scheduler";
+export { Scheduler } from "./schedules/scheduler";
+export type {
+	ScheduleJobRecord,
+	ScheduleJobState,
+	ScheduleRecord,
+} from "./schedules/store";
+export { ScheduleJobStore, ScheduleStore } from "./schedules/store";
+export { readSecretFile, SecretAccessError, writeSecretFile } from "./secrets";
 export type { GatewayServerOptions } from "./server";
 export { GatewayServer } from "./server";
 export type {
@@ -141,3 +297,55 @@ export {
 	UsageStore,
 	utcDateOf,
 } from "./usage";
+export type {
+	WorkerConnection,
+	WorkerCredentialCapability,
+	WorkerDriver,
+	WorkerDriverAvailability,
+	WorkerExitInfo,
+	WorkerIsolationMode,
+	WorkerNetworkPolicy,
+	WorkerSpawnSpec,
+} from "./workers/driver";
+export { WorkerIsolationUnavailableError } from "./workers/driver";
+export type {
+	WorkerEndpoint,
+	WorkerHostContext,
+	WorkerHostOptions,
+	WorkerWorkloadFactory,
+} from "./workers/host";
+export { WorkerHost } from "./workers/host";
+export { InProcessWorkerDriver } from "./workers/in-process-driver";
+export type {
+	SandboxProcessDriverOptions,
+	WorkerEntrySpec,
+} from "./workers/process-driver";
+export { SandboxProcessWorkerDriver } from "./workers/process-driver";
+export type {
+	SupervisorToWorkerMessage,
+	WorkerInvocation,
+	WorkerOutcome,
+	WorkerToSupervisorMessage,
+} from "./workers/protocol";
+export {
+	SupervisorToWorkerMessageSchema,
+	WORKER_PROTOCOL_VERSION,
+	WorkerToSupervisorMessageSchema,
+} from "./workers/protocol";
+export type {
+	SupervisorIsolationPolicy,
+	WorkerCapabilityHandler,
+	WorkerSupervisorOptions,
+} from "./workers/supervisor";
+export {
+	WorkerCrashedError,
+	WorkerSupervisor,
+} from "./workers/supervisor";
+export type { WorkerEntryOptions } from "./workers/worker-entry";
+export {
+	createStreamWorkerEndpoint,
+	defaultWorkerWorkload,
+	runWorkerEntry,
+} from "./workers/worker-entry";
+export type { BotMountPolicy } from "./workspaces";
+export { BotWorkspaceManager, WorkspacePathError } from "./workspaces";

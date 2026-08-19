@@ -212,6 +212,146 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 			);`,
 		],
 	},
+	{
+		version: 2,
+		name: "phase-4-6-plugins-connectors-schedules",
+		statements: [
+			// Phase 4: durable plugin state lives behind a Gateway storage
+			// port, never inside the plugin package or the worker.
+			`CREATE TABLE plugin_state (
+				plugin_name TEXT NOT NULL,
+				scope TEXT NOT NULL,
+				key TEXT NOT NULL,
+				value_json TEXT NOT NULL,
+				updated_at INTEGER NOT NULL,
+				PRIMARY KEY (plugin_name, scope, key)
+			);`,
+			// Phase 6: connectors are bot-scoped — config and conversation
+			// routes live in the bot namespace, one connector, one bot.
+			`CREATE TABLE connectors (
+				connector_id TEXT PRIMARY KEY,
+				bot_id TEXT NOT NULL,
+				kind TEXT NOT NULL,
+				name TEXT NOT NULL,
+				config_json TEXT NOT NULL,
+				credential_ref TEXT,
+				status TEXT NOT NULL,
+				created_at INTEGER NOT NULL,
+				revision INTEGER NOT NULL
+			);`,
+			`CREATE INDEX idx_connectors_bot ON connectors(bot_id, created_at);`,
+			`CREATE TABLE connector_routes (
+				connector_id TEXT NOT NULL,
+				external_account_id TEXT NOT NULL,
+				external_conversation_id TEXT NOT NULL,
+				bot_id TEXT NOT NULL,
+				session_id TEXT NOT NULL,
+				principal_id TEXT,
+				created_at INTEGER NOT NULL,
+				PRIMARY KEY (connector_id, external_account_id, external_conversation_id)
+			);`,
+			`CREATE INDEX idx_connector_routes_session ON connector_routes(session_id);`,
+			// Crash-safe dedupe cursor: committed in the same transaction as
+			// the work an inbound update caused.
+			`CREATE TABLE connector_cursors (
+				connector_id TEXT PRIMARY KEY,
+				cursor TEXT NOT NULL,
+				updated_at INTEGER NOT NULL
+			);`,
+			// One live worker per connector instance; a restart re-claims the
+			// row instead of creating a duplicate instance.
+			`CREATE TABLE connector_instances (
+				connector_id TEXT PRIMARY KEY,
+				worker_id TEXT NOT NULL,
+				gateway_instance_id TEXT NOT NULL,
+				started_at INTEGER NOT NULL,
+				heartbeat_at INTEGER NOT NULL
+			);`,
+			// Phase 6: schedules — Gateway owns triggers, durable claims,
+			// retries, and reports.
+			`CREATE TABLE schedules (
+				schedule_id TEXT PRIMARY KEY,
+				bot_id TEXT NOT NULL,
+				name TEXT NOT NULL,
+				prompt TEXT NOT NULL,
+				interval_ms INTEGER,
+				at INTEGER,
+				next_due_at INTEGER,
+				enabled INTEGER NOT NULL DEFAULT 1,
+				max_attempts INTEGER NOT NULL DEFAULT 1,
+				created_at INTEGER NOT NULL,
+				revision INTEGER NOT NULL
+			);`,
+			`CREATE INDEX idx_schedules_due ON schedules(enabled, next_due_at);`,
+			`CREATE TABLE schedule_jobs (
+				job_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				schedule_id TEXT NOT NULL,
+				due_at INTEGER NOT NULL,
+				state TEXT NOT NULL,
+				claimed_by TEXT,
+				claim_expires_at INTEGER,
+				attempts INTEGER NOT NULL DEFAULT 0,
+				run_id TEXT,
+				last_error TEXT,
+				created_at INTEGER NOT NULL,
+				settled_at INTEGER,
+				UNIQUE (schedule_id, due_at)
+			);`,
+			`CREATE INDEX idx_schedule_jobs_state ON schedule_jobs(state, due_at);`,
+			// Phase 6: explicit run provenance (interactive/connector/automation).
+			`CREATE TABLE run_provenance (
+				run_id TEXT PRIMARY KEY,
+				mode TEXT NOT NULL,
+				provenance_json TEXT NOT NULL,
+				created_at INTEGER NOT NULL
+			);`,
+		],
+	},
+	{
+		version: 3,
+		name: "phase-6-conversation-isolation-and-outbound",
+		statements: [
+			// Sessions carry a kind: `canonical` (the bot's own desktop/CLI
+			// conversation) or `dedicated` (one isolated external
+			// conversation). Pre-existing rows are canonical.
+			`ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'canonical';`,
+			// Outbound connector messages: persisted BEFORE delivery, then
+			// supervised independently from model execution. Idempotency
+			// keys make retries and crash recovery duplicate-free.
+			`CREATE TABLE connector_outbound (
+				outbound_id TEXT PRIMARY KEY,
+				bot_id TEXT NOT NULL,
+				connector_id TEXT NOT NULL,
+				external_account_id TEXT NOT NULL,
+				external_conversation_id TEXT NOT NULL,
+				origin TEXT NOT NULL,
+				origin_run_id TEXT,
+				origin_schedule_id TEXT,
+				idempotency_key TEXT NOT NULL UNIQUE,
+				content TEXT NOT NULL,
+				state TEXT NOT NULL DEFAULT 'pending',
+				attempts INTEGER NOT NULL DEFAULT 0,
+				next_attempt_at INTEGER NOT NULL DEFAULT 0,
+				claimed_by TEXT,
+				claim_expires_at INTEGER,
+				last_error TEXT,
+				external_message_ids_json TEXT,
+				created_at INTEGER NOT NULL,
+				last_attempt_at INTEGER,
+				delivered_at INTEGER
+			);`,
+			`CREATE INDEX idx_connector_outbound_state
+				ON connector_outbound(state, next_attempt_at);`,
+			`CREATE INDEX idx_connector_outbound_connector
+				ON connector_outbound(connector_id, created_at);`,
+			`CREATE INDEX idx_connector_outbound_run
+				ON connector_outbound(origin_run_id);`,
+			// Schedules may target a connector route for notifications.
+			`ALTER TABLE schedules ADD COLUMN notify_connector_id TEXT;`,
+			`ALTER TABLE schedules ADD COLUMN notify_external_account_id TEXT;`,
+			`ALTER TABLE schedules ADD COLUMN notify_external_conversation_id TEXT;`,
+		],
+	},
 ];
 
 export class GatewayDatabase {

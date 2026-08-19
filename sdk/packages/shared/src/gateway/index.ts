@@ -15,6 +15,7 @@ export * from "./errors";
 export * from "./handshake";
 export * from "./idempotency";
 export * from "./ids";
+export * from "./provenance";
 export * from "./revisions";
 export * from "./run-states";
 export * from "./server-requests";

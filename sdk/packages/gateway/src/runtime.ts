@@ -43,26 +43,36 @@ import {
 } from "@cline/bot";
 import type {
 	BotId,
+	ConnectorId,
 	GatewayError,
 	GatewayEventScope,
 	GatewayInstanceId,
 	GatewayServerRequest,
 	RunAccepted,
 	RunId,
+	RunProvenance,
+	ScheduleId,
 	SessionId,
 } from "@cline/shared/gateway";
 import {
 	createBotId,
+	createConnectorId,
 	createGatewayError,
 	createRunId,
+	createScheduleId,
 	createSessionId,
 	EventCursorDecodeError,
 	GATEWAY_PROTOCOL_VERSION,
+	RunProvenanceSchema,
 	RunStateTransitionError,
 } from "@cline/shared/gateway";
+import type { ConnectorRecord, ConnectorStatus } from "./connectors/store";
+import { assertNonSecretConnectorConfig } from "./connectors/store";
 import type { GatewayDatabase } from "./db";
 import { OUTBOX_KIND_SESSION_PROJECTION } from "./outbox";
 import type { GatewayPaths } from "./paths";
+import type { CatalogPin, PluginCatalog } from "./plugins/catalog";
+import type { ScheduleRecord } from "./schedules/store";
 import type { GatewayStores } from "./stores";
 import { UsageQueryError } from "./usage";
 
@@ -186,6 +196,7 @@ interface InstrumentationSinks {
 	stores: GatewayStores;
 	clock: BotClock;
 	outboxEnqueued(): void;
+	runTerminal?(record: RunRecord): void;
 }
 
 class InstrumentedRunRepository {
@@ -262,6 +273,7 @@ class InstrumentedRunRepository {
 				now,
 			);
 			this.sinks.outboxEnqueued();
+			this.sinks.runTerminal?.(record);
 		}
 	}
 }
@@ -689,13 +701,25 @@ export interface GatewayRuntimeOptions {
 	materializeWorkspace?: (rootPath: string) => void;
 	/** Called whenever a transaction enqueued outbox work. */
 	onOutboxEnqueued?: () => void;
+	/** Phase 4: plugin catalog; active runs pin their generation. */
+	plugins?: PluginCatalog;
+	/** Phase 4: worker/execution health reported through gateway.status. */
+	executionHealth?: () => Record<string, unknown>;
 }
 
 export interface RunStartParams {
 	botId: BotId;
 	prompt: string;
+	/**
+	 * Target session. Omitted: the bot's canonical session. Present: that
+	 * session's lane — desktop uses this to intentionally join a connector
+	 * conversation's dedicated session.
+	 */
+	sessionId?: SessionId;
 	workspaceRoot?: string;
 	overrides?: TurnOverrides;
+	/** Explicit provenance; defaults to interactive by the calling actor. */
+	provenance?: RunProvenance;
 }
 
 export interface GatewayRecoveryReport {
@@ -721,6 +745,12 @@ export class GatewayRuntime {
 	private readonly bots = new Map<BotId, Bot>();
 	private readonly maxPendingRunsPerSession: number;
 	private readonly onOutboxEnqueued: () => void;
+	private readonly plugins: PluginCatalog | undefined;
+	private readonly executionHealth: (() => Record<string, unknown>) | undefined;
+	/** Catalog generation pins held by active (non-terminal) runs. */
+	private readonly catalogPins = new Map<RunId, CatalogPin>();
+	/** Hooks invoked when a run reaches a terminal state. */
+	private readonly runTerminalHooks = new Set<(record: RunRecord) => void>();
 	private draining = false;
 	private defaultBot: BotRecord | undefined;
 
@@ -733,10 +763,33 @@ export class GatewayRuntime {
 		this.startedAt = this.clock.now();
 		this.maxPendingRunsPerSession = options.maxPendingRunsPerSession ?? 32;
 		this.onOutboxEnqueued = options.onOutboxEnqueued ?? (() => {});
+		this.plugins = options.plugins;
+		this.executionHealth = options.executionHealth;
 		const sinks: InstrumentationSinks = {
 			stores: this.stores,
 			clock: this.clock,
 			outboxEnqueued: () => this.onOutboxEnqueued(),
+			runTerminal: (record) => {
+				this.releaseCatalogPin(record.runId);
+				// Registered hooks (e.g. connector auto-replies) run inside
+				// the settlement transaction; a hook failure must never fail
+				// the settlement itself.
+				for (const hook of this.runTerminalHooks) {
+					try {
+						hook(record);
+					} catch (error) {
+						this.stores.audit.record(
+							"gateway",
+							"run.terminalHookFailed",
+							record.runId,
+							{
+								error: error instanceof Error ? error.message : String(error),
+							},
+							this.clock.now(),
+						);
+					}
+				}
+			},
 		};
 		this.ids = {
 			botId: () => createBotId(),
@@ -838,6 +891,7 @@ export class GatewayRuntime {
 		for (const record of this.stores.runs.listQueued()) {
 			try {
 				this.getBot(record.botId).recoverQueuedRun(record);
+				this.pinCatalog(record.runId);
 				requeued.push(record.runId);
 			} catch {
 				// The session is closed or the bot retired; the run cannot be
@@ -882,37 +936,28 @@ export class GatewayRuntime {
 		};
 	}
 
-	/** Admit a prompt: durable FIFO queue + immediate acknowledgement. */
+	/**
+	 * Admit a prompt: durable FIFO queue + immediate acknowledgement.
+	 * Without a `sessionId` the prompt enters the bot's canonical
+	 * session; with one it joins that session's lane — including a
+	 * connector conversation's dedicated session, which is how desktop
+	 * intentionally participates in an external conversation.
+	 */
 	startRun(actor: string, params: RunStartParams): RunAccepted {
-		if (this.draining) {
+		this.refuseWhileDraining();
+		const bot = this.getBot(params.botId);
+		const targetSession = params.sessionId
+			? this.stores.sessions.get(params.sessionId)
+			: bot.session;
+		if (params.sessionId && !targetSession) {
 			throw new GatewayCallError(
-				createGatewayError(
-					"gateway_draining",
-					"Gateway is draining and refuses new mutating work",
-					{ retryable: true },
-				),
+				createGatewayError("not_found", `Unknown session: ${params.sessionId}`),
 			);
 		}
-		const bot = this.getBot(params.botId);
-		const session = bot.session;
-		if (session) {
-			const pending = this.stores.runs.countPendingBySession(session.sessionId);
-			if (pending >= this.maxPendingRunsPerSession) {
-				throw new GatewayCallError(
-					createGatewayError(
-						"run_admission_rejected",
-						`Session queue is full (${pending} pending runs); retry later`,
-						{
-							retryable: true,
-							details: {
-								pending,
-								limit: this.maxPendingRunsPerSession,
-							},
-						},
-					),
-				);
-			}
-		}
+		this.applyBackpressure(targetSession?.sessionId);
+		const provenance = RunProvenanceSchema.parse(
+			params.provenance ?? { mode: "interactive", submittedBy: actor },
+		);
 		return this.database.transaction(() => {
 			// Effective config at admission (provider/model/prompt settings —
 			// never credentials). Persisted as the run's snapshot below;
@@ -922,32 +967,184 @@ export class GatewayRuntime {
 				bot.record.config,
 				params.overrides,
 			);
-			const accepted = bot.submitPrompt(params.prompt, {
-				// An explicit workspace is always forwarded so a mismatch with
-				// an existing session's immutable workspace is rejected loudly.
-				workspace: params.workspaceRoot
-					? { rootPath: params.workspaceRoot }
-					: session
-						? undefined
-						: { rootPath: MANAGED_WORKSPACE_ROOT },
-				overrides: params.overrides,
-			});
+			const accepted = params.sessionId
+				? bot.submitPromptToSession(params.prompt, {
+						sessionId: params.sessionId,
+						workspace: params.workspaceRoot
+							? { rootPath: params.workspaceRoot }
+							: undefined,
+						overrides: params.overrides,
+					})
+				: bot.submitPrompt(params.prompt, {
+						// An explicit workspace is always forwarded so a mismatch
+						// with an existing session's immutable workspace is
+						// rejected loudly.
+						workspace: params.workspaceRoot
+							? { rootPath: params.workspaceRoot }
+							: targetSession
+								? undefined
+								: { rootPath: MANAGED_WORKSPACE_ROOT },
+						overrides: params.overrides,
+					});
+			this.finishAdmission(actor, params.botId, accepted, provenance);
 			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
-			this.stores.audit.record(
-				actor,
-				"run.start",
-				accepted.runId,
-				{ botId: params.botId, queuePosition: accepted.queuePosition },
-				this.clock.now(),
-			);
 			return accepted;
 		});
 	}
 
-	/** Merge steering text into the active run. */
+	/**
+	 * Connector admission (Gateway RFC, Phase 6): the same durable FIFO
+	 * admission path as desktop/CLI prompts, but into the conversation's
+	 * DEDICATED session — a new one on first contact, the routed one
+	 * afterwards. External conversations therefore never touch the bot's
+	 * canonical session or each other's.
+	 */
+	startConnectorRun(params: {
+		botId: BotId;
+		prompt: string;
+		connectorId: ConnectorId;
+		externalAccountId: string;
+		externalConversationId: string;
+		/** The conversation's existing dedicated session, when routed. */
+		sessionId?: SessionId;
+	}): RunAccepted & { sessionId: SessionId } {
+		this.refuseWhileDraining();
+		const actor = `connector:${params.connectorId}`;
+		const bot = this.getBot(params.botId);
+		if (params.sessionId) {
+			this.applyBackpressure(params.sessionId);
+		}
+		const provenance = RunProvenanceSchema.parse({
+			mode: "connector",
+			submittedBy: actor,
+			connectorId: params.connectorId,
+			externalAccountId: params.externalAccountId,
+			externalConversationId: params.externalConversationId,
+		});
+		return this.database.transaction(() => {
+			const snapshotConfig = resolveEffectiveConfig(bot.record.config);
+			const accepted = bot.submitPromptToSession(params.prompt, {
+				sessionId: params.sessionId,
+				// New conversations get a managed workspace of their own.
+				workspace: params.sessionId
+					? undefined
+					: { rootPath: MANAGED_WORKSPACE_ROOT },
+			});
+			this.finishAdmission(actor, params.botId, accepted, provenance);
+			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
+			return accepted;
+		});
+	}
+
+	/** Automation admission for the scheduler: an ordinary run. */
+	startAutomationRun(schedule: {
+		scheduleId: ScheduleId;
+		botId: BotId;
+		prompt: string;
+		name: string;
+	}): RunAccepted {
+		return this.startRun(`schedule:${schedule.scheduleId}`, {
+			botId: schedule.botId,
+			prompt: schedule.prompt,
+			provenance: {
+				mode: "automation",
+				submittedBy: `schedule:${schedule.scheduleId}`,
+				scheduleId: schedule.scheduleId,
+				reason: schedule.name,
+			},
+		});
+	}
+
+	runProvenance(runId: RunId): RunProvenance | undefined {
+		return this.stores.provenance.get(runId);
+	}
+
+	/** Catalog generations currently pinned by active runs (tests/status). */
+	pinnedCatalogGenerations(): readonly number[] {
+		return [...this.catalogPins.values()]
+			.map((pin) => pin.snapshot.generation)
+			.sort((a, b) => a - b);
+	}
+
+	catalogGenerationForRun(runId: RunId): number | undefined {
+		return this.catalogPins.get(runId)?.snapshot.generation;
+	}
+
+	private refuseWhileDraining(): void {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+	}
+
+	/** Adaptive per-session admission backpressure. */
+	private applyBackpressure(sessionId: SessionId | undefined): void {
+		if (!sessionId) {
+			return;
+		}
+		const pending = this.stores.runs.countPendingBySession(sessionId);
+		if (pending >= this.maxPendingRunsPerSession) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"run_admission_rejected",
+					`Session queue is full (${pending} pending runs); retry later`,
+					{
+						retryable: true,
+						details: {
+							pending,
+							limit: this.maxPendingRunsPerSession,
+						},
+					},
+				),
+			);
+		}
+	}
+
+	/** Shared post-admission bookkeeping (inside the admission transaction). */
+	private finishAdmission(
+		actor: string,
+		botId: BotId,
+		accepted: RunAccepted,
+		provenance: RunProvenance,
+	): void {
+		this.stores.provenance.record(accepted.runId, provenance, this.clock.now());
+		this.pinCatalog(accepted.runId);
+		this.stores.audit.record(
+			actor,
+			"run.start",
+			accepted.runId,
+			{
+				botId,
+				queuePosition: accepted.queuePosition,
+				mode: provenance.mode,
+			},
+			this.clock.now(),
+		);
+	}
+
+	private pinCatalog(runId: RunId): void {
+		if (this.plugins && !this.catalogPins.has(runId)) {
+			this.catalogPins.set(runId, this.plugins.pin());
+		}
+	}
+
+	private releaseCatalogPin(runId: RunId): void {
+		const pin = this.catalogPins.get(runId);
+		if (pin) {
+			this.catalogPins.delete(runId);
+			pin.release();
+		}
+	}
+
+	/** Merge steering text into the run's active lane. */
 	steerRun(actor: string, runId: RunId, text: string): { merged: boolean } {
 		const { bot, record } = this.requireRun(runId);
-		if (record.state !== "running" || bot.activeRun?.runId !== runId) {
+		if (record.state !== "running" || !bot.isRunActive(runId)) {
 			throw new GatewayCallError(
 				createGatewayError(
 					"invalid_state_transition",
@@ -956,7 +1153,7 @@ export class GatewayRuntime {
 				),
 			);
 		}
-		const merged = bot.steer(text);
+		const merged = bot.steerRun(runId, text);
 		if (merged) {
 			this.database.transaction(() => {
 				this.stores.events.append(
@@ -1037,6 +1234,328 @@ export class GatewayRuntime {
 
 	listBots(): readonly BotRecord[] {
 		return this.stores.bots.list();
+	}
+
+	/**
+	 * Register a bot-scoped connector (Gateway RFC, Phase 6). The config
+	 * is non-secret; the credential stays an owner-only 0600 file named
+	 * by `credentialRef`.
+	 */
+	registerConnector(
+		actor: string,
+		params: {
+			botId: BotId;
+			kind: string;
+			name: string;
+			config?: Record<string, unknown>;
+			credentialRef?: string;
+		},
+	): ConnectorRecord {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		const bot = this.stores.bots.get(params.botId);
+		if (!bot) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
+			);
+		}
+		// Config is non-secret by contract; tokens go into 0600 files.
+		assertNonSecretConnectorConfig(params.config ?? {});
+		return this.database.transaction(() => {
+			const record: ConnectorRecord = {
+				connectorId: createConnectorId(),
+				botId: params.botId,
+				kind: params.kind,
+				name: params.name,
+				config: params.config ?? {},
+				credentialRef: params.credentialRef,
+				status: "enabled",
+				createdAt: this.clock.now(),
+				revision: 0,
+			};
+			this.stores.connectors.save(record);
+			this.stores.events.append(
+				"connector.registered",
+				{ botId: params.botId },
+				{
+					connectorId: record.connectorId,
+					kind: params.kind,
+					name: params.name,
+				},
+				this.clock.now(),
+			);
+			this.stores.audit.record(
+				actor,
+				"connector.register",
+				record.connectorId,
+				{ botId: params.botId, kind: params.kind },
+				this.clock.now(),
+			);
+			return record;
+		});
+	}
+
+	listConnectors(botId?: BotId): readonly ConnectorRecord[] {
+		return this.stores.connectors.list(botId);
+	}
+
+	/** Register a run-terminal hook (e.g. connector auto-replies). */
+	onRunTerminal(hook: (record: RunRecord) => void): () => void {
+		this.runTerminalHooks.add(hook);
+		return () => {
+			this.runTerminalHooks.delete(hook);
+		};
+	}
+
+	requireConnector(connectorId: ConnectorId): ConnectorRecord {
+		const record = this.stores.connectors.get(connectorId);
+		if (!record) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown connector: ${connectorId}`),
+			);
+		}
+		return record;
+	}
+
+	/** Enable or disable a connector (audited). */
+	setConnectorEnabled(
+		actor: string,
+		connectorId: ConnectorId,
+		enabled: boolean,
+	): ConnectorRecord {
+		this.refuseWhileDraining();
+		const record = this.requireConnector(connectorId);
+		const status: ConnectorStatus = enabled ? "enabled" : "disabled";
+		if (record.status === status) {
+			return record;
+		}
+		return this.database.transaction(() => {
+			const updated: ConnectorRecord = {
+				...record,
+				status,
+				revision: record.revision + 1,
+			};
+			this.stores.connectors.save(updated);
+			this.stores.events.append(
+				enabled ? "connector.enabled" : "connector.disabled",
+				{ botId: record.botId },
+				{ connectorId },
+				this.clock.now(),
+			);
+			this.stores.audit.record(
+				actor,
+				enabled ? "connector.enable" : "connector.disable",
+				connectorId,
+				undefined,
+				this.clock.now(),
+			);
+			return updated;
+		});
+	}
+
+	/** Update non-secret connector configuration (audited). */
+	updateConnectorConfig(
+		actor: string,
+		connectorId: ConnectorId,
+		config: Record<string, unknown>,
+	): ConnectorRecord {
+		this.refuseWhileDraining();
+		const record = this.requireConnector(connectorId);
+		assertNonSecretConnectorConfig(config);
+		return this.database.transaction(() => {
+			const updated: ConnectorRecord = {
+				...record,
+				config,
+				revision: record.revision + 1,
+			};
+			this.stores.connectors.save(updated);
+			this.stores.audit.record(
+				actor,
+				"connector.updateConfig",
+				connectorId,
+				{ keys: Object.keys(config) },
+				this.clock.now(),
+			);
+			return updated;
+		});
+	}
+
+	/**
+	 * Replace the credential REFERENCE (the secret itself is placed via
+	 * `cline-gateway secret-put` / an owner-only 0600 file, never here).
+	 */
+	setConnectorCredentialRef(
+		actor: string,
+		connectorId: ConnectorId,
+		credentialRef: string | undefined,
+	): ConnectorRecord {
+		this.refuseWhileDraining();
+		const record = this.requireConnector(connectorId);
+		return this.database.transaction(() => {
+			const updated: ConnectorRecord = {
+				...record,
+				credentialRef,
+				revision: record.revision + 1,
+			};
+			this.stores.connectors.save(updated);
+			this.stores.audit.record(
+				actor,
+				"connector.setCredential",
+				connectorId,
+				// The reference name only — never a secret value.
+				{ credentialRef: credentialRef ?? null },
+				this.clock.now(),
+			);
+			return updated;
+		});
+	}
+
+	/** Remove a connector (routes and outbound history are retained). */
+	removeConnector(
+		actor: string,
+		connectorId: ConnectorId,
+	): { removed: boolean } {
+		this.refuseWhileDraining();
+		const record = this.requireConnector(connectorId);
+		return this.database.transaction(() => {
+			const removed = this.stores.connectors.delete(connectorId);
+			this.stores.events.append(
+				"connector.removed",
+				{ botId: record.botId },
+				{ connectorId },
+				this.clock.now(),
+			);
+			this.stores.audit.record(
+				actor,
+				"connector.remove",
+				connectorId,
+				undefined,
+				this.clock.now(),
+			);
+			return { removed };
+		});
+	}
+
+	/** The conversation routes of one connector (with their sessions). */
+	listConnectorRoutes(
+		connectorId: ConnectorId,
+	): ReturnType<GatewayStores["connectorRoutes"]["listByConnector"]> {
+		this.requireConnector(connectorId);
+		return this.stores.connectorRoutes.listByConnector(connectorId);
+	}
+
+	/** Outbound message records (delivery state surface for clients). */
+	listOutboundMessages(filter: {
+		connectorId?: ConnectorId;
+		botId?: BotId;
+		state?: "pending" | "sending" | "delivered" | "failed";
+		limit?: number;
+	}): ReturnType<GatewayStores["connectorOutbound"]["list"]> {
+		return this.stores.connectorOutbound.list(filter);
+	}
+
+	/** Create a schedule (Gateway RFC, Phase 6): a durable trigger. */
+	createSchedule(
+		actor: string,
+		params: {
+			botId: BotId;
+			name: string;
+			prompt: string;
+			intervalMs?: number;
+			at?: number;
+			maxAttempts?: number;
+			/** Deliver firing outcomes to a connector conversation. */
+			notify?: {
+				connectorId: ConnectorId;
+				externalAccountId: string;
+				externalConversationId: string;
+			};
+		},
+	): ScheduleRecord {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		const bot = this.stores.bots.get(params.botId);
+		if (!bot) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
+			);
+		}
+		if ((params.intervalMs === undefined) === (params.at === undefined)) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					"A schedule takes exactly one trigger: intervalMs (recurring) or at (one-shot)",
+				),
+			);
+		}
+		if (params.notify) {
+			// The notify target must be a connector of the SAME bot.
+			const connector = this.stores.connectors.get(params.notify.connectorId);
+			if (!connector || connector.botId !== params.botId) {
+				throw new GatewayCallError(
+					createGatewayError(
+						"unauthorized",
+						`Notify connector ${params.notify.connectorId} does not belong to bot ${params.botId}`,
+					),
+				);
+			}
+		}
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			const record: ScheduleRecord = {
+				scheduleId: createScheduleId(),
+				botId: params.botId,
+				name: params.name,
+				prompt: params.prompt,
+				intervalMs: params.intervalMs,
+				at: params.at,
+				nextDueAt: params.at ?? now + (params.intervalMs ?? 0),
+				enabled: true,
+				maxAttempts: Math.max(1, params.maxAttempts ?? 1),
+				notify: params.notify,
+				createdAt: now,
+				revision: 0,
+			};
+			this.stores.schedules.save(record);
+			this.stores.events.append(
+				"schedule.created",
+				{ botId: params.botId },
+				{ scheduleId: record.scheduleId, name: params.name },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"schedule.create",
+				record.scheduleId,
+				{ botId: params.botId },
+				now,
+			);
+			return record;
+		});
+	}
+
+	listSchedules(botId?: BotId): readonly ScheduleRecord[] {
+		return this.stores.schedules.list(botId);
+	}
+
+	scheduleReport(
+		scheduleId: ScheduleId,
+	): ReturnType<GatewayStores["scheduleJobs"]["report"]> {
+		return this.stores.scheduleJobs.report(scheduleId);
 	}
 
 	listSessions(botId?: BotId): readonly SessionRecord[] {
@@ -1121,6 +1640,23 @@ export class GatewayRuntime {
 			catalogGeneration: this.stores.meta.catalogGeneration(),
 			namespace: this.paths.namespace,
 			dataDir: this.paths.dataDir,
+			// Isolation is always visible in health/telemetry — including
+			// the default direct in-process execution (a development mode).
+			execution: this.executionHealth?.() ?? {
+				isolation: "in-process-direct",
+				development: true,
+			},
+			...(this.plugins
+				? {
+						plugins: {
+							generation: this.plugins.current.generation,
+							plugins: this.plugins.current.entries.length,
+							heldGenerations: this.plugins.heldGenerations(),
+							pinnedByRuns: this.catalogPins.size,
+							lastReloadOk: this.plugins.lastReloadReport?.ok ?? true,
+						},
+					}
+				: {}),
 			counts: {
 				bots: this.stores.bots.list().length,
 				sessions: this.stores.sessions.list().length,
@@ -1130,6 +1666,8 @@ export class GatewayRuntime {
 				pendingOutbox: this.stores.outbox.countPending(),
 				lastEventSequence: this.stores.events.lastSequence(),
 				pendingServerRequests: this.approvals.pendingCount,
+				connectors: this.stores.connectors.list().length,
+				schedules: this.stores.schedules.list().length,
 			},
 		};
 	}
@@ -1195,7 +1733,7 @@ export class GatewayRuntime {
 				),
 			);
 		}
-		if (bot.activeRun?.runId !== runId) {
+		if (!bot.isRunActive(runId)) {
 			throw new GatewayCallError(
 				createGatewayError(
 					"invalid_state_transition",
@@ -1205,9 +1743,9 @@ export class GatewayRuntime {
 			);
 		}
 		if (mode === "interrupt") {
-			bot.interrupt(reason);
+			bot.interruptRun(runId, reason);
 		} else {
-			bot.abort(reason);
+			bot.abortRun(runId, reason);
 		}
 		this.stores.audit.record(
 			actor,

@@ -6,10 +6,12 @@ registration, runtime resources, execution supervision, and one
 versioned protocol for desktop, CLI, connector, local, and remote
 clients.
 
-This package contains the **Phase 0 protocol slice** and the **Phase 3
-authority**: the server, the SQLite store, the singleton lock, the async
-run runtime, and the CLI. Plugins, MCP pooling, connectors, schedules,
-and client migrations are later phases.
+This package contains the **Phase 0 protocol slice**, the **Phase 3
+authority** (server, SQLite store, singleton lock, async run runtime,
+CLI), and the **Phase 4-6 resource layer**: the Agent Plugins catalog and
+worker isolation, MCP connection pooling, connectors (Telegram/Slack),
+and schedules. Client product migrations and remote access are later
+phases.
 
 ## Gateway RFC — summary
 
@@ -174,28 +176,158 @@ to 400 days, aggregates only): `statistics.summary`,
 
 | Concern | Location |
 | --- | --- |
-| Wire contracts: IDs, envelopes, errors, revisions, cursors, idempotency, handshake, capabilities, run states, server requests | `@cline/shared/gateway` |
-| Private command registry (`run.start`, `gateway.drain`, ...) | `src/methods.ts` |
+| Wire contracts: IDs, envelopes, errors, revisions, cursors, idempotency, handshake, capabilities, run states, provenance, server requests | `@cline/shared/gateway` |
+| Private command registry (`run.start`, `connector.register`, `schedule.create`, ...) | `src/methods.ts` |
 | `gateway.hello` negotiation | `src/hello.ts` |
 | Data directory layout + namespace | `src/paths.ts` |
 | OS-backed exclusive lock | `src/lock.ts` |
 | SQLite authority + migrations | `src/db.ts`, `src/stores.ts` |
 | Discovery record + instance secret | `src/discovery.ts` |
-| Provider credentials (0600 secret files) + engine injection | `src/secrets.ts`, `src/engine-binding.ts` |
+| Owner-only 0600 secret files (provider keys + connector tokens) + engine injection | `src/secrets.ts`, `src/engine-binding.ts` |
 | Usage/statistics pipeline (events + daily aggregates + queries) | `src/usage.ts` |
-| Async runtime (queue, attempts, recovery, approvals) | `src/runtime.ts` |
+| Async runtime (queue, attempts, recovery, approvals, provenance) | `src/runtime.ts` |
 | Loopback server + event replay | `src/server.ts` |
 | Loopback client | `src/client.ts` |
 | Outbox projections | `src/outbox.ts` |
 | Lifecycle CLI | `src/cli.ts`, `bin/cline-gateway.mjs` |
+| Agent Plugins manifest/loader/catalog/bindings (Phase 4) | `src/plugins/` |
+| Bot workspace storage + mount policy (Phase 4) | `src/workspaces.ts` |
+| Worker supervision, drivers, protocol, entry (Phase 4) | `src/workers/`, `bin/cline-gateway-worker.mjs` |
+| MCP definitions, transports, pool, tool views (Phase 5) | `src/mcp/` |
+| Connector stores, supervision, Telegram, Slack (Phase 6) | `src/connectors/` |
+| Schedules: triggers, durable claims, reports (Phase 6) | `src/schedules/` |
 | ADRs: write authority, singleton ownership, no implicit fallback | [`docs/adr/`](./docs/adr/) |
 | Engine (Phase 1) | `@cline/engine` |
-| Bot domain (Phase 2) | `@cline/bot` |
+| Bot domain (Phase 2), connector-to-session semantics (Phase 6) | `@cline/bot` |
 
-### Explicitly out of scope until Phase 4+
+## Phase 4 — plugins and worker isolation
 
-Plugins and the resource catalog, MCP pooling, connector supervision
-(Telegram/Slack), schedules, sandbox/container supervision, desktop/CLI
-client migration, remote/mobile access and federation — and any change to
-`@cline/core` or the existing Hub, which remain fully untouched by this
-package.
+**Plugins.** The Gateway discovers global (`<dataDir>/plugins/`), bot
+(`bots/<botId>/plugins/`), and workspace plugins and validates them
+against the Agent Plugins specification: a single filesystem-resolved
+package root, `plugin.json` loaded and validated first, `$schema`
+selecting a locally bundled rule set (never fetched), skills discovered
+only as immediate `skills/*/SKILL.md` children, MCP servers read from the
+root `mcp.json`, unsupported extension namespaces ignored, and every
+failure isolated at the narrowest boundary (plugin, component type,
+single skill, single MCP entry). Valid plugins are imported once into an
+**immutable catalog generation**; a reload reconciles files, reuses
+unchanged plugins (fingerprint check), and publishes atomically. A failed
+reload keeps the prior healthy generation and reports a diagnostic.
+Active runs pin their generation until terminal. Sessions get
+policy-filtered views with lightweight bindings (bot/workspace/principal/
+session/storage/permission context); mutable plugin state is
+session-scoped, durable state goes through the namespaced
+`plugin_state` storage port.
+
+**Workers.** One long-lived execution worker per bot, supervised through
+the wire contract initialize / execute / event / capability-call /
+interrupt / drain / heartbeat, with idle reaping. Isolation is an
+execution policy behind a swappable `WorkerDriver`: V0 ships an
+in-process driver (tests only) and a macOS sandbox-process driver
+(Seatbelt via `@anthropic-ai/sandbox-runtime`); Linux
+bubblewrap/Docker/Podman can be added without touching bot, engine, or
+protocol contracts. Required isolation **fails closed** when
+unavailable; the explicit development-only unsandboxed mode is always
+visible in `gateway.status`. Workers never mount secret files —
+credential *use* is injected as scoped network capabilities (allowed
+domains + masked env sentinels substituted by the sandbox proxy on
+egress). A worker crash fails the in-flight attempts, the session
+survives, and any retry is the attempt layer's explicit decision.
+Logical workspaces live under `bots/<botId>/workspaces/`; symlink and
+traversal escapes are rejected, and the mount policy derives from the
+fixed per-bot root, so adding a child workspace never widens the policy
+or requires a worker restart.
+
+## Phase 5 — MCP pooling
+
+The Gateway owns MCP definitions, auth scopes, health, backoff, the
+tool-schema cache, and transports. Connections are pooled under
+`(definitionRevision, principalId, botId?, workspaceId?, authScope)` so
+scope leaks are impossible by construction. Sessions hold
+reference-counted leases and policy-filtered tool views; releasing one
+lease never closes a connection other leases use. A credential or
+definition change drains only the affected generation — existing leases
+finish on the old connection, new acquires build a fresh one. Reconnect
+storms are bounded: concurrent acquires share one in-flight connect and
+repeated failures apply exponential backoff.
+
+## Phase 6 — connectors and schedules
+
+**Connectors are bot-scoped**: config, credential reference, and
+conversation routes live in the bot namespace and every connector
+targets exactly one bot. `@cline/bot` owns the connector-to-session
+semantics (`ConnectorInbox`); the Gateway supplies transport,
+persistence, auth boundaries, and worker supervision — one worker per
+connector instance (enforced in-process and through the durable
+instance registry), a crash-safe dedupe cursor committed in the same
+transaction as the admission it caused, and restart-from-cursor with no
+duplicate instance. Bots see normalized source metadata and an
+authorized reply capability, never adapter credentials. V0 adapters:
+**Telegram Bot API** (long-poll `getUpdates`, `update_id` cursor) and
+**Slack** (Socket Mode, `event_id` dedupe).
+
+**Conversation isolation.** Every external conversation gets its own
+DEDICATED Gateway session: `(connectorId, externalAccountId,
+externalConversationId) -> dedicated sessionId`, durable in the route
+table and reused for later messages. Unrelated Telegram chats, Slack
+channels, and Slack threads never share context, and external users can
+never inherit the bot's canonical (desktop/CLI) context — connector runs
+never touch the canonical session. Desktop participates in an external
+conversation only intentionally, by passing the dedicated `sessionId` to
+`run.start`. **Slack decision:** a channel and each of its threads are
+SEPARATE conversations (separate sessions); conversation ids encode this
+as `<channel>` vs `<channel>#<thread_ts>`, and replies to a thread
+conversation post into the thread.
+
+**Outbound delivery.** When a connector-originated run COMPLETES, its
+final response is enqueued (same transaction as the settlement, keyed by
+`run-reply:<runId>`) and delivered to the originating conversation by a
+supervision worker independent of model execution: transient platform
+failures retry with exponential backoff — without ever rerunning the
+model — while permanent failures (revoked/malformed credentials, missing
+permissions) settle immediately; content is split per platform limits
+(Telegram 4096, Slack 40000). Failed, aborted, and interrupted runs
+never produce a reply. Outbound messages are durable rows
+(`connector_outbound`: state pending/sending/delivered/failed, attempts,
+idempotency key, claims, platform message ids), so pending deliveries
+resume after a restart, concurrent workers can never double-send, and
+crash replays never duplicate.
+
+**Proactive messaging.** Agents get one constrained tool,
+`send_connector_message`: the destination defaults to the run's
+originating conversation; explicit destinations must belong to the
+current bot; anything other than the originating conversation requires
+an operator approval (server request `connector.sendApproval`);
+per-conversation rate limits apply; the message is persisted before
+delivery with an idempotency key; and the returned delivery status never
+exposes credentials. Schedules can also target a connector route
+(`notify`), turning firing outcomes — scheduled summaries, failure
+notices — into ordinary outbound messages, and any Gateway event can do
+the same through `ConnectorMessenger.notify`.
+
+**Management RPCs** (same wire protocol, additive):
+`connector.register`, `connector.list`, `connector.inspect` (record +
+live health), `connector.setEnabled`, `connector.updateConfig`
+(non-secret only — secret-like keys are refused), `connector.setCredential`
+(reference to a 0600 secret file, never a token), `connector.remove`,
+`connector.routes` (conversations + their sessions),
+`connector.testCredentials` (Telegram `getMe` / Slack `auth.test`),
+`connector.sendTest`, and `connector.outbound` (delivery states). A
+desktop onboarding UI for these APIs belongs to `apps/gateway-desktop`,
+which lives on its own branch — the full API surface ships here.
+
+**Schedules.** The Gateway owns triggers (recurring interval or one-shot
+`at`), durable claims, retries, and reports. A firing materializes a
+durable job row; only the active (lock-holding) instance claims jobs; an
+expired claim recovers on the same row and **adopts** an
+already-admitted run instead of creating a replacement session.
+Automations create ordinary runs with explicit `automation` provenance
+through the same FIFO admission path as every other client.
+
+### Explicitly out of scope until Phase 7+
+
+Desktop/CLI client product migration, remote/mobile access (WSS/SSH),
+federation, OCI/container drivers beyond the driver boundary — and any
+change to `@cline/core` or the existing Hub, which remain fully
+untouched by this package.

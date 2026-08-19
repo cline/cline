@@ -1,13 +1,17 @@
 /**
- * Owner-only secret files (Gateway RFC, Phase 3; ADR 0001).
+ * Owner-only secret files (Gateway RFC, Phases 3-6; ADR 0001).
  *
  * The Gateway owns credentials. Secrets are stored exclusively as
  * mode-0600 files in the Gateway's owner-only secrets directory
- * (`<dataDir>/secrets/<name>`, e.g. one file per LLM provider). They are
+ * (`<dataDir>/secrets/<name>`): one file per LLM provider (Phase 3
+ * credential management, `cline-gateway secret-put <providerId>`) and
+ * one per connector `credentialRef` (Phase 6 adapter tokens). They are
  * read by the Gateway process itself and injected in memory at the
- * engine boundary — never written into the database, the event log,
- * audit entries, projections, or logs, and never handed to clients or
- * workers.
+ * consuming boundary — the engine binding, a connector adapter, an MCP
+ * transport — never written into the database, the event log, audit
+ * entries, projections, or logs, and never handed to clients. Workers
+ * never mount secret files: worker mounts derive from the bot workspaces
+ * root only, and workers see, at most, a masked credential capability.
  */
 
 import {

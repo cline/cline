@@ -25,7 +25,7 @@ import type {
 	EngineRunHandle,
 } from "@cline/bot";
 import { createEngineExecutionPort } from "@cline/bot";
-import type { EngineModelBinding } from "@cline/engine";
+import type { AgentTool, EngineModelBinding } from "@cline/engine";
 import { SERVER_REQUEST_METHODS } from "@cline/shared/gateway";
 import type { GatewayPaths } from "./paths";
 import type { ApprovalBroker } from "./runtime";
@@ -62,8 +62,17 @@ export interface ConfiguredEngineOptions {
 	resolveModel?: (invocation: EngineInvocation) => EngineModelBinding;
 	/** Data directory paths; enables mode-0600 secret file lookup. */
 	paths?: GatewayPaths;
+	/**
+	 * Gateway-owned tools per invocation (e.g. the constrained
+	 * `send_connector_message`). A callback so late-bound providers (the
+	 * server exists after the engine port) can contribute.
+	 */
+	tools?: (invocation: EngineInvocation) => readonly AnyAgentTool[] | undefined;
 	env?: Record<string, string | undefined>;
 }
+
+// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
+type AnyAgentTool = AgentTool<any, any>;
 
 const PROVIDER_KEY_ENV: Record<string, string> = {
 	anthropic: "ANTHROPIC_API_KEY",
@@ -145,6 +154,9 @@ export function createConfiguredEnginePort(
 						: options.approvals;
 				const port = createEngineExecutionPort({
 					model: () => model,
+					tools: options.tools
+						? (toolInvocation) => options.tools?.(toolInvocation) ?? []
+						: undefined,
 					requestApproval: approvals
 						? async (request) => {
 								const answer = await approvals.request(
