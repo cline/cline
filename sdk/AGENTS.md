@@ -29,7 +29,7 @@ Foundation for the Gateway RFC (see `packages/gateway/README.md` and `packages/g
 
 - `@cline/engine`: single-execution engine over the `@cline/agents` loop — immutable `RunSpec`, ordered `EngineEvent`s, steer/interrupt/abort, `RunResult` + persistence deltas. No storage, discovery, sockets, or daemon code.
 - `@cline/bot`: bot domain semantics (immutable roles, lazy sessions, immutable workspaces, FIFO run admission, delegation, contractor teardown, memories) behind injected ports.
-- `@cline/gateway`: Gateway protocol authority — currently the private command registry, `gateway.hello` negotiation, idempotency ledger, and ADRs; the server itself is a later phase.
+- `@cline/gateway`: Gateway runtime authority — the wire protocol (command registry, `gateway.hello` negotiation), the SQLite authority with migrations, the OS-backed exclusive singleton lock, the loopback server with per-instance auth and durable event replay, the async run runtime (durable FIFO queue, run attempts/retry, crash recovery, approvals), outbox-driven disk projections, and the lifecycle CLI (`serve`/`start`/`status`/`drain`/`upgrade`/`stop`). Server, SQLite, lock, and CLI code live here only.
 
 Dependency rule: `gateway -> bot -> engine -> agents -> llms -> shared`. Engine never imports bot/gateway; bot never imports gateway; no new package depends on `@cline/core`. Reusable wire contracts live in `@cline/shared/gateway`. These rules are machine-checked by `boundaries.test.ts` in each new package.
 
