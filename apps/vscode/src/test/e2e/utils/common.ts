@@ -16,11 +16,23 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 
 	// Target the explicit action instead of pressing Enter on the first item.
 	// The first item can vary by platform or diagnostics.
-	const addToCline = _page.getByText(/Add to Cline/i)
+	const addToCline = _page.getByRole("option", { name: /^Add to Cline(?:,|$)/ })
 	await addToCline.waitFor({ state: "visible" })
-	// VS Code briefly overlays a pointer blocker while positioning this widget.
-	// The action is already visible and stable, so bypass that transient overlay.
-	await addToCline.click({ force: true })
+	// The action widget briefly overlays a pointer blocker while positioning.
+	// Activate the exact option from the keyboard instead of racing that overlay.
+	await _page.keyboard.press("Home")
+	const actionCount = await _page.getByRole("option").count()
+	for (
+		let index = 0;
+		index < actionCount && !(await addToCline.evaluate((element) => element.classList.contains("focused")));
+		index++
+	) {
+		await _page.keyboard.press("ArrowDown")
+	}
+	if (!(await addToCline.evaluate((element) => element.classList.contains("focused")))) {
+		throw new Error("Could not focus the Add to Cline code action")
+	}
+	await _page.keyboard.press("Enter")
 }
 
 export const toggleNotifications = async (_page: Page) => {
