@@ -90,8 +90,9 @@ describe("monitor resume semantics", () => {
 		};
 
 		const firstResume = persistMonitorResumeNotice("session_1", disk, persist);
-		expect(firstResume).toHaveLength(2);
-		expect(disk).toEqual(firstResume);
+		expect(firstResume.messages).toHaveLength(2);
+		expect(firstResume.notice).toBe(firstResume.messages[1]);
+		expect(disk).toEqual(firstResume.messages);
 
 		// Stop without an agent turn, then resume from the messages the first
 		// resume already wrote. The notice must not be generated or persisted twice.
@@ -101,7 +102,8 @@ describe("monitor resume semantics", () => {
 			disk,
 			secondPersist,
 		);
-		expect(secondResume).toBe(disk);
+		expect(secondResume.messages).toBe(disk);
+		expect(secondResume.notice).toBeUndefined();
 		expect(secondPersist).not.toHaveBeenCalled();
 	});
 });

@@ -91,15 +91,15 @@ export function persistMonitorResumeNotice(
 	sessionId: string,
 	messages: MessageWithMetadata[],
 	persist: (sessionId: string, messages: MessageWithMetadata[]) => void,
-): MessageWithMetadata[] {
+): { messages: MessageWithMetadata[]; notice?: MessageWithMetadata } {
 	const notice = createMonitorResumeNotice(
 		collectPersistedActiveMonitors(messages),
 	);
-	if (!notice) return messages;
+	if (!notice) return { messages };
 	const next = [...messages, notice];
 	// Resumed sessions do not seed-persist their initial messages. Write the
 	// terminal markers before runtime start so a no-turn shutdown cannot lose
 	// them and generate the same notice on the next resume.
 	persist(sessionId, next);
-	return next;
+	return { messages: next, notice };
 }

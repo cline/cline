@@ -8,6 +8,7 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
+import { buildActiveSessionMonitors } from "@/lib/session-monitors";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -2769,5 +2770,124 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(current.status).toBe("running");
 		expect(current.promptsInQueue).toHaveLength(1);
 		expect(current.promptsInQueue[0]?.prompt).toBe("second prompt");
+	});
+
+	it("appends the monitor resume notice on resume so the badge clears live", async () => {
+		const hydratedSessionId = "session-with-monitor";
+		const noticeContent =
+			"<system-reminder>\n" +
+			"Resuming this session rebuilt its runtime and stopped an active monitor: ci (mon_1). " +
+			"They are no longer running.\n" +
+			"[monitor mon_1 stopped because session resumed]\n" +
+			"</system-reminder>";
+		const monitorHistory = [
+			{
+				id: "history-monitor-start",
+				sessionId: hydratedSessionId,
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "monitor",
+					input: { action: "start" },
+					result: 'Started monitor mon_1 ("ci"): Watches CI',
+					isError: false,
+				}),
+				createdAt: 1,
+				meta: { toolName: "monitor", hookEventName: "history_tool_result" },
+			},
+		];
+		// handleStart persists the notice, so later canonical rehydrates must
+		// include it or they would erase the live-appended copy.
+		let noticePersisted = false;
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return noticePersisted
+						? [
+								...monitorHistory,
+								{
+									id: "history-notice",
+									sessionId: hydratedSessionId,
+									role: "system",
+									content: noticeContent,
+									createdAt: 2,
+									meta: {
+										messageKind: "monitor_resume_notice",
+										displayRole: "system",
+										hookEventName: "history_notice",
+										userRunSpan: 0,
+									},
+								},
+							]
+						: monitorHistory;
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "completed",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					if (request?.action === "start") {
+						noticePersisted = true;
+						return {
+							sessionId: request.config?.sessionId,
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+							monitorResumeNotice: { content: noticeContent, ts: 1234 },
+						};
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: {
+								text: "The monitor is gone",
+								finishReason: "completed",
+							},
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "completed",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-12T00:00:00.000Z",
+			});
+		});
+		expect(buildActiveSessionMonitors(current.messages)).toEqual([
+			{ id: "mon_1", name: "ci" },
+		]);
+
+		await act(async () => {
+			await current.sendPrompt("Is the monitor still running?");
+		});
+
+		const notice = current.messages.find(
+			(message) => message.meta?.messageKind === "monitor_resume_notice",
+		);
+		expect(notice?.role).toBe("system");
+		expect(notice?.content).toContain(
+			"[monitor mon_1 stopped because session resumed]",
+		);
+		expect(buildActiveSessionMonitors(current.messages)).toEqual([]);
 	});
 });
