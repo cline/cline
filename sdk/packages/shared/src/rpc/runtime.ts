@@ -1,6 +1,12 @@
 import z from "zod";
 import type { HubToolExecutorName } from "../hub";
 import type {
+	ModelModality,
+	ModelOperation,
+	ModelOperationMode,
+} from "../llms/model-info";
+import type { ReasoningLevel } from "../llms/reasoning-options";
+import type {
 	RuntimeConfigExtensionKind,
 	SessionExecutionConfig,
 	SessionPromptConfig,
@@ -144,9 +150,14 @@ export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 export interface ProviderModel {
 	id: string;
 	name: string;
+	operation?: ModelOperation;
+	contextWindow?: number;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	operationModes?: ModelOperationMode[];
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =
@@ -198,17 +209,21 @@ export interface ProviderListItem {
 	family?: string;
 }
 
+export interface VoiceInputSelection {
+	providerId: string;
+	modelId: string;
+}
+
 export interface ProviderCatalogResponse {
 	providers: ProviderListItem[];
 	settingsPath: string;
+	voiceInput?: VoiceInputSelection;
 }
 
 export interface ProviderModelsResponse {
 	providerId: string;
 	models: ProviderModel[];
 }
-
-import type { OAuthProviderId } from "../types/auth";
 
 export const ProviderCapabilitySchema = z.enum([
 	"reasoning",
@@ -294,7 +309,7 @@ export interface SaveProviderSettingsActionRequest {
 	// Reasoning/thinking configuration
 	reasoning?: {
 		enabled?: boolean;
-		effort?: "none" | "low" | "medium" | "high" | "xhigh";
+		effort?: ReasoningLevel;
 		budgetTokens?: number;
 	};
 	// AWS/Bedrock configuration
@@ -424,6 +439,6 @@ export type ProviderActionRequest =
 	| ClineAccountActionRequest;
 
 export interface ProviderOAuthLoginResponse {
-	provider: OAuthProviderId;
+	provider: string;
 	accessToken: string;
 }

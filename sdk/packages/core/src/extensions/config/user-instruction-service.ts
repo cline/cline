@@ -1,7 +1,9 @@
 import type { AgentExtension } from "@cline/shared";
+import type { SkillsExecutorWithMetadata } from "../tools";
 import {
 	type AvailableRuntimeCommand,
 	listAvailableRuntimeCommandsFromWatcher,
+	type ResolveRuntimeSlashCommandOptions,
 	resolveRuntimeSlashCommandFromWatcher,
 } from "./runtime-commands";
 import {
@@ -14,6 +16,7 @@ import {
 import {
 	type CreateUserInstructionPluginOptions,
 	createUserInstructionPlugin,
+	createUserInstructionSkillsExecutor,
 	getConfiguredSkillsFromWatcher,
 } from "./user-instruction-plugin";
 
@@ -37,8 +40,14 @@ export interface UserInstructionConfigService {
 		type: UserInstructionConfigType,
 	): UserInstructionConfigRecord<TConfig>[];
 	listRuntimeCommands(): AvailableRuntimeCommand[];
-	resolveRuntimeSlashCommand(input: string): string;
+	resolveRuntimeSlashCommand(
+		input: string,
+		options?: ResolveRuntimeSlashCommandOptions,
+	): string;
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean;
+	createSkillsExecutor?(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): SkillsExecutorWithMetadata;
 	createExtension(
 		options: Omit<
 			CreateUserInstructionPluginOptions,
@@ -97,13 +106,26 @@ class DefaultUserInstructionConfigService
 		return listAvailableRuntimeCommandsFromWatcher(this.watcher);
 	}
 
-	resolveRuntimeSlashCommand(input: string): string {
-		return resolveRuntimeSlashCommandFromWatcher(input, this.watcher);
+	resolveRuntimeSlashCommand(
+		input: string,
+		options?: ResolveRuntimeSlashCommandOptions,
+	): string {
+		return resolveRuntimeSlashCommandFromWatcher(input, this.watcher, options);
 	}
 
 	hasConfiguredSkills(allowedSkillNames?: ReadonlyArray<string>): boolean {
 		return getConfiguredSkillsFromWatcher(this.watcher, allowedSkillNames).some(
 			(skill) => !skill.disabled,
+		);
+	}
+
+	createSkillsExecutor(
+		allowedSkillNames?: ReadonlyArray<string>,
+	): SkillsExecutorWithMetadata {
+		return createUserInstructionSkillsExecutor(
+			this.watcher,
+			(this.ready ?? Promise.resolve()).catch(() => {}),
+			allowedSkillNames,
 		);
 	}
 

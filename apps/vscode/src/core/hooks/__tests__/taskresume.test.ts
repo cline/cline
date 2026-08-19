@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, it } from "mocha"
+import { afterEach, beforeEach, describe, it } from "bun:test"
 import "should"
 import fs from "fs/promises"
 import path from "path"
@@ -111,13 +111,14 @@ console.log(JSON.stringify({
 	})
 
 	describe("Time-Based Calculations", () => {
-		it("should correctly calculate minutes ago for recent resumes", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+		it(
+			"should correctly calculate minutes ago for recent resumes",
+			async () => {
+				if (process.platform === "win32") {
+				}
 
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
-			const hookScript = `#!/usr/bin/env node
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const now = Date.now();
@@ -127,43 +128,46 @@ console.log(JSON.stringify({
   contextModification: "Minutes ago: " + minutesAgo
 }))`
 
-			await writeHookScript(hookPath, hookScript)
+				await writeHookScript(hookPath, hookScript)
 
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskResume")
+				const factory = new HookFactory()
+				const runner = await factory.create("TaskResume")
 
-			// Test various time intervals
-			const testCases = [
-				{ offset: 2 * 60 * 1000, expected: 2 }, // 2 minutes
-				{ offset: 30 * 60 * 1000, expected: 30 }, // 30 minutes
-				{ offset: 90 * 60 * 1000, expected: 90 }, // 90 minutes
-			]
+				// Test various time intervals
+				const testCases = [
+					{ offset: 2 * 60 * 1000, expected: 2 }, // 2 minutes
+					{ offset: 30 * 60 * 1000, expected: 30 }, // 30 minutes
+					{ offset: 90 * 60 * 1000, expected: 90 }, // 90 minutes
+				]
 
-			for (const { offset, expected } of testCases) {
-				const timestamp = Date.now() - offset
-				const result = await runner.run({
-					taskId: "test-task",
-					taskResume: {
-						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-						previousState: {
-							lastMessageTs: timestamp.toString(),
-							messageCount: "5",
-							conversationHistoryDeleted: "false",
+				for (const { offset, expected } of testCases) {
+					const timestamp = Date.now() - offset
+					const result = await runner.run({
+						taskId: "test-task",
+						taskResume: {
+							taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+							previousState: {
+								lastMessageTs: timestamp.toString(),
+								messageCount: "5",
+								conversationHistoryDeleted: "false",
+							},
 						},
-					},
-				})
+					})
 
-				result.contextModification?.should.equal(`Minutes ago: ${expected}`)
-			}
-		})
+					result.contextModification?.should.equal(`Minutes ago: ${expected}`)
+				}
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
-		it("should handle very old timestamps (days ago)", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+		it(
+			"should handle very old timestamps (days ago)",
+			async () => {
+				if (process.platform === "win32") {
+				}
 
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
-			const hookScript = `#!/usr/bin/env node
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const lastTs = parseInt(input.taskResume.previousState.lastMessageTs);
 const now = Date.now();
@@ -173,27 +177,29 @@ console.log(JSON.stringify({
   contextModification: daysAgo > 0 ? "Days ago: " + daysAgo : "Recent"
 }))`
 
-			await writeHookScript(hookPath, hookScript)
+				await writeHookScript(hookPath, hookScript)
 
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskResume")
+				const factory = new HookFactory()
+				const runner = await factory.create("TaskResume")
 
-			// Test 7 days ago
-			const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
-			const result = await runner.run({
-				taskId: "test-task",
-				taskResume: {
-					taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-					previousState: {
-						lastMessageTs: sevenDaysAgo.toString(),
-						messageCount: "5",
-						conversationHistoryDeleted: "false",
+				// Test 7 days ago
+				const sevenDaysAgo = Date.now() - 7 * 24 * 60 * 60 * 1000
+				const result = await runner.run({
+					taskId: "test-task",
+					taskResume: {
+						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+						previousState: {
+							lastMessageTs: sevenDaysAgo.toString(),
+							messageCount: "5",
+							conversationHistoryDeleted: "false",
+						},
 					},
-				},
-			})
+				})
 
-			result.contextModification?.should.equal("Days ago: 7")
-		})
+				result.contextModification?.should.equal("Days ago: 7")
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
 		it("should handle edge case: future timestamp", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -230,13 +236,14 @@ console.log(JSON.stringify({
 	})
 
 	describe("Message Count Analysis", () => {
-		it("should analyze message count thresholds", async function () {
-			if (process.platform === "win32") {
-				this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-			}
+		it(
+			"should analyze message count thresholds",
+			async () => {
+				if (process.platform === "win32") {
+				}
 
-			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
-			const hookScript = `#!/usr/bin/env node
+				const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
+				const hookScript = `#!/usr/bin/env node
 const input = JSON.parse(require('fs').readFileSync(0, 'utf-8'));
 const count = parseInt(input.taskResume.previousState.messageCount);
 let category;
@@ -248,33 +255,35 @@ console.log(JSON.stringify({
   contextModification: "Conversation length: " + category + " (" + count + " messages)"
 }))`
 
-			await writeHookScript(hookPath, hookScript)
+				await writeHookScript(hookPath, hookScript)
 
-			const factory = new HookFactory()
-			const runner = await factory.create("TaskResume")
+				const factory = new HookFactory()
+				const runner = await factory.create("TaskResume")
 
-			const testCases = [
-				{ count: "2", expected: "short (2 messages)" },
-				{ count: "10", expected: "medium (10 messages)" },
-				{ count: "50", expected: "long (50 messages)" },
-			]
+				const testCases = [
+					{ count: "2", expected: "short (2 messages)" },
+					{ count: "10", expected: "medium (10 messages)" },
+					{ count: "50", expected: "long (50 messages)" },
+				]
 
-			for (const { count, expected } of testCases) {
-				const result = await runner.run({
-					taskId: "test-task",
-					taskResume: {
-						taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-						previousState: {
-							lastMessageTs: Date.now().toString(),
-							messageCount: count,
-							conversationHistoryDeleted: "false",
+				for (const { count, expected } of testCases) {
+					const result = await runner.run({
+						taskId: "test-task",
+						taskResume: {
+							taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+							previousState: {
+								lastMessageTs: Date.now().toString(),
+								messageCount: count,
+								conversationHistoryDeleted: "false",
+							},
 						},
-					},
-				})
+					})
 
-				result.contextModification?.should.equal(`Conversation length: ${expected}`)
-			}
-		})
+					result.contextModification?.should.equal(`Conversation length: ${expected}`)
+				}
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
 		it("should handle zero message count", async () => {
 			const hookPath = path.join(tempDir, ".clinerules", "hooks", "TaskResume")
@@ -552,94 +561,101 @@ console.log(JSON.stringify({
 	})
 
 	describe("Fixture-Based Tests", () => {
-		it("should validate representative fixtures end-to-end", async function () {
-			// Multiple fixture scenarios spawn child processes sequentially,
-			// which can easily exceed the default 2 s Mocha timeout.
-			this.timeout(WINDOWS_HOOK_TEST_TIMEOUT_MS)
-
-			const scenarios: FixtureScenario[] = [
-				{
-					fixtureName: "success",
-					lastMessageTs: Date.now().toString(),
-					messageCount: "5",
-					conversationHistoryDeleted: "false",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.equal("TaskResume hook executed successfully")
-					},
-				},
-				{
-					fixtureName: "recent-resume",
-					lastMessageTs: (Date.now() - 2 * 60 * 1000).toString(),
-					messageCount: "5",
-					conversationHistoryDeleted: "false",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.match(/Recently paused task/)
-					},
-				},
-				{
-					fixtureName: "long-pause",
-					lastMessageTs: (Date.now() - 48 * 60 * 60 * 1000).toString(),
-					messageCount: "5",
-					conversationHistoryDeleted: "false",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.match(/paused 48 hours ago/)
-					},
-				},
-				{
-					fixtureName: "context-deleted",
-					lastMessageTs: Date.now().toString(),
-					messageCount: "50",
-					conversationHistoryDeleted: "true",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.match(/truncated/)
-					},
-				},
-				{
-					fixtureName: "message-count",
-					lastMessageTs: Date.now().toString(),
-					messageCount: "25",
-					conversationHistoryDeleted: "false",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
-					},
-				},
-				{
-					fixtureName: "context-injection",
-					lastMessageTs: Date.now().toString(),
-					messageCount: "5",
-					conversationHistoryDeleted: "false",
-					assert: (result: HookOutput) => {
-						result.cancel.should.be.false()
-						result.contextModification?.should.equal(
-							"WORKSPACE_RULES: Task test-task resumed - review previous context",
-						)
-					},
-				},
-			]
-
-			for (const scenario of scenarios) {
-				await withFixtureRunner("TaskResume", `hooks/taskresume/${scenario.fixtureName}`, hookTestEnv, async (runner) => {
-					const result = await runner.run({
-						taskId: "test-task",
-						taskResume: {
-							taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
-							previousState: {
-								lastMessageTs: scenario.lastMessageTs,
-								messageCount: scenario.messageCount,
-								conversationHistoryDeleted: scenario.conversationHistoryDeleted,
-							},
+		it(
+			"should validate representative fixtures end-to-end",
+			async () => {
+				// Multiple fixture scenarios spawn child processes sequentially,
+				// which can easily exceed the default 2 s Mocha timeout.
+				const scenarios: FixtureScenario[] = [
+					{
+						fixtureName: "success",
+						lastMessageTs: Date.now().toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.equal("TaskResume hook executed successfully")
 						},
-					})
+					},
+					{
+						fixtureName: "recent-resume",
+						lastMessageTs: (Date.now() - 2 * 60 * 1000).toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.match(/Recently paused task/)
+						},
+					},
+					{
+						fixtureName: "long-pause",
+						lastMessageTs: (Date.now() - 48 * 60 * 60 * 1000).toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.match(/paused 48 hours ago/)
+						},
+					},
+					{
+						fixtureName: "context-deleted",
+						lastMessageTs: Date.now().toString(),
+						messageCount: "50",
+						conversationHistoryDeleted: "true",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.match(/truncated/)
+						},
+					},
+					{
+						fixtureName: "message-count",
+						lastMessageTs: Date.now().toString(),
+						messageCount: "25",
+						conversationHistoryDeleted: "false",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.equal("TASK_CONTEXT: Resuming task with 25 previous messages")
+						},
+					},
+					{
+						fixtureName: "context-injection",
+						lastMessageTs: Date.now().toString(),
+						messageCount: "5",
+						conversationHistoryDeleted: "false",
+						assert: (result: HookOutput) => {
+							result.cancel.should.be.false()
+							result.contextModification?.should.equal(
+								"WORKSPACE_RULES: Task test-task resumed - review previous context",
+							)
+						},
+					},
+				]
 
-					scenario.assert(result)
-				})
-			}
-		})
+				for (const scenario of scenarios) {
+					await withFixtureRunner(
+						"TaskResume",
+						`hooks/taskresume/${scenario.fixtureName}`,
+						hookTestEnv,
+						async (runner) => {
+							const result = await runner.run({
+								taskId: "test-task",
+								taskResume: {
+									taskMetadata: { taskId: "test-task", ulid: "test-ulid" },
+									previousState: {
+										lastMessageTs: scenario.lastMessageTs,
+										messageCount: scenario.messageCount,
+										conversationHistoryDeleted: scenario.conversationHistoryDeleted,
+									},
+								},
+							})
+
+							scenario.assert(result)
+						},
+					)
+				}
+			},
+			WINDOWS_HOOK_TEST_TIMEOUT_MS,
+		)
 
 		it("should preserve fixture-based failure behavior", async () => {
 			await withFixtureRunner("TaskResume", "hooks/taskresume/error", hookTestEnv, async (runner) => {

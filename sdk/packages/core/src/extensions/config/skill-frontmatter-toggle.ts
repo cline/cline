@@ -1,4 +1,5 @@
 import { readFile, writeFile } from "node:fs/promises";
+import { stripUtf8Bom } from "@cline/shared";
 import YAML from "yaml";
 
 export interface ToggleSkillFrontmatterOptions {
@@ -19,10 +20,15 @@ interface MarkdownFrontmatterParts {
 }
 
 function parseMarkdownFrontmatter(content: string): MarkdownFrontmatterParts {
+	// Strip a leading UTF-8 BOM (e.g. added by Windows Notepad's "UTF-8 with BOM" encoding),
+	// which Node's `utf-8` decoding does not strip on its own. Without this the frontmatter
+	// regex below never matches a file that starts with "\uFEFF---" (see cline/cline#12151).
+	const normalizedContent = stripUtf8Bom(content);
+
 	const frontmatterRegex = /^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/;
-	const match = content.match(frontmatterRegex);
+	const match = normalizedContent.match(frontmatterRegex);
 	if (!match) {
-		return { data: {}, body: content, hadFrontmatter: false };
+		return { data: {}, body: normalizedContent, hadFrontmatter: false };
 	}
 
 	const [, yamlContent, body] = match;

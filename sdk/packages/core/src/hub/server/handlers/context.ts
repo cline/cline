@@ -10,8 +10,10 @@ import type {
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
+	SessionConnectionRuntimeService,
 	SessionUsageRuntimeService,
 } from "../../../runtime/host/runtime-host";
 import {
@@ -50,9 +52,24 @@ export interface HubTransportContext {
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
+	/**
+	 * Count of RPC-driven turns (`run.start` / session input commands)
+	 * currently awaiting `sessionHost.runTurn` per session. While > 0 the
+	 * awaiting handler publishes the authoritative terminal run event, so the
+	 * session-event projector must not publish its own `run.failed` for
+	 * agent-level error events emitted during that turn. Turns drained from
+	 * the pending-prompt queue run with no awaiting RPC handler (count 0), so
+	 * the projector is their only failure reporter.
+	 */
+	readonly activeRpcTurnCountBySession: Map<string, number>;
 	readonly telemetry?: ITelemetryService;
 	readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & SessionUsageRuntimeService>;
+		Partial<
+			CommandExecutionRuntimeService &
+				PendingPromptsRuntimeService &
+				SessionUsageRuntimeService &
+				SessionConnectionRuntimeService
+		>;
 	publish(event: HubEventEnvelope): void;
 	buildEvent(
 		event: HubEventEnvelope["event"],
@@ -183,6 +200,9 @@ export function ensureSessionState(
 		if (options.interactive !== undefined) {
 			existing.interactive = options.interactive;
 		}
+		if (role === "creator" && !existing.createdByClientId) {
+			existing.createdByClientId = clientId;
+		}
 		if (!existing.participants.has(clientId)) {
 			existing.participants.set(clientId, {
 				clientId,
@@ -194,6 +214,44 @@ export function ensureSessionState(
 	}
 	const state: HubSessionState = {
 		createdByClientId: clientId,
+		interactive: options.interactive ?? true,
+		participants: new Map([
+			[
+				clientId,
+				{
+					clientId,
+					attachedAt: Date.now(),
+					role,
+				},
+			],
+		]),
+	};
+	ctx.sessionState.set(sessionId, state);
+	return state;
+}
+
+export function ensureSessionParticipant(
+	ctx: HubTransportContext,
+	sessionId: string,
+	clientId: string,
+	role: SessionParticipant["role"],
+	options: { interactive?: boolean } = {},
+): HubSessionState {
+	const existing = ctx.sessionState.get(sessionId);
+	if (existing) {
+		if (options.interactive !== undefined) {
+			existing.interactive = options.interactive;
+		}
+		if (!existing.participants.has(clientId)) {
+			existing.participants.set(clientId, {
+				clientId,
+				attachedAt: Date.now(),
+				role,
+			});
+		}
+		return existing;
+	}
+	const state: HubSessionState = {
 		interactive: options.interactive ?? true,
 		participants: new Map([
 			[

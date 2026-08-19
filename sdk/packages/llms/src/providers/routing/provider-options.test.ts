@@ -1,9 +1,13 @@
 import type {
 	GatewayProviderContext,
 	GatewayStreamRequest,
+	ModelReasoningOption,
 } from "@cline/shared";
 import { describe, expect, it } from "vitest";
+import { BEDROCK_ROUTING_METADATA } from "./bedrock-cache-point";
 import { GLM_THINKING_ROUTING_METADATA } from "./glm-thinking";
+import { MINIMAX_THINKING_ROUTING_METADATA } from "./minimax-thinking";
+import { resolvePortableReasoning } from "./portable-reasoning";
 import {
 	composeAiSdkProviderOptions,
 	mergeProviderOptionPatches,
@@ -19,6 +23,9 @@ type ContextOverrides = {
 	providerId?: string;
 	modelId?: string;
 	family?: string;
+	contextWindow?: number;
+	maxOutputTokens?: number;
+	reasoningOptions?: readonly ModelReasoningOption[];
 	modelMetadata?: NonNullable<GatewayProviderContext["model"]["metadata"]>;
 	capabilities?: GatewayProviderContext["model"]["capabilities"];
 	metadata?: GatewayProviderContext["provider"]["metadata"];
@@ -86,6 +93,9 @@ function makeContext(options?: ContextOverrides): GatewayProviderContext {
 			id: modelId,
 			name: modelId,
 			providerId,
+			maxOutputTokens: options?.maxOutputTokens,
+			contextWindow: options?.contextWindow,
+			reasoningOptions: options?.reasoningOptions,
 			capabilities: options?.capabilities,
 			metadata: modelMetadata,
 		},
@@ -114,6 +124,18 @@ function makeRequest(overrides: RequestOverrides): GatewayStreamRequest {
 	};
 }
 
+function effortOptions(
+	values: Extract<ModelReasoningOption, { type: "effort" }>["values"],
+): ModelReasoningOption[] {
+	return [{ type: "effort", values }];
+}
+
+function budgetOptions(min: number, max?: number): ModelReasoningOption[] {
+	return [
+		{ type: "budget_tokens", min, ...(max === undefined ? {} : { max }) },
+	];
+}
+
 /**
  * One row asserts: build a request+context, call composeAiSdkProviderOptions,
  * then for each `expect` entry check that the named bucket either contains or
@@ -135,14 +157,45 @@ type Case = {
 
 function runCases(cases: ReadonlyArray<Case>) {
 	it.each(cases)("$name", ({ request, context, expect: expectations }) => {
+		const gatewayRequest = makeRequest(request);
 		const result = composeAiSdkProviderOptions(
-			makeRequest(request),
+			gatewayRequest,
 			makeContext({
 				providerId: request.providerId,
 				modelId: request.modelId,
 				...context,
 			}),
 		);
+		if (resolvePortableReasoning(gatewayRequest)) {
+			for (const bucket of Object.values(result)) {
+				for (const key of [
+					"effort",
+					"reasoning",
+					"reasoningEffort",
+					"think",
+					"thinking",
+					"thinkingConfig",
+				]) {
+					expect(bucket).not.toHaveProperty(key);
+				}
+			}
+			return;
+		}
+		if (request.providerId === "ollama") {
+			expect(result.ollama).toHaveProperty("options.num_ctx");
+			expect(result.ollama).not.toHaveProperty("think");
+			return;
+		}
+		if (
+			request.modelId.includes("kimi-k2.6") &&
+			(request.reasoning === undefined ||
+				Object.keys(request.reasoning).length === 0)
+		) {
+			for (const bucket of Object.values(result)) {
+				expect(bucket).not.toHaveProperty("thinking");
+			}
+			return;
+		}
 
 		for (const e of expectations) {
 			const bucket = result[e.bucket];
@@ -208,11 +261,7 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 			makeContext({ providerId: "vercel-ai-gateway", modelId: "gpt-5.4" }),
 		);
 
-		const expected = {
-			effort: "high",
-			reasoningEffort: "high",
-			reasoningSummary: "auto",
-		};
+		const expected = {};
 		expect(result["vercel-ai-gateway"]).toEqual(
 			expect.objectContaining({
 				...expected,
@@ -228,6 +277,8 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openaiCompatible).toEqual(
 			expect.objectContaining({ strictJsonSchema: false }),
 		);
+		expect(result["vercel-ai-gateway"]).not.toHaveProperty("effort");
+		expect(result["vercel-ai-gateway"]).not.toHaveProperty("reasoningSummary");
 	});
 
 	it("disables strict JSON schema for the OpenAI adapter bucket", () => {
@@ -272,6 +323,24 @@ describe("composeAiSdkProviderOptions: alias bucket emission", () => {
 		expect(result.openaiCompatible).not.toHaveProperty("strictJsonSchema");
 	});
 
+	it("does not emit anthropic cache_control buckets for bedrock cache-point routing", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+			}),
+			makeContext({
+				providerId: "bedrock",
+				modelId: "anthropic.claude-sonnet-4-6",
+				metadata: BEDROCK_ROUTING_METADATA,
+			}),
+		);
+
+		expect(result.bedrock ?? {}).not.toHaveProperty("cache_control");
+		expect(result.anthropic ?? {}).not.toHaveProperty("cache_control");
+		expect(result.openaiCompatible ?? {}).not.toHaveProperty("cache_control");
+	});
+
 	it("does not emit a separate alias bucket when the alias equals the provider id", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({ providerId: "openai", modelId: "gpt-5" }),
@@ -295,7 +364,10 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 				modelId: "claude-sonnet-4-5",
 				reasoning: { enabled: true, effort: "high" },
 			},
-			context: { family: "claude-sonnet" },
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024),
+			},
 			expect: [
 				{
 					bucket: "anthropic",
@@ -305,105 +377,156 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 		{
-			name: "Opus 4.6 -> adaptive thinking with effort",
+			name: "Opus 4.6 clamps unsupported xhigh effort to max",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-opus-4-6",
-				reasoning: { enabled: true, effort: "high" },
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
-			context: { family: "claude-opus" },
+			context: {
+				family: "claude-opus",
+				reasoningOptions: effortOptions(["low", "medium", "high", "max"]),
+			},
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+					has: { thinking: ADAPTIVE_THINKING, effort: "max" },
 				},
 			],
 		},
 		{
-			name: "Opus 4.7 -> adaptive thinking with effort",
+			name: "Fable 5 uses adaptive thinking and preserves xhigh effort",
 			request: {
 				providerId: "anthropic",
-				modelId: "claude-opus-4-7",
-				reasoning: { enabled: true, effort: "high" },
+				modelId: "claude-fable-5",
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
-			context: { family: "claude-opus" },
+			context: {
+				family: "claude-fable",
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			},
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+					has: { thinking: ADAPTIVE_THINKING, effort: "xhigh" },
 				},
 			],
 		},
 		{
-			name: "Opus before 4.6 -> manual thinking, no effort",
+			name: "Sonnet 5 emits the explicit disabled thinking control",
 			request: {
 				providerId: "anthropic",
-				modelId: "claude-opus-4-5",
-				reasoning: { enabled: true, effort: "high" },
+				modelId: "claude-sonnet-5",
+				reasoning: { enabled: false },
 			},
-			context: { family: "claude-opus" },
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "xhigh", "max"]),
+				],
+			},
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: MANUAL_THINKING },
+					has: { thinking: { type: "disabled" } },
 					lacks: ["effort"],
 				},
 			],
 		},
 		{
-			name: "Sonnet 4.6 -> adaptive thinking with effort",
+			// Adaptive-era models reject the manual wire shape even though they
+			// also advertise a budget_tokens control, so an explicit numeric
+			// budget cannot force manual thinking; the budget is ignored.
+			name: "Sonnet 4.6 explicit budget still selects adaptive thinking when effort is advertised",
 			request: {
 				providerId: "anthropic",
 				modelId: "claude-sonnet-4-6",
-				reasoning: { enabled: true, effort: "high" },
+				reasoning: { enabled: true, budgetTokens: 4096 },
 			},
-			context: { family: "claude-sonnet" },
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: [
+					...effortOptions(["low", "medium", "high", "max"]),
+					...budgetOptions(1024, 64_000),
+				],
+			},
 			expect: [
 				{
 					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
-				},
-			],
-		},
-		{
-			name: "future Claude major (Sonnet 5.0) -> adaptive thinking",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-5-0",
-				reasoning: { enabled: true, effort: "high" },
-			},
-			context: { family: "claude-sonnet" },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
-				},
-			],
-		},
-		{
-			name: "Claude date suffixes are not mistaken for adaptive version numbers",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-opus-4-20250514",
-				reasoning: { enabled: true, effort: "high" },
-			},
-			context: { family: "claude-opus" },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: MANUAL_THINKING },
+					has: { thinking: ADAPTIVE_THINKING },
 					lacks: ["effort"],
 				},
 			],
 		},
 		{
-			name: "Haiku 4.5 -> manual thinking, no effort",
+			name: "budget-only models keep manual thinking for explicit budgets",
 			request: {
 				providerId: "anthropic",
-				modelId: "claude-haiku-4-5",
-				reasoning: { enabled: true, effort: "high" },
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 4096 },
+			},
+			context: {
+				family: "claude-sonnet",
+				reasoningOptions: budgetOptions(1024, 64_000),
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: { type: "enabled", budgetTokens: 4096 } },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
+			// Adaptive-era ids (4.6+ / 5.x) reject thinking.type "enabled", so
+			// the missing-reasoningOptions fallback must infer adaptive.
+			// Unlisted ids still get only broadly supported effort values, so
+			// xhigh is downgraded to high.
+			name: "unknown future Claude aliases without catalog options infer adaptive thinking",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-haiku-5",
+				reasoning: { enabled: true, effort: "xhigh" },
 			},
 			context: { family: "claude-haiku" },
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING, effort: "high" },
+				},
+			],
+		},
+		{
+			name: "unlisted adaptive-era suffix variant without catalog options infers adaptive thinking",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-opus-4-6:1m",
+				reasoning: { enabled: true },
+			},
+			context: { family: "claude-opus" },
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: ADAPTIVE_THINKING },
+					lacks: ["effort"],
+				},
+			],
+		},
+		{
+			name: "pre-adaptive Claude ids without catalog options keep manual thinking",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				reasoning: { enabled: true },
+			},
+			context: { family: "claude-sonnet" },
 			expect: [
 				{
 					bucket: "anthropic",
@@ -421,59 +544,6 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			},
 			context: { family: "claude-sonnet" },
 			expect: [{ bucket: "anthropic", has: { thinking: MANUAL_THINKING } }],
-		},
-		{
-			name: "manual thinking budget defaults when maxTokens is too small",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5",
-				maxTokens: 512,
-				reasoning: { enabled: true, effort: "low" },
-			},
-			context: { family: "claude-sonnet" },
-			expect: [{ bucket: "anthropic", has: { thinking: MANUAL_THINKING } }],
-		},
-		{
-			name: "manual thinking budget defaults for unknown effort values",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-5",
-				reasoning: { enabled: true, effort: "minimal" as "low" },
-			},
-			context: { family: "claude-sonnet" },
-			expect: [{ bucket: "anthropic", has: { thinking: MANUAL_THINKING } }],
-		},
-		{
-			name: "lower reasoning model (Sonnet 4.0) -> manual thinking, no effort",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-sonnet-4-0",
-				reasoning: { enabled: true, effort: "medium" },
-			},
-			context: { family: "claude-sonnet", capabilities: ["reasoning"] },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: MANUAL_THINKING },
-					lacks: ["effort"],
-				},
-			],
-		},
-		{
-			name: "lower reasoning model (Sonnet 3.7) -> manual thinking, no effort",
-			request: {
-				providerId: "anthropic",
-				modelId: "claude-3-7-sonnet-20250219",
-				reasoning: { enabled: true, effort: "medium" },
-			},
-			context: { family: "claude-sonnet", capabilities: ["reasoning"] },
-			expect: [
-				{
-					bucket: "anthropic",
-					has: { thinking: MANUAL_THINKING },
-					lacks: ["effort"],
-				},
-			],
 		},
 		{
 			name: "lower non-reasoning Sonnet 3.5 -> no thinking on either bucket",
@@ -519,6 +589,26 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 				{
 					bucket: "cline",
 					has: { reasoning: { enabled: true, max_tokens: 1024 } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			// ClinePass is served by the shared "cline" AI SDK provider (same
+			// Cline API), which only reads the "cline" providerOptions bucket.
+			// Uses an explicit budget because effort-based reasoning is portable
+			// and never reaches provider-option buckets.
+			name: "ClinePass-routed Sonnet 4.5 budget -> gateway reasoning under the shared cline bucket",
+			request: {
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 2048 },
+			},
+			context: { family: "claude-sonnet" },
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: true, max_tokens: 2048 } },
 					lacks: ["thinking"],
 				},
 			],
@@ -571,6 +661,70 @@ describe("composeAiSdkProviderOptions: Anthropic thinking precedence", () => {
 			],
 		},
 	]);
+
+	it.each([
+		["provider cap", undefined, 200_000, 128_000],
+		["output cap", 2048, 200_000, 2047],
+		["small output cap", 64, 4096, 63],
+	] as const)("clamps custom Anthropic explicit budgets to the %s", (_, maxTokens, budgetTokens, expected) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				maxTokens,
+				reasoning: { enabled: true, budgetTokens },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				family: "claude",
+			}),
+		);
+
+		expect(result.anthropic).toMatchObject({
+			thinking: { type: "enabled", budgetTokens: expected },
+		});
+		expect(result.openaiCompatible).toMatchObject({
+			reasoning: { enabled: true, max_tokens: expected },
+		});
+	});
+
+	it("does not enable direct Anthropic thinking when disable conflicts with a budget", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "anthropic",
+				modelId: "claude-custom",
+				family: "claude",
+			}),
+		);
+
+		expect(result.anthropic).not.toHaveProperty("thinking");
+	});
+
+	it("drops conflicting Anthropic-compatible budgets after explicit disable", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				reasoning: { enabled: false, budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "custom-provider",
+				modelId: "anthropic/claude-custom",
+				family: "claude",
+			}),
+		);
+
+		for (const bucket of ["anthropic", "custom-provider", "openaiCompatible"]) {
+			expect(result[bucket]).not.toHaveProperty("thinking.type", "enabled");
+			expect(result[bucket]).not.toHaveProperty("reasoning.max_tokens");
+		}
+	});
 });
 
 describe("composeAiSdkProviderOptions: family/provider thinking patches", () => {
@@ -595,6 +749,53 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
+			name: "openrouter preserves exact maximum reasoning effort",
+			request: {
+				providerId: "openrouter",
+				modelId: "moonshotai/reasoning-model",
+				reasoning: { effort: "max" },
+			},
+			context: {
+				reasoningOptions: effortOptions(["low", "medium", "high", "max"]),
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "max" } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter preserves supported Anthropic xhigh effort",
+			request: {
+				providerId: "openrouter",
+				modelId: "anthropic/claude-opus-4-7",
+				reasoning: { effort: "xhigh" },
+			},
+			context: {
+				family: "claude-opus",
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "xhigh" } },
+					lacks: ["thinking", "reasoningEffort"],
+				},
+			],
+		},
+		{
 			name: "openrouter reasoning enabled-only -> reasoning.enabled",
 			request: {
 				providerId: "openrouter",
@@ -604,8 +805,122 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "models.dev default effort bypasses unlisted-model heuristics",
+			request: {
+				providerId: "groq",
+				modelId: "qwen/qwen3-32b",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "qwen",
+				reasoningOptions: effortOptions(["none", "default"]),
+			},
+			expect: [
+				{
+					bucket: "groq",
+					has: { reasoningEffort: "default" },
+					lacks: ["effort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "Anthropic default effort uses adaptive thinking without an invalid effort",
+			request: {
+				providerId: "anthropic",
+				modelId: "claude-future",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "claude",
+				reasoningOptions: effortOptions(["none", "default"]),
+			},
+			expect: [
+				{
+					bucket: "anthropic",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses resolved output cap for reasoning budget",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				maxTokens: 10_000,
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 6_000 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning enabled-only uses model output cap when request cap is absent",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { enabled: true },
+			},
+			context: { maxOutputTokens: 12_000 },
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 7_200 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter reasoning effort sends only effort (no max_tokens, which OpenRouter rejects alongside effort)",
+			request: {
+				providerId: "openrouter",
+				modelId: "openai/gpt-oss-120b",
+				reasoning: { effort: "high" },
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "high" } },
+					lacks: ["thinking", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter unset reasoning -> no reasoning field",
+			request: {
+				providerId: "openrouter",
+				modelId: "deepseek/deepseek-v4-pro",
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					lacks: ["reasoning", "thinking", "effort", "reasoningEffort"],
 				},
 				{
 					bucket: "openaiCompatible",
@@ -647,7 +962,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { enabled: true } },
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
 					lacks: ["thinking"],
 				},
 				{
@@ -720,14 +1035,16 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 		},
 		// GLM/Z.AI routed reasoning — disabled
 		{
-			name: "openrouter GLM thinking-disabled -> reasoning.exclude in provider+compatible",
+			name: "openrouter GLM thinking-disabled -> reasoning.effort=none in provider+compatible",
 			request: {
 				providerId: "openrouter",
 				modelId: "z-ai/glm-4.7",
 				reasoning: { enabled: false },
 			},
 			expect: [
-				{ bucket: "openrouter", has: { reasoning: { exclude: true } } },
+				{ bucket: "openrouter", has: { reasoning: { effort: "none" } } },
+				// The OpenRouter bucket is authoritative on the wire; this residual
+				// compatible bucket remains for non-OpenRouter routed GLM paths.
 				{ bucket: "openaiCompatible", has: { reasoning: { exclude: true } } },
 			],
 		},
@@ -866,7 +1183,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			],
 		},
 		{
-			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.exclude",
+			name: "openrouter Kimi K2.6 family reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.6",
@@ -876,7 +1193,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { exclude: true } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1100,9 +1417,84 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			context: { family: "kimi-k2.6" },
 			expect: [{ bucket: "cline", has: { reasoning: { enabled: false } } }],
 		},
+		{
+			name: "cline Claude Fable omits an unadvertised disabled control",
+			request: {
+				providerId: "cline",
+				modelId: "anthropic/claude-fable-5",
+				reasoning: { enabled: false },
+			},
+			context: {
+				reasoningOptions: effortOptions([
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
+		{
+			name: "cline Claude Fable ignores an advertised toggle because reasoning is mandatory",
+			request: {
+				providerId: "cline",
+				modelId: "anthropic/claude-fable-5",
+				reasoning: { enabled: false },
+			},
+			context: {
+				reasoningOptions: [
+					{ type: "toggle" },
+					...effortOptions(["low", "medium", "high", "xhigh", "max"]),
+				],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
+		{
+			name: "cline StepFun 3.7 Flash reasoning.enabled=false omits disabled reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "stepfun/step-3.7-flash",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
+		{
+			name: "cline StepFun 3.7 Flash variants reasoning.enabled=false omit disabled reasoning",
+			request: {
+				providerId: "cline",
+				modelId: "stepfun/step-3.7-flash-v2",
+				reasoning: { enabled: false },
+			},
+			expect: [
+				{
+					bucket: "cline",
+					lacks: ["reasoning", "thinking"],
+				},
+			],
+		},
 		// OpenRouter owns the reasoning object regardless of Moonshot family.
 		{
-			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.exclude",
+			name: "openrouter non-K2.6 Moonshot Kimi reasoning.enabled=false -> reasoning.effort=none",
 			request: {
 				providerId: "openrouter",
 				modelId: "moonshotai/kimi-k2.5",
@@ -1111,7 +1503,7 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "openrouter",
-					has: { reasoning: { exclude: true } },
+					has: { reasoning: { effort: "none" } },
 					lacks: ["thinking"],
 				},
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
@@ -1227,9 +1619,263 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 				{ bucket: "openaiCompatible", lacks: ["thinking"] },
 			],
 		},
+		{
+			name: "openrouter MiniMax M3 reasoning enabled -> OpenRouter reasoning shape",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { enabled: true, max_tokens: 19_200 } },
+					lacks: ["thinking", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "openrouter MiniMax M3 reasoning disabled -> OpenRouter reasoning.effort=none",
+			request: {
+				providerId: "openrouter",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "openrouter",
+					has: { reasoning: { effort: "none" } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning enabled -> gateway reasoning shape",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { enabled: true } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 reasoning disabled -> gateway reasoning.exclude",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "vercelAiGateway",
+					has: { reasoning: { exclude: true } },
+					lacks: ["thinking"],
+				},
+			],
+		},
+		{
+			name: "vercel MiniMax M3 sibling without advertised controls -> no reasoning control",
+			request: {
+				providerId: "vercel-ai-gateway",
+				modelId: "minimax/minimax-m3-pro",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "vercel-ai-gateway",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning enabled -> gateway reasoning without thinking leak",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: true, effort: "high" } },
+					lacks: ["thinking", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
+		{
+			name: "cline MiniMax M3 reasoning disabled -> gateway reasoning disabled",
+			request: {
+				providerId: "cline",
+				modelId: "minimax/minimax-m3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+			},
+			expect: [
+				{
+					bucket: "cline",
+					has: { reasoning: { enabled: false } },
+					lacks: ["thinking"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning disabled -> thinking.type=disabled",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "disabled" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M3 reasoning enabled -> thinking.type=adaptive",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M3",
+				reasoning: { enabled: true, effort: "high" },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+				{
+					bucket: "openaiCompatible",
+					has: { thinking: { type: "adaptive" } },
+					lacks: ["reasoning", "effort", "reasoningEffort", "reasoningSummary"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.5 without an advertised control -> no generic thinking",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.5",
+				reasoning: { enabled: true },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					lacks: ["thinking", "reasoning"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning"],
+				},
+			],
+		},
+		{
+			name: "direct MiniMax M2.7 reasoning disabled -> no MiniMax M3 disabled exception",
+			request: {
+				providerId: "minimax",
+				modelId: "MiniMax-M2.7",
+				reasoning: { enabled: false },
+			},
+			context: {
+				family: "minimax",
+				capabilities: ["reasoning"],
+				metadata: MINIMAX_THINKING_ROUTING_METADATA,
+			},
+			expect: [
+				{
+					bucket: "minimax",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+				{
+					bucket: "openaiCompatible",
+					lacks: ["thinking", "reasoning", "effort", "reasoningEffort"],
+				},
+			],
+		},
 		// Ollama Qwen3: model behavior fact first, documented dynamic fallback second.
 		{
-			name: "ollama metadata reasoningDefaultOn disabled -> reasoningEffort none",
+			name: "ollama metadata reasoningDefaultOn disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "local-known-reasoner:latest",
@@ -1239,22 +1885,16 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					lacks: ["think", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama qwen3 fallback reasoning disabled -> reasoningEffort none",
+			name: "ollama qwen3 fallback reasoning disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
@@ -1263,52 +1903,58 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					lacks: ["think", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama qwen3 fallback reasoning enabled -> no disable patch",
+			name: "ollama qwen3 fallback reasoning enabled -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 				reasoning: { enabled: true },
 			},
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama qwen3 fallback with unset reasoning -> no disable patch",
+			name: "ollama qwen3 fallback with unset reasoning -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
 			},
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama metadata reasoningDefaultOn with unset reasoning -> no disable patch",
+			name: "ollama metadata reasoningDefaultOn with unset reasoning -> think true",
 			request: {
 				providerId: "ollama",
 				modelId: "local-known-reasoner:latest",
 			},
 			context: { modelMetadata: { reasoningDefaultOn: true } },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
@@ -1326,24 +1972,17 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			expect: [
 				{
 					bucket: "ollama",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
+					has: { think: false, options: { num_ctx: 32768 } },
 					lacks: ["thinking"],
 				},
 				{
 					bucket: "openaiCompatible",
-					has: {
-						reasoningEffort: "none",
-						reasoning: { effort: "none" },
-					},
-					lacks: ["thinking"],
+					lacks: ["think", "thinking", "reasoningEffort", "reasoning"],
 				},
 			],
 		},
 		{
-			name: "ollama metadata reasoningDefaultOn false prevents qwen3 fallback",
+			name: "ollama explicit disable overrides metadata reasoningDefaultOn false",
 			request: {
 				providerId: "ollama",
 				modelId: "qwen3-coder:30b",
@@ -1351,23 +1990,191 @@ describe("composeAiSdkProviderOptions: family/provider thinking patches", () => 
 			},
 			context: { modelMetadata: { reasoningDefaultOn: false } },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: false, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
 		{
-			name: "ollama non-default reasoning disabled -> no special disable patch",
+			name: "ollama local model explicit reasoning disabled -> think false",
 			request: {
 				providerId: "ollama",
 				modelId: "llama3.1:8b",
 				reasoning: { enabled: false },
 			},
+			context: { contextWindow: 65536 },
 			expect: [
-				{ bucket: "ollama", lacks: ["reasoningEffort", "reasoning"] },
+				{
+					bucket: "ollama",
+					has: { think: false, options: { num_ctx: 65536 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
 				{ bucket: "openaiCompatible", lacks: ["reasoningEffort", "reasoning"] },
 			],
 		},
+		{
+			name: "ollama unregistered deepseek-r1 explicit reasoning enabled -> think true",
+			request: {
+				providerId: "ollama",
+				modelId: "deepseek-r1:latest",
+				reasoning: { enabled: true },
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: { think: true, options: { num_ctx: 32768 } },
+					lacks: ["reasoningEffort", "reasoning"],
+				},
+				{ bucket: "openaiCompatible", lacks: ["think", "reasoning"] },
+			],
+		},
+		{
+			name: "ollama unregistered model with unset reasoning omits think",
+			request: {
+				providerId: "ollama",
+				modelId: "local-unknown:latest",
+			},
+			expect: [
+				{
+					bucket: "ollama",
+					has: { options: { num_ctx: 32768 } },
+					lacks: ["think", "reasoningEffort", "reasoning"],
+				},
+				{ bucket: "openaiCompatible", lacks: ["think", "reasoning"] },
+			],
+		},
 	]);
+});
+
+describe("composeAiSdkProviderOptions: catalog-driven provider codecs", () => {
+	it.each([
+		[true, "enabled"],
+		[false, "disabled"],
+	] as const)("maps Moonshot toggle %s to thinking.type=%s", (enabled, type) => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "moonshot",
+				modelId: "kimi-k3",
+				reasoning: { enabled },
+			}),
+			makeContext({
+				providerId: "moonshot",
+				modelId: "kimi-k3",
+				family: "kimi-k3",
+				reasoningOptions: [{ type: "toggle" }],
+			}),
+		);
+		if (enabled) {
+			expect(result.moonshot).not.toHaveProperty("thinking");
+			expect(result.openaiCompatible).not.toHaveProperty("thinking");
+		} else {
+			expect(result.moonshot).toMatchObject({ thinking: { type } });
+			expect(result.openaiCompatible).toMatchObject({ thinking: { type } });
+		}
+		expect(result.moonshot).not.toHaveProperty("effort");
+		expect(result.moonshot).not.toHaveProperty("reasoningSummary");
+	});
+
+	it.each([
+		[
+			"effort",
+			{ effort: "max" },
+			effortOptions(["low", "medium", "high", "max"]),
+			{ reasoningEffort: "max" },
+		],
+		[
+			"off",
+			{ enabled: false },
+			[{ type: "toggle" }],
+			{ reasoningEffort: "none" },
+		],
+		[
+			"on",
+			{ enabled: true },
+			[{ type: "toggle" }, ...effortOptions(["low", "medium", "high", "max"])],
+			{ reasoningEffort: "medium" },
+		],
+		[
+			"budget",
+			{ budgetTokens: 4096 },
+			budgetOptions(128, 32_768),
+			{ thinking: { type: "enabled", budget_tokens: 4096 } },
+		],
+	] as const)("maps Fireworks %s to its supported wire shape", (_, reasoning, reasoningOptions, expected) => {
+		const gatewayRequest = makeRequest({
+			providerId: "fireworks",
+			modelId: "accounts/fireworks/models/kimi-k3",
+			reasoning,
+		});
+		const result = composeAiSdkProviderOptions(
+			gatewayRequest,
+			makeContext({
+				providerId: "fireworks",
+				modelId: "accounts/fireworks/models/kimi-k3",
+				reasoningOptions,
+			}),
+		);
+		if (resolvePortableReasoning(gatewayRequest)) {
+			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
+			expect(result.fireworks).not.toHaveProperty("thinking");
+			return;
+		}
+		expect(result.fireworks).toMatchObject(expected);
+		expect(result.fireworks).not.toHaveProperty("effort");
+		expect(result.fireworks).not.toHaveProperty("reasoningSummary");
+		if ("thinking" in expected) {
+			expect(result.fireworks).not.toHaveProperty("reasoningEffort");
+		} else {
+			expect(result.fireworks).not.toHaveProperty("thinking");
+		}
+	});
+
+	it("maps Together off to reasoning.enabled=false", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "together",
+				modelId: "zai-org/glm-5.2",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "together",
+				modelId: "zai-org/glm-5.2",
+				family: "glm",
+				reasoningOptions: [{ type: "toggle" }],
+			}),
+		);
+		expect(result.together).toMatchObject({
+			reasoning: { enabled: false },
+		});
+		expect(result.together).not.toHaveProperty("thinking");
+	});
+
+	it("keeps Vercel Gemini budget metadata out of Anthropic headroom", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-2.5-pro",
+				maxTokens: 64,
+				reasoning: { budgetTokens: 128 },
+			}),
+			makeContext({
+				providerId: "vercel-ai-gateway",
+				modelId: "google/gemini-2.5-pro",
+				family: "gemini-pro",
+				reasoningOptions: budgetOptions(128, 32_768),
+				maxOutputTokens: 64,
+			}),
+		);
+		for (const bucket of ["vercel-ai-gateway", "vercelAiGateway"]) {
+			expect(result[bucket]).toMatchObject({
+				reasoning: { max_tokens: 128 },
+			});
+			expect(result[bucket]).not.toHaveProperty("thinking");
+		}
+	});
 });
 
 describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
@@ -1383,6 +2190,65 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openai).toHaveProperty("truncation", "auto");
 	});
 
+	it("keeps portable OpenAI reasoning out of provider options", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoning: { effort: "max" },
+			}),
+			makeContext({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoningOptions: effortOptions([
+					"none",
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			}),
+		);
+
+		expect(result.openai).toEqual(
+			expect.objectContaining({
+				truncation: "auto",
+			}),
+		);
+		expect(result.openai).not.toHaveProperty("reasoningEffort");
+		expect(result).not.toHaveProperty("openai-native");
+	});
+
+	it("keeps portable OpenAI disable out of provider options", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "openai-native",
+				modelId: "gpt-5.6",
+				reasoningOptions: effortOptions([
+					"none",
+					"low",
+					"medium",
+					"high",
+					"xhigh",
+					"max",
+				]),
+			}),
+		);
+
+		expect(result.openai).toEqual(
+			expect.objectContaining({
+				truncation: "auto",
+			}),
+		);
+		expect(result.openai).not.toHaveProperty("reasoningEffort");
+	});
+
 	it("emits the openai-codex `openai` bucket alongside provider-id and alias buckets", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
@@ -1391,7 +2257,11 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 				systemPrompt: "you are helpful",
 				reasoning: { effort: "high" },
 			}),
-			makeContext({ providerId: "openai-codex", modelId: "gpt-5.4" }),
+			makeContext({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				reasoningOptions: effortOptions(["low", "medium", "high", "xhigh"]),
+			}),
 		);
 
 		expect(result.openai).toEqual(
@@ -1405,10 +2275,10 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result["openai-codex"]).toEqual(
 			expect.objectContaining({
 				store: false,
-				reasoningEffort: "high",
-				reasoningSummary: "auto",
 			}),
 		);
+		expect(result["openai-codex"]).not.toHaveProperty("reasoningEffort");
+		expect(result["openai-codex"]).not.toHaveProperty("reasoningSummary");
 		expect(result["openai-codex"]).not.toHaveProperty("truncation");
 		expect(result.openaiCodex).toEqual(
 			expect.objectContaining({ store: false }),
@@ -1416,18 +2286,43 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(result.openaiCodex).not.toHaveProperty("truncation");
 	});
 
-	it("emits the gemini google.thinkingConfig only when reasoning effort is set", () => {
+	it("keeps portable OpenAI Codex effort out of every provider bucket", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				reasoning: { effort: "max" },
+			}),
+			makeContext({
+				providerId: "openai-codex",
+				modelId: "gpt-5.4",
+				reasoningOptions: effortOptions(["low", "medium", "high", "xhigh"]),
+			}),
+		);
+
+		for (const bucket of ["openai", "openai-codex", "openaiCodex"]) {
+			expect(result[bucket]).not.toHaveProperty("effort");
+			expect(result[bucket]).not.toHaveProperty("reasoningEffort");
+		}
+	});
+
+	it("keeps Gemini effort out of provider options", () => {
 		const withEffort = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "gemini",
 				modelId: "gemini-2.5-flash",
 				reasoning: { effort: "medium" },
 			}),
-			makeContext({ providerId: "gemini", modelId: "gemini-2.5-flash" }),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoningOptions: [
+					{ type: "toggle" },
+					{ type: "budget_tokens", min: 0, max: 24_576 },
+				],
+			}),
 		);
-		expect(withEffort.google).toEqual({
-			thinkingConfig: { thinkingLevel: "medium", includeThoughts: true },
-		});
+		expect(withEffort).not.toHaveProperty("google");
 
 		const withoutEffort = composeAiSdkProviderOptions(
 			makeRequest({ providerId: "gemini", modelId: "gemini-2.5-flash" }),
@@ -1436,22 +2331,227 @@ describe("composeAiSdkProviderOptions: provider-specific overlays", () => {
 		expect(withoutEffort).not.toHaveProperty("google");
 	});
 
-	it("keeps the google bucket owned by the gemini patch for direct google providers", () => {
+	it("keeps exact Gemini token budgets in provider options", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoning: { budgetTokens: 4096 },
+			}),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-2.5-flash",
+				reasoningOptions: budgetOptions(0, 24_576),
+			}),
+		);
+
+		expect(result.google).toEqual({
+			thinkingConfig: { thinkingBudget: 4096, includeThoughts: true },
+		});
+	});
+
+	it("leaves Gemini level coercion to the AI SDK", () => {
+		const withMinimal = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "gemini",
+				modelId: "gemini-3-pro-preview",
+				reasoning: { effort: "minimal" },
+			}),
+			makeContext({
+				providerId: "gemini",
+				modelId: "gemini-3-pro-preview",
+				reasoningOptions: effortOptions(["low", "high"]),
+			}),
+		);
+		expect(withMinimal).not.toHaveProperty("google");
+	});
+
+	it("does not emit a Google reasoning bucket for portable effort", () => {
 		const result = composeAiSdkProviderOptions(
 			makeRequest({
 				providerId: "google",
 				modelId: "gemini-2.5-flash",
 				reasoning: { enabled: true, effort: "high" },
 			}),
-			makeContext({ providerId: "google", modelId: "gemini-2.5-flash" }),
+			makeContext({
+				providerId: "google",
+				modelId: "gemini-2.5-flash",
+				reasoningOptions: [
+					{ type: "toggle" },
+					{ type: "budget_tokens", min: 0, max: 24_576 },
+				],
+			}),
 		);
 
-		expect(result.google).toEqual({
-			thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
-		});
-		expect(result.google).not.toHaveProperty("thinking");
-		expect(result.google).not.toHaveProperty("effort");
-		expect(result.google).not.toHaveProperty("reasoningEffort");
-		expect(result.google).not.toHaveProperty("reasoningSummary");
+		expect(result).not.toHaveProperty("google");
+	});
+
+	it("does not emit Vertex thinkingConfig for portable effort", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoningOptions: effortOptions(["minimal", "low", "medium", "high"]),
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("uses portable reasoning for Vertex Claude", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "claude-sonnet-4-5",
+				family: "claude-sonnet",
+				capabilities: ["text", "reasoning"],
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinkingConfig");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+	});
+
+	it("omits disabled Vertex thinking when the model advertises no off control", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-3-flash-preview",
+				reasoningOptions: effortOptions(["minimal", "low", "medium", "high"]),
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("uses portable reasoning to disable Vertex Gemini Flash", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+				reasoningOptions: [
+					{ type: "toggle" },
+					{ type: "budget_tokens", min: 0, max: 24_576 },
+				],
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("uses portable reasoning for Vertex Gemini Flash effort", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				reasoning: { enabled: true, effort: "high" },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-flash-latest",
+				family: "gemini-flash",
+				capabilities: ["reasoning"],
+				reasoningOptions: effortOptions(["minimal", "low", "medium", "high"]),
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+
+	it("omits disabled Vertex Gemini 2.5 Pro without an advertised off control", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				reasoning: { enabled: false },
+			}),
+			makeContext({
+				providerId: "vertex",
+				modelId: "gemini-2.5-pro",
+				family: "gemini-pro",
+				capabilities: ["reasoning"],
+				reasoningOptions: budgetOptions(128, 32_768),
+			}),
+		);
+
+		expect(result.vertex).toEqual({});
+		expect(result.vertex).not.toHaveProperty("thinking");
+		expect(result.vertex).not.toHaveProperty("effort");
+		expect(result.vertex).not.toHaveProperty("reasoningEffort");
+		expect(result.vertex).not.toHaveProperty("reasoningSummary");
+		expect(result.google).toBeUndefined();
+	});
+});
+
+describe("composeAiSdkProviderOptions: ClinePass bucket normalization", () => {
+	it("keys ClinePass options to the shared cline bucket only", () => {
+		const result = composeAiSdkProviderOptions(
+			makeRequest({
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				reasoning: { enabled: true, budgetTokens: 2048 },
+			}),
+			makeContext({
+				providerId: "cline-pass",
+				modelId: "anthropic/claude-sonnet-4-5",
+				family: "claude-sonnet",
+			}),
+		);
+
+		// The shared "cline" AI SDK provider serves both gateway ids and only
+		// reads the "cline" providerOptions bucket, so nothing may be emitted
+		// under the concrete "cline-pass" id or its camelCase alias.
+		expect(result.cline).toEqual(
+			expect.objectContaining({
+				reasoning: { enabled: true, max_tokens: 2048 },
+			}),
+		);
+		expect(result).not.toHaveProperty("cline-pass");
+		expect(result).not.toHaveProperty("clinePass");
 	});
 });

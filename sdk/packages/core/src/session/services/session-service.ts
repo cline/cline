@@ -3,7 +3,11 @@ import type { BasicLogger } from "@cline/shared";
 import { resolveSessionDataDir } from "@cline/shared/storage";
 import { nowIso } from "../../services/session-artifacts";
 import type { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
-import type { SessionMessagesArtifactUploader } from "../../types/session";
+import type {
+	SessionDeleteGuard,
+	SessionListCursor,
+	SessionMessagesArtifactUploader,
+} from "../../types/session";
 import {
 	type CreateRootSessionInput,
 	patchSqliteRow,
@@ -81,7 +85,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 
 	async listSessions(options: {
 		limit: number;
-		offset?: number;
+		startedBefore?: SessionListCursor;
 		parentSessionId?: string;
 		status?: string;
 	}): Promise<SessionRow[]> {
@@ -95,6 +99,16 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 			whereClauses.push("status = ?");
 			params.push(options.status);
 		}
+		if (options.startedBefore) {
+			whereClauses.push(
+				"(started_at < ? OR (started_at = ? AND session_id < ?))",
+			);
+			params.push(
+				options.startedBefore.startedAt,
+				options.startedBefore.startedAt,
+				options.startedBefore.sessionId,
+			);
+		}
 		const where =
 			whereClauses.length > 0 ? `WHERE ${whereClauses.join(" AND ")}` : "";
 		return this.store
@@ -102,13 +116,9 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				`SELECT ${SESSION_SELECT_COLUMNS}
 				 FROM sessions
 				 ${where}
-				 ORDER BY started_at DESC
-				 LIMIT ? OFFSET ?`,
-				[
-					...params,
-					options.limit,
-					Math.max(0, Math.floor(options.offset ?? 0)),
-				],
+				 ORDER BY started_at DESC, session_id DESC
+				 LIMIT ?`,
+				[...params, options.limit],
 			)
 			.map(patchSqliteRow);
 	}
@@ -124,7 +134,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 				`UPDATE sessions
 				 SET status = 'running', ended_at = NULL, exit_code = NULL, updated_at = ?, status_lock = ?,
 					 parent_session_id = ?, parent_agent_id = ?, agent_id = ?, conversation_id = ?, is_subagent = 1,
-					 prompt = COALESCE(prompt, ?)
+					 prompt = COALESCE(prompt, ?), metadata_json = ?
 				 WHERE session_id = ? AND status_lock = ?`,
 				[
 					nowIso(),
@@ -134,6 +144,7 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 					input.agentId ?? null,
 					input.conversationId ?? null,
 					input.prompt ?? null,
+					stringifyMetadata(input.metadata),
 					input.sessionId,
 					input.expectedStatusLock,
 				],
@@ -213,10 +224,26 @@ class LocalSessionPersistenceAdapter implements SessionPersistenceAdapter {
 		return { updated: true, statusLock };
 	}
 
-	async deleteSession(sessionId: string, cascade: boolean): Promise<boolean> {
+	async deleteSession(
+		sessionId: string,
+		cascade: boolean,
+		guard?: SessionDeleteGuard,
+	): Promise<boolean> {
+		const conditions = ["session_id = ?"];
+		const params: unknown[] = [sessionId];
+		if (guard) {
+			conditions.push("status_lock = ?", "updated_at = ?");
+			params.push(guard.expectedStatusLock, guard.expectedUpdatedAt);
+		}
 		const changed =
-			this.store.run(`DELETE FROM sessions WHERE session_id = ?`, [sessionId])
-				.changes ?? 0;
+			this.store.run(
+				`DELETE FROM sessions WHERE ${conditions.join(" AND ")}`,
+				params,
+			).changes ?? 0;
+		if (guard && changed === 0) {
+			// The row changed since the caller observed it; do not cascade.
+			return false;
+		}
 		if (cascade) {
 			this.store.run(`DELETE FROM sessions WHERE parent_session_id = ?`, [
 				sessionId,

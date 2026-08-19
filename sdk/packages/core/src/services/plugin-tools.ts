@@ -1,4 +1,5 @@
 import { stat } from "node:fs/promises";
+import { isAbsolute, relative, resolve } from "node:path";
 import type { AgentConfig, AgentTool } from "@cline/shared";
 import { resolveAgentPluginPaths } from "../extensions/plugin/plugin-config-loader";
 import type {
@@ -12,6 +13,14 @@ type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
 type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
 type AgentExtensionWithPath = AgentExtension & { __clinePluginPath?: string };
 
+function isPathWithin(parentPath: string, childPath: string): boolean {
+	const relativePath = relative(resolve(parentPath), resolve(childPath));
+	return (
+		relativePath === "" ||
+		(!relativePath.startsWith("..") && !isAbsolute(relativePath))
+	);
+}
+
 export interface PluginToolSummary {
 	name: string;
 	pluginName: string;
@@ -23,13 +32,27 @@ export interface PluginToolSummary {
 
 export interface ListPluginToolsResult {
 	tools: PluginToolSummary[];
+	plugins: PluginContributionSummary[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
+}
+
+export interface PluginContributionSummary {
+	pluginName: string;
+	path: string;
+	capabilities: string[];
+	tools: string[];
+	rules: string[];
+	hooks: string[];
+	commands: string[];
+	mcpServers: string[];
+	providers: string[];
 }
 
 type PluginToolDescriptor = Omit<PluginToolSummary, "enabled">;
 type PluginToolDescriptorCacheEntry = {
 	tools: PluginToolDescriptor[];
+	plugins: PluginContributionSummary[];
 	failures: PluginInitializationFailure[];
 	warnings: PluginInitializationWarning[];
 };
@@ -104,25 +127,51 @@ function sortPluginToolDescriptors(
 	});
 }
 
-function collectRegisteredTools(
+async function collectPluginContributions(
 	extension: AgentExtension,
 	workspaceInfo?: { rootPath: string },
-): AgentTool[] {
+): Promise<{
+	tools: AgentTool[];
+	rules: Array<Parameters<AgentExtensionApi["registerRule"]>[0]>;
+	commands: Array<Parameters<AgentExtensionApi["registerCommand"]>[0]>;
+	mcpServers: Array<Parameters<AgentExtensionApi["registerMcpServer"]>[0]>;
+	providers: Array<Parameters<AgentExtensionApi["registerProvider"]>[0]>;
+}> {
 	if (!extension.setup) {
-		return [];
+		return {
+			tools: [],
+			rules: [],
+			commands: [],
+			mcpServers: [],
+			providers: [],
+		};
 	}
 
 	const tools: AgentTool[] = [];
+	const rules: Array<Parameters<AgentExtensionApi["registerRule"]>[0]> = [];
+	const commands: Array<Parameters<AgentExtensionApi["registerCommand"]>[0]> =
+		[];
+	const mcpServers: Array<
+		Parameters<AgentExtensionApi["registerMcpServer"]>[0]
+	> = [];
+	const providers: Array<Parameters<AgentExtensionApi["registerProvider"]>[0]> =
+		[];
 	const api: AgentExtensionApi = {
 		registerTool: (tool) => tools.push(tool),
-		registerCommand: () => {},
+		registerCommand: (command) => commands.push(command),
 		registerMessageBuilder: () => {},
-		registerRule: () => {},
-		registerProvider: () => {},
+		registerRule: (rule) => rules.push(rule),
+		registerProvider: (provider) => providers.push(provider),
 		registerAutomationEventType: () => {},
+		registerMcpServer: (server) => {
+			if (!extension.manifest.capabilities.includes("mcp")) {
+				throw new Error('registerMcpServer requires the "mcp" capability');
+			}
+			mcpServers.push(server);
+		},
 	};
-	extension.setup(api, { workspaceInfo });
-	return tools;
+	await extension.setup(api, { workspaceInfo });
+	return { tools, rules, commands, mcpServers, providers };
 }
 
 export async function listPluginToolsWithDiagnostics(input: {
@@ -138,7 +187,7 @@ export async function listPluginToolsWithDiagnostics(input: {
 	});
 	const disabled = resolveDisabledToolNames(input.disabledToolNames);
 	if (pluginPaths.length === 0) {
-		return { tools: [], failures: [], warnings: [] };
+		return { tools: [], plugins: [], failures: [], warnings: [] };
 	}
 
 	const cacheKey = await buildPluginToolDescriptorCacheKey({
@@ -152,12 +201,14 @@ export async function listPluginToolsWithDiagnostics(input: {
 	if (cached) {
 		return {
 			tools: withEnabledState(cached.tools, disabled),
+			plugins: cached.plugins,
 			failures: cached.failures,
 			warnings: cached.warnings,
 		};
 	}
 
 	const tools: PluginToolDescriptor[] = [];
+	const plugins: PluginContributionSummary[] = [];
 	let failures: PluginInitializationFailure[] = [];
 	let warnings: PluginInitializationWarning[] = [];
 	let sandboxed: Awaited<ReturnType<typeof loadSandboxedPlugins>> | undefined;
@@ -178,19 +229,48 @@ export async function listPluginToolsWithDiagnostics(input: {
 			if (!pluginPath) {
 				continue;
 			}
-			for (const tool of collectRegisteredTools(extension, {
-				rootPath: input.workspacePath,
-			})) {
+			const pluginSource = isPathWithin(input.workspacePath, pluginPath)
+				? "workspace-plugin"
+				: "global-plugin";
+			let contributions: Awaited<ReturnType<typeof collectPluginContributions>>;
+			try {
+				contributions = await collectPluginContributions(extension, {
+					rootPath: input.workspacePath,
+				});
+			} catch (error) {
+				failures.push({
+					pluginPath,
+					pluginName: extension.name,
+					phase: "setup",
+					message: error instanceof Error ? error.message : String(error),
+					stack: error instanceof Error ? error.stack : undefined,
+				});
+				continue;
+			}
+			for (const tool of contributions.tools) {
 				tools.push({
 					name: tool.name,
 					pluginName: extension.name,
 					path: pluginPath,
-					source: pluginPath.startsWith(input.workspacePath)
-						? "workspace-plugin"
-						: "global-plugin",
+					source: pluginSource,
 					description: tool.description?.trim() || undefined,
 				});
 			}
+			plugins.push({
+				pluginName: extension.name,
+				path: pluginPath,
+				capabilities: [...extension.manifest.capabilities].sort(),
+				tools: contributions.tools.map((tool) => tool.name).sort(),
+				rules: contributions.rules.map((rule) => rule.id).sort(),
+				hooks: Object.keys(extension.hooks ?? {}).sort(),
+				commands: contributions.commands.map((command) => command.name).sort(),
+				mcpServers: contributions.mcpServers
+					.map((server) => server.name)
+					.sort(),
+				providers: contributions.providers
+					.map((provider) => provider.name)
+					.sort(),
+			});
 		}
 	} catch (error) {
 		failures = pluginPaths.map((pluginPath) => ({
@@ -206,14 +286,15 @@ export async function listPluginToolsWithDiagnostics(input: {
 	}
 
 	const sortedTools = sortPluginToolDescriptors(tools);
-	const cacheEntry = {
+	cachePluginToolDescriptors(cacheKey, {
 		tools: sortedTools,
+		plugins,
 		failures,
 		warnings,
-	};
-	cachePluginToolDescriptors(cacheKey, cacheEntry);
+	});
 	return {
 		tools: withEnabledState(sortedTools, disabled),
+		plugins,
 		failures,
 		warnings,
 	};

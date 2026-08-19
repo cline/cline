@@ -16,9 +16,9 @@ export interface WorkspaceContext {
 
 export class WorkspaceRootManager {
 	private roots: WorkspaceRoot[] = []
-	private primaryIndex: number = 0
+	private primaryIndex = 0
 
-	constructor(roots: WorkspaceRoot[] = [], primaryIndex: number = 0) {
+	constructor(roots: WorkspaceRoot[] = [], primaryIndex = 0) {
 		this.roots = roots
 		this.primaryIndex = Math.min(primaryIndex, Math.max(0, roots.length - 1))
 	}
@@ -39,6 +39,28 @@ export class WorkspaceRootManager {
 		}
 
 		return new WorkspaceRootManager([root], 0)
+	}
+
+	/**
+	 * Initialize from host-provided workspace folder paths (multi-root aware)
+	 */
+	static async fromPaths(paths: string[]): Promise<WorkspaceRootManager> {
+		const roots: WorkspaceRoot[] = await Promise.all(
+			paths.map(async (workspacePath) => {
+				const vcs = await WorkspaceRootManager.detectVcs(workspacePath)
+				const gitHash = vcs === VcsType.Git ? await getLatestGitCommitHash(workspacePath) : null
+				const commitHash = gitHash === null ? undefined : gitHash
+
+				return {
+					path: workspacePath,
+					name: path.basename(workspacePath),
+					vcs,
+					commitHash,
+				}
+			}),
+		)
+
+		return new WorkspaceRootManager(roots, 0)
 	}
 
 	/**
@@ -245,14 +267,5 @@ export class WorkspaceRootManager {
 		}
 
 		return JSON.stringify({ workspaces }, null, 2)
-	}
-}
-
-// Export for use in Task and Controller
-export function createLegacyWorkspaceRoot(cwd: string): WorkspaceRoot {
-	return {
-		path: cwd,
-		name: path.basename(cwd),
-		vcs: VcsType.None, // Will be detected properly during initialization
 	}
 }

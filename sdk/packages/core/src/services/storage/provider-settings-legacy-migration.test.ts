@@ -1,6 +1,7 @@
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import * as LlmsModels from "@cline/llms";
 import { afterEach, describe, expect, it } from "vitest";
 import {
 	type LegacyClineUserInfo,
@@ -71,6 +72,276 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.anthropic?.tokenSource).toBe("migration");
 	});
 
+	it("migrates legacy OCA-specific reasoning effort into provider settings", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "plan",
+					planModeApiProvider: "oca",
+					actModeReasoningEffort: "low",
+					planModeOcaReasoningEffort: "high",
+					actModeOcaReasoningEffort: "medium",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ ocaApiKey: "legacy-oca-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("oca")?.reasoning).toEqual({
+			effort: "medium",
+		});
+	});
+
+	it("migrates API keys for every secret-backed provider, not just the selected one", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		const keyBySecret: Record<string, string> = {
+			aihubmixApiKey: "aihubmix",
+			asksageApiKey: "asksage",
+			basetenApiKey: "baseten",
+			cerebrasApiKey: "cerebras",
+			deepSeekApiKey: "deepseek",
+			difyApiKey: "dify",
+			doubaoApiKey: "doubao",
+			fireworksApiKey: "fireworks",
+			groqApiKey: "groq",
+			hicapApiKey: "hicap",
+			huaweiCloudMaasApiKey: "huawei-cloud-maas",
+			huggingFaceApiKey: "huggingface",
+			liteLlmApiKey: "litellm",
+			minimaxApiKey: "minimax",
+			mistralApiKey: "mistral",
+			moonshotApiKey: "moonshot",
+			nebiusApiKey: "nebius",
+			nousResearchApiKey: "nousResearch",
+			qwenApiKey: "qwen",
+			requestyApiKey: "requesty",
+			sambanovaApiKey: "sambanova",
+			togetherApiKey: "together",
+			vercelAiGatewayApiKey: "vercel-ai-gateway",
+			xaiApiKey: "xai",
+			zaiApiKey: "zai",
+		};
+		const secrets: Record<string, string> = { geminiApiKey: "gemini-key" };
+		for (const [secretKey, providerId] of Object.entries(keyBySecret)) {
+			secrets[secretKey] = `legacy-${providerId}-key`;
+		}
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "gemini",
+					planModeApiProvider: "gemini",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(secrets, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 26,
+			lastUsedProvider: "gemini",
+		});
+		expect(manager.getProviderSettings("gemini")?.apiKey).toBe("gemini-key");
+		const stored = manager.read().providers;
+		for (const providerId of Object.values(keyBySecret)) {
+			expect(stored[providerId]?.settings.apiKey, providerId).toBe(
+				`legacy-${providerId}-key`,
+			);
+			expect(stored[providerId]?.tokenSource, providerId).toBe("migration");
+		}
+	});
+
+	it("keeps a non-selected provider's key when another provider is selected", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "gemini",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					geminiApiKey: "gemini-key",
+					deepSeekApiKey: "deepseek-key",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 2,
+			lastUsedProvider: "gemini",
+		});
+		expect(manager.getProviderSettings("deepseek")?.apiKey).toBe(
+			"deepseek-key",
+		);
+		expect(manager.getProviderSettings("gemini")?.apiKey).toBe("gemini-key");
+	});
+
+	it("keeps the act-mode model for a split plan/act config while plan mode is selected", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "plan",
+					planModeApiProvider: "gemini",
+					planModeApiModelId: "gemini-3-pro",
+					actModeApiProvider: "zai",
+					actModeApiModelId: "z-ai/glm-4.6",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					geminiApiKey: "gemini-key",
+					zaiApiKey: "zai-key",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 2,
+			lastUsedProvider: "gemini",
+		});
+		expect(manager.getProviderSettings("gemini")).toMatchObject({
+			provider: "gemini",
+			apiKey: "gemini-key",
+			model: "gemini-3-pro",
+		});
+		expect(manager.getProviderSettings("zai")).toMatchObject({
+			provider: "zai",
+			apiKey: "zai-key",
+			model: "z-ai/glm-4.6",
+		});
+	});
+
+	it("resolves aliased legacy provider ids without duplicating entries or losing the mode's model", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "plan",
+					planModeApiProvider: "gemini",
+					planModeApiModelId: "gemini-3-pro",
+					// "togetherai" is a declared alias of "together".
+					actModeApiProvider: "togetherai",
+					actModeApiModelId: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					geminiApiKey: "gemini-key",
+					togetherApiKey: "together-key",
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({
+			migrated: true,
+			providerCount: 2,
+			lastUsedProvider: "gemini",
+		});
+		expect(manager.read().providers.togetherai).toBeUndefined();
+		expect(manager.getProviderSettings("together")).toMatchObject({
+			provider: "together",
+			apiKey: "together-key",
+			model: "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+		});
+	});
+
 	it("migrates missing providers without overwriting existing providers", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
@@ -109,9 +380,13 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.getProviderSettings("openai")?.apiKey).toBe(
 			"already-migrated",
 		);
+		const anthropicDefault =
+			LlmsModels.getProviderCollectionSync("anthropic")?.provider
+				.defaultModelId;
+		expect(anthropicDefault).toBeDefined();
 		expect(manager.getProviderSettings("anthropic")).toEqual({
 			provider: "anthropic",
-			model: "claude-opus-4-8",
+			model: anthropicDefault,
 			apiKey: "legacy-key",
 		});
 		expect(manager.read().providers.openai?.tokenSource).toBe("manual");
@@ -171,10 +446,214 @@ describe("migrateLegacyProviderSettings", () => {
 				refreshToken: "legacy-refresh",
 				accountId: "acct_123",
 			},
+			// No legacy model id: the migration lands on the declared catalog
+			// default so the entry never ships without a model.
+			model:
+				LlmsModels.getProviderCollectionSync("openai-codex")?.provider
+					.defaultModelId,
 		});
 		expect(manager.read().providers["openai-codex"]?.tokenSource).toBe(
 			"migration",
 		);
+	});
+
+	it("migrates legacy Cline OAuth account auth even without a clineApiKey", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "anthropic",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					"cline:clineAccountId": makeClineAccountJson({
+						idToken: "legacy-cline-access",
+						refreshToken: "legacy-cline-refresh",
+						expiresAt: 1_750_000_000,
+						userId: "user-123",
+					}),
+				},
+				null,
+				2,
+			),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result.migrated).toBe(true);
+		expect(manager.getProviderSettings("cline")?.auth).toEqual({
+			accessToken: "legacy-cline-access",
+			refreshToken: "legacy-cline-refresh",
+			expiresAt: 1_750_000_000_000,
+			accountId: "user-123",
+		});
+		expect(manager.read().providers.cline?.tokenSource).toBe("migration");
+	});
+
+	it("falls back to the default Cline model when the legacy model id is unknown", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: "some-model/that-no-longer-exists",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		const expectedDefault =
+			LlmsModels.getProviderCollectionSync("cline")?.provider.defaultModelId;
+		expect(expectedDefault).toBeTruthy();
+		expect(manager.getProviderSettings("cline")?.model).toBe(expectedDefault);
+	});
+
+	it("keeps a legacy Cline model id the catalog knows", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: "openai/gpt-5.5",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("cline")?.model).toBe("openai/gpt-5.5");
+	});
+
+	it("falls back to the default Cline model for suffixed variant ids like :1m", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: "anthropic/claude-sonnet-4.5:1m",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("cline")?.model).toBe(
+			LlmsModels.getProviderCollectionSync("cline")?.provider.defaultModelId,
+		);
+	});
+
+	it("folds legacy alias Cline model ids onto their canonical catalog ids", () => {
+		// Legacy state stores OpenRouter spellings (e.g. `z-ai/...`) that the
+		// runtime catalog canonicalizes (to `zai/...`). Migration must keep the
+		// user's model under the canonical id instead of defaulting it away.
+		const catalogModels =
+			LlmsModels.getProviderCollectionSync("cline")?.models ?? {};
+		const canonicalModelId = Object.keys(catalogModels).find((modelId) =>
+			modelId.startsWith("zai/"),
+		);
+		expect(canonicalModelId).toBeTruthy();
+		const aliasModelId = `z-ai/${canonicalModelId?.slice("zai/".length)}`;
+		expect(catalogModels[aliasModelId]).toBeUndefined();
+
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "cline",
+					actModeClineModelId: aliasModelId,
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ clineApiKey: "legacy-cline-key" }, null, 2),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("cline")?.model).toBe(canonicalModelId);
 	});
 
 	it("migrates legacy OpenAI-compatible config into the openai-compatible provider", () => {
@@ -249,6 +728,123 @@ describe("migrateLegacyProviderSettings", () => {
 					},
 				},
 			},
+		});
+	});
+
+	it("carries legacy OpenAI-compatible model-info overrides into the seeded models.json entry", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "deepseek/deepseek-r1-distill-llama-70b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+					actModeOpenAiModelInfo: {
+						maxTokens: 1234,
+						contextWindow: 77000,
+						supportsImages: false,
+						supportsPromptCache: false,
+						inputPrice: 12.5,
+						outputPrice: 25.5,
+						temperature: 0.55,
+						isR1FormatRequired: true,
+					},
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-compatible-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true });
+		const modelsPath = path.join(tempDir, "settings", "models.json");
+		expect(
+			JSON.parse(readFileSync(modelsPath, "utf8")).providers[
+				"openai-compatible"
+			].models["deepseek/deepseek-r1-distill-llama-70b"],
+		).toEqual({
+			id: "deepseek/deepseek-r1-distill-llama-70b",
+			name: "deepseek/deepseek-r1-distill-llama-70b",
+			contextWindow: 77000,
+			maxInputTokens: 77000,
+			capabilities: ["streaming", "tools"],
+			maxTokens: 1234,
+			inputPrice: 12.5,
+			outputPrice: 25.5,
+			temperature: 0.55,
+		});
+	});
+
+	it("ignores legacy model-info sentinel values (maxTokens -1, temperature 0, prices 0)", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "openai",
+					actModeOpenAiModelId: "gpt-oss-120b",
+					openAiBaseUrl: "https://gateway.example.invalid/v1",
+					// Legacy sane defaults: all of these mean "unset".
+					actModeOpenAiModelInfo: {
+						maxTokens: -1,
+						contextWindow: 128000,
+						supportsImages: true,
+						supportsPromptCache: false,
+						inputPrice: 0,
+						outputPrice: 0,
+						temperature: 0,
+						isR1FormatRequired: false,
+					},
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ openAiApiKey: "legacy-openai-compatible-key" }, null, 2),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true });
+		const modelsPath = path.join(tempDir, "settings", "models.json");
+		expect(
+			JSON.parse(readFileSync(modelsPath, "utf8")).providers[
+				"openai-compatible"
+			].models["gpt-oss-120b"],
+		).toEqual({
+			id: "gpt-oss-120b",
+			name: "gpt-oss-120b",
+			contextWindow: 128000,
+			maxInputTokens: 128000,
+			capabilities: ["streaming", "tools", "images"],
 		});
 	});
 
@@ -353,6 +949,47 @@ describe("migrateLegacyProviderSettings", () => {
 		expect(manager.read().providers.bedrock?.tokenSource).toBe("migration");
 	});
 
+	it("normalizes legacy Bedrock credentials auth to SDK iam auth", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "provider-settings.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "bedrock",
+					actModeApiModelId: "anthropic.claude-haiku-4-5-20251001-v1:0",
+					awsRegion: "us-east-1",
+					awsAuthentication: "credentials",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify({ awsAccessKey: "access", awsSecretKey: "secret" }),
+		);
+
+		const result = migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(result).toMatchObject({ migrated: true, providerCount: 1 });
+		expect(manager.getProviderSettings("bedrock")?.aws).toMatchObject({
+			authentication: "iam",
+			accessKey: "access",
+			secretKey: "secret",
+			region: "us-east-1",
+		});
+	});
+
 	it("migrates legacy SAP AI Core credentials into SAP provider settings", () => {
 		const tempDir = mkdtempSync(
 			path.join(os.tmpdir(), "core-legacy-provider-"),
@@ -410,11 +1047,59 @@ describe("migrateLegacyProviderSettings", () => {
 				clientSecret: "sap-secret",
 				tokenUrl: "https://example.authentication.sap.hana.ondemand.com",
 				resourceGroup: "default",
-				deploymentId: "deployment-id",
 				useOrchestrationMode: true,
 			},
 		});
 		expect(manager.read().providers.sapaicore?.tokenSource).toBe("migration");
+	});
+
+	it("keeps SAP AI Core deployment id only for foundation-model mode", () => {
+		const tempDir = mkdtempSync(
+			path.join(os.tmpdir(), "core-legacy-provider-"),
+		);
+		tempDirs.push(tempDir);
+		const providersPath = path.join(tempDir, "settings", "providers.json");
+		const manager = new ProviderSettingsManager({ filePath: providersPath });
+
+		writeFileSync(
+			path.join(tempDir, "globalState.json"),
+			JSON.stringify(
+				{
+					mode: "act",
+					actModeApiProvider: "sapaicore",
+					actModeApiModelId: "gpt-4o",
+					sapAiCoreBaseUrl: "https://api.ai.example.aws.ml.hana.ondemand.com",
+					sapAiCoreTokenUrl:
+						"https://example.authentication.sap.hana.ondemand.com",
+					sapAiResourceGroup: "default",
+					sapAiCoreUseOrchestrationMode: false,
+					actModeSapAiCoreDeploymentId: "deployment-id",
+				},
+				null,
+				2,
+			),
+		);
+		writeFileSync(
+			path.join(tempDir, "secrets.json"),
+			JSON.stringify(
+				{
+					sapAiCoreClientId: "sap-client",
+					sapAiCoreClientSecret: "sap-secret",
+				},
+				null,
+				2,
+			),
+		);
+
+		migrateLegacyProviderSettings({
+			providerSettingsManager: manager,
+			dataDir: tempDir,
+		});
+
+		expect(manager.getProviderSettings("sapaicore")?.sap).toMatchObject({
+			deploymentId: "deployment-id",
+			useOrchestrationMode: false,
+		});
 	});
 
 	it("detects SAP AI Core legacy files even when provider mode is absent", () => {
@@ -522,12 +1207,19 @@ describe("resolveLegacyClineAuth", () => {
 		expect(result?.accessToken).toBe("tok-abc");
 	});
 
-	it("preserves expiresAt as a number", () => {
+	it("preserves millisecond expiresAt values", () => {
 		const result = resolveLegacyClineAuth(
 			makeClineAccountJson({ expiresAt: 9999999999999 }),
 		);
 		expect(result?.expiresAt).toBe(9999999999999);
 		expect(typeof result?.expiresAt).toBe("number");
+	});
+
+	it("normalizes classic second-based expiresAt values to milliseconds", () => {
+		const result = resolveLegacyClineAuth(
+			makeClineAccountJson({ expiresAt: 1_750_000_000 }),
+		);
+		expect(result?.expiresAt).toBe(1_750_000_000_000);
 	});
 
 	it("maps userInfo.id to accountId", () => {

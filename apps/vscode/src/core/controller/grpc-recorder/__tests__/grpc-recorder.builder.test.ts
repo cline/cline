@@ -1,4 +1,4 @@
-import { describe, it } from "mocha"
+import { describe, it } from "bun:test"
 import "should"
 import { GrpcRecorderNoops } from "@/core/controller/grpc-recorder/grpc-recorder"
 import { GrpcRecorderBuilder } from "@/core/controller/grpc-recorder/grpc-recorder.builder"

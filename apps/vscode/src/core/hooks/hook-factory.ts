@@ -129,7 +129,7 @@ export interface Hooks {
 	}
 }
 
-export interface HookModelInputContext {
+interface HookModelInputContext {
 	provider?: string
 	slug?: string
 }

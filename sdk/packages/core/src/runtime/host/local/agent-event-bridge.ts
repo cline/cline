@@ -7,6 +7,7 @@ import type {
 import type { TeamEvent } from "../../../extensions/tools/team";
 import {
 	type AgentEventContext,
+	type AgentTelemetryContextOverrides,
 	buildTelemetryAgentIdentity,
 	extractAgentEventMetadata,
 	handleAgentEvent,
@@ -39,6 +40,20 @@ export interface AgentEventBridgeDeps {
 export class AgentEventBridge {
 	constructor(private readonly deps: AgentEventBridgeDeps) {}
 
+	/**
+	 * Last agent identity stamped on each session's events while the session
+	 * was still registered. A session's agent can keep emitting after the host
+	 * removes it from the sessions map (teardown deletes the entry before the
+	 * run fully drains), and without this snapshot those late events reach
+	 * telemetry with no agent identity at all. Bounded FIFO so a long-lived
+	 * host doesn't accumulate entries forever.
+	 */
+	private readonly lastKnownIdentityBySession = new Map<
+		string,
+		AgentTelemetryContextOverrides
+	>();
+	private static readonly MAX_IDENTITY_SNAPSHOTS = 512;
+
 	dispatchAgentEvent(
 		sessionId: string,
 		config: CoreSessionConfig,
@@ -59,20 +74,50 @@ export class AgentEventBridge {
 			!!liveSession &&
 			(!eventMetadata.agentId ||
 				eventMetadata.agentId === readAgentId(liveSession.agent));
-		handleAgentEvent(
-			ctx,
-			event,
-			isRootAgentEvent
-				? {
-						isPrimaryAgentEvent: true,
-						agentId: readAgentId(liveSession.agent),
-						conversationId: liveSession.agent.getConversationId(),
-						...(liveSession?.runtime.teamRuntime
-							? { teamRole: "lead" as const }
-							: {}),
-					}
-				: { isPrimaryAgentEvent: false },
-		);
+		if (isRootAgentEvent) {
+			const identity: AgentTelemetryContextOverrides = {
+				agentId: readAgentId(liveSession.agent),
+				conversationId: liveSession.agent.getConversationId(),
+				...(liveSession?.runtime.teamRuntime
+					? { teamRole: "lead" as const }
+					: {}),
+			};
+			this.rememberSessionIdentity(sessionId, identity);
+			handleAgentEvent(ctx, event, {
+				...identity,
+				isPrimaryAgentEvent: true,
+			});
+			return;
+		}
+		handleAgentEvent(ctx, event, {
+			// Session-map miss: the session was already deregistered but its
+			// agent is still emitting. Reuse the identity captured while it was
+			// live so task.tool_used and friends keep their agentId/agentKind
+			// attributes. When the session IS live this is a non-root
+			// (sub-agent) event carrying its own metadata, so no fallback is
+			// applied.
+			...(liveSession ? {} : this.lastKnownIdentityBySession.get(sessionId)),
+			isPrimaryAgentEvent: false,
+		});
+	}
+
+	private rememberSessionIdentity(
+		sessionId: string,
+		identity: AgentTelemetryContextOverrides,
+	): void {
+		// Delete-then-set keeps insertion order acting as least-recently-updated
+		// for the FIFO eviction below.
+		this.lastKnownIdentityBySession.delete(sessionId);
+		this.lastKnownIdentityBySession.set(sessionId, identity);
+		if (
+			this.lastKnownIdentityBySession.size >
+			AgentEventBridge.MAX_IDENTITY_SNAPSHOTS
+		) {
+			const oldest = this.lastKnownIdentityBySession.keys().next().value;
+			if (oldest !== undefined) {
+				this.lastKnownIdentityBySession.delete(oldest);
+			}
+		}
 	}
 
 	async handleTeamEvent(
@@ -138,9 +183,18 @@ export class AgentEventBridge {
 		fallbackAutomation?: NonNullable<
 			CoreSessionConfig["extensionContext"]
 		>["automation"],
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
 	): Promise<void> {
 		if (event.name === "plugin_log") {
 			this.handlePluginLog(rootSessionId, event.payload);
+			return;
+		}
+		if (event.name === "plugin_telemetry") {
+			this.handlePluginTelemetry(
+				rootSessionId,
+				event.payload,
+				fallbackTelemetry,
+			);
 			return;
 		}
 		if (event.name === "automation_event") {
@@ -184,6 +238,92 @@ export class AgentEventBridge {
 						? "steer"
 						: "queue";
 		this.deps.enqueuePendingPrompt(targetSessionId, { prompt, delivery });
+	}
+
+	/**
+	 * Route `plugin_telemetry` events emitted by the sandbox-side telemetry
+	 * bridge into the host telemetry service. Sandboxed plugins cannot hold
+	 * the live service (it is not JSON-serializable across the IPC boundary),
+	 * so their capture/record calls arrive as events. All plugin events are
+	 * namespaced under `plugin.` and stamped with the plugin name so they
+	 * cannot impersonate first-party events.
+	 */
+	handlePluginTelemetry(
+		rootSessionId: string,
+		payload: unknown,
+		fallbackTelemetry?: CoreSessionConfig["telemetry"],
+	): void {
+		// Plugin setup() runs during session bootstrap, before the session is
+		// registered in the sessions map — the fallback keeps setup-time
+		// telemetry (and any other pre-registration events) from being
+		// silently dropped, mirroring handlePluginLog's fallback logger.
+		const session = this.deps.getSession(rootSessionId);
+		const telemetry = session?.config.telemetry ?? fallbackTelemetry;
+		if (!telemetry || !payload || typeof payload !== "object") return;
+		const record = payload as Record<string, unknown>;
+		const pluginName =
+			typeof record.pluginName === "string" && record.pluginName
+				? record.pluginName
+				: "unknown";
+
+		if (record.kind === "event") {
+			const event = typeof record.event === "string" ? record.event.trim() : "";
+			if (!event) return;
+			const properties = {
+				...(record.properties && typeof record.properties === "object"
+					? (record.properties as Record<string, unknown>)
+					: {}),
+				plugin_name: pluginName,
+				session_id: rootSessionId,
+			};
+			if (record.required === true) {
+				telemetry.captureRequired(`plugin.${event}`, properties);
+			} else {
+				telemetry.capture({ event: `plugin.${event}`, properties });
+			}
+			return;
+		}
+
+		if (record.kind === "metric") {
+			const name = typeof record.name === "string" ? record.name.trim() : "";
+			const value = typeof record.value === "number" ? record.value : NaN;
+			if (!name || Number.isNaN(value)) return;
+			const attributes = {
+				...(record.attributes && typeof record.attributes === "object"
+					? (record.attributes as Record<string, unknown>)
+					: {}),
+				plugin_name: pluginName,
+			};
+			const description =
+				typeof record.description === "string" ? record.description : undefined;
+			const required = record.required === true;
+			const metricName = `plugin.${name}`;
+			if (record.metric === "counter") {
+				telemetry.recordCounter(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			} else if (record.metric === "histogram") {
+				telemetry.recordHistogram(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			} else if (record.metric === "gauge") {
+				telemetry.recordGauge(
+					metricName,
+					value,
+					attributes,
+					description,
+					required,
+				);
+			}
+		}
 	}
 
 	handlePluginLog(

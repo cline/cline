@@ -1,12 +1,27 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { expect } from "chai"
 import * as fs from "fs/promises"
-import { afterEach, beforeEach, describe, it } from "mocha"
 import os from "os"
 import path from "path"
 import * as sinon from "sinon"
 import { WebviewProvider } from "@/core/webview"
-import * as webhookHooks from "@/services/lg-cns-integration/webhook-hooks"
+import * as actualWebhookHooks from "@/services/lg-cns-integration/webhook-hooks"
 import { Logger } from "@/shared/services/Logger"
+
+// bun loads real ESM, so sinon cannot stub the
+// `@/services/lg-cns-integration/webhook-hooks` namespace exports ("ES Modules
+// cannot be stubbed"). Inject module-level sinon stubs via mock.module so the
+// full sinon stub API keeps working.
+const writeLgWebhookConfigStub: sinon.SinonStub = sinon.stub()
+const writeLgWebhookHooksStub: sinon.SinonStub = sinon.stub()
+const webhookHooksMock = () => ({
+	...actualWebhookHooks,
+	writeLgWebhookConfig: writeLgWebhookConfigStub,
+	writeLgWebhookHooks: writeLgWebhookHooksStub,
+})
+mock.module("@/services/lg-cns-integration/webhook-hooks", webhookHooksMock)
+mock.module("@services/lg-cns-integration/webhook-hooks", webhookHooksMock)
+
 import { ErrorService } from "../error"
 import { SharedUriHandler } from "./SharedUriHandler"
 
@@ -121,8 +136,12 @@ describe("SharedUriHandler", () => {
 					const promptFilePath = path.join(tempDir, "lg-spec.md")
 					await fs.writeFile(promptFilePath, "Implement user registration flow", "utf-8")
 
-					const writeConfigStub = sandbox.stub(webhookHooks, "writeLgWebhookConfig").resolves()
-					const writeHooksStub = sandbox.stub(webhookHooks, "writeLgWebhookHooks").resolves()
+					const writeConfigStub = writeLgWebhookConfigStub
+					writeConfigStub.reset()
+					writeConfigStub.resolves()
+					const writeHooksStub = writeLgWebhookHooksStub
+					writeHooksStub.reset()
+					writeHooksStub.resolves()
 
 					const result = await SharedUriHandler.handleUri(
 						`vscode://cline.cline/lg-task?prompt-file=${encodeURIComponent(
@@ -144,8 +163,12 @@ describe("SharedUriHandler", () => {
 			})
 
 			it("should return false when LG task parameters are missing", async () => {
-				const writeConfigStub = sandbox.stub(webhookHooks, "writeLgWebhookConfig").resolves()
-				const writeHooksStub = sandbox.stub(webhookHooks, "writeLgWebhookHooks").resolves()
+				const writeConfigStub = writeLgWebhookConfigStub
+				writeConfigStub.reset()
+				writeConfigStub.resolves()
+				const writeHooksStub = writeLgWebhookHooksStub
+				writeHooksStub.reset()
+				writeHooksStub.resolves()
 				const result = await SharedUriHandler.handleUri(
 					"vscode://cline.cline/lg-task?prompt-file=%2Ftmp%2Fspec.md&webhook-url=https%3A%2F%2Fexample.com",
 				)

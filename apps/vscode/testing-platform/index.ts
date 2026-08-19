@@ -102,7 +102,7 @@ async function runSpecsFromFolder(folderPath: string, grpcAdapter: GrpcAdapter) 
 async function main() {
 	const inputPath = process.argv[2]
 	if (!inputPath) {
-		console.error("Usage: ts-node index.ts <spec-file-or-folder> [--fix]")
+		console.error("Usage: bun index.ts <spec-file-or-folder> [--fix]")
 		process.exit(1)
 	}
 
