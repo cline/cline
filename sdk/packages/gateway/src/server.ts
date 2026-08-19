@@ -89,6 +89,7 @@ import { ToolCatalog } from "./tools/catalog";
 import { ToolConfigurationStore } from "./tools/store";
 import { GatewayToolSystem } from "./tools/system";
 import type { PriceResolver } from "./usage";
+import { relocateManagedSessionWorkspaces } from "./workspaces";
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024;
 const EVENT_PAGE_SIZE = 100;
@@ -327,6 +328,7 @@ export class GatewayServer {
 		try {
 			// 2. Durable state: open + migrate the SQLite authority.
 			database = openGatewayDatabase(paths.databaseFile);
+			relocateManagedSessionWorkspaces(database, paths);
 			const instanceId = createGatewayInstanceId();
 			const stores = createGatewayStores(database, instanceId, {
 				usage: { prices: options.usagePrices },

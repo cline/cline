@@ -89,6 +89,12 @@ executables, runs without root privileges, and persists the complete authority
 under `/data`. See [`docker/README.md`](docker/README.md) for Docker Compose,
 direct TLS, TLS-proxy, secret provisioning, and VM deployment instructions.
 
+For a host-run lead agent with access to owner-account workspaces,
+`providers.json`, and approved Docker commands, use the systemd user-service
+deployment in [`host/README.md`](host/README.md). The host deployment keeps the
+remote listener on loopback behind TLS and does not expose the Docker socket to
+a public-facing container.
+
 ## The Phase 3 authority
 
 ### Lifecycle

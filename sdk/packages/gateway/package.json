@@ -30,6 +30,7 @@
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
 		"docker:build": "docker build -f docker/Dockerfile -t cline-gateway:dev ../../..",
+		"host:bundle": "bun run build && bun scripts/build-host-bundle.ts",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest"

@@ -723,6 +723,10 @@ export class ApprovalBroker {
 	private nextId = 0;
 	/** Set by the server: deliver a request to matching live clients. */
 	deliver: ((request: GatewayServerRequest) => void) | undefined;
+	/** Fires once after the first client response settles a request. */
+	onResolved:
+		| ((request: GatewayServerRequest, approved: boolean) => void)
+		| undefined;
 
 	request(
 		method: string,
@@ -758,6 +762,12 @@ export class ApprovalBroker {
 		} else {
 			entry.resolve(result);
 		}
+		const approved =
+			!error &&
+			typeof result === "object" &&
+			result !== null &&
+			(result as { approved?: unknown }).approved === true;
+		this.onResolved?.(entry.request, approved);
 		return true;
 	}
 

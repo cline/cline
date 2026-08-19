@@ -394,6 +394,23 @@ function appliedMigrationVersions(db: SqliteDb): Set<number> {
 	);
 }
 
+/**
+ * SQLite can leave schema changes visible when a process dies between a DDL
+ * statement and recording its migration row. Treat an already-present added
+ * column as completed so the migration can finish and record its version.
+ */
+function isAlreadyAppliedAddColumn(db: SqliteDb, statement: string): boolean {
+	const match = statement.match(
+		/^\s*ALTER\s+TABLE\s+([A-Za-z_][A-Za-z0-9_]*)\s+ADD\s+COLUMN\s+([A-Za-z_][A-Za-z0-9_]*)\b/i,
+	);
+	if (!match) return false;
+	const [, table, column] = match;
+	return db
+		.prepare(`PRAGMA table_info(${table});`)
+		.all()
+		.some((row) => String(row.name).toLowerCase() === column.toLowerCase());
+}
+
 export function migrateGatewayDatabase(db: SqliteDb): void {
 	const applied = appliedMigrationVersions(db);
 	for (const migration of GATEWAY_MIGRATIONS) {
@@ -403,7 +420,7 @@ export function migrateGatewayDatabase(db: SqliteDb): void {
 		db.exec("BEGIN IMMEDIATE;");
 		try {
 			for (const statement of migration.statements) {
-				db.exec(statement);
+				if (!isAlreadyAppliedAddColumn(db, statement)) db.exec(statement);
 			}
 			db.prepare(
 				"INSERT INTO migrations (version, name, applied_at) VALUES (?, ?, ?);",

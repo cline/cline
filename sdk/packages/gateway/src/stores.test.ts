@@ -54,6 +54,23 @@ describe("migrations", () => {
 		expect(applied).toEqual(GATEWAY_MIGRATIONS.map((m) => m.version));
 		second.close();
 	});
+
+	it("recovers when an added column exists without its migration row", () => {
+		const file = join(tempDataRoot(), "gateway.db");
+		const partial = openGatewayDatabase(file);
+		partial.db.prepare("DELETE FROM migrations WHERE version = ?;").run(3);
+		partial.close();
+
+		const recovered = openGatewayDatabase(file);
+		const applied = recovered.db
+			.prepare("SELECT version FROM migrations ORDER BY version;")
+			.all()
+			.map((row) => Number(row.version));
+		expect(applied).toEqual(
+			GATEWAY_MIGRATIONS.map((migration) => migration.version),
+		);
+		recovered.close();
+	});
 });
 
 describe("meta", () => {

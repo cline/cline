@@ -8,11 +8,16 @@
 
 import { mkdirSync, symlinkSync } from "node:fs";
 import { join } from "node:path";
-import { createBotId } from "@cline/shared/gateway";
+import { createBotId, createSessionId } from "@cline/shared/gateway";
 import { describe, expect, it } from "vitest";
+import { openGatewayDatabase } from "./db";
 import { ensureGatewayDataDir, resolveGatewayPaths } from "./paths";
 import { tempDataRoot } from "./test-support";
-import { BotWorkspaceManager, WorkspacePathError } from "./workspaces";
+import {
+	BotWorkspaceManager,
+	relocateManagedSessionWorkspaces,
+	WorkspacePathError,
+} from "./workspaces";
 
 function setup() {
 	const paths = resolveGatewayPaths({
@@ -92,5 +97,33 @@ describe("bot workspace storage", () => {
 		expect(manager.mountPolicy(a).writeRoots).not.toEqual(
 			manager.mountPolicy(b).writeRoots,
 		);
+	});
+
+	it("rebases managed workspaces after the Gateway data root moves", () => {
+		const oldRoot = tempDataRoot("cline-old-root-");
+		const paths = resolveGatewayPaths({
+			dataRoot: tempDataRoot("cline-new-root-"),
+			namespace: "default",
+		});
+		const database = openGatewayDatabase(join(tempDataRoot(), "gateway.db"));
+		const botId = createBotId();
+		const sessionId = createSessionId();
+		database.db
+			.prepare(
+				"INSERT INTO sessions (session_id, bot_id, workspace_root, state, created_at, revision) VALUES (?, ?, ?, 'active', 1, 0);",
+			)
+			.run(
+				sessionId,
+				botId,
+				join(oldRoot, "default", "bots", botId, "workspaces", sessionId),
+			);
+
+		expect(relocateManagedSessionWorkspaces(database, paths)).toBe(1);
+		expect(
+			database.db
+				.prepare("SELECT workspace_root FROM sessions WHERE session_id = ?;")
+				.get(sessionId)?.workspace_root,
+		).toBe(paths.sessionWorkspaceDir(botId, sessionId));
+		database.close();
 	});
 });

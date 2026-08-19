@@ -286,6 +286,11 @@ export {
 	safeJsonStringify,
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
+export {
+	ClineOAuthRefreshError,
+	type ClineOAuthRefreshCredentials,
+	refreshClineOAuthCredentials,
+} from "./auth/cline-oauth-refresh";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,

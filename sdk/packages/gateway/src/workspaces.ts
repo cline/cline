@@ -14,7 +14,8 @@
 
 import { mkdirSync, realpathSync } from "node:fs";
 import { join, resolve, sep } from "node:path";
-import type { BotId } from "@cline/shared/gateway";
+import type { BotId, SessionId } from "@cline/shared/gateway";
+import type { GatewayDatabase } from "./db";
 import type { GatewayPaths } from "./paths";
 
 export class WorkspacePathError extends Error {
@@ -38,6 +39,40 @@ export interface BotMountPolicy {
 }
 
 const WORKSPACE_SEGMENT = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
+/**
+ * Rebase only Gateway-managed workspaces when a data directory moves (for
+ * example, from `/data` in a container to `~/.cline/gateway` on the host).
+ * User-supplied workspace paths are never rewritten.
+ */
+export function relocateManagedSessionWorkspaces(
+	database: GatewayDatabase,
+	paths: GatewayPaths,
+): number {
+	const sessions = database.db
+		.prepare("SELECT session_id, bot_id, workspace_root FROM sessions;")
+		.all();
+	let relocated = 0;
+	for (const row of sessions) {
+		const sessionId = String(row.session_id) as SessionId;
+		const botId = String(row.bot_id) as BotId;
+		const current = resolve(String(row.workspace_root));
+		const managedSuffix = join("bots", botId, "workspaces", sessionId);
+		if (
+			current !== managedSuffix &&
+			!current.endsWith(`${sep}${managedSuffix}`)
+		) {
+			continue;
+		}
+		const target = paths.sessionWorkspaceDir(botId, sessionId);
+		if (current === target) continue;
+		database.db
+			.prepare("UPDATE sessions SET workspace_root = ? WHERE session_id = ?;")
+			.run(target, sessionId);
+		relocated += 1;
+	}
+	return relocated;
+}
 
 export class BotWorkspaceManager {
 	private readonly paths: GatewayPaths;

@@ -167,20 +167,42 @@ describe("resolveProviderModel", () => {
 	});
 
 	it("refreshes expired Cline OAuth credentials and persists token rotation", async () => {
-		const file = settingsFile(storedSettings("cline", { cline: {
-			model: "cline/model", auth: { accessToken: "expired", refreshToken: "refresh-old", expiresAt: 1 },
-		} }));
-		vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(JSON.stringify({
-			success: true, data: { accessToken: "access-new", refreshToken: "refresh-new",
-				tokenType: "Bearer", expiresAt: "2099-01-01T00:00:00.000Z",
-				userInfo: { clineUserId: "usr-test", email: "test@example.com" } },
-		}), { status: 200, headers: { "content-type": "application/json" } }));
+		const file = settingsFile(
+			storedSettings("cline", {
+				cline: {
+					model: "cline/model",
+					auth: {
+						accessToken: "expired",
+						refreshToken: "refresh-old",
+						expiresAt: 1,
+					},
+				},
+			}),
+		);
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response(
+				JSON.stringify({
+					success: true,
+					data: {
+						accessToken: "access-new",
+						refreshToken: "refresh-new",
+						tokenType: "Bearer",
+						expiresAt: "2099-01-01T00:00:00.000Z",
+						userInfo: { clineUserId: "usr-test", email: "test@example.com" },
+					},
+				}),
+				{ status: 200, headers: { "content-type": "application/json" } },
+			),
+		);
 
-		await expect(resolveSavedClineOAuthApiKey("cline", { filePath: file, env: {} }))
-			.resolves.toBe("workos:access-new");
+		await expect(
+			resolveSavedClineOAuthApiKey("cline", { filePath: file, env: {} }),
+		).resolves.toBe("workos:access-new");
 		const persisted = JSON.parse(readFileSync(file, "utf8"));
 		expect(persisted.providers.cline.settings.auth).toMatchObject({
-			accessToken: "access-new", refreshToken: "refresh-new", accountId: "usr-test",
+			accessToken: "access-new",
+			refreshToken: "refresh-new",
+			accountId: "usr-test",
 		});
 		expect(persisted.providers.cline.tokenSource).toBe("oauth");
 	});
