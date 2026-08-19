@@ -308,23 +308,19 @@ export function WorkspaceSelector({
 						}}
 					/>
 					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl">
-						{/* Search */}
-						<div className="p-2 border-b border-border">
-							<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5">
-								<Search className="size-3 text-muted-foreground shrink-0" />
-								{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-								<Input
-									autoFocus
-									value={search}
-									onChange={(e) => setSearch(e.target.value)}
-									placeholder={
-										hasGit
-											? "Search workspaces & branches"
-											: "Search workspaces"
-									}
-									className="flex-1 h-auto border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
-								/>
-							</div>
+						{/* Search row, styled to match the composer's model picker */}
+						<div className="flex items-center gap-2 border-b border-border px-3">
+							<Search className="size-3 text-muted-foreground shrink-0" />
+							{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+							<Input
+								autoFocus
+								value={search}
+								onChange={(e) => setSearch(e.target.value)}
+								placeholder={
+									hasGit ? "Search workspaces & branches" : "Search workspaces"
+								}
+								className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
+							/>
 						</div>
 
 						{loadingBranches ? (

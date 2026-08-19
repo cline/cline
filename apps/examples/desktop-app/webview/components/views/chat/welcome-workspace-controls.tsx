@@ -52,19 +52,18 @@ function SearchInput({
 	onChange: (value: string) => void;
 	placeholder: string;
 }) {
+	// Search row styled to match the composer's model picker.
 	return (
-		<div className="border-b border-border p-2">
-			<div className="flex items-center gap-2 rounded-md bg-background px-2.5 py-1.5">
-				<Search className="size-3 shrink-0 text-muted-foreground" />
-				{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
-				<Input
-					autoFocus
-					className="h-auto flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
-					onChange={(event) => onChange(event.target.value)}
-					placeholder={placeholder}
-					value={value}
-				/>
-			</div>
+		<div className="flex items-center gap-2 border-b border-border px-3">
+			<Search className="size-3 shrink-0 text-muted-foreground" />
+			{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
+			<Input
+				autoFocus
+				className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
+				onChange={(event) => onChange(event.target.value)}
+				placeholder={placeholder}
+				value={value}
+			/>
 		</div>
 	);
 }
