@@ -82,6 +82,7 @@ export function startBridgeServer(
 					baseRevision: frame.baseRevision,
 					revision: frame.revision,
 					patch: frame.patch,
+					clearedKeys: frame.clearedKeys,
 				});
 			}
 		}

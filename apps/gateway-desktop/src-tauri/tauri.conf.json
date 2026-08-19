@@ -4,7 +4,7 @@
 	"version": "0.0.1",
 	"identifier": "bot.cline.gateway-desktop",
 	"build": {
-		"beforeDevCommand": "bun run build:broker:bin && bun run dev:web",
+		"beforeDevCommand": "bun run build:sidecars && bun run dev:web",
 		"devUrl": "http://localhost:3135",
 		"beforeBuildCommand": "bun run build",
 		"frontendDist": "../webview/out"
@@ -13,6 +13,8 @@
 		"windows": [
 			{
 				"title": "Gateway Desktop",
+				"hiddenTitle": true,
+				"titleBarStyle": "Overlay",
 				"width": 1280,
 				"height": 860,
 				"minWidth": 900,
@@ -26,7 +28,7 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
-		"externalBin": ["bin/gateway-desktop-broker"],
+		"externalBin": ["bin/gateway-desktop-broker", "bin/cline-gateway"],
 		"icon": [
 			"icons/32x32.png",
 			"icons/128x128.png",

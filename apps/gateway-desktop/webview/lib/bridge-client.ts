@@ -197,13 +197,18 @@ export class BridgeClient {
 					void this.send({ command: "app.initialize" }).catch(() => {});
 					return;
 				}
+				const projection = {
+					...this.state.projection,
+					...(frame.patch as Partial<DesktopProjection>),
+					revision,
+				};
+				for (const key of (frame.clearedKeys ??
+					[]) as (keyof DesktopProjection)[]) {
+					delete projection[key];
+				}
 				this.setState({
 					status: "connected",
-					projection: {
-						...this.state.projection,
-						...(frame.patch as Partial<DesktopProjection>),
-						revision,
-					},
+					projection,
 				});
 				return;
 			}

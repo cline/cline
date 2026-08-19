@@ -266,6 +266,8 @@ export class Engine {
 			apiKey: spec.model.apiKey,
 			baseUrl: spec.model.baseUrl,
 			headers: spec.model.headers,
+			timeoutMs: spec.model.timeoutMs,
+			options: spec.model.options,
 		};
 	}
 

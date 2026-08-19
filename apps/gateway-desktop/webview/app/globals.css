@@ -4,6 +4,10 @@
 @import "tw-animate-css";
 @import "@cline/ui/theme/index.css";
 @import "@cline/ui/components.css";
+@import "@cline/ui/components/agent-chat.css";
+@import "@cline/ui/components/markdown.css";
+
+@source "../../node_modules/streamdown/dist";
 
 @layer base {
 	html,
@@ -33,6 +37,9 @@
 	}
 
 	.gwd-selectable,
+	.cline-chat-message-content,
+	.cline-markdown,
+	.cline-chat-selectable,
 	pre,
 	code {
 		-webkit-user-select: text;

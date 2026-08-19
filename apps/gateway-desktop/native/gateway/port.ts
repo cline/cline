@@ -61,6 +61,8 @@ export interface GatewayPort {
 		botId: string;
 		prompt: string;
 		workspaceRoot?: string;
+		newSession?: boolean;
+		overrides?: { providerId?: string; modelId?: string };
 		idempotencyKey?: string;
 	}): Promise<RunAccepted>;
 	steerRun(input: {

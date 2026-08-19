@@ -10,7 +10,7 @@ authority.
 | **Gateway** (`cline-gateway`) | All persistence: bots, sessions, runs, attempts, events, messages, approvals | — |
 | **Broker** (`native/`, Bun) | The Gateway connection and a replaceable `DesktopProjection`; UI-safe persisted metadata + replay cursor | Read/write Gateway SQLite or session files; start/stop/upgrade/replace a Gateway; mutate without a user action |
 | **Webview** (`webview/`, Next.js) | Ephemeral presentation state | Import SDK protocol packages; read env vars; see secrets, paths, or raw diagnostics |
-| **Tauri shell** (`src-tauri/`) | Window + broker process lifecycle + per-launch bridge secret + reveal-diagnostics | Import the Cline SDK; implement Gateway commands |
+| **Tauri shell** (`src-tauri/`) | Window + bundled Gateway/broker lifecycle + per-launch bridge secret + reveal-diagnostics | Import the Cline SDK; implement Gateway commands |
 
 ## Gateway surface used
 

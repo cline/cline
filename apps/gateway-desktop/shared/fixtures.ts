@@ -114,6 +114,12 @@ export function fixtureConnectedIdle(): DesktopProjection {
 		},
 	];
 	projection.selectedBotId = "bot_fixturelead000001";
+	projection.providers = [
+		{ providerId: "cline", modelIds: ["anthropic/claude-sonnet-4.6"] },
+		{ providerId: "openai-codex", modelIds: ["gpt-5.6-sol"] },
+	];
+	projection.selectedProviderId = "cline";
+	projection.selectedModelId = "anthropic/claude-sonnet-4.6";
 	projection.selectedWorkspaceId = MANAGED_WORKSPACE_PROJECTION_ID;
 	projection.diagnostics.lastEventSequence = 12;
 	projection.diagnostics.eventsApplied = 12;

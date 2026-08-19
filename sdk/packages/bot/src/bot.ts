@@ -228,6 +228,17 @@ export class Bot {
 		});
 	}
 
+	/** Close the idle active session and allow the next prompt to create one. */
+	replaceSession(): void {
+		if (this.active || this.queue.length > 0) {
+			throw new RunAdmissionError(
+				"Cannot replace a session while runs are active or queued",
+			);
+		}
+		this.closeSession();
+		this.sessionId = undefined;
+	}
+
 	/** Discover file-backed memories through the memory port. */
 	discoverMemories(): BotMemory[] {
 		if (!this.ports.memories) {

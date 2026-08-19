@@ -30,6 +30,7 @@ import type { Logger } from "../logging";
 import type { GatewayPort, GatewayPortFactory } from "./port";
 import {
 	addApproval,
+	addWorkspace,
 	addNotice,
 	applyGatewayEvent,
 	applySnapshot,
@@ -74,6 +75,7 @@ export type ProjectionFrame =
 			baseRevision: number;
 			revision: number;
 			patch: Partial<DesktopProjection>;
+			clearedKeys: (keyof DesktopProjection)[];
 	  };
 
 export type ProjectionListener = (frame: ProjectionFrame) => void;
@@ -87,8 +89,14 @@ export interface DesktopBrokerOptions {
 	jitterRatio?: number;
 	/** Native capability: reveal the diagnostics folder. */
 	revealDiagnostics?: () => void | Promise<void>;
+	/** Native capability: choose a local folder. */
+	chooseWorkspace?: () => Promise<string | undefined>;
 	/** Test hook: scheduler for reconnect timers. */
 	setTimer?: (fn: () => void, ms: number) => unknown;
+	providerCatalog?: {
+		providers: Array<{ providerId: string; modelIds: readonly string[] }>;
+		selectedProviderId?: string;
+	};
 }
 
 export class DesktopBroker {
@@ -116,6 +124,22 @@ export class DesktopBroker {
 		this.context.projection.diagnostics.revealAvailable = Boolean(
 			options.revealDiagnostics,
 		);
+		this.applyProviderCatalog();
+	}
+
+	private applyProviderCatalog(): void {
+		const catalog = this.options.providerCatalog;
+		if (!catalog) return;
+		this.context.projection.providers = catalog.providers.map((provider) => ({
+			providerId: provider.providerId,
+			modelIds: [...provider.modelIds],
+		}));
+		const selected =
+			catalog.providers.find(
+				(provider) => provider.providerId === catalog.selectedProviderId,
+			) ?? catalog.providers[0];
+		this.context.projection.selectedProviderId = selected?.providerId;
+		this.context.projection.selectedModelId = selected?.modelIds[0];
 	}
 
 	// -------------------------------------------------------------------
@@ -193,6 +217,7 @@ export class DesktopBroker {
 				fresh.projection.diagnostics.revealAvailable =
 					this.context.projection.diagnostics.revealAvailable;
 				this.context = fresh;
+				this.applyProviderCatalog();
 			}
 			this.options.stateStore.save({
 				gatewayId: port.hello.gatewayId,
@@ -554,6 +579,19 @@ export class DesktopBroker {
 				this.commitSelections("selectedWorkspaceId");
 				return { selectedWorkspaceId: command.workspaceId };
 			}
+			case "workspace.open": {
+				if (!this.options.chooseWorkspace) {
+					throw desktopError("not_found", "Folder selection is unavailable");
+				}
+				const rootPath = await this.options.chooseWorkspace();
+				if (!rootPath) {
+					return { cancelled: true };
+				}
+				const workspaceId = addWorkspace(this.context, rootPath);
+				this.schedulePersist();
+				this.flush();
+				return { selectedWorkspaceId: workspaceId };
+			}
 			case "session.select":
 				return this.selectSession(command.sessionId);
 			case "run.start":
@@ -648,6 +686,8 @@ export class DesktopBroker {
 		botId: string;
 		sessionId?: string;
 		workspaceId?: string;
+		providerId?: string;
+		modelId?: string;
 		prompt: string;
 	}): Promise<unknown> {
 		const port = this.requirePort();
@@ -669,7 +709,7 @@ export class DesktopBroker {
 		}
 		const workspaceId = command.workspaceId ?? projection.selectedWorkspaceId;
 		let workspaceRoot: string | undefined;
-		if (activeSessionOfBot) {
+		if (activeSessionOfBot && command.sessionId) {
 			// The session workspace is immutable; an explicit conflicting
 			// choice is a user error, not something to forward and fail.
 			if (
@@ -695,7 +735,16 @@ export class DesktopBroker {
 			const accepted = await port.startRun({
 				botId: command.botId,
 				prompt: command.prompt,
+				...(!command.sessionId ? { newSession: true } : {}),
 				...(workspaceRoot ? { workspaceRoot } : {}),
+				...(command.providerId || command.modelId
+					? {
+							overrides: {
+								...(command.providerId ? { providerId: command.providerId } : {}),
+								...(command.modelId ? { modelId: command.modelId } : {}),
+							},
+						}
+					: {}),
 				idempotencyKey: command.clientRequestId,
 			});
 			this.context.promptPreviews.set(
@@ -858,14 +907,21 @@ export class DesktopBroker {
 			}
 			const projection = this.context.projection;
 			const patch: Record<string, unknown> = {};
+			const clearedKeys: (keyof DesktopProjection)[] = [];
 			for (const key of keys) {
-				patch[key] = structuredClone(projection[key]);
+				const value = projection[key];
+				if (value === undefined) {
+					clearedKeys.push(key);
+				} else {
+					patch[key] = structuredClone(value);
+				}
 			}
 			const frame: ProjectionFrame = {
 				kind: "patch",
 				baseRevision: this.lastEmittedRevision,
 				revision: projection.revision,
 				patch: patch as Partial<DesktopProjection>,
+				clearedKeys,
 			};
 			this.lastEmittedRevision = projection.revision;
 			for (const listener of this.listeners) {

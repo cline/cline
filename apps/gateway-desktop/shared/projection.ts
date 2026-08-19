@@ -45,6 +45,11 @@ export interface BotProjection {
 	isDefaultLead: boolean;
 }
 
+export interface ProviderProjection {
+	providerId: string;
+	modelIds: string[];
+}
+
 export type WorkspaceKind = "managed" | "existing";
 
 /**
@@ -229,6 +234,9 @@ export interface DesktopProjection {
 	connection: ConnectionProjection;
 	bots: BotProjection[];
 	selectedBotId?: string;
+	providers: ProviderProjection[];
+	selectedProviderId?: string;
+	selectedModelId?: string;
 	workspaces: WorkspaceProjection[];
 	selectedWorkspaceId?: string;
 	sessions: SessionSummaryProjection[];
@@ -265,10 +273,11 @@ export function createInitialProjection(): DesktopProjection {
 		generatedAt: 0,
 		connection: { state: "connecting" },
 		bots: [],
+		providers: [],
 		workspaces: [
 			{
 				workspaceId: MANAGED_WORKSPACE_PROJECTION_ID,
-				label: "Managed workspace (Gateway-owned)",
+				label: "Chat",
 				kind: "managed",
 			},
 		],

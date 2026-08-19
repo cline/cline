@@ -41,6 +41,7 @@ import {
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
 import type { ConnectorRecord } from "./connectors/store";
+export { listSavedProviderSummaries } from "./provider-settings";
 import type { DiscoveryRecord } from "./discovery";
 import type { SessionSnapshot } from "./runtime";
 import type { ScheduleJobRecord, ScheduleRecord } from "./schedules/store";
@@ -153,6 +154,7 @@ export interface StartRunInput {
 	botId: BotId;
 	prompt: string;
 	workspaceRoot?: string;
+	newSession?: boolean;
 	overrides?: TurnOverrides;
 	idempotencyKey?: string;
 }
@@ -330,6 +332,7 @@ export class GatewayClient {
 			botId: input.botId,
 			prompt: input.prompt,
 			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
+			...(input.newSession ? { newSession: true } : {}),
 			...(input.overrides ? { overrides: input.overrides } : {}),
 			...(input.idempotencyKey
 				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }

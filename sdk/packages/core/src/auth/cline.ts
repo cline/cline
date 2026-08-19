@@ -1,7 +1,9 @@
 import {
+	ClineOAuthRefreshError,
 	decodeJwtPayload,
 	getClineEnvironmentConfig,
 	type ITelemetryService,
+	refreshClineOAuthCredentials,
 } from "@cline/shared";
 import { hashSecret, sdkDebug } from "../logging/early-logger";
 import {
@@ -716,49 +718,19 @@ export async function refreshClineToken(
 	current: ClineOAuthCredentials,
 	options: ClineOAuthProviderOptions,
 ): Promise<ClineOAuthCredentials> {
-	const refreshUrl = resolveUrl(
-		options.apiBaseUrl,
-		DEFAULT_AUTH_ENDPOINTS.refresh,
-	);
-	sdkDebug(
-		`cline.refresh.request url=${refreshUrl} refreshTokenHash=${hashSecret(current.refresh)}`,
-	);
-	const response = await fetch(refreshUrl, {
-		method: "POST",
-		headers: {
-			"Content-Type": "application/json",
-			...(await resolveHeaders(options.headers)),
-		},
-		body: JSON.stringify({
-			refreshToken: current.refresh,
-			grantType: "refresh_token",
-		}),
-		signal: AbortSignal.timeout(
-			options.requestTimeoutMs ?? DEFAULT_HTTP_TIMEOUT_MS,
-		),
-	});
-
-	if (!response.ok) {
-		const text = await response.text().catch(() => "");
-		const details = parseOAuthError(text);
-		const requestId = response.headers.get("x-request-id") ?? undefined;
-		sdkDebug(
-			`cline.refresh.error status=${response.status} errorCode=${details.code ?? "none"} message=${details.message ?? "none"} requestId=${requestId ?? "none"}`,
-		);
-		throw new ClineOAuthTokenError(
-			`Token refresh failed: ${response.status}${details.message ? ` - ${details.message}` : ""}`,
-			{ status: response.status, errorCode: details.code, requestId },
-		);
+	let result: ClineOAuthCredentials;
+	try {
+		result = await refreshClineOAuthCredentials(current, options);
+	} catch (error) {
+		if (error instanceof ClineOAuthRefreshError) {
+			throw new ClineOAuthTokenError(error.message, {
+				status: error.status,
+				errorCode: error.errorCode,
+				requestId: error.requestId,
+			});
+		}
+		throw error;
 	}
-
-	const json = (await response.json()) as ClineTokenResponse;
-	const provider =
-		(current.metadata?.provider as string | undefined) ?? options.provider;
-	const result = toClineCredentials(
-		requireClineTokenResponse(json, "Invalid token refresh response"),
-		provider,
-		current,
-	);
 	sdkDebug(
 		`cline.refresh.success newAccessTokenHash=${hashSecret(result.access)} newRefreshTokenHash=${hashSecret(result.refresh)} expires=${result.expires}`,
 	);

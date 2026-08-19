@@ -81,6 +81,7 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			botId: BotIdSchema,
 			prompt: z.string().min(1),
 			workspaceRoot: z.string().min(1).optional(),
+			newSession: z.boolean().optional(),
 			overrides: TurnOverridesSchema.optional(),
 		}).strict(),
 	),

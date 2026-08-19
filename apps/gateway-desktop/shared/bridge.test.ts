@@ -30,6 +30,7 @@ describe("bridge command schema (closed set)", () => {
 				command: "workspace.select",
 				workspaceId: "workspace-managed",
 			},
+			"workspace.open": { command: "workspace.open" },
 			"session.select": { command: "session.select", sessionId: "ses_1" },
 			"run.start": {
 				command: "run.start",

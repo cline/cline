@@ -82,6 +82,11 @@ export const BridgeCommandSchema = z.discriminatedUnion("command", [
 		.strict(),
 	z
 		.object({
+			command: z.literal("workspace.open"),
+		})
+		.strict(),
+	z
+		.object({
 			command: z.literal("session.select"),
 			sessionId: z.string().min(1).max(256).optional(),
 		})
@@ -93,6 +98,8 @@ export const BridgeCommandSchema = z.discriminatedUnion("command", [
 			botId: z.string().min(1).max(256),
 			sessionId: z.string().min(1).max(256).optional(),
 			workspaceId: z.string().min(1).max(256).optional(),
+			providerId: z.string().min(1).max(256).optional(),
+			modelId: z.string().min(1).max(512).optional(),
 			prompt: boundedText(MAX_PROMPT_BYTES),
 		})
 		.strict(),
@@ -143,6 +150,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	"gateway.reconnect",
 	"bot.select",
 	"workspace.select",
+	"workspace.open",
 	"session.select",
 	"run.start",
 	"run.steer",
@@ -197,6 +205,8 @@ export interface BridgeProjectionPatchFrame {
 	baseRevision: number;
 	revision: number;
 	patch: Partial<DesktopProjection>;
+	/** Optional projection properties removed by this patch. */
+	clearedKeys?: (keyof DesktopProjection)[];
 }
 
 export interface BridgeCommandResultFrame {

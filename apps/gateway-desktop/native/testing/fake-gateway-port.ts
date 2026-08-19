@@ -286,6 +286,8 @@ export class FakeGatewayAuthority {
 		botId: string;
 		prompt: string;
 		workspaceRoot?: string;
+		newSession?: boolean;
+		overrides?: { providerId?: string; modelId?: string };
 		idempotencyKey?: string;
 	}): RunAccepted {
 		if (input.idempotencyKey) {
@@ -295,6 +297,16 @@ export class FakeGatewayAuthority {
 			}
 		}
 		let session = this.sessionFor(input.botId);
+		if (session && input.newSession) {
+			const index = this.sessions.indexOf(session);
+			this.sessions[index] = { ...session, state: "closed" };
+			this.appendEvent(
+				"session.closed",
+				{ botId: input.botId, sessionId: session.sessionId },
+				undefined,
+			);
+			session = undefined;
+		}
 		if (!session) {
 			fakeCounter += 1;
 			session = {
@@ -630,6 +642,8 @@ export class FakeGatewayPort implements GatewayPort {
 		botId: string;
 		prompt: string;
 		workspaceRoot?: string;
+		newSession?: boolean;
+		overrides?: { providerId?: string; modelId?: string };
 		idempotencyKey?: string;
 	}): Promise<RunAccepted> {
 		this.assertOpen();

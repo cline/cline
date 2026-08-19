@@ -3,6 +3,7 @@ export {};
 
 const external = [
 	"@cline/bot",
+	"@cline/core",
 	"@cline/engine",
 	"@cline/shared",
 	"@cline/shared/gateway",

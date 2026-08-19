@@ -33,6 +33,7 @@ import type {
 	SessionSummaryProjection,
 	WorkspaceProjection,
 } from "../../shared/projection";
+import { basename } from "node:path";
 import {
 	createInitialProjection,
 	GATEWAY_START_INSTRUCTIONS,
@@ -149,6 +150,32 @@ export function workspaceIdForPath(
 	return workspaceId;
 }
 
+function workspaceLabel(rootPath: string): string {
+	const name = basename(rootPath);
+	return name || rootPath;
+}
+
+function isGatewayManagedWorkspace(rootPath: string): boolean {
+	return /^ses_[A-Za-z0-9]+$/.test(basename(rootPath));
+}
+
+export function addWorkspace(
+	context: ReducerContext,
+	rootPath: string,
+): string {
+	const workspaceId = workspaceIdForPath(context, rootPath);
+	if (!context.projection.workspaces.some((item) => item.workspaceId === workspaceId)) {
+		context.projection.workspaces.push({
+			workspaceId,
+			label: workspaceLabel(rootPath),
+			kind: "existing",
+		});
+	}
+	context.projection.selectedWorkspaceId = workspaceId;
+	commit(context, "workspaces", "selectedWorkspaceId");
+	return workspaceId;
+}
+
 function rebuildWorkspaces(
 	context: ReducerContext,
 	sessions: readonly SessionRecord[],
@@ -156,18 +183,21 @@ function rebuildWorkspaces(
 	const workspaces: WorkspaceProjection[] = [
 		{
 			workspaceId: MANAGED_WORKSPACE_PROJECTION_ID,
-			label: "Managed workspace (Gateway-owned)",
+			label: "Chat",
 			kind: "managed",
 		},
 	];
 	for (const session of sessions) {
+		if (isGatewayManagedWorkspace(session.workspace.rootPath)) {
+			continue;
+		}
 		const workspaceId = workspaceIdForPath(context, session.workspace.rootPath);
 		if (workspaces.some((entry) => entry.workspaceId === workspaceId)) {
 			continue;
 		}
 		workspaces.push({
 			workspaceId,
-			label: `Workspace of session ${session.sessionId.slice(0, 12)}…`,
+			label: workspaceLabel(session.workspace.rootPath),
 			kind: "existing",
 			sessionId: session.sessionId,
 		});

@@ -52,6 +52,7 @@ function createHarness(
 		authority?: FakeGatewayAuthority;
 		stateStore?: DesktopStateStore;
 		revealDiagnostics?: () => void;
+		chooseWorkspace?: () => Promise<string | undefined>;
 	} = {},
 ): Harness {
 	const authority = options.authority ?? new FakeGatewayAuthority();
@@ -79,6 +80,7 @@ function createHarness(
 		logger: createNullLogger(),
 		jitterRatio: 0,
 		revealDiagnostics: options.revealDiagnostics,
+		chooseWorkspace: options.chooseWorkspace,
 	});
 	brokers.push(broker);
 	return {
@@ -294,6 +296,83 @@ describe("commands", () => {
 		});
 		const session = harness.authority.sessionFor(botId);
 		expect(session?.workspace.rootPath).toBe("/real/project/path");
+	});
+
+	it("opens and selects a local workspace without exposing its path", async () => {
+		const harness = createHarness({
+			chooseWorkspace: async () => "/real/project/cline",
+		});
+		await harness.broker.start();
+		await harness.broker.execute({ command: "workspace.open" });
+		const projection = harness.broker.projectionSnapshot;
+		const selected = projection.workspaces.find(
+			(workspace) => workspace.workspaceId === projection.selectedWorkspaceId,
+		);
+		expect(selected?.label).toBe("cline");
+		expect(JSON.stringify(projection)).not.toContain("/real/project/cline");
+
+		await harness.broker.execute({
+			command: "run.start",
+			clientRequestId: "req_open_workspace_01",
+			botId: harness.authority.defaultBotId,
+			prompt: "use selected folder",
+		});
+		expect(
+			harness.authority.sessionFor(harness.authority.defaultBotId)?.workspace
+				.rootPath,
+		).toBe("/real/project/cline");
+	});
+
+	it("emits clear tombstones when New clears the active chat", async () => {
+		const harness = createHarness();
+		await harness.broker.start();
+		await harness.broker.execute({
+			command: "run.start",
+			clientRequestId: "req_new_chat_01",
+			botId: harness.authority.defaultBotId,
+			prompt: "existing chat",
+		});
+		await settle();
+		expect(harness.broker.projectionSnapshot.activeSession).toBeDefined();
+		const previousSessionId =
+			harness.broker.projectionSnapshot.activeSession?.sessionId;
+
+		const frames: Parameters<
+			Parameters<typeof harness.broker.onProjection>[0]
+		>[0][] = [];
+		const unsubscribe = harness.broker.onProjection((frame) =>
+			frames.push(frame),
+		);
+		await harness.broker.execute({ command: "session.select" });
+		await settle();
+		unsubscribe();
+
+		expect(harness.broker.projectionSnapshot.activeSession).toBeUndefined();
+		expect(harness.broker.projectionSnapshot.selectedSessionId).toBeUndefined();
+		const patch = frames.findLast((frame) => frame.kind === "patch");
+		expect(patch?.kind).toBe("patch");
+		if (patch?.kind === "patch") {
+			expect(patch.clearedKeys).toEqual(
+				expect.arrayContaining(["activeSession", "selectedSessionId"]),
+			);
+		}
+
+		await harness.broker.execute({
+			command: "run.start",
+			clientRequestId: "req_new_chat_02",
+			botId: harness.authority.defaultBotId,
+			workspaceId: "workspace-managed",
+			prompt: "new chat",
+		});
+		await settle();
+		expect(harness.broker.projectionSnapshot.activeSession?.sessionId).not.toBe(
+			previousSessionId,
+		);
+		expect(
+			harness.broker.projectionSnapshot.sessions.find(
+				(session) => session.sessionId === previousSessionId,
+			)?.state,
+		).toBe("closed");
 	});
 
 	it("rejects mutations while disconnected instead of queueing them", async () => {

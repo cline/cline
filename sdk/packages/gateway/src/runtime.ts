@@ -729,6 +729,8 @@ export interface RunStartParams {
 	overrides?: TurnOverrides;
 	/** Explicit provenance; defaults to interactive by the calling actor. */
 	provenance?: RunProvenance;
+	/** Close the bot's idle active session before admitting this prompt. */
+	newSession?: boolean;
 }
 
 export interface GatewayRecoveryReport {
@@ -974,9 +976,18 @@ export class GatewayRuntime {
 			);
 		}
 		const bot = this.getBot(params.botId);
-		const session = bot.session;
+		let session = bot.session;
 		if (session) {
 			const pending = this.stores.runs.countPendingBySession(session.sessionId);
+			if (params.newSession && pending > 0) {
+				throw new GatewayCallError(
+					createGatewayError(
+						"invalid_state_transition",
+						"Cannot start a new session while the current session has active or queued runs",
+						{ retryable: true },
+					),
+				);
+			}
 			if (pending >= this.maxPendingRunsPerSession) {
 				throw new GatewayCallError(
 					createGatewayError(
@@ -997,6 +1008,10 @@ export class GatewayRuntime {
 			params.provenance ?? { mode: "interactive", submittedBy: actor },
 		);
 		return this.database.transaction(() => {
+			if (params.newSession && session) {
+				bot.replaceSession();
+				session = undefined;
+			}
 			// Effective config at admission (provider/model/prompt settings —
 			// never credentials). Persisted as the run's snapshot below;
 			// every attempt — retries, deferred queue starts, and crash

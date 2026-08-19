@@ -8,10 +8,12 @@
  * line (`{type:"ready",port,pid}` — no secret) on stdout for the shell.
  */
 
-import { spawn } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
+import { promisify } from "node:util";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { DEV_BRIDGE_PORT, DEV_BRIDGE_SECRET } from "../shared/bridge";
+import { listSavedProviderSummaries } from "@cline/gateway/client";
 import { startBridgeServer } from "./bridge/server";
 import { DesktopBroker } from "./gateway/broker";
 import { createGatewayPortFactory } from "./gateway/discovery";
@@ -19,6 +21,7 @@ import { DesktopStateStore } from "./gateway/state-store";
 import { createLogger } from "./logging";
 
 const APP_VERSION = "0.0.1";
+const execFileAsync = promisify(execFile);
 
 function appDataDir(): string {
 	return (
@@ -58,7 +61,9 @@ async function main(): Promise<void> {
 		}),
 		stateStore,
 		logger,
+		providerCatalog: await listSavedProviderSummaries(),
 		revealDiagnostics: () => revealFolder(logDir),
+		chooseWorkspace,
 	});
 
 	const bridge = await startBridgeServer({
@@ -86,6 +91,25 @@ async function main(): Promise<void> {
 	process.on("SIGTERM", shutdown);
 
 	await broker.start();
+}
+
+async function chooseWorkspace(): Promise<string | undefined> {
+	if (process.platform !== "darwin") {
+		throw new Error("Folder selection is currently supported on macOS");
+	}
+	try {
+		const { stdout } = await execFileAsync("osascript", [
+			"-e",
+			'POSIX path of (choose folder with prompt "Choose a workspace for the next chat")',
+		]);
+		return stdout.trim().replace(/\/$/, "") || undefined;
+	} catch (error) {
+		const code = (error as { code?: number }).code;
+		if (code === 1) {
+			return undefined;
+		}
+		throw error;
+	}
 }
 
 /** Fixed native capability: open the diagnostics folder. Not generic. */

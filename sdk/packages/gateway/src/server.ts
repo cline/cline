@@ -730,6 +730,7 @@ export class GatewayServer {
 					botId: p.botId as BotId,
 					prompt: p.prompt as string,
 					workspaceRoot: p.workspaceRoot as string | undefined,
+					newSession: p.newSession as boolean | undefined,
 					overrides: p.overrides as never,
 				});
 			case "run.steer":

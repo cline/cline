@@ -1,7 +1,7 @@
 # Gateway Desktop
 
-A small native desktop client that connects to the locally installed
-`cline-gateway` and exercises its Phase 3 behavior end to end. This is a
+A small native desktop client that bundles `cline-gateway` and exercises
+its Phase 3 behavior end to end. This is a
 **validation client** for the Gateway RFC, not the final Cline Team
 desktop product: its job is to expose protocol and lifecycle mistakes
 early with minimal product code.
@@ -46,11 +46,14 @@ early with minimal product code.
   client (`second-client -- stats`) but not rendered.
 - No MCP pool health: the Gateway does not expose it over the wire yet
 
-## Architecture (three processes)
+## Architecture (four processes)
 
 ```
-Tauri shell (Rust)          window, per-launch bridge secret, spawns/stops broker,
-        |                   one native command: reveal diagnostics folder
+Tauri shell (Rust)          window, per-launch bridge secret, owns bundled Gateway
+        |                   + broker, one native command: reveal diagnostics folder
+		v
+Bundled cline-gateway       dedicated `gateway-desktop-poc` namespace; reads the
+        |                   shared provider settings from ~/.cline/data/settings
         v
 Bun broker (native/)        connects with @cline/gateway/client, owns the
         |                   DesktopProjection, translates the FIXED bridge
@@ -62,9 +65,11 @@ Next.js webview (webview/)  renders the projection; imports NO SDK protocol
 
 See `ARCHITECTURE.md` for the full contract. Key invariants:
 
-- The app **never** starts, stops, upgrades, or replaces a Gateway. A
-  missing Gateway is a visible state with copyable start instructions.
-- Closing the window or broker never interrupts a run.
+- The POC shell starts a bundled Gateway in the dedicated
+  `gateway-desktop-poc` namespace and never replaces another installation's
+  Gateway. A second app instance attaches to the existing POC authority.
+- Closing the app gracefully stops the Gateway only when that app instance
+  started it.
 - There is no generic `invoke(method, payload)` bridge — the command
   schema is closed and typed (`shared/bridge.ts`).
 - Bridge frames are capped at 1 MiB; prompt/steer text at 256 KiB; NUL
@@ -87,8 +92,9 @@ bun run dev:web                 # webview on http://localhost:3135
 #   http://localhost:3135/?fixtures=idle|streaming|approval|failed|unavailable|incompatible
 ```
 
-The app expects a running Gateway. Without LLM credentials, use the
-demo Gateway (a REAL `GatewayServer` with a scripted engine):
+Headless mode expects a running Gateway because there is no Tauri shell to
+own the bundled sidecar. Without LLM credentials, use the demo Gateway (a
+REAL `GatewayServer` with a scripted engine):
 
 ```sh
 CLINE_GATEWAY_DATA_ROOT=/tmp/gwd-demo bun run scripts/demo-gateway.ts
@@ -167,6 +173,9 @@ It is an opt-in local job (not yet wired into repo CI): run
 - Logs: `~/.cline/gateway-desktop/logs/*.jsonl` — structured, redacted
   (secret-shaped keys are stripped before serialization).
 - Override the root with `GATEWAY_DESKTOP_DATA_ROOT`.
+- Bundled Gateway namespace: `gateway-desktop-poc` (override with
+  `GATEWAY_DESKTOP_GATEWAY_NAMESPACE`). Provider credentials remain in the
+  shared `~/.cline/data/settings/providers.json` store and are not bundled.
 
 The app never reads or writes the Gateway's SQLite database or session
 files; the Gateway is the only persistence authority.

@@ -371,6 +371,7 @@
         "@radix-ui/react-separator": "1.1.8",
         "@radix-ui/react-slot": "1.2.4",
         "@radix-ui/react-tooltip": "1.2.8",
+        "@streamdown/cjk": "^1.0.3",
         "@tauri-apps/api": "^2.0.0",
         "class-variance-authority": "^0.7.1",
         "clsx": "^2.1.1",
@@ -379,6 +380,7 @@
         "next-themes": "^0.4.6",
         "react": "19.2.4",
         "react-dom": "19.2.4",
+        "streamdown": "^2.5.0",
         "tailwind-merge": "^3.3.1",
         "ws": "^8.18.0",
         "zod": "^4.3.6",
@@ -747,6 +749,7 @@
       "dependencies": {
         "@anthropic-ai/sandbox-runtime": "^0.0.73",
         "@cline/bot": "workspace:*",
+        "@cline/core": "workspace:*",
         "@cline/engine": "workspace:*",
         "@cline/shared": "workspace:*",
         "zod": "^4.3.6",

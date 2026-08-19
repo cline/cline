@@ -80,6 +80,13 @@ export {
 	ModelNotConfiguredError,
 	resolveProviderModel,
 } from "./engine-binding";
+export {
+	gatewayProviderSettingsPath,
+	listSavedProviderSummaries,
+	readSavedProviderSelection,
+	savedProviderApiKey,
+	savedProviderOptions,
+} from "./provider-settings";
 export type { GatewayIdentityInfo, HelloNegotiation } from "./hello";
 export {
 	negotiateHello,

@@ -22,20 +22,25 @@ export function SessionList({
 	client: BridgeClient;
 	projection: DesktopProjection;
 }) {
+	const startNewSession = async () => {
+		await client.send({ command: "session.select" });
+		// Clearing optional projection fields used to be lossy across JSON patch
+		// serialization. Always follow the clear with an authoritative replace so
+		// New remains correct across native broker/webview version skew.
+		await client.send({ command: "app.initialize" });
+	};
 	const sessions = projection.sessions.filter(
 		(session) =>
 			!projection.selectedBotId || session.botId === projection.selectedBotId,
 	);
 	return (
 		<div className="flex min-h-0 flex-1 flex-col" data-testid="session-list">
-			<div className="flex items-center justify-between px-3 py-2">
+			<div className="flex h-11 items-center justify-between border-b px-3">
 				<span className="text-xs font-medium text-muted-foreground uppercase">
 					Sessions
 				</span>
 				<Button
-					onClick={() =>
-						void client.send({ command: "session.select" }).catch(() => {})
-					}
+					onClick={() => void startNewSession().catch(() => {})}
 					size="sm"
 					title="Compose a prompt to create a new session lazily"
 					variant="ghost"
@@ -54,9 +59,9 @@ export function SessionList({
 					{sessions.map((session) => (
 						<button
 							className={cn(
-								"flex flex-col gap-1 rounded-md border border-transparent px-2 py-2 text-left hover:bg-surface-hover",
+								"flex flex-col gap-1 rounded-lg border border-transparent px-3 py-2.5 text-left transition-colors hover:bg-surface-hover",
 								session.sessionId === projection.selectedSessionId &&
-									"border-border bg-surface-hover",
+									"border-sidebar-border bg-sidebar-accent text-sidebar-accent-foreground",
 							)}
 							key={session.sessionId}
 							onClick={() =>
