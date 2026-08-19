@@ -2,6 +2,7 @@ import { EventEmitter } from "node:events";
 import type {
 	AgentEvent,
 	CoreSessionEvent,
+	PendingPromptOrigin,
 	RuntimeHostSubscribeOptions,
 	TeamEvent,
 } from "@cline/core";
@@ -16,6 +17,7 @@ export interface PendingPromptSnapshot {
 		prompt: string;
 		delivery: "queue" | "steer";
 		attachmentCount: number;
+		origin?: PendingPromptOrigin;
 	}>;
 }
 
@@ -25,6 +27,7 @@ export interface PendingPromptSubmittedEvent {
 	prompt: string;
 	delivery: "queue" | "steer";
 	attachmentCount: number;
+	origin?: PendingPromptOrigin;
 }
 
 /**

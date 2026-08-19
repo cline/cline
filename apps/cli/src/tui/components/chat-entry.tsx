@@ -25,6 +25,7 @@ import { getUserMessageBackground } from "../palette";
 import type { ResolvedTheme } from "../themes";
 import type { ChatEntry } from "../types";
 import { formatCompactionDividerLabel } from "../utils/compaction-status";
+import { formatMonitorExitLine } from "../utils/monitor-entry";
 import { getSyntaxStyle, type SyntaxAccentMode } from "../utils/syntax-style";
 import { isWarningToolError } from "../utils/tool-errors";
 import {
@@ -776,6 +777,58 @@ export function ChatEntryView(props: {
 					<text fg="gray" selectable content={entry.text} />
 				</box>
 			);
+
+		case "monitor_update": {
+			// A compact card built from structured fields. The fenced,
+			// guidance-wrapped text the model receives is intentionally never
+			// shown to the user.
+			const exitLine = formatMonitorExitLine(entry.exit);
+			const running = !entry.exit;
+			return (
+				<box
+					flexDirection="column"
+					backgroundColor={userMsgBg}
+					marginX={-1}
+					paddingLeft={1}
+					paddingRight={2}
+				>
+					<box flexDirection="row">
+						<box width={2}>
+							<text fg={running ? theme.accents.success : "gray"}>{"◉"}</text>
+						</box>
+						<text fg={defaultFg}>{entry.name}</text>
+						<text fg="gray"> — {entry.description}</text>
+					</box>
+					{entry.lines.map((line, index) => (
+						<box
+							flexDirection="row"
+							// biome-ignore lint/suspicious/noArrayIndexKey: static snapshot list
+							key={`${index}-${line.slice(0, 24)}`}
+						>
+							<box width={2} />
+							<text fg={defaultFg} selectable>
+								{line}
+							</text>
+						</box>
+					))}
+					{entry.droppedLines ? (
+						<box flexDirection="row">
+							<box width={2} />
+							<text fg="gray">
+								[{entry.droppedLines} more line
+								{entry.droppedLines === 1 ? "" : "s"} not shown]
+							</text>
+						</box>
+					) : null}
+					{exitLine ? (
+						<box flexDirection="row">
+							<box width={2} />
+							<text fg="gray">{exitLine}</text>
+						</box>
+					) : null}
+				</box>
+			);
+		}
 
 		case "compaction":
 			return <CompactionDividerRow entry={entry} />;
