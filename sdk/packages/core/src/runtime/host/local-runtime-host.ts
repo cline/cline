@@ -19,7 +19,7 @@ import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
-import type { ToolExecutors } from "../../extensions/tools";
+import type { MonitorRecord, ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
 	formatMonitorNotification,
@@ -599,6 +599,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 					formatMonitorNotification(notification),
 				);
 			},
+			// Host-facing roster state for UIs, separate from the agent-facing
+			// output above. Emitted as a full snapshot on every lifecycle change
+			// — including the empty snapshot from registry disposal, so clients
+			// see monitors end on session shutdown or a runtime restart instead
+			// of keeping a stale roster.
+			onMonitorStateChange: (monitors) => {
+				this.emit({
+					type: "monitor_state",
+					payload: { sessionId, monitors },
+				});
+			},
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(
 					subAgentDeps,
@@ -1167,6 +1178,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw new SessionNotFoundError(sessionId);
 		}
 		return (await session.runtime.stopMonitor?.(monitorId)) ?? false;
+	}
+
+	async listMonitors(sessionId: string): Promise<MonitorRecord[]> {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			throw new SessionNotFoundError(sessionId);
+		}
+		return session.runtime.listMonitors?.() ?? [];
 	}
 
 	async stopSession(sessionId: string): Promise<void> {

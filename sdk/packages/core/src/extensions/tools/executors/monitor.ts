@@ -119,6 +119,16 @@ export interface MonitorRegistryOptions {
 	 * @default 2000
 	 */
 	exitFlushGraceMs?: number;
+	/**
+	 * Called with a full snapshot of every monitor whenever any monitor's
+	 * lifecycle state changes: start, exit, failure, stop, and disposal.
+	 *
+	 * This is host-facing state for UIs, distinct from {@link notifier}, which
+	 * carries output to the agent. Disposal reports an empty snapshot, so a
+	 * session teardown or runtime restart is visible to the user as "monitors
+	 * ended" rather than leaving a stale roster.
+	 */
+	onStateChange?: (monitors: MonitorRecord[]) => void;
 }
 
 const DEFAULT_FLUSH_INTERVAL_MS = 750;
@@ -302,6 +312,7 @@ export class MonitorRegistry {
 		} catch (error) {
 			entry.status = "failed";
 			entry.error = error instanceof Error ? error.message : String(error);
+			this.emitStateChange();
 			throw new MonitorError(
 				`Failed to start monitor "${name}": ${entry.error}`,
 			);
@@ -364,6 +375,7 @@ export class MonitorRegistry {
 		child.stdin?.on("error", () => {});
 		child.stdin?.end(invocation.input ?? "", "utf8");
 
+		this.emitStateChange();
 		return snapshot(entry);
 	}
 
@@ -419,13 +431,19 @@ export class MonitorRegistry {
 		this.disposed = true;
 		await this.stopAll();
 		this.monitors.clear();
+		// An empty snapshot, not silence: the host may outlive this registry (a
+		// runtime restart keeps the session), and its UI needs to learn that
+		// every monitor ended rather than keep showing a stale roster.
+		this.emitStateChange();
 	}
 
 	private async terminateEntry(entry: MonitorEntry): Promise<void> {
-		if (entry.status === "running") entry.status = "stopped";
+		const wasRunning = entry.status === "running";
+		if (wasRunning) entry.status = "stopped";
 		this.clearFlushTimer(entry);
 		this.clearSettleTimer(entry);
 		entry.settled = true;
+		if (wasRunning) this.emitStateChange();
 
 		const child = entry.child;
 		if (!child) return;
@@ -474,6 +492,7 @@ export class MonitorRegistry {
 			? survivors.map((survivor) => survivor.pid).join(", ")
 			: "unknown";
 		entry.error = `Monitor "${entry.name}" left process(es) running after SIGKILL (pid ${detail}).`;
+		this.emitStateChange();
 	}
 
 	private waitForExit(child: ChildProcess): Promise<void> {
@@ -865,6 +884,17 @@ export class MonitorRegistry {
 			signal: outcome.signal,
 			error: outcome.error,
 		});
+		this.emitStateChange();
+	}
+
+	private emitStateChange(): void {
+		const onStateChange = this.options.onStateChange;
+		if (!onStateChange) return;
+		try {
+			onStateChange(this.list());
+		} catch {
+			// A failing host listener must not take the registry down with it.
+		}
 	}
 }
 

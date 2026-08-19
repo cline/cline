@@ -22,7 +22,7 @@ import type {
 	PluginInitializationFailure,
 	PluginInitializationWarning,
 } from "../extensions/plugin/plugin-load-report";
-import type { MonitorNotifier } from "../extensions/tools";
+import type { MonitorNotifier, MonitorRecord } from "../extensions/tools";
 import type {
 	SubAgentEndContext,
 	SubAgentStartContext,
@@ -225,6 +225,11 @@ export interface PrepareLocalRuntimeBootstrapOptions {
 	 * monitor tool.
 	 */
 	monitorNotifier?: MonitorNotifier;
+	/**
+	 * Receives a full monitor snapshot on every monitor lifecycle change, for
+	 * host UIs. See {@link RuntimeBuilderInput.onMonitorStateChange}.
+	 */
+	onMonitorStateChange?: (monitors: MonitorRecord[]) => void;
 	readSessionMetadata: () => Promise<Record<string, unknown> | undefined>;
 	writeSessionMetadata: (
 		metadata: Record<string, unknown>,
@@ -266,6 +271,7 @@ export async function prepareLocalRuntimeBootstrap(
 		createSubAgentLifecycleCallbacks,
 		createSpawnTool,
 		monitorNotifier,
+		onMonitorStateChange,
 		localRuntime,
 		readSessionMetadata,
 		writeSessionMetadata,
@@ -470,6 +476,7 @@ export async function prepareLocalRuntimeBootstrap(
 			telemetry: config.telemetry,
 			requestToolApproval,
 			monitorNotifier,
+			onMonitorStateChange,
 		},
 	};
 }

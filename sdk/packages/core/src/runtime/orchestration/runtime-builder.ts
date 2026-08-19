@@ -515,6 +515,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				? new MonitorRegistry({
 						notifier: input.monitorNotifier,
 						cwd: config.cwd,
+						onStateChange: input.onMonitorStateChange,
 					})
 				: undefined;
 
@@ -824,6 +825,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							await monitorRegistry.stop(monitorId, { stoppedBy: "user" }),
 						)
 				: undefined,
+			listMonitors: monitorRegistry ? () => monitorRegistry.list() : undefined,
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);

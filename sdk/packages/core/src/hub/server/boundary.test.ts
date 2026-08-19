@@ -1594,6 +1594,85 @@ describe("HubServerTransport boundaries", () => {
 		expect(stopMonitor).toHaveBeenCalledWith("session-1", "mon_1");
 	});
 
+	it("lists monitors through the hub command boundary", async () => {
+		const monitors = [
+			{
+				id: "mon_1",
+				name: "applog",
+				description: "watching the app log",
+				command: "tail -F app.log",
+				cwd: "/tmp/project",
+				startedAt: 0,
+				status: "running",
+				linesEmitted: 3,
+			},
+		];
+		const listMonitors = vi.fn().mockResolvedValue(monitors);
+		const transport = createTransport({ sessionHost: { listMonitors } });
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-monitors",
+			command: "run.list_monitors",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1" },
+		});
+
+		expect(reply).toMatchObject({ ok: true, payload: { monitors } });
+		expect(listMonitors).toHaveBeenCalledWith("session-1");
+	});
+
+	it("reports an empty roster when the runtime cannot list monitors", async () => {
+		const transport = createTransport({ sessionHost: {} });
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-list-monitors-unsupported",
+			command: "run.list_monitors",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1" },
+		});
+
+		expect(reply).toMatchObject({ ok: true, payload: { monitors: [] } });
+	});
+
+	it("projects monitor state to subscribed clients", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "monitor_state",
+			payload: {
+				sessionId: "session-1",
+				monitors: [
+					{
+						id: "mon_1",
+						name: "applog",
+						description: "watching the app log",
+						command: "tail -F app.log",
+						cwd: "/tmp/project",
+						startedAt: 0,
+						status: "running",
+						linesEmitted: 0,
+					},
+				],
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "session.monitor_state",
+				sessionId: "session-1",
+				payload: expect.objectContaining({
+					sessionId: "session-1",
+					monitors: [expect.objectContaining({ id: "mon_1", name: "applog" })],
+				}),
+			}),
+		);
+	});
+
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {
 		const transport = createTransport({
 			sessionHost: {

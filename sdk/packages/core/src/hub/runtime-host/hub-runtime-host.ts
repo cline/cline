@@ -26,6 +26,7 @@ import {
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
+import type { MonitorRecord } from "../../extensions/tools";
 import type { HookEventPayload } from "../../hooks";
 import type { RuntimeCapabilities } from "../../runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "../../runtime/capabilities";
@@ -1273,6 +1274,17 @@ export class HubRuntimeHost implements RuntimeHost {
 		return reply.payload?.stopped === true;
 	}
 
+	async listMonitors(sessionId: string): Promise<MonitorRecord[]> {
+		const reply = await this.client.command(
+			"run.list_monitors",
+			{ sessionId },
+			sessionId,
+		);
+		return Array.isArray(reply.payload?.monitors)
+			? (reply.payload.monitors as MonitorRecord[])
+			: [];
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
@@ -1942,6 +1954,18 @@ export class HubRuntimeHost implements RuntimeHost {
 						sessionId,
 						prompts: Array.isArray(event.payload?.prompts)
 							? (event.payload.prompts as SessionPendingPrompt[])
+							: [],
+					},
+				});
+				return;
+			}
+			case "session.monitor_state": {
+				this.events.emit({
+					type: "monitor_state",
+					payload: {
+						sessionId,
+						monitors: Array.isArray(event.payload?.monitors)
+							? (event.payload.monitors as MonitorRecord[])
 							: [],
 					},
 				});

@@ -1,3 +1,4 @@
+import type { MonitorRecord } from "../extensions/tools/executors/monitor";
 import type { CoreSessionSnapshot } from "../session/session-snapshot";
 
 export interface SessionChunkEvent {
@@ -67,6 +68,18 @@ export interface SessionSnapshotEvent {
 	snapshot: CoreSessionSnapshot;
 }
 
+/**
+ * Full snapshot of the session's background monitors, emitted whenever any
+ * monitor's lifecycle state changes. A snapshot rather than a delta so UIs
+ * can render directly from the latest event without replaying history, and
+ * so a registry disposal (session shutdown or runtime restart) is visible as
+ * an explicit empty/ended state instead of silence.
+ */
+export interface SessionMonitorStateEvent {
+	sessionId: string;
+	monitors: MonitorRecord[];
+}
+
 export type CoreSessionEvent =
 	| { type: "chunk"; payload: SessionChunkEvent }
 	| {
@@ -86,6 +99,7 @@ export type CoreSessionEvent =
 			type: "pending_prompt_submitted";
 			payload: SessionPendingPromptSubmittedEvent;
 	  }
+	| { type: "monitor_state"; payload: SessionMonitorStateEvent }
 	| { type: "session_snapshot"; payload: SessionSnapshotEvent }
 	| { type: "ended"; payload: SessionEndedEvent }
 	| { type: "hook"; payload: SessionToolEvent }
