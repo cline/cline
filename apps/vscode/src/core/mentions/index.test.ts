@@ -11,7 +11,7 @@ import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
 import * as terminalModule from "@/hosts/vscode/terminal/get-latest-output"
 import { setVscodeHostProviderMock } from "@/test/host-provider-test-utils"
-import { parseMentions } from "."
+import { getFileMentionFromPath, parseMentions } from "."
 
 describe("parseMentions", () => {
 	let sandbox: sinon.SinonSandbox
@@ -92,6 +92,26 @@ console.log('Hello World');
 
 <file_content path="path with spaces/file.txt">
 console.log('Hello World');
+</file_content>`
+
+			expect(result).to.equal(expectedOutput)
+		})
+
+		it("should handle quoted relative paths outside the workspace with spaces", async () => {
+			const text = 'Check @"/../../Library/Application Support/typst/sections.typ"'
+
+			fsStatStub.resolves({ isFile: () => true, isDirectory: () => false })
+			isBinaryFileStub.resolves(false)
+			extractTextStub
+				.withArgs(path.resolve(cwd, "../../Library/Application Support/typst/sections.typ"))
+				.resolves("#let section() = {}")
+
+			const result = await parseMentions(text, cwd, urlContentFetcherStub)
+
+			const expectedOutput = `Check '../../Library/Application Support/typst/sections.typ' (see below for file content)
+
+<file_content path="../../Library/Application Support/typst/sections.typ">
+#let section() = {}
 </file_content>`
 
 			expect(result).to.equal(expectedOutput)
@@ -411,6 +431,30 @@ Content
 </file_content>`
 
 			expect(result).to.equal(expectedOutput)
+		})
+	})
+
+	describe("getFileMentionFromPath", () => {
+		beforeEach(() => {
+			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").resolves({ paths: [cwd] } as any)
+		})
+
+		it("should create a plain mention for paths without spaces", async () => {
+			const mention = await getFileMentionFromPath(path.join(cwd, "src", "index.ts"))
+
+			expect(mention).to.equal("@/src/index.ts")
+		})
+
+		it("should quote paths containing spaces", async () => {
+			const mention = await getFileMentionFromPath(path.join(cwd, "path with spaces", "file.txt"))
+
+			expect(mention).to.equal('@"/path with spaces/file.txt"')
+		})
+
+		it("should quote relative paths outside the workspace containing spaces", async () => {
+			const mention = await getFileMentionFromPath("/Users/me/Library/Application Support/typst/sections.typ")
+
+			expect(mention).to.equal('@"/../../Users/me/Library/Application Support/typst/sections.typ"')
 		})
 	})
 
