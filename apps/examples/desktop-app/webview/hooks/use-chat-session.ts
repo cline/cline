@@ -66,6 +66,12 @@ const MAX_MESSAGES = 800;
 // ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
 const STREAM_FLUSH_INTERVAL_MS = 48;
 
+// How long a turn-end canonical history reconcile waits before reading the
+// persisted transcript. The runtime's final transcript flush (tool results and
+// turn metadata) races the done event by a few milliseconds, so an immediate
+// read could catch the file mid-rewrite.
+const TURN_END_RECONCILE_DELAY_MS = 250;
+
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
@@ -610,6 +616,75 @@ export function useChatSession() {
 		[],
 	);
 
+	// Finalizes a turn that settled through the event stream rather than a
+	// blocking send() RPC. Queued turns (including the first prompt of a fresh
+	// session, which the runtime routes through its queue) resolve their send()
+	// RPC early with { queued: true }, so nothing else clears the streaming
+	// shimmer or reconciles the live-streamed content against the persisted
+	// transcript — without this, a turn whose deltas were incomplete stays
+	// visually "streaming" forever and only heals when a later non-queued send
+	// happens to rehydrate history.
+	const turnEndReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const finalizeSettledTurn = useCallback(
+		(sid: string) => {
+			if (activePromptSubmissionsRef.current > 0) {
+				// A blocking send() RPC is still in flight for this turn: its
+				// completion path applies the result text, rehydrates canonical
+				// history, and clears the streaming id itself. Clearing the id
+				// here would make that path mint a duplicate assistant bubble.
+				return;
+			}
+			activeAssistantMessageIdRef.current = null;
+			setActiveAssistantMessageId(null);
+			const epoch = turnEpochRef.current;
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+			turnEndReconcileTimerRef.current = setTimeout(() => {
+				turnEndReconcileTimerRef.current = null;
+				void desktopClient
+					.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: sid,
+						maxMessages: MAX_MESSAGES,
+					})
+					.then((historyMessages) => {
+						if (
+							activeSessionIdRef.current !== sid ||
+							turnEpochRef.current !== epoch ||
+							activePromptSubmissionsRef.current > 0
+						) {
+							// A new turn started while the read was in flight; its
+							// own lifecycle owns the transcript from here on.
+							return;
+						}
+						if (
+							historyMessages.length === 0 ||
+							!historyMessages.some((message) => message.role === "assistant")
+						) {
+							// Persistence has not caught up: keep the live state
+							// rather than wiping it with an incomplete transcript.
+							return;
+						}
+						applyCanonicalHistory(sid, historyMessages);
+					})
+					.catch(() => {
+						// Keep optimistic state if the hydration read fails.
+					});
+			}, TURN_END_RECONCILE_DELAY_MS);
+		},
+		[applyCanonicalHistory],
+	);
+
+	useEffect(() => {
+		return () => {
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+		};
+	}, []);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(async (body: Record<string, unknown>) => {
@@ -651,13 +726,14 @@ export function useChatSession() {
 						setStatus((current) =>
 							current === "running" ? "completed" : current,
 						);
+						finalizeSettledTurn(sid);
 					}
 				})
 				.catch(() => {
 					// Keep the last known state on transient transport failures.
 				});
 		},
-		[postSession],
+		[finalizeSettledTurn, postSession],
 	);
 
 	const refreshPromptsInQueue = useCallback(
@@ -1535,6 +1611,7 @@ export function useChatSession() {
 					verifyQueueStillBusy(listeningSessionId);
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
+					finalizeSettledTurn(listeningSessionId);
 				}
 				return;
 			}
@@ -1624,6 +1701,7 @@ export function useChatSession() {
 			addMessage,
 			appendTurnFailureMessage,
 			clearLiveToolRefs,
+			finalizeSettledTurn,
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
@@ -1713,13 +1791,14 @@ export function useChatSession() {
 				clearLiveToolRefs();
 				turnSettledEpochRef.current = turnEpochRef.current;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
+				finalizeSettledTurn(targetSessionId);
 			},
 		);
 		return () => {
 			unsubscribeStatus();
 			unsubscribeEnded();
 		};
-	}, [clearLiveToolRefs]);
+	}, [clearLiveToolRefs, finalizeSettledTurn]);
 
 	// ---- Shared: start a new session via RPC ----
 
