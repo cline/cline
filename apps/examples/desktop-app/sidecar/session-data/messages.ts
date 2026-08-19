@@ -517,6 +517,7 @@ export async function readSessionMessages(
 					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
+						...(toolUseId ? { toolCallId: toolUseId } : {}),
 						hookEventName: "history_tool_use",
 					},
 				});
@@ -547,6 +548,7 @@ export async function readSessionMessages(
 								? (target.meta as JsonRecord)
 								: {}),
 							toolName,
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						};
 					}
@@ -560,6 +562,7 @@ export async function readSessionMessages(
 						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
+							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
 						},
 					});

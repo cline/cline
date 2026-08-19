@@ -1160,6 +1160,33 @@ export async function handleCommand(
 				(args as ChatSessionCommandRequest),
 		);
 	}
+	if (command === "proceed_while_running") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const toolCallId = asTrimmedString(args?.toolCallId);
+		const hubClient = await ensureSharedHubClient(
+			ctx,
+			ctx.sessionManager?.runtimeAddress,
+		);
+		const reply = await hubClient.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "Could not proceed while command is running.",
+			);
+		}
+		return {
+			detachedCount:
+				typeof reply.payload?.detachedCount === "number"
+					? reply.payload.detachedCount
+					: 0,
+		};
+	}
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
