@@ -99,6 +99,104 @@ describe("SearchCombobox", () => {
 		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
+	it("navigates with arrow keys and selects with Enter", async () => {
+		const onValueChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<SearchCombobox
+					ariaLabel="Repository"
+					onValueChange={onValueChange}
+					options={options}
+					value="cline"
+				/>,
+			),
+		);
+
+		await act(async () => container.querySelector("button")?.click());
+		const search = container.querySelector("input");
+		// Opens with the selected option active; ArrowDown moves to the next.
+		expect(search?.getAttribute("aria-activedescendant")).toContain(
+			"-option-0",
+		);
+		await act(async () => {
+			search?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "ArrowDown" }),
+			);
+		});
+		expect(search?.getAttribute("aria-activedescendant")).toContain(
+			"-option-1",
+		);
+		const active = container.querySelector('[data-active="true"]');
+		expect(active?.textContent).toContain("cline/core-platform");
+		await act(async () => {
+			search?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Enter" }),
+			);
+		});
+		expect(onValueChange).toHaveBeenCalledWith("core-platform");
+		expect(container.querySelector('[role="dialog"]')).toBeNull();
+	});
+
+	it("renders section headers and badges, and flattens while searching", async () => {
+		const sectionedOptions = [
+			{
+				badge: "NEW",
+				label: "Claude Opus 5",
+				section: "recommended",
+				value: "anthropic/claude-opus-5",
+			},
+			{
+				label: "DeepSeek V4 Flash",
+				section: "free",
+				value: "deepseek/deepseek-v4-flash",
+			},
+			{ label: "Everything Else", section: "all", value: "misc/other" },
+		];
+		await act(async () =>
+			root.render(
+				<SearchCombobox
+					ariaLabel="Model"
+					onValueChange={() => {}}
+					options={sectionedOptions}
+					sections={[
+						{ id: "recommended", label: "Recommended" },
+						{ description: "No cost", id: "free", label: "Free" },
+						{ id: "all", label: "All models" },
+					]}
+					value="anthropic/claude-opus-5"
+				/>,
+			),
+		);
+
+		await act(async () => container.querySelector("button")?.click());
+		const panel = container.querySelector('[role="dialog"]');
+		expect(panel?.textContent).toContain("Recommended");
+		expect(panel?.textContent).toContain("Free");
+		expect(panel?.textContent).toContain("No cost");
+		expect(panel?.textContent).toContain("All models");
+		expect(
+			panel?.querySelector(".cline-ui-search-combobox__badge")?.textContent,
+		).toBe("NEW");
+
+		const search = container.querySelector("input");
+		await act(async () => {
+			const setValue = Object.getOwnPropertyDescriptor(
+				HTMLInputElement.prototype,
+				"value",
+			)?.set;
+			setValue?.call(search, "deepseek");
+			search?.dispatchEvent(new Event("input", { bubbles: true }));
+		});
+		const searchedPanel = container.querySelector('[role="dialog"]');
+		expect(searchedPanel?.textContent).not.toContain("Recommended");
+		expect(searchedPanel?.textContent).toContain("DeepSeek V4 Flash");
+		// Options remain searchable by id, and label matches are highlighted.
+		expect(
+			searchedPanel?.querySelector(".cline-ui-search-combobox__match")
+				?.textContent,
+		).toBe("DeepSeek");
+	});
+
 	it("renders loading and disabled states", async () => {
 		const onValueChange = vi.fn();
 		const render = (disabled = false, loading = false) =>
