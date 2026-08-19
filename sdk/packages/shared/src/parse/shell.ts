@@ -74,8 +74,20 @@ export function getShellInvocation(
 			// dynamically scoped, so the scriptblock invoked below inherits it, while
 			// the user's script stays byte-identical — error line/column positions
 			// are untouched and a script that begins with param(...) keeps param in
-			// the mandatory first-statement position. A command can still opt out
-			// per-cmdlet with -ErrorAction or by reassigning $ErrorActionPreference.
+			// the mandatory first-statement position.
+			//
+			// Fail-fast is a deliberate tradeoff: Stop promotes every
+			// non-terminating error, so a command that used to succeed with partial
+			// results (e.g. Get-ChildItem -Recurse crossing an access-denied
+			// junction) now stops at its first error, and on Windows PowerShell 5.1
+			// a native command that redirects stderr inside the script (2>&1,
+			// 2>file) terminates on its first stderr line even when it would exit 0
+			// — 5.1 wraps redirected native stderr in error records that Stop makes
+			// fatal, while PowerShell 7.2+ exempts native stderr from the
+			// preference. GitHub Actions prepends the same preamble to its
+			// powershell/pwsh steps, so model-authored commands tend to already
+			// tolerate these semantics. A command can still opt out per-cmdlet with
+			// -ErrorAction or by reassigning $ErrorActionPreference.
 			return {
 				args: [
 					"-NoProfile",
