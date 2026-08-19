@@ -1624,15 +1624,13 @@ export async function handleChatSessionCommand(
 						"File attachments are not supported in cloud sessions",
 					);
 				}
-				const live = ctx.liveSessions.get(sessionId);
-				const delivery = request.delivery ?? (live?.busy ? "queue" : undefined);
 				const modelId = String(
 					request.config?.model ?? request.config?.modelId ?? "",
 				).trim();
 				return await cloud.send(
 					sessionId,
 					prompt,
-					delivery,
+					request.delivery,
 					modelId || undefined,
 					request.attachments?.userImages,
 				);

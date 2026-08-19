@@ -72,6 +72,7 @@ class FakeHubClient {
 	invalidMessagesSnapshot = false;
 	malformedQueueReply = false;
 	listedModel?: string;
+	sessionStatus?: string;
 	messages: unknown[] = [{ role: "user", content: "hi" }];
 	prompts: Array<Record<string, unknown>> = [
 		{
@@ -179,6 +180,12 @@ class FakeHubClient {
 				payload: this.invalidMessagesSnapshot
 					? { messages: "invalid" }
 					: { messages: this.messages },
+			};
+		}
+		if (command === "session.get" && this.sessionStatus) {
+			return {
+				ok: true,
+				payload: { session: { status: this.sessionStatus } },
 			};
 		}
 		return { ok: true, payload: {} };
@@ -2081,6 +2088,28 @@ describe("CloudSessionManager", () => {
 		await expect(
 			manager.send("ses-outer", "Do this once"),
 		).resolves.toMatchObject({ ok: true, recoveredAfterDisconnect: true });
+	});
+
+	it("queues an implicit send when a cold session is already running", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		hub.sessionStatus = "running";
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		await expect(
+			manager.send("ses-outer", "Run this next"),
+		).resolves.toMatchObject({ ok: true, queued: true });
+		expect(
+			hub.commands.find((entry) => entry.command === "session.send_input"),
+		).toMatchObject({
+			payload: { prompt: "Run this next", delivery: "queue" },
+		});
 	});
 
 	it("does not confirm a lost duplicate prompt against an earlier delivery", async () => {

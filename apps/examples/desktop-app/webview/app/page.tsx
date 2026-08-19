@@ -41,6 +41,7 @@ import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
+import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
@@ -154,12 +155,6 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
-const PROVISIONING_OUTCOME_POLL_MS = 1_500;
-
-type CloudProvisioningOutcome =
-	| { status: "provisioning" }
-	| { status: "ready"; sessionId: string }
-	| { status: "failed"; message: string };
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
@@ -719,16 +714,26 @@ function ChatThreadPane({
 	useEffect(() => {
 		void accountUserId;
 		let cancelled = false;
-		desktopClient
-			.invoke("get_feature_flags", {})
-			.then((flags) => {
-				if (!cancelled) {
-					setCloudAgentsEnabled(
-						Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-					);
-				}
-			})
-			.catch(() => undefined);
+		let retryTimer: number | undefined;
+		let attempts = 0;
+		const fetchFlags = () => {
+			desktopClient
+				.invoke("get_feature_flags", {})
+				.then((flags) => {
+					if (!cancelled) {
+						setCloudAgentsEnabled(
+							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
+						);
+					}
+				})
+				.catch(() => {
+					attempts += 1;
+					if (!cancelled && attempts < 10) {
+						retryTimer = window.setTimeout(fetchFlags, 2_000);
+					}
+				});
+		};
+		fetchFlags();
 		// The Settings → General cloud toggle broadcasts immediately so the
 		// composer reflects the change without a restart or account switch.
 		const unsubscribe = desktopClient.subscribe(
@@ -744,6 +749,7 @@ function ChatThreadPane({
 		return () => {
 			cancelled = true;
 			unsubscribe();
+			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
 		};
 	}, [accountUserId]);
 	const [providerCredentials, setProviderCredentials] = useState<
@@ -796,53 +802,31 @@ function ChatThreadPane({
 	const [provisioningError, setProvisioningError] = useState<string | null>(
 		null,
 	);
+	const provisioningPlaceholderId =
+		historySession?.sessionId &&
+		isCloudProvisioningSessionId(historySession.sessionId)
+			? historySession.sessionId
+			: undefined;
 	useEffect(() => {
-		const placeholderId = historySession?.sessionId;
-		if (!placeholderId || !isCloudProvisioningSessionId(placeholderId)) return;
-		let cancelled = false;
-		let retryTimer: number | undefined;
+		void provisioningPlaceholderId;
 		setProvisioningError(null);
-
-		async function checkOutcome() {
-			try {
-				const outcome =
-					await desktopClient.invoke<CloudProvisioningOutcome | null>(
-						"get_cloud_provisioning_outcome",
-						{ placeholderId },
-					);
-				if (cancelled) return;
-				if (outcome?.status === "ready") {
-					const opened = await onOpenSessionById?.(outcome.sessionId, {
-						silent: true,
-					});
-					if (opened && !cancelled) {
-						onDeleteSession?.(placeholderId, threadId);
-						return;
-					}
-				} else if (outcome?.status === "failed") {
-					setProvisioningError(
-						humanizeCloudSessionError(outcome.message) ||
-							"The cloud session could not be started.",
-					);
-					return;
-				}
-			} catch {
-				// Retry after a transport interruption.
-			}
-			if (!cancelled) {
-				retryTimer = window.setTimeout(
-					checkOutcome,
-					PROVISIONING_OUTCOME_POLL_MS,
-				);
-			}
+	}, [provisioningPlaceholderId]);
+	const handleProvisioningReady = useCallback(
+		async (sessionId: string) =>
+			Boolean(await onOpenSessionById?.(sessionId, { silent: true })),
+		[onOpenSessionById],
+	);
+	const handleProvisioningResolved = useCallback(() => {
+		if (provisioningPlaceholderId) {
+			onDeleteSession?.(provisioningPlaceholderId, threadId);
 		}
-
-		void checkOutcome();
-		return () => {
-			cancelled = true;
-			if (retryTimer !== undefined) window.clearTimeout(retryTimer);
-		};
-	}, [historySession?.sessionId, onDeleteSession, onOpenSessionById, threadId]);
+	}, [onDeleteSession, provisioningPlaceholderId, threadId]);
+	useProvisioningOutcome({
+		placeholderId: provisioningPlaceholderId,
+		onOpenReady: handleProvisioningReady,
+		onResolved: handleProvisioningResolved,
+		onError: setProvisioningError,
+	});
 	// The placeholder id covers list-refresh lag before live status arrives.
 	const isProvisioningCloudSession =
 		!provisioningError &&
