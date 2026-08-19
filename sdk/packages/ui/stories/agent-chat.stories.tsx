@@ -12,11 +12,15 @@ import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
+	ThinkingBlock,
 	ToolActivity,
 	ToolActivityCode,
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "../components/agent-chat";
 import { ToolFileDiff } from "../components/agent-chat/tool-diff";
 import {
@@ -54,6 +58,88 @@ function EditIcon() {
 	return <span aria-hidden="true">✎</span>;
 }
 
+function CopyIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="2"
+			viewBox="0 0 24 24"
+		>
+			<rect height="14" rx="2" ry="2" width="14" x="8" y="8" />
+			<path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+		</svg>
+	);
+}
+
+function PencilIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="2"
+			viewBox="0 0 24 24"
+		>
+			<path d="M12 20h9" />
+			<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
+		</svg>
+	);
+}
+
+function UndoIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="2"
+			viewBox="0 0 24 24"
+		>
+			<path d="M9 14 4 9l5-5" />
+			<path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+		</svg>
+	);
+}
+
+function ForkIcon() {
+	return (
+		<svg
+			aria-hidden="true"
+			className="rotate-90"
+			fill="none"
+			stroke="currentColor"
+			strokeLinecap="round"
+			strokeLinejoin="round"
+			strokeWidth="2"
+			viewBox="0 0 24 24"
+		>
+			<path d="M16 3h5v5" />
+			<path d="M8 3H3v5" />
+			<path d="M12 22v-8.3a4 4 0 0 0-1.172-2.872L3 3" />
+			<path d="m15 9 6-6" />
+		</svg>
+	);
+}
+
+function MessageTimestamp({ children }: { children: React.ReactNode }) {
+	return (
+		<time
+			className="shrink-0 whitespace-nowrap text-xs leading-none text-muted-foreground"
+			dateTime="2026-08-11T11:18:00-07:00"
+		>
+			{children}
+		</time>
+	);
+}
+
 function ChatFrame({ children }: { children: React.ReactNode }) {
 	return (
 		<div className="flex h-[680px] min-w-[320px] bg-background">
@@ -75,10 +161,20 @@ export const CompleteConversation = () => (
 			<MessageContent>
 				Can you find the settings screen and align it with our shared theme?
 			</MessageContent>
-			<MessageActions>
+			<MessageActions side="end">
 				<MessageAction label="Copy user message" title="Copy message">
-					Copy
+					<CopyIcon />
 				</MessageAction>
+				<MessageAction
+					label="Edit user message"
+					title="Edit message and restart from this point"
+				>
+					<PencilIcon />
+				</MessageAction>
+				<MessageAction label="Restore checkpoint" title="Restore checkpoint">
+					<UndoIcon />
+				</MessageAction>
+				<MessageTimestamp>11:18 AM</MessageTimestamp>
 			</MessageActions>
 		</Message>
 
@@ -86,7 +182,7 @@ export const CompleteConversation = () => (
 			<MessageContent>
 				<Reasoning>
 					<ReasoningTrigger />
-					<ReasoningContent>
+					<ReasoningContent presentation="rail">
 						I should inspect the existing navigation and map its surfaces to the
 						semantic theme contract before changing layout.
 					</ReasoningContent>
@@ -99,7 +195,7 @@ export const CompleteConversation = () => (
 					label="Explored 3 files"
 					status="success"
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityDetails>
 						<div>settings-view.tsx</div>
 						<div>agent-sidebar.tsx</div>
@@ -116,7 +212,7 @@ export const CompleteConversation = () => (
 					label="Edited settings-view.tsx"
 					status="success"
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityCode>
 						{"+ background: var(--background);\n- background: #111;"}
 					</ToolActivityCode>
@@ -134,10 +230,17 @@ export const CompleteConversation = () => (
 					<li>Verified keyboard focus states</li>
 				</ul>
 			</MessageContent>
-			<MessageActions>
+			<MessageActions side="start">
 				<MessageAction label="Copy assistant message" title="Copy response">
-					Copy
+					<CopyIcon />
 				</MessageAction>
+				<MessageAction
+					label="Fork session"
+					title="Fork session - copy full message history into a new session"
+				>
+					<ForkIcon />
+				</MessageAction>
+				<MessageTimestamp>11:18 AM</MessageTimestamp>
 			</MessageActions>
 		</Message>
 	</ChatFrame>
@@ -170,6 +273,93 @@ export const Streaming = () => (
 	</ChatFrame>
 );
 
+/**
+ * The standard thinking-trace row shared by every product: shimmering
+ * "Thinking" while streaming, "Thought for Ns" once done, and a redaction
+ * fallback when the provider withholds the trace.
+ */
+export const ThinkingStates = () => (
+	<ChatFrame>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock isStreaming>
+					Weighing the trade-offs between the two migration paths before
+					committing to either.
+				</ThinkingBlock>
+			</MessageContent>
+		</Message>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock defaultOpen durationMilliseconds={12_000}>
+					The failure only reproduces when the dark theme snapshot runs first,
+					so the token cache must leak between cases.
+				</ThinkingBlock>
+			</MessageContent>
+		</Message>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock durationMilliseconds={4_000} redacted />
+			</MessageContent>
+		</Message>
+	</ChatFrame>
+);
+
+export const DisclosurePresentations = () => (
+	<div className="grid max-w-4xl gap-8 bg-background p-6 md:grid-cols-2">
+		<section className="min-w-0 space-y-3">
+			<div>
+				<h2 className="text-sm font-semibold text-foreground">Rail</h2>
+				<p className="text-xs text-muted-foreground">
+					Lightweight transcript disclosures
+				</p>
+			</div>
+			<Reasoning>
+				<ReasoningTrigger completeLabel="Thought for 4s" />
+				<ReasoningContent presentation="rail">
+					I compared the existing message hierarchy, spacing, and interaction
+					patterns before choosing the smallest shared abstraction.
+				</ReasoningContent>
+			</Reasoning>
+			<ToolActivity>
+				<ToolActivityTrigger icon={<SearchIcon />} label="Explored 3 files" />
+				<ToolActivityContent presentation="rail">
+					<ToolActivityDetails>
+						<div>disclosure.tsx</div>
+						<div>index.tsx</div>
+						<div>agent-chat.css</div>
+					</ToolActivityDetails>
+				</ToolActivityContent>
+			</ToolActivity>
+		</section>
+
+		<section className="min-w-0 space-y-3">
+			<div>
+				<h2 className="text-sm font-semibold text-foreground">Panel</h2>
+				<p className="text-xs text-muted-foreground">
+					Contained disclosures for denser surfaces
+				</p>
+			</div>
+			<Reasoning defaultOpen>
+				<ReasoningTrigger completeLabel="Thought for 4s" />
+				<ReasoningContent presentation="panel">
+					I compared the existing message hierarchy, spacing, and interaction
+					patterns before choosing the smallest shared abstraction.
+				</ReasoningContent>
+			</Reasoning>
+			<ToolActivity defaultOpen>
+				<ToolActivityTrigger icon={<SearchIcon />} label="Explored 3 files" />
+				<ToolActivityContent presentation="panel">
+					<ToolActivityDetails>
+						<div>disclosure.tsx</div>
+						<div>index.tsx</div>
+						<div>agent-chat.css</div>
+					</ToolActivityDetails>
+				</ToolActivityContent>
+			</ToolActivity>
+		</section>
+	</div>
+);
+
 export const ToolStates = () => (
 	<ChatFrame>
 		{(
@@ -186,7 +376,7 @@ export const ToolStates = () => (
 					label={label}
 					status={status}
 				/>
-				<ToolActivityContent>
+				<ToolActivityContent presentation="rail">
 					<ToolActivityCode>
 						{status === "error"
 							? "Error: expected --background token"
@@ -195,6 +385,73 @@ export const ToolStates = () => (
 				</ToolActivityContent>
 			</ToolActivity>
 		))}
+	</ChatFrame>
+);
+
+/**
+ * A finished run folds its working rows — tool calls, thinking traces,
+ * intermediate narration — into one "Worked for …" summary that expands back
+ * into the normal rows. The run's final answer stays visible below it.
+ */
+export const CollapsedWork = () => (
+	<ChatFrame>
+		<Message from="user">
+			<MessageContent>Track down and fix the flaky theme test.</MessageContent>
+		</Message>
+
+		<WorkActivity>
+			<WorkActivityTrigger durationMilliseconds={252_000} toolCallCount={3} />
+			<WorkActivityContent>
+				<Reasoning>
+					<ReasoningTrigger completeLabel="Thought for 12s" />
+					<ReasoningContent presentation="rail">
+						The failure only reproduces when the dark theme snapshot runs first,
+						so the token cache must leak between cases.
+					</ReasoningContent>
+				</Reasoning>
+				<ToolActivity expandable>
+					<ToolActivityTrigger
+						icon={<SearchIcon />}
+						label="Explored 2 files"
+						status="success"
+					/>
+					<ToolActivityContent presentation="rail">
+						<ToolActivityDetails>
+							<div>theme.test.ts</div>
+							<div>token-cache.ts</div>
+						</ToolActivityDetails>
+					</ToolActivityContent>
+				</ToolActivity>
+				<ToolActivity expandable>
+					<ToolActivityTrigger
+						additions={6}
+						deletions={1}
+						icon={<EditIcon />}
+						label="Edited token-cache.ts"
+						status="success"
+					/>
+					<ToolActivityContent presentation="rail">
+						<ToolActivityCode>
+							{"+ cache.clear();\n- // cache persists across suites"}
+						</ToolActivityCode>
+					</ToolActivityContent>
+				</ToolActivity>
+				<ToolActivity expandable={false}>
+					<ToolActivityTrigger
+						icon={<TerminalIcon />}
+						label="Ran bun -F @cline/ui test"
+						status="success"
+					/>
+				</ToolActivity>
+			</WorkActivityContent>
+		</WorkActivity>
+
+		<Message from="assistant">
+			<MessageContent>
+				Fixed: the token cache leaked between suites; it now resets per case and
+				the full suite passes.
+			</MessageContent>
+		</Message>
 	</ChatFrame>
 );
 
@@ -264,7 +521,7 @@ function SummaryToolRow({ summary }: { summary: ToolSummary }) {
 				}
 				status={summary.errorText ? "error" : "success"}
 			/>
-			<ToolActivityContent>
+			<ToolActivityContent presentation="rail">
 				{summary.details.length > 0 ? (
 					<ToolActivityDetails>
 						{summary.details.map((detail, index) => (
@@ -404,7 +661,7 @@ export const DisabledControls = () => (
 			<MessageContent>Actions stay readable when unavailable.</MessageContent>
 			<MessageActions visible>
 				<MessageAction disabled label="Copy message">
-					Copy
+					<CopyIcon />
 				</MessageAction>
 			</MessageActions>
 			<Reasoning>

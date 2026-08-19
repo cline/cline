@@ -1,4 +1,10 @@
-import { formatDisplayUserInput } from "@cline/shared";
+import { projectSessionMessagesForDisplay } from "@cline/core";
+import {
+	formatDisplayUserInput,
+	isGeneratedMedia,
+	type MessageWithMetadata,
+	validateImageMedia,
+} from "@cline/shared";
 import type {
 	WebviewActionSessionSummary,
 	WebviewChatMessage,
@@ -193,13 +199,17 @@ export function mapHistoryToWebviewMessages(
 ): WebviewChatMessage[] {
 	const mapped: WebviewChatMessage[] = [];
 	const toolLocations = new Map<string, HistoryToolLocation>();
+	const displayHistory = projectSessionMessagesForDisplay(
+		history as MessageWithMetadata[],
+	);
 
-	for (const [index, entry] of history.entries()) {
+	for (const entry of displayHistory) {
+		const { message, sourceIndex } = entry;
 		const record =
-			entry && typeof entry === "object"
-				? (entry as Record<string, unknown>)
-				: { content: entry };
-		const messageKey = asString(record.id) ?? `history-${index}`;
+			message && typeof message === "object"
+				? (message as unknown as Record<string, unknown>)
+				: { content: message };
+		const messageKey = asString(record.id) ?? `history-${sourceIndex}`;
 		const rawRole = asString(record.role)?.toLowerCase();
 		let role: WebviewChatMessage["role"] =
 			rawRole === "user" || rawRole === "assistant" || rawRole === "error"
@@ -237,6 +247,35 @@ export function mapHistoryToWebviewMessages(
 					partIndex,
 					displayText(asString(part.text) ?? asString(part.content) ?? ""),
 				);
+				continue;
+			}
+
+			if (type === "image") {
+				const validation = validateImageMedia(
+					asString(part.mediaType),
+					asString(part.data) ?? "",
+				);
+				if (validation.ok) {
+					blocks.push({
+						id: `${messageKey}:media:${partIndex}`,
+						type: "media",
+						media: {
+							id: `${messageKey}:media:${partIndex}`,
+							modality: "image",
+							mediaType: validation.mediaType,
+							source: { type: "base64", data: validation.base64 },
+						},
+					});
+				}
+				continue;
+			}
+
+			if (type === "media" && isGeneratedMedia(part.media)) {
+				blocks.push({
+					id: `${messageKey}:media:${partIndex}`,
+					type: "media",
+					media: part.media,
+				});
 				continue;
 			}
 
@@ -363,7 +402,7 @@ export function mapHistoryToWebviewMessages(
 
 		const text = textParts.join("\n");
 		const toolEventList = [...toolEvents.values()];
-		if (!text && reasoningParts.length === 0 && toolEventList.length === 0) {
+		if (blocks.length === 0) {
 			continue;
 		}
 		if (!text && role === "user" && toolEventList.length > 0) {

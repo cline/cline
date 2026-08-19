@@ -43,6 +43,7 @@ import { useChatSession } from "@/hooks/use-chat-session";
 import { useSessionAgents } from "@/hooks/use-session-agents";
 import { useSessionHistory } from "@/hooks/use-session-history";
 import { toast } from "@/hooks/use-toast";
+import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
@@ -52,8 +53,9 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient } from "@/lib/desktop-client";
+import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
-	subscribeToDesktopMenuActions,
+	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -199,6 +201,7 @@ export default function Home() {
 	useEffect(() => {
 		syncHubTheme();
 		syncHubAccent();
+		syncAppFontSize();
 		return watchSystemHubTheme();
 	}, []);
 
@@ -213,6 +216,7 @@ export default function Home() {
 	}, []);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
+	useEffect(() => watchDesktopNotifications(), []);
 
 	const handleNewThread = useCallback(() => {
 		dispatchApp({ type: "new-thread", threadId: makeThreadId() });
@@ -298,20 +302,6 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	useEffect(
-		() =>
-			subscribeToDesktopMenuActions((action) => {
-				switch (action) {
-					case "new-session":
-						handleNewThread();
-						break;
-					case "open-settings":
-						handleViewChange("settings");
-						break;
-				}
-			}),
-		[handleNewThread, handleViewChange],
-	);
 	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
 	// settings — matching the tray menu actions.
 	useEffect(() => {
@@ -345,9 +335,13 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	useEffect(() => {
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (sessionId: string) => {
-			const cachedSession = sessionHistory.sessions.find(
+			const cachedSession = sessionHistoryRef.current.find(
 				(session) => session.sessionId === sessionId,
 			);
 			if (cachedSession) {
@@ -357,7 +351,7 @@ export default function Home() {
 			try {
 				const session = await desktopClient.invoke<SessionHistoryItem | null>(
 					"get_discovered_session",
-					{ session_id: sessionId },
+					{ sessionId },
 				);
 				if (!session) {
 					throw new Error("The session for this run is no longer available.");
@@ -371,7 +365,29 @@ export default function Home() {
 				});
 			}
 		},
-		[handleOpenSession, sessionHistory.sessions],
+		[handleOpenSession],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopActions((action) => {
+				switch (action.type) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "open-session":
+						void handleOpenSessionById(action.sessionId);
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action.type);
+						break;
+				}
+			}),
+		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 	const historyWorkspacePaths = useMemo(
 		() => workspacePathsFromSessions(sessionHistory.sessions),
@@ -458,6 +474,9 @@ export default function Home() {
 										handleSettingsSectionChange("Models")
 									}
 									parentSession={activeParentSession}
+									onOpenVoiceInputSettings={() =>
+										handleSettingsSectionChange("Models")
+									}
 									onThreadStarted={handleThreadStarted}
 								/>
 							</div>
@@ -508,6 +527,7 @@ function ChatThreadPane({
 	onOpenSetup,
 	onOpenModelSettings,
 	parentSession,
+	onOpenVoiceInputSettings,
 	onThreadStarted,
 }: {
 	threadId: string;
@@ -529,6 +549,7 @@ function ChatThreadPane({
 	onOpenSetup?: () => void;
 	onOpenModelSettings?: () => void;
 	parentSession?: { sessionId: string; title?: string };
+	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
 }) {
 	const {
@@ -1502,6 +1523,7 @@ function ChatThreadPane({
 			onModelChange={handleModelChange}
 			onModeToggle={handleModeToggle}
 			onPromptInputChange={handlePromptInputChange}
+			onOpenVoiceInputSettings={onOpenVoiceInputSettings}
 			onReasoningChange={handleReasoningChange}
 			onSteerPromptInQueue={steerPromptInQueue}
 			onEditPromptInQueue={updatePromptInQueue}
@@ -1618,9 +1640,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
-					onStartChat={setPromptInput}
 					onSwitchGitBranch={switchGitBranch}
-					quickActions={[]}
 				/>
 			</div>
 			<AlertDialog

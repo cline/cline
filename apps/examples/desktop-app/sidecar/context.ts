@@ -15,7 +15,7 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import type { AgentEvent } from "@cline/shared";
+import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -234,6 +234,10 @@ function handleAgentEvent(
 			// so forwarding it as another chat_text/chat_reasoning chunk duplicates
 			// the live UI while persisted history remains correct after hydration.
 			if (event.contentType === "text" || event.contentType === "reasoning") {
+				break;
+			}
+			if (event.contentType === "media" && event.media) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(event.media));
 				break;
 			}
 			if (event.contentType === "tool") {
@@ -577,6 +581,12 @@ export function requestSidecarAskQuestion(
 	options: string[],
 	context: AgentToolContext,
 ): Promise<string> {
+	const sessionId = context.sessionId?.trim();
+	if (!sessionId) {
+		return Promise.reject(
+			new Error("ask_question requires an active session ID"),
+		);
+	}
 	const choices = options
 		.map((option) => option.trim())
 		.filter((option) => option.length > 0)
@@ -602,6 +612,7 @@ export function requestSidecarAskQuestion(
 		const pending: PendingAskQuestion = {
 			item: {
 				requestId,
+				sessionId,
 				createdAt: new Date().toISOString(),
 				question,
 				options: choices,
@@ -697,6 +708,13 @@ export function handleHubLiveEvent(
 				typeof event.payload?.text === "string" ? event.payload.text : "";
 			if (text) {
 				emitChunk(ctx, sessionId, "chat_text", text);
+			}
+			return;
+		}
+		case "assistant.media": {
+			const media = event.payload?.media;
+			if (isGeneratedMedia(media)) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
 			}
 			return;
 		}

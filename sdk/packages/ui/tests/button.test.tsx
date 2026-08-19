@@ -82,11 +82,7 @@ describe("Button", () => {
 				onClick={onClick}
 				tabIndex={0}
 			>
-				<a
-					href="/settings"
-					onClick={onClick}
-					onClickCapture={onClickCapture}
-				>
+				<a href="/settings" onClick={onClick} onClickCapture={onClickCapture}>
 					Settings
 				</a>
 			</Button>,
@@ -134,11 +130,7 @@ describe("IconButton", () => {
 				onClick={onClick}
 				tabIndex={0}
 			>
-				<a
-					href="/remove"
-					onClick={onClick}
-					onClickCapture={onClickCapture}
-				>
+				<a href="/remove" onClick={onClick} onClickCapture={onClickCapture}>
 					−
 				</a>
 			</IconButton>,

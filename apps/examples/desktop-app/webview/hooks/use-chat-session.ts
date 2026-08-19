@@ -32,6 +32,8 @@ import type {
 } from "@/hooks/chat-session/types";
 import {
 	type ChatMessage,
+	ChatMessageImageSchema,
+	ChatMessageMediaSchema,
 	type ChatSessionConfig,
 	ChatSessionConfigSchema,
 	type ChatSessionStatus,
@@ -65,6 +67,7 @@ const STREAM_FLUSH_INTERVAL_MS = 48;
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
+	"chat_media",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_end",
@@ -351,6 +354,11 @@ export function useChatSession() {
 	// Bumped whenever a new turn begins; lets async queue checks detect that
 	// their result is stale because another turn already started.
 	const turnEpochRef = useRef(0);
+	// Epoch at which the current turn reached a terminal status. Hub-projected
+	// chat_session_status events are asynchronous and a stale "running" can
+	// trail chat_done; when no new turn has started since the turn settled
+	// (epoch unchanged), such a "running" must not reopen the turn.
+	const turnSettledEpochRef = useRef(-1);
 	// Last error-level core log per session, used to explain failed turns.
 	const lastCoreErrorBySessionRef = useRef<Record<string, string>>({});
 	const [chatTransportState, setChatTransportState] =
@@ -585,6 +593,7 @@ export function useChatSession() {
 						: [];
 					setPromptsInQueue(items);
 					if (items.length === 0) {
+						turnSettledEpochRef.current = turnEpochRef.current;
 						setStatus((current) =>
 							current === "running" ? "completed" : current,
 						);
@@ -925,35 +934,67 @@ export function useChatSession() {
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
+		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		if (!activeSessionId) {
-			setPendingToolApprovals([]);
 			return;
 		}
+		let cancelled = false;
 
 		void desktopClient
 			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
 				sessionId: activeSessionId,
 				limit: 20,
 			})
-			.then((pending) => setPendingToolApprovals(pending))
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingToolApprovals(pending);
+				}
+			})
 			.catch(() => {});
 
-		return desktopClient.subscribe("tool_approval_state", (payload) => {
-			if (!payload || typeof payload !== "object") return;
-			const record = payload as {
-				sessionId?: string;
-				items?: ToolApprovalRequestItem[];
-			};
-			if (record.sessionId !== activeSessionId) return;
-			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
-		});
+		void desktopClient
+			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				sessionId: activeSessionId,
+			})
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingAskQuestions(pending);
+				}
+			})
+			.catch(() => {});
+
+		const unsubscribe = desktopClient.subscribe(
+			"tool_approval_state",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as {
+					sessionId?: string;
+					items?: ToolApprovalRequestItem[];
+				};
+				if (record.sessionId !== activeSessionId) return;
+				setPendingToolApprovals(
+					Array.isArray(record.items) ? record.items : [],
+				);
+			},
+		);
+
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [sessionId]);
 
 	useEffect(() => {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
-			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+			if (
+				item.sessionId !== activeSessionIdRef.current ||
+				!item.requestId ||
+				!item.question ||
+				!Array.isArray(item.options)
+			) {
 				return;
 			}
 			setPendingAskQuestions((prev) => {
@@ -1078,6 +1119,46 @@ export function useChatSession() {
 			// Any non-delta event (tool calls, prompt starts, done markers) must
 			// observe fully applied text, so drain the buffers first.
 			flushPendingStream();
+
+			if (payload.stream === "chat_media") {
+				let parsed: unknown;
+				try {
+					parsed = JSON.parse(payload.chunk);
+				} catch {
+					return;
+				}
+				const media = ChatMessageMediaSchema.safeParse(parsed);
+				if (!media.success) {
+					console.warn(
+						"[desktop:chat] Ignoring invalid generated media",
+						media.error.flatten(),
+					);
+					return;
+				}
+				setMessages((prev) => {
+					if (
+						prev.some((message) =>
+							message.media?.some((item) => item.id === media.data.id),
+						)
+					) {
+						return prev;
+					}
+					return sliceMessages([
+						...prev,
+						{
+							id: `media_${media.data.id}`,
+							sessionId: listeningSessionId,
+							role: "assistant",
+							content: "",
+							media: [media.data],
+							createdAt: chunkCreatedAt(payload),
+						},
+					]);
+				});
+				activeAssistantMessageIdRef.current = null;
+				setActiveAssistantMessageId(null);
+				return;
+			}
 
 			if (payload.stream === "chat_queued_prompt_start") {
 				activeTurnCostTrackerRef.current = { streamedCostUsd: 0 };
@@ -1314,6 +1395,8 @@ export function useChatSession() {
 				setStatus(nextStatus);
 				if (nextStatus === "running") {
 					verifyQueueStillBusy(listeningSessionId);
+				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
 				}
 				return;
 			}
@@ -1445,6 +1528,18 @@ export function useChatSession() {
 				if (!nextStatus) {
 					return;
 				}
+				// Status events are projected asynchronously from the hub's
+				// session record and can deliver a stale "running" after the
+				// stream's chat_done already settled the turn. A genuinely new
+				// turn always bumps the epoch (chat_queued_prompt_start) or
+				// goes through the local submit paths, so while the epoch still
+				// equals the settled epoch a "running" here can only be stale.
+				if (
+					nextStatus === "running" &&
+					turnEpochRef.current === turnSettledEpochRef.current
+				) {
+					return;
+				}
 				setStatus(nextStatus as ChatSessionStatus);
 			},
 		);
@@ -1468,6 +1563,7 @@ export function useChatSession() {
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
 				clearLiveToolRefs();
+				turnSettledEpochRef.current = turnEpochRef.current;
 				setStatus((record.reason?.trim() || "idle") as ChatSessionStatus);
 			},
 		);
@@ -1674,6 +1770,12 @@ export function useChatSession() {
 			}
 
 			let sendTask: ReturnType<typeof postSession> | null = null;
+			// The turn epoch at send-RPC dispatch time. chat_queued_prompt_start
+			// bumps the epoch when the runtime starts consuming a queued prompt,
+			// so a mismatch when the send response arrives means the stream has
+			// already advanced this turn's lifecycle past the snapshot carried
+			// by the response.
+			let turnEpochAtDispatch = turnEpochRef.current;
 			try {
 				if (pendingSessionStart) {
 					try {
@@ -1773,6 +1875,7 @@ export function useChatSession() {
 					setStatus("starting");
 				}
 				await precedingPromptDispatch;
+				turnEpochAtDispatch = turnEpochRef.current;
 				sendTask = postSession({
 					action: "send",
 					sessionId: activeSessionId,
@@ -1791,7 +1894,24 @@ export function useChatSession() {
 			try {
 				const payload = await sendTask;
 				if (payload.ok && payload.queued) {
+					if (turnEpochRef.current !== turnEpochAtDispatch) {
+						// The runtime already started consuming a queued prompt
+						// (chat_queued_prompt_start bumped the epoch) while this
+						// response was in flight: its queue snapshot predates the
+						// dequeue and its "still queued" status is obsolete.
+						// Applying them would resurrect a phantom queue entry and
+						// could flip a turn that already completed via chat_done
+						// back to "running" — wedging the composer forever. The
+						// stream (chat_queued_prompt_start/chat_done and
+						// prompts_in_queue_state) is authoritative from here on.
+						return;
+					}
 					applyPromptsInQueue(payload.promptsInQueue);
+					if (abortedRef.current) {
+						turnSettledEpochRef.current = turnEpochRef.current;
+						setStatus("cancelled");
+						return;
+					}
 					setStatus("running");
 					return;
 				}
@@ -1799,6 +1919,7 @@ export function useChatSession() {
 				const result = payload.result as ChatApiResult | undefined;
 				applyPromptsInQueue(payload.promptsInQueue);
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 					return;
 				}
@@ -1874,7 +1995,90 @@ export function useChatSession() {
 							},
 						]);
 					});
-				} else {
+				}
+				const fallbackImages = fallbackAssistantTurn.images.flatMap(
+					(candidate) => {
+						const image = ChatMessageImageSchema.safeParse({
+							id: makeId("generated_image"),
+							...candidate,
+						});
+						return image.success ? [image.data] : [];
+					},
+				);
+				if (fallbackImages.length > 0) {
+					const assistantMessageId =
+						activeAssistantMessageIdRef.current ?? makeId("assistant");
+					activeAssistantMessageIdRef.current = assistantMessageId;
+					setActiveAssistantMessageId(assistantMessageId);
+					setMessages((prev) => {
+						const updated = updateMessageById(
+							prev,
+							assistantMessageId,
+							(message) => {
+								const existing = message.images ?? [];
+								const additions = fallbackImages.filter(
+									(image) =>
+										!existing.some(
+											(candidate) =>
+												candidate.data === image.data &&
+												candidate.mediaType === image.mediaType,
+										),
+								);
+								return additions.length > 0
+									? { ...message, images: [...existing, ...additions] }
+									: message;
+							},
+						);
+						if (updated !== prev) return updated;
+						return sliceMessages([
+							...prev,
+							{
+								id: assistantMessageId,
+								sessionId: activeSessionId,
+								role: "assistant" as const,
+								content: resolvedAssistantText,
+								images: fallbackImages,
+								reasoning: fallbackAssistantTurn.reasoning || undefined,
+								reasoningRedacted:
+									fallbackAssistantTurn.reasoningRedacted || undefined,
+								createdAt: now + 1,
+							},
+						]);
+					});
+				}
+				const fallbackMedia = fallbackAssistantTurn.media;
+				if (fallbackMedia.length > 0) {
+					setMessages((prev) => {
+						const knownIds = new Set(
+							prev.flatMap((message) =>
+								(message.media ?? []).map((media) => media.id),
+							),
+						);
+						const additions = fallbackMedia.filter(
+							(media) => !knownIds.has(media.id),
+						);
+						return additions.length === 0
+							? prev
+							: sliceMessages([
+									...prev,
+									...additions.map((media, index) => ({
+										id: `media_${media.id}`,
+										sessionId: activeSessionId,
+										role: "assistant" as const,
+										content: "",
+										media: [media],
+										createdAt: now + 2 + index,
+									})),
+								]);
+					});
+				}
+				const hasFallbackAssistantTurn =
+					Boolean(resolvedAssistantText) ||
+					Boolean(fallbackAssistantTurn.reasoning) ||
+					fallbackAssistantTurn.reasoningRedacted ||
+					fallbackImages.length > 0 ||
+					fallbackMedia.length > 0;
+				if (!hasFallbackAssistantTurn) {
 					// Recovery: load canonical messages if transport missed result text.
 					try {
 						const historyMessages = await desktopClient.invoke<ChatMessage[]>(
@@ -1901,8 +2105,48 @@ export function useChatSession() {
 						"read_session_messages",
 						{ sessionId: activeSessionId, maxMessages: MAX_MESSAGES },
 					);
-					if (historyMessages.length > 0) {
-						applyCanonicalHistory(activeSessionId, historyMessages);
+					const hasCanonicalAssistantTurn = historyMessages.some(
+						(message) => message.role === "assistant",
+					);
+					if (
+						historyMessages.length > 0 &&
+						(!hasFallbackAssistantTurn || hasCanonicalAssistantTurn)
+					) {
+						const assistantIndex = historyMessages.findLastIndex(
+							(message) => message.role === "assistant",
+						);
+						const canonicalMessages =
+							assistantIndex >= 0 && hasFallbackAssistantTurn
+								? historyMessages.map((message, index) => {
+										if (index !== assistantIndex) return message;
+										const existingImages = message.images ?? [];
+										const missingImages = fallbackImages.filter(
+											(image) =>
+												!existingImages.some(
+													(candidate) =>
+														candidate.data === image.data &&
+														candidate.mediaType === image.mediaType,
+												),
+										);
+										return {
+											...message,
+											content: message.content || resolvedAssistantText,
+											reasoning:
+												message.reasoning ||
+												fallbackAssistantTurn.reasoning ||
+												undefined,
+											reasoningRedacted:
+												message.reasoningRedacted ||
+												fallbackAssistantTurn.reasoningRedacted ||
+												undefined,
+											images:
+												missingImages.length > 0
+													? [...existingImages, ...missingImages]
+													: message.images,
+										};
+									})
+								: historyMessages;
+						applyCanonicalHistory(activeSessionId, canonicalMessages);
 					}
 				} catch {
 					// Keep optimistic state if canonical hydration fails.
@@ -1976,6 +2220,7 @@ export function useChatSession() {
 					Array.isArray(payload.promptsInQueue) &&
 					payload.promptsInQueue.length > 0;
 				if (abortedRef.current) {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (result?.finishReason === "error") {
 					// On a failed run result.text is the runtime's error string
@@ -1990,12 +2235,15 @@ export function useChatSession() {
 						activeSessionId,
 						runError || toolError?.trim() || "",
 					);
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("failed");
 				} else if (result?.finishReason === "aborted") {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("cancelled");
 				} else if (hasQueuedFollowUps) {
 					setStatus("running");
 				} else {
+					turnSettledEpochRef.current = turnEpochRef.current;
 					setStatus("completed");
 				}
 				void refreshSessionDiffSummary(activeSessionId);
@@ -2108,7 +2356,6 @@ export function useChatSession() {
 				config,
 			})) as {
 				sessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const nextSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2116,12 +2363,13 @@ export function useChatSession() {
 				throw new Error("Checkpoint restore did not return a new session id");
 			}
 
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: nextSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: nextSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 
 			setSessionId(nextSessionId);
 			activeSessionIdRef.current = nextSessionId;
@@ -2403,7 +2651,6 @@ export function useChatSession() {
 			})) as {
 				sessionId?: string;
 				forkedFromSessionId?: string;
-				messages?: ChatMessage[];
 			};
 			const newSessionId =
 				typeof payload.sessionId === "string" ? payload.sessionId.trim() : "";
@@ -2414,12 +2661,13 @@ export function useChatSession() {
 				typeof payload.forkedFromSessionId === "string"
 					? payload.forkedFromSessionId
 					: activeSessionId;
-			const nextMessages = Array.isArray(payload.messages)
-				? (payload.messages as ChatMessage[])
-				: await desktopClient.invoke<ChatMessage[]>("read_session_messages", {
-						sessionId: newSessionId,
-						maxMessages: MAX_MESSAGES,
-					});
+			const nextMessages = await desktopClient.invoke<ChatMessage[]>(
+				"read_session_messages",
+				{
+					sessionId: newSessionId,
+					maxMessages: MAX_MESSAGES,
+				},
+			);
 			return { newSessionId, forkedFromSessionId, messages: nextMessages };
 		},
 		[config, postSession, status],

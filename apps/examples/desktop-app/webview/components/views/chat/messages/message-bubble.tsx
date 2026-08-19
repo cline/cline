@@ -1,5 +1,6 @@
 "use client";
 
+import { GeneratedMediaContent } from "@cline/ui";
 import {
 	Message as AgentMessage,
 	type AgentMessageRole,
@@ -9,17 +10,146 @@ import {
 } from "@cline/ui/components/agent-chat";
 import {
 	Check,
+	ChevronLeft,
+	ChevronRight,
 	Copy,
 	Loader2,
 	PencilIcon,
 	SplitIcon,
 	UndoIcon,
 } from "lucide-react";
-import { memo } from "react";
-import type { ChatMessage, ChatMessageImage } from "@/lib/chat-schema";
+import { memo, useEffect, useState } from "react";
+import type {
+	ChatMessage,
+	ChatMessageImage,
+	ChatMessageMedia,
+} from "@/lib/chat-schema";
+import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { ReasoningBlock } from "./reasoning-block";
+
+function AssistantImageCarousel({
+	images,
+	onExpandImage,
+}: {
+	images: ChatMessageImage[];
+	onExpandImage?: (image: ChatMessageImage) => void;
+}) {
+	const [activeIndex, setActiveIndex] = useState(0);
+	const lastIndex = images.length - 1;
+	const safeIndex = Math.min(activeIndex, lastIndex);
+	const image = images[safeIndex];
+
+	useEffect(() => {
+		setActiveIndex((index) => Math.min(index, lastIndex));
+	}, [lastIndex]);
+
+	if (!image) return null;
+
+	return (
+		<div className="relative w-fit max-w-2xl">
+			<button
+				aria-label={`Expand generated image ${safeIndex + 1}`}
+				className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				onClick={() => onExpandImage?.(image)}
+				type="button"
+			>
+				{/* biome-ignore lint/performance/noImgElement: In-memory data URLs do not have dimensions and cannot use Next's optimizer. */}
+				<img
+					alt={`Generated result ${safeIndex + 1}`}
+					className="max-h-56.25 max-w-56.25 object-contain"
+					src={`data:${image.mediaType};base64,${image.data}`}
+				/>
+			</button>
+			{images.length > 1 ? (
+				<>
+					<button
+						aria-label="Previous generated image"
+						className="absolute left-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
+						disabled={safeIndex === 0}
+						onClick={() => setActiveIndex((index) => Math.max(0, index - 1))}
+						type="button"
+					>
+						<ChevronLeft className="size-4" />
+					</button>
+					<button
+						aria-label="Next generated image"
+						className="absolute right-1 top-1/2 flex size-7 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-background/85 text-foreground shadow-sm backdrop-blur-sm transition-opacity hover:bg-background disabled:cursor-not-allowed disabled:opacity-35"
+						disabled={safeIndex === lastIndex}
+						onClick={() =>
+							setActiveIndex((index) => Math.min(lastIndex, index + 1))
+						}
+						type="button"
+					>
+						<ChevronRight className="size-4" />
+					</button>
+					<div className="absolute bottom-1 left-1/2 -translate-x-1/2 rounded-full bg-background/85 px-2 py-0.5 text-[11px] text-foreground shadow-sm backdrop-blur-sm">
+						{safeIndex + 1} / {images.length}
+					</div>
+				</>
+			) : null}
+		</div>
+	);
+}
+
+function MessageImages({
+	images,
+	isUser,
+	onExpandImage,
+}: {
+	images: ChatMessageImage[];
+	isUser: boolean;
+	onExpandImage?: (image: ChatMessageImage) => void;
+}) {
+	if (!isUser) {
+		return (
+			<AssistantImageCarousel images={images} onExpandImage={onExpandImage} />
+		);
+	}
+
+	return (
+		<div className="grid max-w-2xl gap-2">
+			{images.map((image, index) => (
+				<button
+					aria-label={`Expand attachment ${index + 1}`}
+					className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+					key={image.id}
+					onClick={() => onExpandImage?.(image)}
+					type="button"
+				>
+					{/* biome-ignore lint/performance/noImgElement: In-memory data URLs do not have dimensions and cannot use Next's optimizer. */}
+					<img
+						alt={`Attachment ${index + 1}`}
+						className="max-h-56.25 max-w-56.25 object-contain"
+						src={`data:${image.mediaType};base64,${image.data}`}
+					/>
+				</button>
+			))}
+		</div>
+	);
+}
+
+function MessageMedia({ media }: { media: ChatMessageMedia[] }) {
+	return (
+		<div className="flex max-w-2xl flex-col gap-2">
+			{media.map((item) => (
+				<GeneratedMediaContent
+					classNames={{
+						image:
+							"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+						audio: "w-full",
+						video: "max-h-96 max-w-full rounded-lg",
+						file: "text-sm underline",
+						unavailable: "rounded-lg border border-border bg-muted p-3 text-sm",
+					}}
+					key={item.id}
+					media={item}
+				/>
+			))}
+		</div>
+	);
+}
 
 // Memoized with id-parameterized callbacks: during streaming only the message
 // object that received a delta changes identity, so all other bubbles skip
@@ -45,6 +175,7 @@ export const MessageBubble = memo(function MessageBubble({
 	forkPending = false,
 	forkError,
 	isLastAssistantMessage = false,
+	followsWorkingRows = false,
 	reasoningContent,
 	reasoningRedacted,
 	thoughtDurationMilliseconds,
@@ -76,6 +207,9 @@ export const MessageBubble = memo(function MessageBubble({
 	forkPending?: boolean;
 	forkError?: string;
 	isLastAssistantMessage?: boolean;
+	/** Pulls the bubble closer to the working rows (tool calls/run summary)
+	 * directly above it, which it answers. */
+	followsWorkingRows?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
 	thoughtDurationMilliseconds?: number;
@@ -126,10 +260,19 @@ export const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
-	// Spacing between blocks comes solely from the conversation list's `gap-2`
-	// and this content column's `gap-2`; blocks must not add their own margins.
+	// Spacing between blocks comes from the conversation list's `gap-4` and
+	// this content column's `gap-2`, with two exceptions: a user message opens
+	// a new turn so it adds top margin, and an answer under its run's working
+	// rows pulls itself closer to them.
 	return (
-		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+		<AgentMessage
+			className={cn(
+				"relative flex flex-col gap-2",
+				isUser && "mt-4 first:mt-0",
+				followsWorkingRows && "-mt-2",
+			)}
+			from={agentRole}
+		>
 			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock
@@ -141,25 +284,14 @@ export const MessageBubble = memo(function MessageBubble({
 				) : null}
 
 				{message.images?.length ? (
-					<div className="grid max-w-2xl gap-2">
-						{message.images.map((image, index) => (
-							<button
-								aria-label={`Expand attachment ${index + 1}`}
-								className="cursor-zoom-in overflow-hidden rounded-lg border border-border bg-muted text-left transition-opacity hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-								key={image.id}
-								onClick={() => onExpandImage?.(image)}
-								type="button"
-							>
-								{/* biome-ignore lint/performance/noImgElement: User-provided data URLs do not have dimensions and cannot use Next's optimizer. */}
-								<img
-									alt={`Attachment ${index + 1}`}
-									className="max-h-56.25 max-w-56.25 object-contain"
-									src={`data:${image.mediaType};base64,${image.data}`}
-								/>
-							</button>
-						))}
-					</div>
+					<MessageImages
+						images={message.images}
+						isUser={isUser}
+						onExpandImage={onExpandImage}
+					/>
 				) : null}
+
+				{message.media?.length ? <MessageMedia media={message.media} /> : null}
 
 				{displayContent ? (
 					<div className="min-w-0 max-w-full wrap-break-word">
@@ -173,13 +305,9 @@ export const MessageBubble = memo(function MessageBubble({
 
 			{shouldRenderUserActions ? (
 				<>
-					<MessageActions
-						className="absolute right-0 top-full z-10 pt-2"
-						visible={keepUserActionsVisible}
-					>
+					<MessageActions side="end" visible={keepUserActionsVisible}>
 						{onCopyMessage ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								label={wasCopied ? "Copied user message" : "Copy user message"}
 								onClick={() => void onCopyMessage(message.id, message.content)}
 								title={wasCopied ? "Copied" : "Copy message"}
@@ -193,7 +321,6 @@ export const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{onEditMessage && runCount && displayContent.trim() ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={editDisabled || editPending}
 								label="Edit user message"
 								onClick={() =>
@@ -210,7 +337,6 @@ export const MessageBubble = memo(function MessageBubble({
 						) : null}
 						{checkpoint ? (
 							<MessageAction
-								className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 								disabled={restoreDisabled || restorePending}
 								label="Restore checkpoint"
 								onClick={() =>
@@ -241,13 +367,9 @@ export const MessageBubble = memo(function MessageBubble({
 			) : null}
 
 			{shouldRenderAssistantActions ? (
-				<MessageActions
-					className="absolute left-0 top-full z-10 pt-2"
-					visible={keepAssistantActionsVisible}
-				>
+				<MessageActions side="start" visible={keepAssistantActionsVisible}>
 					{onCopyMessage ? (
 						<MessageAction
-							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							label={
 								wasCopied
 									? "Copied assistant message"
@@ -265,7 +387,6 @@ export const MessageBubble = memo(function MessageBubble({
 					) : null}
 					{onForkSession ? (
 						<MessageAction
-							className="min-w-0 p-0 text-muted-foreground/70 hover:text-foreground"
 							disabled={forkDisabled || forkPending}
 							label="Fork session"
 							onClick={() => void onForkSession(message.id)}
