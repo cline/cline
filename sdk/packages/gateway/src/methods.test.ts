@@ -31,6 +31,8 @@ describe("method registry", () => {
 		expect(mutating.sort()).toEqual(
 			[
 				"bot.delegate",
+				"gateway.drain",
+				"gateway.stop",
 				"run.abort",
 				"run.interrupt",
 				"run.start",
@@ -39,6 +41,7 @@ describe("method registry", () => {
 		);
 		expect(getMethodDefinition("gateway.hello")?.mutating).toBe(false);
 		expect(getMethodDefinition("run.subscribe")?.mutating).toBe(false);
+		expect(getMethodDefinition("run.list")?.mutating).toBe(false);
 	});
 });
 

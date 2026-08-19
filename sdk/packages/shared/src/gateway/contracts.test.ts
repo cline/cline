@@ -112,6 +112,25 @@ describe("handshake", () => {
 			).not.toThrow();
 		}
 	});
+
+	it("carries an optional per-instance auth secret (loopback auth)", () => {
+		const params = GatewayHelloParamsSchema.parse({
+			protocolVersions: [1],
+			client: { name: "cli", version: "1" },
+			auth: "a".repeat(32),
+		});
+		expect(params.auth).toBe("a".repeat(32));
+		// Short or non-URL-safe secrets are rejected at the schema.
+		for (const auth of ["short", "has spaces in it!", "x".repeat(300)]) {
+			expect(() =>
+				GatewayHelloParamsSchema.parse({
+					protocolVersions: [1],
+					client: { name: "cli", version: "1" },
+					auth,
+				}),
+			).toThrow();
+		}
+	});
 });
 
 describe("cursors", () => {

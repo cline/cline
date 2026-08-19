@@ -1,7 +1,7 @@
 {
 	"name": "@cline/gateway",
 	"version": "0.0.75",
-	"description": "Cline Gateway — protocol authority for the Gateway RFC (Phase 0 contracts; server lands in Phase 3)",
+	"description": "Cline Gateway — runtime authority for the Gateway RFC (protocol, SQLite authority, singleton lock, async runtime, lifecycle CLI)",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -18,8 +18,12 @@
 			"import": "./dist/index.js"
 		}
 	},
+	"bin": {
+		"cline-gateway": "bin/cline-gateway.mjs"
+	},
 	"files": [
-		"dist"
+		"dist",
+		"bin"
 	],
 	"license": "Apache-2.0",
 	"scripts": {

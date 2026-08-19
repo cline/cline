@@ -184,6 +184,37 @@ export class Bot {
 		// Intentionally empty — sessions and runs outlive connections.
 	}
 
+	/**
+	 * Re-admit a committed run that was still `queued` when a previous
+	 * process died (Gateway RFC, Phase 3 crash recovery). Queued runs
+	 * were acknowledged but never attempted, so executing them completes
+	 * admission — unlike abandoned attempts, which are interrupted and
+	 * never auto-resumed. Callers pass records in FIFO (admission) order.
+	 */
+	recoverQueuedRun(record: RunRecord, overrides?: TurnOverrides): void {
+		if (record.botId !== this.botId) {
+			throw new RunAdmissionError(
+				`Run ${record.runId} belongs to bot ${record.botId}, not ${this.botId}`,
+			);
+		}
+		if (record.state !== "queued") {
+			throw new RunAdmissionError(
+				`Run ${record.runId} is ${record.state}; only queued runs are recoverable`,
+			);
+		}
+		const session = this.session;
+		if (!session || session.sessionId !== record.sessionId) {
+			throw new RunAdmissionError(
+				`Run ${record.runId} does not belong to the bot's active session`,
+			);
+		}
+		if (this.queue.some((entry) => entry.runId === record.runId)) {
+			return;
+		}
+		this.queue.push({ runId: record.runId, input: record.input, overrides });
+		this.pump();
+	}
+
 	/** Close the session; it admits no further runs. */
 	closeSession(): void {
 		const session = this.session;

@@ -66,6 +66,27 @@ export type EngineEventPayload =
 	| { type: "interrupt-requested"; reason?: string }
 	| { type: "abort-requested"; reason?: string }
 	| { type: "usage-updated"; usage: AgentUsage }
+	| {
+			/**
+			 * One model call finished and reported usage. Token counts are
+			 * per-call deltas (provider-reported when available), not the
+			 * cumulative run totals carried by `usage-updated`. Emitted so
+			 * callers can meter usage without scraping transcripts.
+			 */
+			type: "model-call-completed";
+			providerId?: string;
+			modelId?: string;
+			inputTokens: number;
+			outputTokens: number;
+			totalTokens: number;
+			cacheReadTokens: number;
+			cacheWriteTokens: number;
+			/** Provider-reported cost for this call, when available. */
+			providerCost?: number;
+			/** Wall time from the pre-call checkpoint to the usage report. */
+			durationMs?: number;
+			status: "ok" | "error";
+	  }
 	| { type: "turn-finished"; iteration: number; toolCallCount: number }
 	| { type: "status"; message: string; metadata?: Record<string, unknown> }
 	| { type: "artifact-created"; name: string; mediaType?: string }

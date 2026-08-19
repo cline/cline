@@ -41,6 +41,21 @@ export const KNOWN_GATEWAY_CAPABILITIES = [
 export type KnownGatewayCapability =
 	(typeof KNOWN_GATEWAY_CAPABILITIES)[number];
 
+/**
+ * Per-instance loopback secret. The serving Gateway generates it at
+ * startup and publishes it only through the mode-0600 discovery record;
+ * clients present it in `gateway.hello`. Additive in protocol v1: a
+ * Gateway that requires auth rejects a hello without it as
+ * `unauthorized`.
+ */
+export const GatewayAuthTokenSchema = z
+	.string()
+	.min(16)
+	.max(256)
+	.regex(/^[A-Za-z0-9_-]+$/, "Auth tokens are URL-safe strings");
+
+export type GatewayAuthToken = z.infer<typeof GatewayAuthTokenSchema>;
+
 export const GatewayHelloParamsSchema = z
 	.object({
 		/** Protocol versions the client can speak, in preference order. */
@@ -54,6 +69,8 @@ export const GatewayHelloParamsSchema = z
 			})
 			.strict(),
 		capabilities: z.array(GatewayCapabilitySchema).optional(),
+		/** Loopback auth: the per-instance secret from the discovery record. */
+		auth: GatewayAuthTokenSchema.optional(),
 	})
 	.strict();
 

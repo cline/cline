@@ -26,6 +26,8 @@ const IdempotentParamsBase = z.object({
 	[IDEMPOTENCY_KEY_PARAM]: IdempotencyKeySchema,
 });
 
+const StatisticsDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+
 export interface GatewayMethodDefinition {
 	readonly method: string;
 	/** Mutating methods require an idempotency key in params. */
@@ -57,6 +59,20 @@ function define(
 export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	define(GATEWAY_HELLO_METHOD, false, GatewayHelloParamsSchema),
 	define("gateway.status", false, z.object({}).strict().optional()),
+	define(
+		"gateway.drain",
+		true,
+		IdempotentParamsBase.extend({
+			reason: z.string().optional(),
+		}).strict(),
+	),
+	define(
+		"gateway.stop",
+		true,
+		IdempotentParamsBase.extend({
+			reason: z.string().optional(),
+		}).strict(),
+	),
 	define(
 		"run.start",
 		true,
@@ -118,6 +134,63 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		"session.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	define(
+		"run.list",
+		false,
+		z
+			.object({
+				sessionId: SessionIdSchema.optional(),
+				runId: RunIdSchema.optional(),
+			})
+			.strict()
+			.optional(),
+	),
+	// Statistics read surface (bounded aggregate queries; the equivalents
+	// of GET /statistics/{summary,activity,rankings,usage} for clients).
+	define(
+		"statistics.summary",
+		false,
+		z
+			.object({
+				from: StatisticsDateSchema.optional(),
+				to: StatisticsDateSchema.optional(),
+			})
+			.strict()
+			.optional(),
+	),
+	define(
+		"statistics.activity",
+		false,
+		z
+			.object({
+				from: StatisticsDateSchema.optional(),
+				to: StatisticsDateSchema.optional(),
+			})
+			.strict()
+			.optional(),
+	),
+	define(
+		"statistics.rankings",
+		false,
+		z
+			.object({
+				dimension: z.enum(["model", "agent", "topic"]),
+				from: StatisticsDateSchema.optional(),
+				to: StatisticsDateSchema.optional(),
+				limit: z.number().int().min(1).max(100).optional(),
+			})
+			.strict(),
+	),
+	define(
+		"statistics.usage",
+		false,
+		z
+			.object({
+				/** Calendar month, e.g. `2026-08`. */
+				month: z.string().regex(/^\d{4}-\d{2}$/),
+			})
+			.strict(),
 	),
 ];
 
