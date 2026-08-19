@@ -18,6 +18,11 @@ Open `http://127.0.0.1:4174`, enter the Gateway WebSocket address and the
 `remote-access` token provisioned on that Gateway. Browsers require `wss://`
 when this app is served over HTTPS.
 
+The token field may be left blank when `VITE_CLINE_GATEWAY_TOKEN` was set while
+building or starting the web client. Vite embeds `VITE_*` values in client-side
+JavaScript, so use this fallback only for a private build; public deployments
+should require the user to enter the token at connection time.
+
 Build static assets with:
 
 ```sh

@@ -30,6 +30,8 @@ interface Approval extends GatewayServerRequest {
 }
 
 type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
+const RUN_PROVIDER_ID = "cline";
+const DEFAULT_MODEL_ID = "grok-5.4";
 
 const connectionStages: Array<{
 	id: Exclude<ConnectionStage, "idle">;
@@ -42,6 +44,7 @@ const connectionStages: Array<{
 
 const savedUrl =
 	localStorage.getItem("cline.gateway.url") ?? "ws://127.0.0.1:8080";
+const environmentToken = import.meta.env.VITE_CLINE_GATEWAY_TOKEN?.trim() ?? "";
 export function App() {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
 	const [url, setUrl] = useState(savedUrl);
@@ -50,6 +53,7 @@ export function App() {
 	const [status, setStatus] = useState<
 		"disconnected" | "connecting" | "connected"
 	>("disconnected");
+	const [hasConnected, setHasConnected] = useState(false);
 	const [connectionStage, setConnectionStage] =
 		useState<ConnectionStage>("idle");
 	const [error, setError] = useState("");
@@ -61,6 +65,7 @@ export function App() {
 	const [events, setEvents] = useState<GatewayEvent[]>([]);
 	const [approvals, setApprovals] = useState<Approval[]>([]);
 	const [prompt, setPrompt] = useState("");
+	const [modelId, setModelId] = useState("");
 	const [sending, setSending] = useState(false);
 	const [steerMode, setSteerMode] = useState(false);
 
@@ -87,8 +92,8 @@ export function App() {
 
 	useEffect(() => () => clientRef.current?.close(), []);
 
-	async function connect(event: FormEvent) {
-		event.preventDefault();
+	async function connect(event?: FormEvent) {
+		event?.preventDefault();
 		setStatus("connecting");
 		setConnectionStage("opening");
 		setError("");
@@ -96,7 +101,7 @@ export function App() {
 		try {
 			const client = await BrowserGatewayClient.connect({
 				url,
-				auth: token,
+				auth: token.trim() || environmentToken,
 				clientId: localStorage.getItem("cline.gateway.clientId") ?? undefined,
 				allowInsecure,
 			});
@@ -116,16 +121,18 @@ export function App() {
 						: [...current, request],
 				),
 			);
-			client.onClose((reason) => {
+			client.onClose(() => {
 				if (clientRef.current === client) {
+					clientRef.current = undefined;
 					setStatus("disconnected");
-					setError(reason);
+					setError("");
 				}
 			});
 			await client.request("run.subscribe", { cursor: initialEventCursor() });
 			setConnectionStage("syncing");
 			await refresh(client);
 			setStatus("connected");
+			setHasConnected(true);
 			setConnectionStage("idle");
 		} catch (cause) {
 			setStatus("disconnected");
@@ -159,11 +166,25 @@ export function App() {
 		);
 	}, [selectedBotId, sessions]);
 
+	useEffect(() => {
+		if (!selectedBotId) {
+			setModelId("");
+			return;
+		}
+		const savedModel = localStorage.getItem(modelStorageKey(selectedBotId));
+		setModelId(savedModel?.trim() || DEFAULT_MODEL_ID);
+	}, [selectedBotId, selectedBot?.config.modelId]);
+
 	async function submit(event: FormEvent) {
 		event.preventDefault();
 		const client = clientRef.current;
 		const text = prompt.trim();
+		const selectedModelId = modelId.trim();
 		if (!client || !text || !selectedBotId) return;
+		if (!steerMode && !selectedModelId) {
+			setError("Enter a model ID before starting a run");
+			return;
+		}
 		setSending(true);
 		setError("");
 		try {
@@ -173,6 +194,10 @@ export function App() {
 				const accepted = (await client.mutate("run.start", {
 					botId: selectedBotId,
 					prompt: text,
+					overrides: {
+						providerId: RUN_PROVIDER_ID,
+						modelId: selectedModelId,
+					},
 				})) as { runId: string };
 				await client.request("run.subscribe", { runId: accepted.runId });
 			}
@@ -214,27 +239,15 @@ export function App() {
 		);
 	}
 
-	if (status !== "connected") {
+	if (!hasConnected) {
 		return (
 			<main className="connect-shell">
 				<div className="connect-aurora" aria-hidden="true" />
 				<div className="connect-grain" aria-hidden="true" />
 				<section className="connect-card" aria-busy={status === "connecting"}>
-					<header className="connect-brand">
-						<span className="brand-signal" aria-hidden="true">
-							<i />
-						</span>
-						CLINE GATEWAY
-					</header>
 					<div className="connect-copy">
-						<h1>
-							Talk to your bots
-							<br />
-							from anywhere.
-						</h1>
-						<p className="lede">
-							Connect directly. Your access token is never stored.
-						</p>
+						<h1>Cline Gateway</h1>
+						<p className="lede">Connect you to your Cline Bots anywhere</p>
 					</div>
 					<form onSubmit={connect} className="connect-form">
 						<label>
@@ -247,14 +260,19 @@ export function App() {
 							/>
 						</label>
 						<label>
-							Remote access token
+							<span className="field-title">
+								Remote access token <span className="optional">Optional</span>
+							</span>
 							<input
 								value={token}
 								onChange={(e) => setToken(e.target.value)}
 								type="password"
 								autoComplete="off"
-								placeholder="Paste token"
-								required
+								placeholder={
+									environmentToken
+										? "Using VITE_CLINE_GATEWAY_TOKEN"
+										: "Paste token or configure environment"
+								}
 							/>
 						</label>
 						<label className="check">
@@ -319,17 +337,30 @@ export function App() {
 	}
 
 	return (
-		<div className="app-shell">
+		<div className={`app-shell ${status}`}>
 			<aside className="sidebar">
 				<header>
-					<div className="brand-mark small">C</div>
-					<div>
-						<strong>Cline</strong>
-						<span>Remote Gateway</span>
-					</div>
+					<img src="/favicon.png" alt="" />
+					<strong>Gateway</strong>
 				</header>
-				<div className="gateway-pill">
-					<i /> Connected <span>{shortId(gatewayName)}</span>
+				<div className={`gateway-pill ${status}`}>
+					<i />{" "}
+					{status === "connected"
+						? "Connected"
+						: status === "connecting"
+							? "Connecting"
+							: "Disconnected"}
+					{status === "connected" ? (
+						<span>{shortId(gatewayName)}</span>
+					) : (
+						<button
+							type="button"
+							onClick={() => void connect()}
+							disabled={status === "connecting"}
+						>
+							{status === "connecting" ? "Connecting…" : "Reconnect"}
+						</button>
+					)}
 				</div>
 				<div className="section-label">
 					Bots{" "}
@@ -345,15 +376,7 @@ export function App() {
 							className={selectedBotId === bot.identity.botId ? "selected" : ""}
 							onClick={() => setSelectedBotId(bot.identity.botId)}
 						>
-							<span className={`avatar ${bot.identity.role}`}>
-								{bot.identity.name.slice(0, 1).toUpperCase()}
-							</span>
-							<span>
-								<strong>{bot.identity.name}</strong>
-								<small>
-									{bot.identity.role} · {bot.config.modelId ?? "default model"}
-								</small>
-							</span>
+							<strong>{bot.identity.name}</strong>
 							<i />
 						</button>
 					))}
@@ -393,12 +416,22 @@ export function App() {
 
 			<main className="conversation">
 				<header className="conversation-header">
-					<div>
-						<h2>{selectedBot?.identity.name ?? "Select a bot"}</h2>
-						<p>
-							{selectedBot?.config.providerId ?? "default provider"} /{" "}
-							{selectedBot?.config.modelId ?? "default model"}
-						</p>
+					<div className="conversation-identity">
+						<label className="model-selector">
+							<span>{RUN_PROVIDER_ID} /</span>
+							<input
+								aria-label="Model ID"
+								value={modelId}
+								onChange={(event) => {
+									const value = event.target.value;
+									setModelId(value);
+									if (selectedBotId)
+										localStorage.setItem(modelStorageKey(selectedBotId), value);
+								}}
+								placeholder="Enter model ID"
+								autoComplete="off"
+							/>
+						</label>
 					</div>
 					<div className="run-actions">
 						{activeRun && (
@@ -427,9 +460,8 @@ export function App() {
 				<div className="timeline">
 					{visibleEvents.length === 0 ? (
 						<div className="empty">
-							<div className="orb">C</div>
 							<h3>Start a conversation</h3>
-							<p>This bot’s work will stream here as durable Gateway events.</p>
+							<p>Send a message to begin.</p>
 						</div>
 					) : (
 						<EventTimeline events={visibleEvents} />
@@ -486,16 +518,23 @@ export function App() {
 							}
 						}}
 						placeholder={
-							steerMode
-								? "Add direction to the current run…"
-								: "Ask Cline to do something…"
+							status !== "connected"
+								? "Reconnect to continue…"
+								: steerMode
+									? "Add direction to the current run…"
+									: "Ask Cline to do something…"
 						}
 						rows={3}
 					/>
 					<button
 						type="submit"
 						className="send"
-						disabled={sending || !prompt.trim()}
+						disabled={
+							status !== "connected" ||
+							sending ||
+							!prompt.trim() ||
+							(!steerMode && !modelId.trim())
+						}
 					>
 						{sending ? "…" : "↑"}
 					</button>
@@ -514,53 +553,99 @@ export function App() {
 }
 
 function EventTimeline({ events }: { events: GatewayEvent[] }) {
+	const items = projectTimeline(events);
 	return (
 		<>
-			{events.map((event) => {
-				const message = event.payload?.message as
-					| { role?: string; content?: unknown }
-					| undefined;
-				if (event.event === "run.messageAppended" && message)
+			{items.map((item) => {
+				if (item.kind === "message")
 					return (
-						<article
-							className={`message ${message.role ?? "assistant"}`}
-							key={event.sequence}
-						>
-							<div className="message-role">{message.role ?? "assistant"}</div>
-							<div>{messageText(message.content)}</div>
+						<article className={`message ${item.role}`} key={item.key}>
+							<div className="message-role">{item.role}</div>
+							<div>{item.text}</div>
 						</article>
 					);
-				if (event.event === "engine.textDelta")
+				if (item.kind === "stream")
 					return (
-						<article className="message assistant delta" key={event.sequence}>
+						<article className="message assistant delta" key={item.key}>
 							<div className="message-role">assistant</div>
-							<div>{String(event.payload?.text ?? "")}</div>
+							<div>{item.text}</div>
 						</article>
 					);
-				if (
-					event.event.startsWith("engine.tool") ||
-					event.event.includes("Tool")
-				)
+				if (item.kind === "tool")
 					return (
-						<details className="event-card" key={event.sequence}>
-							<summary>{event.event}</summary>
-							<pre>{JSON.stringify(event.payload, null, 2)}</pre>
+						<details className="event-card" key={item.key}>
+							<summary>{item.label}</summary>
+							<pre>{JSON.stringify(item.payload, null, 2)}</pre>
 						</details>
 					);
-				if (event.event.startsWith("run."))
+				if (item.kind === "failure")
 					return (
-						<div className={`run-event ${event.event}`} key={event.sequence}>
-							<span>{event.event.replace("run.", "")}</span>
-							<code>{shortId(event.scope.runId ?? "")}</code>
-							{event.payload?.outputText ? (
-								<p>{String(event.payload.outputText)}</p>
-							) : null}
-						</div>
+						<details className="failure-card" key={item.key}>
+							<summary>Run failed</summary>
+							<p>{item.message}</p>
+						</details>
 					);
-				return null;
 			})}
 		</>
 	);
+}
+
+type TimelineItem =
+	| { kind: "message"; key: string; role: string; text: string }
+	| { kind: "stream"; key: string; runId: string; text: string }
+	| { kind: "tool"; key: string; label: string; payload: unknown }
+	| { kind: "failure"; key: string; message: string };
+
+function projectTimeline(events: GatewayEvent[]): TimelineItem[] {
+	const items: TimelineItem[] = [];
+	for (const event of events) {
+		const key = String(event.sequence);
+		const runId = event.scope.runId ?? "";
+		const message = event.payload?.message as
+			| { role?: string; content?: unknown }
+			| undefined;
+		if (event.event === "run.messageAppended" && message) {
+			const role = message.role ?? "assistant";
+			if (role === "assistant") {
+				const trailing = items.at(-1);
+				if (trailing?.kind === "stream" && trailing.runId === runId)
+					items.pop();
+			}
+			items.push({
+				kind: "message",
+				key,
+				role,
+				text: messageText(message.content),
+			});
+			continue;
+		}
+		if (event.event === "engine.textDelta") {
+			const text = String(event.payload?.text ?? "");
+			const trailing = items.at(-1);
+			if (trailing?.kind === "stream" && trailing.runId === runId)
+				trailing.text += text;
+			else items.push({ kind: "stream", key, runId, text });
+			continue;
+		}
+		if (event.event.startsWith("engine.tool") || event.event.includes("Tool")) {
+			items.push({
+				kind: "tool",
+				key,
+				label: event.event.replace(/^engine\./, ""),
+				payload: event.payload,
+			});
+			continue;
+		}
+		if (event.event === "run.failed") {
+			const error = event.payload?.error as { message?: string } | undefined;
+			items.push({
+				kind: "failure",
+				key,
+				message: error?.message ?? "The run did not complete.",
+			});
+		}
+	}
+	return items;
 }
 
 function messageText(content: unknown): string {
@@ -608,6 +693,9 @@ function mergeEvent(current: GatewayEvent[], incoming: GatewayEvent) {
 
 function shortId(value: string) {
 	return value.length > 14 ? `${value.slice(0, 8)}…${value.slice(-4)}` : value;
+}
+function modelStorageKey(botId: string) {
+	return `cline.gateway.bot.${botId}.modelId`;
 }
 function messageOf(cause: unknown) {
 	return cause instanceof Error ? cause.message : String(cause);
