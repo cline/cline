@@ -188,16 +188,17 @@ function ChatMessagesImpl({
 		expandedImage?.sessionId === sessionId ? expandedImage.image : null;
 	const showIdleDetails =
 		!hasMessages && !isSessionSwitching && !showSwitchTransition;
-	// The live run keeps rendering its rows while the session is active; only
-	// once the agent settles does its work fold into a summary row.
-	const sessionActive =
-		status === "starting" || status === "running" || status === "stopping";
+	// The live run keeps rendering its rows while the session is active, and an
+	// interrupted run (cancelled/failed/error) keeps them too — even when Stop
+	// landed mid-answer and left partial trailing text — so the user can see
+	// where it stopped. Only a run the agent finished folds into a summary row.
+	const collapseTrailingRun = status === "completed" || status === "idle";
 	const renderItems = useMemo(
 		() =>
 			collapseCompletedWork(groupChatMessages(messages), {
-				collapseTrailingRun: !sessionActive,
+				collapseTrailingRun,
 			}),
-		[messages, sessionActive],
+		[messages, collapseTrailingRun],
 	);
 	// Mid-run the thinking indicator's replacement (the next tool or thinking
 	// row) joins the tight run group, so the indicator must sit at that same
