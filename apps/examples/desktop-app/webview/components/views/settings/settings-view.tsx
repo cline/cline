@@ -106,6 +106,15 @@ type GlobalSettingsResponse = {
 
 const PROVIDER_CATALOG_CACHE_TTL_MS = 60_000;
 
+export function isProviderCatalogFresh(
+	fetchedAt: number | undefined,
+	now = Date.now(),
+): boolean {
+	return (
+		fetchedAt !== undefined && now - fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+	);
+}
+
 let providerCatalogCache: {
 	providers: Provider[];
 	mediaGenerationModels: MediaGenerationModelCatalog;
@@ -149,7 +158,7 @@ export function SettingsView({
 		() => providerCatalogCache?.providers ?? [],
 	);
 	const [providersLoading, setProvidersLoading] = useState(
-		() => !providerCatalogCache,
+		() => !isProviderCatalogFresh(providerCatalogCache?.fetchedAt),
 	);
 	const [providerCatalogError, setProviderCatalogError] = useState<
 		string | null
@@ -239,7 +248,7 @@ export function SettingsView({
 		const now = Date.now();
 		if (
 			providerCatalogCache &&
-			now - providerCatalogCache.fetchedAt < PROVIDER_CATALOG_CACHE_TTL_MS
+			isProviderCatalogFresh(providerCatalogCache.fetchedAt, now)
 		) {
 			setProviders(providerCatalogCache.providers);
 			setModeSettings(modeSettingsCache);
