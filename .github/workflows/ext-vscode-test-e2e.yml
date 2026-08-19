@@ -80,8 +80,9 @@ jobs:
                 include: ${{ fromJson(needs.matrix_prep.outputs.matrix) }}
         runs-on: ${{ matrix.runner }}-latest
         timeout-minutes: 20
+        # Nothing in this job uses OIDC, so it does not need an id-token
+        # permission.
         permissions:
-            id-token: write
             contents: read
         defaults:
             run:
@@ -93,6 +94,9 @@ jobs:
               with:
                   bun-version: 1.3.14
 
+            # Cache keys below are exact-match only (no restore-keys prefix
+            # fallbacks); a miss just means a cold install, which is acceptable.
+
             # Cache Bun's global install cache - keyed on the authoritative root bun.lock.
             - name: Cache Bun install cache
               uses: actions/cache@v4
@@ -100,8 +104,6 @@ jobs:
               with:
                   path: ~/.bun/install/cache
                   key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      ${{ runner.os }}-bun-
 
             # Cache VS Code installation
             - name: Cache VS Code
@@ -110,8 +112,6 @@ jobs:
               with:
                   path: apps/vscode/.vscode-test
                   key: vscode-${{ runner.os }}-stable-${{ hashFiles('apps/vscode/.vscode-test.mjs', 'apps/vscode/package.json') }}
-                  restore-keys: |
-                      vscode-${{ runner.os }}-stable-
 
             # Cache Playwright browsers
             - name: Cache Playwright browsers
@@ -123,8 +123,6 @@ jobs:
                       ~/Library/Caches/ms-playwright
                       ~/AppData/Local/ms-playwright
                   key: playwright-browsers-${{ runner.os }}-${{ hashFiles('bun.lock') }}
-                  restore-keys: |
-                      playwright-browsers-${{ runner.os }}-
 
             # Single root install resolves the entire bun workspace at once (replaces
             # the per-package `npm ci` steps for apps/vscode + webview-ui).
