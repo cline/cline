@@ -116,9 +116,7 @@ describe("SdkTaskControlCoordinator", () => {
 
 		expect(options.clearTaskSettings).toHaveBeenCalledOnce()
 		// The overlay must be gone before the new proxy is installed.
-		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(
-			options.setTask.mock.invocationCallOrder[0],
-		)
+		expect(options.clearTaskSettings.mock.invocationCallOrder[0]).toBeLessThan(options.setTask.mock.invocationCallOrder[0])
 	})
 
 	it("shows a task by creating a proxy, loading messages, and appending a fresh resume ask", async () => {

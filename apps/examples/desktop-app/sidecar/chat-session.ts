@@ -974,6 +974,12 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
+			// subscription. Stop projecting the observer stream as well or every
+			// assistant/tool update (including command chunks) is emitted twice.
+			session.attachedViaHub = false;
+		}
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;

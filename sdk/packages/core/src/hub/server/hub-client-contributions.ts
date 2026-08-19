@@ -224,7 +224,9 @@ function serializeToolContext(
 		sessionId: context.sessionId,
 		agentId: context.agentId,
 		conversationId: context.conversationId,
+		runId: context.runId,
 		iteration: context.iteration,
+		toolCallId: context.toolCallId,
 		metadata:
 			metadata && Object.keys(metadata).length > 0 ? metadata : undefined,
 	};
@@ -461,6 +463,11 @@ function createToolExecutorProxy(
 					context: serializeToolContext(context),
 				},
 				targetClientId,
+				context.emitUpdate
+					? (payload) => {
+							context.emitUpdate?.(asToolUpdate(payload));
+						}
+					: undefined,
 			);
 			return response?.result;
 		},

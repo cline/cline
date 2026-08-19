@@ -752,6 +752,25 @@ export function handleHubLiveEvent(
 			);
 			return;
 		}
+		case "tool.updated": {
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_update",
+				JSON.stringify({
+					toolCallId:
+						typeof event.payload?.toolCallId === "string"
+							? event.payload.toolCallId
+							: undefined,
+					toolName:
+						typeof event.payload?.toolName === "string"
+							? event.payload.toolName
+							: "tool",
+					update: event.payload?.update,
+				}),
+			);
+			return;
+		}
 		case "tool.finished": {
 			emitChunk(
 				ctx,

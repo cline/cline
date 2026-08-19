@@ -157,6 +157,59 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
+	it("reconstructs tool content updates from hub events", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		const events: unknown[] = [];
+		host.subscribe((event) => events.push(event));
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "tool.updated",
+			sessionId: "sess-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live output\n" },
+			},
+		});
+
+		expect(events).toContainEqual({
+			type: "agent_event",
+			payload: {
+				sessionId: "sess-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "live output\n" },
+				},
+			},
+		});
+	});
+
 	it("uses the hub-resolved workspace in the manifest for a pathless start", async () => {
 		subscribeMock.mockReturnValue(() => {});
 		const resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
