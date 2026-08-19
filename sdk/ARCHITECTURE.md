@@ -132,8 +132,12 @@ the lead session, and the local host routes its batched output into that
 session's pending-prompt queue so output can steer the next agent iteration.
 Plan mode does not expose monitors because their background shell commands
 cannot use the synchronous read-only command guard. While a POSIX monitor runs,
-the registry records descendant PID generations (PID plus process start time),
-which keeps detached children owned even if their direct shell exits. During
+the registry records descendant PID generations — PID plus start time, process
+group, and command; on Linux the start time is the kernel's tick-resolution
+`starttime` counter read from `/proc`, so a reused PID cannot present the same
+generation — which keeps detached children owned even if their direct shell
+exits. Any identity mismatch disowns the process (a bounded leak) rather than
+misattributing it (a stray kill of unrelated work). During
 session shutdown it revalidates those identities, sends `SIGTERM` to the
 original and escaped process groups, waits for the owned tree to exit, and
 escalates to `SIGKILL` before releasing its process handles. Revalidation keeps

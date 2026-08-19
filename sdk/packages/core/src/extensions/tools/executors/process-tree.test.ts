@@ -3,15 +3,16 @@ import {
 	getLiveOwnedProcesses,
 	observeOwnedProcessTree,
 	parseProcessTable,
+	parseProcStat,
 } from "./process-tree";
 
 describe("process tree ownership", () => {
 	it("tracks descendants across process groups", () => {
 		const table = parseProcessTable(`
-10 1 10 Mon Aug 17 18:00:00 2026
-11 10 10 Mon Aug 17 18:00:01 2026
-12 11 12 Mon Aug 17 18:00:02 2026
-99 1 99 Mon Aug 17 18:00:03 2026
+10 1 10 Mon Aug 17 18:00:00 2026 sh -c watch.sh
+11 10 10 Mon Aug 17 18:00:01 2026 tail -F app.log
+12 11 12 Mon Aug 17 18:00:02 2026 grep error
+99 1 99 Mon Aug 17 18:00:03 2026 unrelated
 `);
 		const owned = new Map<number, string>();
 
@@ -24,22 +25,57 @@ describe("process tree ownership", () => {
 	});
 
 	it("rejects a reused PID with a different process start time", () => {
-		const original = parseProcessTable("42 1 42 Mon Aug 17 18:00:00 2026");
+		const original = parseProcessTable(
+			"42 1 42 Mon Aug 17 18:00:00 2026 tail -F app.log",
+		);
 		const owned = new Map<number, string>();
 		observeOwnedProcessTree(owned, [42], original);
 
-		const reused = parseProcessTable("42 1 42 Mon Aug 17 18:00:01 2026");
+		const reused = parseProcessTable(
+			"42 1 42 Mon Aug 17 18:00:01 2026 tail -F app.log",
+		);
 		expect(getLiveOwnedProcesses(owned, reused)).toEqual([]);
 	});
 });
 
+describe("ps table parsing", () => {
+	it("captures the full command, including a space-padded day", () => {
+		// `lstart` under LC_ALL=C pads a one-digit day with a second space, which
+		// must not shift the command boundary.
+		const table = parseProcessTable(
+			"  7   1   7 Fri Aug  8 09:05:00 2026 node --watch server.js --port 3000",
+		);
+		const info = table.byPid.get(7);
+		expect(info?.startedAt).toBe("Fri Aug 8 09:05:00 2026");
+		expect(info?.command).toBe("node --watch server.js --port 3000");
+	});
+
+	it("drops every row of a duplicated pid", () => {
+		// `ps` output is line-structured while argv is arbitrary text, so a
+		// process can embed a newline and forge what parses as a row for a live
+		// pid. The forgery necessarily duplicates the real row, so both are
+		// poisoned: the pid is disowned (bounded leak) rather than letting a
+		// forged generation be matched and signaled (stray kill).
+		const table = parseProcessTable(
+			[
+				"  50   1  50 Mon Aug 18 10:00:00 2026 tail -F app.log",
+				"  50   1  50 Mon Aug 18 10:00:00 2026 forged-duplicate",
+				"  60   1  60 Mon Aug 18 10:00:01 2026 legitimate",
+			].join("\n"),
+		);
+		expect(table.byPid.has(50)).toBe(false);
+		expect(table.byPid.get(60)?.command).toBe("legitimate");
+		expect(table.childrenByParent.get(1)?.map(({ pid }) => pid)).toEqual([60]);
+	});
+});
+
 describe("same-second pid reuse", () => {
-	it("does not accept a replacement that reuses the pid within the second", () => {
+	it("does not accept a replacement in a different process group", () => {
 		// `ps lstart` resolves only to the second, so a pid reused inside the
 		// same second presents an identical start time. Start time alone would
 		// accept it and teardown would signal an unrelated process.
 		const original = parseProcessTable(
-			"  400   300   400 Mon Aug 18 10:00:00 2026",
+			"  400   300   400 Mon Aug 18 10:00:00 2026 tail -F app.log",
 		);
 		const owned = new Map<number, string>();
 		observeOwnedProcessTree(owned, [400], original);
@@ -47,14 +83,29 @@ describe("same-second pid reuse", () => {
 
 		// Same pid, same second, different process group: a different process.
 		const replacement = parseProcessTable(
-			"  400   999   777 Mon Aug 18 10:00:00 2026",
+			"  400   999   777 Mon Aug 18 10:00:00 2026 tail -F app.log",
+		);
+		expect(getLiveOwnedProcesses(owned, replacement)).toEqual([]);
+	});
+
+	it("does not accept a same-second, same-group replacement running another command", () => {
+		const original = parseProcessTable(
+			"  400   300   400 Mon Aug 18 10:00:00 2026 tail -F app.log",
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [400], original);
+
+		// Same pid, same second, same group — the command is the discriminator
+		// that still separates the generations on `ps` platforms.
+		const replacement = parseProcessTable(
+			"  400   300   400 Mon Aug 18 10:00:00 2026 make deploy",
 		);
 		expect(getLiveOwnedProcesses(owned, replacement)).toEqual([]);
 	});
 
 	it("still recognizes the original process across snapshots", () => {
 		const table = parseProcessTable(
-			"  400   300   400 Mon Aug 18 10:00:00 2026",
+			"  400   300   400 Mon Aug 18 10:00:00 2026 tail -F app.log",
 		);
 		const owned = new Map<number, string>();
 		observeOwnedProcessTree(owned, [400], table);
@@ -62,7 +113,7 @@ describe("same-second pid reuse", () => {
 		// Reparenting to init changes the parent pid but not the identity, which
 		// is the case ownership tracking exists to follow.
 		const reparented = parseProcessTable(
-			"  400     1   400 Mon Aug 18 10:00:00 2026",
+			"  400     1   400 Mon Aug 18 10:00:00 2026 tail -F app.log",
 		);
 		expect(getLiveOwnedProcesses(owned, reparented).map((p) => p.pid)).toEqual([
 			400,
@@ -70,16 +121,78 @@ describe("same-second pid reuse", () => {
 	});
 });
 
+describe("procfs stat parsing", () => {
+	it("parses pid, parent, group, and tick-resolution start time", () => {
+		const info = parseProcStat(
+			"1234 (tail) S 300 400 400 34816 1234 4194304 171 0 0 0 0 0 0 0 20 0 1 0 987654321 4321 100",
+		);
+		expect(info).toMatchObject({
+			pid: 1234,
+			parentPid: 300,
+			processGroupId: 400,
+			startedAt: "boot-ticks:987654321",
+			command: "tail",
+		});
+	});
+
+	it("is not confused by a comm containing spaces, parens, or digits", () => {
+		// comm is attacker-controlled (prctl PR_SET_NAME) and may contain
+		// anything; fields are located from the last closing parenthesis, a
+		// boundary the process cannot move.
+		const info = parseProcStat(
+			"77 (a) R 1 1 1 (b) S 55 66 77 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 111 0 0",
+		);
+		expect(info?.pid).toBe(77);
+		expect(info?.command).toBe("a) R 1 1 1 (b");
+		expect(info?.parentPid).toBe(55);
+		expect(info?.processGroupId).toBe(66);
+		expect(info?.startedAt).toBe("boot-ticks:111");
+	});
+
+	it("rejects malformed stat content", () => {
+		expect(parseProcStat("")).toBeUndefined();
+		expect(parseProcStat("1234 (tail) S 300")).toBeUndefined();
+		expect(parseProcStat("garbage")).toBeUndefined();
+	});
+
+	it("rejects a same-second pid reuse via the tick counter", () => {
+		// On Linux the start time is clock ticks since boot: a reused pid takes
+		// a later tick even when both generations start within the same
+		// wall-clock second, so same-second reuse cannot pass validation.
+		const first = parseProcStat(
+			"400 (tail) S 300 400 400 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 500000 0 0",
+		);
+		const second = parseProcStat(
+			"400 (tail) S 300 400 400 0 0 0 0 0 0 0 0 0 0 0 20 0 1 0 500003 0 0",
+		);
+		if (!first || !second) throw new Error("stat fixtures failed to parse");
+
+		const owned = new Map<number, string>();
+		const table = {
+			byPid: new Map([[400, first]]),
+			childrenByParent: new Map(),
+		};
+		observeOwnedProcessTree(owned, [400], table);
+
+		const reused = {
+			byPid: new Map([[400, second]]),
+			childrenByParent: new Map(),
+		};
+		expect(getLiveOwnedProcesses(owned, reused)).toEqual([]);
+	});
+});
+
 describe("observeOwnedProcessTree process-group roots", () => {
-	// pid ppid pgid lstart
+	// pid ppid pgid lstart command
 	const table = parseProcessTable(
 		[
-			"  100     1   100 Mon Aug 18 10:00:00 2026",
-			"  101   100   100 Mon Aug 18 10:00:01 2026",
-			"  102     1   100 Mon Aug 18 10:00:02 2026",
-			"  200     1   200 Mon Aug 18 10:00:03 2026",
+			"  100     1   100 Mon Aug 18 10:00:00 2026 sh -c watch.sh",
+			"  101   100   100 Mon Aug 18 10:00:01 2026 tail -F app.log",
+			"  102     1   100 Mon Aug 18 10:00:02 2026 grep error",
+			"  200     1   200 Mon Aug 18 10:00:03 2026 unrelated",
 		].join("\n"),
 	);
+	const leaderIdentity = "Mon Aug 18 10:00:00 2026|100|sh -c watch.sh";
 
 	it("adopts no new group members once the leader is gone", () => {
 		const owned = new Map<number, string>();
@@ -88,12 +201,12 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		// exit, leaving a live foreign group whose leader is also absent.
 		const orphaned = parseProcessTable(
 			[
-				"  101     1   100 Mon Aug 18 10:00:01 2026",
-				"  102     1   100 Mon Aug 18 10:00:02 2026",
+				"  101     1   100 Mon Aug 18 10:00:01 2026 tail -F app.log",
+				"  102     1   100 Mon Aug 18 10:00:02 2026 grep error",
 			].join("\n"),
 		);
 		observeOwnedProcessTree(owned, [100], orphaned, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
+			{ processGroupId: 100, leaderIdentity },
 		]);
 
 		expect(owned.size).toBe(0);
@@ -103,7 +216,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		const owned = new Map<number, string>();
 		// Observed once while the leader was alive and provable...
 		observeOwnedProcessTree(owned, [100], table, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
+			{ processGroupId: 100, leaderIdentity },
 		]);
 		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
 
@@ -111,13 +224,13 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		// which is what teardown actually relies on.
 		const afterLeaderDeath = parseProcessTable(
 			[
-				"  101     1   100 Mon Aug 18 10:00:01 2026",
-				"  102     1   100 Mon Aug 18 10:00:02 2026",
-				"  200     1   200 Mon Aug 18 10:00:03 2026",
+				"  101     1   100 Mon Aug 18 10:00:01 2026 tail -F app.log",
+				"  102     1   100 Mon Aug 18 10:00:02 2026 grep error",
+				"  200     1   200 Mon Aug 18 10:00:03 2026 unrelated",
 			].join("\n"),
 		);
 		observeOwnedProcessTree(owned, [], afterLeaderDeath, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
+			{ processGroupId: 100, leaderIdentity },
 		]);
 		expect(owned.has(101)).toBe(true);
 		expect(owned.has(102)).toBe(true);
@@ -131,10 +244,10 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		// reused by a group leader that spawned 301 and then exited, so group 100
 		// is live and foreign while its own leader is absent.
 		const reusedThenOrphaned = parseProcessTable(
-			"  301     1   100 Tue Aug 19 04:00:00 2026",
+			"  301     1   100 Tue Aug 19 04:00:00 2026 foreign-work",
 		);
 		observeOwnedProcessTree(owned, [100], reusedThenOrphaned, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
+			{ processGroupId: 100, leaderIdentity },
 		]);
 		expect(owned.size).toBe(0);
 	});
@@ -142,7 +255,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 	it("claims by group while the leader still matches its recorded generation", () => {
 		const owned = new Map<number, string>();
 		observeOwnedProcessTree(owned, [100], table, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
+			{ processGroupId: 100, leaderIdentity },
 		]);
 		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
 	});
@@ -152,7 +265,10 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		// pid 100 is live again but started at a different time, so the group is
 		// a different generation: signaling it would hit unrelated work.
 		observeOwnedProcessTree(owned, [], table, [
-			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 09:00:00 2026|100" },
+			{
+				processGroupId: 100,
+				leaderIdentity: "Mon Aug 18 09:00:00 2026|100|sh -c watch.sh",
+			},
 		]);
 		expect(owned.size).toBe(0);
 	});

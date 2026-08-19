@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from "node:child_process";
+import { readdir, readFile } from "node:fs/promises";
 
 const PROCESS_TABLE_TIMEOUT_MS = 1_000;
 
@@ -6,32 +7,42 @@ export interface ProcessInfo {
 	pid: number;
 	parentPid: number;
 	processGroupId: number;
-	/** Full process start time from `ps`. Only whole-second granularity. */
+	/**
+	 * Platform-specific start-time token. On Linux this is the kernel's
+	 * `starttime` from `/proc/<pid>/stat` — clock ticks since boot, so it is
+	 * monotonic for the life of the boot and resolves to ~10ms. Elsewhere it is
+	 * the whole-second `ps lstart` string.
+	 */
 	startedAt: string;
+	/** Command line (or kernel `comm` on Linux), an extra identity discriminator. */
+	command: string;
 }
 
 /**
  * Identity used to tell one generation of a numeric pid from the next.
  *
- * `ps lstart` resolves only to the second, so start time alone is not enough:
- * a pid reused inside the same wall-clock second would present an identical
- * string and be accepted as the process we recorded — and then signaled, along
- * with its process group. Pairing it with the group id adds a discriminator
- * that a replacement is very unlikely to share, since a foreign process would
- * have to land in the same group as well as the same pid and second.
+ * Three components, because no single one is trustworthy everywhere:
  *
- * The group id is chosen because it is stable for a process's lifetime, unlike
- * the parent pid, which changes on reparenting — precisely the case ownership
- * tracking exists to follow. A process that does move groups is disowned rather
- * than misidentified, which is the safe direction.
+ * - Start time. On Linux it comes from `/proc/<pid>/stat` in clock ticks since
+ *   boot, so two holders of the same pid can only present the same value if the
+ *   pid space wrapped around within one tick (~10ms) — not reachable in
+ *   practice. On macOS/BSD, portable `ps` resolves only to the second, so the
+ *   other two components carry the discrimination there.
+ * - Process group id. Stable for a process's lifetime, unlike the parent pid,
+ *   which changes on reparenting — precisely the case ownership tracking
+ *   exists to follow.
+ * - Command. A same-second, same-group replacement would additionally have to
+ *   run the identical command line to be misidentified.
  *
- * Residual: a same-second, same-pid, same-group collision is still possible in
- * principle. Closing it properly needs a higher-resolution clock than portable
- * `ps` exposes (Linux `/proc/<pid>/stat` starttime), or kernel-maintained
- * ownership such as cgroups or job objects.
+ * Every mismatch disowns rather than misidentifies: a process that changes
+ * groups or rewrites its argv is left running (a bounded leak), never signaled
+ * as someone else (an unbounded stray kill). Residual on the `ps` platforms: a
+ * same-pid, same-second, same-group, identical-command collision is still
+ * conceivable. Closing that needs kernel-maintained ownership (cgroups, job
+ * objects, pidfd), which no portable primitive exposes here.
  */
 export function processIdentity(info: ProcessInfo): string {
-	return `${info.startedAt}|${info.processGroupId}`;
+	return `${info.startedAt}|${info.processGroupId}|${info.command}`;
 }
 
 export interface ProcessTable {
@@ -39,43 +50,144 @@ export interface ProcessTable {
 	childrenByParent: Map<number, ProcessInfo[]>;
 }
 
-/** Parses the portable BSD/Linux `ps` columns used by monitor ownership. */
-export function parseProcessTable(output: string): ProcessTable {
+function buildProcessTable(rows: readonly ProcessInfo[]): ProcessTable {
 	const table: ProcessTable = {
 		byPid: new Map(),
 		childrenByParent: new Map(),
 	};
+	for (const processInfo of rows) {
+		table.byPid.set(processInfo.pid, processInfo);
+		const siblings = table.childrenByParent.get(processInfo.parentPid) ?? [];
+		siblings.push(processInfo);
+		table.childrenByParent.set(processInfo.parentPid, siblings);
+	}
+	return table;
+}
+
+/**
+ * Parses the BSD `ps` columns used by monitor ownership on non-Linux POSIX.
+ *
+ * `ps` output is line-structured while the command column is arbitrary
+ * attacker-influenced text, so a process whose argv contains a newline can
+ * forge what parses as an additional row for any pid it likes. A forged row
+ * for a *live* pid necessarily duplicates the real row `ps` also prints, so
+ * duplicate pids are treated as poisoned and dropped entirely — disowning the
+ * pid (a bounded leak) instead of letting the forged generation be signaled.
+ * A forged row for a pid that is dead at read time can at worst aim a signal
+ * at that dead pid; landing it on real work would additionally require a
+ * targeted pid reuse inside the read-to-signal window, the same TOCTOU any
+ * table-based teardown has.
+ */
+export function parseProcessTable(output: string): ProcessTable {
+	const rows = new Map<number, ProcessInfo>();
+	const poisoned = new Set<number>();
 	for (const line of output.split(/\r?\n/)) {
-		const match = line.match(/^\s*(\d+)\s+(\d+)\s+(\d+)\s+(.+?)\s*$/);
+		// pid, ppid, pgid, then `lstart` — exactly five tokens under LC_ALL=C
+		// ("Mon Aug 18 22:13:04 2026") — then the command as the rest of the line.
+		const match = line.match(
+			/^\s*(\d+)\s+(\d+)\s+(\d+)\s+((?:\S+\s+){4}\S+)\s+(.+?)\s*$/,
+		);
 		if (!match) continue;
 		const pid = Number.parseInt(match[1] ?? "", 10);
 		const parentPid = Number.parseInt(match[2] ?? "", 10);
 		const processGroupId = Number.parseInt(match[3] ?? "", 10);
 		const startedAt = (match[4] ?? "").replace(/\s+/g, " ");
+		const command = match[5] ?? "";
 		if (
 			!Number.isInteger(pid) ||
 			!Number.isInteger(parentPid) ||
 			!Number.isInteger(processGroupId) ||
-			!startedAt
+			!startedAt ||
+			!command
 		) {
 			continue;
 		}
-		const processInfo: ProcessInfo = {
-			pid,
-			parentPid,
-			processGroupId,
-			startedAt,
-		};
-		table.byPid.set(pid, processInfo);
-		const siblings = table.childrenByParent.get(parentPid) ?? [];
-		siblings.push(processInfo);
-		table.childrenByParent.set(parentPid, siblings);
+		if (rows.has(pid)) {
+			poisoned.add(pid);
+			continue;
+		}
+		rows.set(pid, { pid, parentPid, processGroupId, startedAt, command });
 	}
-	return table;
+	for (const pid of poisoned) rows.delete(pid);
+	return buildProcessTable([...rows.values()]);
 }
 
-/** Reads one bounded process-table snapshot on POSIX. */
-export function readProcessTable(): Promise<ProcessTable | undefined> {
+/**
+ * Parses one `/proc/<pid>/stat` line.
+ *
+ * The second field, `comm`, is parenthesized and may itself contain spaces,
+ * parentheses, or digits, so fields are located from the *last* closing
+ * parenthesis — the kernel writes everything after it as space-separated
+ * numerics, and nothing a process controls can move that boundary. Field 22
+ * (`starttime`, clock ticks since boot) is kept as the start-time token.
+ */
+export function parseProcStat(content: string): ProcessInfo | undefined {
+	const open = content.indexOf("(");
+	const close = content.lastIndexOf(")");
+	if (open < 0 || close < open) return undefined;
+	const pid = Number.parseInt(content.slice(0, open).trim(), 10);
+	const command = content.slice(open + 1, close);
+	const fields = content
+		.slice(close + 1)
+		.trim()
+		.split(/\s+/);
+	// fields[0] is field 3 (state), so overall field N sits at fields[N - 3].
+	const parentPid = Number.parseInt(fields[1] ?? "", 10);
+	const processGroupId = Number.parseInt(fields[2] ?? "", 10);
+	const startTicks = fields[19] ?? "";
+	if (
+		!Number.isInteger(pid) ||
+		!Number.isInteger(parentPid) ||
+		!Number.isInteger(processGroupId) ||
+		!/^\d+$/.test(startTicks)
+	) {
+		return undefined;
+	}
+	return {
+		pid,
+		parentPid,
+		processGroupId,
+		startedAt: `boot-ticks:${startTicks}`,
+		command,
+	};
+}
+
+/**
+ * Reads the process table from `/proc` directly.
+ *
+ * Preferred over `ps` wherever procfs exists: the kernel-maintained
+ * `starttime` tick counter gives generation resolution that second-granular
+ * `lstart` cannot, and per-pid virtual files cannot be forged by argv content
+ * the way line-structured `ps` output can. Processes that exit between the
+ * directory listing and the read are simply skipped.
+ */
+async function readProcProcessTable(): Promise<ProcessTable | undefined> {
+	let names: string[];
+	try {
+		names = await readdir("/proc");
+	} catch {
+		return undefined;
+	}
+	const rows: ProcessInfo[] = [];
+	await Promise.all(
+		names
+			.filter((name) => /^\d+$/.test(name))
+			.map(async (name) => {
+				try {
+					const stat = await readFile(`/proc/${name}/stat`, "utf8");
+					const info = parseProcStat(stat);
+					if (info) rows.push(info);
+				} catch {
+					// The process exited between readdir and read.
+				}
+			}),
+	);
+	if (rows.length === 0) return undefined;
+	return buildProcessTable(rows);
+}
+
+/** Reads one bounded `ps` snapshot on POSIX platforms without procfs. */
+function readPsProcessTable(): Promise<ProcessTable | undefined> {
 	return new Promise((resolve) => {
 		let output = "";
 		let finished = false;
@@ -88,10 +200,19 @@ export function readProcessTable(): Promise<ProcessTable | undefined> {
 		};
 		let ps: ChildProcess;
 		try {
-			ps = spawn("ps", ["-A", "-o", "pid=,ppid=,pgid=,lstart="], {
-				stdio: ["ignore", "pipe", "ignore"],
-				windowsHide: true,
-			});
+			// LC_ALL=C pins `lstart` to the asctime layout the parser expects; in
+			// other locales its token count varies. `-ww` prevents column-width
+			// truncation of the command, which would make identities compare
+			// unequal between snapshots and disown live descendants.
+			ps = spawn(
+				"ps",
+				["-A", "-ww", "-o", "pid=,ppid=,pgid=,lstart=,command="],
+				{
+					stdio: ["ignore", "pipe", "ignore"],
+					windowsHide: true,
+					env: { ...process.env, LC_ALL: "C" },
+				},
+			);
 		} catch {
 			finish();
 			return;
@@ -109,6 +230,12 @@ export function readProcessTable(): Promise<ProcessTable | undefined> {
 			finish(code === 0 ? parseProcessTable(output) : undefined),
 		);
 	});
+}
+
+/** Reads one bounded process-table snapshot on POSIX. */
+export function readProcessTable(): Promise<ProcessTable | undefined> {
+	if (process.platform === "linux") return readProcProcessTable();
+	return readPsProcessTable();
 }
 
 /**

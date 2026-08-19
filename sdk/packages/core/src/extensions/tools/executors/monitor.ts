@@ -457,9 +457,11 @@ export class MonitorRegistry {
 			DEFAULT_TERMINATION_GRACE_PERIOD_MS;
 		if (await this.waitUntil(exited, gracePeriod)) return;
 
-		// Re-read the table before escalation. A numeric PID is signaled only when
-		// its start time still matches the monitor-owned generation captured while
-		// it was a descendant, so PID reuse cannot target unrelated work.
+		// Re-read the table before escalation. A numeric PID is signaled only
+		// when its identity — start time (tick-resolution from /proc on Linux),
+		// process group, and command — still matches the monitor-owned
+		// generation captured while it was a descendant, so PID reuse cannot
+		// target unrelated work.
 		const finalTable = await this.refreshProcessOwnership([entry]);
 		const finalProcesses = finalTable
 			? getLiveOwnedProcesses(entry.ownedProcesses, finalTable)
