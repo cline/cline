@@ -32,6 +32,26 @@ describe("monitor resume semantics", () => {
 		).toEqual([{ id: "mon_2", name: "logs" }]);
 	});
 
+	it("treats a stop tool result as terminal", () => {
+		expect(
+			collectPersistedActiveMonitors([
+				toolResult('Started monitor mon_1 ("ci"): Watches CI'),
+				toolResult('Stopped monitor mon_1 ("ci").'),
+			]),
+		).toEqual([]);
+	});
+
+	it("uses list records to refine monitor status", () => {
+		expect(
+			collectPersistedActiveMonitors([
+				toolResult('Started monitor mon_1 ("old"): Old watch'),
+				toolResult(
+					'mon_1 [exited] "old": Old watch\nmon_2 [running] "logs": Tail logs',
+				),
+			]),
+		).toEqual([{ id: "mon_2", name: "logs" }]);
+	});
+
 	it("creates a durable system-displayed notice for the agent and user", () => {
 		const notice = createMonitorResumeNotice([{ id: "mon_2", name: "logs" }]);
 		expect(notice).toMatchObject({
@@ -48,9 +68,9 @@ describe("monitor resume semantics", () => {
 		);
 	});
 
-	it("does not contribute a user run to checkpoint numbering", () => {
-		const notice = createMonitorResumeNotice([{ id: "mon_2", name: "logs" }]);
-		expect(getUserRunSpan(notice as MessageWithMetadata)).toBe(0);
+	it("contributes no user runs to checkpoint numbering", () => {
+		const notice = createMonitorResumeNotice([{ id: "mon_1", name: "ci" }]);
+		expect(notice && getUserRunSpan(notice)).toBe(0);
 	});
 
 	it("does not repeat the notice on a later resume", () => {
@@ -70,8 +90,9 @@ describe("monitor resume semantics", () => {
 		};
 
 		const firstResume = persistMonitorResumeNotice("session_1", disk, persist);
-		expect(firstResume).toHaveLength(2);
-		expect(disk).toEqual(firstResume);
+		expect(firstResume.messages).toHaveLength(2);
+		expect(firstResume.notice).toBe(firstResume.messages[1]);
+		expect(disk).toEqual(firstResume.messages);
 
 		// Stop without an agent turn, then resume from the messages the first
 		// resume already wrote. The notice must not be generated or persisted twice.
@@ -81,7 +102,8 @@ describe("monitor resume semantics", () => {
 			disk,
 			secondPersist,
 		);
-		expect(secondResume).toBe(disk);
+		expect(secondResume.messages).toBe(disk);
+		expect(secondResume.notice).toBeUndefined();
 		expect(secondPersist).not.toHaveBeenCalled();
 	});
 });

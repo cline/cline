@@ -3,6 +3,8 @@ import type { MessageWithMetadata } from "@cline/shared";
 export type PersistedActiveMonitor = { id: string; name: string };
 
 const STARTED_MONITOR = /Started monitor (mon_\d+) \("(.+)"\):/g;
+const MONITOR_RECORD = /^(mon_\d+) \[([^\]]+)] "(.+)":/gm;
+const STOPPED_MONITOR = /^Stopped monitor (mon_\d+)\b/gm;
 const TERMINAL_MONITOR =
 	/\[monitor (mon_\d+) (?:stopped|failed to run:|ended on signal|ended with exit code)/g;
 
@@ -32,6 +34,21 @@ export function collectPersistedActiveMonitors(
 			if (match[1] && match[2]) {
 				active.set(match[1], { id: match[1], name: match[2] });
 			}
+		}
+		// Mirror the webview parser (session-monitors.ts): monitor `list`
+		// records refine the status and an explicit `stop` prints
+		// "Stopped monitor mon_X" without a bracketed terminal marker.
+		for (const match of text.matchAll(MONITOR_RECORD)) {
+			const [, id, status, name] = match;
+			if (!id || !name) continue;
+			if (status === "running") {
+				active.set(id, { id, name });
+			} else {
+				active.delete(id);
+			}
+		}
+		for (const match of text.matchAll(STOPPED_MONITOR)) {
+			if (match[1]) active.delete(match[1]);
 		}
 		for (const match of text.matchAll(TERMINAL_MONITOR)) {
 			if (match[1]) active.delete(match[1]);
@@ -63,9 +80,8 @@ export function createMonitorResumeNotice(
 			kind: "monitor_resume_notice",
 			displayRole: "system",
 			reason: "session_resumed",
-			// System-injected notice: without an explicit span, getUserRunSpan
-			// would count this user-role message as a run and shift checkpoint
-			// numbering for every later prompt.
+			// System-injected user-role messages contribute no runs; without
+			// this the notice would inflate checkpoint run numbering.
 			userRunSpan: 0,
 		},
 	};
@@ -75,15 +91,15 @@ export function persistMonitorResumeNotice(
 	sessionId: string,
 	messages: MessageWithMetadata[],
 	persist: (sessionId: string, messages: MessageWithMetadata[]) => void,
-): MessageWithMetadata[] {
+): { messages: MessageWithMetadata[]; notice?: MessageWithMetadata } {
 	const notice = createMonitorResumeNotice(
 		collectPersistedActiveMonitors(messages),
 	);
-	if (!notice) return messages;
+	if (!notice) return { messages };
 	const next = [...messages, notice];
 	// Resumed sessions do not seed-persist their initial messages. Write the
 	// terminal markers before runtime start so a no-turn shutdown cannot lose
 	// them and generate the same notice on the next resume.
 	persist(sessionId, next);
-	return next;
+	return { messages: next, notice };
 }

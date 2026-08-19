@@ -654,14 +654,19 @@ async function handleStart(
 			: requestedSessionId
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
-	const initialMessages =
+	const monitorResume =
 		requestedSessionId && persistedInitialMessages
 			? persistMonitorResumeNotice(
 					requestedSessionId,
 					persistedInitialMessages,
 					persistSessionMessages,
 				)
-			: persistedInitialMessages;
+			: undefined;
+	const initialMessages = monitorResume?.messages ?? persistedInitialMessages;
+	const monitorResumeNotice =
+		typeof monitorResume?.notice?.content === "string"
+			? { content: monitorResume.notice.content, ts: monitorResume.notice.ts }
+			: undefined;
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(request.config),
 		systemPrompt,
@@ -702,7 +707,15 @@ async function handleStart(
 		},
 	);
 	ctx.liveSessions.set(sessionId, session);
-	return { sessionId, cwd, workspaceRoot };
+	// The notice only lands in the persisted transcript; return it so the
+	// already-open webview can append it to its live message list (which
+	// drives the header monitor badge) without a reload.
+	return {
+		sessionId,
+		cwd,
+		workspaceRoot,
+		...(monitorResumeNotice ? { monitorResumeNotice } : {}),
+	};
 }
 
 async function handleAttach(
