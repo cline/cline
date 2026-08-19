@@ -19,7 +19,8 @@
 		}
 	},
 	"bin": {
-		"cline-gateway": "bin/cline-gateway.mjs"
+		"cline-gateway": "bin/cline-gateway.mjs",
+		"cline-gateway-worker": "bin/cline-gateway-worker.mjs"
 	},
 	"files": [
 		"dist",
@@ -36,6 +37,7 @@
 		"node": ">=22"
 	},
 	"dependencies": {
+		"@anthropic-ai/sandbox-runtime": "^0.0.73",
 		"@cline/bot": "workspace:*",
 		"@cline/engine": "workspace:*",
 		"@cline/shared": "workspace:*",
