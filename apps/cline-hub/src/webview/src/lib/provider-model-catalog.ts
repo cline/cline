@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatCompatibleModel } from "@cline/shared";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -19,12 +20,19 @@ export function buildProviderModelCatalog(
 	providers: Provider[],
 ): ProviderModelCatalog {
 	const providerEntries = providers.map((provider) => {
-		// The hub server has already removed non-chat models from this payload.
-		const models = provider.modelList ?? [];
+		const chatModels = (provider.modelList ?? []).filter((model) =>
+			isChatCompatibleModel({
+				operation: model.operation,
+				modalities: {
+					input: model.inputModalities,
+					output: model.outputModalities,
+				},
+			}),
+		);
 		return {
 			provider,
-			modelIds: models.map((model) => model.id),
-			reasoningModelIds: models
+			modelIds: chatModels.map((model) => model.id),
+			reasoningModelIds: chatModels
 				.filter((model) => model.supportsReasoning)
 				.map((model) => model.id),
 		};

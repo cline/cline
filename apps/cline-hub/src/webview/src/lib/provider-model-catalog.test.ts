@@ -15,16 +15,38 @@ function provider(modelList: NonNullable<Provider["modelList"]>): Provider {
 }
 
 describe("buildProviderModelCatalog", () => {
-	it("builds model ids from the server-filtered catalog", () => {
+	it("keeps legacy and mixed chat models while excluding dedicated media endpoints", () => {
 		const catalog = buildProviderModelCatalog([
 			provider([
 				{ id: "legacy", name: "Legacy" },
+				{
+					id: "operation-only-transcription",
+					name: "Operation-only Transcription",
+					operation: "transcription",
+				},
 				{
 					id: "mixed",
 					name: "Mixed",
 					inputModalities: ["text", "image"],
 					outputModalities: ["text", "image"],
 					supportsReasoning: true,
+				},
+				{
+					id: "transcription",
+					name: "Transcription",
+					inputModalities: ["audio"],
+					outputModalities: ["text"],
+				},
+				{
+					id: "image",
+					name: "Image",
+					inputModalities: ["text"],
+					outputModalities: ["image"],
+				},
+				{
+					id: "image-operation",
+					name: "Image Operation",
+					operation: "image-generation",
 				},
 			]),
 		]);
@@ -34,8 +56,17 @@ describe("buildProviderModelCatalog", () => {
 		expect(catalog.providerReasoningModels.test).toEqual(["mixed"]);
 	});
 
-	it("omits enabled providers with no models", () => {
-		const catalog = buildProviderModelCatalog([provider([])]);
+	it("omits enabled providers with no chat-compatible models", () => {
+		const catalog = buildProviderModelCatalog([
+			provider([
+				{
+					id: "speech",
+					name: "Speech",
+					inputModalities: ["text"],
+					outputModalities: ["audio"],
+				},
+			]),
+		]);
 
 		expect(catalog.enabledProviderIds).toEqual([]);
 		expect(catalog.providerModels.test).toEqual([]);

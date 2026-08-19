@@ -208,8 +208,9 @@ async function mergeKnownModels(
 		// catalog includes OpenRouter aliases for the same models. Image-output
 		// models are temporarily unavailable through Cline's inference backend,
 		// so filter them only at the Cline catalog boundary. buildClineModels
-		// applies the same restriction to the bundled catalog; remove both call
-		// sites together when the backend gains image-output support.
+		// applies the same restriction to the bundled catalog. User overrides are
+		// intentionally added after this filter. Remove both filter call sites
+		// together when the backend gains image-output support.
 		return Llms.sortModelsByReleaseDate(
 			Llms.filterImageOutputModels({
 				...Llms.preferCanonicalModelIds(
