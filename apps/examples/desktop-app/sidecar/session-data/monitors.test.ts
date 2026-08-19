@@ -32,6 +32,26 @@ describe("monitor resume semantics", () => {
 		).toEqual([{ id: "mon_2", name: "logs" }]);
 	});
 
+	it("treats a stop tool result as terminal", () => {
+		expect(
+			collectPersistedActiveMonitors([
+				toolResult('Started monitor mon_1 ("ci"): Watches CI'),
+				toolResult('Stopped monitor mon_1 ("ci").'),
+			]),
+		).toEqual([]);
+	});
+
+	it("uses list records to refine monitor status", () => {
+		expect(
+			collectPersistedActiveMonitors([
+				toolResult('Started monitor mon_1 ("old"): Old watch'),
+				toolResult(
+					'mon_1 [exited] "old": Old watch\nmon_2 [running] "logs": Tail logs',
+				),
+			]),
+		).toEqual([{ id: "mon_2", name: "logs" }]);
+	});
+
 	it("creates a durable system-displayed notice for the agent and user", () => {
 		const notice = createMonitorResumeNotice([{ id: "mon_2", name: "logs" }]);
 		expect(notice).toMatchObject({

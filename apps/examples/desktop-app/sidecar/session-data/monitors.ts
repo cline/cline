@@ -3,6 +3,8 @@ import type { MessageWithMetadata } from "@cline/shared";
 export type PersistedActiveMonitor = { id: string; name: string };
 
 const STARTED_MONITOR = /Started monitor (mon_\d+) \("(.+)"\):/g;
+const MONITOR_RECORD = /^(mon_\d+) \[([^\]]+)] "(.+)":/gm;
+const STOPPED_MONITOR = /^Stopped monitor (mon_\d+)\b/gm;
 const TERMINAL_MONITOR =
 	/\[monitor (mon_\d+) (?:stopped|failed to run:|ended on signal|ended with exit code)/g;
 
@@ -32,6 +34,21 @@ export function collectPersistedActiveMonitors(
 			if (match[1] && match[2]) {
 				active.set(match[1], { id: match[1], name: match[2] });
 			}
+		}
+		// Mirror the webview parser (session-monitors.ts): monitor `list`
+		// records refine the status and an explicit `stop` prints
+		// "Stopped monitor mon_X" without a bracketed terminal marker.
+		for (const match of text.matchAll(MONITOR_RECORD)) {
+			const [, id, status, name] = match;
+			if (!id || !name) continue;
+			if (status === "running") {
+				active.set(id, { id, name });
+			} else {
+				active.delete(id);
+			}
+		}
+		for (const match of text.matchAll(STOPPED_MONITOR)) {
+			if (match[1]) active.delete(match[1]);
 		}
 		for (const match of text.matchAll(TERMINAL_MONITOR)) {
 			if (match[1]) active.delete(match[1]);
