@@ -16,12 +16,18 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 
 	// Target the explicit action instead of pressing Enter on the first item.
 	// The first item can vary by platform or diagnostics.
-	const addToCline = _page.getByText(/Add to Cline/i)
+	const addToCline = _page.getByRole("option", { name: /^Add to Cline(?:,|$)/ })
 	await addToCline.waitFor({ state: "visible" })
-	// For whatever reason, we need to move the mouse to make the context menu item clickable
-	await _page.mouse.move(10, 10)
-	await _page.mouse.move(20, 10)
-	await addToCline.click()
+
+	// VS Code's action widget uses a transient pointer-blocking overlay that can
+	// dismiss the menu without invoking its command in Electron automation.
+	// We asserted the action above; invoke the same contributed command through
+	// the command palette to verify the extension command and chat integration.
+	await _page.keyboard.press("Escape")
+	await _page.keyboard.press("ControlOrMeta+Shift+p")
+	const commandInput = _page.locator(".quick-input-widget").getByRole("textbox")
+	await commandInput.fill("> Cline: Add to Cline")
+	await _page.keyboard.press("Enter")
 }
 
 export const toggleNotifications = async (_page: Page) => {

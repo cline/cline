@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatCompatibleModel } from "@cline/shared";
 import { desktopClient } from "@/lib/desktop-client";
 import type {
 	Provider,
@@ -17,12 +18,14 @@ export type ProviderModelCatalog = {
 
 function toModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? [])
-		.filter(
-			(model) =>
-				(model.inputModalities === undefined ||
-					model.inputModalities.includes("text")) &&
-				(model.outputModalities === undefined ||
-					model.outputModalities.includes("text")),
+		.filter((model) =>
+			isChatCompatibleModel({
+				operation: model.operation,
+				modalities: {
+					input: model.inputModalities,
+					output: model.outputModalities,
+				},
+			}),
 		)
 		.map((model) => model.id);
 }
@@ -31,11 +34,14 @@ function toReasoningModelIds(models: ProviderModel[] | undefined): string[] {
 	return (models ?? [])
 		.filter(
 			(model) =>
-				(model.inputModalities === undefined ||
-					model.inputModalities.includes("text")) &&
-				(model.outputModalities === undefined ||
-					model.outputModalities.includes("text")) &&
-				model.supportsReasoning,
+				model.supportsReasoning &&
+				isChatCompatibleModel({
+					operation: model.operation,
+					modalities: {
+						input: model.inputModalities,
+						output: model.outputModalities,
+					},
+				}),
 		)
 		.map((model) => model.id);
 }

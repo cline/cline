@@ -2,7 +2,6 @@ import process from "node:process";
 import {
 	ensureCustomProvidersLoaded,
 	getLocalProviderModels,
-	isChatProviderModel,
 	Llms,
 	listLocalProviders,
 	loginAndSaveLocalProviderOAuthCredentials,
@@ -10,6 +9,7 @@ import {
 	normalizeOAuthProvider,
 	saveLocalProviderSettings,
 } from "@cline/core";
+import { isChatCompatibleModel } from "@cline/shared";
 import type {
 	WebviewInboundMessage,
 	WebviewProviderModel,
@@ -88,10 +88,19 @@ export async function loadModels(
 		providerSettingsManager.getProviderConfig(provider),
 	);
 	const models: WebviewProviderModel[] = payload.models
-		.filter(isChatProviderModel)
+		.filter((model) =>
+			isChatCompatibleModel({
+				operation: model.operation,
+				modalities: {
+					input: model.inputModalities,
+					output: model.outputModalities,
+				},
+			}),
+		)
 		.map((model) => ({
 			id: model.id,
 			name: model.name,
+			operation: model.operation,
 			supportsReasoning: model.supportsReasoning,
 			supportsThinking: model.supportsReasoning,
 			inputModalities: model.inputModalities,

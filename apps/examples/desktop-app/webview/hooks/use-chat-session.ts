@@ -32,6 +32,7 @@ import type {
 	ToolApprovalRequestItem,
 	ToolCallEndEvent,
 	ToolCallStartEvent,
+	ToolCallUpdateEvent,
 } from "@/hooks/chat-session/types";
 import {
 	type ChatMessage,
@@ -42,6 +43,7 @@ import {
 	type ChatSessionStatus,
 } from "@/lib/chat-schema";
 import { humanizeCloudSessionError } from "@/lib/cloud-session-error";
+import { appendCappedCommandOutput } from "@/lib/command-output";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	buildSessionDiffState,
@@ -70,12 +72,19 @@ const MAX_MESSAGES = 800;
 // ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
 const STREAM_FLUSH_INTERVAL_MS = 48;
 
+// How long a turn-end canonical history reconcile waits before reading the
+// persisted transcript. The runtime's final transcript flush (tool results and
+// turn metadata) races the done event by a few milliseconds, so an immediate
+// read could catch the file mid-rewrite.
+const TURN_END_RECONCILE_DELAY_MS = 250;
+
 const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
 	"chat_media",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
+	"chat_tool_call_update",
 	"chat_tool_call_end",
 	"chat_core_log",
 	"chat_usage",
@@ -87,6 +96,12 @@ const BUSY_STATUSES = new Set<ChatSessionStatus>([
 	"running",
 	"stopping",
 ]);
+
+type PendingToolOutput = {
+	text: string;
+	truncated: boolean;
+	detachable?: boolean;
+};
 
 // ---------------------------------------------------------------------------
 // Helpers (pure, no hooks)
@@ -307,6 +322,49 @@ export function mergeCloudSnapshotWithLive(
 	return sliceMessages(sortMessagesChronologically([...hydrated, ...liveOnly]));
 }
 
+function deriveLiveToolState(messages: ChatMessage[]): {
+	messageIds: Record<string, string>;
+	inputs: Record<string, unknown>;
+} {
+	const messageIds: Record<string, string> = {};
+	const inputs: Record<string, unknown> = {};
+	for (const message of sortMessagesChronologically(messages)) {
+		const toolCallId = message.meta?.toolCallId;
+		if (!toolCallId) continue;
+		const hookEventName = message.meta?.hookEventName;
+		if (
+			hookEventName === "tool_call_end" ||
+			hookEventName === "history_tool_result"
+		) {
+			delete messageIds[toolCallId];
+			delete inputs[toolCallId];
+			continue;
+		}
+		if (
+			hookEventName !== "tool_call_start" &&
+			hookEventName !== "history_tool_use"
+		) {
+			continue;
+		}
+		messageIds[toolCallId] = message.id;
+		try {
+			const payload = JSON.parse(message.content) as unknown;
+			if (
+				payload &&
+				typeof payload === "object" &&
+				!Array.isArray(payload) &&
+				Object.hasOwn(payload, "input")
+			) {
+				inputs[toolCallId] = (payload as { input?: unknown }).input;
+			}
+		} catch {
+			// Routing only needs the ids. A malformed display payload must not
+			// prevent later progress and completion events from reaching the card.
+		}
+	}
+	return { messageIds, inputs };
+}
+
 function updateMessageById(
 	messages: ChatMessage[],
 	id: string,
@@ -459,6 +517,7 @@ export function useChatSession(environmentId: string) {
 	const messagesRef = useRef<ChatMessage[]>([]);
 	const promptsInQueueRef = useRef<PromptInQueue[]>([]);
 	const liveToolMessageIdsRef = useRef<Record<string, string>>({});
+	const pendingToolOutputRef = useRef(new Map<string, PendingToolOutput>());
 	// Optimistic user bubbles whose prompt is still in flight, by message id.
 	// A chat_queued_prompt_start event may only re-key one of these — never a
 	// same-content message left over from an earlier turn (see the handler).
@@ -580,6 +639,7 @@ export function useChatSession(environmentId: string) {
 	const clearLiveToolRefs = useCallback(() => {
 		liveToolMessageIdsRef.current = {};
 		liveToolInputsRef.current = {};
+		pendingToolOutputRef.current = new Map();
 	}, []);
 
 	const applyCloudSnapshotMessages = useCallback(
@@ -725,6 +785,75 @@ export function useChatSession(environmentId: string) {
 		[],
 	);
 
+	// Finalizes a turn that settled through the event stream rather than a
+	// blocking send() RPC. Queued turns (including the first prompt of a fresh
+	// session, which the runtime routes through its queue) resolve their send()
+	// RPC early with { queued: true }, so nothing else clears the streaming
+	// shimmer or reconciles the live-streamed content against the persisted
+	// transcript — without this, a turn whose deltas were incomplete stays
+	// visually "streaming" forever and only heals when a later non-queued send
+	// happens to rehydrate history.
+	const turnEndReconcileTimerRef = useRef<ReturnType<typeof setTimeout> | null>(
+		null,
+	);
+	const finalizeSettledTurn = useCallback(
+		(sid: string) => {
+			if (activePromptSubmissionsRef.current > 0) {
+				// A blocking send() RPC is still in flight for this turn: its
+				// completion path applies the result text, rehydrates canonical
+				// history, and clears the streaming id itself. Clearing the id
+				// here would make that path mint a duplicate assistant bubble.
+				return;
+			}
+			activeAssistantMessageIdRef.current = null;
+			setActiveAssistantMessageId(null);
+			const epoch = turnEpochRef.current;
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+			turnEndReconcileTimerRef.current = setTimeout(() => {
+				turnEndReconcileTimerRef.current = null;
+				void desktopClient
+					.invoke<ChatMessage[]>("read_session_messages", {
+						sessionId: sid,
+						maxMessages: MAX_MESSAGES,
+					})
+					.then((historyMessages) => {
+						if (
+							activeSessionIdRef.current !== sid ||
+							turnEpochRef.current !== epoch ||
+							activePromptSubmissionsRef.current > 0
+						) {
+							// A new turn started while the read was in flight; its
+							// own lifecycle owns the transcript from here on.
+							return;
+						}
+						if (
+							historyMessages.length === 0 ||
+							!historyMessages.some((message) => message.role === "assistant")
+						) {
+							// Persistence has not caught up: keep the live state
+							// rather than wiping it with an incomplete transcript.
+							return;
+						}
+						applyCanonicalHistory(sid, historyMessages);
+					})
+					.catch(() => {
+						// Keep optimistic state if the hydration read fails.
+					});
+			}, TURN_END_RECONCILE_DELAY_MS);
+		},
+		[applyCanonicalHistory],
+	);
+
+	useEffect(() => {
+		return () => {
+			if (turnEndReconcileTimerRef.current !== null) {
+				clearTimeout(turnEndReconcileTimerRef.current);
+			}
+		};
+	}, []);
+
 	// ---- Data fetching ----
 
 	const postSession = useCallback(
@@ -783,13 +912,14 @@ export function useChatSession(environmentId: string) {
 						setStatus((current) =>
 							current === "running" ? "completed" : current,
 						);
+						finalizeSettledTurn(sid);
 					}
 				})
 				.catch(() => {
 					// Keep the last known state on transient transport failures.
 				});
 		},
-		[postSession],
+		[finalizeSettledTurn, postSession],
 	);
 
 	const refreshPromptsInQueue = useCallback(
@@ -941,7 +1071,7 @@ export function useChatSession(environmentId: string) {
 
 	// ---- Stream coalescing ----
 	//
-	// Text/reasoning deltas can arrive per-token, and a React commit per token
+	// Text/reasoning deltas and command chunks can arrive rapidly, and a React commit
 	// re-renders the whole conversation for every word. Deltas are buffered in
 	// refs and flushed on a short timer, so streaming costs at most ~20 commits
 	// per second regardless of token rate while still feeling live.
@@ -974,6 +1104,44 @@ export function useChatSession(environmentId: string) {
 				appendMessageReasoning(id, entry.text, entry.redacted);
 			}
 		}
+		const toolOutputs = pendingToolOutputRef.current;
+		if (toolOutputs.size > 0) {
+			pendingToolOutputRef.current = new Map();
+			setMessages((prev) =>
+				prev.map((message) => {
+					const pending = toolOutputs.get(message.id);
+					if (!pending) return message;
+					const merged = appendCappedCommandOutput(
+						message.meta?.toolOutput ?? "",
+						pending.text,
+					);
+					const toolOutputTruncated = Boolean(
+						message.meta?.toolOutputTruncated ||
+							pending.truncated ||
+							merged.truncated,
+					);
+					const toolDetachable =
+						pending.detachable ?? message.meta?.toolDetachable;
+					if (
+						merged.output === (message.meta?.toolOutput ?? "") &&
+						toolOutputTruncated ===
+							Boolean(message.meta?.toolOutputTruncated) &&
+						toolDetachable === message.meta?.toolDetachable
+					) {
+						return message;
+					}
+					return {
+						...message,
+						meta: {
+							...message.meta,
+							toolOutput: merged.output,
+							toolOutputTruncated,
+							...(toolDetachable !== undefined ? { toolDetachable } : {}),
+						},
+					};
+				}),
+			);
+		}
 		const transcript = pendingStreamTranscriptRef.current;
 		if (transcript) {
 			pendingStreamTranscriptRef.current = "";
@@ -998,6 +1166,7 @@ export function useChatSession(environmentId: string) {
 		}
 		pendingStreamTextRef.current = new Map();
 		pendingStreamReasoningRef.current = new Map();
+		pendingToolOutputRef.current = new Map();
 		pendingStreamTranscriptRef.current = "";
 	}, []);
 
@@ -1135,10 +1304,12 @@ export function useChatSession(environmentId: string) {
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
+		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		if (!activeSessionId) {
-			setPendingToolApprovals([]);
 			return;
 		}
+		let cancelled = false;
 
 		void desktopClient
 			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
@@ -1146,25 +1317,55 @@ export function useChatSession(environmentId: string) {
 				sessionId: activeSessionId,
 				limit: 20,
 			})
-			.then((pending) => setPendingToolApprovals(pending))
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingToolApprovals(pending);
+				}
+			})
 			.catch(() => {});
 
-		return desktopClient.subscribe("tool_approval_state", (payload) => {
-			if (!payload || typeof payload !== "object") return;
-			const record = payload as {
-				sessionId?: string;
-				items?: ToolApprovalRequestItem[];
-			};
-			if (record.sessionId !== activeSessionId) return;
-			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
-		});
+		void desktopClient
+			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				sessionId: activeSessionId,
+			})
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingAskQuestions(pending);
+				}
+			})
+			.catch(() => {});
+
+		const unsubscribe = desktopClient.subscribe(
+			"tool_approval_state",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as {
+					sessionId?: string;
+					items?: ToolApprovalRequestItem[];
+				};
+				if (record.sessionId !== activeSessionId) return;
+				setPendingToolApprovals(
+					Array.isArray(record.items) ? record.items : [],
+				);
+			},
+		);
+
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [environmentId, sessionId]);
 
 	useEffect(() => {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
-			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+			if (
+				item.sessionId !== activeSessionIdRef.current ||
+				!item.requestId ||
+				!item.question ||
+				!Array.isArray(item.options)
+			) {
 				return;
 			}
 			setPendingAskQuestions((prev) => {
@@ -1377,6 +1578,51 @@ export function useChatSession(environmentId: string) {
 						},
 					]);
 				});
+				return;
+			}
+
+			if (payload.stream === "chat_tool_call_update") {
+				let parsed: ToolCallUpdateEvent = {};
+				try {
+					parsed = JSON.parse(payload.chunk) as ToolCallUpdateEvent;
+				} catch {
+					return;
+				}
+				const toolCallId = parsed.toolCallId;
+				const messageId = toolCallId
+					? liveToolMessageIdsRef.current[toolCallId]
+					: undefined;
+				if (!messageId) return;
+				const update =
+					parsed.update &&
+					typeof parsed.update === "object" &&
+					!Array.isArray(parsed.update)
+						? (parsed.update as Record<string, unknown>)
+						: undefined;
+				if (!update) return;
+				const stream = update.stream;
+				const chunk =
+					(stream === "stdout" || stream === "stderr") &&
+					typeof update.chunk === "string"
+						? update.chunk
+						: "";
+				const detachable =
+					typeof update.detachable === "boolean"
+						? update.detachable
+						: undefined;
+				const sourceTruncated = update.truncated === true;
+				if (!chunk && detachable === undefined && !sourceTruncated) return;
+				const pending = pendingToolOutputRef.current;
+				const existing = pending.get(messageId);
+				const appended = appendCappedCommandOutput(existing?.text ?? "", chunk);
+				pending.set(messageId, {
+					text: appended.output,
+					truncated: Boolean(
+						existing?.truncated || appended.truncated || sourceTruncated,
+					),
+					detachable: detachable ?? existing?.detachable,
+				});
+				schedulePendingStreamFlush();
 				return;
 			}
 
@@ -1674,6 +1920,7 @@ export function useChatSession(environmentId: string) {
 					verifyQueueStillBusy(listeningSessionId);
 				} else {
 					turnSettledEpochRef.current = turnEpochRef.current;
+					finalizeSettledTurn(listeningSessionId);
 				}
 				return;
 			}
@@ -1704,7 +1951,11 @@ export function useChatSession(environmentId: string) {
 						output: null,
 					}),
 					createdAt: chunkCreatedAt(payload),
-					meta: { toolName, toolCallId, hookEventName: "tool_call_start" },
+					meta: {
+						toolName,
+						toolCallId,
+						hookEventName: "tool_call_start",
+					},
 				});
 				setToolCalls((prev) => prev + 1);
 				return;
@@ -1745,6 +1996,7 @@ export function useChatSession(environmentId: string) {
 							...msg.meta,
 							toolName,
 							toolCallId,
+							toolDetachable: false,
 							hookEventName: "tool_call_end",
 						},
 					})),
@@ -1758,6 +2010,7 @@ export function useChatSession(environmentId: string) {
 			addMessage,
 			appendTurnFailureMessage,
 			clearLiveToolRefs,
+			finalizeSettledTurn,
 			flushPendingStream,
 			schedulePendingStreamFlush,
 			shouldApplyStreamChunk,
@@ -1871,6 +2124,7 @@ export function useChatSession(environmentId: string) {
 						? "cancelled"
 						: endReason) as ChatSessionStatus,
 				);
+				finalizeSettledTurn(targetSessionId);
 			},
 		);
 		const unsubscribeRehydrated = desktopClient.subscribe(
@@ -1947,6 +2201,7 @@ export function useChatSession(environmentId: string) {
 		applyCloudSnapshotMessages,
 		clearAbortFallbackTimeout,
 		clearLiveToolRefs,
+		finalizeSettledTurn,
 	]);
 
 	// ---- Shared: start a new session via RPC ----
@@ -2912,6 +3167,26 @@ export function useChatSession(environmentId: string) {
 		}
 	}, [clearAbortFallbackTimeout, postSession, sessionId]);
 
+	const proceedWhileRunning = useCallback(
+		async (targetSessionId: string, toolCallId?: string) => {
+			const normalizedSessionId = targetSessionId.trim();
+			if (!normalizedSessionId) {
+				throw new Error("No active session.");
+			}
+			const response = await desktopClient.invoke<{ detachedCount?: number }>(
+				"proceed_while_running",
+				{
+					sessionId: normalizedSessionId,
+					...(toolCallId ? { toolCallId } : {}),
+				},
+			);
+			if ((response.detachedCount ?? 0) < 1) {
+				throw new Error("The command finished before it could be detached.");
+			}
+		},
+		[],
+	);
+
 	const reset = useCallback(async () => {
 		const activeSessionId = sessionId;
 		setSessionId(null);
@@ -3023,20 +3298,25 @@ export function useChatSession(environmentId: string) {
 				rekeyedOptimisticIdByMessageIdRef.current = {};
 				lastCoreErrorBySessionRef.current = {};
 				if (session.origin === "cloud") {
+					const liveToolState = deriveLiveToolState(msgs);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
 					applyCloudSnapshotMessages({
 						sessionId: session.sessionId,
 						messages: msgs,
 						preserveUnmatchedLive: true,
 					});
 				} else {
-					setMessages(
-						mergeHydratedMessagesWithLive({
-							hydrated: msgs,
-							current: messagesRef.current,
-							sessionId: session.sessionId,
-							hydrationStartedAt,
-						}),
-					);
+					const mergedMessages = mergeHydratedMessagesWithLive({
+						hydrated: msgs,
+						current: messagesRef.current,
+						sessionId: session.sessionId,
+						hydrationStartedAt,
+					});
+					const liveToolState = deriveLiveToolState(mergedMessages);
+					liveToolMessageIdsRef.current = liveToolState.messageIds;
+					liveToolInputsRef.current = liveToolState.inputs;
+					setMessages(mergedMessages);
 				}
 				setRawTranscript("");
 				resetCounters();
@@ -3330,6 +3610,7 @@ export function useChatSession(environmentId: string) {
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		abort,
 		stop: abort,
 		reset,

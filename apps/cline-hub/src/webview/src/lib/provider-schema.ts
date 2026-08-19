@@ -1,4 +1,8 @@
-import type { ProviderModesSettings } from "@cline/shared/browser";
+import type {
+	ModelModality,
+	ModelOperation,
+	ProviderModesSettings,
+} from "@cline/shared/browser";
 
 export interface ProviderModel {
 	id: string;
@@ -6,11 +10,10 @@ export interface ProviderModel {
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	operation?: ModelOperation;
 	inputModalities?: ModelModality[];
 	outputModalities?: ModelModality[];
 }
-
-export type ModelModality = "text" | "image" | "audio" | "video" | "pdf";
 
 export type ProviderConfigFieldType =
 	| "text"
