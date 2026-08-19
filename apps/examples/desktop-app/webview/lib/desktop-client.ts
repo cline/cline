@@ -221,7 +221,8 @@ const NATIVE_COMMANDS = new Set([
 	"set_selected_avatar",
 	"set_avatar_enabled",
 	"handle_avatar_overlay_action",
-	"drain_desktop_menu_actions",
+	"show_session_notification",
+	"drain_desktop_actions",
 	"set_tray_status",
 ]);
 

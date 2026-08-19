@@ -57,6 +57,12 @@ export type ToolCallEndEvent = {
 	durationMs?: number;
 };
 
+export type ToolCallUpdateEvent = {
+	toolCallId?: string;
+	toolName?: string;
+	update?: unknown;
+};
+
 export type ToolApprovalRequestItem = {
 	requestId: string;
 	sessionId: string;
@@ -71,6 +77,7 @@ export type ToolApprovalRequestItem = {
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];

@@ -11,6 +11,7 @@ import type {
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -67,7 +68,8 @@ export interface HubTransportContext {
 	readonly telemetry?: ITelemetryService;
 	readonly sessionHost: RuntimeHost &
 		Partial<
-			PendingPromptsRuntimeService &
+			CommandExecutionRuntimeService &
+				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;

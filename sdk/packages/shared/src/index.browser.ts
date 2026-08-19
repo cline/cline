@@ -188,7 +188,10 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
 	isAudioGenerationModel,
+	isChatCompatibleModel,
 	isDedicatedAudioGenerationModel,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
@@ -215,6 +218,7 @@ export {
 	modelHasCapability,
 	modelProducesImages,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,

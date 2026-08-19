@@ -15,11 +15,12 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	ProviderSettingsManager,
 	projectSessionCompactionState,
+	RuntimeOAuthTokenManager,
 	readGlobalSettings,
 	resolveProviderApiKeyFromSettings,
-	RuntimeOAuthTokenManager,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -120,15 +121,21 @@ const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
- * instructions before dispatching the prompt, mirroring the CLI's
- * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no command matches, or command
- * discovery fails.
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
  */
 async function expandRuntimeSlashCommand(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
@@ -144,7 +151,12 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		return service.resolveRuntimeSlashCommand(prompt);
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -207,7 +219,7 @@ async function resolveDesktopRuntimePrompt(
 	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
 }
@@ -445,7 +457,7 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessionId: config.sessionId ?? config.session_id,
 		providerId: config.provider ?? config.providerId ?? "",
 		modelId: config.model ?? config.modelId ?? "",
-		mode: config.mode ?? "act",
+		mode: resolveDesktopSessionMode(config),
 		apiKey: config.apiKey ?? config.api_key ?? "",
 		baseUrl: config.baseUrl,
 		headers: config.headers,
@@ -467,6 +479,17 @@ function buildCoreSessionConfig(config: JsonRecord): JsonRecord {
 		sessions: config.sessions,
 		initialMessages: config.initialMessages,
 	};
+}
+
+/** Auto-approval is a tool policy, not a request to change the tool preset. */
+export function resolveDesktopSessionMode(
+	config: JsonRecord,
+): "act" | "plan" | "yolo" {
+	return config.mode === "plan"
+		? "plan"
+		: config.mode === "yolo"
+			? "yolo"
+			: "act";
 }
 
 export function buildSessionConnectionUpdate(
@@ -577,12 +600,7 @@ async function resolveSystemPrompt(config: JsonRecord): Promise<string> {
 		return String(config.systemPrompt ?? config.system_prompt ?? "").trim();
 	}
 	const providerId = String(config.provider ?? config.providerId ?? "").trim();
-	// Mode comes from config.mode only. `autoApproveTools` is a tool-approval
-	// policy (see resolveToolPolicies) and must NOT switch the session to the
-	// non-interactive "yolo" persona, whose prompt demands a `submit_and_exit`
-	// tool that interactive desktop sessions do not expose.
-	const mode =
-		config.mode === "plan" ? "plan" : config.mode === "yolo" ? "yolo" : "act";
+	const mode = resolveDesktopSessionMode(config);
 	const metadata = await consumeWorkspaceMetadata(cwd);
 	const inlineRules =
 		typeof config.rules === "string" && config.rules.trim().length > 0
@@ -1161,6 +1179,12 @@ async function handleSend(
 			sessionId,
 			request.attachments?.userFiles,
 		);
+		if (session?.attachedViaHub) {
+			// Once ClineCore sends a turn, its HubRuntimeHost owns the session
+			// subscription. Stop projecting the observer stream as well or every
+			// assistant/tool update (including command chunks) is emitted twice.
+			session.attachedViaHub = false;
+		}
 		if (delivery === "queue") {
 			if (session) {
 				session.prompt = prompt;

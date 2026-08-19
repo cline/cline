@@ -22,7 +22,11 @@ import {
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
 import type { ToolExecutors } from "../../extensions/tools";
-import { DefaultToolNames } from "../../extensions/tools";
+import {
+	DefaultToolNames,
+	RunCommandExecutionController,
+} from "../../extensions/tools";
+import { cleanupStaleDetachedCommandLogs } from "../../extensions/tools/executors/bash";
 import type { TeamEvent } from "../../extensions/tools/team";
 import type { HookEventPayload } from "../../hooks";
 import { buildTelemetryAgentIdentity } from "../../services/agent-events";
@@ -194,6 +198,32 @@ async function storeSessionGeneratedArtifact(
 
 const MAX_SCAN_LIMIT = 5000;
 
+// Detached-log retention timers are process-local and intentionally unref'd.
+// Recover once for every process that owns a LocalRuntimeHost so embedders get
+// the same restart cleanup guarantee as the Hub daemon. A failed scan is
+// cleared so a later host construction can retry it.
+let detachedCommandLogRecovery: Promise<void> | undefined;
+
+function recoverDetachedCommandLogsOnce(
+	logger?: BasicLogger,
+	telemetry?: ITelemetryService,
+): void {
+	if (detachedCommandLogRecovery) return;
+	detachedCommandLogRecovery = cleanupStaleDetachedCommandLogs()
+		.then(() => undefined)
+		.catch((error) => {
+			detachedCommandLogRecovery = undefined;
+			logger?.error?.("Detached command log recovery failed", { error });
+			captureSdkError(telemetry, {
+				component: "core",
+				operation: "command.detached_log_recovery",
+				error,
+				severity: "warn",
+				handled: true,
+			});
+		});
+}
+
 function asFiniteUsageNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
 		? value
@@ -302,6 +332,8 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly pendingPromptsController: PendingPromptsController;
 	private readonly eventBridge: AgentEventBridge;
 	private readonly sessionVersioning = new SessionVersioningService();
+	private readonly runCommandExecutionController =
+		new RunCommandExecutionController();
 
 	constructor(options: LocalRuntimeHostOptions) {
 		const homeDir = homedir();
@@ -328,6 +360,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		this.defaultLogger = options.logger;
 		this.defaultTelemetry?.setDistinctId(distinctId);
 		this.defaultFetch = options.fetch;
+		recoverDetachedCommandLogsOnce(this.defaultLogger, this.defaultTelemetry);
 
 		this.pendingPromptsController = new PendingPromptsController({
 			getSession: (sid) => this.sessions.get(sid),
@@ -622,9 +655,10 @@ export class LocalRuntimeHost implements RuntimeHost {
 			},
 		);
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
-		const runtime = await this.runtimeBuilder.build(
-			bootstrap.runtimeBuilderInput,
-		);
+		const runtime = await this.runtimeBuilder.build({
+			...bootstrap.runtimeBuilderInput,
+			runCommandExecutionController: this.runCommandExecutionController,
+		});
 		const configWithProvider = bootstrap.config;
 		const providerConfig = bootstrap.providerConfig;
 		if (runtime.teamRuntime && !configWithProvider.teamName?.trim()) {
@@ -1145,6 +1179,16 @@ export class LocalRuntimeHost implements RuntimeHost {
 			this.pendingPromptsController.discardQueue(session);
 		}
 		session.agent.abort(reason);
+	}
+
+	async proceedWhileRunning(
+		sessionId: string,
+		toolCallId?: string,
+	): Promise<number> {
+		return this.runCommandExecutionController.proceedWhileRunning(
+			sessionId,
+			toolCallId,
+		);
 	}
 
 	async stopSession(sessionId: string): Promise<void> {

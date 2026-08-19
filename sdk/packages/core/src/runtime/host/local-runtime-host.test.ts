@@ -195,6 +195,25 @@ describe("LocalRuntimeHost", () => {
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
 	});
 
+	it("recovers stale detached command logs for non-daemon hosts", async () => {
+		const detachedLogDirectory = mkdtempSync(
+			join(tmpdir(), "cline-command-local-host-recovery-"),
+		);
+		writeFileSync(join(detachedLogDirectory, "output.log"), "stale output");
+		writeFileSync(join(detachedLogDirectory, "completed-at"), "0");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+
+		try {
+			await expect.poll(() => existsSync(detachedLogDirectory)).toBe(false);
+		} finally {
+			await manager.dispose();
+			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
 	it.each([
 		{ source: "generated", requestedSessionId: undefined },
 		{ source: "requested", requestedSessionId: "session-explicit" },
