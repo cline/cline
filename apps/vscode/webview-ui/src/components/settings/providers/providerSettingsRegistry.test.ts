@@ -23,7 +23,7 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "deepseek",
 			providerName: "DeepSeek",
-			signupUrl: "https://www.deepseek.com/",
+			signupUrl: "https://platform.deepseek.com/api_keys",
 		})
 	})
 
@@ -35,6 +35,10 @@ describe("providerSettingsRegistry", () => {
 			),
 		).toEqual({
 			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
 			providerId: "gemini",
 			providerName: "Google Gemini",
 			signupUrl: "https://aistudio.google.com/apikey",
@@ -57,7 +61,7 @@ describe("providerSettingsRegistry", () => {
 			["cerebras", "Cerebras", "https://cloud.cerebras.ai/"],
 			["chutes", "Chutes", "https://chutes.ai/app/api"],
 			["doubao", "Doubao", "https://console.volcengine.com/home"],
-			["fireworks", "Fireworks", "https://fireworks.ai/"],
+			["fireworks", "Fireworks", "https://app.fireworks.ai/settings/users/api-keys"],
 			["groq", "Groq", "https://console.groq.com/keys"],
 			[
 				"huawei-cloud-maas",
@@ -65,7 +69,7 @@ describe("providerSettingsRegistry", () => {
 				"https://support.huaweicloud.com/intl/zh-cn/usermanual-maas/maas_01_0001.html",
 			],
 			["huggingface", "Hugging Face", "https://huggingface.co/settings/tokens"],
-			["mistral", "Mistral", "https://console.mistral.ai/codestral"],
+			["mistral", "Mistral", "https://console.mistral.ai/api-keys"],
 			["nebius", "Nebius", "https://auth.tokenfactory.nebius.com/ui/login"],
 			["nousResearch", "NousResearch", undefined],
 			["poolside", "Poolside", undefined],
@@ -155,7 +159,17 @@ describe("providerSettingsRegistry", () => {
 			allowsCustomIds: false,
 			providerId: "deepseek",
 			providerName: "DeepSeek",
-			signupUrl: "https://www.deepseek.com/",
+			signupUrl: "https://platform.deepseek.com/api_keys",
+		})
+		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
+			providerId: "gemini",
+			providerName: "Gemini",
+			signupUrl: "https://aistudio.google.com/apikey",
 		})
 		expect(getFallbackGenericProviderSettings("minimax")).toEqual({
 			allowsCustomIds: false,
@@ -176,6 +190,16 @@ describe("providerSettingsRegistry", () => {
 			providerId: "together",
 			providerName: "Together",
 			signupUrl: "https://api.together.ai/settings/api-keys",
+		})
+		expect(getFallbackGenericProviderSettings("gemini")).toEqual({
+			allowsCustomIds: false,
+			baseUrlField: {
+				label: "Use custom base URL",
+				placeholder: "Default: https://generativelanguage.googleapis.com",
+			},
+			providerId: "gemini",
+			providerName: "Gemini",
+			signupUrl: "https://aistudio.google.com/apikey",
 		})
 		expect(getFallbackGenericProviderSettings("zai-coding-plan")).toEqual({
 			allowsCustomIds: false,

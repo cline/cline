@@ -202,6 +202,78 @@ describe("Code sidecar runtime capabilities", () => {
 		expect(connectMock).toHaveBeenCalledOnce();
 	});
 
+	it("forwards raw hub tool updates to attached desktop sessions", async () => {
+		const { createSidecarContext, handleHubLiveEvent } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		ctx.liveSessions.set("session-1", {
+			config: {},
+			messages: [],
+			promptsInQueue: [],
+			busy: true,
+			startedAt: Date.now(),
+			status: "running",
+			attachedViaHub: true,
+		});
+
+		handleHubLiveEvent(ctx, {
+			event: "tool.updated",
+			sessionId: "session-1",
+			payload: {
+				toolCallId: "call-1",
+				toolName: "run_commands",
+				update: { stream: "stdout", chunk: "live\n" },
+			},
+		});
+
+		const forwarded = readEvents(ctx).find(
+			(message) =>
+				message.event.name === "chat_event" &&
+				(message.event.payload as { stream?: string }).stream ===
+					"chat_tool_call_update",
+		);
+		expect(forwarded?.event.payload).toMatchObject({
+			sessionId: "session-1",
+			stream: "chat_tool_call_update",
+		});
+		expect(
+			JSON.parse(
+				String((forwarded?.event.payload as { chunk?: string }).chunk),
+			),
+		).toEqual({
+			toolCallId: "call-1",
+			toolName: "run_commands",
+			update: { stream: "stdout", chunk: "live\n" },
+		});
+	});
+
+	it("forwards proceed-while-running requests to the hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { detachedCount: 1 },
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "proceed_while_running", {
+				sessionId: "session-1",
+				toolCallId: "call-1",
+			}),
+		).resolves.toEqual({ detachedCount: 1 });
+		expect(hubCommandMock).toHaveBeenCalledWith(
+			"run.proceed_while_running",
+			{ sessionId: "session-1", toolCallId: "call-1" },
+			"session-1",
+		);
+	});
+
 	it("serializes queued image data when a queued prompt starts", async () => {
 		const { serializeQueuedPromptStart } = await import("./context");
 
@@ -397,6 +469,7 @@ describe("Code sidecar runtime capabilities", () => {
 			"Which branch?",
 			["Keep current", "Create new"],
 			{
+				sessionId: "session-1",
 				agentId: "agent-1",
 				conversationId: "conversation-1",
 				iteration: 3,
@@ -408,6 +481,7 @@ describe("Code sidecar runtime capabilities", () => {
 			(item) => item.event.name === "ask_question_requested",
 		);
 		expect(event?.event.payload).toMatchObject({
+			sessionId: "session-1",
 			question: "Which branch?",
 			options: ["Keep current", "Create new"],
 			context: {
@@ -418,6 +492,23 @@ describe("Code sidecar runtime capabilities", () => {
 		});
 		const requestId = String(event?.event.payload.requestId ?? "");
 		expect(requestId.length).toBeGreaterThan(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([
+			expect.objectContaining({
+				requestId,
+				sessionId: "session-1",
+				question: "Which branch?",
+				options: ["Keep current", "Create new"],
+			}),
+		]);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "another-session",
+			}),
+		).toEqual([]);
 
 		await handleCommand(ctx, "respond_ask_question", {
 			requestId,
@@ -426,6 +517,11 @@ describe("Code sidecar runtime capabilities", () => {
 
 		await expect(answer).resolves.toBe("Create new");
 		expect(ctx.pendingQuestions.size).toBe(0);
+		expect(
+			await handleCommand(ctx, "poll_ask_questions", {
+				sessionId: "session-1",
+			}),
+		).toEqual([]);
 		expect(readEvents(ctx)).toContainEqual(
 			expect.objectContaining({
 				event: expect.objectContaining({
@@ -434,6 +530,32 @@ describe("Code sidecar runtime capabilities", () => {
 				}),
 			}),
 		);
+	});
+
+	it("rejects askQuestion requests without an owning session", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const ctx = createSidecarContext("/workspace/project");
+		ctx.wsClients.add({ send: vi.fn() });
+		await initializeSessionManager(ctx);
+
+		const capabilities = createCoreMock.mock.calls[0][0]
+			.capabilities as RuntimeCapabilities;
+		const answer = capabilities.toolExecutors?.askQuestion?.(
+			"Which branch?",
+			["Keep current", "Create new"],
+			{ agentId: "agent-1", iteration: 3 },
+		);
+
+		await expect(answer).rejects.toThrow(
+			"ask_question requires an active session ID",
+		);
+		expect(
+			readEvents(ctx).some(
+				(message) => message.event.name === "ask_question_requested",
+			),
+		).toBe(false);
 	});
 
 	it("resolves approval through websocket state", async () => {

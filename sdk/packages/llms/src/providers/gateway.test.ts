@@ -3216,7 +3216,7 @@ describe("sdk-gateway", () => {
 		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
 	});
 
-	it("preserves usage cost from market cost fields", async () => {
+	it("uses discounted billed cost instead of Vercel market cost", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: makeStreamParts([
 				{
@@ -3224,12 +3224,12 @@ describe("sdk-gateway", () => {
 					usage: {
 						prompt_tokens: 3793,
 						completion_tokens: 1250,
-						cost: 0,
+						cost: 0.009145675,
 						market_cost: 0.01829135,
 					},
 					providerMetadata: {
 						gateway: {
-							cost: "0.01829135",
+							cost: "0.009145675",
 							marketCost: "0.01829135",
 						},
 					},
@@ -3270,7 +3270,7 @@ describe("sdk-gateway", () => {
 				outputTokens: 1250,
 				cacheReadTokens: 0,
 				cacheWriteTokens: 0,
-				totalCost: 0.01829135,
+				totalCost: 0.009145675,
 			},
 		});
 	});

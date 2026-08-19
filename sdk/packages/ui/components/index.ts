@@ -22,6 +22,7 @@ export {
 	AgentQuickActions,
 	type AgentQuickActionsProps,
 } from "./agent-quick-actions.js";
+export { Badge, type BadgeProps } from "./badge.js";
 export {
 	Button,
 	type ButtonProps,

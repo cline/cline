@@ -48,6 +48,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -84,6 +85,11 @@ import type {
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import {
+	BETA_PRODUCT_NAME,
+	isBetaVersion,
+	productNameForVersion,
+} from "@/lib/app-channel";
 import { desktopClient } from "@/lib/desktop-client";
 import {
 	ALL_SESSION_SOURCES,
@@ -658,7 +664,9 @@ export function AgentSidebar({
 								className="w-64 p-3"
 								side="bottom"
 							>
-								<p className="text-sm font-medium">Cline Code</p>
+								<p className="text-sm font-medium">
+									{productNameForVersion(appVersion)}
+								</p>
 								<p className="mt-0.5 text-xs text-muted-foreground">
 									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
 								</p>
@@ -685,6 +693,15 @@ export function AgentSidebar({
 								</div>
 							</HoverCardContent>
 						</HoverCard>
+						{!isCollapsed && isBetaVersion(appVersion) ? (
+							<Badge
+								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
+								variant="secondary"
+							>
+								Beta
+							</Badge>
+						) : null}
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
 					</div>
 					{!isCollapsed ? (
@@ -1108,7 +1125,7 @@ function ThreadItem({
 
 	return (
 		<ContextMenu>
-			<HoverCard openDelay={250} closeDelay={100}>
+			<HoverCard openDelay={0} closeDelay={100}>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
 						<button
@@ -1153,12 +1170,12 @@ function ThreadItem({
 						<div className="wrap-break-word text-sm font-medium">
 							{overviewTitle}
 						</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
 									<span
-										className="min-w-0 truncate font-mono font-thin text-foreground"
+										className="min-w-0 truncate font-mono text-foreground"
 										title={fullValue}
 									>
 										{value}
@@ -1189,6 +1206,7 @@ export function getSessionOverviewTitle(title: string): string {
 export function getSessionOverviewItems(
 	thread: SessionThread,
 ): Array<[string, string, string?]> {
+	// Updated time is already visible in the sidebar item.
 	const workspacePath = thread.workspacePath || thread.codebase;
 	const items: Array<[string, string | null | undefined, string?]> = [
 		[
@@ -1201,9 +1219,7 @@ export function getSessionOverviewItems(
 		["Model", thread.model],
 		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
 		["Cost", formatCostUsd(thread.totalCostUsd)],
-		["ID", thread.id],
 		["Source", thread.source],
-		["Updated", thread.time],
 	];
 	return items.filter((item): item is [string, string, string?] =>
 		Boolean(item[1]),
