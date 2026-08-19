@@ -52,6 +52,7 @@ import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
 import { CustomizationSectionView } from "./extensions-view";
 import { McpServersContent } from "./mcp-view";
+import { NotificationSettings } from "./notification-settings";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -760,6 +761,7 @@ function GeneralSettingsContent() {
 				title="Settings"
 			/>
 			<section className="max-w-344">
+				<NotificationSettings />
 				<div className="flex py-4 items-center justify-between gap-5 border-b max-[720px]:flex-col max-[720px]:items-stretch max-[720px]:py-4">
 					<div className="flex flex-col gap-1">
 						<p className="text-base font-semibold text-foreground">Dark mode</p>

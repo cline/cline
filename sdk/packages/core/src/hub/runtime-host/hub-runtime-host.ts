@@ -195,6 +195,8 @@ function parseToolContext(value: unknown): AgentToolContext {
 			? (value as Record<string, unknown>)
 			: {};
 	return {
+		sessionId:
+			typeof payload.sessionId === "string" ? payload.sessionId : undefined,
 		agentId: typeof payload.agentId === "string" ? payload.agentId : "",
 		conversationId:
 			typeof payload.conversationId === "string" ? payload.conversationId : "",
