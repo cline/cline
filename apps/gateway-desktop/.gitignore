@@ -1,0 +1,10 @@
+node_modules/
+dist/
+webview/.next/
+webview/out/
+webview/next-env.d.ts
+src-tauri/target/
+src-tauri/bin/
+src-tauri/gen/
+*.tsbuildinfo
+.next/

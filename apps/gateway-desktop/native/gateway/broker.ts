@@ -88,7 +88,7 @@ export interface DesktopBrokerOptions {
 	/** Native capability: reveal the diagnostics folder. */
 	revealDiagnostics?: () => void | Promise<void>;
 	/** Test hook: scheduler for reconnect timers. */
-	setTimer?: (fn: () => void, ms: number) => ReturnType<typeof setTimeout>;
+	setTimer?: (fn: () => void, ms: number) => unknown;
 }
 
 export class DesktopBroker {
@@ -278,7 +278,7 @@ export class DesktopBroker {
 		this.reconnectTimer = setTimer(() => {
 			this.reconnectTimer = undefined;
 			void this.attemptConnect();
-		}, delay);
+		}, delay) as ReturnType<typeof setTimeout>;
 	}
 
 	/** Manual reconnect (user action): resets backoff and tries now. */
@@ -318,13 +318,32 @@ export class DesktopBroker {
 		]);
 
 		let snapshot: Awaited<ReturnType<GatewayPort["getSession"]>> | undefined;
-		const selectedSessionId =
+		let selectedSessionId =
 			this.options.stateStore.current.selectedSessionId ??
 			this.context.projection.selectedSessionId;
 		if (
 			selectedSessionId &&
-			sessions.sessions.some((session) => session.sessionId === selectedSessionId)
+			!sessions.sessions.some(
+				(session) => session.sessionId === selectedSessionId,
+			)
 		) {
+			selectedSessionId = undefined;
+		}
+		if (!selectedSessionId) {
+			// Nothing selected: follow the selected (or default lead) bot's
+			// active session so a relaunch lands back in the conversation.
+			const focusBotId =
+				this.options.stateStore.current.selectedBotId ??
+				this.context.projection.selectedBotId ??
+				(typeof status.defaultBotId === "string"
+					? status.defaultBotId
+					: undefined);
+			selectedSessionId = sessions.sessions.find(
+				(session) =>
+					session.botId === focusBotId && session.state === "active",
+			)?.sessionId;
+		}
+		if (selectedSessionId) {
 			snapshot = await port.getSession({ sessionId: selectedSessionId });
 		}
 
