@@ -1360,6 +1360,10 @@ export async function handleCommand(
 			await cloud.delete(sessionId);
 			return true;
 		}
+		const { assertSessionDeleteAllowedDuringHandoff } = await import(
+			"./chat-session"
+		);
+		await assertSessionDeleteAllowedDuringHandoff(ctx, sessionId);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);

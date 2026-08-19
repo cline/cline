@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
+	assertSessionDeleteAllowedDuringHandoff,
 	buildSessionConnectionUpdate,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
@@ -231,6 +232,89 @@ describe("pathless session starts", () => {
 });
 
 describe("session forks", () => {
+	it("blocks the delete command while a persisted cloud handoff is pending", async () => {
+		const remove = vi.fn();
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "pending-handoff-source",
+					metadata: {
+						handoff: {
+							status: "pending",
+							toCloudSessionId: "cloud-pending",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+							dashboardUrl:
+								"https://app.cline.bot/agents?sessionId=cloud-pending",
+						},
+					},
+				})),
+				delete: remove,
+			},
+		} as unknown as SidecarContext;
+		const { handleCommand } = await import("./commands");
+
+		await expect(
+			handleCommand(ctx, "delete_chat_session", {
+				sessionId: "pending-handoff-source",
+			}),
+		).rejects.toThrow("Cloud handoff is still pending");
+		expect(remove).not.toHaveBeenCalled();
+	});
+
+	it("blocks deletion while the handoff request is starting", async () => {
+		let releaseGet: ((value: undefined) => void) | undefined;
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(
+					async () =>
+						await new Promise<undefined>((resolve) => {
+							releaseGet = resolve;
+						}),
+				),
+			},
+		} as unknown as SidecarContext;
+		const handoff = handleChatSessionCommand(ctx, {
+			action: "handoff",
+			sessionId: "starting-handoff-source",
+			fingerprint: {
+				repoUrl: "https://github.com/cline/cline.git",
+				branch: "main",
+				headSha: "abc123",
+				modelId: "anthropic/claude-sonnet-4.6",
+			},
+		});
+
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(ctx, "starting-handoff-source"),
+		).rejects.toThrow("Wait for the cloud handoff to finish before deleting");
+		releaseGet?.(undefined);
+		await expect(handoff).rejects.toThrow("was not found");
+	});
+
+	it("allows deletion after a cloud handoff has completed", async () => {
+		const ctx = {
+			liveSessions: new Map(),
+			sessionManager: {
+				get: vi.fn(async () => ({
+					sessionId: "completed-handoff-source",
+					metadata: {
+						handoff: {
+							status: "complete",
+							toCloudSessionId: "cloud-complete",
+							handedOffAt: "2026-08-18T00:00:00.000Z",
+						},
+					},
+				})),
+			},
+		} as unknown as SidecarContext;
+
+		await expect(
+			assertSessionDeleteAllowedDuringHandoff(ctx, "completed-handoff-source"),
+		).resolves.toBeUndefined();
+	});
+
 	it("keeps a persisted pending handoff read-only after restart", async () => {
 		const send = vi.fn();
 		const restore = vi.fn();

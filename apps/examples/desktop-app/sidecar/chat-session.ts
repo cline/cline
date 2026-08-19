@@ -2158,6 +2158,30 @@ const handoffRequests = new WeakMap<
 	Map<string, { identity: HandoffRequestIdentity; promise: Promise<unknown> }>
 >();
 
+/**
+ * Deleting a source session while its cloud handoff is in flight can remove
+ * the only durable recovery record for an already-created sandbox. Keep this
+ * check in the sidecar as well as the UI so alternate clients cannot bypass it.
+ */
+export async function assertSessionDeleteAllowedDuringHandoff(
+	ctx: SidecarContext,
+	sessionId: string,
+): Promise<void> {
+	if (handoffRequests.get(ctx)?.has(sessionId)) {
+		throw new Error("Wait for the cloud handoff to finish before deleting.");
+	}
+	const manager = getSessionManager(ctx);
+	const persisted = await manager.get(sessionId);
+	const handoff = readCloudHandoffMetadata(
+		persisted?.metadata ?? readSessionMetadata(sessionId),
+	);
+	if (handoff?.status === "pending") {
+		throw new Error(
+			`Cloud handoff is still pending. Retry /handoff or continue here: ${handoff.dashboardUrl ?? buildCloudHandoffDashboardUrl(getClineEnvironmentConfig().appBaseUrl, handoff.toCloudSessionId)}`,
+		);
+	}
+}
+
 async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
