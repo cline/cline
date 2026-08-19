@@ -673,6 +673,10 @@ button:disabled {
 	display: grid;
 	grid-template-columns: 288px minmax(0, 1fr);
 	overflow: hidden;
+	transition: grid-template-columns 180ms ease;
+}
+.app-shell.sidebar-collapsed {
+	grid-template-columns: 72px minmax(0, 1fr);
 }
 .sidebar {
 	position: relative;
@@ -702,6 +706,55 @@ button:disabled {
 		serif;
 	font-size: 20px;
 	font-weight: 500;
+}
+.sidebar-toggle {
+	margin-left: auto;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid #343741;
+	border-radius: 7px;
+	background: #171a20;
+	color: #9599a5;
+	line-height: 1;
+}
+.sidebar-toggle:hover {
+	color: #fff;
+	border-color: #5c526c;
+}
+.sidebar-collapsed .sidebar {
+	padding-left: 9px;
+	padding-right: 9px;
+}
+.sidebar-collapsed .sidebar header {
+	justify-content: center;
+	padding-left: 0;
+	padding-right: 0;
+}
+.sidebar-collapsed .sidebar header strong,
+.sidebar-collapsed .gateway-pill .status-label,
+.sidebar-collapsed .gateway-pill .gateway-id,
+.sidebar-collapsed .gateway-pill button,
+.sidebar-collapsed .section-label,
+.sidebar-collapsed .bot-list,
+.sidebar-collapsed .session-list,
+.sidebar-collapsed .disconnect {
+	display: none;
+}
+.sidebar-collapsed .sidebar-toggle {
+	margin-left: 0;
+	width: 18px;
+	height: 22px;
+}
+.sidebar-collapsed .sidebar header {
+	gap: 5px;
+}
+.sidebar-collapsed .gateway-pill {
+	justify-content: center;
+	margin-left: 5px;
+	margin-right: 5px;
+	padding-left: 0;
+	padding-right: 0;
 }
 .gateway-pill {
 	margin: 0 5px 24px;
@@ -735,7 +788,7 @@ button:disabled {
 		opacity: 0.35;
 	}
 }
-.gateway-pill span {
+.gateway-pill .gateway-id {
 	margin-left: auto;
 	color: #626672;
 }
@@ -1071,30 +1124,8 @@ button:disabled {
 	background: transparent;
 }
 @media (max-width: 760px) {
-	.app-shell {
-		grid-template-columns: 80px 1fr;
-	}
 	.sidebar {
 		padding: 14px 8px;
-	}
-	.sidebar header strong,
-	.gateway-pill span,
-	.gateway-pill:not(i),
-	.section-label,
-	.bot-list button > i,
-	.session-list,
-	.disconnect {
-		font-size: 0;
-	}
-	.gateway-pill {
-		justify-content: center;
-	}
-	.bot-list button {
-		grid-template-columns: 1fr;
-		place-items: center;
-	}
-	.bot-list strong {
-		font-size: 10px;
 	}
 	.conversation-header {
 		padding: 12px;

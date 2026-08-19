@@ -74,6 +74,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 	const [modelId, setModelId] = useState("");
 	const [sending, setSending] = useState(false);
 	const [steerMode, setSteerMode] = useState(false);
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
 	const selectedBot = bots.find((bot) => bot.identity.botId === selectedBotId);
 	const visibleSessions = sessions.filter(
@@ -343,21 +344,34 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 	}
 
 	return (
-		<div className={`app-shell ${status}`}>
+		<div
+			className={`app-shell ${status}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}
+		>
 			<aside className="sidebar">
 				<header>
 					<img src="/favicon.png" alt="" />
 					<strong>Gateway</strong>
+					<button
+						type="button"
+						className="sidebar-toggle"
+						onClick={() => setSidebarCollapsed((current) => !current)}
+						aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+						title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+					>
+						{sidebarCollapsed ? "›" : "‹"}
+					</button>
 				</header>
 				<div className={`gateway-pill ${status}`}>
-					<i />{" "}
-					{status === "connected"
-						? "Connected"
-						: status === "connecting"
-							? "Connecting"
-							: "Disconnected"}
+					<i />
+					<span className="status-label">
+						{status === "connected"
+							? "Connected"
+							: status === "connecting"
+								? "Connecting"
+								: "Disconnected"}
+					</span>
 					{status === "connected" ? (
-						<span>{shortId(gatewayName)}</span>
+						<span className="gateway-id">{shortId(gatewayName)}</span>
 					) : (
 						<button
 							type="button"
@@ -523,12 +537,12 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 								e.currentTarget.form?.requestSubmit();
 							}
 						}}
-					placeholder={
+						placeholder={
 							status !== "connected"
 								? "Reconnect to continue…"
 								: steerMode
-								? "Add direction to the current run…"
-								: "Ask Cline to do something…"
+									? "Add direction to the current run…"
+									: "Ask Cline to do something…"
 						}
 						rows={3}
 					/>
@@ -565,10 +579,7 @@ function EventTimeline({ events }: { events: GatewayEvent[] }) {
 			{items.map((item) => {
 				if (item.kind === "message")
 					return (
-						<article
-							className={`message ${item.role}`}
-							key={item.key}
-						>
+						<article className={`message ${item.role}`} key={item.key}>
 							<div className="message-role">{item.role}</div>
 							<div>{item.text}</div>
 						</article>
@@ -617,7 +628,8 @@ function projectTimeline(events: GatewayEvent[]): TimelineItem[] {
 			const role = message.role ?? "assistant";
 			if (role === "assistant") {
 				const trailing = items.at(-1);
-				if (trailing?.kind === "stream" && trailing.runId === runId) items.pop();
+				if (trailing?.kind === "stream" && trailing.runId === runId)
+					items.pop();
 			}
 			items.push({
 				kind: "message",
