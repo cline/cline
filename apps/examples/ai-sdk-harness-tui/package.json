@@ -1,0 +1,25 @@
+{
+	"name": "@cline/example-ai-sdk-harness-tui",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "bun run src/index.ts",
+		"build": "tsc",
+		"start": "node dist/index.js"
+	},
+	"dependencies": {
+		"@ai-sdk/harness": "^1.0.75",
+		"@ai-sdk/harness-cline": "^1.0.3",
+		"@ai-sdk/sandbox-vercel": "^1.0.75",
+		"@ai-sdk/tui": "^1.0.69",
+		"ai": "^7.0.65"
+	},
+	"devDependencies": {
+		"@types/node": "^22",
+		"typescript": "^5.9.3"
+	},
+	"engines": {
+		"node": ">=22"
+	}
+}
