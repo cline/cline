@@ -40,6 +40,8 @@ describe("method registry", () => {
 				"run.start",
 				"run.steer",
 				"schedule.create",
+				"tools.configuration.put",
+				"tools.profiles.put",
 			].sort(),
 		);
 		expect(getMethodDefinition("gateway.hello")?.mutating).toBe(false);

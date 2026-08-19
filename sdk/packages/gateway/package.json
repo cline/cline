@@ -48,9 +48,9 @@
 	"dependencies": {
 		"@anthropic-ai/sandbox-runtime": "^0.0.73",
 		"@cline/bot": "workspace:*",
-		"@cline/core": "workspace:*",
 		"@cline/engine": "workspace:*",
 		"@cline/shared": "workspace:*",
+		"@cline/tools": "workspace:*",
 		"zod": "^4.3.6"
 	}
 }

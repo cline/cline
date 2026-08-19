@@ -13,7 +13,7 @@
  */
 
 import type { ToolPolicy } from "@cline/engine";
-import type { BotId } from "@cline/shared/gateway";
+import type { BotId, BotToolConfiguration } from "@cline/shared/gateway";
 
 export const BOT_ROLES = ["lead", "worker", "contractor"] as const;
 export type BotRole = (typeof BOT_ROLES)[number];
@@ -47,6 +47,8 @@ export interface BotConfig {
 	modelId?: string;
 	systemPrompt?: string;
 	toolPolicies?: Record<string, ToolPolicy>;
+	/** Declarative profile/tool selection; Gateway resolves executable tools. */
+	tools?: BotToolConfiguration;
 	maxIterations?: number;
 }
 

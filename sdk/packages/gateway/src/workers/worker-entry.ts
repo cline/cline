@@ -17,6 +17,7 @@
 
 import type { EnginePort } from "@cline/bot";
 import { createEngineExecutionPort } from "@cline/bot";
+import { createBuiltinCodingTools } from "@cline/tools";
 import { resolveProviderModel } from "../engine-binding";
 import type { WorkerEndpoint, WorkerWorkloadFactory } from "./host";
 import { WorkerHost } from "./host";
@@ -80,6 +81,19 @@ export function createStreamWorkerEndpoint(
 export const defaultWorkerWorkload: WorkerWorkloadFactory = (context) =>
 	createEngineExecutionPort({
 		model: (invocation) => resolveProviderModel(invocation),
+		tools: (invocation) =>
+			createBuiltinCodingTools({
+				workspaceRoot: invocation.workspaceRoot,
+				enabledToolNames: invocation.executionSnapshot?.tools
+					.filter(
+						(tool) =>
+							tool.executorId === "worker:builtin" ||
+							tool.executorId === "gateway:builtin",
+					)
+					.map((tool) => tool.modelFacingName),
+				askQuestion: (question, options) =>
+					context.capabilityCall("question.request", { question, options }),
+			}),
 		requestApproval: async (request) => {
 			const answer = (await context.capabilityCall("approval.request", {
 				toolCallId: request.toolCallId,

@@ -6,7 +6,6 @@ import {
 	rmSync,
 	writeFileSync,
 } from "node:fs";
-import { getLocalProviderModels, ProviderSettingsManager } from "@cline/core";
 import {
 	getClineEnvironmentConfig,
 	refreshClineOAuthCredentials,
@@ -76,29 +75,15 @@ export async function listSavedProviderSummaries(
 		const parsed = StoredProviderSettingsSchema.parse(
 			JSON.parse(readFileSync(filePath, "utf8")),
 		);
-		const manager = new ProviderSettingsManager({ filePath });
-		const providers = (
-			await Promise.all(
-				Object.entries(parsed.providers).map(async ([providerId, entry]) => {
-					const savedModel = entry.settings.model?.trim();
-					let catalogModels: string[] = [];
-					try {
-						const config = manager.getProviderConfig(providerId);
-						catalogModels = (
-							await getLocalProviderModels(providerId, config)
-						).models.map((model) => model.id);
-					} catch {
-						// A provider's live/private catalog failure must not hide its
-						// persisted selection from the picker.
-					}
-					const modelIds = [
-						...(savedModel ? [savedModel] : []),
-						...catalogModels.filter((candidate) => candidate !== savedModel),
-					];
-					return modelIds.length > 0 ? { providerId, modelIds } : undefined;
-				}),
-			)
-		).filter((provider): provider is SavedProviderSummary => Boolean(provider));
+		const providers = Object.entries(parsed.providers)
+			.map(([providerId, entry]) => {
+				const savedModel = entry.settings.model?.trim();
+				const modelIds = savedModel ? [savedModel] : [];
+				return modelIds.length > 0 ? { providerId, modelIds } : undefined;
+			})
+			.filter((provider): provider is SavedProviderSummary =>
+				Boolean(provider),
+			);
 		return {
 			providers,
 			...(parsed.lastUsedProvider

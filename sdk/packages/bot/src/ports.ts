@@ -10,6 +10,7 @@
 
 import type {
 	BotId,
+	RunExecutionSnapshot,
 	RunId,
 	RunState,
 	SessionId,
@@ -112,6 +113,8 @@ export interface EngineInvocation {
 	/** Bot config with per-turn overrides already applied. */
 	readonly effectiveConfig: BotConfig;
 	readonly overrides?: TurnOverrides;
+	/** Gateway-resolved immutable resources for this concrete attempt. */
+	readonly executionSnapshot?: RunExecutionSnapshot;
 }
 
 export interface EngineOutcome {

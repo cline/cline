@@ -67,6 +67,7 @@ import {
 	GATEWAY_PROTOCOL_VERSION,
 	RunProvenanceSchema,
 	RunStateTransitionError,
+	SERVER_REQUEST_METHODS,
 } from "@cline/shared/gateway";
 import type { ConnectorRecord } from "./connectors/store";
 import type { GatewayDatabase } from "./db";
@@ -357,6 +358,10 @@ class AttemptingEngineHandle implements EngineRunHandle {
 		sinks: InstrumentationSinks,
 		database: GatewayDatabase,
 		policy: EngineRetryPolicy,
+		prepareInvocation?: (
+			invocation: EngineInvocation,
+			attempt: number,
+		) => EngineInvocation | Promise<EngineInvocation>,
 	) {
 		this.result = (async () => {
 			let outcome: EngineOutcome = {
@@ -380,7 +385,67 @@ class AttemptingEngineHandle implements EngineRunHandle {
 					{ attempt: attemptRecord.attempt },
 					sinks.clock.now(),
 				);
-				const handle = inner.start(invocation);
+				let attemptInvocation = invocation;
+				try {
+					const prepared = prepareInvocation?.(
+						invocation,
+						attemptRecord.attempt,
+					);
+					attemptInvocation =
+						prepared && "then" in prepared
+							? await prepared
+							: (prepared ?? invocation);
+					if (attemptInvocation.executionSnapshot) {
+						sinks.stores.events.append(
+							"run.executionResolved",
+							scope,
+							{
+								attempt: attemptRecord.attempt,
+								providerId: attemptInvocation.executionSnapshot.providerId,
+								modelId: attemptInvocation.executionSnapshot.modelId,
+								catalogGeneration:
+									attemptInvocation.executionSnapshot.catalogGeneration,
+								policyHash:
+									attemptInvocation.executionSnapshot.effectivePolicyHash,
+								tools: attemptInvocation.executionSnapshot.tools.map(
+									(tool) => ({
+										toolId: tool.id,
+										version: tool.version,
+										executorId: tool.executorId,
+									}),
+								),
+							},
+							sinks.clock.now(),
+						);
+					}
+				} catch (error) {
+					outcome = {
+						status: "failed",
+						outputText: "",
+						error: {
+							name: error instanceof Error ? error.name : "ToolResolutionError",
+							message: error instanceof Error ? error.message : String(error),
+						},
+					};
+					sinks.stores.attempts.settle(
+						invocation.runId,
+						attemptRecord.attempt,
+						"failed",
+						sinks.clock.now(),
+						outcome.error,
+					);
+					sinks.stores.events.append(
+						"run.executionResolutionFailed",
+						scope,
+						{
+							attempt: attemptRecord.attempt,
+							error: outcome.error,
+						},
+						sinks.clock.now(),
+					);
+					break;
+				}
+				const handle = inner.start(attemptInvocation);
 				this.current = handle;
 				const unsubscribe = handle.subscribe?.((event) => {
 					persistEngineEvent(database, sinks, invocation, event);
@@ -523,6 +588,40 @@ function persistEngineEvent(
 				status: call.status === "error" ? "error" : "ok",
 			});
 		}
+		if (
+			eventType === "tool-started" ||
+			eventType === "tool-updated" ||
+			eventType === "tool-finished" ||
+			eventType === "approval-requested"
+		) {
+			const toolEvent = event as Record<string, unknown>;
+			const sensitive = toolEvent.input ?? toolEvent.output ?? toolEvent.update;
+			const serializedSize = (() => {
+				try {
+					return sensitive === undefined ? 0 : JSON.stringify(sensitive).length;
+				} catch {
+					return 0;
+				}
+			})();
+			sinks.stores.events.append(
+				`engine.${kebabToCamel(eventType)}`,
+				scope,
+				{
+					type: eventType,
+					sequence: toolEvent.sequence,
+					timestamp: toolEvent.timestamp,
+					toolCallId: toolEvent.toolCallId,
+					toolName: toolEvent.toolName,
+					...(toolEvent.isError !== undefined
+						? { isError: toolEvent.isError }
+						: {}),
+					payloadSize: serializedSize,
+					redacted: sensitive !== undefined,
+				},
+				now,
+			);
+			return;
+		}
 		sinks.stores.events.append(
 			`engine.${kebabToCamel(eventType)}`,
 			scope,
@@ -537,17 +636,20 @@ export class AttemptingEnginePort implements EnginePort {
 	private readonly sinks: InstrumentationSinks;
 	private readonly database: GatewayDatabase;
 	private readonly policy: EngineRetryPolicy;
+	private readonly prepareInvocation?: GatewayRuntimeOptions["prepareInvocation"];
 
 	constructor(
 		inner: EnginePort,
 		sinks: InstrumentationSinks,
 		database: GatewayDatabase,
 		policy: EngineRetryPolicy,
+		prepareInvocation?: GatewayRuntimeOptions["prepareInvocation"],
 	) {
 		this.inner = inner;
 		this.sinks = sinks;
 		this.database = database;
 		this.policy = policy;
+		this.prepareInvocation = prepareInvocation;
 	}
 
 	start(invocation: EngineInvocation): EngineRunHandle {
@@ -564,6 +666,7 @@ export class AttemptingEnginePort implements EnginePort {
 			this.sinks,
 			this.database,
 			this.policy,
+			this.prepareInvocation,
 		);
 	}
 }
@@ -724,6 +827,11 @@ export interface GatewayRuntimeOptions {
 	leadConfig?: BotRecord["config"];
 	/** Display name supplied by the selected lead profile. */
 	leadName?: string;
+	/** Resolve and durably snapshot model/tool resources before execution. */
+	prepareInvocation?: (
+		invocation: EngineInvocation,
+		attempt: number,
+	) => EngineInvocation | Promise<EngineInvocation>;
 }
 
 export interface RunStartParams {
@@ -824,6 +932,7 @@ export class GatewayRuntime {
 			sinks,
 			this.database,
 			{ maxAttempts: Math.max(1, options.retry?.maxAttempts ?? 1) },
+			options.prepareInvocation,
 		);
 		const materialize =
 			options.materializeWorkspace ??
@@ -850,7 +959,9 @@ export class GatewayRuntime {
 		this.approvals.onResolved = (request, approved) => {
 			this.database.transaction(() => {
 				this.stores.events.append(
-					"approval.resolved",
+					request.method === SERVER_REQUEST_METHODS.toolApproval
+						? "approval.resolved"
+						: "serverRequest.resolved",
 					request.scope,
 					{ requestId: request.id, method: request.method, approved },
 					this.clock.now(),

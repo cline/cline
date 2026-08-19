@@ -20,6 +20,8 @@ import type {
 } from "@cline/bot";
 import type {
 	BotId,
+	BotToolConfiguration,
+	EffectiveToolPreview,
 	GatewayError,
 	GatewayEvent,
 	GatewayHelloResult,
@@ -29,6 +31,8 @@ import type {
 	RunAccepted,
 	RunId,
 	SessionId,
+	ToolDescriptor,
+	ToolProfile,
 } from "@cline/shared/gateway";
 import {
 	createGatewayError,
@@ -41,10 +45,16 @@ import {
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
 import type { ConnectorRecord } from "./connectors/store";
+
 export { listSavedProviderSummaries } from "./provider-settings";
+
 import type { DiscoveryRecord } from "./discovery";
 import type { SessionSnapshot } from "./runtime";
 import type { ScheduleJobRecord, ScheduleRecord } from "./schedules/store";
+import type {
+	ToolConfigurationScope,
+	VersionedToolConfiguration,
+} from "./tools/store";
 
 export class GatewayRequestError extends Error {
 	readonly gatewayError: GatewayError;
@@ -80,11 +90,21 @@ export type { SessionSnapshot } from "./runtime";
 export type { RunAttemptRecord, StoredMessage } from "./stores";
 export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
 export type { ConnectorRecord } from "./connectors/store";
+export type { DiscoveryRecord } from "./discovery";
 export type {
 	ScheduleJobRecord,
 	ScheduleRecord,
 } from "./schedules/store";
-export type { DiscoveryRecord } from "./discovery";
+export type {
+	ToolConfigurationScope,
+	VersionedToolConfiguration,
+} from "./tools/store";
+export type {
+	BotToolConfiguration,
+	EffectiveToolPreview,
+	ToolDescriptor,
+	ToolProfile,
+};
 export { DiscoveryRecordSchema, readDiscoveryRecord } from "./discovery";
 export type { GatewayPaths, GatewayPathsOptions } from "./paths";
 export {
@@ -124,6 +144,7 @@ export interface GatewayStatusSummary {
 		pinnedByRuns: number;
 		lastReloadOk: boolean;
 	};
+	tools?: { generation: number; registered: number; available: number };
 	/** Live connector worker health (Phase 6, read-only diagnostics). */
 	connectorHealth?: {
 		running: readonly {
@@ -324,6 +345,74 @@ export class GatewayClient {
 		return this.request("session.get", {
 			sessionId: input.sessionId,
 		}) as Promise<SessionSnapshot>;
+	}
+
+	listTools(): Promise<{
+		generation: number;
+		entries: readonly {
+			descriptor: ToolDescriptor;
+			executorId: string;
+			available: boolean;
+			healthGeneration: number;
+		}[];
+	}> {
+		return this.request("tools.catalog", {}) as never;
+	}
+
+	listToolProfiles(): Promise<{ profiles: readonly ToolProfile[] }> {
+		return this.request("tools.profiles.list", {}) as never;
+	}
+
+	putToolProfile(input: {
+		profile: ToolProfile;
+		expectedRevision?: number;
+		idempotencyKey?: string;
+	}): Promise<ToolProfile> {
+		return this.mutate("tools.profiles.put", {
+			profile: input.profile,
+			...(input.expectedRevision !== undefined
+				? { expectedRevision: input.expectedRevision }
+				: {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ToolProfile>;
+	}
+
+	getToolConfiguration(
+		scope: ToolConfigurationScope,
+	): Promise<VersionedToolConfiguration | null> {
+		return this.request("tools.configuration.get", { scope }) as never;
+	}
+
+	putToolConfiguration(input: {
+		scope: ToolConfigurationScope;
+		config: BotToolConfiguration;
+		expectedRevision?: number;
+		idempotencyKey?: string;
+	}): Promise<VersionedToolConfiguration> {
+		return this.mutate("tools.configuration.put", {
+			scope: input.scope,
+			config: input.config,
+			...(input.expectedRevision !== undefined
+				? { expectedRevision: input.expectedRevision }
+				: {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<VersionedToolConfiguration>;
+	}
+
+	previewEffectiveTools(input: {
+		botId: BotId;
+		workspaceRoot: string;
+		providerId: string;
+		modelId: string;
+		turn?: BotToolConfiguration;
+	}): Promise<EffectiveToolPreview> {
+		return this.request("tools.previewEffective", {
+			...input,
+		}) as Promise<EffectiveToolPreview>;
 	}
 
 	/** Admit a prompt; acks immediately without waiting for execution. */

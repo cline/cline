@@ -47,6 +47,45 @@ Engine never imports bot or Gateway types; bot never imports Gateway
 implementations; no new package depends on `@cline/core`. These rules are
 machine-checked in `src/boundaries.test.ts` (and mirrored per-package).
 
+## Gateway tool system
+
+Gateway owns one canonical tool catalog and resolves it at the start of every
+run attempt. Resolution applies profiles and the `global → workspace → bot →
+turn` configuration layers after provider/model selection, then filters by
+compatibility, policy, and executor health. Required missing tools fail closed.
+
+The resulting provider/model/tool binding is persisted on `run_attempts` as an
+immutable, secret-free execution snapshot. Automatic and ordinary manual
+retries reuse the prior snapshot by default. Engine and bot receive only the
+resolved snapshot; they do not discover or authorize tools.
+
+Clients use the typed `GatewayClient` surface:
+
+```ts
+await client.listTools()
+await client.listToolProfiles()
+await client.putToolConfiguration({
+  scope: { kind: "bot", botId },
+  config: {
+    assignments: [{
+      when: { providers: ["ollama"] },
+      deny: ["builtin:fetch_web_content"],
+    }],
+  },
+})
+await client.previewEffectiveTools({
+  botId,
+  workspaceRoot,
+  providerId: "ollama",
+  modelId: "qwen-coder",
+})
+```
+
+Default coding tools execute from `@cline/tools` inside the selected workspace.
+Tool lifecycle events are durable and correlated, but operational events redact
+raw inputs/results; canonical conversation messages retain the user-visible
+history.
+
 ## The Phase 3 authority
 
 ### Lifecycle

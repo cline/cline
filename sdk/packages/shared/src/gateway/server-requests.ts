@@ -50,5 +50,6 @@ export type GatewayServerResponse = z.infer<typeof GatewayServerResponseSchema>;
 /** Well-known server-request methods (additive registry). */
 export const SERVER_REQUEST_METHODS = {
 	toolApproval: "client.requestToolApproval",
+	question: "client.requestQuestion",
 	credential: "client.requestCredential",
 } as const;
