@@ -2,10 +2,10 @@ import "opentui-spinner/react";
 import type { ScrollBoxRenderable } from "@opentui/core";
 import type { ReactNode } from "react";
 import { useEffect, useRef } from "react";
-import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-} from "../../../utils/codex-cli";
+import type {
+	LocalCliProvider,
+	LocalCliStatus,
+} from "../../../utils/local-cli-providers";
 import {
 	ClineModelPicker,
 	type ClineModelPickerEntry,
@@ -362,13 +362,14 @@ export function OnboardingProviderConfigScreen(props: {
 	);
 }
 
-export function OnboardingCodexCliScreen(props: {
+export function OnboardingLocalCliScreen(props: {
 	activeProviderName: string;
 	checking: boolean;
+	cli: LocalCliProvider;
 	compact: boolean;
 	contentWidth: number;
 	mouse: MouseTrackerState;
-	status?: CodexCliStatus;
+	status?: LocalCliStatus;
 }) {
 	const defaultFg = useDefaultFg();
 	const colors = useOnboardingColors();
@@ -386,24 +387,26 @@ export function OnboardingCodexCliScreen(props: {
 				{props.checking && (
 					<box flexDirection="row" gap={1}>
 						<spinner name="dots" color="gray" />
-						<text fg="gray">Checking for Codex CLI...</text>
+						<text fg="gray">Checking for {props.cli.cliName}...</text>
 					</box>
 				)}
 
 				{installedStatus && (
 					<box flexDirection="column" gap={1} alignItems="center">
-						<text fg={colors.success}>{"\u25cf"} Codex CLI installed</text>
+						<text fg={colors.success}>
+							{"\u25cf"} {props.cli.cliName} installed
+						</text>
 						<text fg="gray">{installedStatus.version}</text>
 					</box>
 				)}
 
 				{props.status && !props.status.installed && (
 					<box flexDirection="column" gap={1} width={props.contentWidth}>
-						<text fg="yellow">Codex CLI was not found</text>
+						<text fg="yellow">{props.cli.cliName} was not found</text>
 						<text fg="gray">{props.status.reason}</text>
-						<text fg="gray">Install Codex CLI from:</text>
+						<text fg="gray">Install {props.cli.cliName} from:</text>
 						<text fg={colors.accent} selectable>
-							{CODEX_CLI_INSTALL_URL}
+							{props.cli.installUrl}
 						</text>
 					</box>
 				)}
