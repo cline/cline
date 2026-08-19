@@ -5,6 +5,8 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	getDefaultAwsRegion,
 	resolveProviderConfigAwsRegion,
+	resolveProviderConfigAzure,
+	resolveProviderConfigGcp,
 	resolveProviderConfigSap,
 	updateProviderConfigValue,
 } from "./provider-config-values";
@@ -66,6 +68,18 @@ describe("provider config values", () => {
 		).toBe("us-west-2");
 	});
 
+	it("resolves Vertex GCP field values into GCP settings", () => {
+		expect(
+			resolveProviderConfigGcp({ gcpRegion: "us-central1" }),
+		).toBeUndefined();
+		expect(
+			resolveProviderConfigGcp({
+				gcpProjectId: " project ",
+				gcpRegion: " europe-west4 ",
+			}),
+		).toEqual({ projectId: "project", region: "europe-west4" });
+	});
+
 	it("resolves SAP AI Core field values into SAP settings", () => {
 		expect(
 			resolveProviderConfigSap({
@@ -81,6 +95,26 @@ describe("provider config values", () => {
 			tokenUrl: "https://auth.example",
 			resourceGroup: "default",
 			deploymentId: "deployment",
+		});
+	});
+
+	it("resolves Azure API version into Azure settings", () => {
+		expect(
+			resolveProviderConfigAzure({
+				azureApiVersion: " 2025-01-01-preview ",
+			}),
+		).toEqual({
+			apiVersion: "2025-01-01-preview",
+		});
+	});
+
+	it("keeps blank Azure API version so persisted settings can be cleared", () => {
+		expect(
+			resolveProviderConfigAzure({
+				azureApiVersion: "   ",
+			}),
+		).toEqual({
+			apiVersion: "",
 		});
 	});
 });

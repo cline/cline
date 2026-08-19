@@ -13,17 +13,13 @@ import {
 } from "../components/status-bar";
 import { TrackedRobot, useMouseTracker } from "../components/tracked-robot";
 import { useSession } from "../contexts/session-context";
+import { useTheme } from "../hooks/use-theme";
 import {
-	useTerminalBackground,
-	useTerminalTheme,
-} from "../hooks/use-terminal-background";
-import {
-	getDefaultForeground,
-	getModeAccent,
-	getModeInputBackground,
+	getInputRuleColor,
 	getModeInputForeground,
 	getModeInputPlaceholder,
 } from "../palette";
+import { getThemeModeAccent } from "../themes";
 import { HOME_VIEW_MAX_WIDTH, type TuiProps } from "../types";
 
 export function HomeView(props: {
@@ -65,11 +61,11 @@ export function HomeView(props: {
 		visualRow: number;
 	} | null>(null);
 
-	const terminalBg = useTerminalBackground();
-	const terminalTheme = useTerminalTheme();
-	const defaultFg = getDefaultForeground(terminalBg);
-	const accent = getModeAccent(session.uiMode, terminalTheme);
-	const inputBackground = getModeInputBackground(session.uiMode, terminalBg);
+	const theme = useTheme();
+	const terminalBg = theme.background;
+	const defaultFg = theme.defaultForeground;
+	const accent = getThemeModeAccent(theme, session.uiMode);
+	const inputRuleColor = getInputRuleColor(terminalBg);
 	const inputForeground = getModeInputForeground(session.uiMode, terminalBg);
 	const inputPlaceholder = getModeInputPlaceholder(session.uiMode, terminalBg);
 	const placeholder =
@@ -80,7 +76,7 @@ export function HomeView(props: {
 		props.autocomplete?.mode && props.autocomplete.options.length > 0;
 	const contentWidth = Math.min(width, HOME_VIEW_MAX_WIDTH);
 	const hasTypedInput = inputValue.trim().length > 0;
-	const inputStartX = Math.floor((width - contentWidth) / 2) + 4;
+	const inputStartX = Math.floor((width - contentWidth) / 2) + 2;
 	const clamp = (value: number, min: number, max: number) =>
 		Math.max(min, Math.min(max, value));
 	const trackedCursorX = hasTypedInput
@@ -116,7 +112,7 @@ export function HomeView(props: {
 			<box flexDirection="column" width={contentWidth} flexShrink={0}>
 				<InputBar
 					accent={accent}
-					inputBackground={inputBackground}
+					ruleColor={inputRuleColor}
 					inputForeground={inputForeground}
 					inputPlaceholder={inputPlaceholder}
 					placeholder={placeholder}

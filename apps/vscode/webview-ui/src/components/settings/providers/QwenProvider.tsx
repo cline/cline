@@ -1,28 +1,15 @@
-import { internationalQwenModels, mainlandQwenModels, QwenApiRegions } from "@shared/api"
+import { QwenApiRegions } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
-import { useMemo } from "react"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { DROPDOWN_Z_INDEX } from "../ApiOptions"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { DropdownContainer, ModelSelector } from "../common/ModelSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
+import ReasoningEffortSelector from "../ReasoningEffortSelector"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
-
-const SUPPORTED_THINKING_MODELS = [
-	"qwen3-235b-a22b",
-	"qwen3-32b",
-	"qwen3-30b-a3b",
-	"qwen3-14b",
-	"qwen3-8b",
-	"qwen3-4b",
-	"qwen3-1.7b",
-	"qwen3-0.6b",
-	"qwen-plus-latest",
-	"qwen-turbo-latest",
-]
 
 /**
  * Props for the QwenProvider component
@@ -34,7 +21,7 @@ interface QwenProviderProps {
 }
 
 // Turns enum into an array of values for dropdown options
-export const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
+const qwenApiOptions: QwenApiRegions[] = Object.values(QwenApiRegions)
 
 /**
  * The Alibaba Qwen provider configuration component
@@ -43,14 +30,26 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 	const { apiConfiguration } = useExtensionState()
 	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 
-	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
-
-	// Determine which models to use based on API line selection
-	const qwenModels = useMemo(
-		() => (apiConfiguration?.qwenApiLine === QwenApiRegions.CHINA ? mainlandQwenModels : internationalQwenModels),
-		[apiConfiguration?.qwenApiLine],
+	// Catalog and default come from the SDK via gRPC. The SDK consumes
+	// `apiLine` from the effective provider config so regional selection
+	// (china vs international) happens upstream — the webview sees a
+	// single catalog per render.
+	const { models, selectedModelId, selectedModelInfo, hideUsageCost } = useStaticProviderSelection(
+		"qwen",
+		apiConfiguration,
+		currentMode,
 	)
+	const { config, write } = useProviderConfig("qwen")
+	// The SDK provider config (providers.json) is the source of truth shared
+	// with other hosts (CLI, desktop app); the legacy state field keeps the
+	// dropdown accurate before the async config read completes.
+	const selectedApiLine = config?.apiLine || apiConfiguration?.qwenApiLine || qwenApiOptions[0]
+
+	const handleApiLineChange = (value: string) => {
+		// write() persists to providers.json and mirrors to the legacy
+		// `qwenApiLine` state key host-side, keeping both stores in sync.
+		void write({ apiLine: value }).catch((err) => console.error("Failed to update Qwen API line:", err))
+	}
 
 	return (
 		<div>
@@ -60,12 +59,12 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 				</label>
 				<VSCodeDropdown
 					id="qwen-line-provider"
-					onChange={(e: any) => handleFieldChange("qwenApiLine", e.target.value as QwenApiRegions)}
+					onChange={(e: any) => handleApiLineChange(e.target.value as QwenApiRegions)}
 					style={{
 						minWidth: 130,
 						position: "relative",
 					}}
-					value={apiConfiguration?.qwenApiLine || qwenApiOptions[0]}>
+					value={selectedApiLine}>
 					{qwenApiOptions.map((line) => (
 						<VSCodeOption key={line} value={line}>
 							{line.charAt(0).toUpperCase() + line.slice(1)} API
@@ -94,7 +93,7 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 				<>
 					<ModelSelector
 						label="Model"
-						models={qwenModels}
+						models={models}
 						onChange={(e: any) =>
 							handleModeFieldChange(
 								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
@@ -106,11 +105,25 @@ export const QwenProvider = ({ showModelOptions, isPopup, currentMode }: QwenPro
 						zIndex={DROPDOWN_Z_INDEX - 2}
 					/>
 
-					{SUPPORTED_THINKING_MODELS.includes(selectedModelId) && (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					{selectedModelInfo.supportsReasoning === true && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={(effort) => {
+								void write({
+									reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+								}).catch((err) => console.error("Failed to update Qwen reasoning effort:", err))
+							}}
+						/>
 					)}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

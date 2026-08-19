@@ -1,8 +1,23 @@
+import { afterEach, beforeEach, describe, it, mock } from "bun:test"
 import { InMemoryLogRecordExporter, LoggerProvider, SimpleLogRecordProcessor } from "@opentelemetry/sdk-logs"
 import { expect } from "chai"
 import * as sinon from "sinon"
 import type { ClineAccountUserInfo } from "@/services/auth/AuthService"
-import * as distinctIdModule from "@/services/logging/distinctId"
+import * as actualDistinctIdModule from "@/services/logging/distinctId"
+
+// bun loads real ESM, so sinon cannot stub the `@/services/logging/distinctId`
+// namespace exports ("ES Modules cannot be stubbed"). Inject module-level sinon
+// stubs via mock.module so the full sinon stub API keeps working.
+const getDistinctIdStub: sinon.SinonStub = sinon.stub()
+const setDistinctIdStub: sinon.SinonStub = sinon.stub()
+const distinctIdMock = () => ({
+	...actualDistinctIdModule,
+	getDistinctId: getDistinctIdStub,
+	setDistinctId: setDistinctIdStub,
+})
+mock.module("@/services/logging/distinctId", distinctIdMock)
+mock.module("@services/logging/distinctId", distinctIdMock)
+
 import { OpenTelemetryTelemetryProvider } from "../OpenTelemetryTelemetryProvider"
 
 function makeUserInfo(
@@ -32,8 +47,6 @@ describe("OpenTelemetryTelemetryProvider.identifyUser", () => {
 	let logExporter: InMemoryLogRecordExporter
 	let loggerProvider: LoggerProvider
 	let provider: OpenTelemetryTelemetryProvider
-	let getDistinctIdStub: sinon.SinonStub
-	let setDistinctIdStub: sinon.SinonStub
 
 	beforeEach(() => {
 		logExporter = new InMemoryLogRecordExporter()
@@ -45,12 +58,15 @@ describe("OpenTelemetryTelemetryProvider.identifyUser", () => {
 			bypassUserSettings: true,
 		})
 
-		getDistinctIdStub = sinon.stub(distinctIdModule, "getDistinctId")
-		setDistinctIdStub = sinon.stub(distinctIdModule, "setDistinctId")
+		// Reset the module-level sinon stubs (injected via mock.module above).
+		getDistinctIdStub.reset()
+		setDistinctIdStub.reset()
 	})
 
 	afterEach(() => {
 		sinon.restore()
+		getDistinctIdStub.reset()
+		setDistinctIdStub.reset()
 	})
 
 	it("should emit user_identified log and update distinct ID when ID changes", () => {

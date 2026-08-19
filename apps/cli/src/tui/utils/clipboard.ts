@@ -142,6 +142,8 @@ function runClipboardCommand(
 		const child = spawn(command.command, command.args, {
 			stdio: ["pipe", "ignore", "ignore"],
 			...(command.env ? { env: command.env } : {}),
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 		let settled = false;
 

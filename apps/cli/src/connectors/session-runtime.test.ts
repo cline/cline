@@ -1,15 +1,17 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const {
 	mockGetLastUsedProviderSettings,
 	mockGetProviderSettings,
 	mockResolveSystemPrompt,
 	mockGetProviderCollection,
+	mockGetBooleanFlagEnabled,
 } = vi.hoisted(() => ({
 	mockGetLastUsedProviderSettings: vi.fn(),
 	mockGetProviderSettings: vi.fn(),
 	mockResolveSystemPrompt: vi.fn(),
 	mockGetProviderCollection: vi.fn(),
+	mockGetBooleanFlagEnabled: vi.fn(),
 }));
 
 vi.mock("@cline/core", async () => {
@@ -18,8 +20,8 @@ vi.mock("@cline/core", async () => {
 	return {
 		...actual,
 		ProviderSettingsManager: class {
-			getLastUsedProviderSettings() {
-				return mockGetLastUsedProviderSettings();
+			getLastUsedProviderSettings(options?: unknown) {
+				return mockGetLastUsedProviderSettings(options);
 			}
 
 			getProviderSettings(providerId: string) {
@@ -43,6 +45,12 @@ vi.mock("../utils/helpers", () => ({
 	resolveWorkspaceRoot: vi.fn((cwd: string) => cwd),
 }));
 
+vi.mock("../utils/feature-flags", () => ({
+	getCliFeatureFlagsService: () => ({
+		getBooleanFlagEnabled: mockGetBooleanFlagEnabled,
+	}),
+}));
+
 vi.mock("../commands/auth", async () => {
 	const actual =
 		await vi.importActual<typeof import("../commands/auth")>(
@@ -54,9 +62,16 @@ vi.mock("../commands/auth", async () => {
 	};
 });
 
-import { buildConnectorStartRequest } from "./session-runtime";
+import {
+	buildConnectorStartRequest,
+	isReusableConnectorSession,
+} from "./session-runtime";
 
 describe("buildConnectorStartRequest", () => {
+	beforeEach(() => {
+		mockGetBooleanFlagEnabled.mockReturnValue(false);
+	});
+
 	afterEach(() => {
 		vi.clearAllMocks();
 		delete process.env.OPENROUTER_API_KEY;
@@ -88,5 +103,93 @@ describe("buildConnectorStartRequest", () => {
 		expect(request.provider).toBe("openrouter");
 		expect(request.apiKey).toBe("env-openrouter-key");
 		expect(request.model).toBe("anthropic/claude-sonnet-4.6");
+		expect(mockGetLastUsedProviderSettings).toHaveBeenCalledWith({
+			isClinePassEnabled: true,
+		});
+	});
+
+	it("uses auth material resolved by provider settings manager", async () => {
+		mockGetLastUsedProviderSettings.mockReturnValue({ provider: "cline-pass" });
+		mockGetProviderSettings.mockReturnValue({
+			provider: "cline-pass",
+			auth: { accessToken: "workos:resolved-token" },
+		});
+		mockGetProviderCollection.mockReturnValue({
+			provider: { env: ["CLINE_API_KEY"] },
+		});
+		mockResolveSystemPrompt.mockResolvedValue("system");
+
+		const request = await buildConnectorStartRequest({
+			options: {
+				cwd: "/tmp/work",
+				mode: "act",
+				enableTools: false,
+			},
+			io: { writeln: vi.fn(), writeErr: vi.fn() },
+			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
+			systemRules: "Rules",
+			defaultModel: "cline-pass/glm-5.2",
+		});
+
+		expect(request.provider).toBe("cline-pass");
+		expect(request.apiKey).toBe("workos:resolved-token");
+		expect(request.model).toBe("cline-pass/glm-5.2");
+	});
+
+	it("uses auth material resolved by provider settings manager", async () => {
+		mockGetLastUsedProviderSettings.mockReturnValue({ provider: "cline-pass" });
+		mockGetProviderSettings.mockReturnValue({
+			provider: "cline-pass",
+			auth: { accessToken: "workos:resolved-token" },
+		});
+		mockGetProviderCollection.mockReturnValue({
+			provider: { env: ["CLINE_API_KEY"] },
+		});
+		mockResolveSystemPrompt.mockResolvedValue("system");
+
+		const request = await buildConnectorStartRequest({
+			options: {
+				cwd: "/tmp/work",
+				mode: "act",
+				enableTools: false,
+			},
+			io: { writeln: vi.fn(), writeErr: vi.fn() },
+			loggerConfig: { enabled: false, level: "info", destination: "stdout" },
+			systemRules: "Rules",
+			defaultModel: "cline-pass/glm-5.2",
+		});
+
+		expect(request.provider).toBe("cline-pass");
+		expect(request.apiKey).toBe("workos:resolved-token");
+		expect(request.model).toBe("cline-pass/glm-5.2");
+	});
+});
+
+describe("isReusableConnectorSession", () => {
+	it("rejects missing and terminal sessions", () => {
+		expect(isReusableConnectorSession(undefined)).toBe(false);
+		expect(isReusableConnectorSession({ sessionId: "" })).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "completed" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "failed" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "aborted" }),
+		).toBe(false);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "cancelled" }),
+		).toBe(false);
+	});
+
+	it("accepts live and status-omitted sessions", () => {
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "running" }),
+		).toBe(true);
+		expect(
+			isReusableConnectorSession({ sessionId: "s1", status: "idle" }),
+		).toBe(true);
+		expect(isReusableConnectorSession({ sessionId: "s1" })).toBe(true);
 	});
 });

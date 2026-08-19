@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getModeAccent, getSuccessColor, getTerminalTheme } from "./palette";
+import { getTerminalTheme, themePalette } from "./palette";
 
 describe("getTerminalTheme", () => {
 	it("detects light terminals from the default background", () => {
@@ -23,15 +23,15 @@ describe("getTerminalTheme", () => {
 });
 
 describe("theme-aware palette helpers", () => {
-	it("preserves the existing named ANSI colors for dark terminals", () => {
-		expect(getModeAccent("act", "dark")).toBe("cyan");
-		expect(getModeAccent("plan", "dark")).toBe("yellow");
-		expect(getSuccessColor("dark")).toBe("brightGreen");
+	it("uses the brand accent colors for dark terminals", () => {
+		expect(themePalette.dark.act).toBe("#79b8ff");
+		expect(themePalette.dark.plan).toBe("#ffea7f");
+		expect(themePalette.dark.success).toBe("#99e89b");
 	});
 
 	it("uses darker accents on light terminals", () => {
-		expect(getModeAccent("act", "light")).toBe("#0969da");
-		expect(getModeAccent("plan", "light")).toBe("#9a6700");
-		expect(getSuccessColor("light")).toBe("#116329");
+		expect(themePalette.light.act).toBe("#0f72cb");
+		expect(themePalette.light.plan).toBe("#867100");
+		expect(themePalette.light.success).toBe("#116329");
 	});
 });

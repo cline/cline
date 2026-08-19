@@ -1,10 +1,16 @@
+import { supportsModelTool } from "@cline/llms";
 import type {
 	AgentTool,
 	BasicLogger,
+	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	TeamTeammateSpec,
 } from "@cline/shared";
-import { hasRuntimeConfigExtension } from "@cline/shared";
+import {
+	hasRuntimeConfigExtension,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
 import { nanoid } from "nanoid";
 import { createUserInstructionConfigService } from "../../extensions/config";
 import {
@@ -18,7 +24,7 @@ import {
 import {
 	createBuiltinTools,
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
-	DefaultToolNames,
+	type RunCommandExecutionController,
 	resolveToolPresetName,
 	resolveToolRoutingConfig,
 	type SkillsExecutorWithMetadata,
@@ -26,14 +32,19 @@ import {
 	ToolPresets,
 	type ToolRoutingRule,
 } from "../../extensions/tools";
+import { createPlanModeCommandGuardExtension } from "../../extensions/tools/command-guard-extension";
 import {
 	AgentTeamsRuntime,
 	bootstrapAgentTeams,
 	createDelegatedAgentConfigProvider,
 	type TeamEvent,
 } from "../../extensions/tools/team";
+import type { ConfiguredAgentConfig } from "../../extensions/tools/team/configured-agent-config";
+import { loadConfiguredAgentConfigs } from "../../extensions/tools/team/configured-agent-config";
+import { createConfiguredAgentTools } from "../../extensions/tools/team/configured-agent-tool";
 import {
 	filterDisabledTools,
+	isModelToolEnabledGlobally,
 	resolveDisabledToolNames,
 } from "../../services/global-settings";
 import { createLocalTeamStore } from "../../services/storage/team-store";
@@ -81,6 +92,42 @@ function filterAvailableTools(
 	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
 }
 
+const CONFIGURED_AGENT_TOOL_NAME_ALIASES: Record<string, string> = {
+	apply_diff: "editor",
+	attempt_completion: "submit_and_exit",
+	bash: "run_commands",
+	execute_command: "run_commands",
+	list_code_definition_names: "search_codebase",
+	list_files: "run_commands",
+	read_file: "read_files",
+	replace_in_file: "editor",
+	search_files: "search_codebase",
+	use_skill: "skills",
+	write_to_file: "editor",
+};
+
+function resolveConfiguredAgentToolName(toolName: string): string {
+	const normalized = toolName.trim().toLowerCase();
+	return CONFIGURED_AGENT_TOOL_NAME_ALIASES[normalized] ?? normalized;
+}
+
+function filterToolsForConfiguredAgent(
+	tools: AgentTool[],
+	agent: ConfiguredAgentConfig,
+): AgentTool[] {
+	if (agent.tools === undefined) {
+		return tools;
+	}
+
+	const allowedToolNames = new Set(
+		agent.tools.map(resolveConfiguredAgentToolName),
+	);
+	if (agent.skills !== undefined) {
+		allowedToolNames.add("skills");
+	}
+	return tools.filter((tool) => allowedToolNames.has(tool.name));
+}
+
 export function createTeamName(): string {
 	return `team-${nanoid(5)}`;
 }
@@ -94,6 +141,8 @@ function createBuiltinToolsList(
 	toolPolicies: CoreSessionConfig["toolPolicies"],
 	skillsExecutor?: SkillsExecutorWithMetadata,
 	executorOverrides?: Partial<ToolExecutors>,
+	telemetry?: ITelemetryService,
+	runCommandExecutionController?: RunCommandExecutionController,
 ): AgentTool[] {
 	const preset = ToolPresets[resolveToolPresetName({ mode })];
 	const toolRoutingConfig = resolveToolRoutingConfig(
@@ -106,6 +155,10 @@ function createBuiltinToolsList(
 	return filterAvailableTools(
 		createBuiltinTools({
 			cwd,
+			telemetry,
+			executorOptions: {
+				bash: { executionController: runCommandExecutionController },
+			},
 			...preset,
 			enableSkills: !!skillsExecutor,
 			...toolRoutingConfig,
@@ -179,7 +232,13 @@ async function loadConfiguredMcpTools(logger?: BasicLogger): Promise<{
 	const enabled = registrations.filter((r) => r.disabled !== true);
 	const results = await Promise.allSettled(
 		enabled.map((r) =>
-			createMcpTools({ serverName: r.name, provider: manager }),
+			createMcpTools({
+				serverName: r.name,
+				provider: manager,
+				// Keep the tool wrapper timeout in agreement with the MCP
+				// request timeout: both derive from the server's registration.
+				timeoutMs: resolveMcpTimeoutSeconds(r.timeoutSeconds) * 1000,
+			}),
 		),
 	);
 	const tools: AgentTool[] = [];
@@ -310,16 +369,48 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		} = input;
 		const onTeamEvent = input.onTeamEvent ?? (() => {});
 		const normalized = normalizeConfig(config);
+		const modelTools: ModelTool[] = [];
+		if (
+			normalized.enableTools &&
+			isModelToolEnabledGlobally("web_search") &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"web_search",
+			)
+		) {
+			modelTools.push({ name: "web_search" });
+		}
+		if (
+			normalized.enableTools &&
+			supportsModelTool(
+				{ providerId: config.providerId, modelId: config.modelId },
+				"image_generation",
+			)
+		) {
+			modelTools.push({ name: "image_generation", outputFormat: "png" });
+		}
+		const workspaceConfigRoot = config.workspaceRoot ?? config.cwd;
+		const effectiveToolPolicies = input.toolPolicies ?? config.toolPolicies;
 		const globallyDisabledToolNames = resolveDisabledToolNames();
 		const tools: AgentTool[] = [];
 		const effectiveTeamName = config.teamName?.trim() || createTeamName();
 		const teamStoreKey = config.sessionId?.trim() || effectiveTeamName;
+		const configuredAgents = normalized.enableSpawnAgent
+			? loadConfiguredAgentConfigs({
+					workspaceRoot: workspaceConfigRoot,
+				})
+			: { configs: [], errors: [] };
+		const configuredAgentsNeedSkills = configuredAgents.configs.some(
+			(agent) => agent.skills !== undefined,
+		);
 		const rulesEnabled = hasConfigExtension(configExtensions, "rules");
-		const skillsEnabled = hasConfigExtension(configExtensions, "skills");
+		const rootSkillsEnabled = hasConfigExtension(configExtensions, "skills");
+		const needsSkillsConfigService =
+			rootSkillsEnabled || configuredAgentsNeedSkills;
 		const workflowsEnabled = hasConfigExtension(configExtensions, "workflows");
 		const pluginsEnabled = hasConfigExtension(configExtensions, "plugins");
 		const userInstructionsEnabled =
-			rulesEnabled || skillsEnabled || workflowsEnabled;
+			rulesEnabled || rootSkillsEnabled || workflowsEnabled;
 		let teamToolsRegistered = false;
 		const userInstructionServiceProvided = Boolean(
 			sharedUserInstructionService,
@@ -327,11 +418,20 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 		let userInstructionService = sharedUserInstructionService;
 		let mcpShutdown: (() => Promise<void>) | undefined;
 
-		if (!userInstructionService && userInstructionsEnabled) {
+		for (const error of configuredAgents.errors) {
+			(logger ?? config.logger)?.log?.(
+				`[agents] Failed to load agent config at ${error.path}: ${error.error.message}`,
+			);
+		}
+
+		if (
+			!userInstructionService &&
+			(userInstructionsEnabled || configuredAgentsNeedSkills)
+		) {
 			userInstructionService = createUserInstructionConfigService({
-				skills: skillsEnabled
+				skills: needsSkillsConfigService
 					? {
-							workspacePath: config.cwd,
+							workspacePath: workspaceConfigRoot,
 							includePluginSkills: pluginsEnabled,
 							pluginSkillDirectories: pluginsEnabled
 								? input.pluginSkillDirectories
@@ -339,7 +439,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 							pluginPaths: config.pluginPaths,
 							cwd: config.cwd,
 						}
-					: { workspacePath: config.cwd },
+					: { workspacePath: workspaceConfigRoot },
 				rules: { workspacePath: config.cwd },
 				workflows: { workspacePath: config.cwd },
 			});
@@ -351,7 +451,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		const registerSkillsTool =
 			normalized.enableTools &&
-			skillsEnabled &&
+			rootSkillsEnabled &&
 			Boolean(userInstructionService) &&
 			userInstructionService?.hasConfiguredSkills(config.skills) === true &&
 			isSkillsToolEnabledForSession({
@@ -360,7 +460,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 				mode: normalized.mode,
 				modelId: config.modelId,
 				toolRoutingRules: config.toolRoutingRules,
-				toolPolicies: config.toolPolicies,
+				toolPolicies: effectiveToolPolicies,
 				toolExecutors,
 			});
 
@@ -368,15 +468,33 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			userInstructionService && userInstructionsEnabled
 				? userInstructionService.createExtension({
 						includeRules: rulesEnabled,
-						includeSkills: skillsEnabled,
+						includeSkills: rootSkillsEnabled,
 						includeWorkflows: workflowsEnabled,
 						registerSkillsTool,
 						allowedSkillNames: config.skills,
 					})
 				: undefined;
-		const runtimeExtensions = userInstructionPlugin
-			? [...(extensions ?? config.extensions ?? []), userInstructionPlugin]
-			: (extensions ?? config.extensions);
+		// Plan mode keeps run_commands for read-only investigation; this
+		// beforeTool hook is the hard backstop that rejects file-editing
+		// commands before approval/execution. Registered as an extension so it
+		// rides the shared hook merge for the lead agent, host-provided
+		// run_commands replacements (e.g. the VS Code terminal tool), and
+		// delegated sub-agents alike. Mode switches rebuild the runtime, so
+		// the guard appears/disappears with the mode.
+		const planModeCommandGuard =
+			normalized.mode === "plan" && normalized.enableTools
+				? createPlanModeCommandGuardExtension({
+						telemetry: telemetry ?? config.telemetry,
+					})
+				: undefined;
+		const injectedExtensions = [
+			userInstructionPlugin,
+			planModeCommandGuard,
+		].filter((extension) => extension !== undefined);
+		const runtimeExtensions =
+			injectedExtensions.length > 0
+				? [...(extensions ?? config.extensions ?? []), ...injectedExtensions]
+				: (extensions ?? config.extensions);
 
 		if (normalized.enableTools) {
 			tools.push(
@@ -386,9 +504,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					normalized.mode,
 					config.modelId,
 					config.toolRoutingRules,
-					config.toolPolicies,
+					effectiveToolPolicies,
 					undefined,
 					toolExecutors,
+					telemetry ?? config.telemetry,
+					input.runCommandExecutionController,
 				),
 			);
 			if (!normalized.disableMcpSettingsTools) {
@@ -426,6 +546,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			providerConfig: config.providerConfig,
 			knownModels: config.knownModels,
 			thinking: config.thinking,
+			reasoningEffort: config.reasoningEffort,
+			thinkingBudgetTokens: config.thinkingBudgetTokens,
+			maxTokensPerTurn: config.maxTokensPerTurn,
+			temperature: config.temperature,
 			maxIterations: config.maxIterations,
 			hooks,
 			extensions: runtimeExtensions,
@@ -433,6 +557,48 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			telemetry: input.telemetry ?? config.telemetry,
 			workspaceMetadata: config.workspaceMetadata,
 		});
+		if (normalized.enableSpawnAgent) {
+			if (configuredAgents.configs.length > 0) {
+				tools.push(
+					...filterAvailableTools(
+						createConfiguredAgentTools({
+							configProvider: delegatedAgentConfigProvider,
+							agents: configuredAgents.configs,
+							createSubAgentTools: (agent) =>
+								normalized.enableTools
+									? filterToolsForConfiguredAgent(
+											createBuiltinToolsList(
+												config.cwd,
+												agent.providerId ?? config.providerId,
+												normalized.mode,
+												agent.modelId ?? config.modelId,
+												config.toolRoutingRules,
+												effectiveToolPolicies,
+												agent.skills !== undefined &&
+													userInstructionService?.createSkillsExecutor
+													? userInstructionService.createSkillsExecutor(
+															agent.skills,
+														)
+													: undefined,
+												toolExecutors,
+												telemetry ?? config.telemetry,
+												input.runCommandExecutionController,
+											),
+											agent,
+										)
+									: [],
+							hookErrorMode: config.hookErrorMode,
+							toolPolicies: effectiveToolPolicies,
+							requestToolApproval: input.requestToolApproval,
+							onSubAgentEvent: input.onSubAgentEvent,
+							onSubAgentStart: input.onSubAgentStart,
+							onSubAgentEnd: input.onSubAgentEnd,
+						}),
+						effectiveToolPolicies,
+					),
+				);
+			}
+		}
 		if (!this.teamRuntimeEntries.has(registryKey)) {
 			this.teamRuntimeEntries.set(registryKey, {
 				delegatedAgentConfigProvider,
@@ -518,9 +684,11 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 									normalized.mode,
 									config.modelId,
 									config.toolRoutingRules,
-									config.toolPolicies,
+									effectiveToolPolicies,
 									undefined,
 									toolExecutors,
+									telemetry ?? config.telemetry,
+									input.runCommandExecutionController,
 								)
 						: undefined,
 					teammateConfigProvider: delegatedAgentConfigProvider,
@@ -554,10 +722,10 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 			ensureTeamRuntime();
 		}
 
-		const finalTools = filterAvailableTools(tools, config.toolPolicies);
+		const finalTools = filterAvailableTools(tools, effectiveToolPolicies);
 		const requiresCompletionTool = finalTools.some(
 			(tool) =>
-				tool.name === DefaultToolNames.SUBMIT_AND_EXIT &&
+				tool.name === "submit_and_exit" &&
 				tool.lifecycle?.completesRun === true,
 		);
 		const teamCompletionGuard = normalized.enableAgentTeams
@@ -605,6 +773,7 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 
 		return {
 			tools: finalTools,
+			modelTools,
 			logger: logger ?? config.logger,
 			telemetry: telemetry ?? config.telemetry,
 			teamRuntime,

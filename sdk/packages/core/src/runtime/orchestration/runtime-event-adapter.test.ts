@@ -1,7 +1,7 @@
 /**
  * Unit tests for `RuntimeEventAdapter` and `toLegacyAgentEvent`.
  *
- * Covers every one of the 13 `AgentRuntimeEvent` variants enumerated
+ * Covers the `AgentRuntimeEvent` variants enumerated
  * in `@cline/shared/src/agent.ts:390-468`. For each variant the
  * test asserts the mapping described in PLAN.md §3.3.2 (with the
  * text/reasoning-delta correction documented at the top of
@@ -101,6 +101,64 @@ function makeResult(overrides: Partial<AgentRunResult> = {}): AgentRunResult {
 	};
 }
 
+describe("RuntimeEventAdapter — model tools", () => {
+	it("streams model tools as observational content events", () => {
+		const adapter = new RuntimeEventAdapter();
+		const toolCall = {
+			type: "tool-call" as const,
+			toolCallId: "search_1",
+			toolName: "web_search",
+			execution: "provider" as const,
+			input: { query: "Cline" },
+		};
+
+		expect(
+			adapter.translate({
+				type: "tool-started",
+				snapshot: makeSnapshot(),
+				iteration: 1,
+				toolCall,
+			}),
+		).toEqual([
+			{
+				type: "content_start",
+				contentType: "tool",
+				toolName: "web_search",
+				toolCallId: "search_1",
+				input: { query: "Cline" },
+				execution: "provider",
+			},
+		]);
+		expect(
+			adapter.translate({
+				type: "tool-finished",
+				snapshot: makeSnapshot(),
+				iteration: 1,
+				toolCall,
+				message: makeMessage({ role: "tool" }, [
+					{
+						type: "tool-result",
+						toolCallId: "search_1",
+						toolName: "web_search",
+						output: { results: [] },
+						execution: "provider",
+					},
+				]),
+			}),
+		).toEqual([
+			expect.objectContaining({
+				type: "content_end",
+				contentType: "tool",
+				toolName: "web_search",
+				toolCallId: "search_1",
+				output: { results: [] },
+				error: undefined,
+				execution: "provider",
+			}),
+		]);
+	});
+});
+
 // ---------------------------------------------------------------------------
 // Suppressed events
 // ---------------------------------------------------------------------------
@@ -125,6 +183,55 @@ describe("RuntimeEventAdapter — suppressed events", () => {
 				message: makeMessage(),
 			}),
 		).toEqual([]);
+	});
+});
+
+describe("RuntimeEventAdapter — status notices", () => {
+	let adapter: RuntimeEventAdapter;
+	beforeEach(() => {
+		adapter = new RuntimeEventAdapter();
+	});
+
+	it("preserves bounded compaction reasons", () => {
+		for (const reason of [
+			"auto_compaction",
+			"manual_compaction",
+			"compaction_budget_emergency",
+		] as const) {
+			const out = adapter.translate({
+				type: "status-notice",
+				snapshot: makeSnapshot(),
+				message: "compaction status",
+				metadata: { reason },
+			});
+
+			expect(out).toEqual([
+				{
+					type: "notice",
+					noticeType: "status",
+					displayRole: "status",
+					message: "compaction status",
+					reason,
+					metadata: { reason },
+				},
+			]);
+		}
+	});
+
+	it("does not promote arbitrary status reasons", () => {
+		const out = adapter.translate({
+			type: "status-notice",
+			snapshot: makeSnapshot(),
+			message: "custom",
+			metadata: { reason: "surprise" },
+		});
+
+		expect(out[0]).toMatchObject({
+			type: "notice",
+			noticeType: "status",
+			message: "custom",
+			reason: undefined,
+		});
 	});
 });
 
@@ -331,7 +438,33 @@ describe("RuntimeEventAdapter — assistant-message → content_end", () => {
 		});
 	});
 
-	it("fires NO content_end events when the message has no text/reasoning", () => {
+	it("forwards generated media at its stream position", () => {
+		const out = adapter.translate({
+			type: "assistant-media",
+			snapshot: makeSnapshot(),
+			iteration: 1,
+			media: {
+				id: "generated-1",
+				modality: "image",
+				mediaType: "image/webp",
+				source: { type: "base64", data: "aGVsbG8=" },
+			},
+		});
+		expect(out).toEqual([
+			{
+				type: "content_end",
+				contentType: "media",
+				media: {
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/webp",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			},
+		]);
+	});
+
+	it("fires NO content_end events when the message has no renderable content", () => {
 		const out = adapter.translate({
 			type: "assistant-message",
 			snapshot: makeSnapshot(),
@@ -804,7 +937,7 @@ describe("toLegacyAgentEvent — stateless helper", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Exhaustiveness — all 13 AgentRuntimeEvent variants
+// Exhaustiveness — AgentRuntimeEvent variants
 // ---------------------------------------------------------------------------
 
 describe("RuntimeEventAdapter — exhaustiveness", () => {

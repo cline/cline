@@ -14,7 +14,7 @@ export type ConnectorThreadState = {
 };
 
 export type ConnectorThreadBinding<TState extends ConnectorThreadState> = {
-	kind?: "participant" | "thread" | "thread-participant-mute";
+	kind?: "conversation" | "participant" | "thread" | "thread-participant-mute";
 	channelId: string;
 	isDM: boolean;
 	participantKey?: string;
@@ -134,12 +134,9 @@ function clearSerializedThreadSessionId(serializedThread: string | undefined): {
 
 export function resolveThreadBindingKey(
 	thread: ConnectorBindingThreadIdentity,
-	state?: ConnectorThreadState | null,
+	_state?: ConnectorThreadState | null,
 ): string {
-	return (
-		normalizeParticipantKey(state?.participantKey ?? thread.participantKey) ??
-		thread.id
-	);
+	return thread.id;
 }
 
 export function readBindings<TState extends ConnectorThreadState>(
@@ -156,43 +153,36 @@ export function writeBindings<TState extends ConnectorThreadState>(
 	writeJsonFile(path, bindings);
 }
 
+/**
+ * Key under which turns for `thread` must be serialised.
+ *
+ * This has to follow the same identity rule as {@link findBindingForThread},
+ * because whatever shares a session has to share a queue. A DM reuses one
+ * binding — and therefore one runtime session — for every message in the
+ * channel, so keying the queue by thread id would let two messages in the same
+ * DM run against that one session concurrently. That surfaces as
+ * "SessionRuntime.shutdown called while a run is in progress", or as two
+ * conversations interleaved in one session's history.
+ *
+ * Channel threads each own their binding, so they keep their own key and go on
+ * running independently of one another.
+ */
+export function resolveThreadTurnQueueKey(
+	thread: Pick<ConnectorBindingThreadIdentity, "id" | "channelId" | "isDM">,
+): string {
+	return thread.isDM ? `dm:${thread.channelId}` : thread.id;
+}
+
 export function findBindingForThread<TState extends ConnectorThreadState>(
 	bindings: ConnectorBindingStore<TState>,
 	thread: ConnectorBindingThreadIdentity,
 ): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
-	const participantKey = normalizeParticipantKey(thread.participantKey);
-	if (participantKey) {
-		const exactThread = bindings[thread.id];
-		const exactThreadParticipantKey = normalizeParticipantKey(
-			exactThread?.participantKey ?? exactThread?.state?.participantKey,
-		);
-		if (
-			exactThread &&
-			!isControlBinding(exactThread) &&
-			exactThreadParticipantKey === participantKey
-		) {
-			return { key: thread.id, binding: exactThread };
-		}
-		const exactParticipant = bindings[participantKey];
-		if (exactParticipant && !isControlBinding(exactParticipant)) {
-			return { key: participantKey, binding: exactParticipant };
-		}
-		for (const [key, binding] of Object.entries(bindings)) {
-			if (isControlBinding(binding)) {
-				continue;
-			}
-			const bindingParticipantKey = normalizeParticipantKey(
-				binding.participantKey ?? binding.state?.participantKey,
-			);
-			if (bindingParticipantKey === participantKey) {
-				return { key, binding };
-			}
-		}
-		return undefined;
-	}
 	const exact = bindings[thread.id];
 	if (exact && !isControlBinding(exact)) {
 		return { key: thread.id, binding: exact };
+	}
+	if (!thread.isDM) {
+		return undefined;
 	}
 	for (const [key, binding] of Object.entries(bindings)) {
 		if (isControlBinding(binding)) {
@@ -282,29 +272,8 @@ export function persistThreadBinding<TState extends ConnectorThreadState>(
 		thread as ConnectorBindingThreadIdentity,
 		state,
 	);
-	for (const [key, binding] of Object.entries(bindings)) {
-		if (isControlBinding(binding)) {
-			continue;
-		}
-		const bindingParticipantKey = normalizeParticipantKey(
-			binding.participantKey ?? binding.state?.participantKey,
-		);
-		const matchesParticipant =
-			participantKey && bindingParticipantKey === participantKey;
-		const matchesLegacyKey = participantKey && key === thread.id;
-		const matchesLegacyThread =
-			!participantKey &&
-			binding.channelId === thread.channelId &&
-			binding.isDM === thread.isDM;
-		if (
-			key !== bindingKey &&
-			(matchesParticipant || matchesLegacyKey || matchesLegacyThread)
-		) {
-			delete bindings[key];
-		}
-	}
 	bindings[bindingKey] = {
-		kind: "participant",
+		kind: "conversation",
 		channelId: thread.channelId,
 		isDM: thread.isDM,
 		participantKey,
@@ -529,6 +498,37 @@ export function findBindingForParticipantKey<
 		}
 	}
 	return undefined;
+}
+
+export function findBindingForDeliveryTarget<
+	TState extends ConnectorThreadState,
+>(
+	bindings: ConnectorBindingStore<TState>,
+	input: {
+		bindingKey?: string;
+		threadId?: string;
+		participantKey?: string;
+	},
+): { binding: ConnectorThreadBinding<TState>; key: string } | undefined {
+	const bindingKey = normalizeParticipantKey(input.bindingKey);
+	if (bindingKey) {
+		const exact = bindings[bindingKey];
+		if (exact && !isControlBinding(exact)) {
+			return { key: bindingKey, binding: exact };
+		}
+		const participantMatch = findBindingForParticipantKey(bindings, bindingKey);
+		if (participantMatch) {
+			return participantMatch;
+		}
+	}
+	const threadId = input.threadId?.trim();
+	if (threadId) {
+		const exact = bindings[threadId];
+		if (exact && !isControlBinding(exact)) {
+			return { key: threadId, binding: exact };
+		}
+	}
+	return findBindingForParticipantKey(bindings, input.participantKey);
 }
 
 export async function persistMergedThreadState<

@@ -1,18 +1,27 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
+import { appendFile, mkdir } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname } from "node:path";
 import {
 	type AgentToolContext,
+	type BasicLogger,
 	ClineCore,
 	type CoreSessionEvent,
+	ensureCompatibleLocalHubUrl,
+	type ITelemetryService,
 	NodeHubClient,
 	type RuntimeCapabilities,
 	setHomeDirIfUnset,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import type { AgentEvent } from "@cline/shared";
+import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
+import {
+	discardAllTrackedAttachments,
+	flushConsumedAttachments,
+	markQueuedAttachmentsSubmitted,
+	reconcileQueuedAttachments,
+} from "./attachments";
 import { sessionLogPath } from "./paths";
 import type {
 	LiveSession,
@@ -23,6 +32,10 @@ import type {
 } from "./types";
 
 const ASK_QUESTION_TIMEOUT_MS = 5 * 60_000;
+const hubClientInitialization = new WeakMap<
+	SidecarContext,
+	Promise<NodeHubClient>
+>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -32,11 +45,15 @@ function nowMs(): number {
 	return Date.now();
 }
 
-function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
-	const encoded = JSON.stringify({
+export function encodeSidecarEvent(name: string, payload: unknown): string {
+	return JSON.stringify({
 		type: "event",
 		event: { name, payload },
 	});
+}
+
+function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
+	const encoded = encodeSidecarEvent(name, payload);
 	for (const client of ctx.wsClients) {
 		try {
 			client.send(encoded);
@@ -46,6 +63,11 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 	}
 }
 
+// Session log appends are chained per session so writes stay ordered, but
+// they run asynchronously: a synchronous write per streamed token would stall
+// the sidecar event loop (and therefore every pending UI command) under load.
+const sessionLogWriteTails = new Map<string, Promise<void>>();
+
 function appendSessionChunk(
 	sessionId: string,
 	stream: string,
@@ -53,9 +75,21 @@ function appendSessionChunk(
 	ts: number,
 ): void {
 	const path = sessionLogPath(sessionId);
-	mkdirSync(dirname(path), { recursive: true });
-	writeFileSync(path, `${JSON.stringify({ ts, stream, chunk })}\n`, {
-		flag: "a",
+	const line = `${JSON.stringify({ ts, stream, chunk })}\n`;
+	const tail = sessionLogWriteTails.get(sessionId) ?? Promise.resolve();
+	const next = tail
+		.then(async () => {
+			await mkdir(dirname(path), { recursive: true });
+			await appendFile(path, line);
+		})
+		.catch(() => {
+			// Session logs are best-effort diagnostics; never fail the stream.
+		});
+	sessionLogWriteTails.set(sessionId, next);
+	void next.finally(() => {
+		if (sessionLogWriteTails.get(sessionId) === next) {
+			sessionLogWriteTails.delete(sessionId);
+		}
 	});
 }
 
@@ -106,7 +140,29 @@ export function broadcastChunk(
 // ---------------------------------------------------------------------------
 
 function getPromptsInQueue(session: LiveSession): PromptInQueue[] {
-	return session.promptsInQueue;
+	return session.promptsInQueue.map(
+		({ id, prompt, steer, attachmentCount, userImages }) => ({
+			id,
+			prompt,
+			steer,
+			attachmentCount,
+			userImages,
+		}),
+	);
+}
+
+export function serializeQueuedPromptStart(input: {
+	promptId: string;
+	prompt: string;
+	attachmentCount?: number;
+	userImages?: string[];
+}): string {
+	return JSON.stringify({
+		promptId: input.promptId,
+		prompt: input.prompt,
+		attachmentCount: input.attachmentCount ?? 0,
+		userImages: input.userImages,
+	});
 }
 
 function sendPromptsInQueueSnapshot(
@@ -178,6 +234,10 @@ function handleAgentEvent(
 			// so forwarding it as another chat_text/chat_reasoning chunk duplicates
 			// the live UI while persisted history remains correct after hydration.
 			if (event.contentType === "text" || event.contentType === "reasoning") {
+				break;
+			}
+			if (event.contentType === "media" && event.media) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(event.media));
 				break;
 			}
 			if (event.contentType === "tool") {
@@ -273,6 +333,35 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
+// The runtime's queue drain emits a pending_prompts snapshot (head removed)
+// and a pending_prompt_submitted event for the same prompt back-to-back, and
+// both are translated here into chat_queued_prompt_start — dedupe by prompt
+// id or the UI renders the user message twice.
+function emitQueuedPromptStart(
+	ctx: SidecarContext,
+	sessionId: string,
+	session: LiveSession | undefined,
+	input: {
+		promptId: string;
+		prompt: string;
+		attachmentCount: number;
+		userImages?: string[];
+	},
+): void {
+	if (session) {
+		if (session.lastQueuedPromptStartId === input.promptId) {
+			return;
+		}
+		session.lastQueuedPromptStartId = input.promptId;
+	}
+	emitChunk(
+		ctx,
+		sessionId,
+		"chat_queued_prompt_start",
+		serializeQueuedPromptStart(input),
+	);
+}
+
 function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
@@ -298,9 +387,16 @@ function handleCoreSessionEvent(
 					prompt: item.prompt ?? "",
 					steer: item.delivery === "steer",
 					attachmentCount: item.attachmentCount ?? 0,
+					userImages: item.userImages,
 				}))
-				.filter((item) => item.id && item.prompt);
+				.filter(
+					(item) => item.id && (item.prompt || (item.attachmentCount ?? 0) > 0),
+				);
 			if (session) {
+				reconcileQueuedAttachments(
+					session,
+					mapped.map((item) => item.id),
+				);
 				const previous = session.promptsInQueue;
 				session.promptsInQueue = mapped;
 				if (
@@ -308,31 +404,40 @@ function handleCoreSessionEvent(
 					previous[0] &&
 					previous[0].id !== mapped[0]?.id
 				) {
-					emitChunk(
-						ctx,
-						sessionId,
-						"chat_queued_prompt_start",
-						JSON.stringify({
-							prompt: previous[0].prompt,
-							attachmentCount: previous[0].attachmentCount ?? 0,
-						}),
-					);
+					emitQueuedPromptStart(ctx, sessionId, session, {
+						promptId: previous[0].id,
+						prompt: previous[0].prompt,
+						attachmentCount: previous[0].attachmentCount ?? 0,
+						userImages: previous[0].userImages,
+					});
 				}
 			}
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
 		}
 		case "pending_prompt_submitted": {
-			const { sessionId, prompt, attachmentCount } = event.payload;
-			emitChunk(
-				ctx,
-				sessionId,
-				"chat_queued_prompt_start",
-				JSON.stringify({
-					prompt,
-					attachmentCount: attachmentCount ?? 0,
-				}),
-			);
+			const { sessionId, id, prompt, attachmentCount, userImages } =
+				event.payload;
+			const session = ctx.liveSessions.get(sessionId);
+			markQueuedAttachmentsSubmitted(session, id);
+			emitQueuedPromptStart(ctx, sessionId, session, {
+				promptId: id,
+				prompt,
+				attachmentCount: attachmentCount ?? 0,
+				userImages,
+			});
+			// The prompt left the queue; without a fresh snapshot the webview
+			// keeps a stale busy queue and the composer never returns to idle
+			// after the turn completes.
+			if (session) {
+				const remaining = session.promptsInQueue.filter(
+					(item) => item.id !== id,
+				);
+				if (remaining.length !== session.promptsInQueue.length) {
+					session.promptsInQueue = remaining;
+					sendPromptsInQueueSnapshot(ctx, sessionId);
+				}
+			}
 			break;
 		}
 		case "ended": {
@@ -343,6 +448,7 @@ function handleCoreSessionEvent(
 				session.endedAt = nowMs();
 				session.status = reason || "ended";
 			}
+			discardAllTrackedAttachments(sessionId, session);
 			sendEvent(ctx, "chat_session_ended", { sessionId, reason });
 			break;
 		}
@@ -362,6 +468,10 @@ function handleCoreSessionEvent(
 			if (session) {
 				session.status = status;
 				session.busy = status === "running";
+				if (status !== "running") {
+					// The turn that consumed submitted attachments has finished.
+					flushConsumedAttachments(sessionId, session);
+				}
 			}
 			sendEvent(ctx, "chat_session_status", { sessionId, status });
 			break;
@@ -377,9 +487,16 @@ function handleCoreSessionEvent(
 // Context factory
 // ---------------------------------------------------------------------------
 
-export function createSidecarContext(workspaceRoot: string): SidecarContext {
+export function createSidecarContext(
+	workspaceRoot: string,
+	observability: {
+		logger?: BasicLogger;
+		telemetry?: ITelemetryService;
+	} = {},
+): SidecarContext {
 	return {
 		liveSessions: new Map(),
+		restoringWorkspacePaths: new Set(),
 		streamIndices: new Map(),
 		wsClients: new Set(),
 		pendingApprovals: new Map(),
@@ -387,7 +504,10 @@ export function createSidecarContext(workspaceRoot: string): SidecarContext {
 		sessionManager: null,
 		hubClient: null,
 		workspaceRoot,
+		logger: observability.logger,
+		telemetry: observability.telemetry,
 		unsubscribeSessionEvents: null,
+		hubBuildMismatch: null,
 	};
 }
 
@@ -399,6 +519,11 @@ export async function disposeSidecarContext(
 
 	ctx.unsubscribeSessionEvents?.();
 	ctx.unsubscribeSessionEvents = null;
+
+	for (const [sessionId, session] of ctx.liveSessions) {
+		discardAllTrackedAttachments(sessionId, session);
+	}
+	ctx.liveSessions.clear();
 
 	for (const client of ctx.wsClients) {
 		try {
@@ -456,6 +581,12 @@ export function requestSidecarAskQuestion(
 	options: string[],
 	context: AgentToolContext,
 ): Promise<string> {
+	const sessionId = context.sessionId?.trim();
+	if (!sessionId) {
+		return Promise.reject(
+			new Error("ask_question requires an active session ID"),
+		);
+	}
 	const choices = options
 		.map((option) => option.trim())
 		.filter((option) => option.length > 0)
@@ -481,6 +612,7 @@ export function requestSidecarAskQuestion(
 		const pending: PendingAskQuestion = {
 			item: {
 				requestId,
+				sessionId,
 				createdAt: new Date().toISOString(),
 				question,
 				options: choices,
@@ -579,6 +711,13 @@ export function handleHubLiveEvent(
 			}
 			return;
 		}
+		case "assistant.media": {
+			const media = event.payload?.media;
+			if (isGeneratedMedia(media)) {
+				emitChunk(ctx, sessionId, "chat_media", JSON.stringify(media));
+			}
+			return;
+		}
 		case "reasoning.delta": {
 			const text =
 				typeof event.payload?.text === "string" ? event.payload.text : "";
@@ -609,6 +748,25 @@ export function handleHubLiveEvent(
 							? event.payload.toolName
 							: "tool",
 					input: event.payload?.input,
+				}),
+			);
+			return;
+		}
+		case "tool.updated": {
+			emitChunk(
+				ctx,
+				sessionId,
+				"chat_tool_call_update",
+				JSON.stringify({
+					toolCallId:
+						typeof event.payload?.toolCallId === "string"
+							? event.payload.toolCallId
+							: undefined,
+					toolName:
+						typeof event.payload?.toolName === "string"
+							? event.payload.toolName
+							: "tool",
+					update: event.payload?.update,
 				}),
 			);
 			return;
@@ -683,9 +841,13 @@ export async function initializeSessionManager(
 ): Promise<void> {
 	setHomeDirIfUnset(homedir());
 	const sessionManager = await ClineCore.create({
+		clientName: "cline-code",
 		backendMode: "hub",
 		capabilities: createSidecarRuntimeCapabilities(ctx),
+		logger: ctx.logger,
+		telemetry: ctx.telemetry,
 		hub: {
+			strategy: "require-hub",
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			clientType: "code-sidecar",
@@ -698,23 +860,64 @@ export async function initializeSessionManager(
 		handleCoreSessionEvent(ctx, event);
 	});
 
-	const runtimeAddress = sessionManager.runtimeAddress?.trim();
-	let hubClient: NodeHubClient | null = null;
-	if (runtimeAddress) {
-		hubClient = new NodeHubClient({
-			url: runtimeAddress,
-			clientType: "code-sidecar-approvals",
-			displayName: "Code App approvals",
-			workspaceRoot: ctx.workspaceRoot,
-			cwd: ctx.workspaceRoot,
-		});
-		await hubClient.connect();
-		hubClient.subscribe((event) => {
-			handleHubLiveEvent(ctx, event);
-		});
+	try {
+		await ensureSharedHubClient(ctx, sessionManager.runtimeAddress);
+	} catch (error) {
+		unsubscribe();
+		await sessionManager.dispose("code_sidecar_hub_initialization_failed");
+		throw error;
 	}
 
 	ctx.sessionManager = sessionManager;
-	ctx.hubClient = hubClient;
 	ctx.unsubscribeSessionEvents = unsubscribe;
+}
+
+export async function ensureSharedHubClient(
+	ctx: SidecarContext,
+	preferredUrl?: string,
+): Promise<NodeHubClient> {
+	if (ctx.hubClient) {
+		return ctx.hubClient;
+	}
+	const pending = hubClientInitialization.get(ctx);
+	if (pending) {
+		return await pending;
+	}
+
+	const initialization = (async () => {
+		const url =
+			preferredUrl?.trim() ||
+			(await ensureCompatibleLocalHubUrl({
+				strategy: "require-hub",
+				workspaceRoot: ctx.workspaceRoot,
+				cwd: ctx.workspaceRoot,
+			}));
+		if (!url) {
+			throw new Error("Unable to start or connect to the shared Cline Hub.");
+		}
+
+		const client = new NodeHubClient({
+			url,
+			clientType: "code-sidecar-observer",
+			displayName: "Code App observer",
+			workspaceRoot: ctx.workspaceRoot,
+			cwd: ctx.workspaceRoot,
+		});
+		try {
+			await client.connect();
+			client.subscribe((event) => {
+				handleHubLiveEvent(ctx, event);
+			});
+			ctx.hubClient = client;
+			return client;
+		} catch (error) {
+			await client.dispose().catch(() => undefined);
+			throw error;
+		}
+	})().finally(() => {
+		hubClientInitialization.delete(ctx);
+	});
+
+	hubClientInitialization.set(ctx, initialization);
+	return await initialization;
 }

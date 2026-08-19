@@ -115,6 +115,8 @@ async function runCommand(
 	return await new Promise((resolve) => {
 		const child = spawn(command, args, {
 			stdio: ["ignore", "pipe", "ignore"],
+			// Prevent a console window from flashing on Windows.
+			windowsHide: true,
 		});
 		const chunks: Buffer[] = [];
 		let total = 0;

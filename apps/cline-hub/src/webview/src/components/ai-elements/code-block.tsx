@@ -11,12 +11,13 @@ import {
 	useState,
 } from "react";
 import type {
-	BundledLanguage,
-	BundledTheme,
-	HighlighterGeneric,
+	HighlighterCore,
+	LanguageRegistration,
 	ThemedToken,
-} from "shiki";
-import { createHighlighter } from "shiki";
+	ThemeRegistration,
+} from "shiki/core";
+import { createHighlighterCore } from "shiki/core";
+import { createJavaScriptRegexEngine } from "shiki/engine/javascript";
 import { Button } from "@/components/ui/button";
 import {
 	Select,
@@ -35,6 +36,78 @@ const isBold = (fontStyle: number | undefined) => fontStyle && fontStyle & 2;
 const isUnderline = (fontStyle: number | undefined) =>
 	// oxlint-disable-next-line eslint(no-bitwise)
 	fontStyle && fontStyle & 4;
+
+const SUPPORTED_LANGUAGES = [
+	"bash",
+	"css",
+	"diff",
+	"html",
+	"javascript",
+	"json",
+	"jsonc",
+	"jsx",
+	"markdown",
+	"python",
+	"shellscript",
+	"tsx",
+	"typescript",
+	"yaml",
+] as const;
+
+export type SupportedCodeLanguage = (typeof SUPPORTED_LANGUAGES)[number];
+
+const SUPPORTED_LANGUAGE_SET = new Set<string>(SUPPORTED_LANGUAGES);
+
+const LANGUAGE_LOADERS: Record<
+	SupportedCodeLanguage,
+	() => Promise<LanguageRegistration[]>
+> = {
+	bash: () => import("@shikijs/langs/bash").then((module) => module.default),
+	css: () => import("@shikijs/langs/css").then((module) => module.default),
+	diff: () => import("@shikijs/langs/diff").then((module) => module.default),
+	html: () => import("@shikijs/langs/html").then((module) => module.default),
+	javascript: () =>
+		import("@shikijs/langs/javascript").then((module) => module.default),
+	json: () => import("@shikijs/langs/json").then((module) => module.default),
+	jsonc: () => import("@shikijs/langs/jsonc").then((module) => module.default),
+	jsx: () => import("@shikijs/langs/jsx").then((module) => module.default),
+	markdown: () =>
+		import("@shikijs/langs/markdown").then((module) => module.default),
+	python: () =>
+		import("@shikijs/langs/python").then((module) => module.default),
+	shellscript: () =>
+		import("@shikijs/langs/shellscript").then((module) => module.default),
+	tsx: () => import("@shikijs/langs/tsx").then((module) => module.default),
+	typescript: () =>
+		import("@shikijs/langs/typescript").then((module) => module.default),
+	yaml: () => import("@shikijs/langs/yaml").then((module) => module.default),
+};
+
+const LANGUAGE_ALIASES: Record<string, SupportedCodeLanguage> = {
+	console: "shellscript",
+	cjs: "javascript",
+	htm: "html",
+	js: "javascript",
+	json5: "jsonc",
+	md: "markdown",
+	mjs: "javascript",
+	py: "python",
+	sh: "shellscript",
+	shell: "shellscript",
+	ts: "typescript",
+	yml: "yaml",
+};
+
+const normalizeLanguage = (
+	language: string,
+): SupportedCodeLanguage | "text" => {
+	const normalized = language.trim().toLowerCase();
+	if (!normalized) {
+		return "text";
+	}
+	const aliased = LANGUAGE_ALIASES[normalized] ?? normalized;
+	return SUPPORTED_LANGUAGE_SET.has(aliased) ? aliased : "text";
+};
 
 // Transform tokens to include pre-computed keys to avoid noArrayIndexKey lint
 interface KeyedToken {
@@ -108,7 +181,7 @@ const LineSpan = ({
 // Types
 type CodeBlockProps = HTMLAttributes<HTMLDivElement> & {
 	code: string;
-	language: BundledLanguage;
+	language: string;
 	showLineNumbers?: boolean;
 };
 
@@ -128,10 +201,9 @@ const CodeBlockContext = createContext<CodeBlockContextType>({
 });
 
 // Highlighter cache (singleton per language)
-const highlighterCache = new Map<
-	string,
-	Promise<HighlighterGeneric<BundledLanguage, BundledTheme>>
->();
+let highlighterPromise: Promise<HighlighterCore> | undefined;
+let themesPromise: Promise<void> | undefined;
+const languagePromises = new Map<SupportedCodeLanguage, Promise<void>>();
 
 // Token cache
 const tokensCache = new Map<string, TokenizedCode>();
@@ -139,27 +211,44 @@ const tokensCache = new Map<string, TokenizedCode>();
 // Subscribers for async token updates
 const subscribers = new Map<string, Set<(result: TokenizedCode) => void>>();
 
-const getTokensCacheKey = (code: string, language: BundledLanguage) => {
+const getTokensCacheKey = (code: string, language: string) => {
 	const start = code.slice(0, 100);
 	const end = code.length > 100 ? code.slice(-100) : "";
 	return `${language}:${code.length}:${start}:${end}`;
 };
 
-const getHighlighter = (
-	language: BundledLanguage,
-): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> => {
-	const cached = highlighterCache.get(language);
+const getHighlighter = (): Promise<HighlighterCore> => {
+	if (!highlighterPromise) {
+		highlighterPromise = createHighlighterCore({
+			engine: createJavaScriptRegexEngine({ forgiving: true }),
+		});
+	}
+	return highlighterPromise;
+};
+
+const ensureThemes = (highlighter: HighlighterCore): Promise<void> => {
+	if (!themesPromise) {
+		themesPromise = Promise.all([
+			import("@shikijs/themes/github-light").then((module) => module.default),
+			import("@shikijs/themes/github-dark").then((module) => module.default),
+		]).then((themes: ThemeRegistration[]) => highlighter.loadTheme(...themes));
+	}
+	return themesPromise;
+};
+
+const ensureLanguage = (
+	highlighter: HighlighterCore,
+	language: SupportedCodeLanguage,
+): Promise<void> => {
+	const cached = languagePromises.get(language);
 	if (cached) {
 		return cached;
 	}
-
-	const highlighterPromise = createHighlighter({
-		langs: [language],
-		themes: ["github-light", "github-dark"],
-	});
-
-	highlighterCache.set(language, highlighterPromise);
-	return highlighterPromise;
+	const languagePromise = LANGUAGE_LOADERS[language]().then((registrations) =>
+		highlighter.loadLanguage(...registrations),
+	);
+	languagePromises.set(language, languagePromise);
+	return languagePromise;
 };
 
 // Create raw tokens for immediate display while highlighting loads
@@ -181,11 +270,16 @@ const createRawTokens = (code: string): TokenizedCode => ({
 // Synchronous highlight with callback for async results
 export const highlightCode = (
 	code: string,
-	language: BundledLanguage,
+	language: string,
 	// oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-callbacks)
 	callback?: (result: TokenizedCode) => void,
 ): TokenizedCode | null => {
-	const tokensCacheKey = getTokensCacheKey(code, language);
+	const langToUse = normalizeLanguage(language);
+	if (langToUse === "text") {
+		return createRawTokens(code);
+	}
+
+	const tokensCacheKey = getTokensCacheKey(code, langToUse);
 
 	// Return cached result if available
 	const cached = tokensCache.get(tokensCacheKey);
@@ -202,11 +296,11 @@ export const highlightCode = (
 	}
 
 	// Start highlighting in background - fire-and-forget async pattern
-	getHighlighter(language)
+	getHighlighter()
 		// oxlint-disable-next-line eslint-plugin-promise(prefer-await-to-then)
-		.then((highlighter) => {
-			const availableLangs = highlighter.getLoadedLanguages();
-			const langToUse = availableLangs.includes(language) ? language : "text";
+		.then(async (highlighter) => {
+			await ensureThemes(highlighter);
+			await ensureLanguage(highlighter, langToUse);
 
 			const result = highlighter.codeToTokens(code, {
 				lang: langToUse,
@@ -376,7 +470,7 @@ export const CodeBlockContent = ({
 	showLineNumbers = false,
 }: {
 	code: string;
-	language: BundledLanguage;
+	language: string;
 	showLineNumbers?: boolean;
 }) => {
 	// Memoized raw tokens for immediate display

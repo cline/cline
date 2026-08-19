@@ -1,8 +1,18 @@
 export type {
 	AgentRunResult,
 	AgentRunStatus,
+	FeatureFlag,
+	FeatureFlagPayload,
+	FeatureFlagsAndPayloads,
+	FeatureFlagsContext,
+	FeatureFlagsSettings,
+	IFeatureFlagsProvider,
 	WorkspaceInfo,
 	WorkspaceManifest,
+} from "@cline/shared";
+export {
+	FEATURE_FLAGS,
+	FeatureFlagDefaultValue,
 } from "@cline/shared";
 export { ClineCore } from "./ClineCore";
 export type {
@@ -103,21 +113,44 @@ export type {
 	SubprocessSandboxOptions,
 } from "./runtime/tools/subprocess-sandbox";
 export { SubprocessSandbox } from "./runtime/tools/subprocess-sandbox";
-export type { GlobalSettings } from "./services/global-settings";
+export {
+	FeatureFlagsService,
+	type FeatureFlagsServiceOptions,
+	NoOpFeatureFlagsProvider,
+} from "./services/feature-flags";
+export type {
+	GlobalCompactionMode,
+	GlobalCompactionStrategy,
+	GlobalPlanActMode,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
+	isAutoUpdateEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
+	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
+	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
+	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";

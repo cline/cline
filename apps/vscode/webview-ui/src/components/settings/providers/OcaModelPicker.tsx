@@ -2,13 +2,12 @@ import type { ApiConfiguration, OcaModelInfo } from "@shared/api"
 import { Mode } from "@shared/storage/types"
 import { VSCodeButton, VSCodeDropdown, VSCodeOption } from "@vscode/webview-ui-toolkit/react"
 import React, { useMemo } from "react"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
 import { VSC_BUTTON_BACKGROUND, VSC_BUTTON_FOREGROUND, VSC_DESCRIPTION_FOREGROUND, VSC_FOREGROUND } from "@/utils/vscStyles"
 import { ModelInfoView } from "../common/ModelInfoView"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { normalizeApiConfiguration } from "../utils/providerUtils"
 import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
 
-export interface OcaModelPickerProps {
+interface OcaModelPickerProps {
 	apiConfiguration: ApiConfiguration | undefined
 	isPopup?: boolean
 	currentMode: Mode
@@ -99,16 +98,13 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 		await onRefresh?.()
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
-	}, [apiConfiguration, currentMode])
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("oca", apiConfiguration, currentMode)
 
 	const selectedReasoningEffort = useMemo(() => {
 		if (currentMode == "plan") {
 			return apiConfiguration?.planModeOcaReasoningEffort
-		} else {
-			return apiConfiguration?.actModeOcaReasoningEffort
 		}
+		return apiConfiguration?.actModeOcaReasoningEffort
 	}, [apiConfiguration, currentMode])
 
 	const reasoningEffortOptions = selectedModelInfo ? (selectedModelInfo as OcaModelInfo).reasoningEffortOptions : []
@@ -116,12 +112,6 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 	const modelIds = useMemo(() => {
 		return Object.keys(ocaModels || []).sort((a, b) => a.localeCompare(b))
 	}, [ocaModels])
-
-	const showBudgetSlider = useMemo(() => {
-		if (ocaModels && selectedModelId && ocaModels[selectedModelId]?.thinkingConfig) {
-			return true
-		}
-	}, [selectedModelId, ocaModels])
 
 	const lastRefreshedText = useMemo(() => {
 		return typeof lastRefreshedAt === "number" ? new Date(lastRefreshedAt).toLocaleTimeString() : null
@@ -191,6 +181,13 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 					Last refreshed at {lastRefreshedText}
 				</div>
 			) : null}
+			{/*
+			 * OCA's reasoning control is this API-driven effort dropdown: the OCA
+			 * endpoint reports per-model `reasoningEffortOptions`, and the selected
+			 * effort (plan/actModeOcaReasoningEffort) is what the session factory
+			 * forwards. The legacy thinking-budget slider was removed deliberately —
+			 * it wrote budget state that no OCA request path consumed.
+			 */}
 			{!loading && selectedModelInfo && selectedModelInfo.supportsReasoning && reasoningEffortOptions.length > 0 && (
 				<React.Fragment>
 					<label className="font-medium text-[12px] mt-[10px] mb-[2px]">Reasoning Effort</label>
@@ -222,10 +219,7 @@ const OcaModelPicker: React.FC<OcaModelPickerProps> = ({
 				</React.Fragment>
 			)}
 			{selectedModelInfo && (
-				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
-				</>
+				<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 			)}
 		</div>
 	)

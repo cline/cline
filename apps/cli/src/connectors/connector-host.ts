@@ -6,6 +6,8 @@ import type {
 	HubSessionClient,
 	UserInstructionConfigService,
 } from "@cline/core";
+import { isUnusableSessionError } from "@cline/core";
+import type { GeneratedMedia } from "@cline/shared";
 import type { SentMessage, Thread } from "chat";
 import type { CliLoggerAdapter } from "../logging/adapter";
 import { buildUserInputMessage, resolveSystemPrompt } from "../runtime/prompt";
@@ -28,6 +30,7 @@ import {
 import {
 	buildThreadStartRequest,
 	clearSession,
+	forgetThreadSession,
 	getOrCreateSessionId,
 } from "./session-runtime";
 import {
@@ -50,6 +53,20 @@ export type ActiveConnectorTurn = {
 	threadId?: string;
 	participantKey?: string;
 };
+
+type ConnectorTurnQueue = (work: () => Promise<void>) => Promise<void>;
+
+type ConnectorTurnCoordination =
+	| {
+			activeTurns: Map<string, ActiveConnectorTurn>;
+			enqueueTurn: ConnectorTurnQueue;
+			turnKey?: string;
+	  }
+	| {
+			activeTurns?: undefined;
+			enqueueTurn?: undefined;
+			turnKey?: string;
+	  };
 
 type EmptyRuntimeReplyResolver = () => Promise<string | undefined>;
 
@@ -109,6 +126,7 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	stream: AsyncIterable<string>,
 	postFinalReply?: (text: string) => Promise<void>,
 	resolveFallbackText?: () => Promise<string | undefined>,
+	hasNonTextReply?: () => boolean,
 ): Promise<void> {
 	if (transport !== "telegram" && !postFinalReply && !resolveFallbackText) {
 		await thread.post(stream);
@@ -118,6 +136,9 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	let text = "";
 	for await (const chunk of stream) {
 		text += chunk;
+	}
+	if (!text.trim() && hasNonTextReply?.()) {
+		return;
 	}
 	if (!text.trim()) {
 		text = (await resolveFallbackText?.())?.trim() || "";
@@ -133,6 +154,106 @@ async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 		return;
 	}
 	await postConnectorText(thread, transport, text);
+}
+
+const CONNECTOR_MEDIA_EXTENSIONS: Readonly<Record<string, string>> = {
+	"image/png": "png",
+	"image/jpeg": "jpg",
+	"image/gif": "gif",
+	"image/webp": "webp",
+	"audio/mpeg": "mp3",
+	"audio/wav": "wav",
+	"audio/ogg": "ogg",
+	"video/mp4": "mp4",
+	"video/webm": "webm",
+};
+
+async function postConnectorGeneratedMedia<TState extends ConnectorThreadState>(
+	thread: Thread<TState>,
+	mediaItems: readonly GeneratedMedia[],
+): Promise<void> {
+	if (mediaItems.length === 0) {
+		return;
+	}
+
+	const files: Array<{ data: Buffer; filename: string; mimeType: string }> = [];
+	const references: string[] = [];
+	for (const [index, media] of mediaItems.entries()) {
+		const label = media.name?.trim() || `Generated ${media.modality}`;
+		switch (media.source.type) {
+			case "base64": {
+				const data = Buffer.from(media.source.data, "base64");
+				if (data.byteLength === 0) {
+					references.push(
+						`${label} (${media.mediaType}) could not be attached.`,
+					);
+					break;
+				}
+				const extension =
+					CONNECTOR_MEDIA_EXTENSIONS[media.mediaType.toLowerCase()] ?? "bin";
+				const suppliedName = media.name ? basename(media.name) : "";
+				files.push({
+					data,
+					filename: suppliedName || `generated-${index + 1}.${extension}`,
+					mimeType: media.mediaType,
+				});
+				break;
+			}
+			case "url":
+				references.push(`[${label}](${media.source.url})`);
+				break;
+			case "artifact":
+				references.push(`${label}: artifact ${media.source.artifactId}`);
+				break;
+		}
+	}
+
+	if (files.length === 0 && references.length === 0) {
+		return;
+	}
+	await thread.post({
+		markdown: references.length > 0 ? references.join("\n") : "Generated media",
+		...(files.length > 0 ? { files } : {}),
+	});
+}
+
+/**
+ * Clears a thread's stale session mapping after the hub reported the mapped
+ * session no longer exists, so the next turn starts a fresh session instead of
+ * failing forever against a dead session id.
+ */
+async function forgetStaleThreadSession<
+	TState extends ConnectorThreadState,
+>(input: {
+	thread: Thread<TState>;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	errorLabel: string;
+	logger: CliLoggerAdapter;
+	transport: string;
+	sessionId: string;
+}): Promise<boolean> {
+	const forgotten = await forgetThreadSession({
+		thread: input.thread,
+		bindingsPath: input.bindingsPath,
+		baseStartRequest: input.baseStartRequest,
+		errorLabel: input.errorLabel,
+		expectedSessionId: input.sessionId,
+	});
+	if (!forgotten) {
+		return false;
+	}
+	input.logger.core.log(
+		"Connector thread session no longer exists; starting a new session",
+		{
+			severity: "warn",
+			transport: input.transport,
+			threadId: input.thread.id,
+			channelId: input.thread.channelId,
+			sessionId: input.sessionId,
+		},
+	);
+	return true;
 }
 
 function applyForcedToolDisable<TState extends ConnectorThreadState>(
@@ -200,9 +321,7 @@ function formatMuteTargetList(targets: ConnectorMuteTarget[]): string {
 	return targets.map(formatMuteTargetLabel).join(", ");
 }
 
-export async function handleConnectorUserTurn<
-	TState extends ConnectorThreadState,
->(input: {
+type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 	thread: Thread<TState>;
 	text: string;
 	runtimeText?: string;
@@ -231,8 +350,6 @@ export async function handleConnectorUserTurn<
 	firstContactMessage?: string | ((currentState: TState) => string | undefined);
 	chatCommandHost?: ChatCommandHost;
 	userInstructionService?: UserInstructionConfigService;
-	activeTurns?: Map<string, ActiveConnectorTurn>;
-	turnKey?: string;
 	resolveMuteTarget?: (input: {
 		target: string;
 		thread: Thread<TState>;
@@ -276,7 +393,11 @@ export async function handleConnectorUserTurn<
 		threadId: string;
 		error: Error;
 	}) => Promise<void>;
-}): Promise<void> {
+} & ConnectorTurnCoordination;
+
+export async function handleConnectorUserTurn<
+	TState extends ConnectorThreadState,
+>(input: ConnectorUserTurnInput<TState>): Promise<void> {
 	const resolvedInput = input.text.trim();
 	if (!resolvedInput) {
 		return;
@@ -749,9 +870,7 @@ export async function handleConnectorUserTurn<
 					`channelId=${input.thread.channelId}`,
 					`deliveryAdapter=${input.transport}`,
 					`deliveryThread=${input.thread.id}`,
-					...(effectiveCurrent.participantKey
-						? [`deliveryBindingKey=${effectiveCurrent.participantKey}`]
-						: []),
+					`deliveryBindingKey=${input.thread.id}`,
 					`deliveryChannel=${input.thread.channelId}`,
 					...(input.botUserName
 						? [`deliveryUserName=${input.botUserName}`]
@@ -789,11 +908,9 @@ export async function handleConnectorUserTurn<
 						delivery: {
 							adapter: input.transport,
 							threadId: input.thread.id,
+							bindingKey: input.thread.id,
 							...(current.participantKey
-								? {
-										bindingKey: current.participantKey,
-										participantKey: current.participantKey,
-									}
+								? { participantKey: current.participantKey }
 								: {}),
 							...(current.participantLabel
 								? { participantLabel: current.participantLabel }
@@ -832,11 +949,6 @@ export async function handleConnectorUserTurn<
 					].join("\n");
 				},
 				list: async () => {
-					const current = await loadThreadState(
-						input.thread,
-						input.bindingsPath,
-						input.baseStartRequest,
-					);
 					const schedules = await input.client.listSchedules({ limit: 200 });
 					const matching = schedules.filter((schedule) => {
 						const delivery = schedule.metadata?.delivery;
@@ -846,17 +958,9 @@ export async function handleConnectorUserTurn<
 							!Array.isArray(delivery)
 								? (delivery as Record<string, unknown>)
 								: undefined;
-						const deliveryBindingKey =
-							typeof deliveryRecord?.bindingKey === "string"
-								? deliveryRecord.bindingKey
-								: typeof deliveryRecord?.participantKey === "string"
-									? deliveryRecord.participantKey
-									: undefined;
 						return (
 							deliveryRecord?.adapter === input.transport &&
-							(current.participantKey
-								? deliveryBindingKey === current.participantKey
-								: deliveryRecord.threadId === input.thread.id)
+							deliveryRecord.threadId === input.thread.id
 						);
 					});
 					if (matching.length === 0) {
@@ -909,73 +1013,220 @@ export async function handleConnectorUserTurn<
 		input.baseStartRequest,
 		effectiveCurrentState,
 	);
-	const activeTurn =
-		input.activeTurns?.get(turnKey) ??
-		(input.activeTurns && currentState.sessionId?.trim()
-			? Array.from(input.activeTurns.values()).find(
-					(turn) => turn.sessionId === currentState.sessionId?.trim(),
+	const keyedActiveTurn = input.activeTurns?.get(turnKey);
+	const activeTurnEntry = keyedActiveTurn
+		? ([turnKey, keyedActiveTurn] as const)
+		: input.activeTurns && currentState.sessionId?.trim()
+			? Array.from(input.activeTurns.entries()).find(
+					([, turn]) =>
+						turn.sessionId === currentState.sessionId?.trim() &&
+						turn.threadId === input.thread.id,
 				)
-			: undefined);
-	if (activeTurn?.sessionId?.trim()) {
+			: undefined;
+	if (activeTurnEntry?.[1].sessionId?.trim()) {
+		const [activeTurnKey, activeTurn] = activeTurnEntry;
 		const { prompt, userImages, userFiles } = await buildUserInputMessage(
 			runtimeInput,
 			input.userInstructionService,
+			{ mode: startRequest.mode },
 		);
-		await input.client.sendRuntimeSession(
-			activeTurn.sessionId,
-			{
-				config: startRequest,
-				prompt,
-				attachments: buildAttachments({ userImages, userFiles }),
-				delivery: "steer",
-			},
-			{ timeoutMs: null },
-		);
-		await postConnectorText(
-			input.thread,
-			input.transport,
-			"Steering current task.",
-		);
+		try {
+			await input.client.sendRuntimeSession(
+				activeTurn.sessionId,
+				{
+					config: startRequest,
+					prompt,
+					attachments: buildAttachments({ userImages, userFiles }),
+					delivery: "steer",
+				},
+				{ timeoutMs: null },
+			);
+		} catch (error) {
+			if (!isUnusableSessionError(error)) {
+				throw error;
+			}
+			// The tracked turn points at a session that can no longer serve it —
+			// the hub does not know it, or its runtime is stuck on a run that never
+			// drained.
+			// Remove only the entry we attempted to steer, then route recovery
+			// through the normal per-thread queue. Concurrent messages that saw
+			// the same stale turn will line up behind this one instead of creating
+			// independent replacement sessions.
+			if (input.activeTurns?.get(activeTurnKey) === activeTurn) {
+				input.activeTurns.delete(activeTurnKey);
+			}
+			const enqueueTurn = input.enqueueTurn;
+			if (!enqueueTurn) {
+				throw new Error(
+					"Active connector turns require a per-thread turn queue",
+				);
+			}
+			await enqueueTurn(() =>
+				runConnectorRuntimeTurnWithRecovery({
+					input,
+					runtimeInput,
+					turnKey,
+					staleSessionId: activeTurn.sessionId,
+				}),
+			);
+			return;
+		}
+		// No acknowledgement: the follow-up is handed to the running session and its
+		// effect shows up in the answer. Announcing it added a line to every thread
+		// and overstated what happens, since the prompt is queued for the session
+		// rather than injected into the loop already running.
 		return;
 	}
-	const sessionId = await getOrCreateSessionId({
-		thread: input.thread,
-		client: input.client,
-		startRequest,
-		logger: input.logger,
-		clientId: input.clientId,
-		transport: input.transport,
-		bindingsPath: input.bindingsPath,
-		errorLabel: input.errorLabel,
-		hookCommand: input.hookCommand,
-		hookBotUserName: input.botUserName,
-		sessionMetadata: input.getSessionMetadata(
-			input.thread,
-			input.clientId,
-			currentState,
-		),
-		reusedLogMessage: input.reusedLogMessage,
-		startedLogMessage: input.startedLogMessage,
+
+	await runConnectorRuntimeTurnWithRecovery({
+		input,
+		runtimeInput,
+		turnKey,
+		currentState,
 	});
+}
+
+/**
+ * Runs a queued connector turn, replacing a stale session mapping at most once
+ * before replaying the user's input.
+ */
+async function runConnectorRuntimeTurnWithRecovery<
+	TState extends ConnectorThreadState,
+>(params: {
+	input: ConnectorUserTurnInput<TState>;
+	runtimeInput: string;
+	turnKey: string;
+	currentState?: TState;
+	staleSessionId?: string;
+}): Promise<void> {
+	const { input, runtimeInput, turnKey } = params;
+	const currentState =
+		params.currentState ??
+		(await loadThreadState(
+			input.thread,
+			input.bindingsPath,
+			input.baseStartRequest,
+		));
+	const effectiveCurrentState = applyForcedToolDisable(
+		currentState,
+		input.forceDisableTools,
+	);
+	const startRequest = buildThreadStartRequest(
+		input.baseStartRequest,
+		effectiveCurrentState,
+	);
 	const { prompt, userImages, userFiles } = await buildUserInputMessage(
 		runtimeInput,
 		input.userInstructionService,
+		{ mode: startRequest.mode },
 	);
 	const request: ChatRunTurnRequest = {
 		config: startRequest,
 		prompt,
 		attachments: buildAttachments({ userImages, userFiles }),
 	};
+	if (params.staleSessionId) {
+		await forgetStaleThreadSession({
+			thread: input.thread,
+			bindingsPath: input.bindingsPath,
+			baseStartRequest: input.baseStartRequest,
+			errorLabel: input.errorLabel,
+			logger: input.logger,
+			transport: input.transport,
+			sessionId: params.staleSessionId,
+		});
+	}
+	// A thread binding can outlive its runtime session (hub restart, session
+	// deletion, retention cleanup). When that happens the turn fails with
+	// `session_not_found`; drop the stale mapping and replay the turn once
+	// against a brand new session instead of wedging the thread forever.
+	const resolveSessionId = () =>
+		getOrCreateSessionId({
+			thread: input.thread,
+			client: input.client,
+			startRequest,
+			logger: input.logger,
+			clientId: input.clientId,
+			transport: input.transport,
+			bindingsPath: input.bindingsPath,
+			errorLabel: input.errorLabel,
+			hookCommand: input.hookCommand,
+			hookBotUserName: input.botUserName,
+			sessionMetadata: input.getSessionMetadata(
+				input.thread,
+				input.clientId,
+				currentState,
+			),
+			reusedLogMessage: input.reusedLogMessage,
+			startedLogMessage: input.startedLogMessage,
+		});
+	let sessionId = await resolveSessionId();
+	let allowStaleSessionRetry = params.staleSessionId === undefined;
+	for (;;) {
+		try {
+			await runConnectorRuntimeTurn({
+				input,
+				sessionId,
+				request,
+				currentState,
+				turnKey,
+			});
+			break;
+		} catch (error) {
+			if (!allowStaleSessionRetry || !isUnusableSessionError(error)) {
+				throw error;
+			}
+			allowStaleSessionRetry = false;
+			await forgetStaleThreadSession({
+				thread: input.thread,
+				bindingsPath: input.bindingsPath,
+				baseStartRequest: input.baseStartRequest,
+				errorLabel: input.errorLabel,
+				logger: input.logger,
+				transport: input.transport,
+				sessionId,
+			});
+			sessionId = await resolveSessionId();
+		}
+	}
+
+	await persistMergedThreadState(
+		input.thread,
+		input.bindingsPath,
+		{
+			...currentState,
+			sessionId,
+		},
+		input.errorLabel,
+	);
+}
+
+/**
+ * Runs a single connector turn against an already-resolved session and streams
+ * the reply back into the thread.
+ */
+async function runConnectorRuntimeTurn<
+	TState extends ConnectorThreadState,
+>(params: {
+	input: ConnectorUserTurnInput<TState>;
+	sessionId: string;
+	request: ChatRunTurnRequest;
+	currentState: TState;
+	turnKey: string;
+}): Promise<void> {
+	const { input, sessionId, request, currentState, turnKey } = params;
 	const resolveFallbackText = await input.createEmptyRuntimeReplyResolver?.({
 		client: input.client,
 		sessionId,
 	});
+	const generatedMedia: GeneratedMedia[] = [];
 
-	input.activeTurns?.set(turnKey, {
+	const activeTurn: ActiveConnectorTurn = {
 		sessionId,
 		threadId: input.thread.id,
 		participantKey: currentState.participantKey,
-	});
+	};
+	input.activeTurns?.set(turnKey, activeTurn);
 	await input.thread.startTyping();
 	let toolStatusMessage: SentMessage | undefined;
 	const postFinalReply = input.postFinalReply
@@ -1018,6 +1269,9 @@ export async function handleConnectorUserTurn<
 						formatConnectorApprovalPrompt(approval),
 					);
 				},
+				onMedia: (media) => {
+					generatedMedia.push(media);
+				},
 				onCompleted: async (result) => {
 					await input.onReplyCompleted?.({
 						sessionId,
@@ -1037,24 +1291,18 @@ export async function handleConnectorUserTurn<
 			}),
 			postFinalReply,
 			resolveFallbackText,
+			() => generatedMedia.length > 0,
 		);
+		await postConnectorGeneratedMedia(input.thread, generatedMedia);
 	} finally {
 		input.pendingApprovals.delete(input.thread.id);
-		input.activeTurns?.delete(turnKey);
+		if (input.activeTurns?.get(turnKey) === activeTurn) {
+			input.activeTurns.delete(turnKey);
+		}
 		if (toolStatusMessage) {
 			await toolStatusMessage.delete().catch(() => undefined);
 		}
 	}
-
-	await persistMergedThreadState(
-		input.thread,
-		input.bindingsPath,
-		{
-			...currentState,
-			sessionId,
-		},
-		input.errorLabel,
-	);
 }
 
 export async function maybeHandleConnectorApprovalReply<

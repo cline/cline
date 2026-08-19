@@ -1,4 +1,5 @@
 import type { ConnectSlackOptions } from "@cline/shared";
+import { type Message, ThreadImpl } from "chat";
 import { describe, expect, it } from "vitest";
 import { __test__, slackConnector } from "./slack";
 
@@ -62,12 +63,12 @@ describe("slack binding lookup", () => {
 		expect(options.appToken).toBe("xapp-token");
 	});
 
-	it("falls back to channel identity when a restarted connector gets a new thread id", () => {
+	it("falls back to DM channel identity when a restarted connector gets a new thread id", () => {
 		const result = __test__.findBindingForThread(
 			{
 				legacy_thread_id: {
 					channelId: "slack:C123",
-					isDM: false,
+					isDM: true,
 					serializedThread: "{}",
 					sessionId: "sess-1",
 					state: { sessionId: "sess-1", cwd: "/tmp/work", teamId: "T123" },
@@ -77,7 +78,7 @@ describe("slack binding lookup", () => {
 			{
 				id: "new_thread_id",
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 			},
 		);
 
@@ -85,7 +86,7 @@ describe("slack binding lookup", () => {
 			key: "legacy_thread_id",
 			binding: {
 				channelId: "slack:C123",
-				isDM: false,
+				isDM: true,
 				serializedThread: "{}",
 				sessionId: "sess-1",
 				state: { sessionId: "sess-1", cwd: "/tmp/work", teamId: "T123" },
@@ -125,7 +126,7 @@ describe("slack binding lookup", () => {
 		expect(result?.binding.sessionId).toBe("sess-2");
 	});
 
-	it("reuses a binding by participant key across different threads", () => {
+	it("does not reuse a binding by participant key across different threads", () => {
 		const result = __test__.findBindingForThread(
 			{
 				[participantKey]: {
@@ -152,8 +153,7 @@ describe("slack binding lookup", () => {
 			},
 		);
 
-		expect(result?.key).toBe(participantKey);
-		expect(result?.binding.sessionId).toBe("sess-1");
+		expect(result).toBeUndefined();
 	});
 
 	it("builds Slack participant keys with a team scope", () => {
@@ -178,82 +178,6 @@ describe("slack binding lookup", () => {
 			key: "slack:team:T123:user:U123",
 			label: "alice",
 		});
-	});
-
-	it("prefers resolved Slack message author names for participant labels", () => {
-		expect(
-			__test__.resolveSlackParticipant(
-				{ team_id: "T123", user: "U123" },
-				"T123",
-				{
-					userId: "U123",
-					userName: "alice",
-					fullName: "Alice Example",
-				},
-			),
-		).toEqual({
-			key: "slack:team:T123:user:U123",
-			label: "Alice Example",
-		});
-	});
-
-	it("adds Slack author context to runtime turns", () => {
-		const text = __test__.formatSlackRuntimeText(
-			"please check this",
-			{
-				key: "slack:team:T123:user:U123",
-				label: "Alice Example",
-			},
-			{
-				isDirectMention: true,
-				isSubscribedThreadMessage: true,
-			},
-		);
-
-		expect(text).toContain("<slack_message_context>");
-		expect(text).toContain("authorId: U123");
-		expect(text).toContain("authorLabel: Alice Example");
-		expect(text).toContain("participantKey: slack:team:T123:user:U123");
-		expect(text).toContain("isDirectMention: true");
-		expect(text).toContain("isSubscribedThreadMessage: true");
-		expect(text.endsWith("please check this")).toBe(true);
-	});
-
-	it("detects only Slack messages addressed to the bot", () => {
-		expect(
-			__test__.isSlackMessageAddressedToBot(
-				{ text: "plain thread reply", isMention: false },
-				"cline-slack",
-			),
-		).toBe(false);
-		expect(
-			__test__.isSlackMessageAddressedToBot(
-				{ text: "@cline-slack please check", isMention: false },
-				"cline-slack",
-			),
-		).toBe(true);
-		expect(
-			__test__.isSlackMessageAddressedToBot(
-				{ text: "Slack SDK marked this", isMention: true },
-				"cline-slack",
-			),
-		).toBe(true);
-		expect(
-			__test__.isSlackMessageAddressedToBot(
-				{ text: "@U999 yes", isMention: false },
-				"cline-slack",
-				"U999",
-			),
-		).toBe(true);
-	});
-
-	it("strips Slack bot mentions before parsing addressed control replies", () => {
-		expect(
-			__test__.stripSlackBotMention("@cline-slack yes", "cline-slack"),
-		).toBe("yes");
-		expect(
-			__test__.stripSlackBotMention("@U999 approve", "cline-slack", "U999"),
-		).toBe("approve");
 	});
 
 	it("normalizes direct-message channels even when Slack omits im channel_type", () => {
@@ -291,6 +215,105 @@ describe("slack binding lookup", () => {
 		);
 	});
 
+	it("normalizes top-level channel mentions to the original Slack post thread", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
+	it("uses Slack thread_ts instead of reply ts for in-thread mentions", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000001.654321",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> follow up",
+				thread_ts: "1710000000.123456",
+				ts: "1710000001.654321",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		const normalized = __test__.resolveSlackChannelMentionThread(
+			original,
+			message,
+		);
+
+		expect(normalized.id).toBe("slack:C123:1710000000.123456");
+		expect(normalized.channelId).toBe("slack:C123");
+		expect(normalized.isDM).toBe(false);
+	});
+
+	it("keeps Slack mention threads that already target the original post", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:C123",
+			id: "slack:C123:1710000000.123456",
+			isDM: false,
+		});
+		const message = {
+			raw: {
+				channel: "C123",
+				text: "<@U999> help",
+				ts: "1710000000.123456",
+				type: "app_mention",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
+		);
+	});
+
+	it("does not rewrite Slack DM mention threads", () => {
+		const original = new ThreadImpl({
+			adapterName: "slack",
+			channelId: "slack:D123",
+			id: "slack:D123:",
+			isDM: true,
+		});
+		const message = {
+			raw: {
+				channel: "D123",
+				text: "help",
+				ts: "1710000000.123456",
+				type: "message",
+				user: "U123",
+			},
+		} as Message;
+
+		expect(__test__.resolveSlackChannelMentionThread(original, message)).toBe(
+			original,
+		);
+	});
+
 	it("routes Slack posts through the installation bot token for a team", async () => {
 		const calls: string[] = [];
 		const result = await __test__.withSlackTeamBotToken({
@@ -315,6 +338,88 @@ describe("slack binding lookup", () => {
 		expect(calls).toEqual(["get:T123", "token:xoxb-team-token", "work"]);
 	});
 
+	it("strips the leading bot mention from Slack message text", () => {
+		expect(
+			__test__.stripSlackBotMention("@U0B8E8H3U1F hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F> hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F|cline> hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention("  @U0B8E8H3U1F: hi", "U0B8E8H3U1F"),
+		).toBe("hi");
+		expect(
+			__test__.stripSlackBotMention(
+				"@U0B8E8H3U1F @U0B8E8H3U1F hi",
+				"U0B8E8H3U1F",
+			),
+		).toBe("hi");
+	});
+
+	it("keeps Slack text that does not start with the bot mention", () => {
+		expect(
+			__test__.stripSlackBotMention("hi @U0B8E8H3U1F", "U0B8E8H3U1F"),
+		).toBe("hi @U0B8E8H3U1F");
+		expect(__test__.stripSlackBotMention("@U999999 hi", "U0B8E8H3U1F")).toBe(
+			"@U999999 hi",
+		);
+		expect(__test__.stripSlackBotMention("@cline hi", "U0B8E8H3U1F")).toBe(
+			"@cline hi",
+		);
+		expect(__test__.stripSlackBotMention("@U0B8E8H3U1F hi", undefined)).toBe(
+			"@U0B8E8H3U1F hi",
+		);
+	});
+
+	it("keeps mentions of other Slack users whose id starts with the bot id", () => {
+		expect(__test__.stripSlackBotMention("@U1234 help", "U123")).toBe(
+			"@U1234 help",
+		);
+		expect(__test__.stripSlackBotMention("@U123 hi", "U123")).toBe("hi");
+		expect(__test__.stripSlackBotMention("<@U1234> help", "U123")).toBe(
+			"<@U1234> help",
+		);
+		expect(__test__.stripSlackBotMention("<@U1234|other> help", "U123")).toBe(
+			"<@U1234|other> help",
+		);
+		expect(
+			__test__.stripSlackBotMention("@U0B8E8H3U1FX hi", "U0B8E8H3U1F"),
+		).toBe("@U0B8E8H3U1FX hi");
+		expect(
+			__test__.stripSlackBotMention(
+				"@U0B8E8H3U1F @U0B8E8H3U1FX hi",
+				"U0B8E8H3U1F",
+			),
+		).toBe("@U0B8E8H3U1FX hi");
+	});
+
+	it("keeps a bare Slack bot mention so the turn is not dropped", () => {
+		expect(__test__.stripSlackBotMention("@U0B8E8H3U1F", "U0B8E8H3U1F")).toBe(
+			"@U0B8E8H3U1F",
+		);
+		expect(
+			__test__.stripSlackBotMention("<@U0B8E8H3U1F>  ", "U0B8E8H3U1F"),
+		).toBe("<@U0B8E8H3U1F>  ");
+	});
+
+	it("resolves the Slack bot user id from the adapter or event authorizations", () => {
+		expect(__test__.resolveSlackBotUserId({ botUserId: "U0B8E8H3U1F" })).toBe(
+			"U0B8E8H3U1F",
+		);
+		expect(
+			__test__.resolveSlackBotUserId(
+				{ botUserId: undefined },
+				{ authorizations: [{ user_id: "U0B8E8H3U1F" }] },
+			),
+		).toBe("U0B8E8H3U1F");
+		expect(
+			__test__.resolveSlackBotUserId({ botUserId: undefined }, { text: "hi" }),
+		).toBeUndefined();
+	});
+
 	it("detects Slack invalid_thread_ts errors", () => {
 		expect(
 			__test__.isSlackInvalidThreadTsError(
@@ -326,5 +431,55 @@ describe("slack binding lookup", () => {
 				new Error("An API error occurred: channel_not_found"),
 			),
 		).toBe(false);
+	});
+});
+
+describe("slack legacy connector state", () => {
+	it("stops a live connector recorded by a pre-claim state file (no claimId)", async () => {
+		const { spawn } = await import("node:child_process");
+		const { mkdirSync, mkdtempSync, rmSync, writeFileSync } = await import(
+			"node:fs"
+		);
+		const { tmpdir } = await import("node:os");
+		const { join } = await import("node:path");
+
+		const previousDataDir = process.env.CLINE_DATA_DIR;
+		const dataDir = mkdtempSync(join(tmpdir(), "slack-legacy-state-"));
+		process.env.CLINE_DATA_DIR = dataDir;
+		const child = spawn(
+			process.execPath,
+			["-e", "setInterval(() => {}, 1000)"],
+			{ stdio: "ignore" },
+		);
+		try {
+			const stateDir = join(dataDir, "connectors", "slack");
+			mkdirSync(stateDir, { recursive: true });
+			writeFileSync(
+				join(stateDir, "mybot.json"),
+				JSON.stringify({
+					userName: "mybot",
+					connectionMode: "socket",
+					pid: child.pid,
+					// Unreachable on purpose: session cleanup falls back to
+					// local storage inside the isolated data dir.
+					rpcAddress: "ws://127.0.0.1:1/hub",
+					startedAt: new Date(0).toISOString(),
+				}),
+				"utf8",
+			);
+
+			const io = { writeln: () => {}, writeErr: () => {} };
+			const result = await slackConnector.stopInstance?.("mybot", io);
+
+			expect(result?.stoppedProcesses).toBe(1);
+		} finally {
+			child.kill("SIGKILL");
+			if (previousDataDir === undefined) {
+				delete process.env.CLINE_DATA_DIR;
+			} else {
+				process.env.CLINE_DATA_DIR = previousDataDir;
+			}
+			rmSync(dataDir, { recursive: true, force: true });
+		}
 	});
 });

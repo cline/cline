@@ -2,8 +2,8 @@
  * Banner message types for Cline extension
  */
 
-export type BannerSeverity = "info" | "success" | "warning"
-export type BannerPlacement = "top" | "bottom" | "welcome"
+type BannerSeverity = "info" | "success" | "warning"
+type BannerPlacement = "top" | "bottom" | "welcome"
 
 export interface Banner {
 	id: string
@@ -37,7 +37,7 @@ export interface BannersResponse {
 /**
  * Audience targeting options
  */
-export type BannerAudience = "all" | "team_admin_only" | "team_members" | "personal_only"
+type BannerAudience = "all" | "team_admin_only" | "team_members" | "personal_only"
 
 /**
  * Rules that can be evaluated for banner targeting
@@ -59,27 +59,4 @@ export interface BannerRules {
 	min_extension_version?: string
 	/** Optional actions embedded in rules JSON for banners */
 	actions?: BannerAction[]
-}
-
-/**
- * Banner event types for telemetry
- */
-export type BannerEventType = "dismiss"
-
-/**
- * Banner event payload sent to the telemetry API
- */
-export interface BannerEventPayload {
-	banner_id: string
-	instance_id: string
-	surface: "vscode" | "jetbrains" | "cli"
-	event_type: BannerEventType
-}
-
-/**
- * Tracks when a banner was dismissed by a user
- */
-export interface BannerDismissal {
-	bannerId: string
-	dismissedAt: number // timestamp
 }

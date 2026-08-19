@@ -1,3 +1,8 @@
+import {
+	createSessionId,
+	type GeneratedMedia,
+	isGeneratedMedia,
+} from "@cline/shared/browser";
 import type {
 	ChatMessage,
 	ChatSessionConfig,
@@ -12,7 +17,7 @@ type RpcMessageLike = {
 };
 
 export function makeId(prefix: string): string {
-	return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+	return createSessionId(`${prefix}_`);
 }
 
 function stringifyRpcMessageContent(content: unknown): string {
@@ -57,9 +62,17 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 	text: string;
 	reasoning: string;
 	reasoningRedacted: boolean;
+	images: Array<{ data: string; mediaType: string }>;
+	media: GeneratedMedia[];
 } {
 	if (!Array.isArray(messages)) {
-		return { text: "", reasoning: "", reasoningRedacted: false };
+		return {
+			text: "",
+			reasoning: "",
+			reasoningRedacted: false,
+			images: [],
+			media: [],
+		};
 	}
 	for (let i = messages.length - 1; i >= 0; i -= 1) {
 		const message = messages[i] as RpcMessageLike;
@@ -67,6 +80,8 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			continue;
 		}
 		const reasoningParts: string[] = [];
+		const images: Array<{ data: string; mediaType: string }> = [];
+		const media: GeneratedMedia[] = [];
 		let reasoningRedacted = false;
 		if (Array.isArray(message.content)) {
 			for (const block of message.content) {
@@ -84,6 +99,18 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 				}
 				if (obj.type === "redacted_thinking") {
 					reasoningRedacted = true;
+					continue;
+				}
+				if (
+					obj.type === "image" &&
+					typeof obj.data === "string" &&
+					typeof obj.mediaType === "string"
+				) {
+					images.push({ data: obj.data, mediaType: obj.mediaType });
+					continue;
+				}
+				if (obj.type === "media" && isGeneratedMedia(obj.media)) {
+					media.push(obj.media);
 				}
 			}
 		}
@@ -91,9 +118,17 @@ export function extractAssistantTurnDataFromRpcMessages(messages: unknown): {
 			text: stringifyRpcMessageContent(message.content).trim(),
 			reasoning: reasoningParts.join("\n").trim(),
 			reasoningRedacted,
+			images,
+			media,
 		};
 	}
-	return { text: "", reasoning: "", reasoningRedacted: false };
+	return {
+		text: "",
+		reasoning: "",
+		reasoningRedacted: false,
+		images: [],
+		media: [],
+	};
 }
 
 export function buildToolPayloadString(options: {
@@ -116,12 +151,13 @@ export function normalizeRuntimeConfig(
 ): ChatSessionConfig {
 	const normalizedWorkspaceRoot = config.workspaceRoot.trim();
 	const normalizedCwd = (config.cwd?.trim() || normalizedWorkspaceRoot).trim();
+	const thinking = config.reasoningEffort ? true : config.thinking;
 	return {
 		...config,
 		workspaceRoot: normalizedWorkspaceRoot,
 		cwd: normalizedCwd || normalizedWorkspaceRoot,
-		enableSpawn: false,
-		enableTeams: false,
+		thinking,
+		reasoningEffort: thinking === false ? undefined : config.reasoningEffort,
 	};
 }
 

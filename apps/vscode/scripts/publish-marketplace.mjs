@@ -37,13 +37,16 @@ process.on("SIGINT", cleanupOnSignal(130))
 process.on("SIGTERM", cleanupOnSignal(143))
 
 try {
-	const vsceArgs = ["publish", "--allow-package-secrets", "sendgrid"]
+	// --no-dependencies: the extension is fully esbuild-bundled into dist/extension.js,
+	// so vsce must not walk node_modules (the @cline/* workspace symlinks point out of
+	// the package and would drag the whole monorepo into the VSIX).
+	const vsceArgs = ["publish", "--no-dependencies", "--allow-package-secrets", "sendgrid"]
 	if (isPrerelease) {
 		vsceArgs.push("--pre-release")
 	}
 	execFileSync("vsce", vsceArgs, { stdio: "inherit" })
 
-	const ovsxArgs = ["ovsx", "publish"]
+	const ovsxArgs = ["ovsx", "publish", "--no-dependencies"]
 	if (isPrerelease) {
 		ovsxArgs.push("--pre-release")
 	}

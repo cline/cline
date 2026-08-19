@@ -12,6 +12,8 @@ interface ReasoningEffortSelectorProps {
 	description?: string
 	allowedEfforts?: readonly OpenaiReasoningEffort[]
 	defaultEffort?: OpenaiReasoningEffort
+	/** Optional callback invoked after the effort value changes. Use to persist to provider-specific stores. */
+	onEffortChange?: (effort: OpenaiReasoningEffort) => void
 }
 
 const ReasoningEffortSelector = ({
@@ -20,6 +22,7 @@ const ReasoningEffortSelector = ({
 	description = "Higher effort improves depth, but uses more tokens.",
 	allowedEfforts = OPENAI_REASONING_EFFORT_OPTIONS,
 	defaultEffort = "medium",
+	onEffortChange,
 }: ReasoningEffortSelectorProps) => {
 	const { apiConfiguration } = useExtensionState()
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
@@ -33,9 +36,12 @@ const ReasoningEffortSelector = ({
 		<div style={{ marginTop: 10, marginBottom: 5 }}>
 			<Label className="text-xs font-medium">{label}</Label>
 			<Select
-				onValueChange={(value) =>
+				onValueChange={(value) => {
 					handleModeFieldChange({ plan: "planModeReasoningEffort", act: "actModeReasoningEffort" }, value, currentMode)
-				}
+					if (onEffortChange && isOpenaiReasoningEffort(value)) {
+						onEffortChange(value)
+					}
+				}}
 				value={selectedEffort}>
 				<SelectTrigger className="w-full mt-1">
 					<SelectValue />

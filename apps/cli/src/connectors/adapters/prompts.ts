@@ -29,7 +29,7 @@ export function getConnectorSystemRules(
 }
 
 const CONNECTOR_FIRST_CONTACT_MESSAGE = [
-	"Connected.",
+	"Connected to Cline.",
 	"Your chat history is kept separately for your account.",
 	"Send /new to start a fresh session or /whereami for thread details.",
 ].join("\n");

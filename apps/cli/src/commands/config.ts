@@ -1,10 +1,11 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { homedir } from "node:os";
 import { basename, extname, join } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
 	createUserInstructionConfigService,
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginTools,
@@ -15,6 +16,7 @@ import {
 	type SkillConfig,
 	type WorkflowConfig,
 } from "@cline/core";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { Command } from "commander";
 import { getToolCatalog } from "../runtime/tools";
 import { loadInteractiveConfigData } from "../tui/interactive-config";
@@ -209,7 +211,7 @@ async function runAgentsConfigCommand(
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				const raw = readFileSync(filePath, "utf8");
+				const raw = readFileSyncStrippingUtf8Bom(filePath);
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
@@ -269,7 +271,7 @@ async function runPluginsConfigCommand(
 					continue;
 				}
 				pluginsByPath.set(filePath, {
-					name: basename(filePath, extname(filePath)),
+					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
 				});
 			}

@@ -1,16 +1,21 @@
 import {
 	type AgentEvent,
+	type AgentHooks,
 	type CheckpointEntry,
+	createSessionCompactionState,
+	isSessionNotFoundError,
 	type PendingPromptMutationResult,
 	type ProviderSettingsManager,
+	projectSessionCompactionState,
 	readSessionCheckpointHistory,
+	type SessionCompactionState,
 	SessionSource,
 	type TeamEvent,
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 	type UserInstructionConfigService,
 } from "@cline/core";
-import type { Message } from "@cline/shared";
+import type { MessageWithMetadata } from "@cline/shared";
 import { createCliCore } from "../../session/session";
 import { submitAndExitInTerminal } from "../../utils/approval";
 import type {
@@ -44,9 +49,45 @@ type RuntimeHooks = ReturnType<typeof createRuntimeHooks>;
 type StartedSession = Awaited<ReturnType<CliCore["start"]>>;
 type CurrentTurnInput = Omit<Parameters<CliCore["send"]>[0], "sessionId">;
 type CurrentTurnResult = Awaited<ReturnType<CliCore["send"]>>;
+export type SessionConnectionUpdate = Parameters<
+	CliCore["updateSessionConnection"]
+>[1];
 type AskQuestionRef = {
 	current: ((question: string, options: string[]) => Promise<string>) | null;
 };
+type CurrentMessagesRead =
+	| { messages: MessageWithMetadata[]; status: "read" }
+	| { messages: MessageWithMetadata[]; status: "recovered" }
+	| { messages: MessageWithMetadata[]; status: "stale" };
+type MissingSessionRecovery = {
+	messages: MessageWithMetadata[];
+};
+type ToolPolicyResolver = (
+	toolName: string,
+) => NonNullable<Config["toolPolicies"]>[string];
+
+function withInteractiveApprovalPolicyHook(
+	hooks: AgentHooks | undefined,
+	resolveToolPolicy: ToolPolicyResolver,
+): AgentHooks {
+	return {
+		...hooks,
+		beforeTool: async (ctx) => {
+			const result = await hooks?.beforeTool?.(ctx);
+			if (result?.stop || result?.skip) {
+				return result;
+			}
+			const policy = resolveToolPolicy(ctx.toolCall.toolName);
+			return {
+				...result,
+				policy: {
+					...result?.policy,
+					autoApprove: policy.autoApprove,
+				},
+			};
+		},
+	};
+}
 
 export function createInteractiveSessionRuntime(input: {
 	config: Config;
@@ -57,6 +98,7 @@ export function createInteractiveSessionRuntime(input: {
 	requestToolApproval: (
 		request: ToolApprovalRequest,
 	) => Promise<ToolApprovalResult>;
+	resolveToolPolicy: ToolPolicyResolver;
 	askQuestionRef: AskQuestionRef;
 	resolveMistakeLimitDecision: Config["onConsecutiveMistakeLimitReached"];
 	switchToActModeTool: NonNullable<Config["extraTools"]>[number];
@@ -74,9 +116,13 @@ export function createInteractiveSessionRuntime(input: {
 	let shutdownRequested = false;
 	let activeSessionId = "";
 	let abortRequested = false;
+	let missingSessionRecoveryPromise:
+		| Promise<MissingSessionRecovery>
+		| undefined;
 	// A reset can happen while an earlier manager.start() is still in flight.
 	// Bump this before resets and restarts so stale starts cannot become active.
 	let sessionStartGeneration = 0;
+	let manualCompactionAbortController: AbortController | undefined;
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
@@ -150,27 +196,39 @@ export function createInteractiveSessionRuntime(input: {
 		if (!runtimeHooks) {
 			throw new Error("interactive runtime hooks are unavailable");
 		}
+		const hooks = withInteractiveApprovalPolicyHook(
+			runtimeHooks.hooks,
+			input.resolveToolPolicy,
+		);
 		return buildInteractiveSessionConfig({
 			config: input.config,
 			chatCommandState: input.chatCommandState,
-			runtimeHooks,
+			runtimeHooks: { hooks },
 			onTeamEvent: input.onTeamEvent,
 			resolveMistakeLimitDecision: input.resolveMistakeLimitDecision,
 		});
 	};
 
 	const startFreshSession = async (
-		initial: Message[] = [],
+		initial: MessageWithMetadata[] = [],
 		sessionMetadata?: Record<string, unknown>,
+		initialCompactionState?: SessionCompactionState,
+		// Restarting an old session associate with this ID,
+		// For continuing the same conversation, e.g. after a config change.
+		sessionId?: string,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
 		const started = await manager.start({
 			source: SessionSource.CLI,
-			config: buildSessionConfig(),
+			config: {
+				...buildSessionConfig(),
+				...(sessionId ? { sessionId } : {}),
+			},
 			toolPolicies: input.config.toolPolicies,
 			interactive: true,
 			initialMessages: initial,
+			...(initialCompactionState ? { initialCompactionState } : {}),
 			...(sessionMetadata ? { sessionMetadata } : {}),
 			localRuntime: {
 				onTeamRestored: () => {},
@@ -185,7 +243,7 @@ export function createInteractiveSessionRuntime(input: {
 
 	const startResumedSession = async (
 		resumeId: string,
-		initial: Message[] | undefined,
+		initial: MessageWithMetadata[] | undefined,
 	): Promise<void> => {
 		const generation = sessionStartGeneration;
 		const manager = await ensureSessionManager();
@@ -241,11 +299,91 @@ export function createInteractiveSessionRuntime(input: {
 		return await startupPromise;
 	};
 
-	const readCurrentMessages = async (): Promise<Message[]> => {
-		if (!sessionManager || !activeSessionId) {
-			return [];
+	const readCurrentMessages = async (): Promise<CurrentMessagesRead> => {
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			return { messages: [], status: "read" };
 		}
-		return (await sessionManager.readMessages(activeSessionId)) ?? [];
+		try {
+			const messages = (await manager.readMessages(sessionId)) ?? [];
+			return {
+				messages,
+				status: activeSessionId === sessionId ? "read" : "stale",
+			};
+		} catch (error) {
+			if (
+				abortRequested ||
+				shutdownRequested ||
+				!isSessionNotFoundError(error)
+			) {
+				throw error;
+			}
+			const recovery = await recoverMissingActiveSession(error);
+			return { messages: recovery.messages, status: "recovered" };
+		}
+	};
+
+	const readCompactionState = async (
+		sessionId: string,
+	): Promise<SessionCompactionState | undefined> => {
+		const manager = sessionManager;
+		if (!manager) {
+			return undefined;
+		}
+		try {
+			return await manager.readSessionCompactionState(sessionId);
+		} catch (error) {
+			input.config.logger?.log?.("Failed to read session compaction state", {
+				sessionId,
+				error,
+				severity: "warn",
+			});
+			return undefined;
+		}
+	};
+
+	const recoverMissingActiveSession = async (
+		error: unknown,
+	): Promise<MissingSessionRecovery> => {
+		if (missingSessionRecoveryPromise) {
+			return await missingSessionRecoveryPromise;
+		}
+		missingSessionRecoveryPromise = (async () => {
+			const manager = sessionManager;
+			const missingSessionId = activeSessionId;
+			if (!manager || !missingSessionId || shutdownRequested) {
+				return { messages: [] };
+			}
+			const messages = await manager
+				.readMessages(missingSessionId)
+				.catch(() => []);
+			input.config.logger?.log("Recovering missing interactive session", {
+				sessionId: missingSessionId,
+				messageCount: messages.length,
+				error,
+				severity: "warn",
+			});
+			sessionStartGeneration += 1;
+			pendingResumeSessionId = undefined;
+			startupPromise = undefined;
+			startupError = undefined;
+			clearActiveSession();
+			await startFreshSession(messages);
+			return { messages };
+		})().finally(() => {
+			missingSessionRecoveryPromise = undefined;
+		});
+		return await missingSessionRecoveryPromise;
+	};
+
+	const readCurrentCompactionState = async (): Promise<
+		SessionCompactionState | undefined
+	> => {
+		if (!activeSessionId) {
+			return undefined;
+		}
+		return await readCompactionState(activeSessionId);
 	};
 
 	const stopCurrentSession = async (): Promise<void> => {
@@ -283,21 +421,91 @@ export function createInteractiveSessionRuntime(input: {
 	};
 
 	const restartWithMessages = async (
-		messages: Message[],
+		messages: MessageWithMetadata[],
 		sessionMetadata?: Record<string, unknown>,
+		initialCompactionState?: SessionCompactionState,
+		options?: { preserveSessionId?: boolean },
 	): Promise<void> => {
+		// Config-only restarts (model/mode/account changes) continue the same
+		// conversation, so they must keep the session id — otherwise each
+		// restart mints a new session history entry for the same conversation.
+		const reuseSessionId = options?.preserveSessionId
+			? activeSessionId || undefined
+			: undefined;
 		sessionStartGeneration += 1;
 		pendingResumeSessionId = undefined;
-		startupPromise = undefined;
 		startupError = undefined;
-		await stopCurrentSession();
-		clearActiveSession();
-		await startFreshSession(messages, sessionMetadata);
+		// Publish the restart as the in-flight startup. Teardown leaves a window
+		// with no active session, and without this barrier a concurrent
+		// ensureReady() (e.g. a message submitted right after a plan/act toggle)
+		// reads that window as "no session" and boots an empty session that then
+		// races the restarted one for the active slot.
+		const restart = (async () => {
+			await stopCurrentSession();
+			clearActiveSession();
+			await startFreshSession(
+				messages,
+				sessionMetadata,
+				initialCompactionState,
+				reuseSessionId,
+			);
+		})().catch((error) => {
+			startupError = error;
+			throw error;
+		});
+		startupPromise = restart;
+		try {
+			await restart;
+		} finally {
+			// Restore the pre-restart steady state (startupPromise unset) so a
+			// failed restart stays retryable by the next ensureReady(). A newer
+			// startup that already replaced the barrier is left alone.
+			if (startupPromise === restart) {
+				startupPromise = undefined;
+			}
+		}
 	};
 
 	const restartWithCurrentMessages = async (): Promise<void> => {
-		const messages = await readCurrentMessages();
-		await restartWithMessages(messages);
+		const [{ messages, status }, compactionState] = await Promise.all([
+			readCurrentMessages(),
+			readCurrentCompactionState(),
+		]);
+		if (status !== "read") {
+			// If reading recovered a missing hub session, the current messages are
+			// already in the replacement session. If the read is stale, another async
+			// operation changed the active session while this read was in flight.
+			return;
+		}
+		const projectedMessages = compactionState
+			? projectSessionCompactionState(compactionState, messages)
+			: undefined;
+		await restartWithMessages(
+			messages,
+			undefined,
+			projectedMessages
+				? createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					})
+				: undefined,
+			{ preserveSessionId: true },
+		);
+	};
+
+	const updateCurrentSessionConnection = async (
+		update: SessionConnectionUpdate,
+	): Promise<void> => {
+		await ensureReady();
+		const manager = sessionManager;
+		const sessionId = activeSessionId;
+		if (!manager || !sessionId) {
+			// No live session to update; the next startup builds its config from
+			// the already-mutated CLI config, so nothing else is needed.
+			return;
+		}
+		await manager.updateSessionConnection(sessionId, update);
 	};
 
 	const restartEmpty = async (): Promise<void> => {
@@ -334,10 +542,29 @@ export function createInteractiveSessionRuntime(input: {
 				? startupError
 				: new Error("interactive session manager is unavailable");
 		}
-		return await sessionManager.send({
-			sessionId: activeSessionId,
-			...turnInput,
-		});
+		const manager = sessionManager;
+		try {
+			return await manager.send({
+				sessionId: activeSessionId,
+				...turnInput,
+			});
+		} catch (error) {
+			if (
+				abortRequested ||
+				shutdownRequested ||
+				!isSessionNotFoundError(error)
+			) {
+				throw error;
+			}
+			await recoverMissingActiveSession(error);
+			if (!activeSessionId || abortRequested || shutdownRequested) {
+				throw error;
+			}
+			return await manager.send({
+				sessionId: activeSessionId,
+				...turnInput,
+			});
+		}
 	};
 
 	const updatePendingPrompt = async (input: {
@@ -392,6 +619,10 @@ export function createInteractiveSessionRuntime(input: {
 		if (messages.length === 0) {
 			throw new Error("Cannot fork an empty session.");
 		}
+		const compactionState = await readCompactionState(forkedFromSessionId);
+		const projectedMessages = compactionState
+			? projectSessionCompactionState(compactionState, messages)
+			: undefined;
 		await manager.stop(forkedFromSessionId);
 		const forkMetadata = buildForkSessionMetadata({
 			forkedFromSessionId,
@@ -399,11 +630,38 @@ export function createInteractiveSessionRuntime(input: {
 			sourceSession: sessionRecord,
 			messages,
 		});
-		await startFreshSession(messages, forkMetadata);
-		return { forkedFromSessionId, newSessionId: activeSessionId };
+		await startFreshSession(
+			messages,
+			forkMetadata,
+			projectedMessages
+				? createSessionCompactionState({
+						sourceMessages: messages,
+						compactedMessages: projectedMessages,
+						systemPrompt: compactionState?.system_prompt,
+					})
+				: undefined,
+		);
+		// Report carried context from what the new session actually accepted:
+		// the host can reject the inherited state (e.g. stale anchor), and the
+		// UI must not claim a carry-over that did not happen.
+		const acceptedState = projectedMessages
+			? await readCompactionState(activeSessionId)
+			: undefined;
+		return {
+			forkedFromSessionId,
+			newSessionId: activeSessionId,
+			carriedWorkingContext: acceptedState
+				? {
+						workingContextMessages: acceptedState.messages.length,
+						canonicalMessages: messages.length,
+					}
+				: undefined,
+		};
 	};
 
-	const resumeSession = async (sessionId: string): Promise<Message[]> => {
+	const resumeSession = async (
+		sessionId: string,
+	): Promise<MessageWithMetadata[]> => {
 		const manager = await ensureSessionManager();
 		const sessionRecord = await manager.get(sessionId);
 		if (!sessionRecord) {
@@ -421,22 +679,52 @@ export function createInteractiveSessionRuntime(input: {
 	const compactCurrentSession = async (): Promise<{
 		messagesBefore: number;
 		messagesAfter: number;
+		workingContextMessagesAfter?: number;
 		compacted: boolean;
 	}> => {
-		if (!sessionManager) {
+		if (input.config.compaction?.enabled === false) {
+			throw new Error(
+				"Cannot compact because compaction is off for this session.",
+			);
+		}
+		const manager = sessionManager;
+		const sourceSessionId = activeSessionId;
+		if (!manager || !sourceSessionId) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const messages = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessages();
+		if (status === "stale" || (status === "recovered" && !activeSessionId)) {
+			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
+		}
+		// If reading messages recovered the session, `messages` are the same messages
+		// used to seed the replacement session, so it is safe to compact the current
+		// active session with them.
 		const messagesBefore = messages.length;
 		if (messagesBefore === 0) {
 			return { messagesBefore: 0, messagesAfter: 0, compacted: false };
 		}
-		const result = await compactInteractiveMessages({
-			config: input.config,
-			providerSettingsManager: input.providerSettingsManager,
-			sessionId: activeSessionId,
-			messages,
-		});
+		const sessionRecord = await manager.get(sourceSessionId);
+		if (sessionRecord?.status === "running") {
+			throw new Error(
+				"Cannot compact while the current turn is running. Wait for it to finish or abort it first.",
+			);
+		}
+		let result: Awaited<ReturnType<typeof compactInteractiveMessages>>;
+		const abortController = new AbortController();
+		manualCompactionAbortController = abortController;
+		try {
+			result = await compactInteractiveMessages({
+				config: input.config,
+				providerSettingsManager: input.providerSettingsManager,
+				sessionId: sourceSessionId,
+				messages,
+				abortSignal: abortController.signal,
+			});
+		} finally {
+			if (manualCompactionAbortController === abortController) {
+				manualCompactionAbortController = undefined;
+			}
+		}
 		if (!result.compacted) {
 			return {
 				messagesBefore,
@@ -444,17 +732,31 @@ export function createInteractiveSessionRuntime(input: {
 				compacted: false,
 			};
 		}
-		await restartWithMessages(result.messages);
+		if (!result.compactionState) {
+			return {
+				messagesBefore,
+				messagesAfter: messagesBefore,
+				compacted: false,
+			};
+		}
+		const updated = await manager.updateSessionCompactionState(
+			sourceSessionId,
+			result.compactionState,
+		);
+		if (!updated.updated) {
+			throw new Error("Compaction could not be saved. Try again.");
+		}
 		return {
 			messagesBefore,
-			messagesAfter: result.messages.length,
+			messagesAfter: result.canonicalMessages.length,
+			workingContextMessagesAfter: result.compactionState?.messages.length,
 			compacted: true,
 		};
 	};
 
 	const getCheckpointData = async (): Promise<
 		| {
-				messages: Message[];
+				messages: MessageWithMetadata[];
 				checkpointHistory: CheckpointEntry[];
 		  }
 		| undefined
@@ -467,14 +769,19 @@ export function createInteractiveSessionRuntime(input: {
 			return undefined;
 		}
 		const checkpointHistory = readSessionCheckpointHistory(sessionRecord);
-		const messages = await readCurrentMessages();
+		const { messages, status } = await readCurrentMessages();
+		if (status !== "read") {
+			return undefined;
+		}
 		return { messages, checkpointHistory };
 	};
 
 	const restoreCheckpoint = async (
 		runCount: number,
 		restoreWorkspace: boolean,
-	): Promise<{ newSessionId: string; messages: Message[] } | undefined> => {
+	): Promise<
+		{ newSessionId: string; messages: MessageWithMetadata[] } | undefined
+	> => {
 		const manager = sessionManager;
 		if (!manager || !activeSessionId) {
 			return undefined;
@@ -534,6 +841,9 @@ export function createInteractiveSessionRuntime(input: {
 		}
 		abortRequested = true;
 		markAbortInProgress();
+		manualCompactionAbortController?.abort(
+			new Error("Interactive runtime abort requested"),
+		);
 		sessionManager
 			.abort(activeSessionId, new Error("Interactive runtime abort requested"))
 			.catch(() => {});
@@ -550,20 +860,20 @@ export function createInteractiveSessionRuntime(input: {
 			let exitSummary: InteractiveExitSummary | undefined;
 			try {
 				await startupPromise?.catch(() => {});
+				await missingSessionRecoveryPromise?.catch(() => {});
 			} finally {
 				unsubscribeAgent();
 				unsubscribePendingPrompts();
 			}
 			try {
 				exitSummary = await getExitSummary();
+				// Mark hooks shut down before session disposal so late abort/stop
+				// emissions cannot dispatch over a closing hub transport.
+				await runtimeHooks?.shutdown();
 				await stopCurrentSession();
 			} finally {
-				try {
-					if (sessionManager) {
-						await sessionManager.dispose("cli_interactive_shutdown");
-					}
-				} finally {
-					await runtimeHooks?.shutdown();
+				if (sessionManager) {
+					await sessionManager.dispose("cli_interactive_shutdown");
 				}
 			}
 			return exitSummary;
@@ -581,6 +891,7 @@ export function createInteractiveSessionRuntime(input: {
 		resetForNewSession,
 		restartWithMessages,
 		restartWithCurrentMessages,
+		updateCurrentSessionConnection,
 		resumeSession,
 		forkCurrentSession,
 		compactCurrentSession,

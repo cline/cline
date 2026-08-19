@@ -22,6 +22,10 @@ import type {
 	StoredMessageWithMetadata,
 } from "../../types/session";
 import {
+	readSessionHistoryOriginMetadata,
+	withSessionHistoryOriginMetadata,
+} from "../history-origin";
+import {
 	deriveSubsessionStatus,
 	makeSubSessionId,
 	makeTeamTaskSubSessionId,
@@ -29,7 +33,6 @@ import {
 import type { SessionRow, UpsertSubagentInput } from "../models/session-row";
 import type { SessionManifestStore } from "../stores/session-manifest-store";
 
-const SUBSESSION_SOURCE = "subagent";
 const SpawnAgentInputSchema = z.looseObject({
 	task: z.string().optional(),
 	systemPrompt: z.string().optional(),
@@ -47,9 +50,9 @@ export class TeamChildSessionManager {
 		private readonly adapter: SessionPersistenceAdapter,
 		private readonly manifestStore: SessionManifestStore,
 		private readonly toPersistedMessages: (
-			messages: LlmsProviders.Message[] | undefined,
+			messages: LlmsProviders.MessageWithMetadata[] | undefined,
 			result?: AgentResult,
-			previousMessages?: LlmsProviders.Message[],
+			previousMessages?: LlmsProviders.MessageWithMetadata[],
 		) => StoredMessageWithMetadata[] | undefined,
 		private readonly heartbeatLogIntervalMs: number,
 	) {}
@@ -72,6 +75,7 @@ export class TeamChildSessionManager {
 		root: SessionRow,
 		opts: {
 			sessionId: string;
+			mode: "subagent" | "team";
 			parentSessionId: string;
 			parentAgentId: string;
 			agentId: string;
@@ -81,9 +85,10 @@ export class TeamChildSessionManager {
 			messagesPath: string;
 		},
 	): SessionRow {
+		const rootHistoryOrigin = readSessionHistoryOriginMetadata(root.metadata);
 		return {
 			sessionId: opts.sessionId,
-			source: SUBSESSION_SOURCE,
+			source: root.source,
 			pid: process.ppid,
 			startedAt: opts.startedAt,
 			endedAt: null,
@@ -105,7 +110,13 @@ export class TeamChildSessionManager {
 			conversationId: opts.conversationId ?? null,
 			isSubagent: true,
 			prompt: opts.prompt,
-			metadata: resolveMetadataWithTitle({ prompt: opts.prompt }),
+			metadata: resolveMetadataWithTitle({
+				metadata: withSessionHistoryOriginMetadata(undefined, {
+					mode: opts.mode,
+					version: rootHistoryOrigin?.version,
+				}),
+				prompt: opts.prompt,
+			}),
 			hookPath: "",
 			messagesPath: opts.messagesPath,
 			updatedAt: opts.startedAt,
@@ -157,20 +168,20 @@ export class TeamChildSessionManager {
 		}
 
 		if (!existing) {
-			await this.adapter.upsertSession(
-				this.buildSubsessionRow(root, {
-					sessionId,
-					parentSessionId: rootSessionId,
-					parentAgentId: input.parentAgentId,
-					agentId: input.agentId,
-					conversationId: input.conversationId,
-					prompt,
-					startedAt,
-					...artifactPaths,
-				}),
-			);
-			this.manifestStore.initializeMessagesFile(
+			const row = this.buildSubsessionRow(root, {
 				sessionId,
+				mode: "subagent",
+				parentSessionId: rootSessionId,
+				parentAgentId: input.parentAgentId,
+				agentId: input.agentId,
+				conversationId: input.conversationId,
+				prompt,
+				startedAt,
+				...artifactPaths,
+			});
+			await this.adapter.upsertSession(row);
+			this.manifestStore.initializeMessagesFile(
+				row,
 				artifactPaths.messagesPath,
 				startedAt,
 			);
@@ -186,7 +197,10 @@ export class TeamChildSessionManager {
 			conversationId: input.conversationId,
 			prompt: existing.prompt ?? prompt ?? null,
 			metadata: resolveMetadataWithTitle({
-				metadata: existing.metadata ?? undefined,
+				metadata: withSessionHistoryOriginMetadata(existing.metadata, {
+					mode: "subagent",
+					version: readSessionHistoryOriginMetadata(root.metadata)?.version,
+				}),
 				prompt: existing.prompt ?? prompt ?? null,
 			}),
 			expectedStatusLock: existing.statusLock,
@@ -272,22 +286,18 @@ export class TeamChildSessionManager {
 			sessionId,
 			agentId,
 		);
-		await this.adapter.upsertSession(
-			this.buildSubsessionRow(root, {
-				sessionId,
-				parentSessionId: rootSessionId,
-				parentAgentId: "lead",
-				agentId,
-				prompt: message || `Team task for ${agentId}`,
-				startedAt,
-				messagesPath,
-			}),
-		);
-		this.manifestStore.initializeMessagesFile(
+		const row = this.buildSubsessionRow(root, {
 			sessionId,
-			messagesPath,
+			mode: "team",
+			parentSessionId: rootSessionId,
+			parentAgentId: "lead",
+			agentId,
+			prompt: message || `Team task for ${agentId}`,
 			startedAt,
-		);
+			messagesPath,
+		});
+		await this.adapter.upsertSession(row);
+		this.manifestStore.initializeMessagesFile(row, messagesPath, startedAt);
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key) ?? [];
 		queue.push(sessionId);
@@ -300,7 +310,7 @@ export class TeamChildSessionManager {
 		status: SessionStatus,
 		_summary?: string,
 		result?: AgentResult,
-		messages?: LlmsProviders.Message[],
+		messages?: LlmsProviders.MessageWithMetadata[],
 	): Promise<void> {
 		const key = this.teamTaskQueueKey(rootSessionId, agentId);
 		const queue = this.teamTaskSessionsByAgent.get(key);

@@ -2,6 +2,7 @@
 
 import {
 	ArrowLeft,
+	ChevronRight,
 	Copy,
 	Eye,
 	EyeOff,
@@ -12,8 +13,8 @@ import {
 	PlusCircle,
 	RefreshCw,
 	Search,
-	Settings2,
 	Star,
+	X,
 } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
@@ -89,58 +90,142 @@ export function ProviderListContent({
 	onToggle,
 	onConfigure,
 	onAddProvider,
+	selectedProviderId,
+	variant = "page",
 }: {
 	providers: Provider[];
 	onToggle: (id: string) => void;
 	onConfigure: (id: string) => void;
 	onAddProvider: () => void;
+	selectedProviderId?: string | null;
+	variant?: "page" | "panel";
 }) {
+	const [providerSearchOpen, setProviderSearchOpen] = useState(false);
+	const [providerSearch, setProviderSearch] = useState("");
+	const enabledProviderCount = providers.filter(
+		(provider) => provider.enabled,
+	).length;
+	const providerSearchQuery = providerSearch.trim().toLowerCase();
+	const filteredProviders = providerSearchQuery
+		? providers.filter((provider) =>
+				provider.name.toLowerCase().includes(providerSearchQuery),
+			)
+		: providers;
+	const isPanel = variant === "panel";
+
 	return (
 		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				<div className="mb-6 flex items-center justify-between">
-					<h2 className="text-lg font-semibold text-foreground">
-						Model Providers
-					</h2>
-					<Button
-						className="flex items-center gap-2 rounded-lg border border-border bg-accent px-3.5 py-2 text-sm font-medium text-foreground hover:bg-accent/80 transition-colors"
-						onClick={onAddProvider}
-						variant="ghost"
-					>
-						<PlusCircle className="h-4 w-4" />
-						Add Provider
-					</Button>
+			<div
+				className={cn(
+					"py-10 max-[720px]:px-4 max-[720px]:py-5",
+					isPanel ? "px-8" : "px-18 max-[1200px]:px-8",
+				)}
+			>
+				<div
+					className={cn(
+						"mb-8 flex items-start justify-between gap-6 max-[860px]:flex-col max-[860px]:items-stretch",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
+					<div className="min-w-0">
+						<h1
+							className={cn(
+								"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+								isPanel ? "text-[24px]" : "text-[32px]",
+							)}
+						>
+							Model Providers
+						</h1>
+						<p className="mt-3 text-[15px] leading-6 text-muted-foreground">
+							Configure model providers and choose which ones are available.{" "}
+							{providers.length} available &middot; {enabledProviderCount}{" "}
+							enabled
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2 max-[860px]:justify-start">
+						<Button
+							aria-label="Search providers"
+							className="size-8 rounded-md"
+							onClick={() => setProviderSearchOpen((open) => !open)}
+							size="icon-sm"
+							type="button"
+							variant={providerSearchOpen ? "default" : "secondary"}
+						>
+							<Search className="size-4" />
+						</Button>
+						<Button
+							className="h-8 rounded-md bg-foreground px-3 text-sm text-background hover:bg-foreground/90"
+							onClick={onAddProvider}
+							type="button"
+						>
+							<PlusCircle className="size-4" />
+							Add provider
+						</Button>
+					</div>
 				</div>
 
-				<div className="flex flex-col divide-y divide-border rounded-lg border border-border overflow-hidden">
-					{providers.map((prov) => (
+				{providerSearchOpen ? (
+					<div className={cn("mb-4", isPanel ? "max-w-none" : "max-w-[42rem]")}>
+						<div className="flex h-9 items-center gap-2 rounded border bg-background px-3">
+							<Search className="size-4 shrink-0 text-muted-foreground" />
+							<Input
+								aria-label="Search model providers"
+								autoFocus
+								className="h-7 border-0 bg-transparent px-0 text-sm"
+								onChange={(event) => setProviderSearch(event.target.value)}
+								placeholder="Search providers"
+								value={providerSearch}
+							/>
+						</div>
+					</div>
+				) : null}
+
+				<div
+					className={cn(
+						"overflow-hidden",
+						isPanel ? "max-w-none" : "max-w-[42rem]",
+					)}
+				>
+					{filteredProviders.length === 0 ? (
+						<div className="border-b px-2 py-6 text-[15px] text-muted-foreground">
+							No providers match "{providerSearch.trim()}".
+						</div>
+					) : null}
+					{filteredProviders.map((prov) => (
 						<div
-							className="flex items-center gap-4 px-5 py-4 transition-colors hover:bg-accent/30"
+							className={cn(
+								"flex min-h-11 items-center gap-4 border-b px-2 py-2 transition-colors hover:bg-accent/30",
+								selectedProviderId === prov.id && "bg-accent/45",
+							)}
 							key={prov.id}
 						>
-							<div className="min-w-0 flex-1">
-								<p className="text-sm font-medium text-foreground">
+							<button
+								className="flex min-w-0 flex-1 items-center gap-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								onClick={() => onConfigure(prov.id)}
+								type="button"
+							>
+								<p className="min-w-0 flex-1 truncate text-[17px] font-semibold text-foreground">
 									{prov.name}
 								</p>
-								<p className="text-xs text-muted-foreground">
+								<p className="shrink-0 text-[15px] text-muted-foreground">
 									{prov.models === null
 										? "Models load on demand"
-										: `${prov.models} Model${prov.models !== 1 ? "s" : ""}`}
+										: `${prov.models} model${prov.models !== 1 ? "s" : ""}`}
 								</p>
-							</div>
-							<Button
-								aria-label={`Configure ${prov.name}`}
-								className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
-								onClick={() => onConfigure(prov.id)}
-								variant="ghost"
-							>
-								<Settings2 className="h-4 w-4" />
-							</Button>
+							</button>
 							<Switch
 								aria-label={`Toggle ${prov.name}`}
 								checked={prov.enabled}
 								onCheckedChange={() => onToggle(prov.id)}
 							/>
+							<button
+								aria-label={`Configure ${prov.name}`}
+								className="grid size-7 shrink-0 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+								onClick={() => onConfigure(prov.id)}
+								type="button"
+							>
+								<ChevronRight className="size-4" />
+							</button>
 						</div>
 					))}
 				</div>
@@ -158,6 +243,7 @@ export function ProviderDetailContent({
 	modelsError,
 	onOAuthLogin,
 	oauthLoginPending = false,
+	variant = "page",
 }: {
 	provider: Provider;
 	onBack: () => void;
@@ -167,6 +253,7 @@ export function ProviderDetailContent({
 	modelsError?: string | null;
 	onOAuthLogin?: () => void;
 	oauthLoginPending?: boolean;
+	variant?: "page" | "panel";
 }) {
 	const [shownSecrets, setShownSecrets] = useState<Record<string, boolean>>({});
 	const [localConfigValues, setLocalConfigValues] = useState<
@@ -199,6 +286,7 @@ export function ProviderDetailContent({
 					model.id.toLowerCase().includes(modelSearchQuery),
 			)
 		: modelList;
+	const isPanel = variant === "panel";
 
 	useEffect(
 		() => () => {
@@ -250,44 +338,65 @@ export function ProviderDetailContent({
 
 	return (
 		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
+			<div
+				className={cn(
+					"py-10 max-[720px]:px-4 max-[720px]:py-5",
+					isPanel ? "px-6" : "px-18 max-[1200px]:px-8",
+				)}
+			>
 				{/* Back + title */}
 				<div className="mb-8 flex items-center gap-3">
 					<Button
-						aria-label="Back to providers"
+						aria-label={
+							isPanel ? "Close provider details" : "Back to providers"
+						}
 						className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
 						onClick={onBack}
 						variant="ghost"
 					>
-						<ArrowLeft className="h-4 w-4" />
+						{isPanel ? (
+							<X className="h-4 w-4" />
+						) : (
+							<ArrowLeft className="h-4 w-4" />
+						)}
 					</Button>
-					<h2 className="text-lg font-semibold text-foreground">
+					<h1
+						className={cn(
+							"truncate font-semibold leading-[1.15] tracking-normal text-foreground",
+							isPanel ? "text-[24px]" : "text-[32px]",
+						)}
+					>
 						{provider.name}
-					</h2>
+					</h1>
 				</div>
 
 				{configFields.length > 0 ? (
-					<section className="mb-8">
-						<div className="flex flex-col gap-5">
+					<section
+						className={cn("mb-8", isPanel ? "max-w-none" : "max-w-[86rem]")}
+					>
+						<div className="flex flex-col">
 							{configFields.map((field) => {
 								const value = localConfigValues[field.path];
 								const valueText = fieldValueToString(value);
 								const isSecret = field.type === "password" || field.secret;
 								const isShown = shownSecrets[field.path] ?? false;
 								return (
-									<div key={field.path}>
-										<header className="mb-2">
-											<h3 className="text-sm font-semibold text-foreground">
+									<div
+										className="grid min-h-18 grid-cols-[minmax(12rem,0.55fr)_minmax(16rem,0.45fr)] items-center gap-6 border-b py-4 max-[900px]:grid-cols-1 max-[900px]:gap-3"
+										key={field.path}
+									>
+										<header>
+											<h3 className="text-[17px] font-semibold text-foreground">
 												{field.label}
 											</h3>
 											{field.description ? (
-												<p className="mt-1 text-sm leading-relaxed text-muted-foreground">
+												<p className="mt-1 text-[15px] leading-relaxed text-muted-foreground">
 													{field.description}
 												</p>
 											) : null}
 										</header>
 										{field.type === "boolean" ? (
-											<div className="flex items-center justify-between rounded-lg border border-border px-4 py-3">
+											<div className="flex items-center justify-end">
 												<span className="text-sm text-muted-foreground">
 													{field.label}
 												</span>
@@ -300,7 +409,7 @@ export function ProviderDetailContent({
 											</div>
 										) : field.type === "select" ? (
 											<select
-												className="w-full rounded-lg border border-border bg-input px-3 py-2 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
+												className="h-9 w-full rounded border border-border bg-background px-3 text-sm text-foreground outline-none focus:ring-1 focus:ring-ring"
 												onChange={(event) =>
 													commitField(field, event.target.value)
 												}
@@ -317,12 +426,12 @@ export function ProviderDetailContent({
 												))}
 											</select>
 										) : (
-											<div className="flex items-center gap-2 rounded-lg border border-border bg-input px-4 py-3">
+											<div className="flex h-9 items-center gap-2 rounded border border-border bg-background px-3">
 												{field.type === "url" ? (
 													<LinkIcon className="h-4 w-4 shrink-0 text-muted-foreground" />
 												) : null}
 												<Input
-													className="flex-1 text-sm text-foreground placeholder:text-muted-foreground outline-none border-0"
+													className="h-7 flex-1 border-0 bg-transparent px-0 text-sm text-foreground outline-none placeholder:text-muted-foreground"
 													onBlur={() => commitField(field, valueText)}
 													onChange={(event) =>
 														setLocalConfigValues((current) => ({
@@ -408,10 +517,18 @@ export function ProviderDetailContent({
 				) : null}
 
 				{/* Models section */}
-				<section>
-					<div className="mb-4 flex items-center justify-between">
-						<h3 className="text-sm font-semibold text-foreground">Models</h3>
+				<section
+					className={cn(
+						"overflow-hidden rounded-lg border",
+						isPanel ? "max-w-none" : "max-w-[46rem]",
+					)}
+				>
+					<div className="flex h-12 items-center justify-between bg-muted/40 px-4">
+						<h2 className="text-[17px] font-medium text-muted-foreground">
+							Models
+						</h2>
 						<div className="flex items-center gap-1">
+							<Search className="size-4 text-muted-foreground" />
 							<Button
 								aria-label="Refresh models"
 								className="rounded-md p-1.5 text-muted-foreground hover:bg-accent hover:text-foreground transition-colors"
@@ -432,7 +549,7 @@ export function ProviderDetailContent({
 						</div>
 					) : modelList.length > 0 ? (
 						<div className="space-y-3">
-							<div className="flex items-center gap-2 rounded-lg border border-border bg-input px-3 py-2">
+							<div className="mx-4 mt-4 flex items-center gap-2 rounded border border-border bg-background px-3 py-2">
 								<Search className="size-4 shrink-0 text-muted-foreground" />
 								<Input
 									aria-label="Search models"
@@ -449,10 +566,10 @@ export function ProviderDetailContent({
 								/>
 							</div>
 							{filteredModelList.length > 0 ? (
-								<div className="flex flex-col divide-y divide-border rounded-lg border border-border max-h-125 overflow-y-scroll">
+								<div className="max-h-125 overflow-y-scroll border-t">
 									{filteredModelList.map((model) => (
 										<div
-											className="group flex items-center gap-3 px-4 py-3 transition-colors hover:bg-accent/30"
+											className="group flex min-h-16 items-center gap-3 border-b px-4 py-3 transition-colors hover:bg-accent/30"
 											key={model.id}
 										>
 											<div className="min-w-0 flex-1 font-mono">

@@ -11,10 +11,12 @@
  */
 
 import {
+	type AgentExtensionMcpServer,
 	type AutomationEventEnvelope,
 	normalizePluginManifest,
 	type PluginManifest,
 } from "@cline/shared";
+import { installParentDisconnectGuard } from "../../runtime/tools/subprocess-sandbox-lifecycle";
 import { importPluginModule } from "./plugin-module-import";
 import {
 	matchesPluginManifestTargeting,
@@ -37,8 +39,19 @@ interface PluginTool {
 interface PluginCommand {
 	name: string;
 	description?: string;
-	handler?: (input: string) => Promise<string>;
+	handler?: (
+		input: string,
+	) => Promise<PluginCommandResult> | PluginCommandResult;
 }
+
+// Keep this local mirror in sync with AgentExtensionCommandResult from @cline/shared.
+// The sandbox bootstrap runs in an isolated process and avoids host package imports.
+type PluginCommandResult =
+	| string
+	| {
+			reply?: string;
+			submitPrompt?: string;
+	  };
 
 interface PluginRule {
 	id: string;
@@ -74,6 +87,7 @@ interface PluginApi {
 	registerMessageBuilder(builder: PluginMessageBuilder): void;
 	registerProvider(provider: PluginProvider): void;
 	registerAutomationEventType(eventType: PluginAutomationEventType): void;
+	registerMcpServer(server: AgentExtensionMcpServer): void;
 }
 
 interface PluginSetupCtx {
@@ -89,6 +103,48 @@ interface PluginSetupCtx {
 		log(message: string, metadata?: Record<string, unknown>): void;
 		error(message: string, metadata?: Record<string, unknown>): void;
 	};
+	telemetry?: PluginTelemetryBridge;
+}
+
+/**
+ * Sandbox-side telemetry proxy, shaped like the host's ITelemetryService.
+ * Live telemetry clients cannot cross the JSON IPC boundary, so capture and
+ * record calls are forwarded to the host as `plugin_telemetry` events and
+ * routed into the host telemetry service there. Identity and common-property
+ * setters are host concerns and are intentionally no-ops in the sandbox.
+ */
+interface PluginTelemetryBridge {
+	capture(input: { event: string; properties?: Record<string, unknown> }): void;
+	captureRequired(event: string, properties?: Record<string, unknown>): void;
+	recordCounter(
+		name: string,
+		value: number,
+		attributes?: Record<string, unknown>,
+		description?: string,
+		required?: boolean,
+	): void;
+	recordHistogram(
+		name: string,
+		value: number,
+		attributes?: Record<string, unknown>,
+		description?: string,
+		required?: boolean,
+	): void;
+	recordGauge(
+		name: string,
+		value: number,
+		attributes?: Record<string, unknown>,
+		description?: string,
+		required?: boolean,
+	): void;
+	isEnabled(): boolean;
+	setDistinctId(distinctId?: string): void;
+	setMetadata(metadata: Record<string, unknown>): void;
+	updateMetadata(metadata: Record<string, unknown>): void;
+	setCommonProperties(properties: Record<string, unknown>): void;
+	updateCommonProperties(properties: Record<string, unknown>): void;
+	flush(): Promise<void>;
+	dispose(): Promise<void>;
 }
 
 interface PluginModule {
@@ -142,6 +198,7 @@ interface PluginDescriptor {
 		messageBuilders: ContributionDescriptor[];
 		providers: ContributionDescriptor[];
 		automationEventTypes: AutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
 		shortcuts?: ContributionDescriptor[];
 		flags?: ContributionDescriptor[];
 	};
@@ -358,6 +415,68 @@ function createPluginLogger(
 	};
 }
 
+function createPluginTelemetry(pluginName: string): PluginTelemetryBridge {
+	const emit = (payload: Record<string, unknown>) => {
+		emitEvent("plugin_telemetry", { pluginName, ...payload });
+	};
+	const record =
+		(metric: "counter" | "histogram" | "gauge") =>
+		(
+			name: string,
+			value: number,
+			attributes?: Record<string, unknown>,
+			description?: string,
+			required?: boolean,
+		) => {
+			emit({
+				kind: "metric",
+				metric,
+				name,
+				value,
+				attributes: sanitizeLogMetadata(attributes),
+				description,
+				required,
+			});
+		};
+	const noop = () => {
+		// Identity and common properties are managed by the host telemetry
+		// service; sandboxed plugins cannot change them.
+	};
+	return {
+		capture: (input) => {
+			emit({
+				kind: "event",
+				event: input?.event,
+				properties: sanitizeLogMetadata(input?.properties),
+			});
+		},
+		captureRequired: (event, properties) => {
+			emit({
+				kind: "event",
+				event,
+				properties: sanitizeLogMetadata(properties),
+				required: true,
+			});
+		},
+		recordCounter: record("counter"),
+		recordHistogram: record("histogram"),
+		recordGauge: record("gauge"),
+		// The bridge is stateless: the host is the arbiter of whether
+		// telemetry is enabled and drops forwarded events when the user has
+		// opted out. Reporting true keeps plugins emitting unconditionally —
+		// which also means isEnabled() cannot be used to skip expensive
+		// property computation in sandboxed plugins; keep properties cheap.
+		isEnabled: () => true,
+		setDistinctId: noop,
+		setMetadata: noop,
+		updateMetadata: noop,
+		setCommonProperties: noop,
+		updateCommonProperties: noop,
+		flush: async () => {},
+		dispose: async () => {},
+	};
+}
+
 function makeId(pluginId: string, prefix: string): string {
 	const key = `${pluginId}:${prefix}`;
 	const next = (contributionCounters.get(key) ?? 0) + 1;
@@ -407,6 +526,7 @@ async function loadPluginDescriptor(args: {
 		"session" | "client" | "user" | "workspaceInfo"
 	>;
 	loggerEnabled?: boolean;
+	telemetryEnabled?: boolean;
 }): Promise<LoadedPluginResult> {
 	let plugin: PluginModule | undefined;
 	try {
@@ -426,6 +546,7 @@ async function loadPluginDescriptor(args: {
 			messageBuilders: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 			shortcuts: [],
 			flags: [],
 		};
@@ -498,12 +619,21 @@ async function loadPluginDescriptor(args: {
 					...normalizeAutomationEventType(eventType),
 				});
 			},
+			registerMcpServer: (server) => {
+				contributions.mcpServers.push(server);
+			},
 		};
 
 		if (typeof plugin.setup === "function") {
 			try {
 				const setupCtx = {
 					...args.setupCtxBase,
+					// Only offered when the host actually has a telemetry service:
+					// the feature-detection contract (`ctx.telemetry?.capture`) must
+					// mean "someone is listening", matching in-process behavior.
+					...(args.telemetryEnabled
+						? { telemetry: createPluginTelemetry(plugin.name) }
+						: {}),
 					...(args.loggerEnabled
 						? { logger: createPluginLogger(plugin.name) }
 						: {}),
@@ -578,6 +708,7 @@ async function initialize(args: {
 	user?: unknown;
 	workspaceInfo?: unknown;
 	loggerEnabled?: boolean;
+	telemetryEnabled?: boolean;
 }): Promise<InitializeResult> {
 	pluginState.clear();
 	pluginCounter = 0;
@@ -629,6 +760,7 @@ async function initialize(args: {
 				targeting,
 				setupCtxBase,
 				loggerEnabled: args.loggerEnabled,
+				telemetryEnabled: args.telemetryEnabled,
 			});
 		}),
 	);
@@ -706,7 +838,7 @@ async function executeCommand(args: {
 	pluginId: string;
 	contributionId: string;
 	input: string;
-}): Promise<string> {
+}): Promise<PluginCommandResult> {
 	const state = getPlugin(args.pluginId);
 	const handler = state.handlers.commands.get(args.contributionId);
 	if (typeof handler !== "function") {
@@ -752,6 +884,8 @@ const methods: Record<string, (args: never) => Promise<unknown>> = {
 	buildMessages,
 	resolveRuleContent,
 };
+
+installParentDisconnectGuard();
 
 process.on(
 	"message",

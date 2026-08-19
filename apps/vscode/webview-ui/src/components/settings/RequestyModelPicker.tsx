@@ -7,15 +7,17 @@ import Fuse from "fuse.js"
 import React, { KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import { useMount } from "react-use"
 import styled from "styled-components"
+import { useDynamicProviderSelection } from "@/hooks/useDynamicProviderSelection"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
 import { useExtensionState } from "../../context/ExtensionStateContext"
 import { ModelsServiceClient } from "../../services/grpc-client"
 import { highlight } from "../history/HistoryView"
 import { ModelInfoView } from "./common/ModelInfoView"
-import ThinkingBudgetSlider from "./ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "./utils/providerUtils"
+import ReasoningEffortSelector from "./ReasoningEffortSelector"
+import { getModeSpecificFields } from "./utils/providerUtils"
 import { useApiConfigurationHandlers } from "./utils/useApiConfigurationHandlers"
 
-export interface RequestyModelPickerProps {
+interface RequestyModelPickerProps {
 	isPopup?: boolean
 	baseUrl?: string
 	currentMode: Mode
@@ -23,6 +25,7 @@ export interface RequestyModelPickerProps {
 
 const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, baseUrl, currentMode }) => {
 	const { apiConfiguration, requestyModels, setRequestyModels } = useExtensionState()
+	const { write } = useProviderConfig("requesty")
 	const { handleModeFieldsChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
 	const [searchTerm, setSearchTerm] = useState(modeFields.requestyModelId || requestyDefaultModelId)
@@ -58,9 +61,7 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 		setSearchTerm(newModelId)
 	}
 
-	const { selectedModelId, selectedModelInfo } = useMemo(() => {
-		return normalizeApiConfiguration(apiConfiguration, currentMode)
-	}, [apiConfiguration, currentMode])
+	const { selectedModelId, selectedModelInfo } = useDynamicProviderSelection("requesty", apiConfiguration, currentMode)
 
 	useMount(() => {
 		ModelsServiceClient.refreshRequestyModels(EmptyRequest.create({}))
@@ -171,9 +172,16 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 		}
 	}, [selectedIndex])
 
-	const showBudgetSlider = useMemo(() => {
-		return selectedModelId?.includes("claude-3-7-sonnet")
-	}, [selectedModelId])
+	// Reasoning support comes from the SDK catalog (models.dev), not model-id
+	// heuristics: any reasoning-capable model gets the effort selector. Gate on
+	// the live catalog entry — the committed legacy snapshot can be cleared by
+	// provider-config writes, and the safe-default fallback would over-report.
+	const showReasoningEffort = requestyModels[selectedModelId]?.supportsReasoning === true
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({
+			reasoning: { enabled: effort !== "none", effort: effort !== "none" ? effort : undefined },
+		}).catch((err) => console.error("Failed to update Requesty reasoning effort:", err))
+	}
 
 	return (
 		<div style={{ width: "100%" }}>
@@ -249,7 +257,14 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 
 			{hasInfo ? (
 				<>
-					{showBudgetSlider && <ThinkingBudgetSlider currentMode={currentMode} />}
+					{showReasoningEffort && (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
+					)}
 					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
 				</>
 			) : (
@@ -264,12 +279,8 @@ const RequestyModelPicker: React.FC<RequestyModelPickerProps> = ({ isPopup, base
 						<VSCodeLink href={requestyModelListUrl?.toString()} style={{ display: "inline", fontSize: "inherit" }}>
 							Requesty.
 						</VSCodeLink>
-						If you're unsure which model to choose, Cline works best with{" "}
-						<VSCodeLink
-							onClick={() => handleModelChange("anthropic/claude-3-7-sonnet-latest")}
-							style={{ display: "inline", fontSize: "inherit" }}>
-							anthropic/claude-3-7-sonnet-latest.
-						</VSCodeLink>
+						If you're unsure which model to choose, compare available models by context window, pricing, and
+						capabilities.
 					</>
 				</p>
 			)}
@@ -286,7 +297,7 @@ const DropdownWrapper = styled.div`
   width: 100%;
 `
 
-export const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
+const REQUESTY_MODEL_PICKER_Z_INDEX = 1_000
 
 const DropdownList = styled.div`
   position: absolute;
@@ -309,8 +320,10 @@ const DropdownItem = styled.div<{ isSelected: boolean }>`
   white-space: normal;
 
   background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+  color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionForeground, inherit)" : "inherit")};
 
   &:hover {
     background-color: var(--vscode-list-activeSelectionBackground);
+    color: var(--vscode-list-activeSelectionForeground, inherit);
   }
 `

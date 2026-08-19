@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { SentMessage } from "chat";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { enqueueThreadTurn } from "./chat-runtime";
 import { handleConnectorUserTurn } from "./connector-host";
 
 vi.mock("./hooks", () => ({
@@ -43,7 +44,22 @@ function createThread(initialState: TestState = {}, isDM = true) {
 				state = { ...nextState };
 			},
 			async post(message: unknown) {
-				posts.push(message);
+				// Real thread implementations drain async-iterable replies; the
+				// connector streams runtime output straight into post() for
+				// transports without a custom final-reply hook.
+				if (
+					message &&
+					typeof message === "object" &&
+					Symbol.asyncIterator in message
+				) {
+					let streamed = "";
+					for await (const chunk of message as AsyncIterable<string>) {
+						streamed += chunk;
+					}
+					posts.push(streamed);
+				} else {
+					posts.push(message);
+				}
 				const sentMessage = {
 					edit: async (nextMessage: unknown) => {
 						posts.push(nextMessage);
@@ -92,20 +108,34 @@ function createRuntimeClient(
 ) {
 	const startRuntimeSession = vi.fn(async () => ({ sessionId: "session-1" }));
 	const updateSession = vi.fn(async () => undefined);
+	const getSession = vi.fn(
+		async (sessionId: string): Promise<{ sessionId: string } | undefined> => ({
+			sessionId,
+		}),
+	);
 	const abortRuntimeSession = vi.fn(async () => undefined);
 	const deleteSession = vi.fn(async () => undefined);
-	const sendRuntimeSession = vi.fn(async () => ({
-		result: {
-			text: responseText,
-			finishReason: "stop",
-			iterations: 1,
-		},
-	}));
+	const sendRuntimeSession = vi.fn(
+		async (
+			_sessionId: string,
+			_request?: unknown,
+			_options?: unknown,
+		): Promise<{
+			result?: { text: string; finishReason: string; iterations: number };
+		}> => ({
+			result: {
+				text: responseText,
+				finishReason: "stop",
+				iterations: 1,
+			},
+		}),
+	);
 	const readMessages = vi.fn(async () => messages);
 	return {
 		client: {
 			startRuntimeSession,
 			updateSession,
+			getSession,
 			abortRuntimeSession,
 			stopRuntimeSession: abortRuntimeSession,
 			deleteSession,
@@ -115,6 +145,7 @@ function createRuntimeClient(
 		},
 		startRuntimeSession,
 		updateSession,
+		getSession,
 		sendRuntimeSession,
 		readMessages,
 	};
@@ -131,6 +162,10 @@ function messageText(message: unknown): string {
 	return String(message);
 }
 
+async function runTurnImmediately(work: () => Promise<void>): Promise<void> {
+	await work();
+}
+
 describe("handleConnectorUserTurn", () => {
 	const tempDirs: string[] = [];
 
@@ -141,6 +176,52 @@ describe("handleConnectorUserTurn", () => {
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
+	});
+
+	it("posts no greeting when the adapter configures none", async () => {
+		// Slack deliberately configures no first-contact message: the greeting is
+		// gated on per-thread state, so a restart or a cleared history replayed it
+		// on the user's next message.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			participantKey: "slack:user:alice",
+			participantLabel: "alice",
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			client: {} as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "cline-slack",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			text: "/whereami",
+		});
+
+		expect(
+			posts.filter((message) => messageText(message).includes("Connected")),
+		).toEqual([]);
+		// The turn itself still answers.
+		expect(messageText(posts.at(-1))).toContain(
+			"participantKey=slack:user:alice",
+		);
 	});
 
 	it("sends a first-contact message only once per persisted thread state", async () => {
@@ -535,6 +616,391 @@ describe("handleConnectorUserTurn", () => {
 		});
 	});
 
+	it("recovers from a stale thread session mapping by starting a new session", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		// The hub still reports the persisted session row, so the connector reuses
+		// the stale mapping...
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		// ...but sending input to the dead session fails with session_not_found
+		// until a fresh session id is used.
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "dead-session") {
+				throw Object.assign(new Error("session not found: dead-session"), {
+					code: "session_not_found",
+				});
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "are you there?",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(
+			runtime.sendRuntimeSession.mock.calls.map((call) => call[0]),
+		).toEqual(["dead-session", "fresh-session"]);
+		expect(runtime.startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("session not found"),
+			),
+		).toBe(false);
+	});
+
+	it("recovers when the bound session is wedged on a run that never drained", async () => {
+		// Cline Mom's failure: the thread pointed at a session whose runtime still
+		// had a run in flight, so every message came back as "SessionRuntime.shutdown
+		// called while a run is in progress" instead of answering.
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "wedged-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "wedged-session") {
+				// Crossing the hub's JSON boundary strips the error class, so only the
+				// message survives — which is exactly what the connector sees.
+				throw new Error(
+					"SessionRuntime.shutdown called while a run is in progress (agentId=agent_123)",
+				);
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "are you there?",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+		});
+
+		expect(
+			runtime.sendRuntimeSession.mock.calls.map((call) => call[0]),
+		).toEqual(["wedged-session", "fresh-session"]);
+		// The stale mapping is replaced, so the thread is not wedged next time.
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("run is in progress"),
+			),
+		).toBe(false);
+	});
+
+	it("does not retry forever when the replacement session is also missing", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("never delivered");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "also-dead-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async () => {
+			throw Object.assign(new Error("session not found"), {
+				code: "session_not_found",
+			});
+		});
+
+		await expect(
+			handleConnectorUserTurn({
+				thread: thread as never,
+				text: "are you there?",
+				client: runtime.client as never,
+				pendingApprovals: new Map(),
+				baseStartRequest: baseStartRequest() as never,
+				explicitSystemPrompt: undefined,
+				clientId: "client-1",
+				logger: {
+					core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+				} as never,
+				transport: "slack",
+				botUserName: "ClineAdapterBot",
+				requestStop: vi.fn(),
+				bindingsPath,
+				systemRules: "rules",
+				errorLabel: "Slack",
+				getSessionMetadata: () => ({}),
+				reusedLogMessage: "reused",
+				startedLogMessage: "started",
+			}),
+		).rejects.toThrow(/session not found/);
+
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(2);
+	});
+
+	it("starts a new session when steering an active turn hits a dead session", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("recovered reply");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+		runtime.sendRuntimeSession.mockImplementation(async (sessionId: string) => {
+			if (sessionId === "dead-session") {
+				throw Object.assign(new Error("session not found: dead-session"), {
+					code: "session_not_found",
+				});
+			}
+			return {
+				result: {
+					text: "recovered reply",
+					finishReason: "stop",
+					iterations: 1,
+				},
+			};
+		});
+		const activeTurns = new Map([
+			["thread-1", { sessionId: "dead-session", threadId: "thread-1" }],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "actually do this instead",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			activeTurns: activeTurns as never,
+			enqueueTurn: runTurnImmediately,
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(messageText(posts.at(-1))).toBe("recovered reply");
+		expect(
+			posts.some((message) =>
+				messageText(message).includes("Steering current task."),
+			),
+		).toBe(false);
+	});
+
+	it("serializes concurrent recovery from the same stale active turn", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			enableTools: false,
+			autoApproveTools: false,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			sessionId: "dead-session",
+			welcomeSentAt: new Date().toISOString(),
+		});
+
+		const runtime = createRuntimeClient("unused");
+		runtime.getSession.mockImplementation(async (sessionId: string) => ({
+			sessionId,
+		}));
+		runtime.startRuntimeSession.mockResolvedValue({
+			sessionId: "fresh-session",
+		});
+
+		let releaseStaleSteers = () => {};
+		const bothStaleSteersStarted = new Promise<void>((resolve) => {
+			releaseStaleSteers = resolve;
+		});
+		let staleSteerCount = 0;
+		runtime.sendRuntimeSession.mockImplementation(
+			async (sessionId: string, request?: unknown) => {
+				if (sessionId === "dead-session") {
+					staleSteerCount += 1;
+					if (staleSteerCount === 2) {
+						releaseStaleSteers();
+					}
+					await bothStaleSteersStarted;
+					throw Object.assign(new Error("session not found: dead-session"), {
+						code: "session_not_found",
+					});
+				}
+				const prompt =
+					request && typeof request === "object" && "prompt" in request
+						? String((request as { prompt?: unknown }).prompt)
+						: "";
+				return {
+					result: {
+						text: `recovered: ${prompt}`,
+						finishReason: "stop",
+						iterations: 1,
+					},
+				};
+			},
+		);
+
+		const activeTurns = new Map([
+			["thread-1", { sessionId: "dead-session", threadId: "thread-1" }],
+		]);
+		const threadQueues = new Map<string, Promise<void>>();
+		const enqueueTurn = (work: () => Promise<void>) =>
+			enqueueThreadTurn(threadQueues, "thread-1", work);
+		const commonInput = {
+			thread: thread as never,
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			activeTurns,
+			enqueueTurn,
+			turnKey: "thread-1",
+		};
+
+		await Promise.all([
+			handleConnectorUserTurn({
+				...commonInput,
+				text: "first recovery message",
+			}),
+			handleConnectorUserTurn({
+				...commonInput,
+				text: "second recovery message",
+			}),
+		]);
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(
+			runtime.sendRuntimeSession.mock.calls.map((call) => call[0]),
+		).toEqual([
+			"dead-session",
+			"dead-session",
+			"fresh-session",
+			"fresh-session",
+		]);
+		expect(getState().sessionId).toBe("fresh-session");
+		expect(activeTurns.size).toBe(0);
+		expect(posts.map(messageText)).toEqual([
+			"recovered: first recovery message",
+			"recovered: second recovery message",
+		]);
+	});
+
 	it("creates schedules with forced-disabled runtime options", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
 		tempDirs.push(dir);
@@ -593,7 +1059,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: expect.objectContaining({
 					delivery: expect.objectContaining({
 						adapter: "telegram",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 					}),
 				}),
 			}),
@@ -627,7 +1094,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: {
 					delivery: {
 						adapter: "telegram",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 						threadId: "thread-1",
 					},
 				},
@@ -640,7 +1108,8 @@ describe("handleConnectorUserTurn", () => {
 				metadata: {
 					delivery: {
 						adapter: "telegram",
-						bindingKey: "telegram:user:bob",
+						bindingKey: "thread-2",
+						participantKey: "telegram:user:bob",
 						threadId: "thread-2",
 					},
 				},
@@ -699,7 +1168,8 @@ describe("handleConnectorUserTurn", () => {
 					delivery: expect.objectContaining({
 						adapter: "telegram",
 						threadId: "thread-1",
-						bindingKey: "telegram:user:alice",
+						bindingKey: "thread-1",
+						participantKey: "telegram:user:alice",
 						userName: "ClineAdapterBot",
 					}),
 				}),
@@ -966,6 +1436,7 @@ describe("handleConnectorUserTurn", () => {
 			reusedLogMessage: "reused",
 			startedLogMessage: "started",
 			activeTurns,
+			enqueueTurn: runTurnImmediately,
 			turnKey: "current-participant",
 		});
 
@@ -1214,6 +1685,7 @@ describe("handleConnectorUserTurn", () => {
 			reusedLogMessage: "reused",
 			startedLogMessage: "started",
 			activeTurns,
+			enqueueTurn: runTurnImmediately,
 			resolveMuteTarget: () => ({
 				participantKey: "discord:user:bob",
 				participantLabel: "<@bob>",
@@ -1415,6 +1887,7 @@ describe("handleConnectorUserTurn", () => {
 			getSessionMetadata: () => ({}),
 			reusedLogMessage: "reused",
 			activeTurns,
+			enqueueTurn: runTurnImmediately,
 		});
 
 		expect(runtime.startRuntimeSession).not.toHaveBeenCalled();
@@ -1425,7 +1898,11 @@ describe("handleConnectorUserTurn", () => {
 			}),
 			{ timeoutMs: null },
 		);
-		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
+		// Handing the follow-up to the running session is silent: no acknowledgement
+		// line is added to the thread.
+		expect(
+			posts.some((message) => messageText(message).includes("Steering")),
+		).toBe(false);
 	});
 
 	it("steers when the same session is active under a different turn key", async () => {
@@ -1442,7 +1919,7 @@ describe("handleConnectorUserTurn", () => {
 		});
 		const runtime = createRuntimeClient("unused");
 		const activeTurns = new Map([
-			["other-turn-key", { sessionId: "session-1" }],
+			["other-turn-key", { sessionId: "session-1", threadId: "thread-1" }],
 		]);
 
 		await handleConnectorUserTurn({
@@ -1465,6 +1942,7 @@ describe("handleConnectorUserTurn", () => {
 			getSessionMetadata: () => ({}),
 			reusedLogMessage: "reused",
 			activeTurns,
+			enqueueTurn: runTurnImmediately,
 			turnKey: "thread-1",
 		});
 
@@ -1476,6 +1954,112 @@ describe("handleConnectorUserTurn", () => {
 			}),
 			{ timeoutMs: null },
 		);
-		expect(posts.at(-1)).toEqual({ raw: "Steering current task." });
+		// Handing the follow-up to the running session is silent: no acknowledgement
+		// line is added to the thread.
+		expect(
+			posts.some((message) => messageText(message).includes("Steering")),
+		).toBe(false);
+	});
+
+	it("starts a normal turn when the active session is in a different thread", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread({
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("normal reply");
+		const activeTurns = new Map([
+			["other-thread", { sessionId: "session-1", threadId: "other-thread" }],
+		]);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "start work in this thread",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			activeTurns,
+			enqueueTurn: runTurnImmediately,
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.startRuntimeSession).toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.not.objectContaining({
+				delivery: "steer",
+			}),
+			{ timeoutMs: null },
+		);
+		expect(posts.at(-1)).toEqual({ raw: "normal reply" });
+	});
+
+	it("starts a fresh session when persisted thread session is missing from the hub", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts, getState } = createThread({
+			sessionId: "stale-session",
+			enableTools: true,
+			autoApproveTools: true,
+			cwd: "/tmp/work",
+			workspaceRoot: "/tmp/work",
+			welcomeSentAt: new Date().toISOString(),
+		});
+		const runtime = createRuntimeClient("fresh reply");
+		runtime.getSession.mockResolvedValueOnce(undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "continue after hub restart",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "telegram",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Telegram",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			turnKey: "thread-1",
+		});
+
+		expect(runtime.getSession).toHaveBeenCalledWith("stale-session");
+		expect(runtime.startRuntimeSession).toHaveBeenCalled();
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledWith(
+			"session-1",
+			expect.not.objectContaining({
+				delivery: "steer",
+			}),
+			{ timeoutMs: null },
+		);
+		expect(getState().sessionId).toBe("session-1");
+		expect(posts.at(-1)).toEqual({ raw: "fresh reply" });
 	});
 });

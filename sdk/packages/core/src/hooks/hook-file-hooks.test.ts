@@ -151,6 +151,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks).toBeUndefined();
 		} finally {
@@ -172,6 +173,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const control = await hooks?.beforeTool?.(beforeToolContext());
@@ -195,6 +197,7 @@ describe("createHookConfigFileHooks", () => {
 			const extension = createHookConfigFileExtension({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(extension?.name).toBe("core.hook_config_files");
 			expect(extension?.manifest).toMatchObject({
@@ -249,6 +252,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const control = await hooks?.beforeTool?.(beforeToolContext());
@@ -272,6 +276,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const ctx = beforeToolContext({ commands: ["git status"] });
@@ -298,6 +303,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const control = await hooks?.beforeTool?.(beforeToolContext());
@@ -354,6 +360,7 @@ describe("createHookConfigFileHooks", () => {
 				const hooks = createHookConfigFileHooks({
 					cwd: workspace,
 					workspacePath: workspace,
+					detachAsyncHooks: false,
 				});
 				expect(hooks?.beforeTool).toBeTypeOf("function");
 				const control = await hooks?.beforeTool?.(beforeToolContext());
@@ -367,6 +374,7 @@ describe("createHookConfigFileHooks", () => {
 				});
 			}
 		},
+		30_000,
 	);
 
 	it("maps TaskError hook files to agent_error stop events", async () => {
@@ -379,6 +387,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			await hooks?.afterRun?.({
 				snapshot: beforeToolContext().snapshot,
@@ -505,6 +514,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			const snapshot = beforeToolContext().snapshot;
 			await hooks?.beforeRun?.({ snapshot: { ...snapshot, iteration: 0 } });
@@ -558,6 +568,7 @@ describe("createHookConfigFileHooks", () => {
 			const hooks = createHookConfigFileHooks({
 				cwd: workspace,
 				workspacePath: workspace,
+				detachAsyncHooks: false,
 			});
 			expect(hooks?.afterRun).toBeTypeOf("function");
 			await hooks?.afterRun?.({

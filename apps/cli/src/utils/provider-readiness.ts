@@ -33,6 +33,8 @@ function hasAwsRegion(settings: ProviderSettings): boolean {
 
 function hasGcpCredentials(settings: ProviderSettings): boolean {
 	const gcp = settings.gcp;
+	// Vertex defaults to us-central1 at runtime when no region is stored, so keep
+	// existing project-only configs usable while new CLI saves include a region.
 	return hasText(gcp?.projectId);
 }
 

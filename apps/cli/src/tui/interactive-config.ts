@@ -1,7 +1,6 @@
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import {
 	basename,
-	dirname,
 	extname,
 	isAbsolute,
 	join,
@@ -10,7 +9,9 @@ import {
 } from "node:path";
 import {
 	type BuiltinToolAvailabilityContext,
+	DEFAULT_MCP_CONNECT_TIMEOUT_MS,
 	discoverPluginModulePaths,
+	getPluginDisplayName,
 	hasMcpSettingsFile,
 	listHookConfigFiles,
 	listPluginToolsWithDiagnostics,
@@ -27,6 +28,11 @@ import {
 	type UserInstructionConfigService,
 	type WorkflowConfig,
 } from "@cline/core";
+import {
+	isMcpTimeoutConfigured,
+	resolveMcpTimeoutSeconds,
+} from "@cline/shared";
+import { readFileSyncStrippingUtf8Bom } from "@cline/shared/node";
 import { getToolCatalog } from "../runtime/tools";
 import {
 	type InteractiveSlashCommand,
@@ -86,6 +92,7 @@ export interface InteractiveConfigData {
 	mcp: InteractiveConfigItem[];
 	tools: InteractiveConfigItem[];
 	workflowSlashCommands: InteractiveSlashCommand[];
+	pluginDiagnosticsLoaded?: boolean;
 }
 
 export interface LoadInteractiveConfigDataOptions {
@@ -93,12 +100,14 @@ export interface LoadInteractiveConfigDataOptions {
 }
 
 export function isToggleableInteractiveConfigItem(
-	item: Pick<InteractiveConfigItem, "kind" | "source">,
+	item: Pick<InteractiveConfigItem, "kind" | "source" | "pluginName">,
 ): boolean {
+	if (item.kind === "mcp") {
+		return !item.pluginName;
+	}
 	return (
 		item.kind === "skill" ||
 		item.kind === "plugin" ||
-		item.kind === "mcp" ||
 		item.source === "builtin" ||
 		item.source === "workspace-plugin" ||
 		item.source === "global-plugin"
@@ -170,8 +179,14 @@ function getMcpAuthLabel(registration: McpServerRegistration): string {
 	return "no auth";
 }
 
-function getMcpDescription(registration: McpServerRegistration): string {
-	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}`;
+export function getMcpDescription(registration: McpServerRegistration): string {
+	const timeoutSeconds = resolveMcpTimeoutSeconds(registration.timeoutSeconds);
+	const timeoutDescription =
+		registration.transport.type === "stdio" &&
+		!isMcpTimeoutConfigured(registration.timeoutSeconds)
+			? `request timeout ${timeoutSeconds}s, initialize timeout ${DEFAULT_MCP_CONNECT_TIMEOUT_MS / 1000}s`
+			: `timeout ${timeoutSeconds}s`;
+	return `${registration.transport.type}, ${getMcpAuthLabel(registration)}, ${timeoutDescription}`;
 }
 
 function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
@@ -192,7 +207,7 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 					continue;
 				}
 				const filePath = join(directory, entry.name);
-				const raw = readFileSync(filePath, "utf8");
+				const raw = readFileSyncStrippingUtf8Bom(filePath);
 				const frontmatterMatch = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
 				const frontmatter = frontmatterMatch?.[1] ?? "";
 				const nameMatch = frontmatter.match(/^\s*name:\s*(.+?)\s*$/m);
@@ -227,39 +242,6 @@ function loadAgentConfigItems(workspaceRoot: string): InteractiveConfigItem[] {
 	}
 
 	return [...agentsById.values()];
-}
-
-function readPackageName(packageJsonPath: string): string | undefined {
-	try {
-		const packageJson = JSON.parse(readFileSync(packageJsonPath, "utf8")) as {
-			name?: unknown;
-		};
-		return typeof packageJson.name === "string" && packageJson.name.trim()
-			? packageJson.name.trim()
-			: undefined;
-	} catch {
-		return undefined;
-	}
-}
-
-function getPluginDisplayName(filePath: string): string {
-	let current = dirname(filePath);
-	for (let depth = 0; depth < 4; depth++) {
-		const packageJsonPath = join(current, "package.json");
-		if (existsSync(packageJsonPath)) {
-			const packageName = readPackageName(packageJsonPath);
-			if (packageName) {
-				return packageName;
-			}
-			break;
-		}
-		const parent = resolve(current, "..");
-		if (parent === current) {
-			break;
-		}
-		current = parent;
-	}
-	return basename(filePath, extname(filePath));
 }
 
 function isPathWithin(parentPath: string, childPath: string): boolean {
@@ -384,7 +366,7 @@ export async function loadInteractiveConfigData(input: {
 			for (const filePath of discoverPluginModulePaths(directory)) {
 				plugins.push({
 					id: filePath,
-					name: getPluginDisplayName(filePath),
+					name: getPluginDisplayName(filePath, directory),
 					path: filePath,
 					enabled: !disabledPlugins.has(filePath),
 					kind: "plugin",
@@ -458,6 +440,16 @@ export async function loadInteractiveConfigData(input: {
 			for (const registration of resolveMcpServerRegistrations({
 				filePath: mcpSettingsPath,
 			})) {
+				const pluginName =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginName === "string"
+						? registration.metadata.pluginName
+						: undefined;
+				const pluginPath =
+					registration.metadata?.source === "plugin" &&
+					typeof registration.metadata.pluginPath === "string"
+						? registration.metadata.pluginPath
+						: undefined;
 				mcp.push({
 					id: registration.name,
 					name: registration.name,
@@ -467,6 +459,8 @@ export async function loadInteractiveConfigData(input: {
 					source: detectSource(mcpSettingsPath, input.workspaceRoot),
 					description: getMcpDescription(registration),
 					loadError: registration.oauth?.lastError,
+					pluginName,
+					pluginPath,
 				});
 			}
 		} catch {
@@ -514,6 +508,7 @@ export async function loadInteractiveConfigData(input: {
 					toolNames: [pluginTool.name],
 					configKind: "tool",
 					pluginName: pluginTool.pluginName,
+					pluginPath: pluginTool.path,
 					source: pluginTool.source,
 					description: pluginTool.description,
 				});
@@ -533,5 +528,6 @@ export async function loadInteractiveConfigData(input: {
 		mcp: toSorted(mcp.filter((item) => existsSync(item.path))),
 		tools: toSorted(tools),
 		workflowSlashCommands,
+		pluginDiagnosticsLoaded: input.includePluginTools !== false,
 	};
 }

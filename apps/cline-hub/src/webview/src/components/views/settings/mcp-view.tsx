@@ -23,7 +23,6 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	Select,
 	SelectContent,
@@ -35,6 +34,7 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
+import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -405,18 +405,24 @@ export function McpServersContent() {
 	};
 
 	return (
-		<ScrollArea className="h-full">
-			<div className="mx-auto max-w-3xl px-8 py-6">
-				<div className="mb-6 flex items-center justify-between gap-3">
-					<div className="flex min-w-0 items-center gap-3">
-						<h2 className="truncate text-lg font-semibold text-foreground">
-							MCP Servers
-						</h2>
-						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+		<PageFrame>
+			<PageHeader
+				description={
+					hasSettingsFile
+						? "Editing this list updates cline_mcp_settings.json."
+						: "No MCP settings file found yet. Add a server to create it."
+				}
+				title="MCP Servers"
+				meta={
+					<>
+						<CommandBadge>cline config mcp</CommandBadge>
+						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
 							From settings file
 						</span>
-					</div>
-					<div className="flex items-center gap-2">
+					</>
+				}
+				actions={
+					<>
 						<Button
 							variant="outline"
 							size="sm"
@@ -431,145 +437,133 @@ export function McpServersContent() {
 							<Plus className="h-4 w-4" />
 							Add MCP Server
 						</Button>
-					</div>
+					</>
+				}
+			/>
+
+			<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+				<span>MCP settings path:</span>
+				<Button
+					variant="link"
+					className="h-auto p-0 font-mono text-xs"
+					onClick={() => void openSettingsFile()}
+					disabled={isOpeningSettingsFile}
+				>
+					{settingsPath || "Open settings file"}
+				</Button>
+			</div>
+			{errorMessage && (
+				<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+					{errorMessage}
 				</div>
+			)}
 
-				<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-					<span>MCP settings path:</span>
-					<Button
-						variant="link"
-						className="h-auto p-0 font-mono text-xs"
-						onClick={() => void openSettingsFile()}
-						disabled={isOpeningSettingsFile}
-					>
-						{settingsPath || "Open settings file"}
-					</Button>
+			{isLoading ? (
+				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
+					Loading MCP servers...
 				</div>
-				<p className="mb-6 text-xs text-muted-foreground">
-					{hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."}
-				</p>
-
-				{errorMessage && (
-					<div className="mb-4 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-						{errorMessage}
-					</div>
-				)}
-
-				{isLoading ? (
-					<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-						Loading MCP servers...
-					</div>
-				) : sortedServers.length === 0 ? (
-					<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-						No MCP servers configured.
-					</div>
-				) : (
-					<div className="flex flex-col gap-3">
-						{sortedServers.map((server) => {
-							const isBusy = busyServerName === server.name;
-							return (
-								<div
-									key={server.name}
-									className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-								>
-									<div className="flex items-center gap-3">
-										<Circle
-											className={cn(
-												"h-2.5 w-2.5 shrink-0",
-												server.disabled
-													? "fill-muted-foreground/40 text-muted-foreground/40"
-													: "fill-primary text-primary",
-											)}
+			) : sortedServers.length === 0 ? (
+				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
+					No MCP servers configured.
+				</div>
+			) : (
+				<div className="flex flex-col gap-3">
+					{sortedServers.map((server) => {
+						const isBusy = busyServerName === server.name;
+						return (
+							<div
+								key={server.name}
+								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
+							>
+								<div className="flex items-center gap-3">
+									<Circle
+										className={cn(
+											"h-2.5 w-2.5 shrink-0",
+											server.disabled
+												? "fill-muted-foreground/40 text-muted-foreground/40"
+												: "fill-primary text-primary",
+										)}
+									/>
+									<h3 className="text-sm font-semibold text-foreground">
+										{server.name}
+									</h3>
+									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+										{server.transportType}
+									</span>
+									<div className="flex-1" />
+									<div className="flex items-center gap-1">
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Edit ${server.name}`}
+											onClick={() => openEditDialog(server)}
+											disabled={isBusy}
+										>
+											<Pencil className="h-3.5 w-3.5" />
+										</Button>
+										<Button
+											variant="ghost"
+											size="icon-sm"
+											aria-label={`Delete ${server.name}`}
+											onClick={() => setDeleteTarget(server)}
+											disabled={isBusy}
+										>
+											<Trash2 className="h-3.5 w-3.5" />
+										</Button>
+										<Switch
+											checked={!server.disabled}
+											onCheckedChange={(enabled) =>
+												toggleServer(server, !enabled)
+											}
+											disabled={isBusy}
+											aria-label={`Enable ${server.name}`}
 										/>
-										<h3 className="text-sm font-semibold text-foreground">
-											{server.name}
-										</h3>
-										<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-											{server.transportType}
-										</span>
-										<div className="flex-1" />
-										<div className="flex items-center gap-1">
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Edit ${server.name}`}
-												onClick={() => openEditDialog(server)}
-												disabled={isBusy}
-											>
-												<Pencil className="h-3.5 w-3.5" />
-											</Button>
-											<Button
-												variant="ghost"
-												size="icon-sm"
-												aria-label={`Delete ${server.name}`}
-												onClick={() => setDeleteTarget(server)}
-												disabled={isBusy}
-											>
-												<Trash2 className="h-3.5 w-3.5" />
-											</Button>
-											<Switch
-												checked={!server.disabled}
-												onCheckedChange={(enabled) =>
-													toggleServer(server, !enabled)
-												}
-												disabled={isBusy}
-												aria-label={`Enable ${server.name}`}
-											/>
-										</div>
-									</div>
-
-									<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
-										{server.command && (
-											<p>
-												<span className="text-muted-foreground/70">
-													Command:
-												</span>{" "}
-												{server.command}
-											</p>
-										)}
-										{server.args && server.args.length > 0 && (
-											<p>
-												<span className="text-muted-foreground/70">Args:</span>{" "}
-												{server.args.join(", ")}
-											</p>
-										)}
-										{server.cwd && (
-											<p>
-												<span className="text-muted-foreground/70">CWD:</span>{" "}
-												{server.cwd}
-											</p>
-										)}
-										{server.url && (
-											<p>
-												<span className="text-muted-foreground/70">URL:</span>{" "}
-												{server.url}
-											</p>
-										)}
-										{server.env && Object.keys(server.env).length > 0 && (
-											<p>
-												<span className="text-muted-foreground/70">Env:</span>{" "}
-												{stringifyRedactedKeyValuePairs(server.env)}
-											</p>
-										)}
-										{server.headers &&
-											Object.keys(server.headers).length > 0 && (
-												<p>
-													<span className="text-muted-foreground/70">
-														Headers:
-													</span>{" "}
-													{stringifyKeyValuePairs(server.headers)}
-												</p>
-											)}
 									</div>
 								</div>
-							);
-						})}
-					</div>
-				)}
-			</div>
 
+								<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
+									{server.command && (
+										<p>
+											<span className="text-muted-foreground/70">Command:</span>{" "}
+											{server.command}
+										</p>
+									)}
+									{server.args && server.args.length > 0 && (
+										<p>
+											<span className="text-muted-foreground/70">Args:</span>{" "}
+											{server.args.join(", ")}
+										</p>
+									)}
+									{server.cwd && (
+										<p>
+											<span className="text-muted-foreground/70">CWD:</span>{" "}
+											{server.cwd}
+										</p>
+									)}
+									{server.url && (
+										<p>
+											<span className="text-muted-foreground/70">URL:</span>{" "}
+											{server.url}
+										</p>
+									)}
+									{server.env && Object.keys(server.env).length > 0 && (
+										<p>
+											<span className="text-muted-foreground/70">Env:</span>{" "}
+											{stringifyRedactedKeyValuePairs(server.env)}
+										</p>
+									)}
+									{server.headers && Object.keys(server.headers).length > 0 && (
+										<p>
+											<span className="text-muted-foreground/70">Headers:</span>{" "}
+											{stringifyKeyValuePairs(server.headers)}
+										</p>
+									)}
+								</div>
+							</div>
+						);
+					})}
+				</div>
+			)}
 			<Dialog
 				open={editorOpen}
 				onOpenChange={(open) => {
@@ -854,6 +848,6 @@ export function McpServersContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</ScrollArea>
+		</PageFrame>
 	);
 }

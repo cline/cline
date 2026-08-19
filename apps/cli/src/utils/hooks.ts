@@ -138,13 +138,23 @@ async function dispatchHookPayload(
 	payload: HookEventPayload,
 	options: {
 		dispatchHookEvent: (payload: HookEventPayload) => Promise<void>;
+		isShuttingDown: () => boolean;
 		verbose: boolean;
 	},
 ): Promise<void> {
+	if (options.isShuttingDown()) {
+		return;
+	}
 	try {
 		await options.dispatchHookEvent(payload);
+		if (options.isShuttingDown()) {
+			return;
+		}
 		writeHookInvocation(payload, { verbose: options.verbose });
 	} catch (error) {
+		if (options.isShuttingDown()) {
+			return;
+		}
 		if (isDev) {
 			writeErr(
 				`hook dispatch failed: ${error instanceof Error ? error.message : String(error)}`,
@@ -172,6 +182,8 @@ export function createRuntimeHooks(options: {
 	const verbose = options.verbose === true;
 	const cwd = options.cwd?.trim() || process.cwd();
 	const workspaceRoot = options.workspaceRoot?.trim() || cwd;
+	let shuttingDown = false;
+	const isShuttingDown = () => shuttingDown;
 	return {
 		hooks: {
 			beforeRun: async (ctx) => {
@@ -197,6 +209,7 @@ export function createRuntimeHooks(options: {
 							},
 					{
 						dispatchHookEvent: options.dispatchHookEvent,
+						isShuttingDown,
 						verbose,
 					},
 				);
@@ -223,6 +236,7 @@ export function createRuntimeHooks(options: {
 					},
 					{
 						dispatchHookEvent: options.dispatchHookEvent,
+						isShuttingDown,
 						verbose,
 					},
 				);
@@ -261,6 +275,7 @@ export function createRuntimeHooks(options: {
 					},
 					{
 						dispatchHookEvent: options.dispatchHookEvent,
+						isShuttingDown,
 						verbose,
 					},
 				);
@@ -279,6 +294,7 @@ export function createRuntimeHooks(options: {
 						},
 						{
 							dispatchHookEvent: options.dispatchHookEvent,
+							isShuttingDown,
 							verbose,
 						},
 					);
@@ -306,6 +322,7 @@ export function createRuntimeHooks(options: {
 							},
 					{
 						dispatchHookEvent: options.dispatchHookEvent,
+						isShuttingDown,
 						verbose,
 					},
 				);
@@ -328,11 +345,14 @@ export function createRuntimeHooks(options: {
 					},
 					{
 						dispatchHookEvent: options.dispatchHookEvent,
+						isShuttingDown,
 						verbose,
 					},
 				);
 			},
 		},
-		shutdown: async () => {},
+		shutdown: async () => {
+			shuttingDown = true;
+		},
 	};
 }

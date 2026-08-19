@@ -1,8 +1,10 @@
+import { StringRequest } from "@shared/proto/cline/common"
 import { VSCodeButton } from "@vscode/webview-ui-toolkit/react"
 import debounce from "debounce"
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { HoverCard, HoverCardContent, HoverCardTrigger } from "@/components/ui/hover-card"
 import { Progress } from "@/components/ui/progress"
+import { SlashServiceClient } from "@/services/grpc-client"
 import { formatLargeNumber as formatTokenNumber } from "@/utils/format"
 import CompactTaskButton from "./buttons/CompactTaskButton"
 import { ContextWindowSummary } from "./ContextWindowSummary"
@@ -27,9 +29,12 @@ const ConfirmationDialog = memo<{
 	onConfirm: (e: React.MouseEvent) => void
 	onCancel: (e: React.MouseEvent) => void
 }>(({ onConfirm, onCancel }) => (
-	<div className="text-sm my-2 flex items-center gap-0 justify-between">
-		<span className="font-semibold text-sm">Compact the current task?</span>
-		<span className="flex gap-1">
+	<div className="mt-2 flex flex-col gap-2 rounded-sm border border-border-panel bg-code p-2 text-sm">
+		<span className="font-semibold">Compact the current task?</span>
+		<span className="text-xs text-description">
+			Replaces the conversation history with a summary to free up context window space.
+		</span>
+		<span className="flex justify-end gap-1.5">
 			<VSCodeButton
 				appearance="secondary"
 				className="text-sm"
@@ -45,7 +50,7 @@ const ConfirmationDialog = memo<{
 				onClick={onConfirm}
 				title="Yes, compact the task"
 				type="button">
-				Yes
+				Compact
 			</VSCodeButton>
 		</span>
 	</div>
@@ -75,15 +80,18 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 		[confirmationNeeded],
 	)
 
-	const handleConfirm = useCallback(
-		(e: React.MouseEvent) => {
-			e.preventDefault()
-			e.stopPropagation()
-			onSendMessage?.("/compact", [], [])
-			setConfirmationNeeded(false)
-		},
-		[onSendMessage],
-	)
+	const handleConfirm = useCallback((e: React.MouseEvent) => {
+		e.preventDefault()
+		e.stopPropagation()
+		// Trigger a real SDK manual compaction rather than sending the literal
+		// text "/compact" to the model (which it would treat as a normal prompt
+		// and improvise a fake summary — CLINE-2503). The condense RPC runs the
+		// same SDK compaction effect as the CLI's `/compact` command.
+		SlashServiceClient.condense(StringRequest.create({ value: "compact" })).catch((err) =>
+			console.error("Failed to compact task:", err),
+		)
+		setConfirmationNeeded(false)
+	}, [])
 
 	const handleCancel = useCallback((e: React.MouseEvent) => {
 		e.preventDefault()
@@ -139,7 +147,7 @@ const ContextWindow: React.FC<ContextWindowProgressProps> = ({
 	}
 
 	return (
-		<div className="flex flex-col my-1.5" onMouseLeave={debounceCloseHover}>
+		<div className="flex flex-col mt-1.5" onMouseLeave={debounceCloseHover}>
 			<div className="flex gap-1 flex-row @max-xs:flex-col @max-xs:items-start items-center text-sm">
 				<div className="flex items-center gap-1.5 flex-1 whitespace-nowrap">
 					<span className="cursor-pointer text-sm" title="Current tokens used in this request">

@@ -1,8 +1,8 @@
 import React from "react"
 import styled from "styled-components"
 
-export interface FeaturedModelCardProps {
-	modelId: string
+interface FeaturedModelCardProps {
+	displayName: string
 	description: string
 	onClick: () => void
 	isSelected: boolean
@@ -50,11 +50,11 @@ const Description = styled.div`
 	line-height: 1.2;
 `
 
-const FeaturedModelCard: React.FC<FeaturedModelCardProps> = ({ modelId, description, onClick, isSelected, label }) => {
+const FeaturedModelCard: React.FC<FeaturedModelCardProps> = ({ displayName, description, onClick, isSelected, label }) => {
 	return (
 		<CardContainer isSelected={isSelected} onClick={onClick}>
 			<ModelHeader>
-				<ModelName>{modelId}</ModelName>
+				<ModelName>{displayName}</ModelName>
 				<Label>{label}</Label>
 			</ModelHeader>
 			<Description>{description}</Description>

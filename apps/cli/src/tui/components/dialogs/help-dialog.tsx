@@ -1,6 +1,7 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 type HelpRow =
 	| { kind: "heading"; id: string; text: string }
@@ -128,6 +129,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-theme",
+		key: "/theme",
+		desc: "Change color theme",
+	},
+	{
+		kind: "entry",
 		id: "c-mcp",
 		key: "/mcp",
 		desc: "Manage MCP servers",
@@ -248,6 +255,7 @@ const KEY_WIDTH = 20;
 
 export function HelpDialogContent(props: ChoiceContext<void>) {
 	const { dismiss, dialogId } = props;
+	const palette = useDialogPalette();
 
 	useDialogKeyboard((key) => {
 		if (
@@ -277,7 +285,7 @@ export function HelpDialogContent(props: ChoiceContext<void>) {
 						}
 						return (
 							<box key={row.id} flexDirection="row" paddingX={1}>
-								<text fg="cyan" width={KEY_WIDTH} flexShrink={0}>
+								<text fg={palette.act} width={KEY_WIDTH} flexShrink={0}>
 									{row.key}
 								</text>
 								<text fg="gray">{row.desc}</text>

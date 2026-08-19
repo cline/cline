@@ -20,6 +20,7 @@ describe("ContributionRegistry automation event contributions", () => {
 			messageBuilder: [],
 			providers: [],
 			automationEventTypes: [],
+			mcpServers: [],
 		});
 	});
 
@@ -152,5 +153,38 @@ describe("ContributionRegistry automation event contributions", () => {
 		await expect(registry.initialize()).rejects.toThrow(
 			/registerAutomationEventType requires the "automationEvents" capability/,
 		);
+	});
+
+	it("registers MCP servers declared by plugins", async () => {
+		const registry = createContributionRegistry({
+			extensions: [
+				{
+					name: "github-pack",
+					manifest: { capabilities: ["mcp"] },
+					setup(api) {
+						api.registerMcpServer({
+							name: "github",
+							transport: {
+								type: "stdio",
+								command: "npx",
+								args: ["-y", "@modelcontextprotocol/server-github"],
+							},
+						});
+					},
+				},
+			],
+		});
+
+		await registry.initialize();
+
+		expect(registry.getRegisteredMcpServers()).toEqual([
+			expect.objectContaining({
+				name: "github",
+				metadata: {
+					source: "plugin",
+					plugin: "github-pack",
+				},
+			}),
+		]);
 	});
 });

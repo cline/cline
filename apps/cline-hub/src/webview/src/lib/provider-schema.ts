@@ -1,9 +1,14 @@
+import type { ModelModality, ModelOperation } from "@cline/shared";
+
 export interface ProviderModel {
 	id: string;
 	name: string;
 	supportsAttachments?: boolean;
 	supportsVision?: boolean;
 	supportsReasoning?: boolean;
+	operation?: ModelOperation;
+	inputModalities?: ModelModality[];
+	outputModalities?: ModelModality[];
 }
 
 export type ProviderConfigFieldType =
@@ -46,6 +51,7 @@ export interface Provider {
 	docUrl?: string;
 	docLabel?: string;
 	defaultModelId?: string;
+	capabilities?: string[];
 	authDescription?: string;
 	baseUrlDescription?: string;
 	configFields?: ProviderConfigField[];

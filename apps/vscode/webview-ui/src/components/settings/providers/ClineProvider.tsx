@@ -24,14 +24,12 @@ export const ClineProvider = ({ showModelOptions, isPopup, currentMode, initialM
 			</div>
 
 			{showModelOptions && (
-				<>
-					<ClineModelPicker
-						currentMode={currentMode}
-						initialTab={initialModelTab}
-						isPopup={isPopup}
-						showProviderRouting={true}
-					/>
-				</>
+				<ClineModelPicker
+					currentMode={currentMode}
+					initialTab={initialModelTab}
+					isPopup={isPopup}
+					showProviderRouting={true}
+				/>
 			)}
 		</div>
 	)

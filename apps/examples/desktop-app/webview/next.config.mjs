@@ -7,10 +7,15 @@ const workspaceRoot = path.join(__dirname, "../../../..");
 /** @type {import('next').NextConfig} */
 const nextConfig = {
 	output: "export",
+	devIndicators: false,
 	outputFileTracingRoot: workspaceRoot,
 	turbopack: {
 		root: workspaceRoot,
 	},
+	// Dev-only: Next blocks HMR/font/dev-resource requests from origins that
+	// don't match the dev server's own hostname. Both loopback spellings are
+	// legitimate ways to reach a local or port-forwarded dev server.
+	allowedDevOrigins: ["localhost", "127.0.0.1"],
 	reactStrictMode: true,
 	typescript: {
 		ignoreBuildErrors: true,

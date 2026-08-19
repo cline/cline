@@ -1,11 +1,85 @@
-import { getSkillsDirectoriesForScan } from "@core/storage/disk"
+import { getSkillsDirectoriesForScan } from "@core/storage/skill-directories"
 import type { GlobalInstructionsFile } from "@shared/remote-config/schema"
 import type { SkillContent, SkillMetadata } from "@shared/skills"
 import { fileExistsAtPath, isDirectory } from "@utils/fs"
 import * as fs from "fs/promises"
+import * as yaml from "js-yaml"
 import * as path from "path"
 import { Logger } from "@/shared/services/Logger"
 import { parseYamlFrontmatter } from "./frontmatter"
+
+/**
+ * Update the `disabled` frontmatter flag of a SKILL.md document.
+ *
+ * The SDK (which builds the model's skill list and the `skills` tool) reads a
+ * skill's enabled state from the SKILL.md frontmatter `disabled` field, not from
+ * the extension's UI toggle state. Toggling a skill in the VS Code sidebar must
+ * therefore also write this flag so the change is reflected for the model
+ * (ENG-1995). This mirrors the SDK's updateSkillMarkdownEnabledState but lives in
+ * the extension and uses js-yaml (the extension's frontmatter parser).
+ *
+ * - enabled=false → sets `disabled: true`.
+ * - enabled=true  → removes `disabled` (and a stale `enabled: false`), dropping
+ *   the frontmatter block entirely if it becomes empty.
+ *
+ * Returns the original content unchanged when enabling a document that has no
+ * frontmatter (nothing to clear).
+ */
+export function updateSkillMarkdownDisabledState(content: string, enabled: boolean): string {
+	const { data, body, hadFrontmatter, parseError } = parseYamlFrontmatter(content)
+
+	if (!hadFrontmatter && enabled) {
+		return content
+	}
+
+	// parseYamlFrontmatter fails open on malformed YAML: it returns data={} and
+	// body=<full original content> (frontmatter block included). Serializing here
+	// would prepend a second `---` block and corrupt the file, so leave it
+	// untouched and let the user fix the frontmatter.
+	if (parseError) {
+		return content
+	}
+
+	if (enabled) {
+		delete data.disabled
+		if (data.enabled === false) {
+			delete data.enabled
+		}
+		if (Object.keys(data).length === 0) {
+			return body
+		}
+		return serializeSkillFrontmatter(data, body)
+	}
+
+	data.disabled = true
+	return serializeSkillFrontmatter(data, body)
+}
+
+function serializeSkillFrontmatter(data: Record<string, unknown>, body: string): string {
+	const yamlText = yaml.dump(data, { schema: yaml.JSON_SCHEMA }).trimEnd()
+	return `---\n${yamlText}\n---\n${body}`
+}
+
+/**
+ * Persist a skill's enabled/disabled state to its SKILL.md frontmatter on disk.
+ * No-op (returns false) for remote skills, which have no backing file.
+ */
+export async function setSkillDisabledInFrontmatter(skillMdPath: string, enabled: boolean): Promise<boolean> {
+	if (!skillMdPath || skillMdPath.startsWith("remote:")) {
+		return false
+	}
+	try {
+		const content = await fs.readFile(skillMdPath, "utf-8")
+		const updated = updateSkillMarkdownDisabledState(content, enabled)
+		if (updated !== content) {
+			await fs.writeFile(skillMdPath, updated)
+		}
+		return true
+	} catch (error) {
+		Logger.warn(`Failed to update skill frontmatter at ${skillMdPath}:`, error)
+		return false
+	}
+}
 
 /**
  * A remote skill entry after frontmatter validation.
@@ -16,13 +90,6 @@ export interface ValidatedRemoteSkill {
 	description: string
 	alwaysEnabled: boolean
 	contents: string
-}
-
-export interface SkillToggleState {
-	globalSkillsToggles?: Record<string, boolean>
-	localSkillsToggles?: Record<string, boolean>
-	remoteSkillsToggles?: Record<string, boolean>
-	remoteSkillEntries?: GlobalInstructionsFile[]
 }
 
 /**
@@ -200,34 +267,6 @@ export function getAvailableSkills(skills: SkillMetadata[]): SkillMetadata[] {
 	}
 
 	return result
-}
-
-export function filterEnabledSkills(skills: SkillMetadata[], toggleState: SkillToggleState = {}): SkillMetadata[] {
-	const globalSkillsToggles = toggleState.globalSkillsToggles ?? {}
-	const localSkillsToggles = toggleState.localSkillsToggles ?? {}
-	const remoteSkillsToggles = toggleState.remoteSkillsToggles ?? {}
-	const remoteSkillMap = new Map(
-		parseRemoteSkillEntries(toggleState.remoteSkillEntries || []).map((entry) => [entry.name, entry]),
-	)
-
-	return skills.filter((skill) => {
-		if (skill.path.startsWith("remote:")) {
-			const name = skill.path.replace("remote:", "")
-			const entry = remoteSkillMap.get(name)
-			if (entry?.alwaysEnabled) {
-				return true
-			}
-			return remoteSkillsToggles[name] !== false
-		}
-
-		const toggles = skill.source === "global" ? globalSkillsToggles : localSkillsToggles
-		return toggles[skill.path] !== false
-	})
-}
-
-export async function discoverAvailableSkills(cwd: string, toggleState: SkillToggleState = {}): Promise<SkillMetadata[]> {
-	const allSkills = await discoverSkills(cwd, toggleState.remoteSkillEntries)
-	return filterEnabledSkills(getAvailableSkills(allSkills), toggleState)
 }
 
 /**

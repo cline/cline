@@ -1,6 +1,11 @@
-import { fstatSync } from "node:fs";
+import { fstatSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { CliMigrationNotice } from "./kanban-migration/notice";
+import type {
+	CliMigrationNotice,
+	CliMigrationNoticeOptions,
+} from "./kanban-migration/notice";
 
 /** Real `fstatSync`: used when tests stub only stdin (fd 0); throwing for every fd breaks imports and session I/O. */
 const fsActual = vi.hoisted(() => ({
@@ -15,6 +20,7 @@ vi.mock("node:fs", async () => {
 const originalArgv = [...process.argv];
 const originalStdinIsTTY = process.stdin.isTTY;
 const originalStdoutIsTTY = process.stdout.isTTY;
+const originalGlobalSettingsPath = process.env.CLINE_GLOBAL_SETTINGS_PATH;
 const mockState = vi.hoisted(() => ({
 	runAgentImports: 0,
 	runInteractiveImports: 0,
@@ -29,7 +35,9 @@ const authMocks = vi.hoisted(() => ({
 	runAuthCommand: vi.fn(),
 }));
 const providerSettingsMocks = vi.hoisted(() => ({
-	getLastUsedProviderSettings: vi.fn<() => unknown>(() => undefined),
+	getLastUsedProviderSettings: vi.fn<(options?: unknown) => unknown>(
+		() => undefined,
+	),
 	getProviderConfig: vi.fn<(providerId: string, options?: unknown) => unknown>(
 		() => undefined,
 	),
@@ -56,10 +64,22 @@ const kanbanMocks = vi.hoisted(() => ({
 const dashboardMocks = vi.hoisted(() => ({
 	runDashboardCommand: vi.fn(),
 }));
+const connectMocks = vi.hoisted(() => ({
+	formatAdapterList: vi.fn(() => ""),
+	runCleanupConnectorInstance: vi.fn(async () => 0),
+	runConnectAdapter: vi.fn(async () => 0),
+	runRestartConnector: vi.fn(async () => 0),
+	runStopAllConnectors: vi.fn(async () => 0),
+	runStopConnector: vi.fn(async () => 0),
+}));
 const migrationNoticeMocks = vi.hoisted(() => ({
-	getClineCliMigrationNotice: vi.fn<() => CliMigrationNotice | undefined>(
-		() => undefined,
-	),
+	getClineCliMigrationNotice: vi.fn<
+		(
+			dataDir?: string,
+			env?: NodeJS.ProcessEnv,
+			options?: CliMigrationNoticeOptions,
+		) => CliMigrationNotice | undefined
+	>(() => undefined),
 	markClineCliMigrationNoticeShown: vi.fn(),
 }));
 const updateMocks = vi.hoisted(() => ({
@@ -77,7 +97,7 @@ const worktreeMocks = vi.hoisted(() => ({
 	createTaskWorktree: vi.fn(),
 }));
 const historyMocks = vi.hoisted(() => ({
-	runHistoryList: vi.fn<() => Promise<number | string>>(async () => 0),
+	runHistoryList: vi.fn<() => Promise<number>>(async () => 0),
 	runHistoryDelete: vi.fn(async () => 0),
 	runHistoryExport: vi.fn(async () => 0),
 	runHistoryUpdate: vi.fn(async () => 0),
@@ -101,9 +121,14 @@ const hubRuntimeMocks = vi.hoisted(() => ({
 }));
 const telemetryMocks = vi.hoisted(() => ({
 	captureCliExtensionActivated: vi.fn(),
-	identifyCliTelemetryAccount: vi.fn(),
+	identifyTelemetryAccount: vi.fn(),
 	getCliTelemetryService: vi.fn(),
 	disposeCliTelemetryService: vi.fn(async () => {}),
+}));
+const featureFlagMocks = vi.hoisted(() => ({
+	getBooleanFlagEnabled: vi.fn(() => false),
+	setCliFeatureFlagsAccountContext: vi.fn(),
+	refreshCliFeatureFlagsInBackground: vi.fn(),
 }));
 
 function forcePromptModeInput() {
@@ -139,8 +164,9 @@ vi.mock("./runtime/run-interactive", () => {
 });
 vi.mock("./utils/session", () => sessionMocks);
 vi.mock("./session/session", () => sessionMocks);
-vi.mock("@cline/core", () => {
+vi.mock("@cline/core", async () => {
 	return {
+		...(await vi.importActual("@cline/core")),
 		resolveProviderConfig: llmMocks.resolveProviderConfig,
 		createTeamName: vi.fn(() => "team-test"),
 		createUserInstructionConfigService: vi.fn(() => ({
@@ -148,8 +174,8 @@ vi.mock("@cline/core", () => {
 			stop: vi.fn(),
 		})),
 		ProviderSettingsManager: class {
-			getLastUsedProviderSettings() {
-				return providerSettingsMocks.getLastUsedProviderSettings();
+			getLastUsedProviderSettings(options?: unknown) {
+				return providerSettingsMocks.getLastUsedProviderSettings(options);
 			}
 			getProviderSettings(providerId: string) {
 				return providerSettingsMocks.getProviderSettings(providerId);
@@ -164,11 +190,21 @@ vi.mock("@cline/core", () => {
 	};
 });
 vi.mock("./utils/provider-auth", () => authMocks);
+vi.mock("./utils/feature-flags", () => ({
+	getCliFeatureFlagsService: () => ({
+		getBooleanFlagEnabled: featureFlagMocks.getBooleanFlagEnabled,
+	}),
+	refreshCliFeatureFlagsInBackground:
+		featureFlagMocks.refreshCliFeatureFlagsInBackground,
+	setCliFeatureFlagsAccountContext:
+		featureFlagMocks.setCliFeatureFlagsAccountContext,
+}));
 vi.mock("./runtime/prompt", () => ({
 	resolveSystemPrompt: promptMocks.resolveSystemPrompt,
 }));
 vi.mock("./commands/kanban", () => kanbanMocks);
 vi.mock("./commands/dashboard", () => dashboardMocks);
+vi.mock("./commands/connect", () => connectMocks);
 vi.mock("./kanban-migration/notice", () => migrationNoticeMocks);
 vi.mock("./commands/update", () => updateMocks);
 vi.mock("./commands/history", () => historyMocks);
@@ -178,8 +214,17 @@ vi.mock("./utils/telemetry", () => telemetryMocks);
 vi.mock("./utils/worktree", () => worktreeMocks);
 
 describe("runCli lightweight command dispatch", () => {
+	let globalSettingsRoot: string | undefined;
+
 	beforeEach(() => {
 		process.exitCode = undefined;
+		// Startup now reads persisted general settings; point the resolver at a
+		// fresh temp file so the developer's real settings cannot leak in.
+		globalSettingsRoot = mkdtempSync(join(tmpdir(), "cline-cli-main-test-"));
+		process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
+			globalSettingsRoot,
+			"global-settings.json",
+		);
 		mockState.runAgentImports = 0;
 		mockState.runInteractiveImports = 0;
 		mockState.runAgentCalls = 0;
@@ -233,10 +278,24 @@ describe("runCli lightweight command dispatch", () => {
 		providerSettingsMocks.getProviderSettings.mockReset();
 		providerSettingsMocks.getProviderSettings.mockReturnValue(undefined);
 		providerSettingsMocks.saveProviderSettings.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReset();
+		featureFlagMocks.getBooleanFlagEnabled.mockReturnValue(false);
+		featureFlagMocks.setCliFeatureFlagsAccountContext.mockReset();
+		featureFlagMocks.refreshCliFeatureFlagsInBackground.mockReset();
 		kanbanMocks.launchKanban.mockReset();
 		kanbanMocks.launchKanban.mockResolvedValue(0);
 		dashboardMocks.runDashboardCommand.mockReset();
 		dashboardMocks.runDashboardCommand.mockResolvedValue(0);
+		connectMocks.formatAdapterList.mockReset();
+		connectMocks.formatAdapterList.mockReturnValue("");
+		connectMocks.runConnectAdapter.mockReset();
+		connectMocks.runConnectAdapter.mockResolvedValue(0);
+		connectMocks.runRestartConnector.mockReset();
+		connectMocks.runRestartConnector.mockResolvedValue(0);
+		connectMocks.runStopAllConnectors.mockReset();
+		connectMocks.runStopAllConnectors.mockResolvedValue(0);
+		connectMocks.runStopConnector.mockReset();
+		connectMocks.runStopConnector.mockResolvedValue(0);
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReset();
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(undefined);
 		migrationNoticeMocks.markClineCliMigrationNoticeShown.mockReset();
@@ -246,7 +305,7 @@ describe("runCli lightweight command dispatch", () => {
 		updateMocks.getPreferredKanbanInstaller.mockReset();
 		updateMocks.getPreferredKanbanInstaller.mockReturnValue(undefined);
 		telemetryMocks.captureCliExtensionActivated.mockReset();
-		telemetryMocks.identifyCliTelemetryAccount.mockReset();
+		telemetryMocks.identifyTelemetryAccount.mockReset();
 		telemetryMocks.getCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockReset();
 		telemetryMocks.disposeCliTelemetryService.mockResolvedValue(undefined);
@@ -258,10 +317,24 @@ describe("runCli lightweight command dispatch", () => {
 			value: true,
 			configurable: true,
 		});
+		Object.defineProperty(process.stdout, "isTTY", {
+			value: true,
+			configurable: true,
+		});
 	});
 
 	afterEach(() => {
 		process.exitCode = undefined;
+
+		if (originalGlobalSettingsPath === undefined) {
+			delete process.env.CLINE_GLOBAL_SETTINGS_PATH;
+		} else {
+			process.env.CLINE_GLOBAL_SETTINGS_PATH = originalGlobalSettingsPath;
+		}
+		if (globalSettingsRoot) {
+			rmSync(globalSettingsRoot, { recursive: true, force: true });
+			globalSettingsRoot = undefined;
+		}
 
 		process.argv = [...originalArgv];
 		Object.defineProperty(process.stdin, "isTTY", {
@@ -297,6 +370,117 @@ describe("runCli lightweight command dispatch", () => {
 		expect(historyListCalls[0]?.[0]).not.toHaveProperty("workspaceRoot");
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
+	}, 30_000);
+
+	it("routes connector restart arguments through the restart lifecycle", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			undefined,
+		);
+		expect(connectMocks.runConnectAdapter).not.toHaveBeenCalled();
+		expect(connectMocks.runStopConnector).not.toHaveBeenCalled();
+	});
+
+	it("routes a supervised cleanup to one connector instance", async () => {
+		connectMocks.runCleanupConnectorInstance.mockClear();
+		connectMocks.runConnectAdapter.mockClear();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--cleanup-instance",
+			"cline-slack",
+			"slack",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runCleanupConnectorInstance).toHaveBeenCalledWith(
+			"slack",
+			"cline-slack",
+			expect.any(Object),
+		);
+		expect(connectMocks.runConnectAdapter).not.toHaveBeenCalled();
+	});
+
+	it("rejects combining cleanup with another connect mode", async () => {
+		connectMocks.runCleanupConnectorInstance.mockClear();
+		connectMocks.runStopConnector.mockClear();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--cleanup-instance",
+			"cline-slack",
+			"--stop",
+			"slack",
+		];
+
+		const { runCli } = await import("./main");
+
+		await runCli();
+		expect(process.exitCode).toBe(1);
+		expect(connectMocks.runCleanupConnectorInstance).not.toHaveBeenCalled();
+		expect(connectMocks.runStopConnector).not.toHaveBeenCalled();
+	});
+
+	it("requires a channel for a supervised cleanup", async () => {
+		connectMocks.runCleanupConnectorInstance.mockClear();
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--cleanup-instance",
+			"x",
+		];
+
+		const { runCli } = await import("./main");
+
+		await runCli();
+		expect(process.exitCode).toBe(1);
+		expect(connectMocks.runCleanupConnectorInstance).not.toHaveBeenCalled();
+	});
+
+	it("routes a targeted connector restart to one instance", async () => {
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"connect",
+			"--restart-instance",
+			"cline_bot",
+			"telegram",
+			"-k",
+			"token",
+		];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(0);
+		expect(connectMocks.runRestartConnector).toHaveBeenCalledWith(
+			"telegram",
+			["-k", "token"],
+			expect.any(Object),
+			"cline_bot",
+		);
 	});
 
 	it("does not load runtime modules for root update", async () => {
@@ -355,7 +539,7 @@ describe("runCli lightweight command dispatch", () => {
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
-		expect(process.exitCode).toBe(0);
+		expect(process.exitCode).toBe(1);
 		expect(mockState.runAgentImports).toBe(0);
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
@@ -382,7 +566,7 @@ describe("runCli lightweight command dispatch", () => {
 
 	it("does not load interactive runtime for single-prompt mode", async () => {
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "hello"];
+		process.argv = ["bun", "src/index.ts", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -392,9 +576,88 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runInteractiveImports).toBe(0);
 	});
 
+	it("rejects a single bare positional prompt token", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "nonexistent-command"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Unknown command or unquoted prompt: nonexistent-command",
+			),
+		);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining('Use "cline --help"'),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("rejects multiple bare positional prompt tokens", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello", "world"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining(
+				"Unknown command or unquoted prompt: hello world",
+			),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
+	it("runs quoted positional prompt text", async () => {
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "hello world"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(runtimeMocks.runAgent).toHaveBeenCalledTimes(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"hello world",
+			expect.any(Object),
+			expect.anything(),
+		);
+	});
+
+	it("rejects unknown root flags before loading runtime modules", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--made-up-flag"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining("unknown option '--made-up-flag'"),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(mockState.runAgentImports).toBe(0);
+		expect(mockState.runInteractiveImports).toBe(0);
+	});
+
 	it("creates a worktree and runs prompt sessions from it", async () => {
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--worktree", "hello"];
+		process.argv = ["bun", "src/index.ts", "--worktree", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -403,7 +666,7 @@ describe("runCli lightweight command dispatch", () => {
 			cwd: process.cwd(),
 		});
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				cwd: "/tmp/cline-worktree",
 				workspaceRoot: "/tmp/cline-worktree",
@@ -413,10 +676,6 @@ describe("runCli lightweight command dispatch", () => {
 	});
 
 	it("creates a worktree for default interactive mode", async () => {
-		Object.defineProperty(process.stdout, "isTTY", {
-			value: true,
-			configurable: true,
-		});
 		process.argv = ["bun", "src/index.ts", "--worktree"];
 
 		const { runCli } = await import("./main");
@@ -519,21 +778,17 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			undefined,
 			expect.objectContaining({
-				initialView: undefined,
+				startupTarget: undefined,
 			}),
 		);
 	});
 
 	it("passes the migration notice marker into interactive mode", async () => {
 		const notice = {
-			id: "cline-cli-tui-default",
-			title: "Welcome to the new Cline CLI",
+			id: "cline-cli-cline-pass-intro",
+			title: "Try ClinePass",
 		};
 		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue(notice);
-		Object.defineProperty(process.stdout, "isTTY", {
-			value: true,
-			configurable: true,
-		});
 		process.argv = ["bun", "src/index.ts"];
 
 		const { runCli } = await import("./main");
@@ -556,6 +811,33 @@ describe("runCli lightweight command dispatch", () => {
 		expect(
 			migrationNoticeMocks.markClineCliMigrationNoticeShown,
 		).toHaveBeenCalledTimes(1);
+	});
+
+	it("passes the active ClinePass provider into the migration notice gate", async () => {
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
+			provider: "cline-pass",
+			model: "cline-pass/test-model",
+		});
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(
+			migrationNoticeMocks.getClineCliMigrationNotice,
+		).toHaveBeenCalledWith(undefined, process.env, {
+			activeProviderId: "cline-pass",
+		});
+		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+			expect.objectContaining({
+				providerId: "cline-pass",
+			}),
+			expect.anything(),
+			undefined,
+			expect.objectContaining({
+				initialNotice: undefined,
+			}),
+		);
 	});
 
 	it("does not start OAuth before onboarding in interactive mode", async () => {
@@ -640,14 +922,14 @@ describe("runCli lightweight command dispatch", () => {
 			undefined,
 			expect.objectContaining({
 				initialPrompt: "sup",
-				initialView: undefined,
+				startupTarget: undefined,
 			}),
 		);
 	});
 
 	it("uses the bundled catalog path for single-prompt runs", async () => {
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "hello"];
+		process.argv = ["bun", "src/index.ts", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -702,6 +984,172 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	describe("persisted general settings at startup", () => {
+		function writePersistedSettings(settings: Record<string, unknown>) {
+			const path = process.env.CLINE_GLOBAL_SETTINGS_PATH;
+			if (!path) {
+				throw new Error("CLINE_GLOBAL_SETTINGS_PATH is not set");
+			}
+			writeFileSync(path, JSON.stringify(settings));
+		}
+
+		it("restores the persisted plan mode when no mode flag is provided", async () => {
+			writePersistedSettings({ planActMode: "plan" });
+			promptMocks.resolveSystemPrompt.mockClear();
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "plan" }),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "plan" }),
+			);
+		});
+
+		it("prefers an explicit --act flag over the persisted plan mode", async () => {
+			writePersistedSettings({ planActMode: "plan" });
+			promptMocks.resolveSystemPrompt.mockClear();
+			process.argv = ["bun", "src/index.ts", "--act"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "act" }),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+			expect(promptMocks.resolveSystemPrompt).toHaveBeenCalledWith(
+				expect.objectContaining({ mode: "act" }),
+			);
+		});
+
+		it("restores the persisted auto-approve setting as a runtime policy", async () => {
+			writePersistedSettings({ toolAutoApprove: false });
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					defaultToolAutoApprove: true,
+					toolPolicies: {
+						"*": { autoApprove: false },
+					},
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("prefers an explicit --auto-approve flag over the persisted setting", async () => {
+			writePersistedSettings({ toolAutoApprove: false });
+			process.argv = ["bun", "src/index.ts", "--auto-approve", "true"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					toolPolicies: {
+						"*": { autoApprove: true },
+					},
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("restores disabled compaction across restarts", async () => {
+			writePersistedSettings({
+				compactionEnabled: false,
+				compactionStrategy: "basic",
+			});
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: false },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("restores the persisted compaction strategy across restarts", async () => {
+			writePersistedSettings({
+				compactionEnabled: true,
+				compactionStrategy: "basic",
+			});
+			process.argv = ["bun", "src/index.ts"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "basic" },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("prefers an explicit --compaction flag over the persisted mode", async () => {
+			writePersistedSettings({ compactionEnabled: false });
+			process.argv = ["bun", "src/index.ts", "--compaction", "agentic"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "agentic" },
+				}),
+				expect.anything(),
+				undefined,
+				expect.any(Object),
+			);
+		});
+
+		it("applies persisted settings to single-prompt runs as well", async () => {
+			writePersistedSettings({
+				compactionEnabled: true,
+				compactionStrategy: "basic",
+				planActMode: "plan",
+			});
+			forcePromptModeInput();
+			process.argv = ["bun", "src/index.ts", "say hello"];
+
+			const { runCli } = await import("./main");
+
+			await expect(runCli()).resolves.toBeUndefined();
+			expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+				"say hello",
+				expect.objectContaining({
+					compaction: { enabled: true, strategy: "basic" },
+					mode: "plan",
+				}),
+				expect.anything(),
+			);
+		});
+	});
+
 	it("forces chat view when resuming a session", async () => {
 		process.argv = ["bun", "src/index.ts", "--id", "sess_123"];
 
@@ -714,28 +1162,33 @@ describe("runCli lightweight command dispatch", () => {
 			expect.anything(),
 			"sess_123",
 			expect.objectContaining({
-				initialView: "chat",
+				startupTarget: "chat",
 			}),
 		);
 	});
 
-	it("forces chat view when resuming from history picker", async () => {
-		historyMocks.runHistoryList.mockImplementationOnce(
-			async () => "sess_from_history",
-		);
+	it("opens history inside the interactive TUI for the history picker", async () => {
+		migrationNoticeMocks.getClineCliMigrationNotice.mockReturnValue({
+			id: "cline-cli-cline-pass-intro",
+			title: "Try ClinePass",
+		});
 		process.argv = ["bun", "src/index.ts", "history"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
+		expect(historyMocks.runHistoryList).not.toHaveBeenCalled();
+		expect(
+			migrationNoticeMocks.getClineCliMigrationNotice,
+		).not.toHaveBeenCalled();
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledTimes(1);
 		expect(runtimeMocks.runInteractive).toHaveBeenCalledWith(
 			expect.any(Object),
 			expect.anything(),
-			"sess_from_history",
+			undefined,
 			expect.objectContaining({
 				initialPrompt: undefined,
-				initialView: "chat",
+				startupTarget: "history",
 			}),
 		);
 	});
@@ -801,6 +1254,110 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
+	it("seeds feature flag identity from persisted Cline account id before refreshing flags", async () => {
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: {
+				accountId: "acct-startup",
+				accessToken: "workos:token",
+				refreshToken: "refresh-token",
+			},
+		};
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext,
+		).toHaveBeenCalledWith({ id: "acct-startup" });
+		// The account identity must be seeded before flags are refreshed/used so
+		// the background refresh resolves flags for the correct account.
+		expect(
+			featureFlagMocks.setCliFeatureFlagsAccountContext.mock
+				.invocationCallOrder[0],
+		).toBeLessThan(
+			featureFlagMocks.refreshCliFeatureFlagsInBackground.mock
+				.invocationCallOrder[0],
+		);
+	});
+
+	it("identifies saved Cline accountId for telemetry before runtime events", async () => {
+		// CLINE-2406: when persisted Cline auth includes an accountId, the
+		// runtime path must call identifyTelemetryAccount(accountContext) so
+		// subsequent task.* and workspace.* events carry user_id.
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			auth: { accountId: "usr-abc-123", refreshToken: "rt-token" },
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			clineSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).toHaveBeenCalledWith(
+			expect.objectContaining({
+				id: "usr-abc-123",
+				provider: "cline",
+			}),
+		);
+	});
+
+	it("does not call identifyTelemetryAccount in runtime path when no saved Cline accountId", async () => {
+		// CLINE-2406: when no persisted accountId is found (anonymous/unauthenticated),
+		// identifyTelemetryAccount should not be called from the runtime path.
+		const clineSettings = {
+			provider: "cline",
+			model: "anthropic/claude-sonnet-4.6",
+			// no auth / no accountId
+		};
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue(
+			clineSettings,
+		);
+		providerSettingsMocks.getProviderSettings.mockReturnValue(clineSettings);
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "cline",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).not.toHaveBeenCalled();
+	});
+
+	it("does not call identifyTelemetryAccount from runtime path when provider is not cline", async () => {
+		// CLINE-2406: identity identification from saved settings only applies
+		// to Cline-provider sessions; other providers use different auth flows.
+		providerSettingsMocks.getLastUsedProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			model: "openai/gpt-5",
+		});
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "openrouter",
+			model: "openai/gpt-5",
+		});
+		authMocks.normalizeProviderId.mockImplementation(
+			(providerId?: string) => providerId ?? "openrouter",
+		);
+		process.argv = ["bun", "src/index.ts"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(telemetryMocks.identifyTelemetryAccount).not.toHaveBeenCalled();
+	});
+
 	it("runs kanban before loading runtime modules", async () => {
 		process.argv = ["bun", "src/index.ts", "kanban"];
 
@@ -818,6 +1375,10 @@ describe("runCli lightweight command dispatch", () => {
 			"bun",
 			"src/index.ts",
 			"dashboard",
+			"--config",
+			"/tmp/cline-config",
+			"--data-dir",
+			".cline-dashboard-data",
 			"--port",
 			"9090",
 			"--no-open",
@@ -828,6 +1389,8 @@ describe("runCli lightweight command dispatch", () => {
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(dashboardMocks.runDashboardCommand).toHaveBeenCalledWith(
 			expect.objectContaining({
+				configDir: "/tmp/cline-config",
+				dataDir: ".cline-dashboard-data",
 				port: "9090",
 				openBrowser: false,
 				io: expect.any(Object),
@@ -863,7 +1426,7 @@ describe("runCli lightweight command dispatch", () => {
 
 	it("skips hub prewarm for yolo runs", async () => {
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--yolo", "hello"];
+		process.argv = ["bun", "src/index.ts", "--yolo", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -872,11 +1435,29 @@ describe("runCli lightweight command dispatch", () => {
 		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
 	});
 
+	it("rejects yolo runs with a single bare prompt token", async () => {
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--yolo", "hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining("Unknown command or unquoted prompt: hello"),
+		);
+		expect(runtimeMocks.runAgent).not.toHaveBeenCalled();
+		expect(hubRuntimeMocks.ensureCliHubServer).not.toHaveBeenCalled();
+	});
+
 	it("rewrites /team prompts and enables teams in single-prompt mode", async () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "/team", "find", "the", "bug"];
+		process.argv = ["bun", "src/index.ts", "/team find the bug"];
 
 		const { runCli } = await import("./main");
 
@@ -892,12 +1473,12 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("shows /team usage in single-prompt mode when no task is provided", async () => {
+	it("rejects /team without quoted task text", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
-		const stdoutWrite = vi
-			.spyOn(process.stdout, "write")
-			.mockImplementation(() => true);
+		const consoleError = vi
+			.spyOn(console, "error")
+			.mockImplementation(() => undefined);
 
 		forcePromptModeInput();
 		process.argv = ["bun", "src/index.ts", "/team"];
@@ -905,9 +1486,10 @@ describe("runCli lightweight command dispatch", () => {
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
+		expect(process.exitCode).toBe(1);
 		expect(mockState.runAgentCalls).toBe(0);
-		expect(stdoutWrite).toHaveBeenCalledWith(
-			expect.stringContaining("Usage: /team <task description>"),
+		expect(consoleError).toHaveBeenCalledWith(
+			expect.stringContaining("Unknown command or unquoted prompt: /team"),
 		);
 	});
 
@@ -916,14 +1498,14 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--thinking", "high", "hello"];
+		process.argv = ["bun", "src/index.ts", "--thinking", "high", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				thinking: true,
 				reasoningEffort: "high",
@@ -932,19 +1514,40 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("leaves thinking disabled when --thinking is not provided", async () => {
+	it("leaves thinking unset when --thinking is not provided", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "hello"];
+		process.argv = ["bun", "src/index.ts", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
+			expect.objectContaining({
+				thinking: undefined,
+				reasoningEffort: undefined,
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("disables thinking when --thinking none is explicitly provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "--thinking", "none", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
 			expect.objectContaining({
 				thinking: false,
 				reasoningEffort: undefined,
@@ -958,18 +1561,17 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--thinking", "--", "hello"];
+		process.argv = ["bun", "src/index.ts", "--thinking", "--", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 				thinking: true,
 				reasoningEffort: "medium",
@@ -988,17 +1590,43 @@ describe("runCli lightweight command dispatch", () => {
 		});
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "hello"];
+		process.argv = ["bun", "src/index.ts", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				thinking: true,
 				reasoningEffort: "high",
+			}),
+			expect.anything(),
+		);
+	});
+
+	it("uses persisted disabled reasoning when --thinking is not provided", async () => {
+		mockState.runAgentCalls = 0;
+		runtimeMocks.runAgent.mockClear();
+		providerSettingsMocks.getProviderSettings.mockReturnValue({
+			provider: "cline",
+			model: "openai/gpt-5",
+			reasoning: { enabled: false },
+		});
+
+		forcePromptModeInput();
+		process.argv = ["bun", "src/index.ts", "say hello"];
+
+		const { runCli } = await import("./main");
+
+		await expect(runCli()).resolves.toBeUndefined();
+		expect(mockState.runAgentCalls).toBe(1);
+		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
+			"say hello",
+			expect.objectContaining({
+				thinking: false,
+				reasoningEffort: undefined,
 			}),
 			expect.anything(),
 		);
@@ -1014,14 +1642,14 @@ describe("runCli lightweight command dispatch", () => {
 		});
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--thinking", "low", "hello"];
+		process.argv = ["bun", "src/index.ts", "--thinking", "low", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				thinking: true,
 				reasoningEffort: "low",
@@ -1030,22 +1658,21 @@ describe("runCli lightweight command dispatch", () => {
 		);
 	});
 
-	it("enables truncation compaction by default for prompt runs", async () => {
+	it("uses Core's agentic compaction default for prompt runs", async () => {
 		mockState.runAgentCalls = 0;
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "hello"];
+		process.argv = ["bun", "src/index.ts", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
-					strategy: "basic",
 				},
 			}),
 			expect.anything(),
@@ -1057,13 +1684,19 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--compaction", "basic", "hello"];
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--compaction",
+			"basic",
+			"say hello",
+		];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
@@ -1079,13 +1712,19 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--compaction", "agentic", "hello"];
+		process.argv = [
+			"bun",
+			"src/index.ts",
+			"--compaction",
+			"agentic",
+			"say hello",
+		];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				compaction: {
 					enabled: true,
@@ -1135,13 +1774,13 @@ describe("runCli lightweight command dispatch", () => {
 		runtimeMocks.runAgent.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--compaction", "off", "hello"];
+		process.argv = ["bun", "src/index.ts", "--compaction", "off", "say hello"];
 
 		const { runCli } = await import("./main");
 
 		await expect(runCli()).resolves.toBeUndefined();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				compaction: {
 					enabled: false,
@@ -1180,7 +1819,7 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.ensureOAuthProviderApiKey.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--json", "hello"];
+		process.argv = ["bun", "src/index.ts", "--json", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -1188,7 +1827,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(authMocks.ensureOAuthProviderApiKey).not.toHaveBeenCalled();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				outputMode: "json",
 				apiKey: "",
@@ -1207,7 +1846,7 @@ describe("runCli lightweight command dispatch", () => {
 		authMocks.ensureOAuthProviderApiKey.mockClear();
 
 		forcePromptModeInput();
-		process.argv = ["bun", "src/index.ts", "--json", "hello"];
+		process.argv = ["bun", "src/index.ts", "--json", "say hello"];
 
 		const { runCli } = await import("./main");
 
@@ -1215,7 +1854,7 @@ describe("runCli lightweight command dispatch", () => {
 		expect(mockState.runAgentCalls).toBe(1);
 		expect(authMocks.ensureOAuthProviderApiKey).not.toHaveBeenCalled();
 		expect(runtimeMocks.runAgent).toHaveBeenCalledWith(
-			"hello",
+			"say hello",
 			expect.objectContaining({
 				outputMode: "json",
 				apiKey: "",

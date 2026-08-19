@@ -1,19 +1,23 @@
-import type { ToolResultContent } from "@cline/llms";
-import { estimateTokens, type MessageWithMetadata } from "@cline/shared";
+import type { ModelInfo, ToolResultContent } from "@cline/llms";
+import {
+	CHARS_PER_TOKEN,
+	estimateTokens,
+	type MessageWithMetadata,
+} from "@cline/shared";
 
-export { estimateTokens };
+export { CHARS_PER_TOKEN, estimateTokens };
 
-import type {
-	CoreCompactionContext,
-	CoreCompactionSummarizerConfig,
-} from "../../types/config";
+import type { CoreCompactionSummarizerConfig } from "../../types/config";
 import type { ProviderConfig } from "../../types/provider-settings";
 
-export const DEFAULT_MAX_INPUT_TOKENS = 200_000;
-export const DEFAULT_THRESHOLD_RATIO = 0.9;
-export const DEFAULT_RESERVE_TOKENS = 16_384;
+export const DEFAULT_MAX_INPUT_TOKENS = 128_000;
+/** Estimate the usable input share when only a context window is reported. */
+export const CONTEXT_WINDOW_INPUT_RATIO = 0.9;
+/** Compact once the transcript consumes this share of the usable input budget. */
+export const COMPACTION_TRIGGER_RATIO = 0.9;
+export const DEFAULT_TARGET_RATIO = 0.7;
 export const DEFAULT_PRESERVE_RECENT_TOKENS = 20_000;
-export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 1_024;
+export const DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS = 4_096;
 export const TOOL_RESULT_CHAR_LIMIT = 2_000;
 export const FILE_CONTENT_CHAR_LIMIT = 2_000;
 export const MIN_TRUNCATED_MESSAGE_TOKENS = 8;
@@ -25,6 +29,8 @@ export interface FileOperationSummary {
 
 export interface CompactionSummaryMetadata {
 	kind: "compaction_summary";
+	displayRole: "system";
+	userRunSpan: number;
 	summary: string;
 	details: FileOperationSummary;
 	tokensBefore: number;
@@ -32,6 +38,36 @@ export interface CompactionSummaryMetadata {
 }
 
 export type EstimateMessageTokens = (message: MessageWithMetadata) => number;
+
+function isPositiveFiniteNumber(value: unknown): value is number {
+	return typeof value === "number" && Number.isFinite(value) && value > 0;
+}
+
+/**
+ * Resolve the model's usable prompt budget. A reported input limit is
+ * authoritative but cannot exceed the context window. When the model only
+ * reports a context window, retain a conservative margin for request overhead.
+ */
+export function resolveEffectiveMaxInputTokens(
+	input: Pick<ModelInfo, "maxInputTokens" | "contextWindow">,
+): number | undefined {
+	const contextWindow = isPositiveFiniteNumber(input.contextWindow)
+		? input.contextWindow
+		: undefined;
+	const maxInputTokens = isPositiveFiniteNumber(input.maxInputTokens)
+		? input.maxInputTokens
+		: undefined;
+
+	if (maxInputTokens !== undefined) {
+		return contextWindow === undefined
+			? maxInputTokens
+			: Math.min(maxInputTokens, contextWindow);
+	}
+
+	return contextWindow === undefined
+		? undefined
+		: contextWindow * CONTEXT_WINDOW_INPUT_RATIO;
+}
 
 export function truncateText(text: string, limit: number): string {
 	if (text.length <= limit) {
@@ -131,6 +167,11 @@ export function serializeMessage(message: MessageWithMetadata): string {
 					`[${message.role === "user" ? "User" : "Bot"} image]: ${block.mediaType}`,
 				);
 				break;
+			case "media":
+				lines.push(
+					`[Bot generated ${block.media.modality}]: ${block.media.mediaType}`,
+				);
+				break;
 		}
 	}
 	return lines.join("\n");
@@ -182,6 +223,13 @@ export function getCompactionSummaryMetadata(
 	const details = metadata.details as Record<string, unknown> | undefined;
 	return {
 		kind: "compaction_summary",
+		displayRole: "system",
+		userRunSpan:
+			typeof metadata.userRunSpan === "number" &&
+			Number.isInteger(metadata.userRunSpan) &&
+			metadata.userRunSpan >= 0
+				? metadata.userRunSpan
+				: 1,
 		summary: String(metadata.summary ?? ""),
 		details: {
 			readFiles: Array.isArray(details?.readFiles)
@@ -266,16 +314,25 @@ export function findLatestSummaryIndex(
 	return -1;
 }
 
+/**
+ * A cut boundary is safe when starting the preserved tail there cannot
+ * orphan half of a tool_use/tool_result pair. Typed user turns qualify,
+ * and so do assistant messages: an assistant's tool_use keeps its results
+ * in the user message that follows it, so both halves stay on the same
+ * side of the cut. A tool_result-only user message is never safe — its
+ * matching tool_use sits in the preceding assistant message and would be
+ * folded into the summary, leaving an orphaned tool_result the provider
+ * rejects.
+ */
+function isSafeCutBoundary(message: MessageWithMetadata): boolean {
+	return message.role === "assistant" || isTurnStartMessage(message);
+}
+
 export function findCutIndex(
 	messages: MessageWithMetadata[],
 	preserveRecentTokens: number,
 	estimateMessageTokens: EstimateMessageTokens,
 ): number {
-	const lastTurnStartIndex = findLastTurnStartIndex(messages);
-	if (lastTurnStartIndex <= 0) {
-		return 0;
-	}
-
 	let total = 0;
 	let candidate = messages.length;
 	for (let index = messages.length - 1; index >= 0; index -= 1) {
@@ -290,14 +347,17 @@ export function findCutIndex(
 		return 0;
 	}
 
-	// Snap to a turn-start boundary so the cut never splits a
-	// tool_use/tool_result pair (or any other intra-turn block).
-	// Everything before the cut gets summarized; everything from
-	// the cut forward is preserved. Both halves of any pair must
-	// land on the same side or the provider will see an orphaned
-	// tool_result (or tool_use) and reject the request.
-	let cut = Math.min(candidate, lastTurnStartIndex);
-	while (cut > 0 && !isTurnStartMessage(messages[cut])) {
+	// Never summarize away the latest typed user prompt: when one exists
+	// past index 0, the cut stays at or before it so that whole turn
+	// survives verbatim. Transcripts without a later typed turn (a single
+	// task followed by one long tool loop, or a projection that starts
+	// with a compaction summary) still cut at the token-budget candidate.
+	const lastTurnStartIndex = findLastTurnStartIndex(messages);
+	let cut =
+		lastTurnStartIndex > 0
+			? Math.min(candidate, lastTurnStartIndex)
+			: candidate;
+	while (cut > 0 && !isSafeCutBoundary(messages[cut])) {
 		cut -= 1;
 	}
 	return cut;
@@ -388,6 +448,190 @@ export function extractFileOps(
 	return { readFiles, modifiedFiles };
 }
 
+/** Commands longer than this are truncated in dropped-work summaries. */
+export const COMMAND_SUMMARY_CHAR_LIMIT = 100;
+
+/**
+ * Compact record of the tool work performed inside a span of dropped
+ * messages: which files were read and edited (with line ranges when
+ * known) and which commands ran.
+ */
+export interface ToolActivitySummary {
+	readFiles: string[];
+	editedFiles: string[];
+	commands: string[];
+}
+
+export function hasToolActivity(summary: ToolActivitySummary): boolean {
+	return (
+		summary.readFiles.length > 0 ||
+		summary.editedFiles.length > 0 ||
+		summary.commands.length > 0
+	);
+}
+
+function pushUniqueEntry(list: string[], value: string): void {
+	const trimmed = value.trim();
+	if (trimmed && !list.includes(trimmed)) {
+		list.push(trimmed);
+	}
+}
+
+function truncateCommandForSummary(command: string): string {
+	if (command.length <= COMMAND_SUMMARY_CHAR_LIMIT) {
+		return command;
+	}
+	return `${command.slice(0, COMMAND_SUMMARY_CHAR_LIMIT)}...`;
+}
+
+function formatReadFileEntry(
+	record: Record<string, unknown>,
+): string | undefined {
+	const path = typeof record.path === "string" ? record.path.trim() : "";
+	if (!path) {
+		return undefined;
+	}
+	const start = record.start_line;
+	const end = record.end_line;
+	if (typeof start === "number" && typeof end === "number") {
+		return `${path}:${start}-${end}`;
+	}
+	return path;
+}
+
+/**
+ * Pull the edited line range out of an editor tool result. Editor results
+ * embed a numbered diff (`-467: ...` / `+467: ...`), usually inside a
+ * JSON-encoded payload's `result` field; the range is the min/max line
+ * number seen. Returns undefined when no diff line numbers are found.
+ */
+function extractDiffLineRange(
+	content: ToolResultContent["content"],
+): { start: number; end: number } | undefined {
+	let text =
+		typeof content === "string"
+			? content
+			: content
+					.map((block) =>
+						block.type === "text"
+							? block.text
+							: block.type === "file"
+								? block.content
+								: "",
+					)
+					.join("\n");
+	try {
+		const parsed = JSON.parse(text) as { result?: unknown };
+		if (parsed && typeof parsed.result === "string") {
+			text = parsed.result;
+		}
+	} catch {
+		// Not JSON-encoded; scan the raw text.
+	}
+	let start = Number.POSITIVE_INFINITY;
+	let end = Number.NEGATIVE_INFINITY;
+	for (const match of text.matchAll(/(?:^|\n|\\n)[-+](\d+): /g)) {
+		const line = Number(match[1]);
+		if (!Number.isFinite(line)) {
+			continue;
+		}
+		start = Math.min(start, line);
+		end = Math.max(end, line);
+	}
+	return start <= end ? { start, end } : undefined;
+}
+
+/**
+ * Summarize the tool work inside a span of messages that compaction is
+ * dropping. Read ranges come from read_files inputs; edited ranges come
+ * from the numbered diff in the matching editor result when present.
+ */
+export function summarizeToolActivity(
+	messages: MessageWithMetadata[],
+): ToolActivitySummary {
+	const readFiles: string[] = [];
+	const editedFiles: string[] = [];
+	const commands: string[] = [];
+	const editorPathsByToolUseId = new Map<string, string>();
+	for (const message of messages) {
+		if (!Array.isArray(message.content)) {
+			continue;
+		}
+		for (const block of message.content) {
+			if (block.type === "tool_use") {
+				const input = (block.input ?? {}) as Record<string, unknown>;
+				if (block.name === "read_files") {
+					if (Array.isArray(input.files)) {
+						for (const file of input.files) {
+							if (file && typeof file === "object") {
+								const entry = formatReadFileEntry(
+									file as Record<string, unknown>,
+								);
+								if (entry) {
+									pushUniqueEntry(readFiles, entry);
+								}
+							}
+						}
+					} else {
+						for (const path of collectPaths(input)) {
+							pushUniqueEntry(readFiles, path);
+						}
+					}
+					continue;
+				}
+				if (block.name === "editor" || block.name === "apply_patch") {
+					const path = collectPaths(input)[0];
+					if (path) {
+						editorPathsByToolUseId.set(block.id, path);
+					}
+					continue;
+				}
+				if (block.name === "run_commands") {
+					const commandList = Array.isArray(input.commands)
+						? input.commands
+						: [];
+					for (const command of commandList) {
+						if (typeof command === "string" && command.trim()) {
+							pushUniqueEntry(
+								commands,
+								truncateCommandForSummary(command.trim()),
+							);
+						}
+					}
+				}
+				continue;
+			}
+			if (block.type === "tool_result") {
+				const path = editorPathsByToolUseId.get(block.tool_use_id);
+				if (!path) {
+					continue;
+				}
+				const range = extractDiffLineRange(block.content);
+				pushUniqueEntry(
+					editedFiles,
+					range ? `${path}:${range.start}-${range.end}` : path,
+				);
+				editorPathsByToolUseId.delete(block.tool_use_id);
+			}
+		}
+	}
+	// Editor calls whose results fell outside the span still count as edits.
+	for (const path of editorPathsByToolUseId.values()) {
+		pushUniqueEntry(editedFiles, path);
+	}
+	return { readFiles, editedFiles, commands };
+}
+
+export function formatToolActivitySummary(
+	summary: ToolActivitySummary,
+): string {
+	return [
+		`Files read:\n${summary.readFiles.join("\n")}`,
+		`Files edited:\n${summary.editedFiles.join("\n")}`,
+		`Commands ran:\n${summary.commands.join("\n")}`,
+	].join("\n\n");
+}
+
 export function renderFilesSection(fileOps: FileOperationSummary): string {
 	const readLines =
 		fileOps.readFiles.length > 0
@@ -446,6 +690,29 @@ Edited: ${options.fileOps.modifiedFiles.join(", ") || "none"}`,
 	return parts.join("\n\n");
 }
 
+/**
+ * The summarizer output budget is a cap, not a target: reasoning models need
+ * headroom beyond their thinking output or no summary text ever arrives and
+ * compaction is skipped. An explicit configuration wins as-is; otherwise the
+ * default applies, with model metadata (`maxTokens` is reported capability,
+ * not a product default) only ever lowering it.
+ */
+function resolveSummaryMaxOutputTokens(config: ProviderConfig): number {
+	if (isPositiveFiniteNumber(config.maxOutputTokens)) {
+		return Math.floor(config.maxOutputTokens);
+	}
+	const modelMaxTokens =
+		config.modelInfo?.maxTokens ??
+		config.knownModels?.[config.modelId]?.maxTokens;
+	if (isPositiveFiniteNumber(modelMaxTokens)) {
+		return Math.min(
+			DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			Math.floor(modelMaxTokens),
+		);
+	}
+	return DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS;
+}
+
 export function resolveSummarizerConfig(options: {
 	activeProviderConfig: ProviderConfig;
 	summarizer?: CoreCompactionSummarizerConfig;
@@ -461,8 +728,7 @@ export function resolveSummarizerConfig(options: {
 		}
 		return {
 			...config,
-			maxOutputTokens:
-				config.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			maxOutputTokens: resolveSummaryMaxOutputTokens(config),
 			thinking: false,
 		};
 	};
@@ -480,9 +746,10 @@ export function resolveSummarizerConfig(options: {
 		apiKey: summarizer.apiKey ?? baseProviderConfig?.apiKey,
 		baseUrl: summarizer.baseUrl ?? baseProviderConfig?.baseUrl,
 		headers: summarizer.headers ?? baseProviderConfig?.headers,
+		modelInfo: summarizer.modelInfo ?? baseProviderConfig?.modelInfo,
 		knownModels: summarizer.knownModels ?? baseProviderConfig?.knownModels,
 		maxOutputTokens:
-			summarizer.maxOutputTokens ?? DEFAULT_SUMMARY_MAX_OUTPUT_TOKENS,
+			summarizer.maxOutputTokens ?? baseProviderConfig?.maxOutputTokens,
 	});
 }
 
@@ -490,22 +757,24 @@ export function buildSummaryMessage(options: {
 	summary: string;
 	fileOps: FileOperationSummary;
 	tokensBefore: number;
+	userRunSpan: number;
 }): MessageWithMetadata {
 	return {
 		role: "user",
-		content: `Context summary:\n\n${options.summary}`,
+		content: [
+			{
+				type: "text",
+				text: `Context summary:\n\n${options.summary}`,
+			},
+		],
 		metadata: {
 			kind: "compaction_summary",
+			displayRole: "system",
+			userRunSpan: options.userRunSpan,
 			summary: options.summary,
 			details: options.fileOps,
 			tokensBefore: options.tokensBefore,
 			generatedAt: Date.now(),
 		} satisfies CompactionSummaryMetadata,
 	};
-}
-
-export function getMaxInputTokens(
-	context: Pick<CoreCompactionContext, "maxInputTokens">,
-): number {
-	return context.maxInputTokens;
 }

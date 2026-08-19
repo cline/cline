@@ -129,14 +129,14 @@ Scan profiles control where Bumblebee looks. `baseline` checks standard global t
 </Steps>
 
 <Warning>
-By default, anyone who finds your bot can message it and it will run tasks on your machine. Lock it down. Message [@userinfobot](https://t.me/userinfobot) to get your Telegram user ID, then restart the connector with an access-control hook:
+By default, anyone who finds your bot can message it and it will run tasks on your machine. Lock it down before leaving the connector running. The `cline connect` wizard can guide you through Telegram user ID setup, or you can message [@userinfobot](https://t.me/userinfobot) and restart the connector with your allowed user ID:
 
 ```bash
 cline connect telegram -k "<BOT-TOKEN>" --cwd ~/tools/bumblebee \
-  --hook-command 'jq -r ".payload.actor.participantKey" | grep -q "telegram:id:12345" && echo "{\"action\":\"allow\"}" || echo "{\"action\":\"deny\",\"message\":\"unauthorized\"}"'
+  --allowed-user-id 12345
 ```
 
-Replace `12345` with your user ID.
+Replace `12345` with your Telegram user ID.
 </Warning>
 
 ## 5. Schedule the scan

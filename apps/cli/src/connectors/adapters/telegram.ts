@@ -20,7 +20,7 @@ import {
 import { createWorkspaceChatCommandHost } from "../../utils/plugin-chat-commands";
 import { ConnectorBase } from "../base";
 import { createChatSdkLogger, enqueueThreadTurn } from "../chat-runtime";
-import { isProcessRunning } from "../common";
+import { CONNECT_ALREADY_RUNNING_EXIT_CODE, isProcessRunning } from "../common";
 import {
 	type ActiveConnectorTurn,
 	handleConnectorUserTurn,
@@ -42,15 +42,17 @@ import {
 	type ConnectorBindingStore,
 	type ConnectorThreadState,
 	clearBindingSessionIds,
-	findBindingForParticipantKey,
+	findBindingForDeliveryTarget,
 	findBindingForThread,
 	loadThreadState,
 	persistMergedThreadState,
 	readBindings,
+	resolveThreadTurnQueueKey,
 } from "../thread-bindings";
 import type {
 	ConnectCommandDefinition,
 	ConnectIo,
+	ConnectRunContext,
 	ConnectStopResult,
 } from "../types";
 import {
@@ -87,6 +89,20 @@ function normalizeTelegramBotUsername(value: string): string {
 function readTelegramBotId(botToken: string): string | undefined {
 	const [botId] = botToken.trim().split(":", 1);
 	return /^\d+$/.test(botId) ? botId : undefined;
+}
+
+function normalizeAllowedTelegramUserId(value: string): string {
+	const userId = value.trim();
+	if (!/^\d+$/.test(userId)) {
+		throw new Error(
+			"connect telegram --allowed-user-id must contain digits only",
+		);
+	}
+	return userId;
+}
+
+function buildTelegramAllowedUserHookCommand(userId: string): string {
+	return `jq -r ".payload.actor.participantKey" | grep -qx "telegram:id:${userId}" && echo '{"action":"allow"}' || echo '{"action":"deny","message":"unauthorized","reason":"not_on_allowlist"}'`;
 }
 
 function describeTelegramGetMeFailure(
@@ -251,6 +267,55 @@ async function persistTelegramThreadContext(input: {
 	);
 }
 
+type TelegramSlashCommandEvent = {
+	channel: { id: string };
+	command: string;
+	text: string;
+	raw: unknown;
+};
+
+/**
+ * The Telegram chat adapter intercepts any message whose leading entity is a
+ * `bot_command` and delivers it to slash-command handlers instead of the
+ * normal mention/subscribed-message handlers. Without a registered handler
+ * the command is consumed and dropped, so connector commands like /clear
+ * never reach the chat command host. Rebuild the originating chat thread and
+ * forward the original message text (preserving any `@bot` addressing used
+ * in group chats) into the same turn pipeline as regular messages.
+ */
+function createTelegramSlashCommandHandler(input: {
+	bot: Pick<Chat, "thread">;
+	bindingsPath: string;
+	baseStartRequest: ChatStartSessionRequest;
+	handleTurn: (
+		thread: Thread<TelegramThreadState>,
+		text: string,
+	) => Promise<void>;
+}): (event: TelegramSlashCommandEvent) => Promise<void> {
+	return async (event) => {
+		const raw = asRecord(event.raw);
+		const commandText =
+			readString(raw?.text) ??
+			readString(raw?.caption) ??
+			[event.command.trim(), event.text.trim()].filter(Boolean).join(" ");
+		if (!commandText) {
+			return;
+		}
+		const thread = input.bot.thread(
+			event.channel.id,
+		) as Thread<TelegramThreadState>;
+		await thread.subscribe();
+		await persistTelegramThreadContext({
+			thread,
+			bindingsPath: input.bindingsPath,
+			baseStartRequest: input.baseStartRequest,
+			rawMessage: event.raw,
+			errorLabel: "Telegram",
+		});
+		await input.handleTurn(thread, commandText);
+	};
+}
+
 async function deliverScheduledResult(input: {
 	bot: Chat;
 	client: HubSessionClient;
@@ -279,20 +344,20 @@ async function deliverScheduledResult(input: {
 	const threadId =
 		typeof delivery.threadId === "string" ? delivery.threadId.trim() : "";
 	const bindingKey =
-		typeof delivery.bindingKey === "string"
-			? delivery.bindingKey.trim()
-			: typeof delivery.participantKey === "string"
-				? delivery.participantKey.trim()
-				: "";
-	if (!threadId && !bindingKey) {
+		typeof delivery.bindingKey === "string" ? delivery.bindingKey.trim() : "";
+	const participantKey =
+		typeof delivery.participantKey === "string"
+			? delivery.participantKey.trim()
+			: "";
+	if (!threadId && !bindingKey && !participantKey) {
 		return;
 	}
 	const bindings = readBindings<TelegramThreadState>(input.bindingsPath);
-	const match = bindingKey
-		? findBindingForParticipantKey(bindings, bindingKey)
-		: threadId
-			? { key: threadId, binding: bindings[threadId] }
-			: undefined;
+	const match = findBindingForDeliveryTarget(bindings, {
+		bindingKey,
+		threadId,
+		participantKey,
+	});
 	const binding = match?.binding;
 	const deliveryThreadId = match?.key || threadId;
 	if (!binding?.serializedThread) {
@@ -402,42 +467,53 @@ class TelegramConnector extends ConnectorBase<
 	}
 
 	protected override createCommand(): Command {
-		return super
-			.createCommand()
-			.usage("-k <TELEGRAM_BOT_TOKEN> [options]")
-			.option(
-				"-m, --bot-username <name>",
-				"Telegram bot username; fetched from token if omitted",
-			)
-			.option("-k, --bot-token <token>", "Telegram bot token")
-			.option("--provider <id>", "Provider override")
-			.option("--model <id>", "Model override")
-			.option("--api-key <key>", "Provider API key override")
-			.option("--system <prompt>", "System prompt override")
-			.option("--cwd <path>", "Workspace / cwd for runtime")
-			.option("--mode <act|plan>", "Agent mode", "act")
-			.option("-i, --interactive", "Keep connector in foreground")
-			.option("--no-tools", "Disable tools for Telegram sessions")
-			.option(
-				"--hook-command <command>",
-				"Run a shell command for connector events",
-			)
-			.option(
-				"--rpc-address <host:port>",
-				"RPC address",
-				process.env.CLINE_RPC_ADDRESS?.trim() || resolveDefaultCliRpcAddress(),
-			)
-			.addHelpText(
-				"after",
-				[
-					"",
-					"Notes:",
-					"  - Without -i, the connector is launched in the background.",
-					"  - Tools are enabled by default for Telegram sessions.",
-					"  - Bot username is discovered from the Telegram bot token when omitted.",
-					"  - Provider/model default to the CLI's last-used provider settings.",
-				].join("\n"),
-			);
+		return (
+			super
+				.createCommand()
+				.usage("-k <TELEGRAM_BOT_TOKEN> [options]")
+				.option(
+					"-m, --bot-username <name>",
+					"Telegram bot username; fetched from token if omitted",
+				)
+				.option("-k, --bot-token <token>", "Telegram bot token")
+				.option("--provider <id>", "Provider override")
+				.option("--model <id>", "Model override")
+				.option("--api-key <key>", "Provider API key override")
+				.option("--system <prompt>", "System prompt override")
+				.option("--cwd <path>", "Workspace / cwd for runtime")
+				.option("--mode <act|plan>", "Agent mode", "act")
+				.option("-i, --interactive", "Keep connector in foreground")
+				.option("--no-tools", "Disable tools for Telegram sessions")
+				// Retained so existing invocations and persisted autostart arguments
+				// keep parsing; tools are on unless --no-tools is passed.
+				.option("--enable-tools", "Enable tools (default)")
+				.option(
+					"--allowed-user-id <id>",
+					"Only allow this Telegram user ID to use the bot",
+				)
+				.option(
+					"--hook-command <command>",
+					"Run a shell command for connector events",
+				)
+				.option(
+					"--rpc-address <host:port>",
+					"RPC address",
+					process.env.CLINE_RPC_ADDRESS?.trim() ||
+						resolveDefaultCliRpcAddress(),
+				)
+				.addHelpText(
+					"after",
+					[
+						"",
+						"Notes:",
+						"  - Without -i, the connector is launched in the background.",
+						"  - Tools are enabled by default for Telegram sessions.",
+						"  - Use --allowed-user-id or `cline connect` to restrict Telegram access.",
+						"  - Bot username is discovered from the Telegram bot token when omitted.",
+						"  - Provider/model default to the CLI's last-used provider settings.",
+					].join("\n"),
+				)
+		);
 	}
 
 	protected override readOptions(command: Command): ConnectTelegramOptions {
@@ -454,6 +530,7 @@ class TelegramConnector extends ConnectorBase<
 			tools?: boolean;
 			rpcAddress?: string;
 			hookCommand?: string;
+			allowedUserId?: string;
 		}>();
 		const botUsername =
 			normalizeTelegramBotUsername(opts.botUsername ?? "") ||
@@ -464,6 +541,15 @@ class TelegramConnector extends ConnectorBase<
 			opts.botToken?.trim() || process.env.TELEGRAM_BOT_TOKEN?.trim();
 		if (!botToken) {
 			throw new Error("connect telegram requires -k/--bot-token <token>");
+		}
+		const hookCommand =
+			opts.hookCommand?.trim() ||
+			process.env.CLINE_CONNECT_HOOK_COMMAND?.trim();
+		const allowedUserId = opts.allowedUserId?.trim();
+		if (hookCommand && allowedUserId) {
+			throw new Error(
+				"connect telegram accepts either --allowed-user-id or --hook-command, not both",
+			);
 		}
 		return {
 			botToken,
@@ -480,9 +566,11 @@ class TelegramConnector extends ConnectorBase<
 				opts.rpcAddress?.trim() ||
 				process.env.CLINE_RPC_ADDRESS?.trim() ||
 				resolveDefaultCliRpcAddress(),
-			hookCommand:
-				opts.hookCommand?.trim() ||
-				process.env.CLINE_CONNECT_HOOK_COMMAND?.trim(),
+			hookCommand: allowedUserId
+				? buildTelegramAllowedUserHookCommand(
+						normalizeAllowedTelegramUserId(allowedUserId),
+					)
+				: hookCommand,
 		};
 	}
 
@@ -573,10 +661,48 @@ class TelegramConnector extends ConnectorBase<
 		);
 	}
 
+	override async stopInstance(
+		instanceId: string,
+		io: ConnectIo,
+	): Promise<ConnectStopResult> {
+		return await this.stopTelegramConnectorInstance(
+			this.resolveConnectorStatePath(instanceId),
+			io,
+		);
+	}
+
+	protected override async validateOptions(
+		options: ConnectTelegramOptions,
+		io: ConnectIo,
+	): Promise<number> {
+		try {
+			await resolveTelegramBotUsername({
+				...options,
+				botUsername: undefined,
+			});
+			return 0;
+		} catch (error) {
+			io.writeErr(error instanceof Error ? error.message : String(error));
+			return 1;
+		}
+	}
+
+	/**
+	 * Only knowable up front when `--bot-username` was supplied; otherwise the
+	 * username is resolved from Telegram's API during startup, and the caller
+	 * has to start this connector locally instead of through the hub.
+	 */
+	protected override instanceIdFromOptions(
+		options: ConnectTelegramOptions,
+	): string | undefined {
+		return options.botUsername;
+	}
+
 	protected override async runWithOptions(
 		inputOptions: ConnectTelegramOptions,
 		rawArgs: string[],
 		io: ConnectIo,
+		context: ConnectRunContext,
 	): Promise<number> {
 		if (
 			!inputOptions.botUsername &&
@@ -590,7 +716,7 @@ class TelegramConnector extends ConnectorBase<
 				io.writeln(
 					`[telegram] connector already running pid=${runningState.pid} rpc=${runningState.rpcAddress}`,
 				);
-				return 0;
+				return CONNECT_ALREADY_RUNNING_EXIT_CODE;
 			}
 		}
 		let resolvedBotUsername: string;
@@ -607,6 +733,8 @@ class TelegramConnector extends ConnectorBase<
 		const backgroundArgs = inputOptions.botUsername
 			? rawArgs
 			: [...rawArgs, "--bot-username", resolvedBotUsername];
+		context.setPersistenceArgs(backgroundArgs);
+		context.setPersistenceInstanceId(options.botUsername);
 		const statePath = this.resolveConnectorStatePath(options.botUsername);
 		const bindingsPath = this.resolveBindingsPath(options.botUsername);
 		const staleState = this.removeStaleState(
@@ -617,26 +745,24 @@ class TelegramConnector extends ConnectorBase<
 		if (staleState) {
 			clearBindingSessionIds<TelegramThreadState>(bindingsPath);
 		}
-		if (
-			await this.maybeRunInBackground({
-				rawArgs: backgroundArgs,
-				io,
-				interactive: options.interactive,
-				childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
-				statePath,
-				readState: (path) => this.readConnectorState(path),
-				isRunning: (state) => isProcessRunning(state.pid),
-				formatAlreadyRunningMessage: (state) =>
-					`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
-				formatBackgroundStartMessage: (pid) =>
-					`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
-				foregroundHint:
-					"[telegram] use `cline connect telegram -i ...` to run in the foreground",
-				launchFailureMessage:
-					"failed to launch Telegram connector in background",
-			})
-		) {
-			return 0;
+		const backgroundExitCode = await this.maybeRunInBackground({
+			rawArgs: backgroundArgs,
+			io,
+			interactive: options.interactive,
+			childEnvVar: "CLINE_TELEGRAM_CONNECT_CHILD",
+			statePath,
+			readState: (path) => this.readConnectorState(path),
+			isRunning: (state) => isProcessRunning(state.pid),
+			formatAlreadyRunningMessage: (state) =>
+				`[telegram] connector already running pid=${state.pid} rpc=${state.rpcAddress}`,
+			formatBackgroundStartMessage: (pid) =>
+				`[telegram] starting background connector pid=${pid} bot=@${options.botUsername}`,
+			foregroundHint:
+				"[telegram] use `cline connect telegram -i ...` to run in the foreground",
+			launchFailureMessage: "failed to launch Telegram connector in background",
+		});
+		if (backgroundExitCode !== undefined) {
+			return backgroundExitCode;
 		}
 
 		const loggerAdapter = createCliLoggerAdapter({
@@ -757,9 +883,9 @@ class TelegramConnector extends ConnectorBase<
 			thread: Thread<TelegramThreadState>,
 			text: string,
 		) => {
-			const queueKey =
-				(await loadThreadState(thread, bindingsPath, startRequest))
-					.participantKey || thread.id;
+			const queueKey = resolveThreadTurnQueueKey(thread);
+			const enqueueTurn = (work: () => Promise<void>) =>
+				enqueueThreadTurn(threadQueues, queueKey, work);
 			const runTurn = async () => {
 				try {
 					await handleConnectorUserTurn({
@@ -784,6 +910,7 @@ class TelegramConnector extends ConnectorBase<
 						userInstructionService,
 						chatCommandHost,
 						activeTurns,
+						enqueueTurn,
 						turnKey: queueKey,
 						forceDisableTools: !options.enableTools,
 						postFinalReply: async ({
@@ -895,9 +1022,7 @@ class TelegramConnector extends ConnectorBase<
 				await runTurn();
 				return;
 			}
-			await enqueueThreadTurn(threadQueues, queueKey, async () => {
-				await runTurn();
-			});
+			await enqueueTurn(runTurn);
 		};
 
 		bot.onNewMention(async (thread, message) => {
@@ -948,6 +1073,15 @@ class TelegramConnector extends ConnectorBase<
 			}
 			await handleTurn(thread, message.text);
 		});
+
+		bot.onSlashCommand(
+			createTelegramSlashCommandHandler({
+				bot,
+				bindingsPath,
+				baseStartRequest: startRequest,
+				handleTurn,
+			}),
+		);
 
 		await bot.initialize();
 		const stopTaskUpdateStream =
@@ -1093,6 +1227,7 @@ export const telegramConnector: ConnectCommandDefinition =
 	new TelegramConnector();
 
 export const __test__ = {
+	createTelegramSlashCommandHandler,
 	fetchTelegramBotUsername,
 	readTelegramBotId,
 	resolveTelegramBotUsername,

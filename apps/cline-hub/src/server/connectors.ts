@@ -1,11 +1,15 @@
 import { spawn } from "node:child_process";
+import { existsSync } from "node:fs";
+import { basename } from "node:path";
 import process from "node:process";
-import { listConnectorCatalog } from "../../../cli/src/connectors/catalog";
-import { listActiveConnectors } from "../../../cli/src/connectors/status";
+import { listActiveConnectors } from "@cline/core";
 import {
-	PLATFORMS,
-	shouldIncludeField,
-} from "../../../cli/src/wizards/connect/platforms";
+	buildConnectorConnectArgs,
+	CONNECTOR_PLATFORMS,
+	listConnectorCatalog,
+	setConnectorCliLaunchSpec,
+	withResolvedClineBuildEnv,
+} from "@cline/shared";
 import type {
 	WebviewConnectorChannel,
 	WebviewConnectorChannelsResponse,
@@ -13,12 +17,83 @@ import type {
 import { cliIndexPath, workspaceRoot } from "./deps";
 import { asRecord, asString } from "./utils";
 
+type CliConnectCommand = {
+	launcher: string;
+	childArgs: string[];
+};
+
+const ANSI_ESCAPE_PATTERN = new RegExp(
+	[
+		"[\\u001B\\u009B][[\\]()#;?]*",
+		"(?:(?:(?:[a-zA-Z\\d]*(?:;[a-zA-Z\\d]*)*)?\\u0007)",
+		"|(?:(?:\\d{1,4}(?:;\\d{0,4})*)?[\\dA-PR-TZcf-nq-uy=><~]))",
+	].join(""),
+	"g",
+);
+
+function stripAnsi(value: string): string {
+	return value.replace(ANSI_ESCAPE_PATTERN, "");
+}
+
+function normalizeConnectorError(rawMessage: string, fallback: string): string {
+	const message =
+		stripAnsi(rawMessage)
+			.replace(/\r\n/g, "\n")
+			.trim()
+			.replace(/^(?:error:\s*)+/i, "")
+			.trim() || fallback;
+
+	if (
+		/^Telegram getMe failed \(401 Unauthorized\): Unauthorized$/i.test(message)
+	) {
+		return "Telegram rejected this bot token. Copy the token from @BotFather and try again.";
+	}
+
+	return message.slice(0, 2_000);
+}
+
+function buildCliConnectCommand(
+	args: string[],
+	options: {
+		execPath?: string;
+		cliPath?: string;
+		exists?: (path: string) => boolean;
+	} = {},
+): CliConnectCommand {
+	const execPath = options.execPath ?? process.execPath;
+	const cliPath = options.cliPath ?? cliIndexPath;
+	const exists = options.exists ?? existsSync;
+	const runtimeName = basename(execPath).toLowerCase();
+	const isBunRuntime = runtimeName.includes("bun");
+	const isNodeRuntime = runtimeName === "node" || runtimeName === "node.exe";
+	const useBunSourceEntrypoint =
+		(isBunRuntime || isNodeRuntime) && exists(cliPath);
+	const launcher = isBunRuntime
+		? execPath
+		: useBunSourceEntrypoint
+			? "bun"
+			: execPath;
+	const childArgs = useBunSourceEntrypoint
+		? ["--conditions=development", cliPath, "connect", ...args]
+		: ["connect", ...args];
+	return { launcher, childArgs };
+}
+
+export function configureConnectorCliLaunch(): void {
+	const command = buildCliConnectCommand([]);
+	setConnectorCliLaunchSpec({
+		launcher: command.launcher,
+		connectArgsPrefix: command.childArgs,
+		cwd: workspaceRoot,
+	});
+}
+
 export function connectorChannelsPayload(): WebviewConnectorChannelsResponse {
 	const supported = new Set(
 		listConnectorCatalog().map((connector) => connector.name),
 	);
-	const available: WebviewConnectorChannel[] = PLATFORMS.filter((platform) =>
-		supported.has(platform.id),
+	const available: WebviewConnectorChannel[] = CONNECTOR_PLATFORMS.filter(
+		(platform) => supported.has(platform.id),
 	).map((platform) => ({
 		id: platform.id,
 		name: platform.name,
@@ -55,21 +130,14 @@ async function runCliConnectCommand(args: string[]): Promise<{
 	stdout: string;
 	stderr: string;
 }> {
-	const launcher = (process.versions as Record<string, string | undefined>).bun
-		? process.execPath
-		: "bun";
-	const child = spawn(
-		launcher,
-		["--conditions=development", cliIndexPath, "connect", ...args],
-		{
-			cwd: workspaceRoot,
-			env: {
-				...process.env,
-				CLINE_BUILD_ENV: process.env.CLINE_BUILD_ENV ?? "development",
-			},
-			stdio: ["ignore", "pipe", "pipe"],
-		},
-	);
+	const { launcher, childArgs } = buildCliConnectCommand(args);
+	const child = spawn(launcher, childArgs, {
+		cwd: workspaceRoot,
+		env: withResolvedClineBuildEnv(process.env),
+		stdio: ["ignore", "pipe", "pipe"],
+		// Prevent a console window from flashing on Windows.
+		windowsHide: true,
+	});
 	let stdout = "";
 	let stderr = "";
 	child.stdout?.setEncoding("utf8");
@@ -96,12 +164,15 @@ async function waitForConnectorState(
 		if (predicate()) return;
 		await new Promise((resolve) => setTimeout(resolve, 250));
 	}
+	throw new Error(
+		`connector did not reach expected state within ${timeoutMs}ms`,
+	);
 }
 
 function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 	const channel = asString(args?.channel);
 	if (!channel) throw new Error("channel is required");
-	const platform = PLATFORMS.find((entry) => entry.id === channel);
+	const platform = CONNECTOR_PLATFORMS.find((entry) => entry.id === channel);
 	if (!platform) throw new Error(`unknown connector channel: ${channel}`);
 	const supported = new Set(
 		listConnectorCatalog().map((connector) => connector.name),
@@ -119,35 +190,40 @@ function buildConnectorStartArgs(args?: Record<string, unknown>): string[] {
 			fieldValues[field.flag] = field.initialValue;
 		}
 	}
-	const cliArgs = [channel];
-	for (const field of platform.fields) {
-		if (!shouldIncludeField(field, fieldValues)) {
-			continue;
+	const securityInput = asRecord(args?.security);
+	const rawSecurityValues = asRecord(securityInput?.values) ?? {};
+	const securityValues: Record<string, string> = {};
+	for (const [key, value] of Object.entries(rawSecurityValues)) {
+		if (typeof value === "string") {
+			securityValues[key] = value.trim();
 		}
-		const value = fieldValues[field.flag];
-		if (!value) {
-			if (field.required) throw new Error(`${field.label} is required`);
-			continue;
-		}
-		cliArgs.push(field.flag, value);
 	}
-	const security = asRecord(args?.security);
-	if (security?.enabled === true && platform.security) {
-		const securityValues = asRecord(security.values) ?? {};
-		const hookValues: Record<string, string> = {};
-		for (const field of platform.security.fields) {
-			const value = asString(securityValues[field.key]);
-			if (!value) throw new Error(field.requiredMessage);
-			const validationError = field.validate?.(value);
-			if (validationError) throw new Error(validationError);
-			hookValues[field.key] = value;
-		}
-		cliArgs.push(
-			"--hook-command",
-			platform.security.buildHookCommand(hookValues),
+	return [
+		channel,
+		...buildConnectorConnectArgs(platform, fieldValues, {
+			enabled: securityInput?.enabled === true,
+			values: securityValues,
+		}),
+	];
+}
+
+function buildConnectorLaunchArgs(
+	cliArgs: string[],
+	mode: "start" | "restart",
+): string[] {
+	return mode === "restart" ? ["--restart", ...cliArgs] : cliArgs;
+}
+
+function resolveConnectorLaunchMode(
+	channel: string,
+	activeCount: number,
+): "start" | "restart" {
+	if (activeCount > 1) {
+		throw new Error(
+			`cannot safely restart ${channel}: ${activeCount} instances are active; stop the intended instances explicitly first`,
 		);
 	}
-	return cliArgs;
+	return activeCount === 1 ? "restart" : "start";
 }
 
 export async function startConnectorChannel(
@@ -155,12 +231,19 @@ export async function startConnectorChannel(
 ): Promise<WebviewConnectorChannelsResponse> {
 	const cliArgs = buildConnectorStartArgs(args);
 	const channel = cliArgs[0] ?? "";
-	const result = await runCliConnectCommand(cliArgs);
+	const activeCount = listActiveConnectors().filter(
+		(connector) => connector.type === channel,
+	).length;
+	const mode = resolveConnectorLaunchMode(channel, activeCount);
+	const result = await runCliConnectCommand(
+		buildConnectorLaunchArgs(cliArgs, mode),
+	);
 	if (result.code !== 0) {
 		throw new Error(
-			(result.stderr.trim() || result.stdout.trim() || "connector start failed")
-				.trim()
-				.slice(0, 2_000),
+			normalizeConnectorError(
+				result.stderr || result.stdout,
+				"connector start failed",
+			),
 		);
 	}
 	await waitForConnectorState(() =>
@@ -168,6 +251,15 @@ export async function startConnectorChannel(
 	);
 	return connectorChannelsPayload();
 }
+
+export const __test__ = {
+	buildCliConnectCommand,
+	buildConnectorLaunchArgs,
+	buildConnectorStartArgs,
+	normalizeConnectorError,
+	resolveConnectorLaunchMode,
+	waitForConnectorState,
+};
 
 export async function stopConnectorChannel(
 	args?: Record<string, unknown>,
@@ -180,12 +272,15 @@ export async function stopConnectorChannel(
 	if (!supported.has(channel)) {
 		throw new Error(`unknown connector channel: ${channel}`);
 	}
-	const result = await runCliConnectCommand([channel, "--stop"]);
+	// `--stop` must precede the channel: the connect command uses
+	// passThroughOptions, so flags after the channel go to the adapter.
+	const result = await runCliConnectCommand(["--stop", channel]);
 	if (result.code !== 0) {
 		throw new Error(
-			(result.stderr.trim() || result.stdout.trim() || "connector stop failed")
-				.trim()
-				.slice(0, 2_000),
+			normalizeConnectorError(
+				result.stderr || result.stdout,
+				"connector stop failed",
+			),
 		);
 	}
 	await waitForConnectorState(

@@ -26,7 +26,7 @@ export type InteractiveChatCommandRuntime = Pick<
 
 export type InteractiveChatCommandResult =
 	| { handled: true; turnResult: InteractiveTurnResult }
-	| { handled: false; input: string };
+	| { handled: false; input: string; commandOutput?: string };
 
 function commandTurnResult(commandOutput?: string): InteractiveTurnResult {
 	return {
@@ -46,6 +46,7 @@ export async function runInteractiveChatCommand(input: {
 	setInteractiveAutoApprove: (enabled: boolean) => void;
 	sessionRuntime: InteractiveChatCommandRuntime;
 	stop: () => void;
+	onCommandOutput?: (text: string) => void;
 }): Promise<InteractiveChatCommandResult> {
 	let prompt = input.prompt;
 	const rewrittenTeamPrompt = rewriteTeamPrompt(prompt);
@@ -64,6 +65,7 @@ export async function runInteractiveChatCommand(input: {
 	}
 
 	let commandOutput: string | undefined;
+	let submitPrompt: string | undefined;
 	const handled = await maybeHandleChatCommand(prompt, {
 		enabled: input.enabled,
 		host: input.host,
@@ -80,6 +82,13 @@ export async function runInteractiveChatCommand(input: {
 		},
 		reply: async (text) => {
 			commandOutput = text;
+			input.onCommandOutput?.(text);
+		},
+		submitPrompt: async (text) => {
+			const trimmed = text.trim();
+			if (trimmed) {
+				submitPrompt = trimmed;
+			}
 		},
 		reset: async () => {
 			await input.sessionRuntime.resetForNewSession();
@@ -98,6 +107,13 @@ export async function runInteractiveChatCommand(input: {
 		fork: input.sessionRuntime.forkCurrentSession,
 	});
 	if (handled) {
+		if (submitPrompt) {
+			return {
+				handled: false,
+				input: submitPrompt,
+				...(commandOutput ? { commandOutput } : {}),
+			};
+		}
 		return {
 			handled: true,
 			turnResult: commandTurnResult(commandOutput),

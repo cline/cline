@@ -19,35 +19,16 @@ export interface ReviewComment {
 }
 
 /**
- * Callback for when user replies to a comment thread.
- * The onChunk callback is called with each text chunk as it streams in.
- */
-export type OnReplyCallback = (
-	filePath: string,
-	startLine: number,
-	endLine: number,
-	replyText: string,
-	existingComments: string[],
-	onChunk: (chunk: string) => void,
-) => Promise<void>
-
-/**
  * Abstract base class for managing AI code review comments.
  *
  * This controller:
  * - Creates inline comment threads on files at specific line ranges
  * - Displays AI-generated review comments with markdown support
- * - Handles user replies and dispatches them to the AI
  * - Manages the lifecycle of all comment threads
  *
  * Platform-specific implementations handle the actual UI rendering.
  */
 export abstract class CommentReviewController {
-	/**
-	 * Set the callback for handling user replies
-	 */
-	abstract setOnReplyCallback(callback: OnReplyCallback): void
-
 	/**
 	 * Ensure the comments view won't auto-open when comments are added
 	 */

@@ -3,7 +3,7 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useMemo, useRef, useState } from "react";
 import type { SlashCommandRegistryEntry } from "../../commands/slash-command-registry";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export const SKILLS_MARKETPLACE_ACTION = "__skills_marketplace__";
 export const SKILLS_MARKETPLACE_URL = "https://skills.sh/";
@@ -26,6 +26,7 @@ function matchesFilter(
 
 export function SkillsPickerContent(props: SkillsPickerContentProps) {
 	const { resolve, dismiss, dialogId, commands } = props;
+	const palette = useDialogPalette();
 	const { height, width } = useTerminalDimensions();
 	const [filter, setFilter] = useState("");
 	const [selected, setSelected] = useState(0);
@@ -142,7 +143,7 @@ export function SkillsPickerContent(props: SkillsPickerContentProps) {
 									onMouseDown={() => resolve(SKILLS_MARKETPLACE_ACTION)}
 									height={1}
 								>
-									<text fg={isSelected ? palette.textOnSelection : "cyan"}>
+									<text fg={isSelected ? palette.textOnSelection : palette.act}>
 										{isSelected ? "❯ " : "  "}
 										Browse more skills at {SKILLS_MARKETPLACE_URL}
 									</text>

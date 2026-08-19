@@ -8,6 +8,7 @@ import { isToggleableInteractiveConfigItem } from "../../tui/interactive-config"
 export type ConfigAction =
 	| { kind: "open-provider" }
 	| { kind: "open-model" }
+	| { kind: "open-theme" }
 	| { kind: "toggle-item"; item: InteractiveConfigItem }
 	| { kind: "delete-item"; item: InteractiveConfigItem }
 	| {
@@ -228,4 +229,16 @@ export function getConfigFooterText({
 
 export function getConfigItemDisplayName(name: string): string {
 	return name;
+}
+
+export function getPluginDiagnosticsLoadingText(
+	tab: InteractiveConfigTab,
+): string | undefined {
+	if (tab === "tools") {
+		return "Loading plugin tools...";
+	}
+	if (tab === "plugins") {
+		return "Loading plugin diagnostics...";
+	}
+	return undefined;
 }
