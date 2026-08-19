@@ -7,6 +7,7 @@
 import { join } from "node:path";
 import { RoleImmutableError, WorkspaceImmutableError } from "@cline/bot";
 import type { AgentMessage } from "@cline/shared";
+import { loadSqliteDb } from "@cline/shared/db";
 import {
 	createBotId,
 	createClientId,
@@ -16,7 +17,11 @@ import {
 	GATEWAY_PROTOCOL_VERSION,
 } from "@cline/shared/gateway";
 import { describe, expect, it } from "vitest";
-import { GATEWAY_MIGRATIONS, openGatewayDatabase } from "./db";
+import {
+	GATEWAY_MIGRATIONS,
+	migrateGatewayDatabase,
+	openGatewayDatabase,
+} from "./db";
 import { createGatewayStores } from "./stores";
 import { tempDataRoot } from "./test-support";
 
@@ -53,6 +58,29 @@ describe("migrations", () => {
 			.map((row) => Number(row.version));
 		expect(applied).toEqual(GATEWAY_MIGRATIONS.map((m) => m.version));
 		second.close();
+	});
+
+	it("adds run config snapshots to databases already on migration 1", () => {
+		const file = join(tempDataRoot(), "gateway-v1.db");
+		const db = loadSqliteDb(file);
+		for (const statement of GATEWAY_MIGRATIONS[0].statements) db.exec(statement);
+		db.exec(`CREATE TABLE migrations (
+			version INTEGER PRIMARY KEY,
+			name TEXT NOT NULL,
+			applied_at INTEGER NOT NULL
+		);`);
+		db.prepare(
+			"INSERT INTO migrations (version, name, applied_at) VALUES (?, ?, ?);",
+		).run(1, "phase-3-authority", 1);
+
+		migrateGatewayDatabase(db);
+
+		const columns = db
+			.prepare("PRAGMA table_info(runs);")
+			.all()
+			.map((row) => String(row.name));
+		expect(columns).toContain("config_json");
+		db.close?.();
 	});
 });
 

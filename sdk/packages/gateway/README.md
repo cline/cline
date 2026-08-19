@@ -53,6 +53,7 @@ machine-checked in `src/boundaries.test.ts` (and mirrored per-package).
 
 ```
 cline-gateway serve                    # run the authority in the foreground
+cline-gateway serve --lead-profile cline-mom # run with the built-in Cline Mom lead
 cline-gateway start                    # ensure one is running (spawn detached, wait ready)
 cline-gateway status                   # read discovery, connect, report gateway.status
 cline-gateway drain                    # refuse new mutating work while runs finish
@@ -62,7 +63,9 @@ cline-gateway secret-put <providerId>  # store a provider credential (reads stdi
 ```
 
 Flags: `--data-root <dir>`, `--namespace <name>`, `--port <n>`,
-`--reason <text>`. The singleton scope is the **canonical data directory
+`--reason <text>`, `--lead-profile <cline|cline-mom>`. The standard `cline`
+profile remains the default. `CLINE_GATEWAY_LEAD_PROFILE` is the equivalent
+environment setting. The singleton scope is the **canonical data directory
 plus environment namespace** (`CLINE_GATEWAY_DATA_ROOT`,
 `CLINE_GATEWAY_NAMESPACE`) — never a port.
 

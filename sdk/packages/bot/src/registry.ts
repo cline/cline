@@ -50,6 +50,11 @@ export interface BotRegistryPorts {
 	clock: BotClock;
 }
 
+export interface BootstrapBotOptions {
+	name?: string;
+	config?: BotConfig;
+}
+
 export class BotRegistry {
 	private readonly ports: BotRegistryPorts;
 
@@ -61,7 +66,9 @@ export class BotRegistry {
 	 * Ensure the first bot exists: `cline`, role `lead`, no parent.
 	 * Idempotent — returns the existing bootstrap lead when present.
 	 */
-	bootstrap(): BotRecord {
+	bootstrap(options: BootstrapBotOptions = {}): BotRecord {
+		const config = options.config ?? {};
+		const name = options.name?.trim() || FIRST_BOT_NAME;
 		const existing = this.ports.bots
 			.list()
 			.find(
@@ -70,18 +77,31 @@ export class BotRegistry {
 					record.identity.provenance.createdBy === "bootstrap",
 			);
 		if (existing) {
-			return existing;
+			if (Object.keys(config).length === 0 && existing.identity.name === name) {
+				return existing;
+			}
+			const configured: BotRecord = {
+				...existing,
+				identity:
+					existing.identity.name === name
+						? existing.identity
+						: freezeIdentity({ ...existing.identity, name }),
+				config: Object.freeze({ ...existing.config, ...config }),
+				revision: existing.revision + 1,
+			};
+			this.ports.bots.save(configured);
+			return configured;
 		}
 		const record: BotRecord = {
 			identity: freezeIdentity({
 				botId: this.ports.ids.botId(),
-				name: FIRST_BOT_NAME,
+				name,
 				role: FIRST_BOT_ROLE,
 				parentBotId: null,
 				provenance: { createdBy: "bootstrap" },
 				createdAt: this.ports.clock.now(),
 			}),
-			config: {},
+			config: Object.freeze({ ...config }),
 			status: "active",
 			revision: 0,
 		};

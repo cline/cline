@@ -2,9 +2,11 @@ import { describe, expect, it } from "vitest";
 import { createRunId, createSessionId } from "./ids";
 import {
 	assertRunStateTransition,
+	canRetryRunState,
 	canTransitionRunState,
 	canTransitionSessionState,
 	isTerminalRunState,
+	RETRYABLE_RUN_STATES,
 	RUN_STATE_TRANSITIONS,
 	RUN_STATES,
 	RunAcceptedSchema,
@@ -36,15 +38,26 @@ describe("run state machine", () => {
 		expect(canTransitionRunState("queued", "interrupted")).toBe(false);
 	});
 
-	it("terminal states admit no transitions, including self-loops", () => {
+	it("terminal states admit no transitions except manual retry re-admission", () => {
 		for (const state of TERMINAL_RUN_STATES) {
 			expect(isTerminalRunState(state)).toBe(true);
 			for (const to of RUN_STATES) {
-				expect(canTransitionRunState(state, to)).toBe(false);
+				const retryReadmission = canRetryRunState(state) && to === "queued";
+				expect(canTransitionRunState(state, to)).toBe(retryReadmission);
 			}
 		}
 		expect(isTerminalRunState("queued")).toBe(false);
 		expect(isTerminalRunState("running")).toBe(false);
+	});
+
+	it("only failed and interrupted runs are manually retryable", () => {
+		expect(RETRYABLE_RUN_STATES).toEqual(["failed", "interrupted"]);
+		expect(canRetryRunState("failed")).toBe(true);
+		expect(canRetryRunState("interrupted")).toBe(true);
+		expect(canRetryRunState("completed")).toBe(false);
+		expect(canRetryRunState("aborted")).toBe(false);
+		expect(canRetryRunState("running")).toBe(false);
+		expect(canRetryRunState("queued")).toBe(false);
 	});
 
 	it("assertRunStateTransition throws a typed error carrying a wire error", () => {

@@ -40,6 +40,8 @@ export type EngineModelBinding =
 			apiKey?: string;
 			baseUrl?: string;
 			headers?: Record<string, string>;
+			timeoutMs?: number;
+			options?: Record<string, unknown>;
 	  };
 
 /** Injected clock so engines are deterministic under test. */

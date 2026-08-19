@@ -13,7 +13,7 @@
  * survive later publishes until every pin is released.
  */
 
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { join } from "node:path";
 import type { BotId } from "@cline/shared/gateway";
 import { fingerprintPluginDir, type LoadedPlugin, loadPlugin } from "./loader";
@@ -312,7 +312,9 @@ function listPluginRoots(sourceDir: string): string[] {
 		const candidate = join(sourceDir, name);
 		try {
 			if (statSync(candidate).isDirectory()) {
-				roots.push(candidate);
+				// Catalog keys use the same canonical root that loadPlugin stores.
+				// This matters on macOS, where /var resolves to /private/var.
+				roots.push(realpathSync(candidate));
 			}
 		} catch {
 			// Races with concurrent deletion are tolerated.

@@ -123,6 +123,8 @@ export interface AgentRuntimeConfigWithProvider
 	baseUrl?: string;
 	/** Additional headers for API requests */
 	headers?: Record<string, string>;
+	/** Provider request timeout in milliseconds. */
+	timeoutMs?: number;
 	/** Provider-specific gateway options */
 	options?: GatewayProviderSettings["options"];
 }
@@ -149,10 +151,20 @@ function resolveRuntimeConfig(
 	if (hasPrebuiltModel(config)) {
 		return config;
 	}
-	const { providerId, modelId, apiKey, baseUrl, headers, options, ...rest } =
-		config;
+	const {
+		providerId,
+		modelId,
+		apiKey,
+		baseUrl,
+		headers,
+		timeoutMs,
+		options,
+		...rest
+	} = config;
 	const gateway = createGateway({
-		providerConfigs: [{ providerId, apiKey, baseUrl, headers, options }],
+		providerConfigs: [
+			{ providerId, apiKey, baseUrl, headers, timeoutMs, options },
+		],
 		telemetry: rest.telemetry,
 	});
 	const model = gateway.createAgentModel({ providerId, modelId });

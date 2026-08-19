@@ -16,6 +16,14 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./client": {
+			"types": "./dist/client.d.ts",
+			"import": "./dist/client.js"
+		},
+		"./test-support": {
+			"types": "./dist/test-support.d.ts",
+			"import": "./dist/test-support.js"
 		}
 	},
 	"bin": {
@@ -24,7 +32,8 @@
 	},
 	"files": [
 		"dist",
-		"bin"
+		"bin",
+		"default-agent"
 	],
 	"license": "Apache-2.0",
 	"scripts": {
@@ -39,6 +48,7 @@
 	"dependencies": {
 		"@anthropic-ai/sandbox-runtime": "^0.0.73",
 		"@cline/bot": "workspace:*",
+		"@cline/core": "workspace:*",
 		"@cline/engine": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"zod": "^4.3.6"

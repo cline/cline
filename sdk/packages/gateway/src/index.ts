@@ -18,9 +18,12 @@
 export type { GatewayCliCommand, GatewayCliIo } from "./cli";
 export { GATEWAY_CLI_COMMANDS, runGatewayCli } from "./cli";
 export type {
+	ApprovalResolution,
 	GatewayClientOptions,
 	GatewayEventListener,
 	GatewayServerRequestHandler,
+	GatewayStatusSummary,
+	StartRunInput,
 } from "./client";
 export { GatewayClient, GatewayRequestError } from "./client";
 export type {
@@ -77,6 +80,13 @@ export {
 	ModelNotConfiguredError,
 	resolveProviderModel,
 } from "./engine-binding";
+export {
+	gatewayProviderSettingsPath,
+	listSavedProviderSummaries,
+	readSavedProviderSelection,
+	savedProviderApiKey,
+	savedProviderOptions,
+} from "./provider-settings";
 export type { GatewayIdentityInfo, HelloNegotiation } from "./hello";
 export {
 	negotiateHello,
@@ -88,6 +98,19 @@ export {
 	stableStringify,
 } from "./idempotency-ledger";
 export { GatewayLock, GatewayLockHeldError } from "./lock";
+export type {
+	LeadProfileSummary,
+	LeadProfileTemplateValues,
+	ResolvedLeadProfile,
+} from "./lead-profiles";
+export {
+	listLeadProfiles,
+	bundledLeadProfileFile,
+	loadBundledLeadProfile,
+	loadLeadProfile,
+	PLAIN_LEAD_PROFILE,
+	PLAIN_LEAD_PROFILE_ID,
+} from "./lead-profiles";
 export type {
 	McpHttpTransportSpec,
 	McpServerDefinition,
@@ -194,10 +217,12 @@ export type {
 	GatewayRecoveryReport,
 	GatewayRuntimeOptions,
 	RunStartParams,
+	SessionSnapshot,
 } from "./runtime";
 export {
 	ApprovalBroker,
 	AttemptingEnginePort,
+	GATEWAY_EXECUTION_MODE,
 	GatewayCallError,
 	GatewayRuntime,
 	MANAGED_WORKSPACE_ROOT,

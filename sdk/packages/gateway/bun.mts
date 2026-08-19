@@ -3,6 +3,7 @@ export {};
 
 const external = [
 	"@cline/bot",
+	"@cline/core",
 	"@cline/engine",
 	"@cline/shared",
 	"@cline/shared/gateway",
@@ -12,7 +13,7 @@ const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
 const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
 
 const result = await Bun.build({
-	entrypoints: ["./src/index.ts"],
+	entrypoints: ["./src/index.ts", "./src/client.ts", "./src/test-support.ts"],
 	outdir: "./dist",
 	target: "node",
 	minify,

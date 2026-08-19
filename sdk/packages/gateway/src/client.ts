@@ -13,12 +13,22 @@
 
 import { connect, type Socket } from "node:net";
 import type {
+	BotRecord,
+	RunRecord,
+	SessionRecord,
+	TurnOverrides,
+} from "@cline/bot";
+import type {
+	BotId,
 	GatewayError,
 	GatewayEvent,
 	GatewayHelloResult,
 	GatewayRequest,
 	GatewayResponse,
 	GatewayServerRequest,
+	RunAccepted,
+	RunId,
+	SessionId,
 } from "@cline/shared/gateway";
 import {
 	createGatewayError,
@@ -28,8 +38,13 @@ import {
 	GatewayEventSchema,
 	GatewayServerRequestSchema,
 	IDEMPOTENCY_KEY_PARAM,
+	RunAcceptedSchema,
 } from "@cline/shared/gateway";
+import type { ConnectorRecord } from "./connectors/store";
+export { listSavedProviderSummaries } from "./provider-settings";
 import type { DiscoveryRecord } from "./discovery";
+import type { SessionSnapshot } from "./runtime";
+import type { ScheduleJobRecord, ScheduleRecord } from "./schedules/store";
 
 export class GatewayRequestError extends Error {
 	readonly gatewayError: GatewayError;
@@ -58,6 +73,117 @@ export type GatewayServerRequestHandler = (
 	request: GatewayServerRequest,
 ) => Promise<unknown> | unknown;
 
+// Re-exported so `@cline/gateway/client` consumers never reach into the
+// Gateway's internals for the types the typed surface returns, nor for
+// discovery/path resolution (the supported client-side surface).
+export type { SessionSnapshot } from "./runtime";
+export type { RunAttemptRecord, StoredMessage } from "./stores";
+export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
+export type { ConnectorRecord } from "./connectors/store";
+export type {
+	ScheduleJobRecord,
+	ScheduleRecord,
+} from "./schedules/store";
+export type { DiscoveryRecord } from "./discovery";
+export { DiscoveryRecordSchema, readDiscoveryRecord } from "./discovery";
+export type { GatewayPaths, GatewayPathsOptions } from "./paths";
+export {
+	DEFAULT_GATEWAY_NAMESPACE,
+	defaultGatewayDataRoot,
+	GATEWAY_DATA_ROOT_ENV,
+	GATEWAY_NAMESPACE_ENV,
+	resolveGatewayNamespace,
+	resolveGatewayPaths,
+} from "./paths";
+
+/** `gateway.status` result (additive fields must not break clients). */
+export interface GatewayStatusSummary {
+	state: "serving" | "draining";
+	executionMode: string;
+	sandboxed: boolean;
+	gatewayId: string;
+	instanceId: string;
+	pid: number;
+	startedAt: number;
+	protocolVersion: number;
+	defaultBotId?: BotId;
+	catalogGeneration: number;
+	namespace: string;
+	dataDir: string;
+	/** Worker isolation health (Phase 4): driver/isolation/development. */
+	execution?: {
+		isolation: string;
+		development: boolean;
+		[extra: string]: unknown;
+	};
+	/** Plugin catalog summary (Phase 4): counts only, never entries. */
+	plugins?: {
+		generation: number;
+		plugins: number;
+		heldGenerations: readonly number[];
+		pinnedByRuns: number;
+		lastReloadOk: boolean;
+	};
+	/** Live connector worker health (Phase 6, read-only diagnostics). */
+	connectorHealth?: {
+		running: readonly {
+			connectorId: string;
+			workerId: string;
+			restarts: number;
+			state: string;
+		}[];
+	};
+	counts: {
+		bots: number;
+		sessions: number;
+		queuedRuns: number;
+		runningRuns: number;
+		clients: number;
+		pendingOutbox: number;
+		lastEventSequence: number;
+		pendingServerRequests: number;
+		connectors?: number;
+		schedules?: number;
+	};
+	port: number;
+	connections: number;
+	[extra: string]: unknown;
+}
+
+export interface StartRunInput {
+	botId: BotId;
+	prompt: string;
+	workspaceRoot?: string;
+	newSession?: boolean;
+	overrides?: TurnOverrides;
+	idempotencyKey?: string;
+}
+
+export interface ApprovalResolution {
+	approved: boolean;
+	reason?: string;
+}
+
+/** `statistics.summary` result (bounded reads over daily aggregates). */
+export interface StatisticsSummary {
+	from: string;
+	to: string;
+	totals: {
+		tokens: number;
+		inputTokens: number;
+		outputTokens: number;
+		messages: number;
+		modelCalls: number;
+		estimatedCost: number;
+	};
+	agents: number;
+	topics: number;
+	activeModels: readonly { modelId: string; providerId: string }[];
+	peakDailyTokens: number;
+	longestTaskMs: number;
+	[extra: string]: unknown;
+}
+
 interface PendingRequest {
 	resolve(value: unknown): void;
 	reject(error: Error): void;
@@ -69,10 +195,12 @@ export class GatewayClient {
 	private readonly socket: Socket;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<GatewayEventListener>();
+	private readonly closeListeners = new Set<() => void>();
 	private serverRequestHandler: GatewayServerRequestHandler | undefined;
 	private buffer = "";
 	private nextRequestId = 0;
 	private closed = false;
+	private closeNotified = false;
 
 	private constructor(socket: Socket, hello: GatewayHelloResult) {
 		this.socket = socket;
@@ -162,10 +290,231 @@ export class GatewayClient {
 		return this.request("run.subscribe", { ...params });
 	}
 
+	// ---------------------------------------------------------------------
+	// Typed command surface (the supported application entrypoint)
+	// ---------------------------------------------------------------------
+
+	getStatus(): Promise<GatewayStatusSummary> {
+		return this.request("gateway.status", {}) as Promise<GatewayStatusSummary>;
+	}
+
+	listBots(): Promise<{ bots: readonly BotRecord[] }> {
+		return this.request("bot.list", {}) as Promise<{
+			bots: readonly BotRecord[];
+		}>;
+	}
+
+	listSessions(
+		input: { botId?: BotId } = {},
+	): Promise<{ sessions: readonly SessionRecord[] }> {
+		return this.request("session.list", { ...input }) as Promise<{
+			sessions: readonly SessionRecord[];
+		}>;
+	}
+
+	listRuns(
+		input: { sessionId?: SessionId; runId?: RunId } = {},
+	): Promise<{ runs: readonly RunRecord[] }> {
+		return this.request("run.list", { ...input }) as Promise<{
+			runs: readonly RunRecord[];
+		}>;
+	}
+
+	getSession(input: { sessionId: SessionId }): Promise<SessionSnapshot> {
+		return this.request("session.get", {
+			sessionId: input.sessionId,
+		}) as Promise<SessionSnapshot>;
+	}
+
+	/** Admit a prompt; acks immediately without waiting for execution. */
+	async startRun(input: StartRunInput): Promise<RunAccepted> {
+		const result = await this.mutate("run.start", {
+			botId: input.botId,
+			prompt: input.prompt,
+			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
+			...(input.newSession ? { newSession: true } : {}),
+			...(input.overrides ? { overrides: input.overrides } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		});
+		return RunAcceptedSchema.parse(result);
+	}
+
+	steerRun(input: {
+		runId: RunId;
+		text: string;
+		idempotencyKey?: string;
+	}): Promise<{ merged: boolean }> {
+		return this.mutate("run.steer", {
+			runId: input.runId,
+			text: input.text,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<{ merged: boolean }>;
+	}
+
+	interruptRun(input: {
+		runId: RunId;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<{ state: string }> {
+		return this.mutate("run.interrupt", {
+			runId: input.runId,
+			...(input.reason ? { reason: input.reason } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<{ state: string }>;
+	}
+
+	/** Re-admit a failed/interrupted run: same runId, new attempt. */
+	async retryRun(input: {
+		runId: RunId;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<RunAccepted> {
+		const result = await this.mutate("run.retry", {
+			runId: input.runId,
+			...(input.reason ? { reason: input.reason } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		});
+		return RunAcceptedSchema.parse(result);
+	}
+
+	listConnectors(
+		input: { botId?: BotId } = {},
+	): Promise<{ connectors: readonly ConnectorRecord[] }> {
+		return this.request("connector.list", { ...input }) as Promise<{
+			connectors: readonly ConnectorRecord[];
+		}>;
+	}
+
+	/** Register a bot-scoped connector; `credentialRef` names a secret file, never a secret. */
+	registerConnector(input: {
+		botId: BotId;
+		kind: string;
+		name: string;
+		config?: Record<string, unknown>;
+		credentialRef?: string;
+		idempotencyKey?: string;
+	}): Promise<ConnectorRecord> {
+		return this.mutate("connector.register", {
+			botId: input.botId,
+			kind: input.kind,
+			name: input.name,
+			...(input.config ? { config: input.config } : {}),
+			...(input.credentialRef ? { credentialRef: input.credentialRef } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ConnectorRecord>;
+	}
+
+	listSchedules(
+		input: { botId?: BotId } = {},
+	): Promise<{ schedules: readonly ScheduleRecord[] }> {
+		return this.request("schedule.list", { ...input }) as Promise<{
+			schedules: readonly ScheduleRecord[];
+		}>;
+	}
+
+	/** Create a schedule (exactly one of `intervalMs` / `at`). */
+	createSchedule(input: {
+		botId: BotId;
+		name: string;
+		prompt: string;
+		intervalMs?: number;
+		at?: number;
+		maxAttempts?: number;
+		idempotencyKey?: string;
+	}): Promise<ScheduleRecord> {
+		return this.mutate("schedule.create", {
+			botId: input.botId,
+			name: input.name,
+			prompt: input.prompt,
+			...(input.intervalMs !== undefined
+				? { intervalMs: input.intervalMs }
+				: {}),
+			...(input.at !== undefined ? { at: input.at } : {}),
+			...(input.maxAttempts !== undefined
+				? { maxAttempts: input.maxAttempts }
+				: {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ScheduleRecord>;
+	}
+
+	scheduleReport(input: {
+		scheduleId: string;
+	}): Promise<{ jobs: readonly ScheduleJobRecord[] }> {
+		return this.request("schedule.report", {
+			scheduleId: input.scheduleId,
+		}) as Promise<{ jobs: readonly ScheduleJobRecord[] }>;
+	}
+
+	// Statistics: bounded reads over the Gateway-maintained aggregates.
+
+	statisticsSummary(
+		range: { from?: string; to?: string } = {},
+	): Promise<StatisticsSummary> {
+		return this.request("statistics.summary", {
+			...range,
+		}) as Promise<StatisticsSummary>;
+	}
+
+	statisticsActivity(
+		range: { from?: string; to?: string } = {},
+	): Promise<Record<string, unknown>> {
+		return this.request("statistics.activity", { ...range }) as Promise<
+			Record<string, unknown>
+		>;
+	}
+
+	statisticsRankings(input: {
+		dimension: "model" | "agent" | "topic";
+		from?: string;
+		to?: string;
+		limit?: number;
+	}): Promise<Record<string, unknown>> {
+		return this.request("statistics.rankings", { ...input }) as Promise<
+			Record<string, unknown>
+		>;
+	}
+
+	statisticsUsage(input: { month: string }): Promise<Record<string, unknown>> {
+		return this.request("statistics.usage", { ...input }) as Promise<
+			Record<string, unknown>
+		>;
+	}
+
+	/**
+	 * Answer a server-initiated approval request. First answer wins across
+	 * all attached clients; the Gateway broadcasts `approval.resolved`.
+	 */
+	resolveApproval(requestId: string, resolution: ApprovalResolution): void {
+		this.respondToServerRequest(requestId, {
+			approved: resolution.approved,
+			...(resolution.reason ? { reason: resolution.reason } : {}),
+		});
+	}
+
 	onEvent(listener: GatewayEventListener): () => void {
 		this.eventListeners.add(listener);
 		return () => {
 			this.eventListeners.delete(listener);
+		};
+	}
+
+	/** Fires once when the connection is lost or closed locally. */
+	onClose(listener: () => void): () => void {
+		this.closeListeners.add(listener);
+		return () => {
+			this.closeListeners.delete(listener);
 		};
 	}
 
@@ -199,6 +548,7 @@ export class GatewayClient {
 			pending.reject(failure);
 		}
 		this.pending.clear();
+		this.notifyClosed();
 	}
 
 	// ---------------------------------------------------------------------
@@ -263,6 +613,17 @@ export class GatewayClient {
 			pending.reject(failure);
 		}
 		this.pending.clear();
+		this.notifyClosed();
+	}
+
+	private notifyClosed(): void {
+		if (this.closeNotified) {
+			return;
+		}
+		this.closeNotified = true;
+		for (const listener of this.closeListeners) {
+			listener();
+		}
 	}
 
 	private settleResponse(response: GatewayResponse): void {

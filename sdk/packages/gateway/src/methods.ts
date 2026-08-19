@@ -81,6 +81,7 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			botId: BotIdSchema,
 			prompt: z.string().min(1),
 			workspaceRoot: z.string().min(1).optional(),
+			newSession: z.boolean().optional(),
 			overrides: TurnOverridesSchema.optional(),
 		}).strict(),
 	),
@@ -94,6 +95,14 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	),
 	define(
 		"run.interrupt",
+		true,
+		IdempotentParamsBase.extend({
+			runId: RunIdSchema,
+			reason: z.string().optional(),
+		}).strict(),
+	),
+	define(
+		"run.retry",
 		true,
 		IdempotentParamsBase.extend({
 			runId: RunIdSchema,
@@ -135,6 +144,11 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		"session.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	define(
+		"session.get",
+		false,
+		z.object({ sessionId: SessionIdSchema }).strict(),
 	),
 	define(
 		"run.list",
