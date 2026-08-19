@@ -829,6 +829,9 @@ export class MonitorRegistry {
 
 		if (lines.length === 0 && !exit) return;
 		entry.linesEmitted += lines.length;
+		// Keep host rosters' delivered-line counts current. Bounded by the
+		// flush interval, so a chatty process cannot flood state listeners.
+		if (lines.length > 0) this.emitStateChange();
 		if (!notifier) return;
 
 		const notification: MonitorNotification = {

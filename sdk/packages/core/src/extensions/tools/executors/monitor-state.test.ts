@@ -58,6 +58,24 @@ describe("MonitorRegistry onStateChange", () => {
 		);
 	});
 
+	it("updates delivered-line counts as output flushes", async () => {
+		const snapshots: MonitorRecord[][] = [];
+		registry = new MonitorRegistry({
+			flushIntervalMs: 20,
+			onStateChange: (monitors) => snapshots.push(monitors),
+		});
+
+		registry.start({
+			name: "counting",
+			command: printCommand,
+			description: "emits one line",
+		});
+
+		await waitFor(() =>
+			snapshots.some((monitors) => (monitors[0]?.linesEmitted ?? 0) > 0),
+		);
+	});
+
 	it("reports a stopped snapshot when a monitor is stopped", async () => {
 		const snapshots: MonitorRecord[][] = [];
 		registry = new MonitorRegistry({
