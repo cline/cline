@@ -87,6 +87,38 @@ describe("MonitorRegistry", () => {
 		}
 	});
 
+	it("inherits the host environment without an explicit spawn env", async () => {
+		const collector = createCollector();
+		const registry = new MonitorRegistry({
+			notifier: collector.notifier,
+			flushIntervalMs: 20,
+		});
+		const key = "CLINE_MONITOR_INHERITED_ENV_TEST";
+		const previousValue = process.env[key];
+		process.env[key] = "inherited";
+		try {
+			registry.start({
+				name: "environment",
+				command: nodeCommand(
+					`process.stdout.write(process.env.${key} ?? "missing")`,
+				),
+				description: "reads an inherited environment variable",
+			});
+
+			await collector.waitFor((all) =>
+				all.some((notification) => notification.exit),
+			);
+			expect(allLines(collector.notifications)).toEqual(["inherited"]);
+		} finally {
+			await registry.dispose();
+			if (previousValue === undefined) {
+				delete process.env[key];
+			} else {
+				process.env[key] = previousValue;
+			}
+		}
+	});
+
 	it("batches rapid output instead of notifying per line", async () => {
 		const collector = createCollector();
 		const registry = new MonitorRegistry({

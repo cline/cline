@@ -290,7 +290,6 @@ export class MonitorRegistry {
 		try {
 			child = spawn(shell, invocation.args, {
 				cwd,
-				env: process.env,
 				stdio: ["pipe", "pipe", "pipe"],
 				// A process group lets us kill the whole tree on stop; monitors are
 				// typically pipelines (`tail -F x | grep y`) whose children would
