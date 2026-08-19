@@ -1,0 +1,95 @@
+---
+title: "Configure Anthropic in VS Code (Members)"
+sidebarTitle: "Configure Anthropic (Member)"
+description: "Guide for engineers connecting to their organization's Anthropic provider through VS Code after admin setup"
+---
+
+As a team member, you can connect your local development environment to your organization's Anthropic provider setup. This guide walks you through configuring your API key in VS Code so you can start using Claude models through your organization's configuration. Your administrator has already configured the provider settings — you just need to add your API key to get started.
+
+## Before You Begin
+
+To successfully connect to your organization's Anthropic provider, you'll need a few things ready.
+
+**Cline extension installed and configured**  
+The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+
+<Info>
+**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+</Info>
+
+**Anthropic API key**  
+You need an API key from Anthropic to authenticate requests. Your organization may provide keys centrally or require you to create one through the [Anthropic Console](https://console.anthropic.com/).
+
+<Note>
+If you're unsure how to obtain an API key, check with your administrator about your organization's key provisioning process.
+</Note>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Open Cline Settings">
+Open VS Code and access the Cline settings panel using either of these methods:
+
+- Click the settings icon (⚙️) in the Cline panel
+- Click on the API Provider dropdown located directly below the chat area
+
+</Step>
+
+<Step title="Enter Your API Key">
+
+1. Select or confirm the **Anthropic** provider is selected
+2. Enter your Anthropic API key in the **API Key** field
+3. If your administrator configured a custom base URL, it will already be set and locked
+4. Click **Save** to store your credentials
+
+<Tip>
+API keys are stored locally and are only used by the Cline extension.
+</Tip>
+
+<Note>
+The base URL setting is controlled by your administrator. If a custom proxy URL is configured, your API requests will be routed through it automatically.
+</Note>
+</Step>
+
+<Step title="Verify Configuration">
+After entering your API key, administrator-controlled settings (such as base URL) will be locked (shown with a lock icon 🔒) as they're managed by your organization.
+</Step>
+
+<Step title="Test the Connection">
+Send a test message in Cline to verify your API key works correctly with the configured Anthropic endpoint.
+
+<Tip>
+**Testing Recommendation**
+
+Try a simple test like "Hello" first to verify basic connectivity before starting development tasks.
+</Tip>
+</Step>
+</Steps>
+
+## Troubleshooting
+
+**Anthropic not available as provider option**  
+Confirm you're signed into the correct Cline organization. Verify your administrator has saved the Anthropic configuration and that you have the latest version of the Cline extension.
+
+**Authentication errors ("Invalid API Key" or "Unauthorized")**  
+Verify your API key is correct and active. Check the [Anthropic Console](https://console.anthropic.com/) to confirm your key status and that it has sufficient permissions.
+
+**Connection errors or timeouts**  
+If your administrator configured a custom base URL (proxy), check with your IT team about network requirements. If using the default Anthropic endpoint, ensure you have internet access to `api.anthropic.com`.
+
+**Models not available**  
+The available models depend on your Anthropic API plan and your organization's configuration. Contact your administrator if expected models are not available.
+
+**Rate limit errors**  
+Your API key may have rate limits configured by Anthropic. If you encounter rate limit errors during normal use, contact your administrator about adjusting limits or managing key usage across the team.
+
+## Security Best Practices
+
+When working with your Anthropic API key:
+
+- Keep your API key secure and do not share it
+- Never store your API key in code or version control
+- Report any suspected key compromise to your administrator immediately
+- Regularly check the [Anthropic Console](https://console.anthropic.com/) for unusual usage patterns
+
+For further details, consult the [Anthropic API documentation](https://docs.anthropic.com/) and coordinate with your organization's administrator.

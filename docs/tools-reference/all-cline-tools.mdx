@@ -1,0 +1,77 @@
+---
+title: "Tools"
+sidebarTitle: "Tools"
+description: "Reference for Cline's built-in tool system, aligned with SDK tool architecture."
+---
+
+Cline tools are executable functions the model can call while working. The model decides which tool to call, Cline runs it, then returns results back to the model.
+
+## Built-In Tools (ClineCore)
+
+When running through `ClineCore`, these built-ins are available:
+
+| Tool | Description |
+|------|-------------|
+| `bash` | Execute shell commands |
+| `editor` | View and edit files |
+| `read_files` | Batch read multiple files |
+| `apply_patch` | Apply unified diffs to files |
+| `search` | Ripgrep-powered codebase search |
+| `fetch_web` | HTTP requests with HTML-to-markdown conversion |
+| `ask_question` | Ask the user for input |
+
+<Note>
+`Agent` from `@cline/agents` does not include built-ins by default. You provide tools explicitly.
+</Note>
+
+## Tool Categories
+
+- **Codebase operations**: `editor`, `read_files`, `apply_patch`, `search`
+- **Execution**: `bash`
+- **External retrieval**: `fetch_web`
+- **Human-in-the-loop controls**: `ask_question`
+
+## Approval and Policy Controls
+
+Cline can run tools with approval or auto-approval, depending on settings/policies. Typical patterns:
+
+- Require approval for risky tools (for example `bash`, write/edit operations)
+- Auto-approve low-risk tools (for example read/search operations)
+- Disable specific tools entirely when needed
+
+For policy examples, see [SDK Tools](/sdk/tools) and [Permission Handling](/sdk/guides/permission-handling).
+
+## MCP Tools
+
+Cline can also call tools discovered from MCP servers configured in `.cline/mcp.json`.
+
+MCP tools are loaded alongside built-ins, so Cline can use both local tools and external integrations in one task.
+
+See [MCP Overview](/mcp/mcp-overview) and [SDK Tools → MCP Tools](/sdk/tools#mcp-tools).
+
+## Custom Tools
+
+<Warning>
+  This feature currently only applies to Cline SDK, CLI, and Kanban. This feature is not applicable on VSCode and JetBrains Extension for now.
+</Warning>
+
+Beyond built-ins and MCP, you can create custom tools and add them through plugins.
+
+- Define tool behavior and input schema in plugin code
+- Register tools during plugin setup
+- Expose those tools to agents alongside built-ins
+
+See:
+- [SDK Plugins](/sdk/plugins)
+- [Writing Plugins (examples)](/sdk/guides/writing-plugins)
+- [SDK Tools: Creating Custom Tools](/sdk/tools#creating-custom-tools)
+
+## Legacy Tool Names vs Current Runtime Tools
+
+Some older docs/examples reference XML-style names like `read_file`, `replace_in_file`, or `execute_command`. Current SDK/ClineCore runtime uses the built-in tool names listed above (`read_files`, `apply_patch`, `bash`, etc.).
+
+## Related
+
+- [SDK Tools](/sdk/tools)
+- [Tools API Reference](/sdk/reference/tools-api)
+- [MCP Overview](/mcp/mcp-overview)

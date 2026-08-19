@@ -5,6 +5,7 @@
 		"connor4312.esbuild-problem-matchers",
 		"ms-vscode.extension-test-runner",
 		"bradlc.vscode-tailwindcss",
-		"biomejs.biome"
+		"biomejs.biome",
+		"oven.bun-vscode"
 	]
 }

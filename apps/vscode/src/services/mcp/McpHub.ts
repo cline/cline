@@ -1,0 +1,2196 @@
+import { setTimeout as setTimeoutPromise } from "node:timers/promises"
+import { sendMcpServersUpdate } from "@core/controller/mcp/subscribeToMcpServers"
+import { getMcpSettingsFilePath as getMcpSettingsFilePathHelper } from "@core/storage/disk"
+import { StateManager } from "@core/storage/StateManager"
+import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js"
+import { Client } from "@modelcontextprotocol/sdk/client/index.js"
+import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js"
+import { getDefaultEnvironment, StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js"
+import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js"
+import {
+	CallToolResultSchema,
+	ErrorCode,
+	ListPromptsResultSchema,
+	ListResourcesResultSchema,
+	ListResourceTemplatesResultSchema,
+	ListToolsResultSchema,
+	McpError,
+	PromptListChangedNotificationSchema,
+	ResourceListChangedNotificationSchema,
+	ToolListChangedNotificationSchema,
+} from "@modelcontextprotocol/sdk/types.js"
+import {
+	MAX_MCP_TIMEOUT_SECONDS,
+	type McpPrompt,
+	type McpResource,
+	type McpResourceTemplate,
+	type McpServer,
+	type McpTool,
+	type McpToolCallResponse,
+	MIN_MCP_TIMEOUT_SECONDS,
+} from "@shared/mcp"
+import { convertMcpServersToProtoMcpServers } from "@shared/proto-conversions/mcp/mcp-server-conversion"
+import chokidar, { type FSWatcher } from "chokidar"
+import deepEqual from "fast-deep-equal"
+import * as fs from "fs/promises"
+import ReconnectingEventSource from "reconnecting-eventsource"
+import { z } from "zod"
+import { HostProvider } from "@/hosts/host-provider"
+import { fetch } from "@/shared/net"
+import { ShowMessageType } from "@/shared/proto/host/window"
+import { Logger } from "@/shared/services/Logger"
+import { expandEnvironmentVariables } from "@/utils/envExpansion"
+import type { TelemetryService } from "../telemetry/TelemetryService"
+import { McpOAuthManager } from "./McpOAuthManager"
+import { StreamableHttpReconnectHandler } from "./StreamableHttpReconnectHandler"
+import { McpSettingsSchema, McpTimeoutSecondsSchema, ServerConfigSchema } from "./schemas"
+import { updateMcpSettingsFile } from "./settingsLock"
+import { augmentMcpTimeoutError, resolveMcpServerTimeoutMs } from "./timeout"
+import type { McpConnection, McpServerConfig, Transport } from "./types"
+
+function stableJsonStringify(value: unknown): string {
+	if (value === undefined) {
+		return "null"
+	}
+	if (value === null || typeof value !== "object") {
+		return JSON.stringify(value)
+	}
+	if (Array.isArray(value)) {
+		return `[${value.map(stableJsonStringify).join(",")}]`
+	}
+	return `{${Object.entries(value as Record<string, unknown>)
+		.sort(([left], [right]) => left.localeCompare(right))
+		.map(([key, entryValue]) => `${JSON.stringify(key)}:${stableJsonStringify(entryValue)}`)
+		.join(",")}}`
+}
+
+// Debounce window that coalesces a burst of list_changed notifications into
+// one refresh, the cap on how long a sustained stream of notifications can
+// keep deferring that refresh, and the bounded backoff used when the
+// refresh's fetch fails.
+const LIST_CHANGED_DEBOUNCE_MS = 300
+const LIST_CHANGED_MAX_WAIT_MS = 2000
+const LIST_CHANGED_MAX_RETRIES = 3
+const LIST_CHANGED_RETRY_BASE_DELAY_MS = 1000
+
+export class McpHub {
+	getMcpServersPath: () => Promise<string>
+	private getSettingsDirectoryPath: () => Promise<string>
+	private clientVersion: string
+	private telemetryService: TelemetryService
+	private mcpOAuthManager: McpOAuthManager
+
+	private settingsWatcher?: FSWatcher
+	private fileWatchers: Map<string, FSWatcher> = new Map()
+	connections: McpConnection[] = []
+	isConnecting = false
+	/**
+	 * Fingerprint of the connection-relevant view of the settings file as of the
+	 * watcher's last reconciliation.
+	 *
+	 * The settings-file watcher uses this single, process-agnostic check to
+	 * decide whether a file change needs action: it recomputes the fingerprint
+	 * and skips when it's unchanged. Because the fingerprint is keyed on file
+	 * CONTENT rather than on who wrote it:
+	 *   - writes that change nothing connection-relevant (e.g. OAuth
+	 *     codeVerifier/clientInformation churn during a handshake) are no-ops,
+	 *     which prevents a self-perpetuating watcher → reconnect → write loop;
+	 *   - a write from any other process (CLI, another window) that does change
+	 *     something is processed normally;
+	 *   - whether an access token is present is part of the fingerprint, so an
+	 *     authorization completed elsewhere still triggers a reconnect via
+	 *     serverGainedOAuthTokens.
+	 *
+	 * Combined with atomic writes, a reader can never
+	 * observe a torn/empty file mid-write, so the worst case is a redundant
+	 * reconciliation rather than dropping the server list.
+	 */
+	private lastConnectionFingerprint?: string
+
+	// Store notifications for display in chat
+	private pendingNotifications: Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> = []
+
+	// Callback for sending notifications to active task
+	private notificationCallback?: (serverName: string, level: string, message: string) => void
+
+	// Callback for notifying when the MCP tool list changes (servers added/removed/reconnected).
+	// Used by SdkController to restart the SDK session with updated tools.
+	private toolListChangeCallback?: () => void
+	// Fingerprint of the last tool list snapshot, used to detect actual tool list changes
+	// vs. mere status updates (e.g., error messages appended).
+	private lastToolFingerprint = ""
+	// Debounce timer for tool list change checks. When a server connects,
+	// notifyWebviewOfServerChanges() fires multiple times in quick succession
+	// (status change, tools discovered, etc.). Without debouncing, the callback
+	// fires multiple times causing duplicate messages (S6-28).
+	private toolListChangeDebounceTimer?: ReturnType<typeof setTimeout>
+	// Debounce timers for list_changed notification refreshes, keyed by
+	// "<serverName>:<kind>". Servers emit these notifications in bursts
+	// (e.g. a toolset change or shutdown can produce a dozen
+	// notifications/tools/list_changed at once), so refreshes are coalesced
+	// per server and list kind.
+	private listChangedRefreshTimers: Map<string, ReturnType<typeof setTimeout>> = new Map()
+	// In-flight list_changed refreshes, keyed like listChangedRefreshTimers.
+	// A new refresh for the same key chains onto the in-flight one so
+	// overlapping fetches can't complete out of order and publish stale lists.
+	private listChangedRefreshInFlight: Map<string, Promise<void>> = new Map()
+	// Generation counter per key: every (re)schedule starts a new generation,
+	// and a refresh whose generation is no longer current when it would
+	// publish has been superseded by a newer notification — it drops its
+	// result instead of briefly publishing an obsolete list.
+	private listChangedRefreshGeneration: Map<string, number> = new Map()
+	// Deadline per key that caps how long re-debouncing can defer a refresh:
+	// without it, a sustained stream of notifications arriving faster than
+	// the debounce window would starve the refresh indefinitely.
+	private listChangedRefreshDeadlines: Map<string, number> = new Map()
+
+	constructor(
+		getMcpServersPath: () => Promise<string>,
+		getSettingsDirectoryPath: () => Promise<string>,
+		clientVersion: string,
+		telemetryService: TelemetryService,
+	) {
+		this.getMcpServersPath = getMcpServersPath
+		this.getSettingsDirectoryPath = getSettingsDirectoryPath
+		this.clientVersion = clientVersion
+		this.telemetryService = telemetryService
+		this.mcpOAuthManager = new McpOAuthManager(() => this.getMcpSettingsFilePath())
+		this.watchMcpSettingsFile()
+		this.initializeMcpServers()
+	}
+
+	getServers(): McpServer[] {
+		// Only return enabled servers
+
+		return this.connections.filter((conn) => !conn.server.disabled).map((conn) => conn.server)
+	}
+
+	/**
+	 * Gets the path to the MCP settings file
+	 * @returns Path to the MCP settings file
+	 */
+	async getMcpSettingsFilePath(): Promise<string> {
+		return getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+	}
+
+	/**
+	 * Record the post-write connection fingerprint so this window's watcher treats
+	 * its own write as a no-op. This does not write the settings file.
+	 */
+	recordSettingsFingerprint(servers: Record<string, McpServerConfig>): void {
+		this.lastConnectionFingerprint = this.computeConnectionFingerprint(servers)
+	}
+
+	private async readPostWriteMcpSettings(): Promise<z.infer<typeof McpSettingsSchema>> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			throw new Error("Failed to read or validate MCP settings after write")
+		}
+		this.recordSettingsFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
+		return settings
+	}
+
+	private async readAndValidateMcpSettingsFile(): Promise<z.infer<typeof McpSettingsSchema> | undefined> {
+		try {
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			const content = await fs.readFile(settingsPath, "utf-8")
+
+			let config: any
+
+			// Handle empty or minimal files silently - this is a valid state meaning "no MCP servers"
+			const trimmedContent = content.trim()
+			if (!trimmedContent || trimmedContent === "{}" || trimmedContent === '{"mcpServers":{}}') {
+				return { mcpServers: {} }
+			}
+
+			// Parse JSON file content
+			try {
+				config = JSON.parse(content)
+			} catch (_error) {
+				HostProvider.window
+					.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `Invalid JSON in MCP settings file. Please check the syntax.`,
+						options: {
+							detail: settingsPath,
+							items: ["Open Settings File"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings File") {
+							HostProvider.window.showTextDocument({
+								path: settingsPath,
+								options: {},
+							})
+						}
+					})
+				return undefined
+			}
+
+			// Expand environment variables before validation
+			// This allows ${env:VAR_NAME} syntax in URLs, headers, env vars, etc.
+			config = expandEnvironmentVariables(config)
+
+			// Validate against schema
+			const result = McpSettingsSchema.safeParse(config)
+			if (!result.success) {
+				// Build a human-readable summary of what failed.
+				// Zod paths look like ["mcpServers", "linear", "transport", "url"] — we want to surface
+				// the server name (index 1) and the field path so users know exactly what to fix.
+				const issuesByServer = new Map<string, string[]>()
+				for (const issue of result.error.issues) {
+					// path[0] === "mcpServers", path[1] === serverName
+					const serverName = issue.path.length >= 2 ? String(issue.path[1]) : "(unknown server)"
+					const fieldPath = issue.path.slice(2).join(".") // e.g. "transport.url" or "command"
+					const detail = fieldPath ? `${fieldPath}: ${issue.message}` : issue.message
+					if (!issuesByServer.has(serverName)) {
+						issuesByServer.set(serverName, [])
+					}
+					issuesByServer.get(serverName)!.push(detail)
+				}
+
+				const serverSummaries = Array.from(issuesByServer.entries())
+					.map(([server, details]) => `  • ${server}: ${details.join(", ")}`)
+					.join("\n")
+
+				HostProvider.window
+					.showMessage({
+						type: ShowMessageType.ERROR,
+						message: `MCP settings schema error — no servers were loaded.`,
+						options: {
+							detail: `${settingsPath}\n\n${serverSummaries}`,
+							modal: false,
+							items: ["Open Settings File"],
+						},
+					})
+					.then((response) => {
+						if (response.selectedOption === "Open Settings File") {
+							HostProvider.window.showTextDocument({
+								path: settingsPath,
+								options: {},
+							})
+						}
+					})
+				return undefined
+			}
+
+			return result.data
+		} catch (error) {
+			Logger.error("Failed to read MCP settings:", error)
+			return undefined
+		}
+	}
+
+	private async watchMcpSettingsFile(): Promise<void> {
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+
+		this.settingsWatcher = chokidar.watch(settingsPath, {
+			persistent: true, // Keep the process running as long as files are being watched
+			ignoreInitial: true, // Don't fire 'add' events when discovering the file initially
+			awaitWriteFinish: {
+				// Wait for writes to finish before emitting events (handles chunked writes)
+				stabilityThreshold: 100, // Wait 100ms for file size to remain constant
+				pollInterval: 100, // Check file size every 100ms while waiting for stability
+			},
+			atomic: true, // Handle atomic writes where editors write to a temp file then rename (prevents duplicate events)
+		})
+
+		this.settingsWatcher.on("change", async () => {
+			const settings = await this.readAndValidateMcpSettingsFile()
+			if (settings) {
+				// Skip when nothing connection-relevant changed. This covers our own
+				// writes (callers pre-seed the fingerprint) as well as
+				// OAuth-handshake churn from the SDK (codeVerifier/clientInformation
+				// rewrites on every connect attempt for unauthenticated servers). A
+				// write from the CLI or another window that genuinely changes a
+				// server, or a token appearing/disappearing, produces a different
+				// fingerprint and is processed normally.
+				const fingerprint = this.computeConnectionFingerprint(settings.mcpServers as Record<string, McpServerConfig>)
+				if (fingerprint === this.lastConnectionFingerprint) {
+					return
+				}
+				this.lastConnectionFingerprint = fingerprint
+
+				try {
+					// Re-add any remotely configured servers that were manually removed from the file
+					const remoteServers = StateManager.get().getRemoteConfigSettings().remoteMCPServers
+					if (remoteServers?.length) {
+						let fileNeedsUpdate = false
+						for (const rs of remoteServers) {
+							if (!settings.mcpServers[rs.name]) {
+								;(settings.mcpServers as Record<string, any>)[rs.name] = {
+									url: rs.url,
+									type: "streamableHttp",
+									disabled: false,
+									autoApprove: [],
+									remoteConfigured: true,
+								}
+								fileNeedsUpdate = true
+							}
+						}
+						if (fileNeedsUpdate) {
+							const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+							const fresh = await updateMcpSettingsFile(settingsPath, (current) => {
+								const servers = current.mcpServers as Record<string, any>
+								for (const rs of remoteServers) {
+									if (!servers[rs.name]) {
+										servers[rs.name] = {
+											url: rs.url,
+											type: "streamableHttp",
+											disabled: false,
+											autoApprove: [],
+											remoteConfigured: true,
+										}
+									}
+								}
+								current.mcpServers = servers
+								return current
+							})
+							this.recordSettingsFingerprint(fresh.mcpServers as Record<string, McpServerConfig>)
+							settings.mcpServers = fresh.mcpServers as any
+						}
+					}
+					await this.updateServerConnections(settings.mcpServers)
+				} catch (error) {
+					Logger.error("Failed to process MCP settings change:", error)
+				}
+			}
+		})
+
+		this.settingsWatcher.on("error", (error) => {
+			Logger.error("Error watching MCP settings file:", error)
+		})
+	}
+
+	private async initializeMcpServers(): Promise<void> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (settings) {
+			// Seed the watcher's baseline so the first post-startup write is
+			// compared against the current connection-relevant state, not undefined.
+			this.lastConnectionFingerprint = this.computeConnectionFingerprint(
+				settings.mcpServers as Record<string, McpServerConfig>,
+			)
+			await this.updateServerConnections(settings.mcpServers)
+		}
+	}
+
+	private findConnection(name: string, _source: "rpc" | "internal"): McpConnection | undefined {
+		return this.connections.find((conn) => conn.server.name === name)
+	}
+
+	private async connectToServer(
+		name: string,
+		config: z.infer<typeof ServerConfigSchema>,
+		source: "rpc" | "internal",
+	): Promise<void> {
+		// Remove existing connection if it exists (should never happen, the connection should be deleted beforehand)
+		this.connections = this.connections.filter((conn) => conn.server.name !== name)
+
+		// Validate remote MCP server URL against remote config if blockPersonalRemoteMCPServers is enabled
+		if (config.type !== "stdio" && "url" in config && config.url) {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			if (remoteConfig.blockPersonalRemoteMCPServers === true) {
+				const remoteMCPServers = remoteConfig.remoteMCPServers || []
+				const allowedUrls = remoteMCPServers.map((server) => server.url)
+
+				if (!allowedUrls.includes(config.url)) {
+					return
+				}
+			}
+		}
+
+		// Validate local MCP servers based on remote config (enterprise feature)
+		if (config.type === "stdio") {
+			const stateManager = StateManager.get()
+			const remoteConfig = stateManager.getRemoteConfigSettings()
+
+			// Early exit for non-enterprise users: if no remote config is set, allow all local servers
+			if (Object.keys(remoteConfig).length === 0) {
+				// No remote config restrictions - proceed with connection (default behavior for non-enterprise users)
+				// This ensures backwards compatibility and that regular users are not affected
+			} else {
+				// Enterprise restrictions apply
+
+				// If the legacy marketplace policy is explicitly disabled by enterprise config, block all local servers
+				if (remoteConfig.mcpMarketplaceEnabled === false) {
+					return
+				}
+
+				// If allowlist exists, only servers on the allowlist are allowed
+				const hasAllowlist = remoteConfig.allowedMCPServers && remoteConfig.allowedMCPServers.length > 0
+				if (hasAllowlist) {
+					const allowedIds = remoteConfig.allowedMCPServers!.map((server: { id: string }) => server.id)
+					if (!allowedIds.includes(name)) {
+						return
+					}
+				}
+
+				// If local MCP servers are enabled with no allowlist, all local servers are allowed
+			}
+		}
+
+		if (config.disabled) {
+			//Logger.log(`[MCP Debug] Creating disabled connection object for server "${name}"`)
+			// Create a connection object for disabled server so it appears in UI
+			const disabledConnection: McpConnection = {
+				server: {
+					name,
+					config: JSON.stringify(config),
+					status: "disconnected",
+					disabled: true,
+				},
+				client: null as unknown as Client,
+				transport: null as unknown as Transport,
+			}
+			this.connections.push(disabledConnection)
+			return
+		}
+
+		try {
+			// Store unexpanded config for display/comparison (keeps credentials out of stored config)
+			const configForStorage = JSON.stringify(config)
+
+			// Expand environment variables in config before using it
+			const expandedConfig = expandEnvironmentVariables(config)
+
+			// Each MCP server requires its own transport connection and has unique capabilities, configurations, and error handling. Having separate clients also allows proper scoping of resources/tools and independent server management like reconnection.
+			const client = new Client(
+				{
+					name: "Cline",
+					version: this.clientVersion,
+				},
+				{
+					capabilities: {},
+				},
+			)
+
+			let transport: StdioClientTransport | SSEClientTransport | StreamableHTTPClientTransport
+
+			// Create OAuth provider for remote transports (SSE and HTTP)
+			const authProvider =
+				expandedConfig.type === "sse" || expandedConfig.type === "streamableHttp"
+					? await this.mcpOAuthManager.getOrCreateProvider(name, expandedConfig.url)
+					: undefined
+
+			switch (expandedConfig.type) {
+				case "stdio": {
+					transport = new StdioClientTransport({
+						command: expandedConfig.command,
+						args: expandedConfig.args,
+						cwd: expandedConfig.cwd,
+						env: {
+							...getDefaultEnvironment(),
+							...(expandedConfig.env || {}), // Now has expanded environment variables
+						},
+						stderr: "pipe",
+					})
+
+					transport.onerror = async (error) => {
+						Logger.error(`Transport error for "${name}":`, error)
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+						}
+						// onerror's promise is discarded, so a rejection here
+						// would surface as an unhandled rejection
+						await this.notifyWebviewOfServerChanges().catch((notifyError) => {
+							Logger.error(`Failed to publish server state for "${name}":`, notifyError)
+						})
+					}
+
+					transport.onclose = async () => {
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+						}
+						await this.notifyWebviewOfServerChanges()
+					}
+
+					await transport.start()
+					const stderrStream = transport.stderr
+					if (stderrStream) {
+						stderrStream.on("data", async (data: Buffer) => {
+							const output = data.toString()
+							const isInfoLog = !/\berror\b/i.test(output)
+
+							if (isInfoLog) {
+								Logger.log(`Server "${name}" info:`, output)
+							} else {
+								Logger.error(`Server "${name}" stderr:`, output)
+								const connection = this.findConnection(name, source)
+								if (connection) {
+									this.appendErrorMessage(connection, output)
+									if (connection.server.status === "disconnected") {
+										await this.notifyWebviewOfServerChanges()
+									}
+								}
+							}
+						})
+					} else {
+						Logger.error(`No stderr stream for ${name}`)
+					}
+					transport.start = async () => {}
+					break
+				}
+				case "sse": {
+					const sseOptions = {
+						authProvider,
+						requestInit: {
+							headers: expandedConfig.headers,
+						},
+					}
+					const reconnectingEventSourceOptions = {
+						max_retry_time: 5000,
+						withCredentials: !!expandedConfig.headers?.["Authorization"],
+						// IMPORTANT: Custom fetch function is required for SSE with OAuth
+						// When we provide eventSourceInit, we override the SDK's default fetch
+						// The SDK's default would call _commonHeaders() for auth, but since we're
+						// overriding it, we must provide our own fetch that:
+						// 1. Calls authProvider.tokens() dynamically (not captured once)
+						// 2. Gets fresh tokens for each connection/reconnection
+						// 3. Allows the SDK to auto-refresh expired tokens
+						// Without this, tokens would be stale and fail after expiry
+						fetch: authProvider
+							? async (url: string | URL, init?: RequestInit) => {
+									const tokens = await authProvider.tokens() // Dynamic - gets fresh tokens
+									const headers = new Headers(init?.headers)
+									if (tokens?.access_token) {
+										headers.set("Authorization", `Bearer ${tokens.access_token}`)
+									}
+									return fetch(url.toString(), { ...init, headers })
+								}
+							: undefined,
+					}
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
+					global.EventSource = ReconnectingEventSource
+					transport = new SSEClientTransport(new URL(expandedConfig.url), {
+						...sseOptions,
+						eventSourceInit: reconnectingEventSourceOptions,
+					})
+
+					transport.onerror = async (error) => {
+						Logger.error(`Transport error for "${name}":`, error)
+						const connection = this.findConnection(name, source)
+						if (connection) {
+							connection.server.status = "disconnected"
+							this.appendErrorMessage(connection, error instanceof Error ? error.message : `${error}`)
+						}
+						// onerror's promise is discarded, so a rejection here
+						// would surface as an unhandled rejection
+						await this.notifyWebviewOfServerChanges().catch((notifyError) => {
+							Logger.error(`Failed to publish server state for "${name}":`, notifyError)
+						})
+					}
+					break
+				}
+				case "streamableHttp": {
+					// Use ReconnectingEventSource for auto-reconnection on connection drops
+					global.EventSource = ReconnectingEventSource
+
+					// Custom fetch wrapper that treats 404 as 405 for GET requests.
+					// The MCP SDK sends a GET request to check for SSE stream support.
+					// Per MCP spec, servers should return 405 if they don't support SSE,
+					// but many servers (incorrectly) return 404. The SDK only handles 405
+					// gracefully, so we normalize 404 -> 405 to fix compatibility.
+					// See: https://github.com/modelcontextprotocol/typescript-sdk/issues/1150
+					const streamableHttpFetch = (async (url, init) => {
+						const response = await fetch(url, init)
+						if (init?.method === "GET" && response.status === 404) {
+							return new Response(response.body, {
+								status: 405,
+								statusText: "Method Not Allowed",
+								headers: response.headers,
+							})
+						}
+						return response
+					}) as typeof fetch
+
+					transport = new StreamableHTTPClientTransport(new URL(expandedConfig.url), {
+						authProvider,
+						requestInit: {
+							headers: expandedConfig.headers ?? undefined,
+						},
+						fetch: streamableHttpFetch,
+					})
+
+					const reconnectHandler = new StreamableHttpReconnectHandler(name, {
+						findConnection: () => this.findConnection(name, source),
+						deleteConnection: () => this.deleteConnection(name),
+						connectToServer: () => this.connectToServer(name, config, source),
+						notifyWebviewOfServerChanges: () => this.notifyWebviewOfServerChanges(),
+						appendErrorMessage: (conn, msg) => this.appendErrorMessage(conn as McpConnection, msg),
+						delay: (ms) => setTimeoutPromise(ms),
+						isStillWanted: async () => {
+							const settings = await this.readAndValidateMcpSettingsFile()
+							if (!settings) {
+								// Can't read settings — don't kill the reconnect
+								// chain over a transient read failure
+								return true
+							}
+							const serverConfig = (settings.mcpServers as Record<string, McpServerConfig> | undefined)?.[name]
+							if (!serverConfig || serverConfig.disabled) {
+								return false
+							}
+							// A retry reconnects with the config captured when this
+							// connection was created. If settings now define a
+							// different connection-relevant config, the settings
+							// watcher owns reconnection — retrying here would
+							// resurrect the obsolete config (and displace the
+							// watcher's failed attempt at the new one).
+							return !this.configsRequireRestart(config, serverConfig)
+						},
+					})
+
+					transport.onerror = (error) => reconnectHandler.handleError(error)
+					break
+				}
+				default:
+					throw new Error(`Unknown transport type: ${(config as any).type}`)
+			}
+
+			const connection: McpConnection = {
+				server: {
+					name,
+					config: configForStorage,
+					status: "connecting",
+					disabled: config.disabled,
+					oauthRequired: false,
+					oauthAuthStatus: "authenticated",
+				},
+				client,
+				transport,
+				authProvider,
+			}
+			this.connections.push(connection)
+
+			// Connect - wrap in try-catch to detect OAuth requirement
+			try {
+				const timeout = resolveMcpServerTimeoutMs(connection.server.config)
+				await client.connect(transport, { timeout })
+			} catch (error) {
+				if (error instanceof UnauthorizedError) {
+					// Server requires OAuth authentication
+					Logger.log(`Server "${name}" requires OAuth authentication`)
+					const unauthConnection: McpConnection = {
+						server: {
+							name,
+							config: JSON.stringify(config),
+							status: "disconnected",
+							disabled: false,
+							oauthRequired: true,
+							oauthAuthStatus: "unauthenticated",
+							error: "This MCP server requires authentication to get started.",
+						},
+						client,
+						transport,
+						authProvider, // CRITICAL: Keep authProvider so it's available when user authenticates!
+					}
+					// Replace the connection with unauthenticated version
+					this.connections = this.connections.filter((conn) => conn.server.name !== name)
+					this.connections.push(unauthConnection)
+					await this.notifyWebviewOfServerChanges()
+					return // Don't throw, just mark as needs auth
+				}
+				await client.close().catch(() => {})
+				// Re-throw other errors with the same actionable timeout detail as
+				// post-initialize requests.
+				throw augmentMcpTimeoutError(error, name, resolveMcpServerTimeoutMs(connection.server.config))
+			}
+
+			connection.server.status = "connected"
+			connection.server.error = ""
+
+			// Register notification handler for real-time messages
+			//Logger.log(`[MCP Debug] Setting up notification handlers for server: ${name}`)
+			//Logger.log(`[MCP Debug] Client instance:`, connection.client)
+			//Logger.log(`[MCP Debug] Transport type:`, config.type)
+
+			// Try to set notification handler using the client's method
+			try {
+				// Import the notification schema from MCP SDK
+				const { z } = await import("zod")
+
+				// Define the notification schema for notifications/message
+				const NotificationMessageSchema = z.object({
+					method: z.literal("notifications/message"),
+					params: z
+						.object({
+							level: z.enum(["debug", "info", "warning", "error"]).optional(),
+							logger: z.string().optional(),
+							data: z.string().optional(),
+							message: z.string().optional(),
+						})
+						.optional(),
+				})
+
+				// Set the notification handler
+				connection.client.setNotificationHandler(NotificationMessageSchema as any, async (notification: any) => {
+					//Logger.log(`[MCP Notification] ${name}:`, JSON.stringify(notification, null, 2))
+
+					const params = notification.params || {}
+					const level = params.level || "info"
+					const data = params.data || params.message || ""
+					const logger = params.logger || ""
+
+					//Logger.log(`[MCP Message Notification] ${name}: level=${level}, data=${data}, logger=${logger}`)
+
+					// Format the message
+					const message = logger ? `[${logger}] ${data}` : data
+
+					// Send notification directly to active task if callback is set
+					if (this.notificationCallback) {
+						//Logger.log(`[MCP Debug] Sending notification to active task: ${message}`)
+						this.notificationCallback(name, level, message)
+					} else {
+						// Fallback: store for later retrieval
+						//Logger.log(`[MCP Debug] No active task, storing notification: ${message}`)
+						this.pendingNotifications.push({
+							serverName: name,
+							level,
+							message,
+							timestamp: Date.now(),
+						})
+					}
+				})
+				//Logger.log(`[MCP Debug] Successfully set notifications/message handler for ${name}`)
+
+				// When the server reports that a list changed, refresh the cached
+				// list instead of surfacing the notification to the user.
+				connection.client.setNotificationHandler(ToolListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "tools")
+				})
+				connection.client.setNotificationHandler(ResourceListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "resources")
+				})
+				connection.client.setNotificationHandler(PromptListChangedNotificationSchema, async () => {
+					this.scheduleListChangedRefresh(name, "prompts")
+				})
+
+				// Log any other unhandled notification types instead of toasting
+				// them: servers can emit these at any time and a toast per
+				// notification quickly floods the user.
+				connection.client.fallbackNotificationHandler = async (notification: any) => {
+					Logger.log(
+						`[MCP] ${name}: unhandled notification ${notification.method || "unknown"} - ${JSON.stringify(notification.params || {})}`,
+					)
+				}
+			} catch (error) {
+				Logger.error(`[MCP Debug] Error setting notification handlers for ${name}:`, error)
+			}
+
+			// Initial fetch of tools, resources, and prompts
+			await this.fetchServerCapabilities(connection)
+		} catch (error) {
+			// Update status with error. A failure before the connection was
+			// registered (e.g. the transport failed to start) must still leave
+			// an entry, so the server stays visible in the list with its error
+			// rather than silently disappearing.
+			let connection = this.findConnection(name, source)
+			if (!connection) {
+				connection = {
+					server: {
+						name,
+						config: JSON.stringify(config),
+						status: "disconnected",
+						disabled: config.disabled,
+					},
+					client: null as unknown as Client,
+					transport: null as unknown as Transport,
+				}
+				this.connections.push(connection)
+			}
+			connection.server.status = "disconnected"
+			this.appendErrorMessage(connection, error instanceof Error ? error.message : String(error))
+			throw error
+		}
+	}
+
+	private appendErrorMessage(connection: McpConnection, error: string) {
+		const newError = connection.server.error ? `${connection.server.error}\n${error}` : error
+		connection.server.error = newError //.slice(0, 800)
+	}
+
+	/**
+	 * Fetches the server's tools, resources, resource templates, and prompts
+	 * onto the connection. The four list requests run in parallel so a server
+	 * that hangs after initialize costs one timeout bound rather than four;
+	 * the MCP client correlates concurrent requests by JSON-RPC id. Each
+	 * fetch helper swallows its own errors and resolves (undefined on
+	 * failure, mapped to an empty list here), so a failure in one capability
+	 * cannot reject the others.
+	 */
+	private async fetchServerCapabilities(connection: McpConnection): Promise<void> {
+		const name = connection.server.name
+		const [tools, resources, resourceTemplates, prompts] = await Promise.all([
+			this.fetchToolsList(name),
+			this.fetchResourcesList(name),
+			this.fetchResourceTemplatesList(name),
+			this.fetchPromptsList(name),
+		])
+		connection.server.tools = tools ?? []
+		connection.server.resources = resources ?? []
+		connection.server.resourceTemplates = resourceTemplates ?? []
+		connection.server.prompts = prompts ?? []
+	}
+
+	/**
+	 * A server that never declared a capability has an authoritatively empty
+	 * list for it — not a transient failure worth retrying. Undefined
+	 * capabilities (not yet negotiated) are treated as supported.
+	 */
+	private static serverSupports(connection: McpConnection, capability: "tools" | "resources" | "prompts"): boolean {
+		const capabilities = connection.client?.getServerCapabilities?.()
+		return capabilities === undefined || capabilities[capability] !== undefined
+	}
+
+	/**
+	 * Like serverSupports, for servers that declare a capability but answer a
+	 * specific list request with "method not found" (common for
+	 * resources/templates/list): also an authoritatively empty list.
+	 */
+	private static isMethodNotFound(error: unknown): boolean {
+		return error instanceof McpError && error.code === ErrorCode.MethodNotFound
+	}
+
+	/**
+	 * Fetches the server's tool list. Returns undefined when the fetch fails,
+	 * so callers can distinguish an error from a genuinely empty list.
+	 */
+	private async fetchToolsList(serverName: string): Promise<McpTool[] | undefined> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			if (!connection) {
+				throw new Error(`No connection found for server: ${serverName}`)
+			}
+
+			// Disabled servers don't have clients, so return empty tools list
+			if (connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			if (!McpHub.serverSupports(connection, "tools")) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "tools/list" }, ListToolsResultSchema, {
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			})
+
+			// Get autoApprove settings
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			const content = await fs.readFile(settingsPath, "utf-8")
+			const config = JSON.parse(content)
+			const autoApproveConfig = config.mcpServers[serverName]?.autoApprove || []
+
+			// Mark tools as always allowed based on settings
+			const tools = (response?.tools || []).map((tool) => ({
+				...tool,
+				autoApprove: autoApproveConfig.includes(tool.name),
+			}))
+
+			return tools
+		} catch (error) {
+			if (McpHub.isMethodNotFound(error)) {
+				return []
+			}
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			const effectiveError = connection
+				? augmentMcpTimeoutError(error, serverName, resolveMcpServerTimeoutMs(connection.server.config))
+				: error
+			Logger.error(`Failed to fetch tools for ${serverName}:`, effectiveError)
+			return undefined
+		}
+	}
+
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchResourcesList(serverName: string): Promise<McpResource[] | undefined> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty resources list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			if (!McpHub.serverSupports(connection, "resources")) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "resources/list" }, ListResourcesResultSchema, {
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			})
+			return response?.resources || []
+		} catch (error) {
+			if (McpHub.isMethodNotFound(error)) {
+				return []
+			}
+			// Logger.error(`Failed to fetch resources for ${serverName}:`, error)
+			return undefined
+		}
+	}
+
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchResourceTemplatesList(serverName: string): Promise<McpResourceTemplate[] | undefined> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty resource templates list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			if (!McpHub.serverSupports(connection, "resources")) {
+				return []
+			}
+
+			const response = await connection.client.request(
+				{ method: "resources/templates/list" },
+				ListResourceTemplatesResultSchema,
+				{
+					timeout: resolveMcpServerTimeoutMs(connection.server.config),
+				},
+			)
+
+			return response?.resourceTemplates || []
+		} catch (error) {
+			if (McpHub.isMethodNotFound(error)) {
+				return []
+			}
+			// Logger.error(`Failed to fetch resource templates for ${serverName}:`, error)
+			return undefined
+		}
+	}
+
+	/** Returns undefined when the fetch fails (vs. a genuinely empty list). */
+	private async fetchPromptsList(serverName: string): Promise<McpPrompt[] | undefined> {
+		try {
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+
+			// Disabled servers don't have clients, so return empty prompts list
+			if (!connection || connection.server.disabled || !connection.client) {
+				return []
+			}
+
+			if (!McpHub.serverSupports(connection, "prompts")) {
+				return []
+			}
+
+			const response = await connection.client.request({ method: "prompts/list" }, ListPromptsResultSchema, {
+				timeout: resolveMcpServerTimeoutMs(connection.server.config),
+			})
+
+			return (response?.prompts || []).map((prompt) => ({
+				name: prompt.name,
+				title: prompt.title,
+				description: prompt.description,
+				arguments: prompt.arguments?.map((arg) => ({
+					name: arg.name,
+					description: arg.description,
+					required: arg.required,
+				})),
+			}))
+		} catch (error) {
+			if (McpHub.isMethodNotFound(error)) {
+				return []
+			}
+			return undefined
+		}
+	}
+
+	/**
+	 * Debounced entry point for notifications/<kind>/list_changed. Servers
+	 * emit these in bursts (a toolset change or shutdown can produce a dozen
+	 * notifications/tools/list_changed at once), so refreshes are coalesced
+	 * per server and list kind.
+	 *
+	 * A refresh whose fetch fails is retried with exponential backoff up to
+	 * LIST_CHANGED_MAX_RETRIES times: the notification already consumed the
+	 * server's change signal, so giving up immediately would leave the cached
+	 * list stale until the next notification or reconnect. A fresh
+	 * notification (retryAttempt 0) supersedes any pending retry and resets
+	 * the backoff.
+	 */
+	private scheduleListChangedRefresh(serverName: string, kind: "tools" | "resources" | "prompts", retryAttempt = 0): void {
+		const key = `${serverName}:${kind}`
+		const existingTimer = this.listChangedRefreshTimers.get(key)
+		if (existingTimer) {
+			clearTimeout(existingTimer)
+		}
+		// Supersede any refresh already in flight for this key: its result is
+		// older than the change signal that got us here, so publishing it
+		// would briefly expose an obsolete list before this refresh corrects it.
+		const generation = (this.listChangedRefreshGeneration.get(key) ?? 0) + 1
+		this.listChangedRefreshGeneration.set(key, generation)
+		const superseded = () => this.listChangedRefreshGeneration.get(key) !== generation
+		let delayMs: number
+		if (retryAttempt === 0) {
+			// Debounce, but cap the total deferral: a sustained stream of
+			// notifications re-arming the timer would otherwise starve the
+			// refresh indefinitely.
+			const now = Date.now()
+			const deadline = this.listChangedRefreshDeadlines.get(key) ?? now + LIST_CHANGED_MAX_WAIT_MS
+			this.listChangedRefreshDeadlines.set(key, deadline)
+			delayMs = Math.max(0, Math.min(LIST_CHANGED_DEBOUNCE_MS, deadline - now))
+		} else {
+			delayMs = LIST_CHANGED_RETRY_BASE_DELAY_MS * 2 ** (retryAttempt - 1)
+		}
+		this.listChangedRefreshTimers.set(
+			key,
+			setTimeout(() => {
+				this.listChangedRefreshTimers.delete(key)
+				this.listChangedRefreshDeadlines.delete(key)
+				// Chain onto any refresh still in flight for this key: two
+				// concurrent refreshes could otherwise complete out of order
+				// and let a stale response overwrite a newer list.
+				const previous = this.listChangedRefreshInFlight.get(key) ?? Promise.resolve()
+				const run = previous
+					.then(() => this.refreshChangedList(serverName, kind, superseded))
+					.then((outcome) => {
+						if (outcome === "failed" && retryAttempt < LIST_CHANGED_MAX_RETRIES && !superseded()) {
+							this.scheduleListChangedRefresh(serverName, kind, retryAttempt + 1)
+						}
+					})
+					.catch((error) => {
+						Logger.error(`[MCP] Failed to refresh ${kind} for ${serverName} after list_changed notification:`, error)
+					})
+				this.listChangedRefreshInFlight.set(key, run)
+				run.finally(() => {
+					if (this.listChangedRefreshInFlight.get(key) === run) {
+						this.listChangedRefreshInFlight.delete(key)
+					}
+				})
+			}, delayMs),
+		)
+	}
+
+	/**
+	 * Refreshes the given cached list. Returns "failed" when a fetch failed
+	 * (the caller retries), "skipped" when the refresh was superseded or the
+	 * connection is gone or was replaced (no retry: a newer refresh or the
+	 * replacement connection's connect-time fetch covers it), and "refreshed"
+	 * on success.
+	 */
+	private async refreshChangedList(
+		serverName: string,
+		kind: "tools" | "resources" | "prompts",
+		superseded: () => boolean,
+	): Promise<"refreshed" | "failed" | "skipped"> {
+		// Look the connection up fresh: it may have been deleted (or replaced
+		// by a reconnect) while the debounce timer was pending. A superseded
+		// run (a newer notification re-scheduled this key) skips the fetch
+		// outright — the newer refresh will fetch fresher data.
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection || connection.server.disabled || !connection.client || superseded()) {
+			return "skipped"
+		}
+
+		// This run is stale once the connection was deleted/replaced (a
+		// replacement fetched fresh lists at connect time, after the change
+		// that produced this notification) or a newer notification superseded
+		// it (that refresh will fetch fresher data). A stale run must neither
+		// publish its (older) result nor retry — hence "skipped", including
+		// for fetch failures, which staleness explains (e.g. the transport
+		// was torn down mid-flight by a reconnect).
+		const stale = () => superseded() || this.connections.find((conn) => conn.server.name === serverName) !== connection
+
+		// A failed fetch returns undefined; keep the previous cached list in
+		// that case rather than publishing an empty one, and skip the webview
+		// notification entirely when nothing was refreshed.
+		let tools: McpTool[] | undefined
+		let resources: McpResource[] | undefined
+		let resourceTemplates: McpResourceTemplate[] | undefined
+		let prompts: McpPrompt[] | undefined
+		let fetchFailed = false
+		switch (kind) {
+			case "tools":
+				tools = await this.fetchToolsList(serverName)
+				if (tools === undefined) {
+					return stale() ? "skipped" : "failed"
+				}
+				break
+			case "resources":
+				resources = await this.fetchResourcesList(serverName)
+				resourceTemplates = await this.fetchResourceTemplatesList(serverName)
+				if (resources === undefined && resourceTemplates === undefined) {
+					return stale() ? "skipped" : "failed"
+				}
+				// Half of the pair failed: publish the successful half now and
+				// still retry so the other half doesn't stay stale.
+				fetchFailed = resources === undefined || resourceTemplates === undefined
+				break
+			case "prompts":
+				prompts = await this.fetchPromptsList(serverName)
+				if (prompts === undefined) {
+					return stale() ? "skipped" : "failed"
+				}
+				break
+		}
+
+		if (stale()) {
+			return "skipped"
+		}
+
+		if (tools !== undefined) {
+			connection.server.tools = tools
+		}
+		if (resources !== undefined) {
+			connection.server.resources = resources
+		}
+		if (resourceTemplates !== undefined) {
+			connection.server.resourceTemplates = resourceTemplates
+		}
+		if (prompts !== undefined) {
+			connection.server.prompts = prompts
+		}
+
+		// Push the refreshed lists to the webview; for tools this also runs
+		// the tool-list change check that notifies the SDK controller. A
+		// publish failure counts as "failed" so the caller retries: the cache
+		// is updated but consumers haven't seen it yet.
+		try {
+			await this.notifyWebviewOfServerChanges()
+		} catch (error) {
+			Logger.error(`[MCP] Failed to publish refreshed ${kind} for ${serverName}:`, error)
+			return "failed"
+		}
+		return fetchFailed ? "failed" : "refreshed"
+	}
+
+	async deleteConnection(name: string): Promise<void> {
+		// Cancel pending list_changed refresh timers for this server (either
+		// it's going away, or a replacement connection will fetch fresh lists
+		// itself) and bump the generation to supersede any refresh already in
+		// flight: the connection stays in this.connections while the close
+		// calls below are awaited, so without the bump a refresh completing in
+		// that window would pass its identity check and publish state for a
+		// connection that's being torn down. Bumping (never resetting) keeps
+		// generations monotonic, so an in-flight refresh from the old
+		// connection can't mistake a post-reconnect generation for its own.
+		for (const kind of ["tools", "resources", "prompts"]) {
+			const key = `${name}:${kind}`
+			const timer = this.listChangedRefreshTimers.get(key)
+			if (timer) {
+				clearTimeout(timer)
+				this.listChangedRefreshTimers.delete(key)
+			}
+			this.listChangedRefreshDeadlines.delete(key)
+			this.listChangedRefreshGeneration.set(key, (this.listChangedRefreshGeneration.get(key) ?? 0) + 1)
+		}
+		const connection = this.connections.find((conn) => conn.server.name === name)
+		if (connection) {
+			// Remove from published state BEFORE awaiting the close handshake:
+			// concurrent publishers (list refreshes finishing their fetch,
+			// notifyWebviewOfServerChanges callers) read this.connections after
+			// their own suspension points, and must not see — or re-publish —
+			// a connection that is being torn down.
+			this.connections = this.connections.filter((conn) => conn.server.name !== name)
+			try {
+				// Only close transport and client if they exist (disabled servers don't have them)
+				if (connection.transport) {
+					await connection.transport.close()
+				}
+				if (connection.client) {
+					await connection.client.close()
+				}
+			} catch (error) {
+				Logger.error(`Failed to close transport for ${name}:`, error)
+			}
+		}
+	}
+
+	async clearOAuthForConnection(name: string): Promise<void> {
+		const connection = this.connections.find((conn) => conn.server.name === name)
+		if (connection) {
+			try {
+				const config = JSON.parse(connection.server.config)
+				if (config.url) {
+					await this.mcpOAuthManager.clearServerAuth(name, config.url)
+				}
+			} catch (error) {
+				Logger.error(`Failed to clear OAuth data for ${name}:`, error)
+			}
+		}
+	}
+
+	async updateServerConnectionsRPC(newServers: Record<string, McpServerConfig>): Promise<void> {
+		this.isConnecting = true
+		this.removeAllFileWatchers()
+		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
+		const newNames = new Set(Object.keys(newServers))
+
+		// Delete removed servers
+		for (const name of currentNames) {
+			if (!newNames.has(name)) {
+				await this.deleteConnection(name)
+				Logger.log(`Deleted MCP server: ${name}`)
+			}
+		}
+
+		// Update or add servers
+		for (const [name, config] of Object.entries(newServers)) {
+			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+
+			if (!currentConnection) {
+				// New server
+				try {
+					if (config.type === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
+					await this.connectToServer(name, config, "rpc")
+				} catch (error) {
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
+				}
+			} else if (
+				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
+				this.serverGainedOAuthTokens(currentConnection, config)
+			) {
+				// Existing server with changed connection config,
+				// or an unauthenticated server whose OAuth tokens just appeared (e.g. CLI authorized it)
+				try {
+					if (config.type === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
+					await this.deleteConnection(name) // Don't clear OAuth - just reconnecting with new config
+					await this.connectToServer(name, config, "rpc")
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
+				} catch (error) {
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
+				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config.
+				// This handles the case where someone manually edits the MCP settings file -
+				// the file watcher triggers this code path, and we need to sync the in-memory
+				// config with the file without restarting the server.
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
+			}
+		}
+
+		// MCP agent tools snapshot server metadata and timeout when a session is
+		// built. Reconciliation must enroll that snapshot boundary even when the
+		// set of tool names is unchanged.
+		this.checkToolListChanged()
+		this.isConnecting = false
+	}
+
+	async updateServerConnections(newServers: Record<string, McpServerConfig>): Promise<void> {
+		this.isConnecting = true
+		this.removeAllFileWatchers()
+		const currentNames = new Set(this.connections.map((conn) => conn.server.name))
+		const newNames = new Set(Object.keys(newServers))
+
+		// Track if any connection-level changes occurred (excludes Cline-specific settings)
+		let connectionChangesOccurred = false
+
+		// Delete removed servers
+		for (const name of currentNames) {
+			if (!newNames.has(name)) {
+				await this.clearOAuthForConnection(name) // Clear OAuth data first
+				await this.deleteConnection(name) // Then delete connection
+				Logger.log(`Deleted MCP server: ${name}`)
+				connectionChangesOccurred = true
+			}
+		}
+
+		// Update or add servers
+		for (const [name, config] of Object.entries(newServers)) {
+			const currentConnection = this.connections.find((conn) => conn.server.name === name)
+
+			if (!currentConnection) {
+				// New server
+				try {
+					if (config.type === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
+					await this.connectToServer(name, config, "internal")
+					connectionChangesOccurred = true
+				} catch (error) {
+					Logger.error(`Failed to connect to new MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
+				}
+			} else if (
+				this.configsRequireRestart(JSON.parse(currentConnection.server.config), config) ||
+				this.serverGainedOAuthTokens(currentConnection, config)
+			) {
+				// Existing server with changed connection config,
+				// or an unauthenticated server whose OAuth tokens just appeared in the settings
+				// file (e.g. the CLI or another window completed authorization for it)
+				try {
+					// Set status to "connecting" and notify webview before restart (same pattern as restartConnection)
+					currentConnection.server.status = "connecting"
+					currentConnection.server.error = ""
+					await this.notifyWebviewOfServerChanges()
+
+					if (config.type === "stdio") {
+						this.setupFileWatcher(name, config)
+					}
+					await this.deleteConnection(name)
+					await this.connectToServer(name, config, "internal")
+					Logger.log(`Reconnected MCP server with updated config: ${name}`)
+					connectionChangesOccurred = true
+				} catch (error) {
+					Logger.error(`Failed to reconnect MCP server ${name}:`, error)
+					// connectToServer registered a disconnected entry carrying
+					// the error; the webview must be told about it.
+					connectionChangesOccurred = true
+				}
+			} else {
+				// Only Cline-specific settings changed - update in-memory state without restart
+				// Don't set connectionChangesOccurred since the RPC already returned the updated state
+				const autoApprove = config.autoApprove || []
+				if (currentConnection.server.tools) {
+					currentConnection.server.tools = currentConnection.server.tools.map((tool) => ({
+						...tool,
+						autoApprove: autoApprove.includes(tool.name),
+					}))
+				}
+				// Also update Cline-specific settings in the stored config
+				const currentConfig = JSON.parse(currentConnection.server.config)
+				currentConfig.autoApprove = config.autoApprove
+				currentConfig.timeout = config.timeout
+				currentConnection.server.config = JSON.stringify(currentConfig)
+			}
+		}
+
+		// Only notify webview if actual connection changes occurred.
+		// For Cline-specific settings changes, the RPC response already updated the webview,
+		// so we skip notification to avoid race conditions.
+		if (connectionChangesOccurred) {
+			await this.notifyWebviewOfServerChanges()
+		}
+		this.isConnecting = false
+	}
+
+	/**
+	 * Compares two MCP server configs to determine if a restart is required.
+	 * Excludes Cline-specific settings that don't affect the MCP client.
+	 *
+	 * ## Cline-specific settings (don't require restart):
+	 * - `autoApprove`: tool approval list (UI setting)
+	 *
+	 * ## MCP client settings (require restart):
+	 * - `type`, `command`, `args`, `cwd`, `env`, `url`, `headers`, `disabled`, `timeout`
+	 *
+	 * ## Adding new Cline-specific settings:
+	 * When adding a new setting that doesn't require server restart:
+	 * 1. Add it to the destructuring below to exclude from comparison
+	 * 2. Add it to computeConnectionFingerprint() if a change to it should (or
+	 *    should not) wake the settings watcher
+	 * 3. Update in-memory state (e.g., `connection.server.config`) in the update function
+	 * 4. Update the schema in `src/services/mcp/schemas.ts` if needed
+	 */
+	private configsRequireRestart(oldConfig: McpServerConfig, newConfig: McpServerConfig): boolean {
+		// Exclude Cline-specific settings from comparison (add new ones here).
+		// `oauth` and `metadata` are also excluded: the server's oauth block is
+		// rewritten on every token save/refresh (by this process, the CLI, or
+		// another window), and restarting on each refresh would churn the
+		// connection. Token changes are picked up separately, by
+		// serverGainedOAuthTokens in updateServerConnections.
+		const {
+			autoApprove: _oldAutoApprove,
+			remoteConfigured: _oldRemoteConfigured,
+			oauth: _oldOauth,
+			metadata: _oldMetadata,
+			...oldConnectionConfig
+		} = oldConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
+		const {
+			autoApprove: _newAutoApprove,
+			remoteConfigured: _newRemoteConfigured,
+			oauth: _newOauth,
+			metadata: _newMetadata,
+			...newConnectionConfig
+		} = newConfig as McpServerConfig & { oauth?: unknown; metadata?: unknown }
+		return !deepEqual(oldConnectionConfig, newConnectionConfig)
+	}
+
+	/**
+	 * True when an unauthenticated server's settings entry now carries an access
+	 * token — e.g. the CLI or another window completed OAuth for it. The settings
+	 * watcher uses this to reconnect the server so it picks up the credentials.
+	 */
+	private serverGainedOAuthTokens(connection: McpConnection, newConfig: McpServerConfig): boolean {
+		if (connection.server.oauthAuthStatus !== "unauthenticated") {
+			return false
+		}
+		const oauth = (newConfig as McpServerConfig & { oauth?: { tokens?: { access_token?: unknown } } }).oauth
+		return typeof oauth?.tokens?.access_token === "string" && oauth.tokens.access_token.length > 0
+	}
+
+	/**
+	 * Builds a fingerprint of only the parts of the settings file that affect
+	 * how connections are managed (see lastConnectionFingerprint). Per server it
+	 * captures the full config minus the `oauth` block, plus a single boolean for
+	 * whether a usable access token exists.
+	 *
+	 * Excluding the rest of the `oauth` block means OAuth-handshake churn
+	 * (codeVerifier, clientInformation, discoveryState, lastError), which the MCP
+	 * SDK rewrites on every connect attempt, does not change the fingerprint. The
+	 * access-token boolean is included so that an authorization completing
+	 * elsewhere (token appears or disappears) does change it.
+	 */
+	private computeConnectionFingerprint(mcpServers: Record<string, McpServerConfig>): string {
+		const normalized: Record<string, unknown> = {}
+		for (const name of Object.keys(mcpServers).sort()) {
+			const { oauth, ...connectionConfig } = mcpServers[name] as McpServerConfig & {
+				oauth?: { tokens?: { access_token?: unknown } }
+			}
+			const accessToken = oauth?.tokens?.access_token
+			normalized[name] = {
+				config: connectionConfig,
+				hasToken: typeof accessToken === "string" && accessToken.length > 0,
+			}
+		}
+		return JSON.stringify(normalized)
+	}
+
+	private setupFileWatcher(name: string, config: Extract<McpServerConfig, { type: "stdio" }>) {
+		const filePath = config.args?.find((arg: string) => arg.includes("build/index.js"))
+		if (filePath) {
+			// we use chokidar instead of onDidSaveTextDocument because it doesn't require the file to be open in the editor. The settings config is better suited for onDidSave since that will be manually updated by the user or Cline (and we want to detect save events, not every file change)
+			const watcher = chokidar.watch(filePath, {
+				// persistent: true,
+				// ignoreInitial: true,
+				// awaitWriteFinish: true, // This helps with atomic writes
+			})
+
+			watcher.on("change", () => {
+				Logger.log(`Detected change in ${filePath}. Restarting server ${name}...`)
+				this.restartConnection(name)
+			})
+
+			this.fileWatchers.set(name, watcher)
+		}
+	}
+
+	private removeAllFileWatchers() {
+		this.fileWatchers.forEach((watcher) => {
+			watcher.close()
+		})
+		this.fileWatchers.clear()
+	}
+
+	async restartConnectionRPC(serverName: string): Promise<McpServer[]> {
+		this.isConnecting = true
+
+		// Get existing connection and update its status
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		const inMemoryConfig = connection?.server.config
+		if (inMemoryConfig) {
+			connection.server.status = "connecting"
+			connection.server.error = ""
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
+			try {
+				await this.deleteConnection(serverName)
+				// Try to connect again using existing config
+				await this.connectToServer(serverName, JSON.parse(inMemoryConfig), "rpc")
+			} catch (error) {
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
+			}
+		}
+
+		this.isConnecting = false
+
+		const config = await this.readAndValidateMcpSettingsFile()
+		if (!config) {
+			throw new Error("Failed to read or validate MCP settings")
+		}
+
+		const serverOrder = Object.keys(config.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
+	}
+
+	async restartConnection(serverName: string): Promise<void> {
+		this.isConnecting = true
+
+		// Get existing connection and update its status
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		const config = connection?.server.config
+		if (config) {
+			HostProvider.window.showMessage({
+				type: ShowMessageType.INFORMATION,
+				message: `Restarting ${serverName} MCP server...`,
+			})
+			connection.server.status = "connecting"
+			connection.server.error = ""
+			await this.notifyWebviewOfServerChanges()
+			await setTimeoutPromise(500) // artificial delay to show user that server is restarting
+			try {
+				await this.deleteConnection(serverName)
+				// Try to connect again using existing config
+				await this.connectToServer(serverName, JSON.parse(config), "internal")
+				HostProvider.window.showMessage({
+					type: ShowMessageType.INFORMATION,
+					message: `${serverName} MCP server connected`,
+				})
+			} catch (error) {
+				Logger.error(`Failed to restart connection for ${serverName}:`, error)
+				HostProvider.window.showMessage({
+					type: ShowMessageType.ERROR,
+					message: `Failed to connect to ${serverName} MCP server`,
+				})
+			}
+		}
+
+		await this.notifyWebviewOfServerChanges()
+		this.isConnecting = false
+	}
+
+	/**
+	 * Gets sorted MCP servers based on the order defined in settings
+	 * @param serverOrder Array of server names in the order they appear in settings
+	 * @returns Array of McpServer objects sorted according to settings order
+	 */
+	private getSortedMcpServers(serverOrder: string[]): McpServer[] {
+		return [...this.connections]
+			.sort((a, b) => {
+				const indexA = serverOrder.indexOf(a.server.name)
+				const indexB = serverOrder.indexOf(b.server.name)
+				return indexA - indexB
+			})
+			.map((connection) => connection.server)
+	}
+
+	private async notifyWebviewOfServerChanges(): Promise<void> {
+		// servers should always be sorted in the order they are defined in the settings file
+		const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+		const content = await fs.readFile(settingsPath, "utf-8")
+		const config = JSON.parse(content)
+		const serverOrder = Object.keys(config.mcpServers || {})
+
+		// Get sorted servers
+		const sortedServers = this.getSortedMcpServers(serverOrder)
+
+		// Send update using gRPC stream
+		await sendMcpServersUpdate({
+			mcpServers: convertMcpServersToProtoMcpServers(sortedServers),
+		})
+
+		// Check if the tool list actually changed and notify SDK controller if so
+		this.checkToolListChanged()
+	}
+
+	async sendLatestMcpServers() {
+		await this.notifyWebviewOfServerChanges()
+	}
+
+	async reconcileMcpServersFromSettingsRPC(): Promise<McpServer[]> {
+		const settings = await this.readPostWriteMcpSettings()
+		await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
+		await this.notifyWebviewOfServerChanges()
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
+	}
+
+	async getLatestMcpServersRPC(): Promise<McpServer[]> {
+		const settings = await this.readAndValidateMcpSettingsFile()
+		if (!settings) {
+			// Return empty array if settings can't be read or validated
+			return []
+		}
+
+		const serverOrder = Object.keys(settings.mcpServers || {})
+		return this.getSortedMcpServers(serverOrder)
+	}
+
+	// Using server
+
+	// Public methods for server management
+
+	public async toggleServerDisabledRPC(serverName: string, disabled: boolean): Promise<McpServer[]> {
+		this.isConnecting = true
+		try {
+			// Hold the cross-process lock across read-modify-write so a concurrent
+			// writer (CLI, OAuth handshake, another window) cannot clobber this
+			// toggle. Connection rebuild stays OUTSIDE the lock: connectToServer can
+			// trigger SDK OAuth writes that take the same (non-reentrant) lock.
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await updateMcpSettingsFile(settingsPath, (validated) => {
+				const servers = validated.mcpServers as Record<string, any>
+
+				if (!servers[serverName]) {
+					throw new Error(`Server "${serverName}" not found in MCP configuration`)
+				}
+
+				servers[serverName].disabled = disabled
+				validated.mcpServers = servers
+				return validated
+			})
+			const config = await this.readPostWriteMcpSettings()
+
+			// Rebuild the connection so the toggle takes effect. A disabled
+			// server's connection is a stub with no live transport/client, so the
+			// toggle must route through connectToServer(), which opens a real
+			// transport when enabled or creates a disconnected stub when disabled.
+			// deleteConnection preserves OAuth state.
+			const mcpServers = config.mcpServers as Record<string, McpServerConfig>
+			const newConfig = mcpServers[serverName]
+			await this.deleteConnection(serverName)
+			await this.connectToServer(serverName, newConfig, "rpc")
+
+			// Refresh the SDK session's tool list to reflect the server
+			// appearing or disappearing.
+			await this.notifyWebviewOfServerChanges()
+
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			Logger.error("Failed to update server disabled state:", error)
+			if (error instanceof Error) {
+				Logger.error("Error details:", error.message, error.stack)
+			}
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to update server state: ${error instanceof Error ? error.message : String(error)}`,
+			})
+			throw error
+		} finally {
+			this.isConnecting = false
+		}
+	}
+
+	async callTool(
+		serverName: string,
+		toolName: string,
+		toolArguments: Record<string, unknown> | undefined,
+		ulid: string,
+		signal?: AbortSignal,
+	): Promise<McpToolCallResponse> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(
+				`No connection found for server: ${serverName}. Please make sure to use MCP servers available under 'Connected MCP Servers'.`,
+			)
+		}
+
+		if (connection.server.disabled) {
+			throw new Error(`Server "${serverName}" is disabled and cannot be used`)
+		}
+
+		// A failed (re)connect leaves an entry with no client so the server
+		// stays visible in the list; a tool wrapper captured by an active
+		// session can still target it, and must get a controlled error.
+		if (!connection.client) {
+			const detail = connection.server.error ? ` Last error: ${connection.server.error}` : ""
+			throw new Error(`Server "${serverName}" is not connected and cannot be used.${detail}`)
+		}
+
+		// The config is re-resolved on each call, so a changed timeout takes
+		// effect on the next request.
+		const timeout = resolveMcpServerTimeoutMs(connection.server.config) // sdk expects ms
+
+		this.telemetryService.captureMcpToolCall(
+			ulid,
+			serverName,
+			toolName,
+			"started",
+			undefined,
+			toolArguments ? Object.keys(toolArguments) : undefined,
+		)
+
+		try {
+			const result = await connection.client.request(
+				{
+					method: "tools/call",
+					params: {
+						name: toolName,
+						arguments: toolArguments ?? {},
+					},
+				},
+				CallToolResultSchema,
+				{
+					timeout,
+					signal,
+				},
+			)
+
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"success",
+				undefined,
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
+
+			return {
+				...result,
+				content: result.content ?? [],
+			}
+		} catch (error) {
+			this.telemetryService.captureMcpToolCall(
+				ulid,
+				serverName,
+				toolName,
+				"error",
+				error instanceof Error ? error.message : String(error),
+				toolArguments ? Object.keys(toolArguments) : undefined,
+			)
+			throw augmentMcpTimeoutError(error, serverName, timeout)
+		}
+	}
+
+	/**
+	 * RPC variant of toggleToolAutoApprove that returns the updated servers instead of notifying the webview
+	 * @param serverName The name of the MCP server
+	 * @param toolNames Array of tool names to toggle auto-approve for
+	 * @param shouldAllow Whether to enable or disable auto-approve
+	 * @returns Array of updated MCP servers
+	 */
+	async toggleToolAutoApproveRPC(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<McpServer[]> {
+		try {
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			const { config, autoApprove } = await updateMcpSettingsFile(settingsPath, (parsed) => {
+				// Initialize autoApprove if it doesn't exist
+				const servers = parsed.mcpServers as Record<string, any>
+				if (!servers[serverName].autoApprove) {
+					servers[serverName].autoApprove = []
+				}
+
+				const approve = servers[serverName].autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = approve.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						approve.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						approve.splice(toolIndex, 1)
+					}
+				}
+				return { config: parsed, autoApprove: approve }
+			})
+			this.recordSettingsFingerprint(config.mcpServers as Record<string, McpServerConfig>)
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection && connection.server.tools) {
+				// Update the autoApprove property of each tool in the in-memory server object
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: autoApprove.includes(tool.name),
+				}))
+			}
+
+			// Return sorted servers without notifying webview
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			Logger.error("Failed to update autoApprove settings:", error)
+			throw error // Re-throw to ensure the error is properly handled
+		}
+	}
+
+	async toggleToolAutoApprove(serverName: string, toolNames: string[], shouldAllow: boolean): Promise<void> {
+		try {
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			const { autoApprove, mcpServers } = await updateMcpSettingsFile(settingsPath, (config) => {
+				// Initialize autoApprove if it doesn't exist
+				const servers = config.mcpServers as Record<string, any>
+				if (!servers[serverName].autoApprove) {
+					servers[serverName].autoApprove = []
+				}
+
+				const approve = servers[serverName].autoApprove
+				for (const toolName of toolNames) {
+					const toolIndex = approve.indexOf(toolName)
+
+					if (shouldAllow && toolIndex === -1) {
+						// Add tool to autoApprove list
+						approve.push(toolName)
+					} else if (!shouldAllow && toolIndex !== -1) {
+						// Remove tool from autoApprove list
+						approve.splice(toolIndex, 1)
+					}
+				}
+				return { autoApprove: approve as string[], mcpServers: servers as Record<string, McpServerConfig> }
+			})
+			this.recordSettingsFingerprint(mcpServers)
+
+			// Update the tools list to reflect the change
+			const connection = this.connections.find((conn) => conn.server.name === serverName)
+			if (connection && connection.server.tools) {
+				// Update the autoApprove property of each tool in the in-memory server object
+				connection.server.tools = connection.server.tools.map((tool) => ({
+					...tool,
+					autoApprove: autoApprove.includes(tool.name),
+				}))
+				await this.notifyWebviewOfServerChanges()
+			}
+		} catch (error) {
+			Logger.error("Failed to update autoApprove settings:", error)
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: "Failed to update autoApprove settings",
+			})
+			throw error // Re-throw to ensure the error is properly handled
+		}
+	}
+
+	public async addRemoteServer(serverName: string, serverUrl: string, transportType = "streamableHttp"): Promise<McpServer[]> {
+		try {
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await updateMcpSettingsFile(settingsPath, (current) => {
+				const servers = current.mcpServers as Record<string, any>
+				if (servers[serverName]) {
+					throw new Error(`An MCP server with the name "${serverName}" already exists`)
+				}
+
+				const serverConfig = {
+					url: serverUrl,
+					type: transportType,
+					disabled: false,
+					autoApprove: [],
+				}
+
+				// Expand environment variables for validation
+				const expandedConfig = expandEnvironmentVariables(serverConfig)
+
+				const urlValidation = z.string().url().safeParse(expandedConfig.url)
+				if (!urlValidation.success) {
+					throw new Error(`Invalid server URL: ${expandedConfig.url}. Please provide a valid URL.`)
+				}
+
+				const parsedConfig = ServerConfigSchema.parse(expandedConfig)
+
+				servers[serverName] = parsedConfig
+
+				// We don't write the zod-transformed version to the file.
+				// The above parse() call adds the transportType field to the server config
+				// It would be fine if this was written, but we don't want to clutter up the file with internal details
+
+				// ToDo: We could benefit from input / output types reflecting the non-transformed / transformed versions
+				const serversToWrite = { ...servers, [serverName]: serverConfig }
+				current.mcpServers = serversToWrite
+				return current
+			})
+			const settings = await this.readPostWriteMcpSettings()
+
+			await this.updateServerConnectionsRPC(settings.mcpServers as Record<string, McpServerConfig>)
+
+			const serverOrder = Object.keys(settings.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			Logger.error("Failed to add remote MCP server:", error)
+			throw error
+		}
+	}
+
+	/**
+	 * RPC variant of deleteServer that returns the updated server list directly
+	 * @param serverName The name of the server to delete
+	 * @returns Array of remaining MCP servers
+	 */
+	public async deleteServerRPC(serverName: string): Promise<McpServer[]> {
+		try {
+			// Clear OAuth data BEFORE removing from config (while we still have the connection/URL)
+			await this.clearOAuthForConnection(serverName)
+
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await updateMcpSettingsFile(settingsPath, (parsed) => {
+				const servers = parsed.mcpServers as Record<string, any>
+
+				if (!servers[serverName]) {
+					throw new Error(`${serverName} not found in MCP configuration`)
+				}
+
+				delete servers[serverName]
+				parsed.mcpServers = servers
+				return parsed
+			})
+			const config = await this.readPostWriteMcpSettings()
+			const mcpServers = config.mcpServers as Record<string, McpServerConfig>
+
+			await this.updateServerConnectionsRPC(mcpServers)
+
+			// Get the servers in their correct order from settings
+			const serverOrder = Object.keys(mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			Logger.error(`Failed to delete MCP server: ${error instanceof Error ? error.message : String(error)}`)
+			throw error
+		}
+	}
+
+	public async updateServerTimeoutRPC(serverName: string, timeout: number): Promise<McpServer[]> {
+		try {
+			// Validate timeout against schema
+			const setConfigResult = McpTimeoutSecondsSchema.safeParse(timeout)
+			if (!setConfigResult.success) {
+				throw new Error(
+					`Invalid timeout value: ${timeout}. The "timeout" field must be a finite number from ` +
+						`${MIN_MCP_TIMEOUT_SECONDS} to ${MAX_MCP_TIMEOUT_SECONDS} seconds.`,
+				)
+			}
+
+			const settingsPath = await getMcpSettingsFilePathHelper(await this.getSettingsDirectoryPath())
+			await updateMcpSettingsFile(settingsPath, (parsed) => {
+				const servers = parsed.mcpServers as Record<string, any>
+
+				if (!servers[serverName]) {
+					throw new Error(`Server "${serverName}" not found in settings`)
+				}
+
+				servers[serverName] = {
+					...servers[serverName],
+					timeout,
+				}
+
+				parsed.mcpServers = servers
+				return parsed
+			})
+			const config = await this.readPostWriteMcpSettings()
+			await this.updateServerConnectionsRPC(config.mcpServers as Record<string, McpServerConfig>)
+
+			const serverOrder = Object.keys(config.mcpServers || {})
+			return this.getSortedMcpServers(serverOrder)
+		} catch (error) {
+			Logger.error("Failed to update server timeout:", error)
+			if (error instanceof Error) {
+				Logger.error("Error details:", error.message, error.stack)
+			}
+			HostProvider.window.showMessage({
+				type: ShowMessageType.ERROR,
+				message: `Failed to update server timeout: ${error instanceof Error ? error.message : String(error)}`,
+			})
+			throw error
+		}
+	}
+
+	/**
+	 * Get and clear pending notifications
+	 * @returns Array of pending notifications
+	 */
+	getPendingNotifications(): Array<{
+		serverName: string
+		level: string
+		message: string
+		timestamp: number
+	}> {
+		const notifications = [...this.pendingNotifications]
+		this.pendingNotifications = []
+		return notifications
+	}
+
+	/**
+	 * Set the notification callback for real-time notifications
+	 * @param callback Function to call when notifications arrive
+	 */
+	setNotificationCallback(callback: (serverName: string, level: string, message: string) => void): void {
+		this.notificationCallback = callback
+		//Logger.log("[MCP Debug] Notification callback set")
+	}
+
+	/**
+	 * Clear the notification callback
+	 */
+	clearNotificationCallback(): void {
+		this.notificationCallback = undefined
+		//Logger.log("[MCP Debug] Notification callback cleared")
+	}
+
+	/**
+	 * Set a callback that fires when the MCP tool list changes.
+	 *
+	 * The callback is invoked only when the set of available tools actually
+	 * changes (servers added/removed, tools discovered/lost), NOT on mere
+	 * status updates (error messages, reconnect attempts).
+	 *
+	 * Used by SdkController to restart the SDK session with updated tools
+	 * when MCP servers change mid-session.
+	 */
+	setToolListChangeCallback(callback: () => void): void {
+		this.toolListChangeCallback = callback
+		// Initialize the fingerprint so the first real change is detected
+		this.lastToolFingerprint = this.computeToolFingerprint()
+	}
+
+	/**
+	 * Clear the tool list change callback.
+	 */
+	clearToolListChangeCallback(): void {
+		this.toolListChangeCallback = undefined
+	}
+
+	/**
+	 * Compute a fingerprint of the current tool list.
+	 *
+	 * The fingerprint is a sorted, deterministic representation of every value
+	 * captured by createMcpTools: server name, tool name, description, input
+	 * schema, and timeout. A change to any captured value must rebuild the active
+	 * session even when the set of tool names is unchanged.
+	 */
+	computeToolFingerprint(): string {
+		const entries: string[] = []
+		for (const conn of this.connections) {
+			if (conn.server.disabled || conn.server.status !== "connected") {
+				continue
+			}
+			const timeoutMs = resolveMcpServerTimeoutMs(conn.server.config)
+			for (const tool of conn.server.tools ?? []) {
+				entries.push(
+					stableJsonStringify([
+						conn.server.name,
+						tool.name,
+						tool.description ?? null,
+						tool.inputSchema ?? {},
+						timeoutMs,
+					]),
+				)
+			}
+		}
+		entries.sort()
+		return JSON.stringify(entries)
+	}
+
+	/**
+	 * Check if the tool list has changed and fire the callback if so.
+	 * Called internally after server connection changes settle.
+	 *
+	 * Debounced: when a server connects, notifyWebviewOfServerChanges()
+	 * fires multiple times in quick succession (status change → tools
+	 * discovered → etc.). Without debouncing, the callback fires for
+	 * each intermediate state, causing duplicate messages (S6-28).
+	 * The 300ms debounce coalesces these into a single callback.
+	 */
+	private checkToolListChanged(): void {
+		if (!this.toolListChangeCallback) {
+			return
+		}
+
+		// Quick-check: if the fingerprint hasn't changed, skip the debounce entirely.
+		// This avoids scheduling timers for the many notifyWebviewOfServerChanges()
+		// calls that don't actually change the tool list (e.g., error messages).
+		const currentFingerprint = this.computeToolFingerprint()
+		if (currentFingerprint === this.lastToolFingerprint) {
+			return
+		}
+
+		// Fingerprint changed — debounce to coalesce rapid-fire changes
+		if (this.toolListChangeDebounceTimer) {
+			clearTimeout(this.toolListChangeDebounceTimer)
+		}
+		this.toolListChangeDebounceTimer = setTimeout(() => {
+			this.toolListChangeDebounceTimer = undefined
+			this.fireToolListChangeIfNeeded()
+		}, 300)
+	}
+
+	/**
+	 * Fire the tool list change callback if the fingerprint has changed.
+	 * Called after the debounce timer expires.
+	 */
+	private fireToolListChangeIfNeeded(): void {
+		if (!this.toolListChangeCallback) {
+			return
+		}
+		const newFingerprint = this.computeToolFingerprint()
+		if (newFingerprint !== this.lastToolFingerprint) {
+			Logger.log(
+				`[McpHub] Tool list changed: "${this.lastToolFingerprint.substring(0, 80)}" → "${newFingerprint.substring(0, 80)}"`,
+			)
+			this.lastToolFingerprint = newFingerprint
+			try {
+				this.toolListChangeCallback()
+			} catch (error) {
+				Logger.error("[McpHub] Error in toolListChangeCallback:", error)
+			}
+		}
+	}
+
+	/**
+	 * Runs the complete OAuth flow for a server when the user clicks
+	 * "Authenticate".
+	 *
+	 * The interactive flow is HTTP-based token collection (the same flow the CLI
+	 * uses): a local loopback callback server is bound, the browser is opened to
+	 * the authorization URL, and the code is exchanged in-process with the OAuth
+	 * state validated against the value generated for this flow. Tokens are
+	 * written to the shared MCP settings file, so the CLI and other windows see
+	 * them immediately. On success the connection is restarted so the transport
+	 * picks up the fresh tokens.
+	 */
+	async initiateOAuth(serverName: string): Promise<void> {
+		const connection = this.connections.find((conn) => conn.server.name === serverName)
+		if (!connection) {
+			throw new Error(`No connection found for server: ${serverName}`)
+		}
+
+		// Show "pending" in the UI while the user is off in the browser
+		connection.server.oauthAuthStatus = "pending"
+		connection.server.error = ""
+		await this.notifyWebviewOfServerChanges()
+
+		try {
+			// Blocks until tokens are exchanged and written to the settings file
+			await this.mcpOAuthManager.startOAuthFlow(serverName)
+		} catch (error) {
+			const current = this.connections.find((conn) => conn.server.name === serverName)
+			if (current) {
+				current.server.oauthAuthStatus = "unauthenticated"
+				this.appendErrorMessage(current, error instanceof Error ? error.message : String(error))
+			}
+			await this.notifyWebviewOfServerChanges()
+			throw error
+		}
+
+		Logger.log(`[McpOAuth] Authentication completed for ${serverName}`)
+
+		const authedConnection = this.connections.find((conn) => conn.server.name === serverName)
+		if (authedConnection) {
+			authedConnection.server.oauthAuthStatus = "authenticated"
+			authedConnection.server.oauthRequired = true
+			authedConnection.server.error = ""
+		}
+
+		// Restart connection so the transport authenticates with the new tokens
+		await this.restartConnection(serverName)
+	}
+
+	async dispose(): Promise<void> {
+		for (const timer of this.listChangedRefreshTimers.values()) {
+			clearTimeout(timer)
+		}
+		this.listChangedRefreshTimers.clear()
+		this.listChangedRefreshGeneration.clear()
+		this.listChangedRefreshDeadlines.clear()
+		if (this.toolListChangeDebounceTimer) {
+			clearTimeout(this.toolListChangeDebounceTimer)
+			this.toolListChangeDebounceTimer = undefined
+		}
+		this.removeAllFileWatchers()
+		for (const connection of this.connections) {
+			try {
+				await this.deleteConnection(connection.server.name)
+			} catch (error) {
+				Logger.error(`Failed to close connection for ${connection.server.name}:`, error)
+			}
+		}
+		this.connections = []
+		if (this.settingsWatcher) {
+			await this.settingsWatcher.close()
+		}
+	}
+}

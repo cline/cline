@@ -1,0 +1,842 @@
+import { existsSync } from "node:fs";
+import { createRequire } from "node:module";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+import type {
+	AgentConfig,
+	AgentExtensionAutomationEventType,
+	AgentExtensionCommandResult,
+	AgentExtensionMcpServer,
+	AgentExtensionRule,
+	AgentRuntimeHooks,
+	AgentTool,
+	Message,
+	PluginSetupContext,
+	WorkspaceInfo,
+} from "@cline/shared";
+import { SubprocessSandbox } from "../../runtime/tools/subprocess-sandbox";
+import { MAX_NODE_TIMER_DELAY_MS } from "../../runtime/tools/subprocess-sandbox-lifecycle";
+import type { PluginLoadDiagnostics } from "./plugin-load-report";
+import type { PluginTargeting } from "./plugin-targeting";
+
+export const CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV = "CLINE_PLUGIN_IDLE_TIMEOUT_MS";
+export const DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+
+export type SandboxedPluginSetupContext = Pick<
+	PluginSetupContext,
+	"session" | "client" | "user" | "workspaceInfo" | "logger"
+>;
+
+export interface PluginSandboxOptions extends PluginTargeting {
+	pluginPaths: string[];
+	exportName?: string;
+	/**
+	 * Max wall time for plugin module imports. Defaults to 4000 ms; falls back
+	 * to the `CLINE_PLUGIN_IMPORT_TIMEOUT_MS` env var when this option is not
+	 * set, allowing slower hosts (Windows cold-start, CI without warm caches)
+	 * to raise the ceiling without touching code.
+	 */
+	importTimeoutMs?: number;
+	hookTimeoutMs?: number;
+	contributionTimeoutMs?: number;
+	/**
+	 * Reclaim the plugin subprocess after this much time with no calls in
+	 * flight. Defaults to 30 minutes and can be overridden with
+	 * `CLINE_PLUGIN_IDLE_TIMEOUT_MS`.
+	 */
+	idleTimeoutMs?: number;
+	onEvent?: (event: { name: string; payload?: unknown }) => void;
+	/**
+	 * The session's working directory. Forwarded to the sandbox subprocess so
+	 * that `process.cwd()` returns the correct path inside the sandbox even
+	 * when `--cwd` was passed without calling `process.chdir()` on the host.
+	 */
+	cwd?: string;
+	/**
+	 * Structured workspace and git metadata (branch, commit, remotes) generated
+	 * at session startup. Forwarded to plugins via PluginSetupCtx.workspaceInfo
+	 * so they can inspect git state without running their own commands.
+	 */
+	workspaceInfo?: WorkspaceInfo;
+	session?: SandboxedPluginSetupContext["session"];
+	client?: SandboxedPluginSetupContext["client"];
+	user?: SandboxedPluginSetupContext["user"];
+	/** Enables a logger bridge that forwards sandbox log calls to the host. */
+	logger?: SandboxedPluginSetupContext["logger"];
+	/**
+	 * Enables the telemetry bridge (`ctx.telemetry`) for sandboxed plugins.
+	 * Set only when the host has a live telemetry service to route
+	 * `plugin_telemetry` events into, so plugin feature-detection of
+	 * `ctx.telemetry` means "someone is listening" in both execution modes.
+	 */
+	telemetryAvailable?: boolean;
+}
+
+type AgentExtension = NonNullable<AgentConfig["extensions"]>[number];
+type AgentExtensionApi = Parameters<NonNullable<AgentExtension["setup"]>>[0];
+type SandboxedAgentExtension = AgentExtension & {
+	/** Internal metadata used by settings surfaces that need source paths. */
+	__clinePluginPath?: string;
+};
+
+type SandboxedContributionDescriptor = {
+	id: string;
+	name: string;
+	description?: string;
+	inputSchema?: unknown;
+	timeoutMs?: number;
+	retryable?: boolean;
+	metadata?: Record<string, unknown>;
+};
+
+type SandboxedRuleDescriptor = Omit<AgentExtensionRule, "id" | "content"> & {
+	id: string;
+	ruleId: string;
+	content?: string;
+	hasContentHandler?: boolean;
+};
+
+type SandboxedAutomationEventTypeDescriptor =
+	AgentExtensionAutomationEventType & {
+		id: string;
+	};
+
+type SandboxedPluginDescriptor = {
+	pluginId: string;
+	pluginPath: string;
+	name: string;
+	manifest: AgentExtension["manifest"];
+	hooks?: Array<keyof AgentRuntimeHooks>;
+	contributions: {
+		tools: SandboxedContributionDescriptor[];
+		commands: SandboxedContributionDescriptor[];
+		rules: SandboxedRuleDescriptor[];
+		messageBuilders: SandboxedContributionDescriptor[];
+		providers: SandboxedContributionDescriptor[];
+		automationEventTypes: SandboxedAutomationEventTypeDescriptor[];
+		mcpServers: AgentExtensionMcpServer[];
+		shortcuts?: SandboxedContributionDescriptor[];
+		flags?: SandboxedContributionDescriptor[];
+	};
+};
+
+type SandboxedInitializeResult = {
+	plugins: SandboxedPluginDescriptor[];
+} & PluginLoadDiagnostics;
+
+function normalizeDescriptor(
+	descriptor: SandboxedPluginDescriptor,
+): SandboxedPluginDescriptor {
+	return {
+		...descriptor,
+		contributions: {
+			tools: descriptor.contributions?.tools ?? [],
+			commands: descriptor.contributions?.commands ?? [],
+			rules: descriptor.contributions?.rules ?? [],
+			messageBuilders: descriptor.contributions?.messageBuilders ?? [],
+			providers: descriptor.contributions?.providers ?? [],
+			automationEventTypes:
+				descriptor.contributions?.automationEventTypes ?? [],
+			mcpServers: descriptor.contributions?.mcpServers ?? [],
+			shortcuts: descriptor.contributions?.shortcuts ?? [],
+			flags: descriptor.contributions?.flags ?? [],
+		},
+	};
+}
+
+function isUnknownPluginIdError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	return message.includes("Unknown sandbox plugin id:");
+}
+
+function getPlatformPackageName(): string {
+	const platform = process.platform === "win32" ? "windows" : process.platform;
+	return `@cline/cli-${platform}-${process.arch}`;
+}
+
+function resolveBootstrapFromWrapper(): string | undefined {
+	const wrapperPath = process.env.CLINE_WRAPPER_PATH?.trim();
+	if (!wrapperPath) {
+		return undefined;
+	}
+	try {
+		const requireFromWrapper = createRequire(wrapperPath);
+		const packageJsonPath = requireFromWrapper.resolve(
+			`${getPlatformPackageName()}/package.json`,
+		);
+		const candidate = join(
+			dirname(packageJsonPath),
+			"extensions",
+			"plugin-sandbox-bootstrap.js",
+		);
+		return existsSync(candidate) ? candidate : undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+function resolveBootstrapFromExecutable(): string | undefined {
+	const execPath = process.execPath?.trim();
+	if (!execPath) {
+		return undefined;
+	}
+	const candidate = join(
+		dirname(dirname(execPath)),
+		"extensions",
+		"plugin-sandbox-bootstrap.js",
+	);
+	return existsSync(candidate) ? candidate : undefined;
+}
+
+/**
+ * Pick the bootstrap the sandbox subprocess should run.
+ *
+ * Sibling compiled candidates always match the running host build, so they
+ * win. When the host runs from source (the `.ts` bootstrap exists next to
+ * this module), the sandbox must run that SAME source bootstrap: the
+ * wrapper/executable fallbacks locate compiled bootstraps from a separately
+ * installed CLI package (e.g. a published version in the package-manager
+ * cache), and mixing that code with a source host silently breaks plugin
+ * loading because its module resolution points at the other installation's
+ * layout. Those fallbacks exist only for compiled hosts
+ * (`bun build --compile`) where import.meta points inside the binary and no
+ * sibling file exists on real disk.
+ */
+export function selectBootstrapCandidate(options: {
+	siblingCandidates: string[];
+	sourceBootstrapPath: string;
+	installedCandidates: Array<string | undefined>;
+	exists?: (path: string) => boolean;
+}): { file: string } | { sourcePath: string } {
+	const exists = options.exists ?? existsSync;
+	for (const candidate of options.siblingCandidates) {
+		if (exists(candidate)) return { file: candidate };
+	}
+	if (exists(options.sourceBootstrapPath)) {
+		return { sourcePath: options.sourceBootstrapPath };
+	}
+	for (const candidate of options.installedCandidates) {
+		if (candidate && exists(candidate)) return { file: candidate };
+	}
+	return { sourcePath: options.sourceBootstrapPath };
+}
+
+/**
+ * Resolve the bootstrap for the sandbox subprocess.
+ *
+ * In production (bundled), the compiled `.js` file lives next to this module
+ * and can be passed directly as a file to spawn. In development/test
+ * (unbundled, where only the `.ts` source exists), we load the TypeScript
+ * bootstrap through jiti from an inline script.
+ */
+function resolveBootstrap(): { file: string } | { script: string } {
+	const dir = dirname(fileURLToPath(import.meta.url));
+	const requireFromHere = createRequire(import.meta.url);
+	// In dev, the bootstrap sits next to this file in src/extensions/.
+	// In production, the main bundle is at dist/ and the bootstrap is emitted
+	// under dist/extensions/. Keep the older dist/agents/ fallback for
+	// compatibility with previously built layouts.
+	const selected = selectBootstrapCandidate({
+		siblingCandidates: [
+			join(dir, "plugin-sandbox-bootstrap.js"),
+			join(dir, "extensions", "plugin-sandbox-bootstrap.js"),
+			join(dir, "agents", "plugin-sandbox-bootstrap.js"),
+		],
+		sourceBootstrapPath: join(dir, "plugin-sandbox-bootstrap.ts"),
+		installedCandidates: [
+			resolveBootstrapFromWrapper(),
+			resolveBootstrapFromExecutable(),
+		],
+	});
+	if ("file" in selected) {
+		return selected;
+	}
+	const tsPath = selected.sourcePath;
+	let jitiSpecifier = "jiti";
+	try {
+		jitiSpecifier = requireFromHere.resolve("jiti");
+	} catch {
+		// Fall back to bare specifier and let runtime resolution handle it.
+	}
+	return {
+		script: [
+			`const createJiti = require(${JSON.stringify(jitiSpecifier)});`,
+			`const jiti = createJiti(${JSON.stringify(tsPath)}, { cache: false, requireCache: false, esmResolve: true, interopDefault: false });`,
+			`Promise.resolve(jiti.import(${JSON.stringify(tsPath)}, {})).catch((error) => {`,
+			"  console.error(error);",
+			"  process.exitCode = 1;",
+			"});",
+		].join("\n"),
+	};
+}
+
+const BOOTSTRAP = resolveBootstrap();
+
+function withTimeoutFallback(
+	timeoutMs: number | undefined,
+	fallback: number,
+	envVarName?: string,
+): number {
+	if (
+		typeof timeoutMs === "number" &&
+		Number.isInteger(timeoutMs) &&
+		timeoutMs > 0 &&
+		timeoutMs <= MAX_NODE_TIMER_DELAY_MS
+	) {
+		return timeoutMs;
+	}
+	if (envVarName) {
+		const raw = process.env[envVarName];
+		if (raw) {
+			// Number() is stricter than parseInt: it rejects values with
+			// trailing non-numeric characters (e.g. "4000ms" -> NaN) so a
+			// malformed env value falls back to the default instead of
+			// silently consuming its numeric prefix.
+			const parsed = Number(raw);
+			if (
+				Number.isInteger(parsed) &&
+				parsed > 0 &&
+				parsed <= MAX_NODE_TIMER_DELAY_MS
+			) {
+				return parsed;
+			}
+		}
+	}
+	return fallback;
+}
+
+export async function loadSandboxedPlugins(
+	options: PluginSandboxOptions,
+): Promise<
+	{
+		extensions: AgentConfig["extensions"];
+		pluginPaths: string[];
+		shutdown: () => Promise<void>;
+	} & PluginLoadDiagnostics
+> {
+	const idleTimeoutMs = withTimeoutFallback(
+		options.idleTimeoutMs,
+		DEFAULT_PLUGIN_SANDBOX_IDLE_TIMEOUT_MS,
+		CLINE_PLUGIN_IDLE_TIMEOUT_MS_ENV,
+	);
+	const sandbox = new SubprocessSandbox({
+		name: "plugin-sandbox",
+		...("file" in BOOTSTRAP
+			? { bootstrapFile: BOOTSTRAP.file }
+			: { bootstrapScript: BOOTSTRAP.script }),
+		idleTimeoutMs,
+		onEvent: options.onEvent,
+	});
+	const importTimeoutMs = withTimeoutFallback(
+		options.importTimeoutMs,
+		4000,
+		"CLINE_PLUGIN_IMPORT_TIMEOUT_MS",
+	);
+	const hookTimeoutMs = withTimeoutFallback(options.hookTimeoutMs, 3000);
+	const contributionTimeoutMs = withTimeoutFallback(
+		options.contributionTimeoutMs,
+		60_000,
+	);
+	const initArgs = {
+		pluginPaths: options.pluginPaths,
+		exportName: options.exportName,
+		providerId: options.providerId,
+		modelId: options.modelId,
+		cwd: options.cwd,
+		session: options.session,
+		client: options.client,
+		user: options.user,
+		workspaceInfo: options.workspaceInfo,
+		loggerEnabled: Boolean(options.logger),
+		telemetryEnabled: options.telemetryAvailable === true,
+	};
+
+	// Guard against concurrent re-initialization when multiple tools/hooks
+	// fail simultaneously with "Unknown sandbox plugin id:".
+	let reinitPromise: Promise<void> | undefined;
+	const reinitialize = (): Promise<void> => {
+		reinitPromise ??= sandbox
+			.call<void>("initialize", initArgs, { timeoutMs: importTimeoutMs })
+			.finally(() => {
+				reinitPromise = undefined;
+			});
+		return reinitPromise;
+	};
+
+	let initialized: SandboxedInitializeResult;
+	try {
+		initialized = await sandbox.call<SandboxedInitializeResult>(
+			"initialize",
+			initArgs,
+			{ timeoutMs: importTimeoutMs },
+		);
+	} catch (error) {
+		await sandbox.shutdown().catch(() => {
+			// Best-effort cleanup when sandbox initialization fails.
+		});
+		throw error;
+	}
+	const descriptors = initialized.plugins.map(normalizeDescriptor);
+
+	const extensions: NonNullable<AgentConfig["extensions"]> = descriptors.map(
+		(descriptor) => {
+			const extension: SandboxedAgentExtension = {
+				name: descriptor.name,
+				__clinePluginPath: descriptor.pluginPath,
+				manifest: descriptor.manifest,
+				setup: (api: AgentExtensionApi) => {
+					registerTools(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerCommands(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerRules(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerMessageBuilders(
+						api,
+						sandbox,
+						descriptor,
+						contributionTimeoutMs,
+						reinitialize,
+					);
+					registerSimpleContributions(api, descriptor);
+				},
+			};
+
+			extension.hooks = createSandboxRuntimeHooks(
+				sandbox,
+				descriptor,
+				hookTimeoutMs,
+				reinitialize,
+			);
+
+			return extension;
+		},
+	);
+
+	return {
+		extensions,
+		failures: initialized.failures,
+		pluginPaths: descriptors.map((descriptor) => descriptor.pluginPath),
+		shutdown: async () => {
+			await sandbox.shutdown();
+		},
+		warnings: initialized.warnings,
+	};
+}
+
+// ---------------------------------------------------------------------------
+// Contribution registration helpers
+// ---------------------------------------------------------------------------
+
+/**
+ * Tool contexts and hook payloads cross the sandbox process boundary over
+ * JSON IPC, so they must survive JSON.stringify. Host code must not place
+ * live host objects (telemetry services, sockets, abort signals) on them,
+ * but a single offender would otherwise fail every sandboxed call — the
+ * telemetry service on toolContextMetadata did exactly that ("JSON.stringify
+ * cannot serialize cyclic structures"). These helpers are the safety net:
+ * the first attempt sends the payload untouched (no extra serialization on
+ * the happy path); only when the runtime rejects it as non-serializable do
+ * we retry with a JSON-safe clone and warn.
+ */
+function isSerializationError(error: unknown): boolean {
+	const message = error instanceof Error ? error.message : String(error);
+	// Bun: "JSON.stringify cannot serialize cyclic structures." /
+	//      "JSON.stringify cannot serialize BigInt."
+	// Node: "Converting circular structure to JSON" /
+	//       "Do not know how to serialize a BigInt"
+	return /cyclic|circular|bigint/i.test(message);
+}
+
+/**
+ * Deep-clone into a JSON-safe shape: cycles and non-serializable leaves
+ * (functions, symbols, bigints) are dropped, `toJSON` (e.g. Date) is
+ * honored. Fallback path only — never run on the happy path.
+ */
+function toJsonSafePayload(
+	value: unknown,
+	ancestors = new WeakSet<object>(),
+): unknown {
+	if (value === null || typeof value !== "object") {
+		return typeof value === "function" ||
+			typeof value === "symbol" ||
+			typeof value === "bigint"
+			? undefined
+			: value;
+	}
+	if (ancestors.has(value)) {
+		return undefined;
+	}
+	const withToJson = value as { toJSON?: () => unknown };
+	if (typeof withToJson.toJSON === "function") {
+		try {
+			return withToJson.toJSON();
+		} catch {
+			return undefined;
+		}
+	}
+	ancestors.add(value);
+	try {
+		if (Array.isArray(value)) {
+			return value.map((entry) => toJsonSafePayload(entry, ancestors) ?? null);
+		}
+		const out: Record<string, unknown> = {};
+		for (const [key, entry] of Object.entries(value)) {
+			const safe = toJsonSafePayload(entry, ancestors);
+			if (safe !== undefined) {
+				out[key] = safe;
+			}
+		}
+		return out;
+	} finally {
+		ancestors.delete(value);
+	}
+}
+
+const warnedNonSerializablePayloads = new Set<string>();
+
+function warnNonSerializablePayloadOnce(
+	kind: "tool" | "hook",
+	name: string,
+	error: unknown,
+): void {
+	const key = `${kind}:${name}`;
+	if (warnedNonSerializablePayloads.has(key)) {
+		return;
+	}
+	warnedNonSerializablePayloads.add(key);
+	const message = error instanceof Error ? error.message : String(error);
+	console.warn(
+		`[plugin-sandbox] ${kind} "${name}" received a payload that is not JSON-serializable (${message}); ` +
+			"retrying with non-serializable values dropped. Host-only objects must not be placed on tool contexts or hook payloads.",
+	);
+}
+
+/**
+ * Invoke a sandbox call with the raw payload; if the IPC layer rejects it as
+ * non-serializable, retry once with a JSON-safe clone instead of failing the
+ * call.
+ */
+async function callWithSerializableFallback<T>(
+	invoke: (payload: unknown) => Promise<T>,
+	payload: unknown,
+	onSanitized: (error: unknown) => void,
+): Promise<T> {
+	try {
+		return await invoke(payload);
+	} catch (error) {
+		if (!isSerializationError(error)) {
+			throw error;
+		}
+		onSanitized(error);
+		return await invoke(toJsonSafePayload(payload));
+	}
+}
+
+function registerTools(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const td of descriptor.contributions?.tools ?? []) {
+		const tool: AgentTool = {
+			name: td.name,
+			description: td.description ?? "",
+			inputSchema: (td.inputSchema ?? {
+				type: "object",
+				properties: {},
+			}) as AgentTool["inputSchema"],
+			timeoutMs: td.timeoutMs,
+			retryable: td.retryable,
+			execute: async (input: unknown, context: unknown) => {
+				// The fallback must cover the whole IPC payload: `input` can be
+				// rewritten by beforeTool hooks or programmatic callers, so it is
+				// just as capable of smuggling a non-serializable value as the
+				// context is.
+				const invoke = async (payload: unknown) => {
+					const { input: sandboxInput, context: sandboxContext } = payload as {
+						input: unknown;
+						context: unknown;
+					};
+					try {
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input: sandboxInput,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
+					} catch (error) {
+						if (!isUnknownPluginIdError(error)) {
+							throw error;
+						}
+						await reinitialize();
+						return await sandbox.call(
+							"executeTool",
+							{
+								pluginId: descriptor.pluginId,
+								contributionId: td.id,
+								input: sandboxInput,
+								context: sandboxContext,
+							},
+							{ timeoutMs },
+						);
+					}
+				};
+				return await callWithSerializableFallback(
+					invoke,
+					{ input, context },
+					(error) => warnNonSerializablePayloadOnce("tool", td.name, error),
+				);
+			},
+		};
+		api.registerTool(tool);
+	}
+}
+
+function registerCommands(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const cd of descriptor.contributions?.commands ?? []) {
+		api.registerCommand({
+			name: cd.name,
+			description: cd.description,
+			handler: async (input: string) => {
+				try {
+					return await sandbox.call<AgentExtensionCommandResult>(
+						"executeCommand",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: cd.id,
+							input,
+						},
+						{ timeoutMs },
+					);
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					return await sandbox.call<AgentExtensionCommandResult>(
+						"executeCommand",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: cd.id,
+							input,
+						},
+						{ timeoutMs },
+					);
+				}
+			},
+		});
+	}
+}
+
+function registerRules(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const rule of descriptor.contributions?.rules ?? []) {
+		api.registerRule({
+			id: rule.ruleId,
+			source: rule.source,
+			content:
+				rule.hasContentHandler === true
+					? async () => {
+							try {
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							} catch (error) {
+								if (!isUnknownPluginIdError(error)) {
+									throw error;
+								}
+								await reinitialize();
+								return await sandbox.call<string>(
+									"resolveRuleContent",
+									{
+										pluginId: descriptor.pluginId,
+										contributionId: rule.id,
+									},
+									{ timeoutMs },
+								);
+							}
+						}
+					: (rule.content ?? ""),
+		});
+	}
+}
+
+function registerSimpleContributions(
+	api: AgentExtensionApi,
+	descriptor: SandboxedPluginDescriptor,
+): void {
+	for (const pd of descriptor.contributions?.providers ?? []) {
+		api.registerProvider({
+			name: pd.name,
+			description: pd.description,
+			metadata: pd.metadata,
+		});
+	}
+
+	for (const eventType of descriptor.contributions?.automationEventTypes ??
+		[]) {
+		api.registerAutomationEventType({
+			eventType: eventType.eventType,
+			source: eventType.source,
+			description: eventType.description,
+			attributesSchema: eventType.attributesSchema,
+			payloadSchema: eventType.payloadSchema,
+			examples: eventType.examples,
+			metadata: eventType.metadata,
+		});
+	}
+
+	for (const mcpServer of descriptor.contributions?.mcpServers ?? []) {
+		api.registerMcpServer(mcpServer);
+	}
+}
+
+function registerMessageBuilders(
+	api: AgentExtensionApi,
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): void {
+	for (const bd of descriptor.contributions?.messageBuilders ?? []) {
+		api.registerMessageBuilder({
+			name: bd.name,
+			async build(messages) {
+				try {
+					const result = await sandbox.call<unknown[]>(
+						"buildMessages",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: bd.id,
+							messages,
+						},
+						{ timeoutMs },
+					);
+					return isMessageArray(result) ? result : messages;
+				} catch (error) {
+					if (!isUnknownPluginIdError(error)) {
+						throw error;
+					}
+					await reinitialize();
+					const result = await sandbox.call<unknown[]>(
+						"buildMessages",
+						{
+							pluginId: descriptor.pluginId,
+							contributionId: bd.id,
+							messages,
+						},
+						{ timeoutMs },
+					);
+					return isMessageArray(result) ? result : messages;
+				}
+			},
+		});
+	}
+}
+
+function isMessageArray(value: unknown): value is Message[] {
+	return (
+		Array.isArray(value) &&
+		value.every(
+			(entry) =>
+				typeof entry === "object" &&
+				entry !== null &&
+				"role" in entry &&
+				"content" in entry,
+		)
+	);
+}
+
+function makeHookHandler(
+	sandbox: SubprocessSandbox,
+	pluginId: string,
+	hookName: string,
+	timeoutMs: number,
+	reinitialize: () => Promise<void>,
+): (payload: unknown) => Promise<unknown> {
+	return async (payload: unknown) => {
+		const invoke = async (sandboxPayload: unknown) => {
+			try {
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
+			} catch (error) {
+				if (!isUnknownPluginIdError(error)) {
+					throw error;
+				}
+				await reinitialize();
+				return await sandbox.call(
+					"invokeHook",
+					{ pluginId, hookName, payload: sandboxPayload },
+					{ timeoutMs },
+				);
+			}
+		};
+		return await callWithSerializableFallback(invoke, payload, (error) =>
+			warnNonSerializablePayloadOnce("hook", hookName, error),
+		);
+	};
+}
+
+function createSandboxRuntimeHooks(
+	sandbox: SubprocessSandbox,
+	descriptor: SandboxedPluginDescriptor,
+	hookTimeoutMs: number,
+	reinitialize: () => Promise<void>,
+): Partial<AgentRuntimeHooks> | undefined {
+	const hooks: Partial<
+		Record<keyof AgentRuntimeHooks, (payload: unknown) => Promise<unknown>>
+	> = {};
+	for (const hookName of descriptor.hooks ?? []) {
+		hooks[hookName] = makeHookHandler(
+			sandbox,
+			descriptor.pluginId,
+			hookName,
+			hookTimeoutMs,
+			reinitialize,
+		);
+	}
+	return Object.keys(hooks).length > 0
+		? (hooks as Partial<AgentRuntimeHooks>)
+		: undefined;
+}

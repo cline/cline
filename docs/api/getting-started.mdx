@@ -1,0 +1,136 @@
+---
+title: "Getting Started"
+sidebarTitle: "Getting Started"
+description: "Create an API key and make your first request to the Cline API in under a minute."
+---
+
+This guide walks you through creating an API key and making your first Chat Completions request.
+
+## Prerequisites
+
+- A Cline account at [app.cline.bot](https://app.cline.bot)
+- `curl` or any HTTP client (Python, Node.js, etc.)
+
+## Create an API Key
+
+<Steps>
+  <Step title="Sign in to app.cline.bot">
+    Go to [app.cline.bot](https://app.cline.bot) and sign in with your account.
+  </Step>
+  <Step title="Navigate to API Keys">
+    Open **Settings** and select **API Keys**.
+  </Step>
+  <Step title="Create a new key">
+    Click **Create API Key**. Copy the key immediately. You will not be able to see it again after leaving this page.
+  </Step>
+</Steps>
+
+<Warning>
+  Treat your API key like a password. Do not commit it to version control or share it publicly.
+</Warning>
+
+## Make Your First Request
+
+Replace `YOUR_API_KEY` with the key you just created:
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-6",
+    "messages": [
+      {"role": "user", "content": "What is the capital of France?"}
+    ],
+    "stream": false
+  }'
+```
+
+## Verify the Response
+
+You should get a JSON response like this:
+
+```json
+{
+  "id": "gen-abc123",
+  "model": "anthropic/claude-sonnet-4-6",
+  "choices": [
+    {
+      "message": {
+        "role": "assistant",
+        "content": "The capital of France is Paris."
+      },
+      "finish_reason": "stop",
+      "index": 0
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 14,
+    "completion_tokens": 8
+  }
+}
+```
+
+The `choices[0].message.content` field contains the model's reply. The `usage` field shows how many tokens were consumed.
+
+## Try Streaming
+
+For real-time output, set `stream: true`. The response arrives as Server-Sent Events:
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "anthropic/claude-sonnet-4-6",
+    "messages": [
+      {"role": "user", "content": "Write a haiku about programming."}
+    ],
+    "stream": true
+  }'
+```
+
+Each chunk arrives as a `data:` line. The stream ends with `data: [DONE]`.
+
+## Try a Free Model
+
+To test without spending credits, use one of the [free models](/api/models#free-models):
+
+```bash
+curl -X POST https://api.cline.bot/api/v1/chat/completions \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "minimax/minimax-m2.5",
+    "messages": [
+      {"role": "user", "content": "Hello! What can you help me with?"}
+    ],
+    "stream": false
+  }'
+```
+
+## Troubleshooting
+
+| Problem | Solution |
+|---------|----------|
+| `401 Unauthorized` | Check that your API key is correct and included in the `Authorization` header |
+| `402 Payment Required` | Your account has insufficient credits. Add credits at [app.cline.bot](https://app.cline.bot) |
+| Empty response | Make sure `messages` is a non-empty array with at least one user message |
+| Connection timeout | Verify your network can reach `api.cline.bot`. Check proxy settings if on a corporate network |
+
+## Next Steps
+
+<CardGroup cols={2}>
+  <Card title="Authentication" icon="key" href="/api/authentication">
+    Learn about API keys, token scoping, and security practices.
+  </Card>
+  <Card title="Chat Completions" icon="message" href="/api/chat-completions">
+    Full endpoint reference with all parameters and options.
+  </Card>
+  <Card title="Models" icon="brain" href="/api/models">
+    Browse available models and find the right one for your use case.
+  </Card>
+  <Card title="SDK Examples" icon="code" href="/api/sdk-examples">
+    Use the API from Python, Node.js, or the Cline CLI.
+  </Card>
+</CardGroup>

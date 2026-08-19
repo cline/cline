@@ -1,0 +1,106 @@
+---
+title: "Gateway"
+sidebarTitle: "Gateway"
+description: "API reference for the LLM provider gateway in @cline/llms."
+---
+
+`DefaultGateway` creates provider-backed `AgentModel` instances and exposes provider/model catalog helpers.
+
+```typescript
+import { DefaultGateway, createGateway } from "@cline/llms"
+```
+
+## Constructor
+
+```typescript
+const gateway = new DefaultGateway({
+  providerConfigs: [
+    { providerId: "anthropic", apiKey: process.env.ANTHROPIC_API_KEY },
+  ],
+})
+```
+
+Or:
+
+```typescript
+const gateway = createGateway({ providerConfigs: [...] })
+```
+
+## Methods
+
+### `registerProvider(registration)`
+
+```typescript
+gateway.registerProvider(registration)
+```
+
+Registers a `GatewayProviderRegistration`.
+
+### `configureProvider(config)`
+
+```typescript
+gateway.configureProvider({
+  providerId: "anthropic",
+  apiKey: process.env.ANTHROPIC_API_KEY,
+})
+```
+
+Configures credentials/defaults for a provider.
+
+### `listProviders()`
+
+```typescript
+const providers = gateway.listProviders()
+```
+
+Returns registered provider manifests.
+
+### `listModels(providerId?)`
+
+```typescript
+const allModels = gateway.listModels()
+const anthropicModels = gateway.listModels("anthropic")
+```
+
+Returns model metadata.
+
+### `createAgentModel(selection, options?)`
+
+```typescript
+const model = gateway.createAgentModel({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+})
+```
+
+Returns an `AgentModel` that can be passed to `AgentRuntime`.
+
+### `stream(request)`
+
+```typescript
+const stream = await gateway.stream({
+  providerId: "anthropic",
+  modelId: "claude-sonnet-4-6",
+  messages,
+  tools: [],
+})
+```
+
+Returns `AsyncIterable<AgentModelEvent>`.
+
+## Registry Helpers
+
+`@cline/llms` also exports:
+
+- `getAllProviders`
+- `getProviderIds`
+- `getProvider`
+- `getModelsForProvider`
+- `registerProvider`
+- `registerModel`
+- `createHandler`
+- `createHandlerAsync`
+
+## Built-In Provider Families
+
+The runtime includes built-in registrations for provider families including Anthropic, OpenAI, Gemini, Vertex, Bedrock, Mistral, Claude Code, OpenAI Codex, OpenCode, Dify, and OpenAI-compatible providers.

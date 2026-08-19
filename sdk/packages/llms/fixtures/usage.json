@@ -1,0 +1,308 @@
+{
+	"openrouter_finish": {
+		"type": "finish",
+		"finishReason": "stop",
+		"rawFinishReason": "stop",
+		"totalUsage": {
+			"inputTokens": 9096,
+			"inputTokenDetails": {
+				"noCacheTokens": 6,
+				"cacheReadTokens": 9090,
+				"cacheWriteTokens": null
+			},
+			"outputTokens": 77,
+			"outputTokenDetails": {
+				"textTokens": 77,
+				"reasoningTokens": 0
+			},
+			"totalTokens": 9173,
+			"reasoningTokens": 0,
+			"cachedInputTokens": 9090
+		}
+	},
+	"openrouter_stream_usage": {
+		"inputTokens": 9096,
+		"inputTokenDetails": {
+			"noCacheTokens": 6,
+			"cacheReadTokens": 9090,
+			"cacheWriteTokens": null
+		},
+		"outputTokens": 77,
+		"outputTokenDetails": {
+			"textTokens": 77,
+			"reasoningTokens": 0
+		},
+		"totalTokens": 9173,
+		"raw": {
+			"prompt_tokens": 9096,
+			"completion_tokens": 77,
+			"total_tokens": 9173,
+			"prompt_tokens_details": {
+				"cached_tokens": 9090
+			},
+			"completion_tokens_details": {
+				"reasoning_tokens": 0
+			},
+			"cost": 0.000325,
+			"is_byok": true,
+			"cost_details": {
+				"upstream_inference_cost": 0.0065,
+				"upstream_inference_prompt_cost": 0.004575,
+				"upstream_inference_completions_cost": 0.001925
+			}
+		},
+		"reasoningTokens": 0,
+		"cachedInputTokens": 9090
+	},
+	"gemini_finish": {
+		"type": "finish",
+		"finishReason": "stop",
+		"rawFinishReason": "STOP",
+		"totalUsage": {
+			"inputTokens": 4605,
+			"inputTokenDetails": {
+				"noCacheTokens": 4605,
+				"cacheReadTokens": 0,
+				"cacheWriteTokens": null
+			},
+			"outputTokens": 120,
+			"outputTokenDetails": {
+				"textTokens": 120,
+				"reasoningTokens": 0
+			},
+			"totalTokens": 4725,
+			"reasoningTokens": 0,
+			"cachedInputTokens": 0
+		}
+	},
+	"gemini_stream_usage": {
+		"inputTokens": 4605,
+		"inputTokenDetails": {
+			"noCacheTokens": 4605,
+			"cacheReadTokens": 0,
+			"cacheWriteTokens": null
+		},
+		"outputTokens": 120,
+		"outputTokenDetails": {
+			"textTokens": 120,
+			"reasoningTokens": 0
+		},
+		"totalTokens": 4725,
+		"raw": {
+			"promptTokenCount": 4605,
+			"candidatesTokenCount": 120,
+			"totalTokenCount": 4725,
+			"promptTokensDetails": [{}]
+		},
+		"reasoningTokens": 0,
+		"cachedInputTokens": 0
+	},
+	"anthropic_finish": {
+		"type": "finish",
+		"finishReason": "stop",
+		"rawFinishReason": "end_turn",
+		"totalUsage": {
+			"inputTokens": 6538,
+			"inputTokenDetails": {
+				"noCacheTokens": 3,
+				"cacheReadTokens": 0,
+				"cacheWriteTokens": 6535
+			},
+			"outputTokens": 176,
+			"outputTokenDetails": {
+				"textTokens": null,
+				"reasoningTokens": null
+			},
+			"totalTokens": 6714,
+			"reasoningTokens": null,
+			"cachedInputTokens": 0
+		}
+	},
+	"anthropic_stream_usage": {
+		"inputTokens": 6538,
+		"inputTokenDetails": {
+			"noCacheTokens": 3,
+			"cacheReadTokens": 0,
+			"cacheWriteTokens": 6535
+		},
+		"outputTokens": 176,
+		"outputTokenDetails": {
+			"textTokens": null,
+			"reasoningTokens": null
+		},
+		"totalTokens": 6714,
+		"raw": {
+			"input_tokens": 3,
+			"cache_creation_input_tokens": 6535,
+			"cache_read_input_tokens": 0,
+			"cache_creation": {
+				"ephemeral_5m_input_tokens": 6535,
+				"ephemeral_1h_input_tokens": 0
+			},
+			"output_tokens": 176,
+			"service_tier": "standard",
+			"inference_geo": "not_available"
+		},
+		"reasoningTokens": null,
+		"cachedInputTokens": 0
+	},
+	"openai_finish": {
+		"type": "finish",
+		"finishReason": "stop",
+		"rawFinishReason": null,
+		"totalUsage": {
+			"inputTokens": 3824,
+			"inputTokenDetails": {
+				"noCacheTokens": 3824,
+				"cacheReadTokens": 0,
+				"cacheWriteTokens": null
+			},
+			"outputTokens": 14,
+			"outputTokenDetails": {
+				"textTokens": 14,
+				"reasoningTokens": 0
+			},
+			"totalTokens": 3838,
+			"reasoningTokens": 0,
+			"cachedInputTokens": 0
+		}
+	},
+	"openai_stream_usage": {
+		"inputTokens": 3824,
+		"inputTokenDetails": {
+			"noCacheTokens": 3824,
+			"cacheReadTokens": 0,
+			"cacheWriteTokens": null
+		},
+		"outputTokens": 14,
+		"outputTokenDetails": {
+			"textTokens": 14,
+			"reasoningTokens": 0
+		},
+		"totalTokens": 3838,
+		"raw": {
+			"input_tokens": 3824,
+			"input_tokens_details": {
+				"cached_tokens": 0
+			},
+			"output_tokens": 14,
+			"output_tokens_details": {
+				"reasoning_tokens": 0
+			}
+		},
+		"reasoningTokens": 0,
+		"cachedInputTokens": 0
+	},
+	"vercel_finish": {
+		"type": "finish",
+		"finishReason": "tool-calls",
+		"rawFinishReason": "tool_calls",
+		"totalUsage": {
+			"inputTokens": 6781,
+			"inputTokenDetails": {
+				"noCacheTokens": 114,
+				"cacheReadTokens": 6667,
+				"cacheWriteTokens": null
+			},
+			"outputTokens": 70,
+			"outputTokenDetails": {
+				"textTokens": 70,
+				"reasoningTokens": 0
+			},
+			"totalTokens": 6851,
+			"reasoningTokens": 0,
+			"cachedInputTokens": 6667
+		}
+	},
+	"vercel_stream_usage": {
+		"inputTokens": 4550,
+		"inputTokenDetails": {
+			"noCacheTokens": 4550,
+			"cacheReadTokens": 0,
+			"cacheWriteTokens": null
+		},
+		"outputTokens": 10,
+		"outputTokenDetails": {
+			"textTokens": 10,
+			"reasoningTokens": 0
+		},
+		"totalTokens": 4560,
+		"raw": {
+			"prompt_tokens": 4550,
+			"completion_tokens": 10,
+			"total_tokens": 4560,
+			"prompt_tokens_details": {
+				"cached_tokens": 0
+			},
+			"completion_tokens_details": {
+				"reasoning_tokens": 0
+			},
+			"cost": 0.000641,
+			"is_byok": false,
+			"cost_details": {
+				"upstream_inference_cost": null,
+				"upstream_inference_prompt_cost": 0,
+				"upstream_inference_completions_cost": 0
+			},
+			"cache_creation_input_tokens": 0,
+			"market_cost": 0.000641
+		},
+		"reasoningTokens": 0,
+		"cachedInputTokens": 0
+	},
+	"openrouter_multi_turn_finish": {
+		"type": "finish",
+		"finishReason": "tool-calls",
+		"rawFinishReason": "tool_calls",
+		"totalUsage": {
+			"inputTokens": 6781,
+			"inputTokenDetails": {
+				"noCacheTokens": 114,
+				"cacheReadTokens": 6667,
+				"cacheWriteTokens": null
+			},
+			"outputTokens": 70,
+			"outputTokenDetails": {
+				"textTokens": 70,
+				"reasoningTokens": 0
+			},
+			"totalTokens": 6851,
+			"reasoningTokens": 0,
+			"cachedInputTokens": 6667
+		}
+	},
+	"openrouter_multi_turn_stream_usage": {
+		"inputTokens": 6781,
+		"inputTokenDetails": {
+			"noCacheTokens": 114,
+			"cacheReadTokens": 6667,
+			"cacheWriteTokens": null
+		},
+		"outputTokens": 70,
+		"outputTokenDetails": {
+			"textTokens": 70,
+			"reasoningTokens": 0
+		},
+		"totalTokens": 6851,
+		"raw": {
+			"prompt_tokens": 6781,
+			"completion_tokens": 70,
+			"total_tokens": 6851,
+			"prompt_tokens_details": {
+				"cached_tokens": 6667
+			},
+			"completion_tokens_details": {
+				"reasoning_tokens": 0
+			},
+			"cost": 0.0001738425,
+			"is_byok": true,
+			"cost_details": {
+				"upstream_inference_cost": 0.00347685,
+				"upstream_inference_prompt_cost": 0.00242685,
+				"upstream_inference_completions_cost": 0.00105
+			}
+		},
+		"reasoningTokens": 0,
+		"cachedInputTokens": 6667
+	}
+}

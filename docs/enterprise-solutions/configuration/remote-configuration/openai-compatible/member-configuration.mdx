@@ -1,0 +1,117 @@
+---
+title: "Configure OpenAI Compatible in VS Code (Members)"
+sidebarTitle: "Configure OpenAI Compatible (Member)"
+description: "Guide for engineers connecting to their organization's OpenAI-compatible endpoint through VS Code after admin setup"
+---
+
+As a team member, you can connect your local development environment to your organization's OpenAI-compatible endpoint. This guide walks you through configuring your credentials in VS Code so you can start using models through your organization's configured endpoint. Your administrator has already configured the provider settings — you just need to add your API key to get started.
+
+## Before You Begin
+
+To successfully connect to your organization's OpenAI-compatible endpoint, you'll need a few things ready.
+
+**Cline extension installed and configured**  
+The Cline extension must be installed in VS Code and you need to be signed into your organization account. If you haven't installed Cline yet, follow our [installation guide](/getting-started/installing-cline).
+
+<Info>
+**Quick Check**: Open the Cline panel in VS Code. If you see your organization name in the bottom left, you're signed in correctly.
+</Info>
+
+**API key or credentials for your endpoint**  
+You need an API key or credentials to authenticate with your organization's configured endpoint. For Azure Foundry deployments using Azure Identity Authentication, your Azure AD credentials may be used instead.
+
+<Note>
+If you're unsure what credentials to use, check with your administrator or IT team about how your organization has configured access.
+</Note>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Open Cline Settings">
+Open VS Code and access the Cline settings panel using either of these methods:
+
+- Click the settings icon (⚙️) in the Cline panel
+- Click on the API Provider dropdown located directly below the chat area
+
+</Step>
+
+<Step title="Configure Your Credentials">
+The authentication method depends on how your administrator configured the endpoint:
+
+<AccordionGroup>
+<Accordion title="API Key Authentication">
+For most OpenAI-compatible endpoints:
+
+1. Select or confirm the **OpenAI Compatible** provider is selected
+2. Enter your API key in the **API Key** field
+3. The base URL, custom headers, and other settings are preconfigured by your administrator
+4. Click **Save** to store your credentials
+
+<Tip>
+API keys are stored locally and are only used by the Cline extension.
+</Tip>
+</Accordion>
+
+<Accordion title="Azure Identity Authentication (Azure Foundry)">
+If your organization uses Azure AD authentication:
+
+1. Select or confirm the **OpenAI Compatible** provider is selected
+2. Ensure you are signed into Azure in your development environment
+3. The extension will use your Azure AD credentials automatically
+4. No API key is needed when Azure Identity Authentication is enabled
+
+<Note>
+You may need the Azure Account extension or Azure CLI installed for credential resolution.
+</Note>
+</Accordion>
+</AccordionGroup>
+
+<Note>
+The Base URL, custom headers, Azure API version, and Azure Identity settings are preconfigured by your administrator and do not need to be set in the extension.
+</Note>
+</Step>
+
+<Step title="Verify Configuration">
+After configuring your credentials, administrator-controlled settings will be locked (shown with a lock icon 🔒) as they're managed by your organization.
+</Step>
+
+<Step title="Test the Connection">
+Send a test message in Cline to verify your credentials work correctly with the configured endpoint.
+
+<Tip>
+**Testing Recommendation**
+
+Try a simple test like "Hello" first to verify basic connectivity before starting development tasks.
+</Tip>
+</Step>
+</Steps>
+
+## Troubleshooting
+
+**OpenAI Compatible not available as provider option**  
+Confirm you're signed into the correct Cline organization. Verify your administrator has saved the configuration and that you have the latest version of the Cline extension.
+
+**Authentication errors ("Access Denied" or "Invalid API Key")**  
+Verify your API key is correct and active. For Azure Foundry with Azure Identity Authentication, ensure you are signed into Azure in your development environment and that your account has the appropriate role assignments on the Azure OpenAI resource.
+
+**Connection errors or timeouts**  
+The endpoint URL is configured by your administrator. If you experience connection issues, check with your IT team about network requirements (VPN, firewall rules, etc.).
+
+**Models not available**  
+The available models depend on your organization's endpoint configuration. Contact your administrator if expected models are not available in the model dropdown.
+
+**Configuration changes don't persist**  
+Make sure to save your credentials. The base URL and other admin-controlled settings cannot be changed locally.
+
+## Security Best Practices
+
+When working with your API credentials:
+
+- Keep your API key secure and do not share it
+- Never store credentials in code or version control
+- Report any suspected key compromise to your administrator immediately
+- Follow your organization's usage guidelines for the configured endpoint
+
+Your organization administrator controls which endpoint, models, and settings are available. The extension will automatically apply the configured settings based on your organization's remote configuration.
+
+For Azure Foundry, refer to the [Azure OpenAI Service documentation](https://learn.microsoft.com/en-us/azure/ai-services/openai/). For other endpoints, consult your organization's internal documentation or contact your administrator.

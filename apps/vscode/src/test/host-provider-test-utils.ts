@@ -1,0 +1,34 @@
+import { CommentReviewControllerCreator, EditPreviewCreator, HostProvider, WebviewProviderCreator } from "@/hosts/host-provider"
+import { HostBridgeClientProvider } from "@/hosts/host-provider-types"
+import { vscodeHostBridgeClient } from "@/hosts/vscode/hostbridge/client/host-grpc-client"
+
+/**
+ * Initializes the HostProvider with test defaults.
+ * This is a common setup used across multiple test files.
+ *
+ * @param options Optional overrides for the default test configuration
+ */
+export function setVscodeHostProviderMock(options?: {
+	webviewProviderCreator?: WebviewProviderCreator
+	editPreviewCreator?: EditPreviewCreator
+	commentReviewControllerCreator?: CommentReviewControllerCreator
+	hostBridgeClient?: HostBridgeClientProvider
+	logToChannel?: (message: string) => void
+	getCallbackUri?: (path: string) => Promise<string>
+	getBinaryLocation?: (name: string) => Promise<string>
+	extensionFsPath?: string
+	globalStorageFsPath?: string
+}) {
+	HostProvider.reset()
+	HostProvider.initialize(
+		options?.webviewProviderCreator ?? ((() => {}) as WebviewProviderCreator),
+		options?.editPreviewCreator ?? ((() => {}) as EditPreviewCreator),
+		options?.commentReviewControllerCreator ?? ((() => {}) as CommentReviewControllerCreator),
+		options?.hostBridgeClient ?? vscodeHostBridgeClient,
+		options?.logToChannel ?? ((_: string) => {}),
+		options?.getCallbackUri ?? (async (path: string) => `http://example.com:1234${path}`),
+		options?.getBinaryLocation ?? (async (n: string) => `/mock/path/to/binary/${n}`),
+		options?.extensionFsPath ?? "/mock/path/to/extension",
+		options?.globalStorageFsPath ?? "/mock/path/to/globalstorage",
+	)
+}

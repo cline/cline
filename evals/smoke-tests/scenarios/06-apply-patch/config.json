@@ -1,0 +1,18 @@
+{
+	"name": "Edit file with apply_patch (GPT-5)",
+	"description": "Tests file editing with apply_patch tool (GPT-5 specific)",
+	"prompt": "Edit the file config.txt and change the 'debug' setting from 'false' to 'true'",
+	"models": [
+		"openai/gpt-5"
+	],
+	"expectedFiles": [
+		"config.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "config.txt",
+			"contains": "debug = true"
+		}
+	],
+	"timeout": 180
+}

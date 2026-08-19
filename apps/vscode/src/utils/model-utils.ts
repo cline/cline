@@ -1,0 +1,114 @@
+import { MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
+import { ApiHandlerModel } from "@core/api"
+import type { AnthropicModelId } from "@/shared/api"
+
+const CLAUDE_VERSION_MATCH_REGEX = /[-_ ]([\d](?:\.[05])?)[-_ ]?/
+export const GEMINI_FLASH_MAX_OUTPUT_TOKENS = 8_192
+
+export function modelDoesntSupportWebp(apiHandlerModel: ApiHandlerModel): boolean {
+	const modelId = apiHandlerModel.id.toLowerCase()
+	// Grok doesn't support WebP via its API.
+	// GLM and Devstral models running through llama.cpp fail with WebP because
+	// llama.cpp's STB image library doesn't support the WebP format.
+	return modelId.includes("grok") || isGLMModelFamily(modelId) || isDevstralModelFamily(modelId)
+}
+
+/**
+ * Determines if reasoning content should be skipped for a given model
+ * Currently skips reasoning for:
+ * - Grok-4 models since they only display "thinking" without useful information
+ * - Devstral models since they don't support reasoning_details field
+ */
+export function shouldSkipReasoningForModel(modelId?: string): boolean {
+	if (!modelId) {
+		return false
+	}
+	return modelId.includes("grok-4") || modelId.includes("devstral") || modelId.includes("glm")
+}
+
+function isAnthropicModelId(modelId: string): modelId is AnthropicModelId {
+	const CLAUDE_MODELS = ["sonnet", "opus", "haiku"]
+	const anthropicCollection = MODEL_COLLECTIONS_BY_PROVIDER_ID["anthropic"]
+	return (
+		(anthropicCollection ? modelId in anthropicCollection.models : false) ||
+		CLAUDE_MODELS.some((substring) => modelId.includes(substring))
+	)
+}
+
+export function isClaude4PlusModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	// Claude Code short aliases are always Claude 4+
+	// These are used by ClaudeCodeHandler.getModel() when user selects "sonnet" or "opus"
+	// Check before isAnthropicModelId to avoid type guard narrowing issues
+	if (modelId === "sonnet" || modelId === "opus") {
+		return true
+	}
+	if (!isAnthropicModelId(modelId)) {
+		return false
+	}
+	// Get model version number
+	const versionMatch = modelId.match(CLAUDE_VERSION_MATCH_REGEX)
+	if (!versionMatch) {
+		return false
+	}
+	const version = Number.parseFloat(versionMatch[1])
+	// Check if version is 4.0 or higher
+	return version >= 4
+}
+
+export function isGPT5ModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-5") || modelId.includes("gpt5")
+}
+
+export function isGptOssModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("gpt-oss") || modelId.includes("gpt_oss")
+}
+
+export function isGLMModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return (
+		modelId.includes("glm-5") ||
+		modelId.includes("glm-4.7") ||
+		modelId.includes("glm-4.6") ||
+		modelId.includes("glm-4.5") ||
+		// Space-separated variants like "GLM 4.6V" used with openai-compatible local servers
+		modelId.includes("glm 4.") ||
+		modelId.includes("z-ai/glm") ||
+		modelId.includes("zai-org/glm")
+	)
+}
+
+function isDevstralModelFamily(id: string): boolean {
+	const modelId = normalize(id)
+	return modelId.includes("devstral")
+}
+
+export function isGeminiFlashModel(id: string): boolean {
+	const modelId = normalize(id)
+	const isGooglePrefixedGemini = modelId.startsWith("google/gemini")
+	const isDirectGemini = modelId.startsWith("gemini-")
+	return (isGooglePrefixedGemini || isDirectGemini) && modelId.includes("flash")
+}
+
+/**
+ * Parses a price string and converts it from per-token to per-million-tokens
+ * @param priceString The price string to parse (e.g. from API responses)
+ * @returns The price multiplied by 1,000,000 for per-million-token pricing, or 0 if invalid
+ */
+export function parsePrice(priceString: string | undefined): number {
+	if (!priceString || priceString === "" || priceString === "0") {
+		return 0
+	}
+	const parsed = Number.parseFloat(priceString)
+	if (Number.isNaN(parsed)) {
+		return 0
+	}
+	// Convert from per-token to per-million-tokens (multiply by 1,000,000)
+	return parsed * 1_000_000
+}
+
+function normalize(text: string): string {
+	return text.trim().toLowerCase()
+}

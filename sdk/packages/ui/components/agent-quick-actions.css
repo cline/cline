@@ -1,0 +1,19 @@
+.cline-ui-agent-quick-actions,
+.cline-ui-agent-quick-actions__item {
+	box-sizing: border-box;
+	border-style: solid;
+}
+
+.cline-ui-agent-quick-actions__item {
+	font: inherit;
+}
+
+.cline-ui-agent-quick-actions__item:hover:not(:disabled) {
+	background: color-mix(in oklab, var(--background) 55%, transparent);
+}
+
+.cline-ui-agent-quick-actions__item:hover:not(:disabled)
+	.cline-ui-agent-quick-actions__arrow {
+	background: var(--primary);
+	color: var(--primary-foreground);
+}

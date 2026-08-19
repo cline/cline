@@ -1,0 +1,20 @@
+{
+	"version": 1,
+	"lastUsedProvider": "cline",
+	"providers": {
+		"cline": {
+			"settings": {
+				"provider": "cline",
+				"auth": {
+					"accessToken": "workos:eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJzdWIiOiJ0ZXN0SWQiLCJleHRlcm5hbF9pZCI6InRlc3RJZCIsImVtYWlsIjoidGVzdEBjbGluZS5ib3QiLCJuYW1lIjoiVGVzdCBVc2VyIiwiZXhwIjoxODk5NTc4OTI0LCJpYXQiOjE3NzMzNDQzODQsInNpZCI6InRlc3Qtc2Vzc2lvbi1pZCJ9.",
+					"refreshToken": "testRefreshToken",
+					"expiresAt": 1899578924000,
+					"accountId": "testId"
+				},
+				"model": "anthropic/claude-sonnet-4.6"
+			},
+			"updatedAt": "2026-03-24T21:55:22.629Z",
+			"tokenSource": "oauth"
+		}
+	}
+}

@@ -1,0 +1,7 @@
+[test]
+# Module-substitution aliases for `bun test`. bun resolves tsconfig `paths`
+# (@/*, @core/*, @shared/*, …) and the real @cline/llms + @cline/shared dist
+# builds on its own; the preload only shadows `vscode` and `@cline/core` with
+# their unit-test stubs (mirrors vitest.config.ts resolve.alias). See
+# src/test/bun-test-preload.ts for details.
+preload = ["./src/test/bun-test-preload.ts"]

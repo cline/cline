@@ -1,0 +1,92 @@
+---
+title: "Plugin Examples"
+sidebarTitle: "Plugin Examples"
+description: "Explore installable plugin examples from the Cline SDK repository."
+---
+
+The [SDK repository](https://github.com/cline/cline/tree/main/sdk) includes installable plugin examples under [`examples/plugins/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins). Use them as starting points for tools, lifecycle hooks, message rewriting, policy enforcement, background jobs, and multi-agent workflows.
+
+## Examples
+
+| Example | What it shows |
+|---------|---------------|
+| [`weather-metrics.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts) | Tool registration plus lifecycle metrics hooks. Best starting point. |
+| [`mac-notify.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/mac-notify.ts) | macOS Notification Center alert from an `afterRun` hook. |
+| [`custom-compaction.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/custom-compaction.ts) | Provider-message compaction with `registerMessageBuilder`. |
+| [`background-terminal.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/background-terminal.ts) | Detached shell jobs with persisted logs and optional session steering. |
+| [`automation-events.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/automation-events.ts) | Plugin-emitted automation events. |
+| [`gitignore-read-files-guard.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts) | Runtime hook policy that blocks file access outside workspace `.gitignore` boundaries. |
+| [`web-search.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts) | `web_search` tool backed by an Exa API key. |
+| [`typescript-lsp/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins/typescript-lsp) | `goto_definition` tool powered by the TypeScript Language Service. |
+| [`agents-squad/`](https://github.com/cline/cline/tree/main/sdk/examples/plugins/agents-squad) | Multi-agent team with subagents that have their own models and personalities. |
+
+## Try a File Plugin with the CLI
+
+The CLI auto-discovers plugins from `.cline/plugins` in the workspace, `~/.cline/plugins`, and the system plugins folder.
+
+```sh
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/weather-metrics.ts --cwd .
+cline -i "What's the weather like in Tokyo and Paris?"
+```
+
+Swap `weather-metrics.ts` for any other single-file plugin example.
+
+## Block Ignored File Access
+
+Use `gitignore-read-files-guard.ts` to block tools from reading or editing files ignored by workspace `.gitignore` files:
+
+```sh
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/gitignore-read-files-guard.ts --cwd .
+cline -i "Read the ignored .env file"
+```
+
+The guard uses the `beforeTool` runtime hook. When a `read_files`, `editor`, or `apply_patch` call targets an ignored workspace file, the hook returns `{ skip: true }`, so the tool records a policy error and does not access the file.
+
+## Install a Directory Plugin
+
+For a plugin that lives in a directory with its own `package.json`, use `cline plugin install`:
+
+```sh
+cline plugin install ./examples/plugins/agents-squad
+```
+
+See [Installing Plugins](/sdk/plugin-install) for more install options.
+
+## Add Web Search
+
+The `web-search.ts` plugin registers a `web_search` tool backed by Exa. Use `web_search` to discover relevant URLs, then use `fetch_web_content` when the agent needs to inspect a specific page.
+
+```sh
+cline plugin install https://github.com/cline/cline/blob/main/sdk/examples/plugins/web-search.ts --cwd .
+
+export EXA_API_KEY=...
+export OPENROUTER_API_KEY=...
+
+cline auth --provider openrouter --apikey "$OPENROUTER_API_KEY" --modelid anthropic/claude-sonnet-4.6
+cline -P openrouter -m anthropic/claude-sonnet-4.6 "Search the web for recent Bun release notes, then fetch the most relevant page"
+```
+
+`EXA_API_KEY` authenticates the search backend. The CLI still needs a normal model provider key or saved provider auth for inference.
+
+## Custom Message Compaction
+
+Use `registerMessageBuilder` when a plugin needs to rewrite the provider-bound message list before the model call.
+
+| Example | Extension point | Best for |
+|---------|-----------------|----------|
+| [`custom-compaction.ts`](https://github.com/cline/cline/blob/main/sdk/examples/plugins/custom-compaction.ts) | `api.registerMessageBuilder()` | Reusable, plugin-owned compaction policies. |
+| [`custom-compaction-hook.example.ts`](https://github.com/cline/cline/blob/main/sdk/examples/hooks/custom-compaction-hook.example.ts) | `hooks.beforeModel` | Runtime hook logic that needs runtime hook context or direct request mutation. |
+
+Prefer the message-builder version for normal compaction. It runs in the core message pipeline before the built-in safety builder, multiple builders run in registration order, and the final pass enforces provider-safe truncation.
+
+## Background Terminal Plugin
+
+`background-terminal.ts` registers three tools for long-running shell jobs:
+
+| Tool | Purpose |
+|------|---------|
+| `start_background_command` | Starts a detached shell command, returns a job ID immediately, and captures stdout/stderr under Cline's data directory. |
+| `get_background_command` | Reads job status plus recent stdout/stderr tails. |
+| `delete_background_command` | Deletes saved job metadata and optionally deletes captured logs. |
+
+When `notifyParent` is true, the plugin emits a `steer_message` after the command exits, pushing a completion summary back into the active session so the agent can react to long-running commands without blocking the original tool call.

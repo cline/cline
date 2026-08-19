@@ -1,0 +1,27 @@
+{
+	"extends": "../../tsconfig.apps.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"lib": ["ES2022"],
+		"types": ["node", "vscode"],
+		"strict": true,
+		"esModuleInterop": true,
+		"skipLibCheck": true,
+		"forceConsistentCasingInFileNames": true,
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"noImplicitReturns": true,
+		"noFallthroughCasesInSwitch": true
+	},
+	"include": ["src/**/*"],
+	"exclude": [
+		"node_modules",
+		"dist",
+		"src/webview/**/*",
+		"src/cline-webview/**/*"
+	]
+}

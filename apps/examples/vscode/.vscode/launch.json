@@ -1,0 +1,29 @@
+{
+	"version": "0.2.0",
+	"configurations": [
+		{
+			"name": "Run Extension",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extensions"
+			],
+			"preLaunchTask": "build-extension"
+		},
+		{
+			"name": "Run Extension (Dev Webview)",
+			"type": "extensionHost",
+			"request": "launch",
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--disable-extensions"
+			],
+			"env": {
+				"VITE_DEV_SERVER_URL": "http://localhost:5173"
+			},
+			"preLaunchTask": "dev-all",
+			"postDebugTask": "kill-dev"
+		}
+	]
+}

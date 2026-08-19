@@ -1,0 +1,3 @@
+#!/usr/bin/env node
+console.error("Hook execution error");
+process.exit(1);

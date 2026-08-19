@@ -1,0 +1,15 @@
+{
+	"name": "Read and create summary",
+	"description": "Tests read_file tool and response generation",
+	"prompt": "Read the file data.txt and create a summary.txt file that contains a one-sentence summary of what the data file contains",
+	"expectedFiles": [
+		"summary.txt"
+	],
+	"expectedContent": [
+		{
+			"file": "summary.txt",
+			"contains": "user"
+		}
+	],
+	"timeout": 180
+}

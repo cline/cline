@@ -16,7 +16,7 @@ This document focuses on setting up providers _other than_ the official OpenAI A
 The key to using an OpenAI-compatible provider with Cline is to configure these main settings:
 
 1.  **Base URL:** This is the API endpoint specific to the provider. It will _not_ be `https://api.openai.com/v1` (that URL is for the official OpenAI API).
-2.  **API Key:** This is the secret key you obtain from your chosen provider.
+2.  **API Key:** This is the secret key you obtain from your chosen provider. (or **Use Azure Identity Authentication**)
 3.  **Model ID:** This is the specific name or identifier for the model you wish to use.
 
 You'll find these settings in the Cline settings panel (click the ⚙️ icon):
@@ -25,6 +25,7 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
 -   **Base URL:** Enter the base URL provided by your chosen provider. **This is a crucial step.**
 -   **API Key:** Enter your API key from the provider.
 -   **Model:** Choose or enter the model ID.
+-   **Use Azure Identity Authentication:** Check the box to authenticate with your Azure managed identity (Note that this will not trigger the authentication, it will use the existing one (e.g., "az login"))
 -   **Model Configuration:** This section allows you to customize advanced parameters for the model, such as:
     -   Max Output Tokens
     -   Context Window size
@@ -32,19 +33,6 @@ You'll find these settings in the Cline settings panel (click the ⚙️ icon):
     -   Computer Use (e.g., for models with tool/function calling)
     -   Input Price (per token/million tokens)
     -   Output Price (per token/million tokens)
-
-### Supported Models (for OpenAI Native Endpoint)
-
-While the "OpenAI Compatible" provider type allows connecting to various endpoints, if you are connecting directly to the official OpenAI API (or an endpoint that mirrors it exactly), Cline recognizes the following model IDs based on the `openAiNativeModels` definition in its source code:
-
--   `o3-mini`
--   `o3-mini-high`
--   `o3-mini-low`
--   `o1`
--   `o1-preview`
--   `o1-mini`
--   `gpt-4o`
--   `gpt-4o-mini`
 
 **Note:** If you are using a different OpenAI-compatible provider (such as Together AI, Anyscale, etc.), the available model IDs will differ. Always refer to your specific provider's documentation for their supported model names and any unique configuration details.
 

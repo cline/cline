@@ -1,0 +1,72 @@
+{
+	"version": 1,
+	"updated_at": "2026-04-22T17:42:10.123Z",
+	"agent": "lead",
+	"sessionId": "fixture-success-01",
+	"messages": [
+		{
+			"id": "msg_user_1",
+			"role": "user",
+			"content": [
+				{ "type": "text", "text": "Inspect the README and summarize it." }
+			]
+		},
+		{
+			"id": "msg_assistant_1",
+			"role": "assistant",
+			"ts": 1745343730123,
+			"modelInfo": {
+				"id": "claude-sonnet-4-6",
+				"provider": "anthropic",
+				"family": "claude-sonnet-4"
+			},
+			"content": [
+				{
+					"type": "thinking",
+					"thinking": "I should read the README first before summarizing."
+				},
+				{
+					"type": "tool_use",
+					"id": "tool-call-1",
+					"name": "read_files",
+					"input": { "path": "/tmp/project/README.md" }
+				}
+			]
+		},
+		{
+			"id": "msg_user_2",
+			"role": "user",
+			"content": [
+				{
+					"type": "tool_result",
+					"tool_use_id": "tool-call-1",
+					"content": "# Project\n\nA small test fixture.",
+					"is_error": false
+				}
+			]
+		},
+		{
+			"id": "msg_assistant_2",
+			"role": "assistant",
+			"ts": 1745343731456,
+			"modelInfo": {
+				"id": "claude-sonnet-4-6",
+				"provider": "anthropic",
+				"family": "claude-sonnet-4"
+			},
+			"metrics": {
+				"inputTokens": 21,
+				"outputTokens": 8,
+				"cacheReadTokens": 3,
+				"cacheWriteTokens": 1,
+				"cost": 0.13
+			},
+			"content": [
+				{
+					"type": "text",
+					"text": "The README describes a small test fixture project."
+				}
+			]
+		}
+	]
+}

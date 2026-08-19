@@ -1,0 +1,582 @@
+export * from "./agent";
+export * from "./agents";
+export type {
+	ConnectorAuthorizationDecision,
+	ConnectorAuthorizationRequest,
+	ConnectorEventActor,
+	ConnectorEventContext,
+	ConnectorHookEvent,
+	ConnectorHookEventName,
+} from "./connectors/events";
+export {
+	ConnectorAuthorizationDecisionSchema,
+	ConnectorAuthorizationRequestSchema,
+	ConnectorEventActorSchema,
+	ConnectorEventContextSchema,
+	ConnectorHookEventNameSchema,
+	ConnectorHookEventSchema,
+} from "./connectors/events";
+export type * from "./connectors/options";
+export type {
+	ActiveConnectorRecord,
+	ConfiguredConnectorRecord,
+	ConnectorCatalogEntry,
+	ConnectorChannel,
+	ConnectorChannelsResponse,
+	ConnectorFieldCondition,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	ConnectorSecurityDef,
+	ConnectorSecurityFieldDef,
+} from "./connectors/platforms";
+export {
+	buildConnectorConnectArgs,
+	CONNECTOR_CATALOG,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	mergeConnectorConnectArgs,
+	shouldIncludeConnectorField,
+} from "./connectors/platforms";
+export type {
+	ConnectorStartRequest,
+	ConnectorStartResult,
+	ConnectorStopRequest,
+	ConnectorStopResultPayload,
+	SupervisedConnectorOrigin,
+	SupervisedConnectorRecord,
+	SupervisedConnectorState,
+} from "./connectors/supervision";
+export type {
+	AutomationEventEnvelope,
+	CronEventSpec,
+	CronOneOffSpec,
+	CronScheduleSpec,
+	CronSpec,
+	CronSpecCommonFields,
+	CronSpecExtensionKind,
+	CronSpecMode,
+	CronSpecModelSelection,
+	CronSpecParseResult,
+	CronTriggerKind,
+} from "./cron";
+export type { Disposable } from "./dispose";
+export { disposeAll, registerDisposable } from "./dispose";
+export type {
+	ClientContext,
+	ClientName,
+	ExtensionContext,
+	UserContext,
+	WorkspaceContext,
+} from "./extensions/context";
+export type {
+	AgentExtensionApi,
+	AgentExtensionAutomationContext,
+	AgentExtensionAutomationEventType,
+	AgentExtensionCapability,
+	AgentExtensionCommand,
+	AgentExtensionCommandResult,
+	AgentExtensionHooks,
+	AgentExtensionMcpEnv,
+	AgentExtensionMcpEnvValue,
+	AgentExtensionMcpServer,
+	AgentExtensionMcpSseTransport,
+	AgentExtensionMcpStdioTransport,
+	AgentExtensionMcpStreamableHttpTransport,
+	AgentExtensionMcpTransport,
+	AgentExtensionMessageBuilder,
+	AgentExtensionProvider,
+	AgentExtensionRegistry,
+	AgentExtensionRule,
+	AgentExtensionSessionContext,
+	ContributionRegistryExtension,
+	ContributionRegistryOptions,
+	PluginManifest,
+	PluginSetupContext,
+} from "./extensions/contribution-registry";
+export {
+	ContributionRegistry,
+	createContributionRegistry,
+	normalizePluginManifest,
+} from "./extensions/contribution-registry";
+export { PLUGIN_FILE_EXTENSIONS } from "./extensions/plugin";
+export {
+	FEATURE_FLAGS,
+	type FeatureFlag,
+	FeatureFlagDefaultValue,
+	type FeatureFlagPayload,
+	type FeatureFlagsAndPayloads,
+	type FeatureFlagsContext,
+	type FeatureFlagsSettings,
+	type IFeatureFlagsProvider,
+} from "./feature-flags";
+export type { HookControl } from "./hooks/contracts";
+export type {
+	AgentAbortHookPayload,
+	AgentEndHookPayload,
+	AgentErrorHookPayload,
+	AgentResumeHookPayload,
+	AgentStartHookPayload,
+	HookEventName,
+	HookEventPayload,
+	HookEventPayloadBase,
+	PostToolUseData,
+	PreCompactData,
+	PreCompactHookPayload,
+	PreToolUseData,
+	PromptSubmitHookPayload,
+	SessionShutdownHookPayload,
+	TaskCancelData,
+	TaskCompleteData,
+	TaskResumeData,
+	TaskStartData,
+	ToolCallHookPayload,
+	ToolResultHookPayload,
+	UserPromptSubmitData,
+} from "./hooks/events";
+export {
+	HookEventNameSchema,
+	HookEventPayloadSchema,
+	parseHookEventPayload,
+} from "./hooks/events";
+export * from "./hub";
+export type {
+	AiSdkFormatterMessage,
+	AiSdkFormatterMessageRole,
+	AiSdkFormatterPart,
+	AiSdkMessage,
+	AiSdkMessagePart,
+} from "./llms/ai-sdk-format";
+export {
+	EMPTY_CONTENT_TEXT,
+	formatMessagesForAiSdk,
+	sanitizeSurrogates,
+	toAiSdkToolResultOutput,
+} from "./llms/ai-sdk-format";
+export * from "./llms/gateway";
+export {
+	type Base64MediaValidationFailure,
+	type Base64MediaValidationResult,
+	type Base64MediaValidationSuccess,
+	createMediaBudgetState,
+	DEFAULT_MAX_IMAGE_BASE64_BYTES,
+	DEFAULT_MAX_IMAGE_DECODED_BYTES,
+	DEFAULT_MAX_IMAGE_ENCODED_BYTES,
+	DEFAULT_MAX_TOTAL_MEDIA_BYTES,
+	type GeneratedMedia,
+	type GeneratedMediaModality,
+	GeneratedMediaModalitySchema,
+	GeneratedMediaSchema,
+	type GeneratedMediaSource,
+	GeneratedMediaSourceSchema,
+	generatedMediaModalityFromMediaType,
+	IMAGE_OMITTED_PLACEHOLDER,
+	IMAGE_UNSUPPORTED_PLACEHOLDER,
+	type ImageMediaLimits,
+	type ImageMediaValidationFailure,
+	type ImageMediaValidationResult,
+	type ImageMediaValidationSuccess,
+	imageBase64DecodedByteLength,
+	imageBase64EncodedByteLength,
+	imageBase64LengthForDecodedBytes,
+	imageFileMaxDecodedBytesForBase64Limit,
+	isBase64Char,
+	isCanonicalBase64,
+	isGeneratedMedia,
+	type MediaBudgetOptions,
+	type MediaBudgetState,
+	type ResolvedMediaBudget,
+	reserveImageMediaBytes,
+	resolveMediaBudget,
+	SUPPORTED_IMAGE_MEDIA_TYPES,
+	validateAndReserveBase64Media,
+	validateAndReserveImageMedia,
+	validateImageMedia,
+} from "./llms/media";
+export type {
+	ContentBlock,
+	FileContent,
+	ImageContent,
+	MediaContent,
+	Message,
+	MessageRole,
+	MessageWithMetadata,
+	RedactedThinkingContent,
+	TextContent,
+	ThinkingContent,
+	ToolDefinition,
+	ToolResultContent,
+	ToolUseContent,
+} from "./llms/messages";
+export {
+	ApiFormat,
+	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
+	type ModelCapability,
+	ModelCapabilitySchema,
+	type ModelInfo,
+	ModelInfoSchema,
+	type ModelMetadata,
+	ModelMetadataSchema,
+	type ModelModalities,
+	ModelModalitiesSchema,
+	type ModelModality,
+	ModelModalitySchema,
+	type ModelOperation,
+	type ModelOperationMode,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
+	type ModelPricing,
+	ModelPricingSchema,
+	type ModelStatus,
+	ModelStatusSchema,
+	modelHasCapability,
+	modelProducesImages,
+	modelSupportsToolCalling,
+	supportsChatModalities,
+	type ThinkingConfig,
+	ThinkingConfigSchema,
+	usesImageGenerationOperation,
+} from "./llms/model-info";
+export { mergeModelOptions } from "./llms/model-options";
+export * from "./llms/model-tools";
+export {
+	DEFAULT_REASONING_EFFORT,
+	REASONING_EFFORT_RATIOS,
+	resolveEffectiveReasoningEffort,
+	resolveReasoningBudgetFromRatio,
+	resolveReasoningEffortRatio,
+} from "./llms/reasoning-effort";
+export {
+	type ModelReasoningOption,
+	ModelReasoningOptionSchema,
+	REASONING_LEVELS,
+	type ReasoningEffort,
+	ReasoningEffortSchema,
+	type ReasoningLevel,
+	ReasoningLevelSchema,
+} from "./llms/reasoning-options";
+export { serializeAbortReason } from "./llms/requests";
+export {
+	CHARS_PER_TOKEN,
+	estimateRequestInputTokens,
+	estimateTokens,
+	type TokenEstimatedRequest,
+} from "./llms/tokens";
+export type {
+	ToolApprovalRequest,
+	ToolApprovalResult,
+	ToolCallRecord,
+	ToolPolicy,
+} from "./llms/tools";
+export { ToolCallRecordSchema } from "./llms/tools";
+export {
+	type BasicLogger,
+	type BasicLogMetadata,
+	noopBasicLogger,
+} from "./logging/logger";
+export * from "./mcp";
+export { getErrorCode, getErrorMessage } from "./parse/error";
+export {
+	normalizeJsonLikeStringsForSchema,
+	parseJsonStream,
+	safeJsonParse,
+	safeJsonStringify,
+} from "./parse/json";
+export { decodeJwtPayload } from "./parse/jwt";
+export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
+export {
+	getDefaultShell,
+	getShellArgs,
+	getShellInvocation,
+	getShellKind,
+	type ShellInvocation,
+	type ShellKind,
+} from "./parse/shell";
+export {
+	maskSecret,
+	sanitizeFileName,
+	stripUtf8Bom,
+	trimNonEmpty,
+	truncateSplit,
+	truncateStr,
+} from "./parse/string";
+export { formatHumanReadableDate, formatUptime } from "./parse/time";
+export { validateWithZod, zodToJsonSchema } from "./parse/zod";
+export type { ClineSystemPromptOptions } from "./prompt/cline";
+export {
+	buildClineSystemPrompt,
+	MODE_TAG_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
+	processWorkspaceInfo,
+} from "./prompt/cline";
+export type {
+	ModeSwitchNotice,
+	ModeSwitchNoticeTracker,
+} from "./prompt/format";
+export {
+	createModeSwitchNoticeTracker,
+	formatDisplayUserInput,
+	formatFileContentBlock,
+	formatModeSwitchNotice,
+	formatUserCommandBlock,
+	formatUserInputBlock,
+	normalizeUserInput,
+	parseUserCommandEnvelope,
+	parseUserInputMode,
+	stripModeNotices,
+	xmlTagsRemoval,
+} from "./prompt/format";
+export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
+export { isClineProvider } from "./providers/utils";
+export {
+	buildRemoteConfigSessionBlobUploadMetadata,
+	clearMaterializedRemoteConfigRuntime,
+	clearRemoteConfigSessionBlobUpload,
+	createRemoteConfigSessionMessagesArtifactUploader,
+	prepareRemoteConfigRuntime,
+	REMOTE_CONFIG_SESSION_BLOB_UPLOAD_METADATA_KEY,
+	readRemoteConfigSessionBlobUploadMetadata,
+	registerRemoteConfigSessionBlobUpload,
+} from "./remote-config";
+export type {
+	PreparedRemoteConfigRuntime,
+	PrepareRemoteConfigRuntimeOptions,
+	RemoteConfigBundle,
+	RemoteConfigManagedInstructionFile,
+} from "./remote-config/bundle";
+export { REMOTE_URI_SCHEME } from "./remote-config/constants";
+export type {
+	AnthropicModel,
+	AnthropicSettings,
+	APIKeySettings,
+	AwsBedrockCustomModel,
+	AwsBedrockModel,
+	AwsBedrockSettings,
+	EnterpriseTelemetry,
+	GlobalInstructionsFile,
+	LiteLLMModel,
+	LiteLLMSettings,
+	MCPServer,
+	OpenAiCompatible,
+	OpenAiCompatibleModel,
+	PromptUploading,
+	ProviderSettings,
+	RemoteConfig,
+	RemoteMCPServer,
+	S3AccessKeySettings,
+	VertexModel,
+	VertexSettings,
+} from "./remote-config/schema";
+export {
+	AllowedMCPServerSchema,
+	AnthropicModelSchema,
+	AnthropicSchema,
+	APIKeySchema,
+	AwsBedrockCustomModelSchema,
+	AwsBedrockModelSchema,
+	AwsBedrockSettingsSchema,
+	ClineModelSchema,
+	ClineSettingsSchema,
+	EnterpriseTelemetrySchema,
+	GlobalInstructionsFileSchema,
+	LiteLLMModelSchema,
+	LiteLLMSchema,
+	OpenAiCompatibleModelSchema,
+	OpenAiCompatibleSchema,
+	PromptUploadingSchema,
+	RemoteConfigSchema,
+	RemoteMCPServerSchema,
+	S3AccessKeySettingsSchema,
+	VertexModelSchema,
+	VertexSettingsSchema,
+} from "./remote-config/schema";
+export {
+	CLINE_DEFAULT_RPC_ADDRESS,
+	CLINE_DEFAULT_RPC_PORT,
+	CLINE_HUB_DEV_PORT,
+	CLINE_HUB_PORT,
+} from "./rpc";
+export type {
+	AddProviderActionRequest,
+	ChatAttachmentFile,
+	ChatAttachments,
+	ChatRunTurnRequest,
+	ChatRuntimeConfig,
+	ChatStartSessionArtifacts,
+	ChatStartSessionRequest,
+	ChatStartSessionResponse,
+	ChatToolCallResult,
+	ChatTurnResult,
+	ClineAccountActionRequest,
+	EnterpriseAuthenticateRequest,
+	EnterpriseAuthenticateResponse,
+	EnterpriseStatusRequest,
+	EnterpriseStatusResponse,
+	EnterpriseSyncRequest,
+	EnterpriseSyncResponse,
+	GetProviderModelsActionRequest,
+	ListProvidersActionRequest,
+	ProviderActionRequest,
+	ProviderCapability,
+	ProviderCatalogResponse,
+	ProviderClient,
+	ProviderConfigField,
+	ProviderConfigFieldOption,
+	ProviderConfigFieldPrimitive,
+	ProviderConfigFieldType,
+	ProviderListItem,
+	ProviderModel,
+	ProviderModelsResponse,
+	ProviderOAuthLoginResponse,
+	ProviderProtocol,
+	ProviderSettingsActionRequest,
+	RuntimeLoggerConfig,
+	SaveProviderSettingsActionRequest,
+	VoiceInputSelection,
+} from "./rpc/runtime";
+export {
+	ProviderCapabilitySchema,
+	ProviderClientSchema,
+	ProviderProtocolSchema,
+} from "./rpc/runtime";
+export type {
+	TeamProgressCounts,
+	TeamProgressLifecycleEvent,
+	TeamProgressMemberRole,
+	TeamProgressMemberStatus,
+	TeamProgressOutcomeFragmentStatus,
+	TeamProgressOutcomeStatus,
+	TeamProgressProjectionEvent,
+	TeamProgressRunStatus,
+	TeamProgressSummary,
+	TeamProgressTaskStatus,
+} from "./rpc/team-progress";
+export {
+	TEAM_LIFECYCLE_EVENT_TYPE,
+	TEAM_PROGRESS_EVENT_TYPE,
+} from "./rpc/team-progress";
+export type {
+	ClineBuildEnv,
+	ClineDebugRole,
+	ResolveClineBuildEnvOptions,
+} from "./runtime/build-env";
+export {
+	augmentNodeCommandForDebug,
+	CLINE_BUILD_ENV_ENV,
+	CLINE_DEBUG_HOST_ENV,
+	CLINE_DEBUG_PORT_BASE_ENV,
+	resolveClineBuildEnv,
+	withResolvedClineBuildEnv,
+} from "./runtime/build-env";
+export type {
+	ClineEnvironment,
+	ClineEnvironmentConfig,
+	ResolveClineEnvironmentOptions,
+} from "./runtime/cline-environment";
+export {
+	CLINE_ENVIRONMENT_ENV,
+	CLINE_ENVIRONMENT_OVERRIDE_ENV,
+	CLINE_ENVIRONMENTS,
+	DEFAULT_CLINE_ENVIRONMENT,
+	getClineEnvironmentConfig,
+	resolveClineEnvironment,
+} from "./runtime/cline-environment";
+export type {
+	ConnectorCliLaunchSpec,
+	ConnectorInstanceRef,
+} from "./runtime/hub-daemon-env";
+export {
+	CLINE_CONNECTOR_CLI_LAUNCH_ENV,
+	CLINE_CONNECTOR_STARTING_INSTANCE_ENV,
+	CLINE_CONNECTOR_SUPERVISED_ENV,
+	CLINE_RUN_AS_HUB_DAEMON_ENV,
+	claimHubDaemonProcess,
+	claimSupervisedConnectorProcess,
+	isHubDaemonProcess,
+	isSupervisedConnectorProcess,
+	readConnectorCliLaunchSpec,
+	readStartingConnectorInstance,
+	setConnectorCliLaunchSpec,
+	setStartingConnectorInstance,
+} from "./runtime/hub-daemon-env";
+export type {
+	CaptureAgentUnexpectedReasoningTokensInput,
+	CaptureSdkErrorInput,
+	CaptureTaskLifecycleEventInput,
+	ITelemetryService,
+	OpenTelemetryClientConfig,
+	SdkTelemetryErrorComponent,
+	SdkTelemetryErrorSeverity,
+	TelemetryArray,
+	TelemetryMetadata,
+	TelemetryObject,
+	TelemetryPrimitive,
+	TelemetryProperties,
+	TelemetryValue,
+} from "./services/telemetry";
+export {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	buildSdkErrorProperties,
+	captureAgentUnexpectedReasoningTokens,
+	captureSdkError,
+	captureTaskLifecycleEvent,
+	normalizeSdkError,
+	resetSdkErrorRateLimiterForTests,
+	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+} from "./services/telemetry";
+export type { ClineTelemetryServiceConfig } from "./services/telemetry-config";
+export {
+	createClineTelemetryServiceConfig,
+	createClineTelemetryServiceMetadata,
+} from "./services/telemetry-config";
+export type {
+	HookSessionContext,
+	HookSessionContextLookup,
+	HookSessionContextProvider,
+} from "./session/hook-context";
+export {
+	resolveHookSessionContext,
+	resolveRootSessionId,
+} from "./session/hook-context";
+export { createSessionId } from "./session/index";
+export type {
+	SessionLineage,
+	SessionRuntimeRecordShape,
+	SharedSessionStatus,
+} from "./session/records";
+export { SESSION_STATUS_VALUES } from "./session/records";
+export type {
+	AgentMode,
+	RuntimeConfigExtensionKind,
+	SessionExecutionConfig,
+	SessionPromptConfig,
+	SessionWorkspaceConfig,
+} from "./session/runtime-config";
+export {
+	DEFAULT_RUNTIME_CONFIG_EXTENSIONS,
+	hasRuntimeConfigExtension,
+	isRuntimeConfigExtensionKind,
+	parseRuntimeConfigExtensions,
+	RUNTIME_CONFIG_EXTENSION_KINDS,
+} from "./session/runtime-config";
+export type { RuntimeEnv } from "./session/runtime-env";
+export * from "./session/workspace";
+export {
+	CLINE_CHAT_WORKSPACE_DIRECTORY_NAME,
+	CLINE_WORKSPACES_DIRECTORY_NAME,
+	isChatWorkspacePath,
+} from "./storage/chat-workspace-paths";
+export * from "./team";
+export { createTool } from "./tools/create";
+export * from "./types";
+export { AUTH_ERROR_PATTERNS, isLikelyAuthError } from "./types/auth";
+export { initVcr } from "./vcr";

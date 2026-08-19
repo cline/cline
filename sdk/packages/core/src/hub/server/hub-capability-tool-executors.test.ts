@@ -1,0 +1,338 @@
+import { describe, expect, it, vi } from "vitest";
+import { handleCapabilityProgress } from "./handlers/capability-handlers";
+import type { HubTransportContext } from "./handlers/context";
+import {
+	createHubClientContributionRuntime,
+	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+} from "./hub-client-contributions";
+
+type ClientContributionRequest = Parameters<
+	typeof createHubClientContributionRuntime
+>[0]["requestCapability"];
+
+describe("hub capability custom tools", () => {
+	it("proxies custom tool execution to the owning client", async () => {
+		const request: ClientContributionRequest = vi.fn(
+			async (
+				_sessionId,
+				_capabilityName,
+				_payload,
+				_targetClientId,
+				onProgress,
+			) => {
+				onProgress?.({ update: { stream: "stdout", chunk: "hello\n" } });
+				return { result: "done" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "tool",
+					name: "custom_exec",
+					description: "Run a custom command.",
+					inputSchema: { type: "object" },
+					capabilityName: "custom_tool.custom_exec",
+				},
+			],
+			requestCapability: request,
+		});
+		const tools = runtime.localRuntime.extraTools ?? [];
+		const updates: unknown[] = [];
+
+		const result = await tools[0].execute(
+			{ command: "echo hello" },
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(result).toBe("done");
+		expect(updates).toEqual([{ stream: "stdout", chunk: "hello\n" }]);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"custom_tool.custom_exec",
+			{
+				toolName: "custom_exec",
+				input: { command: "echo hello" },
+				context: {
+					sessionId: "session-1",
+					agentId: "agent-1",
+					conversationId: "conv-1",
+					iteration: 2,
+					metadata: undefined,
+				},
+			},
+			"client-1",
+			expect.any(Function),
+		);
+	});
+
+	it("forwards progress from client-contributed tool executors", async () => {
+		const request: ClientContributionRequest = vi.fn(
+			async (
+				_sessionId,
+				_capabilityName,
+				_payload,
+				_targetClientId,
+				onProgress,
+			) => {
+				onProgress?.({ update: { stream: "stderr", chunk: "warning\n" } });
+				return { result: "answered" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+			],
+			requestCapability: request,
+		});
+		const updates: unknown[] = [];
+
+		const result = await runtime.toolExecutors?.askQuestion?.(
+			"Continue?",
+			["Yes"],
+			{
+				sessionId: "session-1",
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				runId: "run-1",
+				iteration: 2,
+				toolCallId: "call-1",
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(result).toBe("answered");
+		expect(updates).toEqual([{ stream: "stderr", chunk: "warning\n" }]);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"tool_executor.askQuestion",
+			expect.objectContaining({
+				context: expect.objectContaining({
+					sessionId: "session-1",
+					runId: "run-1",
+					toolCallId: "call-1",
+				}),
+			}),
+			"client-1",
+			expect.any(Function),
+		);
+	});
+});
+
+describe("handleCapabilityProgress", () => {
+	it("routes progress payloads to the pending capability request", () => {
+		const onProgress = vi.fn();
+		const ctx = {
+			pendingCapabilityRequests: new Map([
+				[
+					"capreq-1",
+					{
+						sessionId: "session-1",
+						targetClientId: "client-1",
+						capabilityName: "custom_tool.custom_exec",
+						onProgress,
+						resolve: vi.fn(),
+					},
+				],
+			]),
+		} as unknown as HubTransportContext;
+
+		const reply = handleCapabilityProgress(ctx, {
+			version: "v1",
+			command: "capability.progress",
+			requestId: "request-1",
+			clientId: "client-1",
+			sessionId: "session-1",
+			payload: {
+				requestId: "capreq-1",
+				payload: { update: { stream: "stdout", chunk: "hello\n" } },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(onProgress).toHaveBeenCalledWith({
+			update: { stream: "stdout", chunk: "hello\n" },
+		});
+	});
+});
+
+describe("hub client runtime capabilities", () => {
+	it("proxies JSON-serializable tool contexts to hub clients", async () => {
+		const request: ClientContributionRequest = vi.fn(
+			async (_sessionId, _capabilityName, payload) => {
+				expect(() => JSON.stringify(payload)).not.toThrow();
+				return { result: "ok" };
+			},
+		);
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "toolExecutor",
+					executor: "askQuestion",
+					capabilityName: "tool_executor.askQuestion",
+				},
+				{
+					kind: "tool",
+					name: "switch_to_act_mode",
+					description: "Switch to act mode.",
+					inputSchema: { type: "object" },
+					capabilityName: "custom_tool.switch_to_act_mode",
+				},
+			],
+			requestCapability: request,
+		});
+		const context = {
+			agentId: "agent-1",
+			conversationId: "conv-1",
+			iteration: 2,
+			metadata: {
+				modelSupportsImages: true,
+			},
+		};
+
+		await runtime.toolExecutors?.askQuestion?.("Continue?", ["Yes"], context);
+		await runtime.localRuntime.extraTools?.[0]?.execute({}, context);
+
+		expect(request).toHaveBeenCalledTimes(2);
+		for (const [, , payload] of vi.mocked(request).mock.calls) {
+			expect(payload.context).toEqual({
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 2,
+				metadata: { modelSupportsImages: true },
+			});
+		}
+	});
+
+	it("proxies lifecycle hooks through capability requests", async () => {
+		const request = vi.fn(async () => ({
+			control: { context: "extra context" },
+		}));
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "hook",
+					name: "beforeRun",
+					capabilityName: "hook.beforeRun",
+				},
+			],
+			requestCapability: request,
+		});
+		const hooks = runtime.localRuntime.hooks;
+
+		const snapshot = {
+			agentId: "agent-1",
+			runId: "conv-1",
+			status: "running" as const,
+			iteration: 0,
+			messages: [],
+			pendingToolCalls: [],
+			usage: {
+				inputTokens: 0,
+				outputTokens: 0,
+				cacheReadTokens: 0,
+				cacheWriteTokens: 0,
+			},
+		};
+		const result = await hooks?.beforeRun?.({
+			snapshot,
+		});
+
+		expect(result).toEqual({ context: "extra context" });
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			"hook.beforeRun",
+			{
+				context: {
+					snapshot,
+				},
+			},
+			"client-1",
+		);
+	});
+
+	it("rebuilds user instruction services from a client snapshot", async () => {
+		const request = vi.fn(async () => ({
+			snapshot: {
+				records: {
+					rule: [
+						{
+							type: "rule",
+							id: "rule-1",
+							filePath: "/rules/rule.md",
+							item: {
+								name: "Rule One",
+								instructions: "Always be precise.",
+							},
+						},
+					],
+					skill: [],
+					workflow: [],
+				},
+				runtimeCommands: [
+					{
+						id: "workflow-ship",
+						name: "ship",
+						instructions: "Ship it carefully.",
+						kind: "workflow",
+					},
+					// Older clients serve raw configured names; the proxy must
+					// still match them against normalized typed tokens.
+					{
+						id: "workflow-ship-it",
+						name: "Ship It",
+						instructions: "Ship it with style.",
+						kind: "workflow",
+					},
+				],
+			},
+		}));
+		const runtime = createHubClientContributionRuntime({
+			sessionId: "session-1",
+			targetClientId: "client-1",
+			contributions: [
+				{
+					kind: "userInstructionService",
+					capabilityName: HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+				},
+			],
+			requestCapability: request,
+		});
+		const service = runtime.localRuntime.userInstructionService;
+
+		await service?.start();
+
+		expect(service?.resolveRuntimeSlashCommand("/ship now")).toBe(
+			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/SHIP now")).toBe(
+			"Ship it carefully. now",
+		);
+		expect(service?.resolveRuntimeSlashCommand("/ship-it now")).toBe(
+			"Ship it with style. now",
+		);
+		expect(request).toHaveBeenCalledWith(
+			"session-1",
+			HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+			{},
+			"client-1",
+		);
+	});
+});

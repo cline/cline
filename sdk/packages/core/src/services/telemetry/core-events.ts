@@ -1,0 +1,857 @@
+import {
+	AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
+	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
+	type ITelemetryService,
+	SDK_ERROR_TELEMETRY_EVENT,
+	TASK_CANCELLED_EVENT,
+	TASK_FIRST_CHUNK_RECEIVED_EVENT,
+	TASK_PROVIDER_REQUEST_STARTED_EVENT,
+	TASK_PROVIDER_STREAM_FAILED_EVENT,
+	TASK_PROVIDER_STREAM_STARTED_EVENT,
+	type TelemetryProperties,
+} from "@cline/shared";
+import type {
+	CoreCompactionBudgetPolicyIntent,
+	CoreCompactionLiveTailHandling,
+} from "../../types/config";
+
+const MAX_ERROR_MESSAGE_LENGTH = 500;
+
+export type TelemetryAgentKind =
+	| "root"
+	| "subagent"
+	| "team_lead"
+	| "team_teammate";
+
+export interface TelemetryAgentIdentityProperties {
+	agentId: string;
+	agentKind: TelemetryAgentKind;
+	conversationId?: string;
+	parentAgentId?: string;
+	createdByAgentId?: string;
+	isSubagent: boolean;
+	teamId?: string;
+	teamName?: string;
+	teamRole?: "lead" | "teammate";
+	teamAgentId?: string;
+}
+
+export const CORE_TELEMETRY_EVENTS = {
+	CLIENT: {
+		EXTENSION_ACTIVATED: "user.extension_activated",
+	},
+	SESSION: {
+		STARTED: "session.started",
+		ENDED: "session.ended",
+	},
+	AGENT: {
+		UNEXPECTED_REASONING_TOKENS: AGENT_UNEXPECTED_REASONING_TOKENS_EVENT,
+	},
+	USER: {
+		AUTH_STARTED: "user.auth_started",
+		AUTH_SUCCEEDED: "user.auth_succeeded",
+		AUTH_FAILED: "user.auth_failed",
+		AUTH_LOGGED_OUT: "user.auth_logged_out",
+		AUTH_REFRESH_SOFT_FAILURE: "user.auth_refresh_soft_failure",
+		AUTH_RUN_RETRY: "user.auth_run_retry",
+		PROVIDER_CONFIGURED: "user.provider_configured",
+		TELEMETRY_OPT_OUT: "user.opt_out",
+	},
+	TASK: {
+		CREATED: "task.created",
+		RESTARTED: "task.restarted",
+		COMPLETED: "task.completed",
+		CONVERSATION_TURN: "task.conversation_turn",
+		TOKEN_USAGE: "task.tokens",
+		MODE_SWITCH: "task.mode",
+		TOOL_USED: "task.tool_used",
+		SKILL_USED: "task.skill_used",
+		DIFF_EDIT_FAILED: "task.diff_edit_failed",
+		PROVIDER_API_ERROR: "task.provider_api_error",
+		MISTAKE_LIMIT_REACHED: "task.mistake_limit_reached",
+		PROVIDER_REQUEST_STARTED: TASK_PROVIDER_REQUEST_STARTED_EVENT,
+		PROVIDER_STREAM_STARTED: TASK_PROVIDER_STREAM_STARTED_EVENT,
+		FIRST_CHUNK_RECEIVED: TASK_FIRST_CHUNK_RECEIVED_EVENT,
+		PROVIDER_STREAM_FAILED: TASK_PROVIDER_STREAM_FAILED_EVENT,
+		CANCELLED: TASK_CANCELLED_EVENT,
+		MENTION_USED: "task.mention_used",
+		MENTION_FAILED: "task.mention_failed",
+		MENTION_SEARCH_RESULTS: "task.mention_search_results",
+		AGENT_CREATED: "task.agent_created",
+		AGENT_TEAM_CREATED: "task.agent_team_created",
+		SUBAGENT_STARTED: "task.subagent_started",
+		SUBAGENT_COMPLETED: "task.subagent_completed",
+		COMPACTION_EXECUTED: "task.compaction_executed",
+		COMPACTION_SKIPPED: "task.compaction_skipped",
+		COMPACTION_BUDGET_EMERGENCY: "task.compaction_budget_emergency",
+	},
+	HOOKS: {
+		DISCOVERY_COMPLETED: "hooks.discovery_completed",
+	},
+	WORKSPACE: {
+		INITIALIZED: "workspace.initialized",
+		INIT_ERROR: "workspace.init_error",
+		PATH_RESOLVED: "workspace.path_resolved",
+	},
+	SDK: {
+		ERROR: SDK_ERROR_TELEMETRY_EVENT,
+		TOOL_TIMEOUT: "sdk.tool_timeout",
+		PLAN_MODE_COMMAND_BLOCKED: "sdk.plan_mode_command_blocked",
+	},
+	FEATURE_FLAGS: {
+		FLAG_CALLED: "$feature_flag_called",
+	},
+} as const;
+
+export interface RunCommandsTimeoutTelemetryProperties {
+	tool_name: "run_commands";
+	effective_timeout_ms: number;
+	timeout_source: "default_setting" | "configured_setting";
+	command_count: number;
+	duration_ms: number;
+	ulid?: string;
+	mode?: string;
+	source?: string;
+	session_id?: string;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
+
+export {
+	captureAgentUnexpectedReasoningTokens,
+	captureTaskLifecycleEvent,
+	type CaptureAgentUnexpectedReasoningTokensInput,
+	type CaptureTaskLifecycleEventInput,
+};
+
+export interface WorkspaceInitializedProperties {
+	root_count: number;
+	vcs_types: ReadonlyArray<string>;
+	init_duration_ms?: number;
+	feature_flag_enabled?: boolean;
+	is_remote_workspace?: boolean;
+}
+
+export interface WorkspaceInitErrorProperties {
+	fallback_to_single_root: boolean;
+	workspace_count?: number;
+}
+
+export interface WorkspacePathResolvedProperties {
+	ulid: string;
+	context: string;
+	resolution_type:
+		| "hint_provided"
+		| "fallback_to_primary"
+		| "cross_workspace_search";
+	hint_type?: "workspace_name" | "workspace_path" | "invalid";
+	resolution_success?: boolean;
+	target_workspace_index?: number;
+	is_multi_root_enabled?: boolean;
+}
+
+function emit(
+	telemetry: ITelemetryService | undefined,
+	event: string,
+	properties?: TelemetryProperties,
+): void {
+	telemetry?.capture({ event, properties });
+}
+
+function truncateErrorMessage(errorMessage?: string): string | undefined {
+	if (!errorMessage) {
+		return undefined;
+	}
+	return errorMessage.substring(0, MAX_ERROR_MESSAGE_LENGTH);
+}
+
+function normalizeErrorType(error: Error | string): string {
+	if (typeof error === "string") {
+		return "Error";
+	}
+	return error.name?.trim() || error.constructor?.name || "Error";
+}
+
+function normalizeErrorMessage(error: Error | string): string {
+	return typeof error === "string" ? error : error.message;
+}
+
+function hasVcsType(
+	vcsTypes: ReadonlyArray<string>,
+	candidates: ReadonlySet<string>,
+): boolean {
+	return vcsTypes.some((type) => candidates.has(type.trim().toLowerCase()));
+}
+
+export function captureExtensionActivated(
+	telemetry: ITelemetryService | undefined,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.CLIENT.EXTENSION_ACTIVATED);
+}
+
+export function captureWorkspaceInitialized(
+	telemetry: ITelemetryService | undefined,
+	properties: WorkspaceInitializedProperties,
+): void {
+	const vcsTypes = [...properties.vcs_types];
+	const payload: TelemetryProperties = {
+		root_count: properties.root_count,
+		vcs_types: vcsTypes,
+		is_multi_root: properties.root_count > 1,
+		has_git: hasVcsType(vcsTypes, new Set(["git"])),
+		has_mercurial: hasVcsType(vcsTypes, new Set(["mercurial", "hg"])),
+	};
+	if (properties.init_duration_ms !== undefined) {
+		payload.init_duration_ms = properties.init_duration_ms;
+	}
+	if (properties.feature_flag_enabled !== undefined) {
+		payload.feature_flag_enabled = properties.feature_flag_enabled;
+	}
+	if (properties.is_remote_workspace !== undefined) {
+		payload.is_remote_workspace = properties.is_remote_workspace;
+	}
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.INITIALIZED, payload);
+}
+
+export function captureWorkspaceInitError(
+	telemetry: ITelemetryService | undefined,
+	error: Error | string,
+	properties: WorkspaceInitErrorProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.INIT_ERROR, {
+		error_type: normalizeErrorType(error),
+		error_message: truncateErrorMessage(normalizeErrorMessage(error)),
+		fallback_to_single_root: properties.fallback_to_single_root,
+		workspace_count: properties.workspace_count ?? 0,
+	});
+}
+
+export function captureWorkspacePathResolved(
+	telemetry: ITelemetryService | undefined,
+	properties: WorkspacePathResolvedProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.WORKSPACE.PATH_RESOLVED, {
+		...properties,
+	});
+}
+
+export function captureAuthStarted(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_STARTED, { provider });
+}
+
+export function captureAuthSucceeded(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: {
+		sessionId?: string;
+		sessionDurationMs?: number;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_SUCCEEDED, {
+		provider,
+		...details,
+	});
+}
+
+export function captureAuthFailed(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	errorMessage?: string,
+	details?: { requestId?: string },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_FAILED, {
+		provider,
+		errorMessage: truncateErrorMessage(errorMessage),
+		...(details?.requestId ? { request_id: details.requestId } : {}),
+	});
+}
+
+export function captureAuthLoggedOut(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	reason?: string,
+	details?: {
+		status?: number;
+		errorCode?: string;
+		sessionId?: string;
+		sessionDurationMs?: number;
+		request_id?: string;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_LOGGED_OUT, {
+		provider,
+		reason,
+		...details,
+	});
+}
+
+/**
+ * Fires when a token refresh fails for a reason that does NOT invalidate the
+ * session (network error, timeout, 5xx) and stored credentials were kept.
+ * Before the transient-vs-invalid_grant fix, `tokenExpired: true` instances
+ * were misclassified as invalid grants and wiped stored credentials — this
+ * event is the "prevented logout" counter for tracking that fix in
+ * production.
+ */
+export function captureAuthRefreshSoftFailure(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: {
+		status?: number;
+		errorCode?: string;
+		request_id?: string;
+		errorName?: string;
+		tokenExpired?: boolean;
+		sessionId?: string;
+		sessionDurationMs?: number;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_REFRESH_SOFT_FAILURE, {
+		provider,
+		...details,
+	});
+}
+
+/**
+ * Fires when a run failed with an auth-like error, credentials were
+ * refreshed, and the run was retried once. `recovered: true` means the retry
+ * completed — a run that would previously have surfaced a raw provider 401
+ * (e.g. a teammate stranded on a spawn-time token snapshot past its TTL).
+ */
+export function captureAuthRunRetry(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+	details?: { recovered?: boolean },
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.AUTH_RUN_RETRY, {
+		provider,
+		recovered: details?.recovered,
+	});
+}
+
+/**
+ * Fires when the user finishes configuring a "bring your own provider"
+ * (API-key based) provider during onboarding or via settings.
+ *
+ * Unlike the OAuth/device-code `captureAuth*` events, the configure step is a
+ * synchronous local credential save with no network roundtrip, so there is no
+ * start/fail counterpart — the credential is validated lazily on the first
+ * subsequent API call. Mirrors the `{ provider }` payload shape of
+ * {@link captureAuthSucceeded} for funnel consistency.
+ */
+export function captureProviderConfigured(
+	telemetry: ITelemetryService | undefined,
+	provider?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.USER.PROVIDER_CONFIGURED, { provider });
+}
+
+export function captureTelemetryOptOut(
+	telemetry: ITelemetryService | undefined,
+	properties?: TelemetryProperties,
+): void {
+	telemetry?.captureRequired(
+		CORE_TELEMETRY_EVENTS.USER.TELEMETRY_OPT_OUT,
+		properties,
+	);
+}
+
+export function identifyAccount(
+	telemetry: ITelemetryService | undefined,
+	account: {
+		id?: string;
+		email?: string;
+		provider?: string;
+		organizationId?: string;
+		organizationName?: string;
+		memberId?: string;
+	},
+): void {
+	const distinctId = account.id?.trim();
+	if (distinctId) {
+		telemetry?.setDistinctId(distinctId);
+	}
+	telemetry?.updateCommonProperties({
+		user_id: distinctId || account.id,
+		account_id: account.id,
+		account_email: account.email,
+		provider: account.provider,
+		organization_id: account.organizationId,
+		organization_name: account.organizationName,
+		member_id: account.memberId,
+	});
+}
+
+export function captureTaskCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		apiProvider?: string;
+		openAiCompatibleDomain?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CREATED, properties);
+}
+
+export function captureTaskRestarted(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		apiProvider?: string;
+		openAiCompatibleDomain?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.RESTARTED, properties);
+}
+
+/**
+ * Distinguishes the trigger that produced a `task.completed` telemetry event.
+ *
+ * - `submit_and_exit`: the assistant explicitly declared completion by
+ *   invoking the canonical completion tool. Parity with original Cline's
+ *   `attempt_completion`-anchored emission.
+ * - `shutdown`: the session lifecycle completed (typically a non-interactive
+ *   single-run that finished without an explicit completion tool). Acts as a
+ *   safety-net so we still report completed runs that never observed
+ *   `submit_and_exit`.
+ */
+export type TaskCompletedSource = "submit_and_exit" | "shutdown";
+
+export function captureTaskCompleted(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		provider?: string;
+		modelId?: string;
+		mode?: string;
+		durationMs?: number;
+		source?: TaskCompletedSource;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPLETED, properties);
+}
+
+export function captureConversationTurnEvent(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		provider?: string;
+		model?: string;
+		source: "user" | "assistant";
+		mode?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.CONVERSATION_TURN, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureTokenUsage(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		/** Uncached input tokens only — disjoint from the cache buckets. */
+		tokensIn: number;
+		tokensOut: number;
+		cacheWriteTokens?: number;
+		cacheReadTokens?: number;
+		/** This request's cost delta, not a running total. */
+		totalCost?: number;
+		provider?: string;
+		model: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOKEN_USAGE, properties);
+}
+
+export function captureModeSwitch(
+	telemetry: ITelemetryService | undefined,
+	ulid: string,
+	mode?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MODE_SWITCH, { ulid, mode });
+}
+
+export function captureToolUsage(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		tool: string;
+		modelId?: string;
+		provider?: string;
+		autoApproved?: boolean;
+		success: boolean;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.TOOL_USED, properties);
+}
+
+export function captureSkillUsed(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		skillName: string;
+		skillSource: "global" | "project";
+		skillsAvailableGlobal: number;
+		skillsAvailableProject: number;
+		provider?: string;
+		modelId?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.SKILL_USED, properties);
+}
+
+export function captureDiffEditFailure(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		modelId?: string;
+		provider?: string;
+		errorType?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.DIFF_EDIT_FAILED, properties);
+}
+
+export function captureProviderApiError(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		model: string;
+		errorMessage: string;
+		provider?: string;
+		errorStatus?: number;
+		requestId?: string;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.PROVIDER_API_ERROR, {
+		...properties,
+		errorMessage: truncateErrorMessage(properties.errorMessage) ?? "unknown",
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Records when the consecutive mistake limit is reached, right before the
+ * limit decision (host prompt / auto-stop) is resolved.
+ */
+export function captureMistakeLimitReached(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		model: string;
+		provider?: string;
+		/** What kind of mistake tripped the limit. */
+		reason: string;
+		consecutiveMistakes: number;
+		maxConsecutiveMistakes: number;
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MISTAKE_LIMIT_REACHED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureRunCommandsTimeout(
+	telemetry: ITelemetryService | undefined,
+	properties: RunCommandsTimeoutTelemetryProperties,
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SDK.TOOL_TIMEOUT,
+		stripUndefinedProperties(properties),
+	);
+}
+
+export interface PlanModeCommandBlockedTelemetryProperties {
+	tool_name: "run_commands";
+	/**
+	 * Short description of the blocked construct (e.g. "`rm`", "`sed -i`
+	 * (in-place edit)"). Never contains raw command content.
+	 */
+	blocked_construct: string;
+	command_count: number;
+	agent_id?: string;
+	conversation_id?: string;
+	run_id?: string;
+	iteration?: number;
+	tool_call_id?: string;
+}
+
+export function capturePlanModeCommandBlocked(
+	telemetry: ITelemetryService | undefined,
+	properties: PlanModeCommandBlockedTelemetryProperties,
+): void {
+	emit(
+		telemetry,
+		CORE_TELEMETRY_EVENTS.SDK.PLAN_MODE_COMMAND_BLOCKED,
+		stripUndefinedProperties(properties),
+	);
+}
+
+function stripUndefinedProperties(properties: object): TelemetryProperties {
+	const result: TelemetryProperties = {};
+	for (const [key, value] of Object.entries(properties)) {
+		if (value !== undefined) {
+			result[key] = value;
+		}
+	}
+	return result;
+}
+
+export function captureMentionUsed(
+	telemetry: ITelemetryService | undefined,
+	mentionType:
+		| "file"
+		| "folder"
+		| "url"
+		| "problems"
+		| "terminal"
+		| "git-changes"
+		| "commit",
+	contentLength?: number,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_USED, {
+		mentionType,
+		contentLength,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureMentionFailed(
+	telemetry: ITelemetryService | undefined,
+	mentionType:
+		| "file"
+		| "folder"
+		| "url"
+		| "problems"
+		| "terminal"
+		| "git-changes"
+		| "commit",
+	errorType:
+		| "not_found"
+		| "permission_denied"
+		| "network_error"
+		| "parse_error"
+		| "unknown",
+	errorMessage?: string,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_FAILED, {
+		mentionType,
+		errorType,
+		errorMessage: truncateErrorMessage(errorMessage),
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureMentionSearchResults(
+	telemetry: ITelemetryService | undefined,
+	query: string,
+	resultCount: number,
+	searchType: "file" | "folder" | "all",
+	isEmpty: boolean,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.MENTION_SEARCH_RESULTS, {
+		queryLength: query.length,
+		resultCount,
+		searchType,
+		isEmpty,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureAgentCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		modelId?: string;
+		provider?: string;
+	} & TelemetryAgentIdentityProperties,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.AGENT_CREATED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureAgentTeamCreated(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		teamId: string;
+		teamName: string;
+		leadAgentId?: string;
+		restoredFromPersistence?: boolean;
+	},
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.AGENT_TEAM_CREATED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export function captureSubagentExecution(
+	telemetry: ITelemetryService | undefined,
+	properties: {
+		ulid: string;
+		durationMs: number;
+		outputLines?: number;
+		event: "created" | "started" | "ended";
+		agentId: string;
+		parentId?: string;
+		errorMessage?: string;
+		type?: "agent" | "team";
+	} & Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(
+		telemetry,
+		properties.event === "ended"
+			? CORE_TELEMETRY_EVENTS.TASK.SUBAGENT_COMPLETED
+			: CORE_TELEMETRY_EVENTS.TASK.SUBAGENT_STARTED,
+		{
+			...properties,
+			timestamp: new Date().toISOString(),
+		},
+	);
+}
+
+export function captureHookDiscovery(
+	telemetry: ITelemetryService | undefined,
+	hookName: string,
+	globalCount: number,
+	workspaceCount: number,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.HOOKS.DISCOVERY_COMPLETED, {
+		hookName,
+		globalCount,
+		workspaceCount,
+		totalCount: globalCount + workspaceCount,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+/**
+ * Identifies which compaction implementation produced a
+ * `task.compaction_executed` / `task.compaction_skipped` event.
+ *
+ * - `basic`   — built-in token-budget truncation
+ *   (see `extensions/context/basic-compaction.ts`).
+ * - `agentic` — built-in LLM-powered summarization
+ *   (see `extensions/context/agentic-compaction.ts`).
+ * - `custom`  — user-supplied `compaction.compact()` callback on
+ *   `CoreSessionConfig`.
+ */
+export type TelemetryCompactionStrategy = "basic" | "agentic" | "custom";
+
+/**
+ * Trigger mode for a compaction attempt.
+ *
+ * - `auto`   — fired automatically by `createContextCompactionPrepareTurn`
+ *   when input tokens reach the fixed compaction threshold.
+ * - `manual` — user-initiated (e.g. CLI `/compact`).
+ * - `overflow_recovery` — forced by the runtime after a provider rejected
+ *   the request as exceeding the model's context window.
+ */
+export type TelemetryCompactionMode = "auto" | "manual" | "overflow_recovery";
+
+export interface CaptureCompactionExecutedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	messagesBefore: number;
+	messagesAfter: number;
+	messagesRemoved: number;
+	/** Full-request token estimates, in the same units as the trigger and limit. */
+	tokensBefore: number;
+	tokensAfter: number;
+	tokensSaved: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	// Name matches the rest of the TASK-namespace capture functions
+	// (`captureTaskCompleted`, `captureToolUsage`, etc.) — using `provider`,
+	// not `providerId`, keeps downstream PostHog joins consistent.
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionExecuted(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionExecutedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_EXECUTED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionSkippedProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	/**
+	 * Why the strategy decided not to compact. Currently only one value is
+	 * emitted by the wrapper:
+	 * - `no_result` — strategy returned `undefined` (e.g. there was nothing
+	 *   safe to remove). Strategy *exceptions* propagate up instead of
+	 *   firing telemetry, so no `strategy_error` value is emitted today.
+	 * The field is kept loosely typed (`string`) so additional reasons can
+	 * be introduced without changing the schema.
+	 */
+	reason: string;
+	/** Full-request token estimate, in the same units as the trigger and limit. */
+	tokensBefore: number;
+	triggerTokens: number;
+	maxInputTokens: number;
+	thresholdRatio: number;
+	durationMs: number;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionSkipped(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionSkippedProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_SKIPPED, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}
+
+export interface CaptureCompactionBudgetEmergencyProperties {
+	ulid: string;
+	strategy: TelemetryCompactionStrategy;
+	mode: TelemetryCompactionMode;
+	policyIntent: CoreCompactionBudgetPolicyIntent;
+	actionCount: number;
+	warningCount: number;
+	liveTailHandling: CoreCompactionLiveTailHandling;
+	provider?: string;
+	modelId?: string;
+}
+
+export function captureCompactionBudgetEmergency(
+	telemetry: ITelemetryService | undefined,
+	properties: CaptureCompactionBudgetEmergencyProperties &
+		Partial<TelemetryAgentIdentityProperties>,
+): void {
+	emit(telemetry, CORE_TELEMETRY_EVENTS.TASK.COMPACTION_BUDGET_EMERGENCY, {
+		...properties,
+		timestamp: new Date().toISOString(),
+	});
+}

@@ -1,0 +1,176 @@
+import { exportHistorySession } from "../session/history-export";
+import { deleteSession, listSessions, updateSession } from "../session/session";
+import { formatHistoryListLine } from "../utils/history-format";
+import { writeln } from "../utils/output";
+import type { CliOutputMode } from "../utils/types";
+
+export {
+	formatCheckpointDetail,
+	formatHistoryListLine,
+	mergeHistoryStatusRows,
+} from "../utils/history-format";
+
+type HistoryIo = {
+	writeln: (text?: string) => void;
+	writeErr: (text: string) => void;
+};
+
+async function runHistoryDelete(
+	sessionId: string | undefined,
+	outputMode: CliOutputMode,
+	io: HistoryIo,
+): Promise<number> {
+	if (!sessionId) {
+		io.writeErr("history delete requires --session-id <id>");
+		return 1;
+	}
+
+	try {
+		const result = await deleteSession(sessionId);
+		if (outputMode === "json") {
+			process.stdout.write(JSON.stringify(result));
+			return result.deleted ? 0 : 1;
+		}
+		if (result.deleted) {
+			io.writeln(`Deleted session ${sessionId}`);
+			return 0;
+		}
+		io.writeErr(`Session ${sessionId} not found`);
+		return 1;
+	} catch (error) {
+		io.writeErr(error instanceof Error ? error.message : String(error));
+		return 1;
+	}
+}
+
+async function runHistoryUpdate(
+	sessionId: string | undefined,
+	prompt: string | undefined,
+	title: string | undefined,
+	metadataStr: string | undefined,
+	outputMode: CliOutputMode,
+	io: HistoryIo,
+): Promise<number> {
+	if (!sessionId) {
+		io.writeErr("history update requires --session-id <id>");
+		return 1;
+	}
+
+	let metadata: Record<string, unknown> | undefined;
+	if (metadataStr) {
+		try {
+			metadata = JSON.parse(metadataStr);
+		} catch (error) {
+			io.writeErr(
+				`Invalid metadata JSON: ${error instanceof Error ? error.message : String(error)}`,
+			);
+			return 1;
+		}
+	}
+	if (title !== undefined) {
+		if (metadata) {
+			delete metadata.title;
+		}
+	}
+	if (metadata && Object.keys(metadata).length === 0) {
+		metadata = undefined;
+	}
+
+	if (prompt === undefined && metadata === undefined && title === undefined) {
+		io.writeErr(
+			"history update requires --prompt <text>, --title <text>, or --metadata <json>",
+		);
+		return 1;
+	}
+
+	try {
+		const result = await updateSession(sessionId, { prompt, metadata, title });
+		if (outputMode === "json") {
+			process.stdout.write(JSON.stringify(result));
+			return result.updated ? 0 : 1;
+		}
+		if (result.updated) {
+			io.writeln(`Updated session ${sessionId}`);
+			return 0;
+		}
+		io.writeErr(`Session ${sessionId} not found`);
+		return 1;
+	} catch (error) {
+		io.writeErr(error instanceof Error ? error.message : String(error));
+		return 1;
+	}
+}
+
+async function runHistoryExport(
+	sessionId: string | undefined,
+	outputPath: string | undefined,
+	outputMode: CliOutputMode,
+	io: HistoryIo,
+): Promise<number> {
+	if (!sessionId) {
+		io.writeErr("history export requires <session-id>");
+		return 1;
+	}
+
+	try {
+		const targetPath = await exportHistorySession({
+			sessionId,
+			format: "html",
+			outputPath,
+		});
+
+		if (outputMode === "json") {
+			process.stdout.write(
+				JSON.stringify({
+					sessionId,
+					outputPath: targetPath,
+				}),
+			);
+			return 0;
+		}
+
+		io.writeln(`Exported to ${targetPath}`);
+		return 0;
+	} catch (error) {
+		io.writeErr(error instanceof Error ? error.message : String(error));
+		return 1;
+	}
+}
+
+export async function runHistoryList(input: {
+	limit: number;
+	outputMode: CliOutputMode;
+	workspaceRoot?: string;
+	io?: HistoryIo;
+}): Promise<number> {
+	const io = input.io ?? {
+		writeln,
+		writeErr: (text: string) => process.stderr.write(`${text}\n`),
+	};
+	const limit = Number.isFinite(input.limit) ? input.limit : 50;
+
+	const rows = await listSessions(limit, {
+		workspaceRoot: input.workspaceRoot,
+		hydrate: input.outputMode !== "json",
+	});
+	if (rows.length === 0) {
+		if (input.outputMode === "json") {
+			process.stdout.write(JSON.stringify([]));
+		} else {
+			io.writeln("No history found.");
+		}
+		return 0;
+	}
+
+	if (input.outputMode === "json") {
+		process.stdout.write(JSON.stringify(rows));
+		return 0;
+	}
+
+	for (const row of rows) {
+		io.writeln(formatHistoryListLine(row));
+	}
+	return 0;
+}
+
+export { runHistoryDelete, runHistoryExport, runHistoryUpdate };

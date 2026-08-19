@@ -1,14 +1,1229 @@
 # Changelog
 
-## 3.37.1
+## [4.1.10]
 
-- cf8dd1c: Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
-- 02abbcf: Add AGENTS.md support
-- 855db7d: feat(models): Add free minimax/mimax-m2 model to the model picker
+Everything in this release lands through the SDK bundle, so it applies to windows running that bundle and not the legacy one. The legacy bundle is unchanged from 4.1.9.
+
+### Added
+
+- Let models that support it search the web during a task, with a toggle in Feature Settings to turn it on. Search calls and their results appear in the conversation and persist across reloads.
+
+### Fixed
+
+- Stop two Cline installations on different builds from shutting each other's Hub daemon down in a loop, which killed live sessions with an abnormal socket close. Build identity is now compared through a total order, so at most one side of a pair can decide to retire the other.
+- Leave a Hub that is still serving sessions in place instead of replacing it mid-handshake; the swap happens once it goes idle.
+- Reclaim idle plugin sandbox processes instead of leaving them running for the life of the session.
+
+### Changed
+
+- Refresh the model catalog, which adds Crusoe as a provider and updates model lists and per-provider default models across the board.
+
+## [4.1.9]
+
+### Changed
+
+- Use the editor's foreground color for diff block text, so diffs stay legible in themes where the previous hardcoded color washed them out.
+- Switch the interface to Inter and Geist Mono.
+
+### Fixed
+
+- Don't discard a successfully refreshed Cline token when the old one was already past expiry, which made the first request after a long idle period fail despite valid credentials.
+- Stop the legacy-task migration backlog from spamming telemetry, and record a migration outcome only once the seeded session actually persists, so a failed migration is no longer reported as a success.
+- Report involuntary Cline logouts (a rejected refresh token) instead of clearing credentials silently.
+
+### Fixed (SDK bundle only)
+
+These land through SDK v0.0.74 and therefore apply to windows running the SDK bundle, not the legacy one.
+
+- Fix the Claude Code provider being unusable for agentic work: it now runs its own native tools instead of receiving tool definitions it cannot bridge, anchors the session on your workspace directory, and loads `~/.claude` plus project settings so your permission rules apply.
+- Reject truncated tool-call JSON instead of silently "repairing" it into wrong arguments.
+- Fix strict providers rejecting a turn with "user message must have content" when a message's content held only empty text parts.
+- Fix a mid-turn crash on streamed tool calls with non-zero or non-contiguous indexes, hit through LiteLLM's Anthropic passthrough.
+- Report disjoint per-request token buckets instead of re-counting the whole cached conversation on every request, which inflated per-task totals roughly 5x on cache-heavy sessions.
+
+## [4.1.8]
+
+### Added
+
+- Enter any Vertex model ID by hand, including models the catalog doesn't list yet.
+- Support Fable 5 on Vertex.
+
+### Changed
+
+- Show the full model catalog for every Vertex region instead of filtering the picker down to a hardcoded list of global-endpoint models, which lagged behind every model launch. Picking a model the region doesn't serve now fails at request time with recovery guidance in the error row.
+- Report Fable 5 cost on Vertex as unknown rather than applying Anthropic's list price, which understated what Vertex actually bills — its rates are region-dependent.
+- Make the auto-approve menu the single source of truth for unattended runs and remove the Yolo Mode toggle, which was cosmetic: nothing in the approval path read it. Setups that had Yolo Mode (or auto-approve-all) turned on are migrated to auto-approving every action, so they keep running unattended.
+
+### Fixed
+
+- Respect your configured max output tokens when the compaction summarizer requests a summary.
+- Remove the stale "Double-Check Completion" feature tip.
+
+## [4.1.7]
+
+### Added
+
+- Restore the "View Changes" button on completion rows, backed by SDK checkpoints, so you can review everything a task touched from the completion card.
+- Bring back a copy button on turn-final response rows.
+- Support pre-registered OAuth clients for remote MCP servers, for setups where dynamic client registration isn't available.
+
+### Changed
+
+- Fade the "View Changes" button until changes since the last message are confirmed, and hide it entirely when there is nothing to show.
+- Centralize plugin settings and contributions, with host-aware snapshots and atomic plugin toggles.
+- Carry execution context in scheduled run reports — readable headers, schedule metadata, durations, and lifecycle error details.
+
+### Fixed
+
+- Preserve prompts queued during a turn when that turn is interrupted: they survive aborts, are drained after a turn aborts itself, and the stop is surfaced instead of the queue being silently dropped.
+- Keep session context durable across aborts and hub restarts, so an interrupted session resumes with the state it had.
+- Settle the turn phase when a mode switch aborts a running turn.
+- Report queued-turn failures as `run.failed` instead of letting them complete silently.
+- Keep a hung MCP server from taking down session creation, and give stdio servers that were never configured a 30-second initialize budget instead of blocking indefinitely.
+- Surface OAuth authorization for SSE MCP servers on a 401 instead of failing outright.
+- Route LiteLLM through Chat Completions instead of the Responses API, fixing requests against LiteLLM proxies.
+- Retry network interruptions that happen mid-stream but before any model output, instead of failing the turn.
+- Use the configured fetch for Vertex ADC token refreshes, so they work behind proxies and custom transports.
+- Include files that were untracked when a snapshot was taken in checkpoint diffs, and pick up checkpoints when git is initialized part-way through a session.
+- Fall back to the session cwd or Desktop for @-mention file search in empty windows.
+- Never run a foreign compiled plugin-sandbox bootstrap for a source host.
+
+## [4.1.6]
+
+### Added
+
+- Offer `meta/muse-spark-1.2-contributor` on the Cline provider, alongside a refreshed model catalog.
+
+### Fixed
+
+- Attribute error telemetry to the model actually in use for a run, so failures are no longer reported against the wrong model.
+
+## [4.1.5]
+
+### Added
+
+- Explain when a free model promotion ends. Requests to a retired free model now show a dedicated notice with a button to pick another model, instead of a generic error with nothing but a Retry prompt.
+
+### Changed
+
+- Map reasoning settings onto a shared path across AI SDK providers, so effort levels and enable/disable toggles behave consistently (including on Ollama) instead of relying on per-provider overrides.
+
+## [4.1.4]
+
+### Added
+
+- Recognize Chutes as a provider.
+- Show skills alongside workflows in the slash command menu, and disambiguate commands that share a name instead of letting one shadow the other.
+
+### Changed
+
+- Remove model-initiated plan-to-act switching. Switching out of plan mode is now driven by you, not by the model deciding mid-turn.
+- Hard-block file-editing shell commands in plan mode instead of relying on prompting alone. Read-only investigation still works, but file manipulation, in-place editors, redirection to files, mutating git subcommands, and package installs are refused.
+
+### Fixed
+
+- Stop treating a turn that completes with a plan as a failed turn when a plan-blocked command was its only tool call. The turn no longer ends in the error state with a Retry footer, and toggling to Act correctly re-runs the presented plan instead of appearing to do nothing.
+- Show tool paths relative to the workspace in the chat view instead of absolute paths.
+- Reset pending attachments when starting a new task, so images from the previous task no longer carry over.
+- Surface a clear error when the selected provider has no API key configured, instead of a generic failure.
+- Refresh MCP tool and resource lists when a server sends a `list_changed` notification, instead of only showing a toast.
+- Show installed plugins under their real package names instead of all appearing as "index".
+- Correct the Linux keybinding label in the Plan/Act mode tooltip.
+- Recover from running out of context instead of failing with a raw provider error — the run compacts and retries once, and the cases that genuinely cannot be recovered explain why.
+- Retry empty model responses on every provider rather than only Ollama, fixing hard "Model returned empty response" failures on OpenRouter, Cline, and OpenAI-compatible endpoints.
+- Stop Claude 4.6+ and 5.x models being rejected with "thinking.type.enabled is not supported" when they resolve from the offline catalog or from a hand-typed model id.
+- Restore Bedrock prompt caching, which reported zero cache reads and writes because the provider sent a cache format Bedrock discards, and route Bedrock foundation models through geo inference profiles.
+- Send `max_completion_tokens` for reasoning models on OpenAI-compatible endpoints, and substitute image content for models without image support instead of failing the request.
+- Inherit the MiniMax default model from models.dev, and refresh the bundled catalog, which adds Infomaniak and SCX.ai.
+- Report the same provider failure once instead of twice in error telemetry, and rate-limit repeated failures from unattended retry loops.
+
+## [4.1.3]
+
+### Fixed
+
+- Stop the two bundles of the combined rollout package from invalidating each other's Cline account session. A still-open legacy window that refreshed its token after the machine was promoted to the new extension would consume the shared refresh token, producing spurious "Unauthorized" / re-authenticate prompts and unexpected sign-outs. Promoted legacy windows now keep working on their current session and offer a one-time Reload Window prompt instead.
+- Fall back to the default Cline model when migrating a setup that references a model id the new extension doesn't recognize, instead of leaving the provider unconfigured.
+- Restore reliable checkpoints: checkpoints are created consistently, and restoring one now rewinds the whole workspace rather than a subset of files.
+- Keep settings edits that are made before the provider config finishes loading — base URLs, API keys, and the Qwen/Moonshot API line are no longer silently discarded.
+- Stop losing keystrokes in custom base URL fields, and keep the custom URL checkbox state after a failed clear.
+- Use the AskSage custom API URL at inference time instead of ignoring it.
+- Settle a pending tool approval when an edited message replaces the session, so the task no longer hangs waiting on a prompt that is gone.
+- Drop attachments from messages that have been edited.
+- Complete terminal commands when the shell execution ends, so tasks no longer stall on commands that already finished.
+- Include untracked files when generating commit messages.
+- Run Windows Store PowerShell profiles correctly.
+- Surface the upstream provider error when a gateway-forwarded stream fails, instead of a generic failure.
+- Retry empty Ollama responses at the model boundary, and raise the response-start timeout to 5 minutes so cold model loads no longer error out.
+- Show proper display names for Cline free models and recommended models in the model picker.
+- Preserve video input capability for models that support it.
+- Keep the plan/act input border in sync with the actual textarea focus.
+
+## [4.1.2]
+
+### Added
+
+- Show which extension variant is active — "Legacy" or "Next" — next to the version in the settings About page, in both bundles of the combined rollout package.
+
+## [4.1.1]
+
+### Changed
+
+- Remove vestigial MCP server-key machinery from McpHub — native MCP tool calls now route by server name instead of a random in-memory uid, so routing survives restarts and server list changes.
+
+## [4.1.0]
+
+### Changed
+
+- Convert the stable extension to a combined A/B package: one VSIX containing both the current (legacy) extension and the new SDK-based extension, plus a loader that activates exactly one per window via a staged remote rollout. For nearly all users nothing changes — the loader activates the same extension as 4.0.12; a small percentage (starting at 1%) is gradually opted into the SDK-based extension. If the new extension fails to activate, the loader falls back to the current one in the same window. Settings and credentials are shared between the two.
+
+## [4.0.12]
+
+### Added
+
+- Add support for free Cline models, shown as "(free)" in the model picker, with a dedicated error card that includes the reset time when the free limit is reached.
+
+### Fixed
+
+- Keep Claude Code responses that were already streamed when the CLI exits with a max-turns error, instead of discarding a valid response.
+
+## [4.0.11]
+
+### Added
+
+- Add Claude Opus 5 across the Anthropic, Claude Code, Bedrock, Vertex, Cline, and OpenRouter providers, including 1M context window variants.
+- Add Moonshot Kimi K3 support.
+- Include the host plugin version in telemetry events.
+
+### Fixed
+
+- Correct pricing for the Claude Opus 1M context variants, which overstated costs for requests above 200k tokens.
+- Enable native tool calling for Kimi K3 models, fixing empty responses.
+
+## [4.0.10]
+
+### Added
+
+- Add telemetry to track when Cline reaches the consecutive mistake limit.
+
+## [4.0.9]
+
+### Added
+
+- Add GPT-5.6 ChatGPT subscription models.
+
+### Changed
+
+- Soften and shorten the message shown when Cline hits the consecutive mistake limit.
+
+### Fixed
+
+- Handle cumulative usage snapshots from OpenAI-compatible providers so token counts are no longer over-reported.
+- Load skills from files saved as UTF-8 with a byte-order mark (BOM).
+
+## [4.0.8]
+
+### Added
+
+- Add more models to the GCP Vertex provider, plus a free-form entry option in the model dropdown for specifying custom Vertex models.
+
+## [4.0.7]
+
+### Added
+
+- Add a ClinePass limit-reached error with a one-click option to switch to Cline usage-based billing.
+- Allow selecting Cline free models on the ClinePass provider, organized into Subscribed and Free tabs with model descriptions.
+
+### Changed
+
+- Refine ClinePass onboarding and provider settings copy, and open the "learn more" link via the in-app URL handler.
+- Remove the Cline model picker recommendation copy.
+
+### Removed
+
+- Remove all references to GLM 5.1.
+
+## [4.0.6]
+
+### Fixed
+
+- Generalize the model capability warning so it applies more broadly.
+
+## [4.0.5]
+
+### Added
+
+- Add support for Claude Sonnet 5 across the Anthropic, Bedrock, Vertex, Claude Code, SAP AI Core, OpenRouter, and Vercel AI Gateway providers, including model picker and recommended-model updates.
+
+## [4.0.4]
+
+### Changed
+
+- Fully remove the ClinePass feature flag so ClinePass is available everywhere in the UI — onboarding, settings, the welcome promo banner, and the credit-limit "Switch to ClinePass" action.
+
+## [4.0.3]
+
+### Changed
+
+- Enable the ClinePass provider for all users by removing the feature-flag gate that previously fell back to the standard Cline provider.
+
+## [4.0.2]
+
+### Added
+
+- Add reasoning effort support (including `xhigh`) for DeepSeek thinking models.
+- Improve the ClinePass provider experience with clearer reasoning controls and model selection.
+
+### Fixed
+
+- Show reasoning effort controls for ClinePass models and align ClinePass model resolution with the rest of the provider.
+- Prefer canonical Cline Z.ai model ids and polish ClinePass and Z.ai model metadata.
+- Fix environment variable replacement in the webview.
+- Default focus chain settings in webview state so the toggle reflects the correct value on load.
+
+## [4.0.1]
+
+### Changed
+
+- Roll the stable VS Code extension back to the pre-SDK-migration codebase to resolve regressions reported in 4.0.0. This release ships the 3.89.2 extension code under a higher version number so existing 4.0.0 users receive the update. SDK-migration work continues separately on `main`.
+
+## [4.0.0]
+
+### Added
+
+- Add the SDK-backed VS Code extension runtime. Cline now runs tasks through the shared Cline SDK session layer for agent turns, tools, Plan/Act mode coordination, MCP, checkpoints, telemetry, provider changes, compaction, mistake limits, and task history.
+- Add ClinePass to the VS Code extension, including onboarding, provider selection, signup and subscription handoff, live model lists, entitlement and organization error states, out-of-credit prompts, and clearer ClinePass auth/error handling.
+- Add the Customize marketplace for discovering and managing Skills, MCP servers, and Plugins from the extension, including installed/marketplace tabs, search and filtering, install/uninstall flows, enable/disable controls, and support for plugin-bundled skills.
+- Cline Plugins: Plugins let you extend Cline with custom tools, workflows, skills, and MCP-powered capabilities tailored to your team or project. Install them from the new Customize marketplace to add specialized behavior, connect external services, and package reusable automations—so Cline can do more than code: it can adapt to the way you work.
+- Add queued prompts in chat. Messages submitted while Cline is already working are now queued, shown while the current turn streams, and can be cancelled before they run.
+- Add edit-and-regenerate support for previous user messages, with clearer Reset Chat and Reset Code actions.
+- Add generic SDK provider settings and model-catalog support so more providers can share the same model picker, reasoning controls, dynamic model IDs, provider config persistence, and custom model handling.
+- Add additional SDK-backed provider exposure and model/provider updates, including ClinePass models, refreshed Cline catalog data, Fireworks GLM 5.2, Kimi K2.6 Fast, Kimi K2.7 Code, Qwen 3.7 Plus, MiniMax M3 updates, SAP AI Core wiring, LiteLLM model fetching, Codex OAuth credentials, and OpenAI-compatible model settings.
+- Add MCP support for plugins and shared marketplace install/uninstall plumbing used by the VS Code extension.
+
+### Changed
+
+- Migrate the VS Code extension from the legacy task implementation to the shared Cline SDK and move the extension build/package workflow to Bun.
+- Rework Plan/Act mode handling through SDK coordinators, including closer CLI parity and automatic continuation when switching from Plan to Act.
+- Rework provider and model configuration around `providers.json`, the model catalog, and SDK session config so settings are preserved consistently across provider switches and active sessions can restart when the selected provider changes.
+- Simplify provider settings UI by replacing many provider-specific views with shared generic settings components and consistent reasoning selectors.
+- Simplify terminal execution through the SDK run-commands path, including clearer non-interactive command guidance and safer structured command formatting.
+- Migrate legacy MCP files and formats into the shared settings file and protect MCP settings writes with safer locking/atomic updates.
+- Refresh the MCP hub automatically after marketplace installs so newly installed servers are available without a manual restart.
+- Reorganize MCP/Skills/Plugins entry points under Customize, hide workflows from the Customize menu, wrap Customize tabs on narrow screens, and allow the MCP Marketplace tab to be disabled remotely while installed MCP servers remain accessible.
+- Simplify auto-approval settings. Command auto-approval is now disabled by default for safer new and reset configurations, and the auto-approval UI has been streamlined.
+- Update task history handling for the SDK migration, including legacy task history visibility, metadata preservation on resume, and corrected deletion behavior.
+- Route compacting and mistake-limit behavior through the SDK so the Compact button and mistake tracking affect the active SDK session.
+- Remove the legacy Explain Changes feature as part of the SDK migration cleanup.
+- Temporarily disable subagents in the VS Code extension while the SDK-backed experience is stabilized.
+
+### Fixed
+
+- Fix marketplace edge cases, including refreshing MCP servers after marketplace installs, disabling the MCP Marketplace tab from remote config, hiding workflows from Customize, surfacing plugin-bundled skills, and uninstalling shared marketplace entries.
+- Fix chat submission during active turns by queuing user messages instead of dropping or racing them, showing pending/queued states promptly, rendering direct user messages immediately, and removing delayed send behavior.
+- Fix editing previous user messages so Escape cancels editing locally and reset action labels are clearer.
+- Fix terminal reliability, including standalone Windows output capture, hardened PowerShell command handling, running-state display for in-progress commands, raw structured command preservation, single-quote handling, cwd setup timeouts, failing-command stdout capture, heredoc coalescing, and removal of duplicated command echoes in tool results.
+- Fix SDK tool-result and provider-message budgeting by truncating large tool outputs by default, capping assistant text, limiting bash/file-read/search output ingestion, bounding media budgets, batching outdated-read rewrites to preserve provider prefix caches, and normalizing JSON-like tool inputs by schema.
+- Fix login and feature-flag resolution by using the correct user/account identity on startup and simplifying the login UX.
+
+## [3.89.2]
+
+### Fixed
+
+- Complete the fix for the Anthropic provider on VS Code 1.123 and later by upgrading the bundled Anthropic SDK to a release compatible with the Node 24 runtime.
+- Update the Vertex AI provider to a compatible Anthropic Vertex SDK release so it works with the upgraded Anthropic SDK.
+
+## [3.89.1]
+
+### Fixed
+
+- Restore the Anthropic provider on VS Code 1.123 and later, where the updated Node 24 runtime broke the bundled Anthropic SDK.
+- Handle the DeepSeek V4 reasoning format.
+
+## [3.89.0]
+
+### Added
+
+- Add Claude Fable 5 model support.
+
+### Fixed
+
+- Fix MiniMax M3 thinking controls across gateways.
+
+### Changed
+
+- Clean up the Codex model list.
+
+## [3.88.1]
+
+### Added
+
+- Add a debug section in settings for Cline testers.
+
+### Fixed
+
+- Include the walkthrough markdown files in the VS Code extension package so the first-run walkthrough steps load correctly.
+
+## [3.88.0]
+
+### Added
+
+- Add the latest Fireworks AI serverless models and update the default Fireworks model to Kimi K2.6.
+
+### Fixed
+
+- Fix MCP server delete/add flows so settings writes do not cause the MCP server list to be emptied by the file watcher.
+- Remove stale Fireworks AI models and correct Fireworks model metadata and cache pricing.
+
+### Changed
+
+- Always use the upstream Cline recommended models endpoint instead of gating it behind a feature flag.
+
+## [3.87.0]
+
+### Added
+
+- Add MiniMax M3 model support.
+
+### Fixed
+
+- Update VS Code extension dependencies to resolve security issues in `@xmldom/xmldom`, `basic-ftp`, `axios`, `undici`, and other direct/transitive packages.
+
+## [3.86.2]
+
+### Fixed
+
+- Fix `@` file mentions and workspace file search on VS Code 1.122+ by resolving the new bundled `@vscode/ripgrep-universal` per-platform binary layout before falling back to legacy ripgrep paths.
+
+## [3.86.1]
+
+### Fixed
+
+- Fix `@` file mentions failing to find files in some environments (notably VS Code Remote SSH, and after certain VS Code updates) by keeping the file-search fallback alive when the workspace index or bundled ripgrep binary is unavailable.
+
+## [3.86.0]
+
+### Added
+
+- Add Claude Opus 4.8 provider support, including 1M-context variants where available.
+- Add Moonshot Kimi K2.6 model support.
+
+### Fixed
+
+- Show prompt-cache support for Qwen 3.7 Max in the Cline provider.
+- Fix the VS Code nightly publish workflow startup permissions.
+
+### Changed
+
+- Move the VS Code extension project into `apps/vscode`.
+
+## [3.85.0]
+
+### Added
+
+- Add GPT-5.5 support to SAP AI Core.
+- Add DeepSeek V4 Flash and Pro models.
+- Add Gemini 3.5 Flash to Gemini and Vertex providers.
+- Add `/lg-task` URI webhook integration for LG dashboard flows.
+
+### Fixed
+
+- Fix Vertex AI global endpoint handling for Claude models.
+- Route Poolside Laguna models through next-gen prompts and native tool calling.
+
+### Changed
+
+- Update `diff` and `protobufjs` dependencies.
+
+## [3.84.0]
+
+### Added
+
+- Add SAP AI Core support for additional hosted models
+
+### Fixed
+
+- Disable the MCP "Restart Server" button when a server is toggled off.
+
+### Changed
+
+- Remove the Cline Kanban launch modal and bundled demo media from the VS Code extension startup flow.
+
+## [3.83.0]
+
+### Fixed
+
+- Show a clear "Searching..." state in the @-mention file picker
+- Improve @-mention file search performance
+- Allow `write_to_file` to create or overwrite files with empty content.
+- Fix validation failures for MCP servers that require an object.
+- Enable OpenRouter prompt cache control for Qwen models.
+- Update Axios and SAP Connectivity dependencies
+
+### Changed
+
+- Use the VS Code-specific `README.marketplace.md` when packaging and publishing the VS Code extension
+- Add telemetry to @-mention search to help diagnose local, remote, and multi-root workspace search behavior.
+
+## [3.82.0]
+
+### Added
+
+- Restore VS Code foreground terminal support and settings.
+- Add latest OpenAI, SAP AI Core, and Z AI models.
+
+### Fixed
+
+- Fix hook template JSON escaping.
+- Improve ripgrep file search error handling.
+
+### Changed
+
+- Remove hardcoded model lists from docs.
+
+## [3.81.0]
+
+### Added
+
+- Add GPT-5.5 model support for OpenAI Codex subscription users.
+
+### Fixed
+
+- Remove hardcoded "What’s New" fallback items in webview; only remote-configured welcome banners are shown.
+
+### Changed
+
+- Improve cline-core memory diagnostics used by the extension runtime:
+  - enable near-heap-limit heap snapshots
+  - add periodic memory usage logging
+  - log discovered heap snapshots on abnormal exits for easier OOM debugging
+
+## [3.80.0]
+
+### Added
+
+- Wire up remote `globalSkills` from enterprise remote config with full UI, toggle support, and system prompt integration — enterprise-managed skills now appear under a dedicated "Enterprise Skills" section and support `alwaysEnabled` enforcement
+- Onboarding flow now uses dynamically fetched recommended models instead of a hardcoded list, with a fallback to the welcome view on failure
+- Add dedicated "Quota Exceeded" error message in the chat error UI when Cline account spend caps are hit
+
+### Fixed
+
+- Fix OOM crashes during long conversations by setting `--max-old-space-size=8192` for the cline-core Node.js process (was defaulting to ~2 GB)
+- Show detailed error information in the chat error row instead of a generic caught error message
+- Update `axios` to 1.15.0 across all packages
+
+### Changed
+
+- Remove foreground terminal mode — all task command execution now defaults to background mode, removing the VS Code integrated terminal dependency and related settings UI
+- Remove old hardcoded announcement banners
+
+## [3.79.0]
+
+### Added
+
+- Add Claude Opus 4.7 model support
+- Add Azure Blob Storage as a storage provider
+- Add `globalSkills` to remote config
+- Inline value reuse in user-level remote-config discovery
+
+### Fixed
+
+- Fix cache reflection for Cline and Vercel API handlers
+- Fix stuck `command_output` ask when terminal command ends unexpectedly
+- Add `use_subagents` to system prompt for GLM, Hermes, and XS models
+- Fix action injection security risk
+
+### Changed
+
+- Remove deprecated evals tool
+
+## [3.78.0]
+
+### Added
+
+- Add a dedicated "Spend Limit Reached" error UI when spend caps are hit
+- Docs updates
+
+### Fixed
+
+- Show actual `read_file` line ranges in chat UI
+
+## [3.77.0]
+
+### Added
+
+- Add "Lazy Teammate Mode" experimental toggle
+- `read_file` tool now supports chunked reading for targeted file access
+
+### Fixed
+
+- Exclude `new_task` tool from system prompt in yolo/headless mode
+- Fix Kanban demo video formatting
+
+### Changed
+
+- Polish `Notification` hook functionality
+
+## [3.76.0]
+
+### Added
+
+- Add Cline Kanban launch modal in webview; CLI now launches Kanban by default with a migration view
+- Add toggle to disable feature tips in chat
+- Add repeated tool call loop detection to prevent infinite loops wasting tokens
+
+### Fixed
+
+- Fix CLI Kanban spawn on Windows by enabling shell mode for `npx.cmd`
+
+## [3.75.0]
+
+### Added
+
+- Latency improvements for remote workspaces
+
+### Fixed
+
+- Stabilize flaky hooks tests
+
+### Changed
+
+- Remove example hooks in favor of reading the docs
+
+## [3.74.0]
+
+### Added
+- Implement dynamic free model detection for Cline API
+- Add file read deduplication cache to prevent repeated reads
+- Add feature tips tooltip during thinking state
+
+### Fixed
+- Replace error message when not logged in to Cline
+- Align ClineRulesToggleModal padding with ServersToggleModal
+- Skip WebP for GLM and Devstral models running through llama.cpp
+- Respect user-configured context window in LiteLLM getModel()
+- Honor explicit model IDs outside static catalog in W&B provider
+- Add missing Fireworks serverless models and pricing
+
+## [3.73.0]
+
+### Added
+
+- Added W&B Inference by CoreWeave as a new API provider with 17 models
+- Improved parallel tool calling support for OpenRouter and Cline providers
+
+### Fixed
+
+- Claude Code Provider: handle rate limit events, empty content arrays, error results, and unknown content types without crashing
+- Tool handlers (`read_file`, `list_files`, `list_code_definition_names`, `search_files`) now return graceful errors instead of crashing
+
+## [3.72.0]
+
+### Added
+
+- Added Anthropic Opus 4.6 fast mode variants
+
+### Fixed
+
+- Resolved native tool placeholder interpolation in prompts
+- Gemini: capped Flash output tokens to 8192 across providers
+- Fixed Windows unit test path normalization
+- Fixed flaky hooks tests on Windows
+- Bedrock: handle thinking and redacted_thinking blocks correctly in message conversion and streaming
+- Prevent crash when `list_files` or `list_code_definition_names` receives a file path
+
+### Changed
+
+- Updated Jupyter Notebook GIFs
+- Markdown image loading now requires user consent
+- Added `.github/copilot-instructions.md` for coding agents
+- Hooks: reintroduced feature toggle
+
+## [3.71.0]
+
+### Added
+
+- Added GPT-5.4 models for ChatGPT subscription users
+- Hooks: Added a `Notification` hook for attention and completion boundaries
+
+### Fixed
+
+- Handle streamable HTTP MCP reconnects more reliably after disconnects
+
+## [3.70.0]
+
+### Added
+
+- New Cline API docs: Getting Started, Auth, Chat Completions, Models, Errors, and SDK Examples
+- Hook payloads now include `model.provider` and `model.slug` 
+- Token/cost updates now happen immediately as usage chunks arrive, not after tool execution
+
+### Fixed
+
+- Improve subagent context compaction logic
+- Subagent stream retry delay increased to reduce noise from transient failures
+- State serialization errors are now caught and logged instead of crashing
+- Removed incorrect `max_tokens` from OpenRouter requests
+
+### Changed
+
+- Windows test cleanup now retries on locked files and applies per-test timeouts
+- Updated hooks docs 
+
+
+## [3.69.0]
+
+### Added
+
+- Add `User-Agent` header to requests sent to the Cline backend
+- Add default auto-tag workflow for publish release flow
+- Show Cline SDK docs on the Cline page
+
+### Fixed
+
+- Retry nested git restore and prevent silent `.git_disabled` leftovers in checkpoints
+- Prevent Chinese filename escaping in diff view
+- Trigger auto-compaction on OpenRouter context overflow errors
+- Restore GPT-OSS native file editing on OpenAI-compatible models
+
+### Changed
+
+- Update Cline SDK docs
+- Improve hooks support for Windows PowerShell
+
+## [3.68.0]
+
+### Added
+
+- Add dynamic Cline provider model fetching from Cline endpoint
+- Add additional Markdown formatting in CLI
+- Add focus indicator on action buttons in extension
+
+### Fixed
+
+- Clear all OCA secrets on auth refresh failure to prevent re-auth loops
+- Resolve "Could not find the file context" error in Explain Changes
+- Use `JSON_SCHEMA` for `yaml.load` to prevent unsafe deserialization
+- Fetch model info from API in CLI headless auth for Cline and Vercel providers
+- Generate commit message from staged changes only when staging exists
+- Update stale `maxTokens` values for Claude 3.7+ models across Anthropic, Bedrock, Vertex, and SAP AI Core
+- Use `model.info.maxTokens` for OpenRouter instead of hardcoded `8192`
+
+### Changed
+
+- Increase timeout for a flaky test to reduce short-term test instability
+
+## [3.67.1]
+
+### Added
+
+- Added Cline SDK API interface for programmatic access to Cline features and tools, enabling integration into custom applications.
+- Added Codex 5.3 model support
+
+### Fixed
+
+- Fix OpenAI Codex by setting `store` to `false`
+- Use `isLocatedInPath()` instead of string matching for path containment checks
+
+## [3.67.0]
+
+### Added
+
+- Add support for skills and optional modelId in subagent configuration
+- Add AgentConfigLoader for file-based agent configs
+- Add Responses API support for OpenAI native provider
+- Preconnect websocket to reduce response latency
+- Fetch featured models from backend with local fallback
+- Add /q command to quit CLI
+- Add MCP enterprise configuration details
+- Pull Cline's recommended models from internal endpoint
+- Add dynamic flag to adjust banner cache duration
+
+### Fixed
+
+- Fix reasoning delta crash on usage-only stream chunks
+- Fix OpenAI tool ID transformation restricted to native provider only
+- Fix auth check for ACP mode
+- Fix CLI yolo mode to not persist yolo setting to disk
+- Fix inline focus-chain slider within its feature row
+- Fix Gemini 3.1 Pro compatibility
+- Fix Cline auth with ACP flag
+
+### Changed
+
+- Move PR skill to .agents/skills
+- SambaNova provider: update models list
+- Remove changeset-converter GitHub Action and npm run changeset
+
+## [3.66.0]
+
+### Added
+
+- Gemini-3.1 Pro Preview
+
+
+## [3.65.0]
+
+### Added
+
+- Add /skills slash command to CLI for viewing and managing installed skills
+
+### Fixed
+
+- Fix aggressive context compaction caused by accidental clicks on the context window progress bar silently setting a very low auto-condense threshold
+- Fix infinite retry loop when write_to_file fails with missing content parameter.
+- Fixed default claude model
+
+## [3.64.0]
+
+### Added
+- Added sonnet 4.6
+
+
+## [3.63.0]
+
+### Added
+
+- added zai GLM 5 Free promo
+
+### Fixed
+
+- Restore reasoning trace visibility in chat and improve the thinking row UX so reasoning is visible, then collapsible after completion.
+
+## [3.62.0]
+
+### Fixed
+
+- Banners now display immediately when opening the extension instead of requiring user interaction first
+- Resolved 17 security vulnerabilities including high-severity DoS issues in dependencies (body-parser, axios, qs, tar, and others)
+
+## [3.61.0]
+
+- UI/UX fixes with minimax model family
+
+## [3.60.0]
+
+- Fixes for Minimax model family
+
+## [3.59.0]
+
+- Added Minimax 2.5 Free Promo
+- Fixed Response chaining for OpenAI's Responses API
+
+## [3.58.0]
+
+### Added
+
+- Subagent: replace legacy subagents with the native `use_subagents` tool
+- Bundle `endpoints.json` support so packaged distributions can ship required endpoints out-of-the-box
+- Amazon Bedrock: support parallel tool calling
+- New "double-check completion" experimental feature to verify work before marking tasks complete
+- CLI: new task controls/flags including custom `--thinking` token budget and `--max-consecutive-mistakes` for yolo runs
+- Remote config: new UI/options (including connection/test buttons) and support for syncing deletion of remotely configured MCP servers
+- Vertex / Claude Code: add 1M context model options for Claude Opus 4.6
+- ZAI/GLM: add GLM-5
+
+### Fixed
+
+- CLI: handle stdin redirection correctly in CI/headless environments
+- CLI: preserve OAuth callback paths during auth redirects
+- VS Code Web: generate auth callback URLs via `vscode.env.asExternalUri` (OAuth callback reliability)
+- Terminal: surface command exit codes in results and improve long-running `execute_command` timeout behavior
+- UI: add loading indicator and fix `api_req_started` rendering
+- Task streaming: prevent duplicate streamed text rows after completion
+- API: preserve selected Vercel model when model metadata is missing
+- Telemetry: route PostHog networking through proxy-aware shared fetch and ensure telemetry flushes on shutdown
+- CI: increase Windows E2E test timeout to reduce flakiness
+
+### Changed
+
+- Settings/model UX: move "reasoning effort" into model configuration and expose it in settings
+- CLI provider selection: limit provider list to those remotely configured
+- UI: consolidate ViewHeader component/styling across views
+- Tools: add auto-approval support for `attempt_completion` commands
+- Remotely configured MCP server schema now supports custom headers
+
+## [3.57.1]
+
+### Fixed
+
+- Fixed Opus 4.6 for bedrock provider
+
+## [3.57.0]
+
+### Added
+
+- Cline CLI 2.0 now available. Install with `npm install -g cline`
+- Anthopic Opus 4.6
+- Minimax-2.1 and Kimi-k2.5 now available for free for a limited time promo
+- Codex-5.3 through ChatGPT subscription
+
+### Fixed
+
+- Fix read file tool to support reading large files
+- Fix decimal input crash in OpenAI Compatible price fields (#8129)
+- Fix build complete handlers when updating the api config
+- Fixed missing provider from list
+- Fixed Favorite Icon / Star from getting clipped in the task history view
+
+### Changed
+
+- Make skills always enabled and remove feature toggle setting
+
+## [3.56.0]
+
+### Added
+
+- **CLI authentication:** Added Vercel AI Gateway and Cline API key provider support for headless CI/automation workflows
+- **New model:** Added Kimi-K2.5 model to Moonshot provider (262K context, image support, prompt caching)
+- **Prompt variant:** Added Trinity Large prompt variant for improved tool-calling support
+- **OpenTelemetry:** Added support for custom headers on metrics and logs endpoints
+- **Social links:** Added community icons (X, Discord, GitHub, Reddit, LinkedIn) to the What's New modal
+
+### Fixed
+
+- **LiteLLM:** Fixed thinking configuration not appearing for reasoning-capable models
+- **OpenTelemetry:** Fixed endpoint path handling (no longer incorrectly appends `/v1/logs` or `/v1/metrics`) and ensured logs are sent regardless of VSCode telemetry settings
+- **CLI auth:** Fixed `cline auth` displaying incorrect provider information after configuration
+
+### Changed
+
+- **Hooks:** Hook scripts now run from the workspace repository root instead of filesystem root
+- **Default settings:** Enabled multi-root workspaces, parallel tool calling, and skills by default; disabled strict plan mode by default
+- **Settings UI:** Refreshed feature settings section with collapsible design
+
+## [3.55.0]
+
+- Add new model: Arcee Trinity Large Preview
+- Add new model: Moonshot Kimi K2.5
+- Add MCP prompts support - prompts from connected MCP servers now appear in slash command autocomplete as `/mcp:<server>:<prompt>`
+
+## [3.54.0]
+
+### Added
+
+- Native tool calls support for Ollama provider
+- Sonnet 4.5 is now the default Amazon Bedrock model id
+
+### Fixed
+
+- Prevent infinite retry loops when replace_in_file fails repeatedly. The system now detects repeated failures and provides better guidance to break out of retry cycles.
+- Skip diff error UI handling during streaming to prevent flickering. Error handling is deferred until streaming completes.
+- Strip notebook cell outputs when extracting text content from Jupyter notebooks, significantly reducing context size sent to the LLM.
+- Throttle diff view updates during streaming to reduce UI flickering and improve performance.
+
+### Changed
+
+- Removed Mistral's Devstral-2512 free from the free models list
+- Removed deprecated zai-glm-4.6 model from Cerebras provider
+
+## [3.53.1]
+
+### Fixed
+
+- Bug in responses API
+
+## [3.53.0]
+
+### Fixed
+
+- Removed grok model from free tier
+
+## [3.52.0]
+
+### Added
+
+- Users with ChatGPT Plus or Pro subscriptions can now use GPT-5 models directly through Cline without needing an API key. Authentication is handled via OAuth through OpenAI's authentication system.
+- Grok models are now moving out of free tier and into paid plans.
+- Introduces comprehensive Jupyter Notebook support for Cline, enabling AI-assisted editing of `.ipynb` files with full cell-level context awareness.
+
+### Fixed
+
+- Bugs in DiffViewProvider for file editing
+- Ollama's recommended models to use correct identifiers
+
+## [3.51.0]
+
+### Added
+
+- Adding OpenAI gpt-5.2-codex model to the model picker
+
+## [3.50.0]
+
+### Added
+
+- Add gpt-5.2-codex OpenAI model support
+- Add create-pull-request skill
+
+### Fixed
+
+- Fix the selection of remotely configured providers
+- Fix act_mode_respond to prevent consecutive calls
+- Fix invalid tool call IDs when switching between model formats
+
+## [3.49.1]
+
+### Added
+
+- Add telemetry to track usage of skills feature
+- Add version headers to Cline backend requests
+- Phase in Responses API usage instead of defaulting for every supported model
+
+### Fixed
+
+- Fix workflow slash command search to be case-insensitive
+- Fix model display in ModelPickerModal when using LiteLLM
+- Fix LiteLLM model fetching with default base URL
+- Fix crash when OpenAI-compatible APIs send usage chunks with empty or null choices arrays at end of streaming
+- Fix model ID for Kat Coder Pro Free model
+
+## [3.49.0]
+
+- Enable configuring an OTEL collector at runtime
+- Removing Minimax-2.1 from free model list as the free trial has ended
+- Improved image display in MCP responses
+- Auto-sync remote MCP servers from remote config to local settings
+
+## [3.48.0]
+
+### Added
+
+- Add Skills system for reusable, on-demand agent instructions
+- Add new websearch tooling in Cline provider
+- Add zai-glm-4.7 to Cerebras model list
+- Add model refresh and improve reasoning support for Vercel AI Gateway
+
+### Fixed
+
+- Revert #8341 due to regressions in diff view/document truncation (see #8423, #8429)
+- Fixed extension crash when using context menu selector
+
+## [3.47.0]
+
+### Added
+
+- Added experimental support for Background Edits (allows editing files in background without opening the diff view)
+- Updated free model to MiniMax M2.1 (replacing MiniMax M2)
+- Added support for Azure based identity authentication in OpenAI Compatible provider and Azure OpenAI
+- Add `supportsReasoning` property to Baseten models
+
+### Fixed
+
+- Prevent expired token usage in authenticated requests
+- Exclude binary files without extensions from diffs
+- Preserve file endings and trailing newlines
+- Fix Cerebras rate limiting
+- Fix Auto Compact for Claude Code provider
+- Make Workspace and Favorites history filters independent
+- Fix remote MCP server connection failures (404 response handling)
+- Disable native tool calling for Deepseek 3.2 speciale
+- Show notification instead of opening sidebar on update
+- Fix Baseten model selector
+
+### Refactored
+
+- Modify prompts for parallel tool usage in Claude and Gemini 3 models
+
+## [3.46.1]
+
+### Fixed
+
+- Remove GLM 4.6 from free models
+
+## [3.46.0]
+
+### Added
+
+- Added GLM 4.7 model
+- Enhanced background terminal execution with command tracking, log file output, zombie process prevention (10-minute timeout), and clickable log paths in UI
+- Apply Patch tool for GPT-5+ models (replacing current diff edit tools)
+
+### Fixed
+
+- Duplicate error messages during streaming for Diff Edit tool when Parallel Tool Calling is not enabled
+- Banner carousel styling and dismiss functionality
+- Typos in Gemini system prompt overrides
+- Model picker favorites ordering, star toggle, and keyboard navigation for OpenRouter and Vercel AI Gateway providers
+- Fetch remote config values from the cache
+
+### Refactored
+
+- Anthropic handler to use metadata for reasoning support
+- Bedrock provider to use metadata for reasoning support
+
+## [3.45.1]
+
+- Fixed MCP settings race condition where toggling auto-approve or changing timeout settings would cause the UI to flash and revert
+
+## [3.45.0]
+
+- Added Gemini 3 Flash Preview model
+
+## [3.44.2]
+
+- Polished the model picker UI with checkmarks for selected models, tooltips on Plan/Act tabs, and consistent arrow pointers across all popup modals
+- Improved WhatsNew modal responsiveness and cleaned up redundant UI elements
+- Fixed GLM models outputting garbled text in thinking tags—reasoning is now properly disabled for these models
+
+## [3.44.1]
+
+- Fixed a critical bug where local MCP servers stopped connecting after v3.42.0—all user-configured stdio-based MCP servers should now work again
+- Fixed remotely configured API keys not being extracted correctly for enterprise users
+- Added support for dynamic tool instructions that adapt based on runtime context, laying groundwork for future context-aware features
+
+## [3.44.0]
+
+## Added
+
+- Updating minor version to show a proper banner for the release
+
+## [3.43.1]
+
+### Patch Changes
+
+- Fix GLM-4.6 Model reference id
+
+## [3.43.0]
+
+### Added
+
+- GLM-4.6
+- kat-coder-pro
+- Add parsing of env variable patterns to the mcpconfig.json
+
+### Fixed
+
+- TLS Proxy support issues for VSCode
+- Add supportsReasoning flag to OpenAI reasoning models
+- Fix thinking not available for some models in the OpenAI provider
+- Fix invalid signature field issues when switching between Gemini and Anthropic providers
+- Extract OpenRouter model filtering into reusable utility and use it in different model pickers
+- Fix a11y for auto approve checkbox
+- Improve ModelPickerModal provider list layout
+
+### Refactored
+
+- Migrate WhatsNewModal to new shared dialogue component
+
+## [3.42.0]
+
+### Added
+
+- Expose `getAvailableSlashCommands` rpc endpoint to UI clients
+- Made slash command menu and context menu accessible and screenreader-friendly
+- Made expanding/collapsing UI components accessible
+
+### Fixed
+
+- Devstral OpenRouter model ID and routing issues
+- Incorrect pricing display for Devstral model in the extension
+
+## [3.41.0]
+
+### Added
+
+- OpenAI GPT-5.2
+- Devstral-2512 (formerly stealth model "Microwave")
+- Improvements to chat modal model picker
+- Amazon Nova 2 Lite
+- DeepSeek 3.2 to native tool calling allow list
+- Responses API support for Codex models in OpenAI provider (requires native tool calling)
+- Xmas Special Santa Cline
+- Welcome screen UI enhancements
+
+### Fixed
+
+- Initial checkpoint commit now non-blocking for improved responsiveness in large repositories
+- Gemini Vertex models erroring when thinking parameters are not supported
+- Restrictive file permissions for secrets.json
+- Ollama streaming requests not aborting when task is cancelled
+
+### Refactored
+
+- OpenAI provider to centralize temperature configuration and include missing GPT-5 model settings
+- OpenAI native handler to use metadata for model capabilities
+- Vertex provider to use metadata for model capabilities
+
+## [3.40.2]
+
+- Fix logout on network errors during token refresh (e.g., opening laptop while offline)
+
+## [3.40.1]
+
+- Fix cost calculation display for Anthropic API requests
+
+## [3.40.0]
+
+- Fix highlighted text flashing when task header is collapsed
+- Add X-Cerebras-3rd-Party-Integration header to Cerebras API requests
+- Add microwave family system prompt configuration
+- Remove tooltips from auto approve menu
+- Fix Standalone, ensure cwd is the install dir to find resources reliably
+- Fix a bug where terminal commands with double quotes are broken when "Terminal Execution Mode" is set to "Background Exec"
+- Add support for slash commands anywhere in a message, not just at the beginning. This matches the behavior of @ mentions for a more flexible input experience.
+- Add bottom padding to the last message to fix last response text getting cut off by auto approve settings bar.
+- Add default thinking level for Gemini 3 Pro models in Gemini provider
+
+## [3.39.2]
+
+- Fix for microwave model and thinking settings
+
+## [3.39.1]
+
+- Fix Openrouter and Cline Provider model info
+
+## [3.39.0]
+
+- Add Explain Changes feature
+- Add microwave Stealth model
+- Add Tabbed Model Picker with Recommended and Free tabs
+- Add support to View remote rules and workflows in the editor
+- Enable NTC (Native Tool Calling) by default
+- Bug fixes and improvements for LiteLLM provider
+
+## [3.38.3]
+
+- Task export feature now opens the task directory, allowing easy access to the full task files
+- Add Grok 4.1 and Grok Code to XAI provider
+- Enabled native tool calling for Baseten and Kimi K2 models
+- Add thinking level to Gemini 3.0 Pro preview
+- Expanded Hooks functionality
+- Removed Task Timeline from Task Header
+- Bug fix for slash commands
+- Bug fixes for Vertex provider
+- Bug fixes for thinking/reasoning issues across multiple providers when using native tool calling
+- Bug fixes for terminal usage on Windows devices
+
+## [3.38.2]
+
+- Add Claude Opus 4.5
+
+## [3.38.1]
+
+### Fixed
+
+- Fixed handling of 'signature' field in sanitizeAnthropicContentBlock to properly preserve it when thinking is enabled, as required by Anthropic's API.
+
+## [3.38.0]
+
+### Added
+
+- Gemini 3 Pro Preview model
+- AquaVoice Avalon model for voice-to-text dictation
+
+### Fixed
+
+- Automatic context truncation when AWS Bedrock token usage rate limits are exceeded
+- Removed new_task tool from system prompts, updated slash command prompts, and added helper function for native tool calling validation
+
+## [3.37.1]
+
+- Comprehensive changes to better support GPT 5.1 - System prompt, tools, deep-planning, focus chain, etc.
+- Add AGENTS.md support
+- feat(models): Add free minimax/mimax-m2 model to the model picker
 
 ## [3.37.0]
 
-## Added
+### Added
 
 - GPT-5.1 with model-specific prompting: tailored system prompts, tool usage, focus chain, and deep-planning optimizations
 - Nous Research provider with Hermes 4 model family and custom system prompts
@@ -18,7 +1233,7 @@
 - Expanded HTTP proxy support throughout the codebase
 - Improved focus chain prompting for frontier models (Anthropic, OpenAI, Gemini, xAI)
 
-## Fixed
+### Fixed
 
 - Duplicate tool results prevention through existence checking
 - XML entity escaping in model content processor

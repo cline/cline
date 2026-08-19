@@ -1,0 +1,4 @@
+interface:
+  display_name: "Publish UI"
+  short_description: "Prepare and publish the Cline UI package"
+  default_prompt: "Use $publish-ui to prepare and publish a new @cline/ui npm release."

@@ -1,0 +1,108 @@
+---
+title: "ClineCore"
+sidebarTitle: "ClineCore"
+description: "API reference for ClineCore from @cline/core."
+---
+
+```typescript
+import { ClineCore } from "@cline/sdk"
+```
+
+## `ClineCore.create(options)`
+
+```typescript
+const cline = await ClineCore.create({
+  clientName: "my-app",
+  backendMode: "auto",
+})
+```
+
+Common options:
+
+| Option | Type | Description |
+|--------|------|-------------|
+| `clientName` | `string` | Human-readable SDK client name |
+| `distinctId` | `string` | Stable telemetry/user identifier |
+| `backendMode` | `"auto" \| "local" \| "hub" \| "remote"` | Runtime backend selection |
+| `hub` | `HubOptions` | Local hub connection options |
+| `remote` | `RemoteOptions` | Remote hub options |
+| `capabilities` | `RuntimeCapabilities` | Client-owned tool executors and approval callbacks |
+| `toolPolicies` | `Record<string, ToolPolicy>` | Default tool approval policies |
+| `automation` | `boolean \| ClineCoreAutomationOptions` | Enable automation APIs |
+| `fetch` | `typeof fetch` | Custom fetch for local provider calls |
+
+## `start(input)`
+
+```typescript
+const session = await cline.start({
+  prompt: "Summarize this repo",
+  config: {
+    providerId: "anthropic",
+    modelId: "claude-sonnet-4-6",
+    apiKey: process.env.ANTHROPIC_API_KEY,
+    systemPrompt: "You are a helpful coding assistant.",
+    cwd: process.cwd(),
+    workspaceRoot: process.cwd(),
+    enableTools: true,
+    enableSpawnAgent: false,
+    enableAgentTeams: false,
+  },
+})
+```
+
+### ClineCoreStartInput
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prompt` | `string` | No | Initial prompt |
+| `config` | `CoreSessionConfig` | Yes | Session model/runtime config |
+| `source` | `SessionSource` | No | Session source label |
+| `interactive` | `boolean` | No | Whether session expects interaction |
+| `sessionMetadata` | `Record<string, unknown>` | No | Metadata persisted with session |
+| `initialMessages` | `Message[]` | No | Preloaded messages |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-session tool policies |
+| `capabilities` | `RuntimeCapabilities` | No | Per-session tool executors and approval callbacks |
+
+### StartSessionResult
+
+```typescript
+interface StartSessionResult {
+  sessionId: string
+  manifest: SessionManifest
+  manifestPath: string
+  messagesPath: string
+  result?: AgentResult
+}
+```
+
+## `send(input)`
+
+```typescript
+const result = await cline.send({
+  sessionId,
+  prompt: "Continue with tests",
+})
+```
+
+Returns `AgentResult | undefined`.
+
+## Session APIs
+
+| Method | Description |
+|--------|-------------|
+| `subscribe(listener, options?)` | Subscribe to `CoreSessionEvent` events |
+| `list(limit?, options?)` | List session history records |
+| `listHistory(options?)` | List session history records |
+| `get(sessionId)` | Get session metadata |
+| `readMessages(sessionId)` | Read persisted messages |
+| `getAccumulatedUsage(sessionId)` | Read accumulated token/cost usage |
+| `update(sessionId, updates)` | Update prompt/title/metadata |
+| `abort(sessionId, reason?)` | Abort active work |
+| `stop(sessionId)` | Stop session |
+| `delete(sessionId)` | Delete session |
+| `restore(input)` | Restore from checkpoint |
+| `dispose(reason?)` | Dispose runtime resources |
+
+## Automation API
+
+When `automation` is enabled, use `cline.automation` to start/stop automation services, reconcile specs, ingest events, and list events/specs/runs.

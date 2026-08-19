@@ -1,0 +1,1435 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	HubTransportError,
+	isHubReconnectableTransportError,
+	NodeHubClient,
+} from "../client";
+
+type SocketListener = (...args: unknown[]) => void;
+type MessageListener = (event: { data: string }) => void;
+type GenericListener = (...args: unknown[]) => void;
+
+class MockWebSocket {
+	static readonly CONNECTING = 0;
+	static readonly OPEN = 1;
+	static readonly CLOSING = 2;
+	static readonly CLOSED = 3;
+	static instances: MockWebSocket[] = [];
+	static commandPayloads = new Map<string, unknown>();
+
+	readyState = MockWebSocket.CONNECTING;
+	readonly sentFrames: unknown[] = [];
+	private readonly listeners = new Map<string, SocketListener[]>();
+
+	constructor(public readonly url: string) {
+		MockWebSocket.instances.push(this);
+		queueMicrotask(() => {
+			this.readyState = MockWebSocket.OPEN;
+			this.emit("open");
+		});
+	}
+
+	static reset(): void {
+		MockWebSocket.instances = [];
+		MockWebSocket.commandPayloads.clear();
+	}
+
+	send(data: string): void {
+		const frame = JSON.parse(data) as {
+			kind?: string;
+			envelope?: { requestId?: string; command?: string };
+		};
+		this.sentFrames.push(frame);
+		if (frame.kind === "command" && frame.envelope?.requestId) {
+			const command = frame.envelope.command ?? "client.register";
+			queueMicrotask(() => {
+				this.emit("message", {
+					data: JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							command,
+							requestId: frame.envelope?.requestId,
+							ok: true,
+							clientId: "hub",
+							payload: MockWebSocket.commandPayloads.get(command) ?? {},
+						},
+					}),
+				});
+			});
+		}
+	}
+
+	close(): void {
+		this.readyState = MockWebSocket.CLOSED;
+		queueMicrotask(() => {
+			this.emit("close", { code: 1000, reason: "" });
+		});
+	}
+
+	addEventListener(type: string, listener: SocketListener): void {
+		const listeners = this.listeners.get(type) ?? [];
+		listeners.push(listener);
+		this.listeners.set(type, listeners);
+	}
+
+	emit(type: string, ...args: unknown[]): void {
+		for (const listener of this.listeners.get(type) ?? []) {
+			listener(...args);
+		}
+	}
+}
+
+class FakeWebSocket {
+	static instances: FakeWebSocket[] = [];
+
+	public readyState = 0;
+	private readonly listeners = new Map<string, Set<GenericListener>>();
+
+	constructor(_url: string) {
+		FakeWebSocket.instances.push(this);
+	}
+
+	addEventListener(type: string, listener: GenericListener): void {
+		const current = this.listeners.get(type) ?? new Set<GenericListener>();
+		current.add(listener);
+		this.listeners.set(type, current);
+	}
+
+	send(data: string): void {
+		const frame = JSON.parse(data) as {
+			kind?: string;
+			envelope?: { requestId?: string; command?: string };
+		};
+		if (
+			frame.kind === "command" &&
+			frame.envelope?.command === "client.register" &&
+			frame.envelope.requestId
+		) {
+			queueMicrotask(() => {
+				this.emit("message", {
+					data: JSON.stringify({
+						kind: "reply",
+						envelope: {
+							version: "v1",
+							requestId: frame.envelope?.requestId,
+							ok: true,
+							payload: {},
+						},
+					}),
+				});
+			});
+		}
+	}
+
+	close(): void {
+		this.readyState = 3;
+		this.emit("close", { code: 1000, reason: "" });
+	}
+
+	open(): void {
+		this.readyState = 1;
+		this.emit("open");
+	}
+
+	fail(payload?: unknown): void {
+		this.emit("error", payload);
+	}
+
+	private emit(type: string, payload?: unknown): void {
+		for (const listener of this.listeners.get(type) ?? []) {
+			if (type === "message") {
+				(listener as MessageListener)(payload as { data: string });
+				continue;
+			}
+			listener(payload);
+		}
+	}
+}
+
+describe("NodeHubClient", () => {
+	describe("subscription re-registration", () => {
+		afterEach(() => {
+			MockWebSocket.reset();
+			vi.unstubAllGlobals();
+		});
+
+		it("re-subscribes global listeners without sending the wildcard sentinel", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			expect(client.isConnected()).toBe(false);
+			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(client.getConnectionError()).toBeNull();
+			client.subscribe(() => {});
+
+			const firstSocket = MockWebSocket.instances[0];
+			expect(firstSocket.sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+
+			firstSocket.emit("close", { code: 1006, reason: "" });
+			expect(client.isConnected()).toBe(false);
+			expect(client.getConnectionError()).toMatchObject({
+				code: "hub_connection_closed",
+				message: "Hub connection closed (code=1006)",
+			});
+
+			await client.connect();
+			expect(client.isConnected()).toBe(true);
+			expect(client.getConnectionError()).toBeNull();
+
+			const secondSocket = MockWebSocket.instances[1];
+			expect(secondSocket.sentFrames).toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+			});
+			expect(secondSocket.sentFrames).not.toContainEqual({
+				kind: "stream.subscribe",
+				clientId: client.getClientId(),
+				sessionId: "*",
+			});
+		});
+
+		it("reconnects and re-subscribes active listeners after an idle close", async () => {
+			vi.useFakeTimers();
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			try {
+				const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+				await client.connect();
+				client.subscribe(() => {});
+
+				const firstSocket = MockWebSocket.instances[0];
+				firstSocket.emit("close", { code: 1006, reason: "Connection ended" });
+
+				await vi.advanceTimersByTimeAsync(251);
+				await Promise.resolve();
+				await Promise.resolve();
+
+				const secondSocket = MockWebSocket.instances[1];
+				expect(secondSocket).toBeDefined();
+				expect(secondSocket.sentFrames).toContainEqual({
+					kind: "stream.subscribe",
+					clientId: client.getClientId(),
+				});
+
+				await client.dispose();
+			} finally {
+				vi.useRealTimers();
+			}
+		});
+
+		it("unregisters before closing when disposed", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({
+				url: "ws://127.0.0.1:25463/hub",
+				clientType: "code-sidecar",
+			});
+			await client.connect();
+			const socket = MockWebSocket.instances[0];
+
+			await client.dispose();
+
+			expect(socket.sentFrames).toContainEqual(
+				expect.objectContaining({
+					kind: "command",
+					envelope: expect.objectContaining({
+						command: "client.unregister",
+						clientId: client.getClientId(),
+					}),
+				}),
+			);
+			expect(socket.readyState).toBe(MockWebSocket.CLOSED);
+		});
+
+		it("ignores stale close events from retired sockets", async () => {
+			vi.stubGlobal("WebSocket", MockWebSocket);
+
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			await client.connect();
+			client.close();
+
+			await expect(client.connect()).resolves.toBeUndefined();
+
+			expect(MockWebSocket.instances).toHaveLength(2);
+			expect(MockWebSocket.instances[1]?.sentFrames).toContainEqual(
+				expect.objectContaining({
+					kind: "command",
+					envelope: expect.objectContaining({
+						command: "client.register",
+						clientId: client.getClientId(),
+					}),
+				}),
+			);
+
+			await client.dispose();
+		});
+	});
+
+	describe("timeouts", () => {
+		const originalWebSocket = globalThis.WebSocket;
+
+		beforeEach(() => {
+			vi.useFakeTimers();
+			FakeWebSocket.instances = [];
+			(
+				globalThis as unknown as { WebSocket?: typeof FakeWebSocket }
+			).WebSocket = FakeWebSocket;
+		});
+
+		afterEach(() => {
+			vi.useRealTimers();
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+		});
+
+		it("times out when the hub connection never opens", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connectPromise = client.connect();
+			const expectation = expect(connectPromise).rejects.toThrow(
+				"Timed out connecting to hub after 8000ms",
+			);
+
+			await vi.advanceTimersByTimeAsync(8_001);
+			await expectation;
+			await expect(connectPromise).rejects.toMatchObject({
+				name: "HubTransportError",
+				code: "hub_connect_timeout",
+			});
+		});
+
+		it("times out when a hub command never replies", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connectPromise = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) {
+				throw new Error("expected fake websocket instance");
+			}
+			socket.open();
+			await connectPromise;
+
+			const commandPromise = client.command("client.list");
+			const expectation = expect(commandPromise).rejects.toThrow(
+				"Hub command client.list timed out after 30000ms",
+			);
+			await vi.advanceTimersByTimeAsync(30_001);
+			await expectation;
+		});
+
+		it("allows commands to opt out of the reply timeout", async () => {
+			const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+			const connectPromise = client.connect();
+			const socket = FakeWebSocket.instances[0];
+			if (!socket) {
+				throw new Error("expected fake websocket instance");
+			}
+			socket.open();
+			await connectPromise;
+
+			const commandPromise = client.command(
+				"client.list",
+				undefined,
+				undefined,
+				{ timeoutMs: null },
+			);
+			await vi.advanceTimersByTimeAsync(30_001);
+
+			let settled = false;
+			void commandPromise.then(
+				() => {
+					settled = true;
+				},
+				() => {
+					settled = true;
+				},
+			);
+			await Promise.resolve();
+
+			expect(settled).toBe(false);
+			const requestId = [
+				...(
+					client as unknown as { pendingReplies: Map<string, unknown> }
+				).pendingReplies.keys(),
+			][0];
+
+			(
+				socket as unknown as { emit: (type: string, payload: unknown) => void }
+			).emit("message", {
+				data: JSON.stringify({
+					kind: "reply",
+					envelope: {
+						version: "v1",
+						requestId,
+						ok: true,
+						payload: { clients: [] },
+					},
+				}),
+			});
+			await expect(commandPromise).resolves.toMatchObject({
+				ok: true,
+				payload: { clients: [] },
+			});
+		});
+	});
+
+	it("normalizes websocket error events during connect", async () => {
+		const originalWebSocket = globalThis.WebSocket;
+		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =
+			FakeWebSocket;
+		FakeWebSocket.instances = [];
+
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const connectPromise = client.connect();
+		const socket = FakeWebSocket.instances[0];
+		if (!socket) {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			throw new Error("expected fake websocket instance");
+		}
+
+		socket.fail({ type: "error" });
+
+		try {
+			await expect(connectPromise).rejects.toThrow(
+				"Failed to connect to hub at ws://127.0.0.1:25463/hub (error event before socket open).",
+			);
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+		}
+	});
+
+	it("surfaces websocket error messages during connect", async () => {
+		const originalWebSocket = globalThis.WebSocket;
+		(globalThis as unknown as { WebSocket?: typeof FakeWebSocket }).WebSocket =
+			FakeWebSocket;
+		FakeWebSocket.instances = [];
+
+		const client = new NodeHubClient({ url: "ws://127.0.0.1:25463/hub" });
+		const connectPromise = client.connect();
+		const socket = FakeWebSocket.instances[0];
+		if (!socket) {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			throw new Error("expected fake websocket instance");
+		}
+
+		socket.fail({ type: "error", message: "socket unavailable" });
+
+		try {
+			await expect(connectPromise).rejects.toThrow("socket unavailable");
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+		}
+	});
+
+	it("marks transport errors as reconnectable", () => {
+		expect(
+			isHubReconnectableTransportError(
+				new HubTransportError("hub_connection_closed", "closed"),
+			),
+		).toBe(true);
+		expect(isHubReconnectableTransportError(new Error("closed"))).toBe(false);
+	});
+
+	it("rediscovers the local hub and retries commands after transport close", async () => {
+		vi.resetModules();
+		const originalWebSocket = globalThis.WebSocket;
+		const recoveredUrl = "ws://127.0.0.1:25464/hub";
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: recoveredUrl,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		class RecoveryWebSocket {
+			readyState = 0;
+			private failedCommand = false;
+			private readonly listeners = new Map<string, Set<GenericListener>>();
+
+			constructor(
+				private readonly url: string,
+				_protocols?: string | string[],
+			) {
+				queueMicrotask(() => {
+					this.readyState = 1;
+					this.emit("open");
+				});
+			}
+
+			addEventListener(type: string, listener: GenericListener): void {
+				const current = this.listeners.get(type) ?? new Set<GenericListener>();
+				current.add(listener);
+				this.listeners.set(type, current);
+			}
+
+			send(data: string): void {
+				const frame = JSON.parse(data) as {
+					kind?: string;
+					envelope?: { requestId?: string; command?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				if (frame.envelope.command === "client.register") {
+					queueMicrotask(() => {
+						this.emit("message", {
+							data: JSON.stringify({
+								kind: "reply",
+								envelope: {
+									version: "v1",
+									requestId: frame.envelope?.requestId,
+									ok: true,
+									payload: {},
+								},
+							}),
+						});
+					});
+					return;
+				}
+				if (this.url.includes(":25463/") && !this.failedCommand) {
+					this.failedCommand = true;
+					queueMicrotask(() => {
+						this.readyState = 3;
+						this.emit("close", { code: 1006, reason: "" });
+					});
+					return;
+				}
+				queueMicrotask(() => {
+					this.emit("message", {
+						data: JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								requestId: frame.envelope?.requestId,
+								ok: true,
+								payload: { clients: [] },
+							},
+						}),
+					});
+				});
+			}
+
+			close(): void {
+				this.readyState = 3;
+				this.emit("close", { code: 1000, reason: "" });
+			}
+
+			private emit(type: string, payload?: unknown): void {
+				for (const listener of this.listeners.get(type) ?? []) {
+					if (type === "message") {
+						(listener as MessageListener)(payload as { data: string });
+						continue;
+					}
+					listener(payload);
+				}
+			}
+		}
+
+		(
+			globalThis as unknown as { WebSocket?: typeof RecoveryWebSocket }
+		).WebSocket = RecoveryWebSocket;
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: vi.fn(async () => {
+				throw new Error("unexpected ensureDetachedHubServer call");
+			}),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery-recovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: vi.fn(async () => record),
+				probeHubServer: vi.fn(async (url: string) =>
+					url.includes(":25464/") ? record : undefined,
+				),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { NodeHubClient: DynamicClient, rememberRecoverableLocalHubUrl } =
+				await import(".");
+			rememberRecoverableLocalHubUrl("ws://127.0.0.1:25463/hub");
+			const client = new DynamicClient({
+				url: "ws://127.0.0.1:25463/hub",
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+
+			await expect(client.command("client.list")).resolves.toMatchObject({
+				ok: true,
+				payload: { clients: [] },
+			});
+			expect(client.getUrl()).toBe(recoveredUrl);
+			await client.dispose();
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			vi.resetModules();
+		}
+	});
+
+	it("does not rediscover explicit local hub endpoints", async () => {
+		vi.resetModules();
+		const originalWebSocket = globalThis.WebSocket;
+		const originalUrl = "ws://127.0.0.1:25463/hub";
+		const recoveredUrl = "ws://127.0.0.1:25464/hub";
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: recoveredUrl,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+
+		class ExplicitEndpointWebSocket {
+			readyState = 0;
+			private readonly listeners = new Map<string, Set<GenericListener>>();
+
+			constructor(
+				private readonly url: string,
+				_protocols?: string | string[],
+			) {
+				queueMicrotask(() => {
+					this.readyState = 1;
+					this.emit("open");
+				});
+			}
+
+			addEventListener(type: string, listener: GenericListener): void {
+				const current = this.listeners.get(type) ?? new Set<GenericListener>();
+				current.add(listener);
+				this.listeners.set(type, current);
+			}
+
+			send(data: string): void {
+				const frame = JSON.parse(data) as {
+					kind?: string;
+					envelope?: { requestId?: string; command?: string };
+				};
+				if (frame.kind !== "command" || !frame.envelope?.requestId) {
+					return;
+				}
+				if (frame.envelope.command === "client.register") {
+					queueMicrotask(() => {
+						this.emit("message", {
+							data: JSON.stringify({
+								kind: "reply",
+								envelope: {
+									version: "v1",
+									requestId: frame.envelope?.requestId,
+									ok: true,
+									payload: {},
+								},
+							}),
+						});
+					});
+					return;
+				}
+				if (this.url === originalUrl) {
+					queueMicrotask(() => {
+						this.readyState = 3;
+						this.emit("close", { code: 1006, reason: "" });
+					});
+					return;
+				}
+				queueMicrotask(() => {
+					this.emit("message", {
+						data: JSON.stringify({
+							kind: "reply",
+							envelope: {
+								version: "v1",
+								requestId: frame.envelope?.requestId,
+								ok: true,
+								payload: { clients: [] },
+							},
+						}),
+					});
+				});
+			}
+
+			close(): void {
+				this.readyState = 3;
+				this.emit("close", { code: 1000, reason: "" });
+			}
+
+			private emit(type: string, payload?: unknown): void {
+				for (const listener of this.listeners.get(type) ?? []) {
+					if (type === "message") {
+						(listener as MessageListener)(payload as { data: string });
+						continue;
+					}
+					listener(payload);
+				}
+			}
+		}
+
+		(
+			globalThis as unknown as { WebSocket?: typeof ExplicitEndpointWebSocket }
+		).WebSocket = ExplicitEndpointWebSocket;
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: vi.fn(async () => {
+				throw new Error("unexpected ensureDetachedHubServer call");
+			}),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery-explicit.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: vi.fn(async () => record),
+				probeHubServer: vi.fn(async (url: string) =>
+					url.includes(":25464/") ? record : undefined,
+				),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { NodeHubClient: DynamicClient } = await import(".");
+			const client = new DynamicClient({
+				url: originalUrl,
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			});
+
+			await expect(client.command("client.list")).rejects.toMatchObject({
+				name: "HubTransportError",
+				code: "hub_connection_closed",
+			});
+			expect(client.getUrl()).toBe(originalUrl);
+			await client.dispose();
+		} finally {
+			if (originalWebSocket) {
+				globalThis.WebSocket = originalWebSocket;
+			} else {
+				delete (globalThis as unknown as { WebSocket?: unknown }).WebSocket;
+			}
+			vi.resetModules();
+		}
+	});
+});
+
+describe("resolveCompatibleLocalHubUrl", () => {
+	// Reset the module registry *before* each test so the `vi.doMock(...)`
+	// calls below register against a fresh `./client` module graph. Without
+	// this, the static `import { NodeHubClient } from "../client"` at the top
+	// of the file has already cached `./client` (and its real `./discovery`
+	// + `./workspace` bindings) before any test runs, so `vi.doMock` never
+	// takes effect for the dynamic `await import(".")`. That cache
+	// contamination causes the test to hit the real discovery/probe code
+	// path and fail locally whenever a stray hub daemon is listening on
+	// the default port (passes in CI only because no daemon is running).
+	beforeEach(() => {
+		MockWebSocket.reset();
+		vi.resetModules();
+	});
+
+	afterEach(() => {
+		vi.unstubAllGlobals();
+		vi.unstubAllEnvs();
+		delete process.env.CLINE_HUB_BUILD_ID;
+		vi.resetModules();
+	});
+
+	async function resolveShieldedHub(sessions: unknown[]) {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		MockWebSocket.commandPayloads.set("session.list", { sessions });
+		const discoveryPath = "/tmp/hub-discovery.json";
+		const oldRecord = {
+			hubId: "old-hub",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 59999,
+			url: "ws://127.0.0.1:59999/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath,
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async (path: string) =>
+					path === `${discoveryPath}.superseded` ? oldRecord : undefined,
+				),
+				probeHubServer: vi.fn(async () => oldRecord),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+		return { oldRecord, resolved: await resolveCompatibleLocalHubUrl() };
+	}
+
+	it("uses a shielded Hub while a participant is attached", async () => {
+		const { oldRecord, resolved } = await resolveShieldedHub([
+			{ status: "idle", participants: [{ clientId: "old-cli" }] },
+		]);
+
+		expect(resolved).toBe(oldRecord.url);
+	});
+
+	it("replaces a participant-less running Hub", async () => {
+		const { resolved } = await resolveShieldedHub([
+			{ status: "running", participants: [] },
+		]);
+
+		expect(resolved).toBeUndefined();
+	});
+
+	it("does not clear discovery on transient probe failure", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "test-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => undefined),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("returns undefined on build mismatch but keeps discovery for retirement", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "old-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("attaches to a managed hub from a newer build instead of retiring it", async () => {
+		vi.stubEnv("CLINE_HUB_BUILD_EPOCH_MS", "1000");
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					authToken: "newer-token",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					buildId: "newer-build",
+					buildEpochMs: 2_000,
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("keeps explicit endpoints protocol-compatible across build identities", async () => {
+		const readHubDiscoveryMock = vi.fn(async () => {
+			throw new Error("explicit endpoint must not consult managed discovery");
+		});
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: vi.fn(async () => {
+				throw new Error("explicit endpoint must not start a managed daemon");
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: readHubDiscoveryMock,
+				probeHubServer: vi.fn(async () => ({
+					protocolVersion: "v1",
+					buildId: "different-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(
+			resolveCompatibleLocalHubUrl({
+				endpoint: "ws://127.0.0.1:59999/hub",
+			}),
+		).resolves.toBe("ws://127.0.0.1:59999/hub");
+		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("attaches and keeps discovery when build metadata is missing", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v1",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		// A Hub carrying no build metadata cannot be ordered against this
+		// build, so it is attached over the compatible wire protocol rather
+		// than retired. Retiring an unorderable peer is what let two installs
+		// shut each other's daemon down in a loop.
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBe(
+			"ws://127.0.0.1:59999/hub",
+		);
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("clears discovery on protocol mismatch", async () => {
+		const clearHubDiscoveryMock = vi.fn();
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v0",
+					buildId: "old-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+				probeHubServer: vi.fn(async () => ({
+					hubId: "hub-test",
+					protocolVersion: "v0",
+					buildId: "old-build",
+					host: "127.0.0.1",
+					port: 59999,
+					url: "ws://127.0.0.1:59999/hub",
+					startedAt: new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				})),
+			};
+		});
+
+		const { resolveCompatibleLocalHubUrl } = await import(".");
+
+		await expect(resolveCompatibleLocalHubUrl()).resolves.toBeUndefined();
+		expect(clearHubDiscoveryMock).toHaveBeenCalledWith(
+			"/tmp/hub-discovery.json",
+		);
+	});
+
+	it("starts missing local hubs through the retirement-aware daemon ensure API", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const ensureDetachedHubServerMock = vi.fn(async () => ({
+			authToken: "token",
+			url: "ws://127.0.0.1:25464/hub",
+		}));
+		const readHubDiscoveryMock = vi.fn().mockResolvedValue(undefined);
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: ensureDetachedHubServerMock,
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: readHubDiscoveryMock,
+				probeHubServer: vi.fn(async () => undefined),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		const { ensureCompatibleLocalHubUrl } = await import(".");
+
+		await expect(
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBe("ws://127.0.0.1:25464/hub");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+	});
+
+	it("replaces a stale-build hub without dropping its retirement credentials", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const clearHubDiscoveryMock = vi.fn();
+		const ensureDetachedHubServerMock = vi.fn(async () => ({
+			url: "ws://127.0.0.1:25465/hub",
+			authToken: "new-token",
+		}));
+		const staleRecord = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "old-build",
+			authToken: "old-token",
+			host: "127.0.0.1",
+			port: 25464,
+			url: "ws://127.0.0.1:25464/hub",
+			pid: 12345,
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: ensureDetachedHubServerMock,
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "current-build",
+				readHubDiscovery: vi.fn(async () => staleRecord),
+				probeHubServer: vi.fn(async () => staleRecord),
+				clearHubDiscovery: vi.fn(async (...args: unknown[]) => {
+					clearHubDiscoveryMock(...args);
+				}),
+			};
+		});
+
+		const { ensureCompatibleLocalHubUrl } = await import(".");
+
+		await expect(
+			ensureCompatibleLocalHubUrl({
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBe("ws://127.0.0.1:25465/hub");
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+		expect(clearHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+
+	it("returns undefined when managed Hub retirement fails", async () => {
+		const ensureDetachedHubServerMock = vi.fn(async () => {
+			throw new Error("could not retire stale hub");
+		});
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: ensureDetachedHubServerMock,
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: vi.fn(async () => undefined),
+				probeHubServer: vi.fn(async () => undefined),
+			};
+		});
+
+		const { ensureCompatibleLocalHubUrl } = await import(".");
+
+		await expect(
+			ensureCompatibleLocalHubUrl({ workspaceRoot: "/tmp/project" }),
+		).resolves.toBeUndefined();
+		expect(ensureDetachedHubServerMock).toHaveBeenCalledWith("/tmp/project");
+	});
+
+	it("resolves managed shared discovery in development builds", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const originalBuildEnv = process.env.CLINE_BUILD_ENV;
+		process.env.CLINE_BUILD_ENV = "development";
+		const record = {
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25466,
+			url: "ws://127.0.0.1:25466/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		};
+		const readHubDiscoveryMock = vi.fn(async (path: string) =>
+			path === "/tmp/shared-hub-discovery.json" ? record : undefined,
+		);
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: vi.fn(async () => {
+				throw new Error("unexpected ensureDetachedHubServer call");
+			}),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "production",
+				discoveryPath: "/tmp/production-hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "shared",
+				discoveryPath: "/tmp/shared-hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				resolveHubBuildId: () => "test-build",
+				readHubDiscovery: readHubDiscoveryMock,
+				probeHubServer: vi.fn(async () => record),
+				clearHubDiscovery: vi.fn(async () => undefined),
+			};
+		});
+
+		try {
+			const { ensureCompatibleLocalHubUrl } = await import(".");
+
+			await expect(
+				ensureCompatibleLocalHubUrl({
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+			).resolves.toBe("ws://127.0.0.1:25466/hub");
+			expect(readHubDiscoveryMock).toHaveBeenCalledWith(
+				"/tmp/shared-hub-discovery.json",
+			);
+			expect(readHubDiscoveryMock).not.toHaveBeenCalledWith(
+				"/tmp/production-hub-discovery.json",
+			);
+		} finally {
+			if (originalBuildEnv === undefined) {
+				delete process.env.CLINE_BUILD_ENV;
+			} else {
+				process.env.CLINE_BUILD_ENV = originalBuildEnv;
+			}
+		}
+	});
+
+	it("does not restart explicit local endpoints after startup timeout", async () => {
+		const readHubDiscoveryMock = vi.fn(async () => ({
+			hubId: "hub-test",
+			protocolVersion: "v1",
+			buildId: "test-build",
+			authToken: "token",
+			host: "127.0.0.1",
+			port: 25463,
+			url: "ws://127.0.0.1:25463/hub",
+			startedAt: new Date().toISOString(),
+			updatedAt: new Date().toISOString(),
+		}));
+		vi.doMock("../discovery/workspace", () => ({
+			resolveProductionHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+			resolveSharedHubOwnerContext: () => ({
+				ownerId: "hub-test",
+				discoveryPath: "/tmp/hub-discovery.json",
+			}),
+		}));
+		vi.doMock("../daemon", () => ({
+			ensureDetachedHubServer: vi.fn(async () => {
+				throw new Error("unexpected ensureDetachedHubServer call");
+			}),
+		}));
+		vi.doMock("../discovery", async () => {
+			const actual =
+				await vi.importActual<typeof import("../discovery")>("../discovery");
+			return {
+				...actual,
+				readHubDiscovery: readHubDiscoveryMock,
+			};
+		});
+
+		const { restartLocalHubIfIdleAfterStartupTimeout } = await import(".");
+
+		await expect(
+			restartLocalHubIfIdleAfterStartupTimeout({
+				url: "ws://127.0.0.1:25463/hub",
+				workspaceRoot: "/tmp/project",
+				cwd: "/tmp/project",
+			}),
+		).resolves.toBeUndefined();
+		expect(readHubDiscoveryMock).not.toHaveBeenCalled();
+	});
+});
+
+describe("hasActiveHubSessions", () => {
+	const payload = (sessions: unknown[]) => ({ sessions });
+
+	it("is idle for an empty or malformed list", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(hasActiveHubSessions(payload([]))).toBe(false);
+		expect(hasActiveHubSessions(undefined)).toBe(false);
+		expect(hasActiveHubSessions(payload([null, "junk"]))).toBe(false);
+	});
+
+	it("is busy while anyone is attached, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "idle", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+		expect(
+			hasActiveHubSessions(
+				payload([{ status: "running", participants: [{ clientId: "tui" }] }]),
+			),
+		).toBe(true);
+	});
+
+	// The session a crashed or killed client leaves behind: a non-terminal
+	// status, nobody attached. Participants are live socket subscriptions, so
+	// a dead client cannot appear here - which is exactly why status must not
+	// be consulted: it stays "running" forever and would pin an outdated hub
+	// as busy until the machine reboots.
+	it("is idle for sessions nobody is attached to, whatever the status", async () => {
+		const { hasActiveHubSessions } = await import(".");
+		expect(
+			hasActiveHubSessions(
+				payload([
+					{ status: "running", participants: [] },
+					{ status: "pending", participants: [] },
+					{ status: "idle", participants: [] },
+					{ status: "completed", participants: [] },
+					{ status: "running" },
+				]),
+			),
+		).toBe(false);
+	});
+});

@@ -1,0 +1,111 @@
+---
+title: "Agent"
+sidebarTitle: "Agent"
+description: "API reference for Agent / AgentRuntime from @cline/agents."
+---
+
+`Agent` is an alias for `AgentRuntime` from `@cline/agents`.
+
+```typescript
+import { Agent, AgentRuntime, createAgent, createAgentRuntime } from "@cline/sdk"
+```
+
+## Constructor
+
+```typescript
+new Agent(config: AgentRuntimeConfig)
+```
+
+`AgentRuntimeConfig` accepts either:
+
+- a prebuilt `model: AgentModel`, or
+- `providerId`, `modelId`, and optional provider credentials (`apiKey`, `baseUrl`, `headers`).
+
+Common fields:
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `providerId` | `string` | Yes, unless `model` supplied | Provider ID |
+| `modelId` | `string` | Yes, unless `model` supplied | Model ID |
+| `apiKey` | `string` | No | Provider API key |
+| `baseUrl` | `string` | No | Custom provider base URL |
+| `systemPrompt` | `string` | No | System instructions |
+| `tools` | `AgentTool[]` | No | Tools available to the runtime |
+| `initialMessages` | `AgentMessage[]` | No | Preloaded conversation |
+| `toolPolicies` | `Record<string, ToolPolicy>` | No | Per-tool enablement/approval |
+| `hooks` | `AgentRuntimeHooks` | No | Runtime lifecycle hooks |
+
+## Methods
+
+### `run(input)`
+
+```typescript
+const result = await agent.run("Analyze this codebase")
+```
+
+Starts a run with input.
+
+### `continue(input?)`
+
+```typescript
+const result = await agent.continue("Now inspect the auth module")
+```
+
+Continues with optional new input.
+
+### `abort(reason?)`
+
+```typescript
+agent.abort("User cancelled")
+```
+
+Aborts the active run.
+
+### `subscribe(listener)`
+
+```typescript
+const unsubscribe = agent.subscribe((event) => {
+  console.log(event.type)
+})
+```
+
+Subscribes to `AgentRuntimeEvent` events.
+
+### `restore(messages)`
+
+```typescript
+agent.restore(savedMessages)
+```
+
+Replaces conversation history and resets runtime state while preserving tools, hooks, model, agent identity, and subscribers.
+
+### `snapshot()`
+
+```typescript
+const state = agent.snapshot()
+```
+
+Returns an `AgentRuntimeStateSnapshot`.
+
+## AgentRunResult
+
+```typescript
+interface AgentRunResult {
+  agentId: string
+  agentRole?: string
+  runId: string
+  status: "completed" | "aborted" | "failed"
+  iterations: number
+  outputText: string
+  messages: readonly AgentMessage[]
+  usage: AgentUsage
+  error?: Error
+}
+```
+
+## Factories
+
+```typescript
+const agent = createAgent(config)
+const runtime = createAgentRuntime(config)
+```

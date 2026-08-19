@@ -1,0 +1,20 @@
+[
+	{
+		"scope": "https://api.cline.bot",
+		"method": "POST",
+		"path": "/api/v1/chat/completions",
+		"status": 200,
+		"response": "data: {\"id\": \"gen_test_turn1_aabbccdd\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\"}, \"logprobs\": null, \"finish_reason\": null}], \"system_fingerprint\": \"fp_test\"}\n\ndata: {\"id\": \"gen_test_turn1_aabbccdd\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"id\": \"call_t1abc\", \"type\": \"function\", \"function\": {\"name\": \"run_commands\", \"arguments\": \"\"}}]}, \"logprobs\": null, \"finish_reason\": null}], \"system_fingerprint\": \"fp_test\"}\n\ndata: {\"id\": \"gen_test_turn1_aabbccdd\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {\"tool_calls\": [{\"index\": 0, \"function\": {\"arguments\": \"{\\\"commands\\\":[\\\"echo hello\\\"]}\"}}]}, \"logprobs\": null, \"finish_reason\": null}], \"system_fingerprint\": \"fp_test\"}\n\ndata: {\"id\": \"gen_test_turn1_aabbccdd\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"tool_calls\"}], \"system_fingerprint\": \"fp_test\", \"usage\": {\"prompt_tokens\": 1000, \"completion_tokens\": 25, \"total_tokens\": 1025, \"cost\": 0.0011, \"is_byok\": false, \"prompt_tokens_details\": {\"cached_tokens\": 200, \"audio_tokens\": 0, \"video_tokens\": 0}, \"cost_details\": {\"upstream_inference_cost\": null, \"upstream_inference_prompt_cost\": 0, \"upstream_inference_completions_cost\": 0}, \"completion_tokens_details\": {\"reasoning_tokens\": 0, \"image_tokens\": 0}, \"cache_creation_input_tokens\": 50, \"market_cost\": 0.0011}}\n\ndata: [DONE]\n",
+		"responseIsBinary": false,
+		"contentType": "text/event-stream"
+	},
+	{
+		"scope": "https://api.cline.bot",
+		"method": "POST",
+		"path": "/api/v1/chat/completions",
+		"status": 200,
+		"response": "data: {\"id\": \"gen_test_turn2_eeffgghh\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\"}, \"logprobs\": null, \"finish_reason\": null}], \"system_fingerprint\": \"fp_test\"}\n\ndata: {\"id\": \"gen_test_turn2_eeffgghh\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"The command ran successfully.\", \"phase\": \"final_answer\"}, \"logprobs\": null, \"finish_reason\": null}], \"system_fingerprint\": \"fp_test\"}\n\ndata: {\"id\": \"gen_test_turn2_eeffgghh\", \"object\": \"chat.completion.chunk\", \"created\": 1774387732, \"model\": \"openai/gpt-5.3-codex\", \"choices\": [{\"index\": 0, \"delta\": {}, \"logprobs\": null, \"finish_reason\": \"stop\"}], \"system_fingerprint\": \"fp_test\", \"usage\": {\"prompt_tokens\": 1500, \"completion_tokens\": 40, \"total_tokens\": 1540, \"cost\": 0.0019, \"is_byok\": false, \"prompt_tokens_details\": {\"cached_tokens\": 900, \"audio_tokens\": 0, \"video_tokens\": 0}, \"cost_details\": {\"upstream_inference_cost\": null, \"upstream_inference_prompt_cost\": 0, \"upstream_inference_completions_cost\": 0}, \"completion_tokens_details\": {\"reasoning_tokens\": 0, \"image_tokens\": 0}, \"cache_creation_input_tokens\": 30, \"market_cost\": 0.0019}}\n\ndata: [DONE]\n",
+		"responseIsBinary": false,
+		"contentType": "text/event-stream"
+	}
+]

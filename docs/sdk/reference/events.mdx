@@ -1,0 +1,75 @@
+---
+title: "Events"
+sidebarTitle: "Events"
+description: "Reference for SDK event surfaces."
+---
+
+The SDK exposes multiple event surfaces.
+
+## AgentRuntimeEvent
+
+Direct `AgentRuntime` usage emits low-level runtime events through `agent.subscribe(listener)`.
+
+```typescript
+const unsubscribe = agent.subscribe((event) => {
+  console.log(event.type)
+})
+```
+
+Common runtime events include model events, tool execution events, run lifecycle events, and failure events. Runtime results use `AgentRunResult.status` rather than `finishReason`.
+
+## AgentEvent
+
+Core/host-facing agent events are emitted through `AgentConfig.onEvent` and core adapters.
+
+| Event | Description |
+|-------|-------------|
+| `content_start` | Text/reasoning/tool content begins |
+| `content_update` | Tool progress update |
+| `content_end` | Text/reasoning/tool content completes |
+| `iteration_start` | Loop iteration begins |
+| `iteration_end` | Loop iteration completes |
+| `usage` | Token/cost usage update |
+| `notice` | Runtime status/recovery notice |
+| `done` | Agent completed/aborted/failed |
+| `error` | Error occurred |
+
+## Done Event
+
+```typescript
+interface AgentDoneEvent {
+  type: "done"
+  reason: "completed" | "max_iterations" | "aborted" | "mistake_limit" | "error"
+  text: string
+  iterations: number
+  usage?: LegacyAgentUsage
+}
+```
+
+## Usage Event
+
+```typescript
+interface AgentUsageEvent {
+  type: "usage"
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  cost?: number
+  totalInputTokens: number
+  totalOutputTokens: number
+  totalCacheReadTokens?: number
+  totalCacheWriteTokens?: number
+  totalCost?: number
+}
+```
+
+## CoreSessionEvent
+
+`ClineCore.subscribe(listener, options?)` emits session-level events from the runtime host.
+
+```typescript
+const unsubscribe = cline.subscribe((event) => {
+  console.log(event.type, event.sessionId)
+}, { sessionId })
+```

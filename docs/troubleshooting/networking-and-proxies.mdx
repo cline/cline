@@ -1,0 +1,229 @@
+---
+title: "Networking and Proxies"
+sidebarTitle: "Networking & Proxies"
+description: "Configure Cline to work behind firewalls and proxies"
+---
+
+If you're working behind a corporate proxy or firewall, you'll need to configure
+proxy settings for Cline to connect to AI providers. The configuration varies
+depending on which version of Cline you're using.
+
+## VSCode Extension
+
+The VSCode extension automatically uses VSCode's built-in proxy settings. See
+[Network Connections in Visual Studio Code, Proxy server support](https://code.visualstudio.com/docs/setup/network#_proxy-server-support)
+for instructions on how to set up proxies in VSCode. No additional configuration
+is needed for Cline itself.
+
+## CLI
+
+The Cline CLI uses standard HTTP proxy environment variables. Configure these before running `cline` commands.
+
+### Basic Configuration
+
+**Windows (Command Prompt)**
+```cmd
+set https_proxy=http://proxy.company.com:8080
+set http_proxy=http://proxy.company.com:8080
+cline start
+```
+
+**Windows (PowerShell)**
+```powershell
+$env:https_proxy="http://proxy.company.com:8080"
+$env:http_proxy="http://proxy.company.com:8080"
+cline start
+```
+
+**macOS/Linux**
+```bash
+export https_proxy=http://proxy.company.com:8080
+export http_proxy=http://proxy.company.com:8080
+cline start
+```
+
+### Proxy with Authentication
+
+If your proxy requires authentication, include credentials in the URL:
+
+```bash
+export https_proxy=http://username:password@proxy.company.com:8080
+export http_proxy=http://username:password@proxy.company.com:8080
+```
+
+<Warning>
+Storing credentials in environment variables can be a security risk.
+</Warning>
+
+### Bypass Proxy for Localhost
+
+To prevent localhost traffic from going through the proxy, set the `no_proxy` environment variable:
+
+**Windows**
+```cmd
+set no_proxy=localhost,127.0.0.1,.local
+```
+
+**macOS/Linux**
+```bash
+export no_proxy=localhost,127.0.0.1,.local
+```
+
+### Custom Certificate Authority
+
+If your proxy uses a custom CA certificate:
+
+**Windows**
+```cmd
+set NODE_EXTRA_CA_CERTS=C:\path\to\ca-certificate.crt
+cline start
+```
+
+**macOS/Linux**
+```bash
+export NODE_EXTRA_CA_CERTS=/path/to/ca-certificate.pem
+cline start
+```
+
+### Permanent Configuration
+
+To avoid setting these variables every time, add them to your shell profile or system environment variables.
+
+**macOS/Linux** (add to `~/.bashrc`, `~/.zshrc`, or `~/.profile`):
+```bash
+# Proxy configuration
+export https_proxy=http://proxy.company.com:8080
+export http_proxy=http://proxy.company.com:8080
+export no_proxy=localhost,127.0.0.1,.local
+export NODE_EXTRA_CA_CERTS=/path/to/ca-certificate.pem
+```
+
+**Windows** (System Environment Variables):
+1. Search for "Environment Variables" in Windows Settings
+2. Add the variables under "User variables" or "System variables"
+3. Restart your terminal or IDE
+
+### Known Limitations
+
+Cline CLI only supports HTTP proxies. It does not support SOCKS proxies,
+proxy autoconfiguration (PAC) scripts, or HTTP proxies which require
+authentication beyond a basic username and password.
+
+## JetBrains IDEs
+
+The JetBrains plugin uses the IDE's HTTP proxy settings.
+
+### Configure JetBrains Proxy
+
+1. Open Settings/Preferences:
+   - **Windows/Linux**: File > Settings
+   - **macOS**: IntelliJ IDEA > Preferences
+   - Or press `Ctrl+Alt+S` (Windows/Linux) or `Cmd+,` (macOS)
+
+2. Navigate to:
+   ```
+   Appearance & Behavior > System Settings > HTTP Proxy
+   ```
+
+3. Select "Manual proxy configuration"
+
+4. Configure your proxy:
+   - **Host name**: `proxy.company.com`
+   - **Port number**: `8080`
+   - **No proxy for**: `localhost,127.0.0.1`
+   - Check "Proxy authentication" if required
+   - Enter your username and password
+
+5. Click "Check connection" to verify the settings
+
+6. Click "OK" to apply
+
+7. Restart the IDE
+
+### Test Connection
+
+After configuring the proxy, test that Cline can connect to your AI provider:
+
+1. Open the Cline panel
+2. Try sending a simple message
+3. If connection fails, check the IDE's Event Log for error messages
+
+### Custom Certificate Authority
+
+If your proxy uses a custom CA:
+
+1. Add the certificate to your system's trust store, or
+2. Import it into the JetBrains IDE:
+   - Settings > Tools > Server Certificates
+   - Click "+" to add your certificate
+
+### Known Limitations
+
+Cline in JetBrains only supports HTTP proxies. It does not support SOCKS
+proxies, proxy autoconfiguration (PAC) scripts, or HTTP proxies which require
+authentication beyond a basic username and password.
+
+Cline does not pick up changed proxy settings dynamically. After changing proxy
+settings, restart the IDE for Cline to use the new settings.
+
+## Troubleshooting
+
+### Connection Timeouts
+
+If you're experiencing connection timeouts:
+
+1. Verify your proxy address and port are correct
+2. Check if the proxy requires authentication
+3. Ensure the AI provider's API endpoints aren't blocked by your firewall
+
+### SSL/TLS Certificate Errors
+
+If you see certificate-related errors:
+
+1. Check that `NODE_EXTRA_CA_CERTS` points to the correct certificate file
+2. Ensure the certificate file is in PEM format
+3. Use curl to verify the certificate works, for example, `curl -x proxy.corp.example:8080 --cacert /path/to/ca-cert.pem -o - -vv https://api.cline.bot/`
+4. Consider disabling `http.proxyStrictSSL` in VSCode (not recommended for production)
+
+### Testing Proxy Configuration
+
+If you encounter problems with Cline networking, first verify your proxy
+configuration works using curl:
+
+```bash
+# Linux/macOS
+export https_proxy=http://proxy.company.com:8080
+curl -vv https://api.anthropic.com
+
+# Windows PowerShell
+$env:https_proxy="http://proxy.company.com:8080"
+curl.exe -vv https://api.anthropic.com
+```
+
+Use `--cacert $NODE_EXTRA_CA_CERTS` to specify a certificate if necessary.
+
+Next, check ~/.cline/cline-core-service.log (CLI, JetBrains) for log messages
+confirming your proxy configuration and any network-related errors.
+
+## Common Proxy Patterns
+
+### Authenticated HTTPS Proxy
+
+```bash
+export https_proxy=http://username:password@proxy.company.com:8080
+export NODE_EXTRA_CA_CERTS=/path/to/ca-cert.pem
+```
+
+### Proxy with No Authentication
+
+```bash
+export https_proxy=http://proxy.company.com:8080
+export http_proxy=http://proxy.company.com:8080
+```
+
+### Proxy with Bypass Rules
+
+```bash
+export https_proxy=http://proxy.company.com:8080
+export no_proxy=localhost,127.0.0.1,.company.local,192.168.0.0/16
+```

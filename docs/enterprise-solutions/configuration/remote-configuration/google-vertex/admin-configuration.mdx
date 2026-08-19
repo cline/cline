@@ -1,0 +1,112 @@
+---
+title: "Configure Google Vertex AI Provider (Admin)"
+sidebarTitle: "Configure Google Vertex (Admin)"
+description: "This guide explains how administrators configure Google Vertex AI as the organization-wide LLM provider for Cline."
+---
+
+
+As an administrator, you can add Google Vertex AI as the organization-wide LLM provider for all Cline users through the hosted admin console. This centralized approach ensures consistent access to Google's Gemini models while maintaining your organization's project boundaries and regional settings.
+
+## Before You Begin
+
+To get started with setting up Google Vertex AI as your organization's LLM provider, you'll need a few items in place.
+
+**Administrator access to the Cline Admin console**  
+You need admin privileges to enforce provider settings across your organization. If you can navigate to **Settings → Cline Settings** in the admin console at [app.cline.bot](https://app.cline.bot), you have the right access level.
+
+
+**Google Cloud Project with Vertex AI enabled**  
+You need a Google Cloud project with the Vertex AI API enabled and appropriate models accessible.
+
+<Note>
+If you haven't set up Google Cloud or Vertex AI yet, work with your cloud team to enable the Vertex AI API and ensure necessary quotas are configured.
+</Note>
+
+**Project configuration details**  
+You'll need your Google Cloud project ID and preferred region for Vertex AI model access.
+
+<Tip>
+Service accounts should have the minimum IAM permissions needed for Vertex AI access to follow security best practices.
+</Tip>
+
+## Configuration Steps
+
+<Steps>
+<Step title="Access Cline Settings">
+Navigate to [app.cline.bot](https://app.cline.bot) and sign in with your administrator account. Go to **Settings → Cline Settings**.
+
+<Info>
+You should see the provider configuration options if you have the correct admin access level.
+</Info>
+</Step>
+
+<Step title="Enable Remote Provider Configuration">
+Toggle on **Enable settings** to reveal the remote provider configuration options. This allows you to enforce provider settings across your organization.
+</Step>
+
+<Step title="Select Google Vertex AI as the API Provider">
+Open the **API Provider** dropdown menu and select **Google Vertex AI**. This will open the Vertex AI configuration panel where you'll configure all your organization-wide settings.
+</Step>
+
+<Step title="Configure Vertex AI Settings">
+The configuration panel includes settings that control how Vertex AI works for your organization:
+
+<AccordionGroup>
+<Accordion title="Project ID (required)">
+Enter your Google Cloud project ID where Vertex AI is enabled. This project will be used for all AI model requests from your organization members.
+
+<Tip>
+Use a dedicated project for AI workloads to better track usage and costs. Ensure the project has sufficient quotas for your team's expected usage.
+</Tip>
+</Accordion>
+
+<Accordion title="Region (required)">
+Select the Google Cloud region where your Vertex AI models should be accessed. Common options include `us-central1`, `us-east4`, or `europe-west4`.
+
+[View Google Cloud Regions](https://cloud.google.com/docs/geography-and-regions)
+
+<Note>
+Choose a region close to your team's location for optimal performance. Some models may not be available in all regions.
+</Note>
+</Accordion>
+</AccordionGroup>
+</Step>
+
+<Step title="Save Configuration">
+After configuring your settings, close the provider configuration panel and click **Save** on the settings page to persist your changes.
+
+Once saved, all organization members signed into the Cline extension will automatically use Google Vertex AI with your configured settings. They won't be able to select other providers or switch to their personal Cline accounts.
+
+<Warning>
+Members can't switch to personal Cline accounts or join other organizations once remote configuration is enabled. This ensures consistent provider usage across your team.
+</Warning>
+</Step>
+</Steps>
+
+## Verification
+
+To verify the configuration:
+
+1. Check that the provider shows as "Google Vertex AI" in the Enabled provider field
+2. Confirm the settings persist after refreshing the page
+3. Test with a member account to ensure they see only Vertex AI as a provider
+4. Verify that Gemini models are available in the model dropdown
+
+## Troubleshooting
+
+**Members don't see the configured provider**  
+Ensure you clicked Save after closing the configuration panel. Verify the member account belongs to the correct organization and that your Google Cloud project has Vertex AI API enabled.
+
+**Project access errors**  
+Verify the project ID is correct and that Vertex AI API is enabled. Check that the project has appropriate billing configured and hasn't exceeded quotas.
+
+**Regional availability issues**  
+Confirm the selected region supports the Gemini models you want to use. Some newer models may only be available in specific regions.
+
+**Configuration changes don't persist**  
+Make sure to click the Save button on the main settings page, not just close the configuration panel.
+
+**Need to change project or region later**  
+You can update these settings at any time. Members will need to ensure their local Google Cloud credentials have access to the new project/region.
+
+For further details, consult the [Google Cloud Vertex AI Documentation](https://cloud.google.com/vertex-ai/docs) and coordinate with your internal cloud team.

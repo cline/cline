@@ -1,0 +1,28 @@
+syntax = "proto3";
+
+package cline;
+
+import "cline/common.proto";
+
+option go_package = "github.com/cline/grpc-go/cline";
+option java_multiple_files = true;
+option java_package = "bot.cline.proto";
+
+service CheckpointsService {
+  rpc checkpointRestore(CheckpointRestoreRequest) returns (Empty);
+  // Opens a multi-file diff of everything that changed between the latest
+  // checkpoint (snapshotted when the user's last message started a run) and
+  // the current working tree.
+  rpc checkpointViewLatestChanges(EmptyRequest) returns (Empty);
+  // Returns how many files changed between the latest checkpoint and the
+  // current working tree (0 when no checkpoint exists). Used to enable the
+  // "View Changes" button only when there is something to show.
+  rpc checkpointLatestChangesCount(EmptyRequest) returns (Int64);
+}
+
+message CheckpointRestoreRequest {
+  Metadata metadata = 1;
+  int64 number = 2;
+  string restore_type = 3;
+  optional int64 offset = 4;
+}

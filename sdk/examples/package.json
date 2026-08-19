@@ -1,0 +1,19 @@
+{
+	"name": "examples",
+	"description": "Example apps for the Cline SDK",
+	"type": "module",
+	"private": true,
+	"scripts": {
+		"typecheck": "tsc --noEmit",
+		"clean": "rm -rf node_modules dist"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.10"
+	},
+	"peerDependencies": {
+		"typescript": "^5"
+	},
+	"dependencies": {
+		"@cline/core": "workspace:*"
+	}
+}

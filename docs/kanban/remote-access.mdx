@@ -1,0 +1,285 @@
+---
+title: "Remote Access"
+description: "Access Kanban from other devices on your network or from anywhere using tunnels, VPNs, and cloud services"
+---
+
+By default, Kanban binds to `127.0.0.1:3484` and is only accessible from the machine it's running on. This guide shows how to enable remote access for mobile devices, remote machines, or team collaboration.
+
+<Warning>
+When exposing Kanban beyond localhost, ensure you trust all devices and users with access. Kanban provides full access to your git repository and terminal.
+</Warning>
+
+## Local Network Access
+
+To make Kanban accessible to other devices on your local network (like a phone or tablet on the same WiFi), bind to `0.0.0.0` instead of `127.0.0.1`.
+
+### Using CLI Flag
+
+```bash
+kanban --host 0.0.0.0
+```
+
+This makes Kanban available at `http://<your-machine-ip>:3484` from any device on your network.
+
+### Using Environment Variable
+
+```bash
+KANBAN_RUNTIME_HOST=0.0.0.0 cline
+```
+
+When you run `cline`, it will launch Kanban bound to `0.0.0.0`.
+
+<Warning>
+**Security Note**: Binding to `0.0.0.0` exposes Kanban to your entire local network. Only use this on networks you trust, such as your home WiFi.
+</Warning>
+
+## Tailscale (Recommended for Remote Access)
+
+Tailscale provides secure remote access without exposing ports to the internet. Once configured, you can access Kanban from your phone while on the road, from a coffee shop, or anywhere else.
+
+### Setup
+
+1. **Install Tailscale** on both your development machine and your phone/remote device
+2. **Sign in** to the same Tailscale account on both devices
+3. **Launch Kanban** with network binding:
+
+```bash
+KANBAN_RUNTIME_HOST=0.0.0.0 cline
+```
+
+4. **Access from your phone**: Navigate to your machine's Tailscale hostname on port 3484:
+
+```
+http://your-machine-name.tail1234.ts.net:3484
+```
+
+Your Tailscale hostname is visible in the Tailscale app or admin console.
+
+<Tip>
+Tailscale creates a secure mesh VPN, so your connection is encrypted and doesn't require opening any firewall ports. This is the safest option for remote access.
+</Tip>
+
+## Docker Deployment
+
+Run Kanban in a Docker container for isolated deployments or server environments.
+
+### Dockerfile
+
+```dockerfile
+FROM node:22
+
+WORKDIR /app
+
+EXPOSE 3484
+
+CMD ["npx", "--yes", "kanban@latest", "--host", "0.0.0.0"]
+```
+
+### Build and Run
+
+```bash
+docker build -t npx-kanban .
+docker run -it -p 3484:3484 npx-kanban
+```
+
+Then navigate to `http://localhost:3484` from your browser.
+
+<Tip>
+To access the Kanban container from other machines on your network, use `http://<docker-host-ip>:3484`.
+</Tip>
+
+## SSH Tunnel
+
+SSH tunneling creates a secure connection between your local machine and a remote server. This requires SSH access to the remote machine where Kanban is running.
+
+### Setup
+
+**On the remote machine**, run Kanban normally (it can bind to `127.0.0.1`):
+
+```bash
+kanban
+```
+
+**On your local machine**, create an SSH tunnel:
+
+```bash
+ssh -L 3484:localhost:3484 user@remote-hostname
+```
+
+Then navigate to `http://localhost:3484` in your local browser. The SSH tunnel securely forwards the connection to the remote machine.
+
+<Tip>
+Replace `user` with your SSH username and `remote-hostname` with the IP address or hostname of your remote machine. If using SSH keys, add `-i /path/to/key.pem` before the username.
+</Tip>
+
+## Ngrok
+
+Ngrok creates a public HTTPS URL that tunnels to your local Kanban instance. Useful for quick demos or sharing with collaborators.
+
+### Setup
+
+```bash
+# Install ngrok (macOS)
+brew install ngrok
+
+# Add your auth token (create a free account at ngrok.com)
+ngrok config add-authtoken $YOUR_AUTHTOKEN
+
+# Start Kanban
+kanban
+
+# In another terminal, create the tunnel
+ngrok http 3484
+```
+
+Ngrok will display a public URL like `https://1234-5678-9012.ngrok-free.app`. Share this URL to give others access to your Kanban board.
+
+<Warning>
+Ngrok URLs are publicly accessible on the internet. Anyone with the URL can access your Kanban board. Only use this for temporary access and stop the tunnel when finished.
+</Warning>
+
+## Cloudflare Tunnels
+
+Cloudflare Tunnels provide production-grade remote access with custom domains, access controls, and HTTPS.
+
+### Setup
+
+Follow the [Cloudflare Tunnel guide](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/get-started/create-remote-tunnel/) to create a tunnel. Then configure your application route with these settings:
+
+- **Hostname.subdomain**: Choose any subdomain (e.g., `kanban`)
+- **Hostname.Domain**: Your domain configured with Cloudflare
+- **Hostname.Path**: Leave empty
+- **Service.Type**: `HTTP`
+- **Service.URL**: `localhost:3484`
+
+### AWS CDK Example
+
+Deploy Kanban on EC2 with Cloudflare Tunnel using AWS CDK:
+
+```typescript
+import * as cdk from "aws-cdk-lib/core";
+import * as ec2 from "aws-cdk-lib/aws-ec2";
+import * as iam from "aws-cdk-lib/aws-iam";
+import { Construct } from "constructs";
+
+export class KanbanEc2Stack extends cdk.Stack {
+    constructor(scope: Construct, id: string, props?: cdk.StackProps) {
+        super(scope, id, props);
+
+        // Tunnel token from env or CDK context
+        const tunnelToken =
+            process.env.TUNNEL_TOKEN || this.node.tryGetContext("tunnelToken");
+        if (!tunnelToken) {
+            throw new Error(
+                "Missing tunnel token. Set TUNNEL_TOKEN env var or pass -c tunnelToken=xxx",
+            );
+        }
+
+        // VPC + Security Group
+        const vpc = ec2.Vpc.fromLookup(this, "DefaultVpc", { isDefault: true });
+
+        const sg = new ec2.SecurityGroup(this, "KanbanSg", {
+            vpc,
+            allowAllOutbound: true,
+            description: "Kanban EC2 security group",
+        });
+        sg.addIngressRule(ec2.Peer.myIp(), ec2.Port.tcp(22), "SSH access");
+
+        // User data script
+        const userData = ec2.UserData.forLinux();
+        userData.addCommands(
+            "set -x",
+            "exec > >(tee /var/log/user-data.log) 2>&1",
+
+            // 1) Install git and cloudflared first for tunnel connectivity
+            "sudo dnf install -y git",
+            "curl -L --output /tmp/cloudflared.rpm https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-x86_64.rpm",
+            "sudo yum localinstall -y /tmp/cloudflared.rpm",
+
+            // 2) Start cloudflared tunnel so the instance is reachable
+            `sudo cloudflared service install ${tunnelToken}`,
+
+            // 3) Install Node.js 22 via NodeSource
+            "curl -fsSL https://rpm.nodesource.com/setup_22.x | sudo bash -",
+            "sudo dnf install -y nodejs",
+
+            // 4) Clone and build the app
+            "git clone -b main https://github.com/cline/kanban.git /opt/kanban",
+
+            // 5) Create systemd service for the kanban app
+            `cat > /etc/systemd/system/kanban.service << 'UNIT'
+[Unit]
+Description=Kanban App
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/kanban
+ExecStart=/usr/bin/kanban
+Restart=always
+RestartSec=5
+Environment=NODE_ENV=production
+Environment=HOME=/root
+Environment=PATH=/usr/bin:/usr/local/bin
+
+[Install]
+WantedBy=multi-user.target
+UNIT`,
+            "systemctl daemon-reload",
+            "systemctl enable --now kanban.service",
+        );
+
+        // IAM role with SSM access
+        const role = new iam.Role(this, "KanbanInstanceRole", {
+            assumedBy: new iam.ServicePrincipal("ec2.amazonaws.com"),
+            managedPolicies: [
+                iam.ManagedPolicy.fromAwsManagedPolicyName(
+                    "AmazonSSMManagedInstanceCore",
+                ),
+            ],
+        });
+
+        // EC2 Instance
+        const instance = new ec2.Instance(this, "KanbanInstance", {
+            vpc,
+            instanceType: ec2.InstanceType.of(
+                ec2.InstanceClass.T3,
+                ec2.InstanceSize.SMALL,
+            ),
+            machineImage: ec2.MachineImage.latestAmazonLinux2023(),
+            securityGroup: sg,
+            vpcSubnets: { subnetType: ec2.SubnetType.PUBLIC },
+            associatePublicIpAddress: true,
+            userData,
+            role,
+        });
+
+        // Outputs
+        new cdk.CfnOutput(this, "InstanceId", { value: instance.instanceId });
+        new cdk.CfnOutput(this, "PublicIp", {
+            value: instance.instancePublicIp,
+        });
+    }
+}
+```
+
+Deploy with:
+
+```bash
+TUNNEL_TOKEN=<your_tunnel_token> cdk deploy
+```
+
+## Summary
+
+| Method | Security | Complexity | Use Case |
+|--------|----------|------------|----------|
+| **Local Network** | Low (LAN only) | Easy | Phone/tablet on same WiFi |
+| **Tailscale** | High (encrypted VPN) | Easy | Remote access from anywhere |
+| **Docker** | Medium (isolated) | Medium | Server deployments |
+| **SSH Tunnel** | High (encrypted) | Medium | Secure remote access |
+| **Ngrok** | Low (public URL) | Easy | Temporary demos/sharing |
+| **Cloudflare** | High (custom domain) | Complex | Production deployments |
+
+<Tip>
+For personal remote access, **Tailscale** offers the best balance of security and ease of use. For production team access, consider **Cloudflare Tunnels** with access controls.
+</Tip>
