@@ -863,6 +863,100 @@ describe("default run_commands tool", () => {
 		]);
 	});
 
+	it("strips ANSI escape sequences from command results", async () => {
+		const execute = vi.fn(async () => "\u001b[31;1mRED\u001b[0m OK");
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["echo"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "echo",
+				result: "RED OK",
+				success: true,
+			},
+		]);
+	});
+
+	it("strips ANSI escape sequences from non-zero exit results", async () => {
+		const execute = vi.fn(async () => {
+			throw new CommandExitError(
+				1,
+				"[Command exited with code 1]\n\u001b[31mboom\u001b[0m",
+			);
+		});
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["bun test"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "bun test",
+				result: "[Command exited with code 1]\nboom",
+				error: "Command exited with code 1",
+				success: false,
+			},
+		]);
+	});
+
+	it("keeps streamed chunks ANSI-bearing while stripping the result", async () => {
+		const updates: unknown[] = [];
+		const execute = vi.fn(
+			async (
+				_command: string | { command: string; args?: string[] },
+				_cwd: string,
+				context: AgentToolContext,
+			) => {
+				context.emitUpdate?.({
+					stream: "stdout",
+					chunk: "\u001b[31mred\u001b[0m",
+				});
+				return "\u001b[31mred\u001b[0m";
+			},
+		);
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: ["npm run build"] },
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+				emitUpdate: (update) => updates.push(update),
+			},
+		);
+
+		expect(updates).toEqual([
+			{
+				stream: "stdout",
+				chunk: "\u001b[31mred\u001b[0m",
+				commandIndex: 0,
+				query: "npm run build",
+			},
+		]);
+		expect(result).toEqual([
+			{
+				query: "npm run build",
+				result: "red",
+				success: true,
+			},
+		]);
+	});
+
 	it("coalesces split heredoc command arrays before execution", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string }) =>
