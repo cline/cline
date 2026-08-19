@@ -44,6 +44,8 @@ export type WorkerId = BrandedId<"WorkerId">;
 export type ConnectorId = BrandedId<"ConnectorId">;
 /** Durable identity of a schedule (automation trigger). */
 export type ScheduleId = BrandedId<"ScheduleId">;
+/** Durable identity of an outbound connector message. */
+export type OutboundMessageId = BrandedId<"OutboundMessageId">;
 
 const ID_BODY_PATTERN = "[A-Za-z0-9_-]{8,64}";
 
@@ -107,6 +109,8 @@ export const runIdContract = defineIdContract<RunId>("run");
 export const workerIdContract = defineIdContract<WorkerId>("wrk");
 export const connectorIdContract = defineIdContract<ConnectorId>("con");
 export const scheduleIdContract = defineIdContract<ScheduleId>("sch");
+export const outboundMessageIdContract =
+	defineIdContract<OutboundMessageId>("obm");
 
 export const GatewayIdSchema = gatewayIdContract.schema;
 export const GatewayInstanceIdSchema = gatewayInstanceIdContract.schema;
@@ -118,6 +122,7 @@ export const RunIdSchema = runIdContract.schema;
 export const WorkerIdSchema = workerIdContract.schema;
 export const ConnectorIdSchema = connectorIdContract.schema;
 export const ScheduleIdSchema = scheduleIdContract.schema;
+export const OutboundMessageIdSchema = outboundMessageIdContract.schema;
 
 export const createGatewayId = gatewayIdContract.create;
 export const createGatewayInstanceId = gatewayInstanceIdContract.create;
@@ -129,6 +134,7 @@ export const createRunId = runIdContract.create;
 export const createWorkerId = workerIdContract.create;
 export const createConnectorId = connectorIdContract.create;
 export const createScheduleId = scheduleIdContract.create;
+export const createOutboundMessageId = outboundMessageIdContract.create;
 
 /** All ID contracts, keyed by kind. Used by exhaustive contract tests. */
 export const ID_CONTRACTS = {
@@ -142,6 +148,7 @@ export const ID_CONTRACTS = {
 	workerId: workerIdContract,
 	connectorId: connectorIdContract,
 	scheduleId: scheduleIdContract,
+	outboundMessageId: outboundMessageIdContract,
 } as const;
 
 /**
