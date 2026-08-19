@@ -536,7 +536,7 @@ describe("AgentSidebar session organization", () => {
 
 		const titleBar = container.querySelector("[data-tauri-drag-region]");
 		expect(titleBar).not.toBeNull();
-		expect(titleBar?.textContent).not.toContain("Cline Code");
+		expect(titleBar?.textContent).not.toContain("Cline");
 
 		await click(
 			container.querySelector('[aria-label="Previous page"]') as Element,
