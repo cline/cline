@@ -114,7 +114,7 @@ Build your own AI agents and integrations powered by the same engine that runs t
 npm install @cline/sdk
 ```
 
-<a href="https://docs.cline.bot/cline-sdk/overview">Documentation</a>
+<a href="https://docs.cline.bot/sdk/overview">Documentation</a>
 <br><br>
 
 </td>
@@ -130,10 +130,10 @@ npm install @cline/sdk
 |---------|------------|--------------|--------------|
 | **SDK** | Node.js programmatic agent API and extension exports. | [`sdk/`](https://github.com/cline/cline/tree/main/sdk) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/sdk/CHANGELOG.md) |
 | **CLI** | Terminal UI, headless mode, shell commands, and CLI-specific flows. | [`apps/cli/`](https://github.com/cline/cline/tree/main/apps/cli) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/apps/cli/CHANGELOG.md) |
-| **VS Code Extension** | The Marketplace extension and extension host integration. | [`/`](https://github.com/cline/cline/tree/main) (WIP migrating) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
+| **VS Code Extension** | The Marketplace extension and extension host integration. | [`apps/vscode/`](https://github.com/cline/cline/tree/main/apps/vscode) | [CHANGELOG.md](https://github.com/cline/cline/blob/main/CHANGELOG.md) |
 | **JetBrains Plugin** | JetBrains-hosted client that talks to the shared agent core. | Currently we are not open-sourcing JetBrains plugins | - |
 | **Kanban** | Web-based multi-agent task board. | [`cline/kanban`](https://github.com/cline/kanban) | [CHANGELOG.md](https://github.com/cline/kanban/blob/main/CHANGELOG.md) |
-| **Docs site** | Public documentation pages. | [`docs/`](https://docs.cline.bot/) | - |
+| **Docs site** | Public documentation pages. | [`docs/`](https://github.com/cline/cline/tree/main/docs) | - |
 
 ## Edits Code Across Your Project
 
@@ -145,11 +145,11 @@ Cline executes commands directly in your terminal and watches the output in real
 
 ## Plan and Act
 
-Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. Every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve and let Cline run autonomously.
+Toggle between Plan mode and Act mode. In Plan mode, Cline explores your codebase, asks clarifying questions, and lays out a strategy. Once you're aligned, switch to Act mode and Cline executes the plan. In the IDE, every file edit and terminal command requires your approval, so you stay in control of what actually changes. Or toggle auto-approve — the CLI default — and let Cline run autonomously.
 
 ## Rules and Skills
 
-Define project-specific rules in `.clinerules` files that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific rules when needed.
+Define project-specific rules in `.cline/rules` that guide how Cline works in your codebase: coding standards, architecture conventions, deployment procedures, testing requirements. `.clinerules` is still discovered for compatibility. Rules are picked up automatically by the CLI, VS Code extension, and JetBrains plugin. Use skills to let the model load specific instructions when needed.
 
 ## Works With Every Model
 
@@ -157,6 +157,7 @@ Cline is not locked to a single AI provider. Use whichever model fits your workf
 
 | Provider | Models |
 |----------|--------|
+| Cline | Sign in for pay-as-you-go access to 100+ models |
 | Anthropic | Claude Opus, Sonnet, Haiku |
 | OpenAI | GPT series models |
 | Google | Gemini series models |
@@ -209,7 +210,7 @@ cline schedule create "PR summary" \
 
 ## Connect to Slack, Telegram, Discord, and More
 
-Chat with your agent from any messaging platform: Telegram, Slack, Discord, Google Chat, WhatsApp, and Linear. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
+Chat with your agent from Telegram, Slack, Discord, Google Chat, WhatsApp, or Linear. Each conversation thread maps to an agent session with full context. Set up access control to restrict who can interact with your agent.
 
 ```bash
 # Connect to Telegram
