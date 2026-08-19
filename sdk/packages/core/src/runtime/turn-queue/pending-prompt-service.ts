@@ -2,7 +2,6 @@ import { type AgentMode, normalizeUserInput } from "@cline/shared";
 import { nanoid } from "nanoid";
 import type {
 	CoreSessionEvent,
-	PendingPromptOrigin,
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { ActiveSession, PendingPrompt } from "../../types/session";
@@ -21,7 +20,6 @@ export interface PendingPromptEntry {
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
 	userFiles?: string[];
-	origin?: PendingPromptOrigin;
 }
 
 export interface PendingPromptQueueState {
@@ -46,7 +44,6 @@ export interface PendingPromptEnqueueInput {
 	delivery: PendingPromptDelivery;
 	userImages?: string[];
 	userFiles?: string[];
-	origin?: PendingPromptOrigin;
 }
 
 export interface PendingPromptConsumeResult {
@@ -99,11 +96,6 @@ export class PendingPromptService {
 			prompt,
 			mode: input.mode ?? existing.mode,
 			delivery,
-			// A user edit to a runtime-generated prompt invalidates its
-			// structured provenance unless the updater re-supplies it.
-			origin:
-				input.origin ??
-				(input.prompt === undefined ? existing.origin : undefined),
 		};
 		state.pendingPrompts.splice(index, 1);
 		insertUpdatedPrompt(state, next, index, existing.delivery);
@@ -146,7 +138,7 @@ export class PendingPromptService {
 		state: PendingPromptQueueState,
 		input: PendingPromptEnqueueInput,
 	): SessionPendingPrompt[] {
-		const { prompt, mode, delivery, userImages, userFiles, origin } = input;
+		const { prompt, mode, delivery, userImages, userFiles } = input;
 		const existingIndex = state.pendingPrompts.findIndex(
 			(queued) => queued.prompt === prompt,
 		);
@@ -158,7 +150,6 @@ export class PendingPromptService {
 				mode: mode ?? existing.mode,
 				userImages: userImages ?? existing.userImages,
 				userFiles: userFiles ?? existing.userFiles,
-				origin: origin ?? existing.origin,
 			};
 			if (delivery === "steer" || existing.delivery === "steer") {
 				state.pendingPrompts.unshift({ ...next, delivery: "steer" });
@@ -173,7 +164,6 @@ export class PendingPromptService {
 				delivery,
 				userImages,
 				userFiles,
-				origin,
 			};
 			if (delivery === "steer") {
 				state.pendingPrompts.unshift(newEntry);
@@ -253,7 +243,6 @@ export class PendingPromptsController {
 			delivery: "queue" | "steer";
 			userImages?: string[];
 			userFiles?: string[];
-			origin?: PendingPromptOrigin;
 		},
 	): void {
 		const session = this.deps.getSession(sessionId);
@@ -376,7 +365,6 @@ export class PendingPromptsController {
 				attachmentCount: prompt.attachmentCount,
 				userImages: prompt.userImages,
 				userFiles: prompt.userFiles,
-				origin: prompt.origin,
 			},
 		});
 	}
@@ -400,7 +388,6 @@ function snapshotPrompt(entry: PendingPromptEntry): SessionPendingPrompt {
 			(entry.userImages?.length ?? 0) + (entry.userFiles?.length ?? 0),
 		userImages: entry.userImages,
 		userFiles: entry.userFiles,
-		origin: entry.origin,
 	};
 }
 

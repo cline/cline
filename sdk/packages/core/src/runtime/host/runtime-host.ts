@@ -288,12 +288,6 @@ export interface PendingPromptsUpdateInput {
 	prompt?: string;
 	mode?: AgentMode;
 	delivery?: "queue" | "steer";
-	/**
-	 * Structured provenance for runtime-generated prompts. Only runtime
-	 * updaters (the monitor steer queue) supply this; a user edit that
-	 * rewrites the prompt text clears the stale origin instead.
-	 */
-	origin?: import("../../types/events").PendingPromptOrigin;
 }
 
 export interface PendingPromptsDeleteInput {

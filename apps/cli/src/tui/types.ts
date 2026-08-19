@@ -65,24 +65,6 @@ export type ChatEntry = (
 	| { kind: "team"; text: string }
 	| { kind: "user_submitted"; text: string; delivery?: "queue" | "steer" }
 	| {
-			/**
-			 * A monitor report delivered to the agent. Rendered as a compact
-			 * card from structured fields; the fenced model-facing text is
-			 * deliberately not shown to the user.
-			 */
-			kind: "monitor_update";
-			name: string;
-			description: string;
-			lines: string[];
-			droppedLines?: number;
-			exit?: {
-				status: "exited" | "stopped" | "failed";
-				stoppedBy?: "user";
-				code?: number | null;
-				error?: string;
-			};
-	  }
-	| {
 			kind: "done";
 			tokens: number;
 			cost: number;
@@ -139,12 +121,6 @@ export interface QueuedPromptItem {
 	prompt: string;
 	steer: boolean;
 	attachmentCount: number;
-	/**
-	 * Compact label shown instead of the raw prompt for runtime-generated
-	 * entries (monitor reports carry fenced model-facing text the user should
-	 * not have to read). Editing still operates on the raw prompt.
-	 */
-	displayLabel?: string;
 }
 
 /** One background monitor as shown in the roster UI. */

@@ -39,39 +39,6 @@ export interface SessionTeamProgressEvent {
 	summary: import("@cline/shared").TeamProgressSummary;
 }
 
-/**
- * One monitor notification folded into a pending prompt. Mirrors the
- * agent-facing text (which stays fully fenced for injection defense) with
- * structured fields so UIs can render a clean card instead of the fence.
- */
-export interface MonitorPromptUpdate {
-	monitorId: string;
-	name: string;
-	description: string;
-	lines: string[];
-	droppedLines?: number;
-	exit?: {
-		status: "exited" | "stopped" | "failed";
-		stoppedBy?: "user";
-		code?: number | null;
-		signal?: string | null;
-		error?: string;
-	};
-}
-
-export interface MonitorPromptOrigin {
-	kind: "monitor";
-	/** In delivery order; the steer queue appends as it merges reports. */
-	updates: MonitorPromptUpdate[];
-}
-
-/**
- * Structured provenance for a runtime-generated pending prompt. The prompt
- * text is what the model receives; UIs that recognize the origin render from
- * it instead of showing the model-facing framing to the user.
- */
-export type PendingPromptOrigin = MonitorPromptOrigin;
-
 export interface SessionPendingPrompt {
 	id: string;
 	prompt: string;
@@ -79,7 +46,6 @@ export interface SessionPendingPrompt {
 	attachmentCount: number;
 	userImages?: string[];
 	userFiles?: string[];
-	origin?: PendingPromptOrigin;
 }
 
 export interface SessionPendingPromptsEvent {
@@ -95,7 +61,6 @@ export interface SessionPendingPromptSubmittedEvent {
 	attachmentCount: number;
 	userImages?: string[];
 	userFiles?: string[];
-	origin?: PendingPromptOrigin;
 }
 
 export interface SessionSnapshotEvent {
