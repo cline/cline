@@ -1,3 +1,4 @@
+import { providerOffersModelTool } from "@cline/llms/browser";
 import { Minus, Plus, RotateCcw } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
@@ -25,9 +26,11 @@ import {
 import { desktopClient } from "@/lib/desktop-client";
 import { resetOnboarding } from "@/lib/onboarding";
 import {
+	fetchProviderCatalog,
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -527,7 +530,9 @@ export function SettingsView({
 		) : activeNav === "Account" ? (
 			<AccountView />
 		) : activeNav === "General" ? (
-			<GeneralSettingsContent />
+			<GeneralSettingsContent
+				onOpenModelProviders={() => onNavigateSection("Models")}
+			/>
 		) : (
 			<div className="flex h-full items-center justify-center">
 				<p className="text-sm text-muted-foreground">
@@ -558,7 +563,11 @@ const ACCENT_OPTIONS: { id: HubAccent; label: string; swatch: string }[] = [
 	{ id: "ember", label: "Ember", swatch: "oklch(0.6 0.19 33)" },
 ];
 
-function GeneralSettingsContent() {
+function GeneralSettingsContent({
+	onOpenModelProviders,
+}: {
+	onOpenModelProviders: () => void;
+}) {
 	const [theme, setTheme] = useState<HubTheme>(() => {
 		if (typeof window === "undefined") return "light";
 		return readStoredHubTheme() ?? readSystemHubTheme();
@@ -589,9 +598,47 @@ function GeneralSettingsContent() {
 	const [webSearchLoading, setWebSearchLoading] = useState(true);
 	const [webSearchSaving, setWebSearchSaving] = useState(false);
 	const [webSearchError, setWebSearchError] = useState<string | null>(null);
+	// Connected providers that offer native web search; null until the
+	// catalog loads. The toggle silently does nothing with other providers,
+	// so the row spells out whether it will actually take effect.
+	const [webSearchReadyProviders, setWebSearchReadyProviders] = useState<
+		string[] | null
+	>(null);
 	const [appVersion, setAppVersion] = useState<string | null>(null);
 
 	useEffect(() => subscribeToAppFontSize(setFontSize), []);
+
+	useEffect(() => {
+		let cancelled = false;
+		const loadWebSearchSupport = () => {
+			void fetchProviderCatalog()
+				.then((payload) => {
+					if (cancelled) return;
+					setWebSearchReadyProviders(
+						(payload.providers ?? [])
+							.filter(
+								(provider) =>
+									provider.enabled &&
+									providerOffersModelTool(provider.id, "web_search"),
+							)
+							.map((provider) => provider.name),
+					);
+				})
+				.catch(() => {
+					// Support status is best-effort; the toggle works without it.
+				});
+		};
+		loadWebSearchSupport();
+		// Provider saves invalidate the catalog cache when they complete, so
+		// refetching on invalidation keeps the status current even when the
+		// user navigates here while a save is still in flight.
+		const unsubscribe =
+			subscribeToProviderCatalogInvalidation(loadWebSearchSupport);
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
+	}, []);
 
 	useEffect(() => {
 		let cancelled = false;
@@ -904,9 +951,31 @@ function GeneralSettingsContent() {
 							Web search
 						</p>
 						<p className="text-sm text-muted-foreground">
-							Let the model search the web when the selected provider and model
-							support it. Applies to new sessions.
+							Let the model search the web during a task. Only providers with
+							built-in web search honor this setting; other providers ignore it.
+							Applies to new sessions.
 						</p>
+						{webSearchReadyProviders ===
+						null ? null : webSearchReadyProviders.length > 0 ? (
+							<p className="text-xs text-muted-foreground">
+								Ready to use with {webSearchReadyProviders.join(", ")} on models
+								that support it — no extra setup needed.
+							</p>
+						) : (
+							<p className="text-xs text-amber-700 dark:text-amber-300">
+								None of your connected providers include built-in web search, so
+								this setting has no effect yet.{" "}
+								<button
+									className="underline underline-offset-2 hover:text-foreground"
+									onClick={onOpenModelProviders}
+									type="button"
+								>
+									Connect a provider
+								</button>{" "}
+								that supports it, such as Anthropic, OpenAI, Google Gemini, or
+								Cline.
+							</p>
+						)}
 						{webSearchError ? (
 							<p className="mt-2 text-xs text-destructive" role="alert">
 								Failed to update web search setting: {webSearchError}
