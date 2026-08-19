@@ -2,7 +2,7 @@ import {
 	createLocalHubScheduleRuntimeHandlers,
 	HubScheduleCommandService,
 	HubScheduleService,
-	sendHubCommand,
+	NodeHubClient,
 } from "@cline/core";
 import {
 	ensureCliHubServer,
@@ -11,28 +11,51 @@ import {
 import type { CommandIo } from "./types";
 
 export class HubScheduleClient {
+	private hub: Promise<NodeHubClient> | undefined;
+
 	constructor(
-		private readonly endpoint: {
-			host?: string;
-			port?: number;
-			pathname?: string;
-		},
+		private readonly url: string,
+		private readonly workspaceRoot: string,
+		private readonly authToken?: string,
 	) {}
 
-	close(): void {}
+	close(): void {
+		const hub = this.hub;
+		this.hub = undefined;
+		void hub?.then((client) => client.close()).catch(() => undefined);
+	}
+
+	// Schedule commands are authorized against the workspace bound to the
+	// connection's client registration, so all commands must share one
+	// registered connection instead of fire-and-forget envelopes.
+	private connectedHub(): Promise<NodeHubClient> {
+		this.hub ??= (async () => {
+			const client = new NodeHubClient({
+				url: this.url,
+				clientType: "cli-schedule",
+				displayName: "Cline CLI scheduler",
+				workspaceRoot: this.workspaceRoot,
+				cwd: this.workspaceRoot,
+				authToken: this.authToken,
+			});
+			try {
+				await client.connect();
+			} catch (error) {
+				client.close();
+				this.hub = undefined;
+				throw error;
+			}
+			return client;
+		})();
+		return this.hub;
+	}
 
 	private async command(
 		command: string,
 		payload?: Record<string, unknown>,
 	): Promise<Record<string, unknown>> {
-		const reply = await sendHubCommand(this.endpoint, {
-			clientId: "cline-schedule",
-			command: command as never,
-			payload,
-		});
-		if (!reply.ok) {
-			throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
-		}
+		const client = await this.connectedHub();
+		const reply = await client.command(command as never, payload);
 		return (reply.payload ?? {}) as Record<string, unknown>;
 	}
 
@@ -202,14 +225,13 @@ export async function ensureSchedulerHub(
 	}
 	try {
 		const requestedEndpoint = parseHubEndpointOverride(address);
-		const { url: hubUrl } = await ensureCliHubServer(
+		const { url: hubUrl, authToken } = await ensureCliHubServer(
 			workspaceRoot,
 			requestedEndpoint,
 		);
-		const endpoint = parseHubEndpointOverride(hubUrl);
 		return {
 			ok: true,
-			client: new HubScheduleClient(endpoint),
+			client: new HubScheduleClient(hubUrl, workspaceRoot, authToken),
 		};
 	} catch (_error) {
 		return {
