@@ -209,8 +209,9 @@ async function mergeKnownModels(
 		// models are temporarily unavailable through Cline's inference backend,
 		// so filter them only at the Cline catalog boundary. buildClineModels
 		// applies the same restriction to the bundled catalog. User overrides are
-		// intentionally added after this filter. Remove both filter call sites
-		// together when the backend gains image-output support.
+		// also subject to this filter — the backend rejects image output
+		// regardless of where the model was configured. Remove both filter call
+		// sites together when the backend gains image-output support.
 		return Llms.sortModelsByReleaseDate(
 			Llms.filterImageOutputModels({
 				...Llms.preferCanonicalModelIds(
