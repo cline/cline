@@ -11,6 +11,7 @@ import { HubScheduleCommandService } from "../../cron/service/schedule-command-s
 import { HubScheduleService } from "../../cron/service/schedule-service";
 import { LocalRuntimeHost } from "../../runtime/host/local-runtime-host";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
@@ -41,6 +42,7 @@ import {
 	handleClientUnregister,
 	handleClientUpdate,
 } from "./handlers/client-handlers";
+import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
 	type HubTransportContext,
@@ -50,12 +52,15 @@ import {
 } from "./handlers/context";
 import {
 	handleRunAbort,
+	handleRunProceedWhileRunning,
 	handleSessionHook,
 	handleSessionInput,
 } from "./handlers/run-handlers";
 import { projectSessionEvent } from "./handlers/session-event-projector";
 import {
 	handleSessionAttach,
+	handleSessionCompactionGet,
+	handleSessionCompactionUpdate,
 	handleSessionCreate,
 	handleSessionDelete,
 	handleSessionDetach,
@@ -66,6 +71,7 @@ import {
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
 	handleSessionUpdate,
+	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
 } from "./handlers/session-handlers";
 import { eventNameForScheduleCommand } from "./hub-schedule-events";
@@ -78,6 +84,7 @@ const SETTINGS_TYPES = new Set<CoreSettingsType>([
 	"skills",
 	"workflows",
 	"rules",
+	"plugins",
 	"tools",
 	"mcp",
 ]);
@@ -140,7 +147,7 @@ function parseSettingsToggleInput(payload: unknown): CoreSettingsToggleInput {
 		!SETTINGS_TYPES.has(type as CoreSettingsType)
 	) {
 		throw new Error(
-			"settings.toggle payload 'type' must be one of: skills, workflows, rules, tools, mcp.",
+			"settings.toggle payload 'type' must be one of: skills, workflows, rules, plugins, tools, mcp.",
 		);
 	}
 	return {
@@ -170,12 +177,13 @@ export class HubServerTransport implements NativeHubTransport {
 		string,
 		string
 	>();
+	private readonly activeRpcTurnCountBySession = new Map<string, number>();
 	private readonly schedules: HubScheduleService;
 	private readonly scheduleCommands: HubScheduleCommandService;
 	private readonly settings: CoreSettingsService;
 	private readonly cronService?: CronService;
 	private readonly sessionHost: RuntimeHost &
-		Partial<PendingPromptsRuntimeService>;
+		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	private readonly stopSessionCleanup?: () => void;
 	private readonly hubId = createSessionId("hub_");
 	private readonly ctx: HubTransportContext;
@@ -189,6 +197,7 @@ export class HubServerTransport implements NativeHubTransport {
 			this.sessionHost = new LocalRuntimeHost({
 				sessionService,
 				fetch: options.fetch,
+				logger: options.logger,
 				telemetry: options.telemetry,
 			});
 		}
@@ -199,6 +208,7 @@ export class HubServerTransport implements NativeHubTransport {
 			pendingCapabilityRequests: this.pendingCapabilityRequests,
 			suppressNextTerminalEventBySession:
 				this.suppressNextTerminalEventBySession,
+			activeRpcTurnCountBySession: this.activeRpcTurnCountBySession,
 			telemetry: options.telemetry,
 			sessionHost: this.sessionHost,
 			publish: (event) => this.publish(event),
@@ -371,10 +381,16 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionGet(this.ctx, envelope);
 			case "session.messages":
 				return await handleSessionMessages(this.ctx, envelope);
+			case "session.compaction.get":
+				return await handleSessionCompactionGet(this.ctx, envelope);
 			case "session.list":
 				return await handleSessionList(this.ctx, envelope);
 			case "session.update":
 				return await handleSessionUpdate(this.ctx, envelope);
+			case "session.update_connection":
+				return await handleSessionUpdateConnection(this.ctx, envelope);
+			case "session.compaction.update":
+				return await handleSessionCompactionUpdate(this.ctx, envelope);
 			case "session.pending_prompts":
 				return await handleSessionPendingPrompts(this.ctx, envelope);
 			case "session.update_pending_prompt":
@@ -390,6 +406,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionInput(this.ctx, envelope);
 			case "run.abort":
 				return await handleRunAbort(this.ctx, envelope);
+			case "run.proceed_while_running":
+				return await handleRunProceedWhileRunning(this.ctx, envelope);
 			case "capability.request":
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":
@@ -408,6 +426,13 @@ export class HubServerTransport implements NativeHubTransport {
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":
 				return await this.handleSettingsToggle(envelope);
+			case "connector.channels":
+			case "connector.configure":
+			case "connector.delete_config":
+			case "connector.start":
+			case "connector.stop":
+			case "connector.supervised":
+				return await handleConnectorCommand(this.ctx, envelope);
 			case "settings.get":
 			case "settings.patch":
 				return {
@@ -553,6 +578,9 @@ export class HubServerTransport implements NativeHubTransport {
 	private detachClientFromSessions(clientId: string): void {
 		for (const [sessionId, state] of this.sessionState.entries()) {
 			state.participants.delete(clientId);
+			if (state.createdByClientId === clientId) {
+				state.createdByClientId = undefined;
+			}
 			if (state.participants.size === 0) {
 				this.sessionState.delete(sessionId);
 			}

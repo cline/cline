@@ -192,7 +192,11 @@ async function checkIgnoredByWorkspaceGitignore(
 		const child = spawn(
 			"git",
 			["check-ignore", "--stdin", "-z", "-v", "-n", "--no-index"],
-			{ cwd: workspaceRoot, stdio: ["pipe", "pipe", "pipe"] },
+			{
+				cwd: workspaceRoot,
+				stdio: ["pipe", "pipe", "pipe"],
+				windowsHide: true,
+			},
 		);
 
 		const stdout: Buffer[] = [];

@@ -39,19 +39,30 @@ import {
 	type ContributionRegistry,
 	createContributionRegistry,
 	type ITelemetryService,
+	isLikelyAuthError,
 	type LegacyAgentUsage,
 	type LoopDetectionConfig,
 	type Message,
 	type MessageWithMetadata,
 	type ModelInfo,
+	mergeModelOptions,
+	modelSupportsToolCalling,
 	type ToolCallRecord,
+	usesImageGenerationOperation,
 } from "@cline/shared";
+import { filterDisabledTools } from "../../services/global-settings";
 import {
 	createAgentModelFromConfig,
 	resolveKnownModelsFromConfig,
 } from "../../services/llms/handler-factory";
-import { CLINE_INTERNAL_TELEMETRY_METADATA_KEY } from "../../services/telemetry/tool-context";
-import { MessageBuilder } from "../../session/services/message-builder";
+import {
+	captureAuthRunRetry,
+	captureMistakeLimitReached,
+} from "../../services/telemetry/core-events";
+import {
+	getMessageBuilderOptionsFromEnv,
+	MessageBuilder,
+} from "../../session/services/message-builder";
 import { ConversationStore } from "../../session/stores/conversation-store";
 import {
 	agentMessagesToMessages,
@@ -59,9 +70,37 @@ import {
 	messagesToAgentMessages,
 } from "../config/agent-message-codec";
 import { createAgentRuntimeConfig } from "../config/agent-runtime-config-builder";
+import {
+	type ConnectionUpdate,
+	normalizeConnectionUpdate,
+} from "../config/connection-update";
 import { LoopDetectionTracker } from "../safety/loop-detection";
 import { MistakeTracker } from "../safety/mistake-tracker";
 import { RuntimeEventAdapter } from "./runtime-event-adapter";
+
+export const SESSION_RUN_IN_PROGRESS_ERROR_CODE = "session_run_in_progress";
+
+/**
+ * A session was asked to shut down while one of its runs was still in flight and
+ * no abort had been requested.
+ *
+ * Carries a code so callers can recognise it structurally after it crosses the
+ * hub's JSON boundary, where an `Error` arrives as a bare message. Connectors use
+ * it to tell "this thread's session is unusable" apart from a genuine run failure,
+ * and to recover by starting a fresh session instead of wedging the thread.
+ */
+export class SessionRunInProgressError extends Error {
+	readonly code = SESSION_RUN_IN_PROGRESS_ERROR_CODE;
+
+	constructor(readonly agentId?: string) {
+		super(
+			`SessionRuntime.shutdown called while a run is in progress${
+				agentId ? ` (agentId=${agentId})` : ""
+			}`,
+		);
+		this.name = "SessionRunInProgressError";
+	}
+}
 
 function formatToolResultError(output: unknown): string {
 	if (typeof output === "string") {
@@ -101,6 +140,36 @@ function mergeSystemPromptRules(
 	return base || additional;
 }
 
+function isToolEnabledByPolicies(
+	toolName: string,
+	toolPolicies: AgentConfig["toolPolicies"],
+): boolean {
+	const globalPolicy = toolPolicies?.["*"] ?? {};
+	const toolPolicy = toolPolicies?.[toolName] ?? {};
+	return (
+		{
+			...globalPolicy,
+			...toolPolicy,
+		}.enabled !== false
+	);
+}
+
+function filterToolsByPolicies(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return tools.filter((tool) =>
+		isToolEnabledByPolicies(tool.name, toolPolicies),
+	);
+}
+
+function filterAvailableExtensionTools(
+	tools: AgentTool[],
+	toolPolicies: AgentConfig["toolPolicies"],
+): AgentTool[] {
+	return filterDisabledTools(filterToolsByPolicies(tools, toolPolicies));
+}
+
 function mergeRuntimeHooks(
 	layers: Array<Partial<AgentRuntimeHooks> | undefined>,
 ): Partial<AgentRuntimeHooks> {
@@ -136,17 +205,14 @@ function mergeRuntimeHooks(
 				aggregate = {
 					...aggregate,
 					...result,
-					options: {
-						...(aggregate?.options ?? {}),
-						...(result.options ?? {}),
-					},
+					options: mergeModelOptions(aggregate?.options, result.options),
 				};
 				request = {
 					...request,
 					...(result.messages ? { messages: result.messages } : {}),
 					...(result.tools ? { tools: result.tools } : {}),
 					...(result.options
-						? { options: { ...(request.options ?? {}), ...result.options } }
+						? { options: mergeModelOptions(request.options, result.options) }
 						: {}),
 				};
 			}
@@ -224,17 +290,7 @@ export interface SessionRuntimeOrchestratorDeps {
 }
 
 /** Connection overrides applied via `updateConnection`. */
-export interface ConnectionOverrides {
-	providerId?: string;
-	modelId?: string;
-	apiKey?: string;
-	baseUrl?: string;
-	headers?: Record<string, string>;
-	providerConfig?: unknown;
-	reasoningEffort?: AgentConfig["reasoningEffort"];
-	thinking?: boolean;
-	thinkingBudgetTokens?: number;
-}
+export type ConnectionOverrides = ConnectionUpdate;
 
 // =============================================================================
 // SessionRuntime orchestrator
@@ -250,10 +306,10 @@ export class SessionRuntime {
 	private readonly agentId: string;
 	private readonly parentAgentId?: string;
 	private readonly logger?: BasicLogger;
-	// Reserved for §3.4.4 telemetry parity (not yet consumed — §3.4.4
-	// listed as explicitly deferred until telemetry wiring is added).
-	// Typed as `readonly` to preserve the field slot for future use
-	// without re-touching the constructor.
+	// §3.4.4 telemetry parity. Currently consumed by the MistakeTracker's
+	// `onLimitTelemetry` hook (task.mistake_limit_reached); most other
+	// runtime telemetry is emitted host-side from the agent event stream
+	// (services/agent-events.ts).
 	readonly telemetry?: ITelemetryService;
 	private readonly conversation: ConversationStore;
 	private readonly mistakeTracker: MistakeTracker;
@@ -345,7 +401,7 @@ export class SessionRuntime {
 			deps.createAgentRuntimeImpl ?? createAgentRuntime;
 
 		this.conversation = new ConversationStore(config.initialMessages);
-		this.messageBuilder = new MessageBuilder();
+		this.messageBuilder = new MessageBuilder(getMessageBuilderOptionsFromEnv());
 		this.contributionRegistry = createContributionRegistry<
 			AgentExtension,
 			AgentTool,
@@ -375,6 +431,22 @@ export class SessionRuntime {
 		this.mistakeTracker = new MistakeTracker({
 			maxConsecutiveMistakes: maxMistakes,
 			onLimitReached: config.onConsecutiveMistakeLimitReached,
+			onLimitTelemetry: (context) => {
+				// Read connection fields from `this.config` at fire time so a
+				// mid-session `updateConnection` is reflected in the event.
+				captureMistakeLimitReached(this.telemetry, {
+					ulid: this.config.sessionId ?? this.conversation.getConversationId(),
+					model: this.config.modelId,
+					provider: this.config.providerId,
+					reason: context.reason,
+					consecutiveMistakes: context.consecutiveMistakes,
+					maxConsecutiveMistakes: context.maxConsecutiveMistakes,
+					agentId: this.agentId,
+					conversationId: this.conversation.getConversationId(),
+					parentAgentId: this.parentAgentId,
+					isSubagent: Boolean(this.parentAgentId),
+				});
+			},
 			emit: (event) => this.emitLegacyEvent(event),
 			log: (level, message, metadata) =>
 				leveledLog(this.logger, level, message, metadata),
@@ -453,20 +525,28 @@ export class SessionRuntime {
 
 	/** Mutate provider / reasoning fields for subsequent runs. */
 	updateConnection(overrides: ConnectionOverrides): void {
+		const updates = normalizeConnectionUpdate(overrides);
 		const next: AgentConfig = { ...this.config };
-		if (overrides.providerId !== undefined)
-			next.providerId = overrides.providerId;
-		if (overrides.modelId !== undefined) next.modelId = overrides.modelId;
-		if (overrides.apiKey !== undefined) next.apiKey = overrides.apiKey;
-		if (overrides.baseUrl !== undefined) next.baseUrl = overrides.baseUrl;
-		if (overrides.headers !== undefined) next.headers = overrides.headers;
-		if (overrides.providerConfig !== undefined)
-			next.providerConfig = overrides.providerConfig;
-		if (overrides.reasoningEffort !== undefined)
-			next.reasoningEffort = overrides.reasoningEffort;
-		if (overrides.thinking !== undefined) next.thinking = overrides.thinking;
-		if (overrides.thinkingBudgetTokens !== undefined)
-			next.thinkingBudgetTokens = overrides.thinkingBudgetTokens;
+		if (updates.providerId !== undefined) next.providerId = updates.providerId;
+		if (updates.modelId !== undefined) next.modelId = updates.modelId;
+		if (updates.apiKey !== undefined) next.apiKey = updates.apiKey;
+		if (updates.baseUrl !== undefined) next.baseUrl = updates.baseUrl;
+		if (updates.headers !== undefined) next.headers = updates.headers;
+		if (updates.providerConfig !== undefined)
+			next.providerConfig = updates.providerConfig;
+		if (Object.hasOwn(updates, "reasoningEffort")) {
+			next.reasoningEffort = updates.reasoningEffort ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinkingBudgetTokens")) {
+			next.thinkingBudgetTokens = updates.thinkingBudgetTokens ?? undefined;
+		}
+		if (Object.hasOwn(updates, "thinking")) {
+			next.thinking = updates.thinking ?? undefined;
+			if (updates.thinking === false || updates.thinking === null) {
+				next.reasoningEffort = undefined;
+				next.thinkingBudgetTokens = undefined;
+			}
+		}
 		this.config = next;
 	}
 
@@ -481,6 +561,7 @@ export class SessionRuntime {
 	}
 
 	private resetConversationBoundaryTrackers(): void {
+		this.messageBuilder.resetConversationState();
 		this.mistakeTracker.reset();
 		this.loopTracker.reset();
 	}
@@ -573,9 +654,7 @@ export class SessionRuntime {
 	async shutdown(_reason?: string, _timeoutMs?: number): Promise<void> {
 		if (this.running) {
 			if (!this.abortRequested || !this.activeRunPromise) {
-				throw new Error(
-					`SessionRuntime.shutdown called while a run is in progress (agentId=${this.agentId})`,
-				);
+				throw new SessionRunInProgressError(this.agentId);
 			}
 			await this.activeRunPromise;
 		}
@@ -639,13 +718,44 @@ export class SessionRuntime {
 		isContinue: boolean;
 	}): Promise<AgentResult> {
 		let activePromise!: Promise<AgentResult>;
-		activePromise = this.executeRunInternal(input).finally(() => {
+		activePromise = this.executeRunWithAuthRetry(input).finally(() => {
 			if (this.activeRunPromise === activePromise) {
 				this.activeRunPromise = null;
 			}
 		});
 		this.activeRunPromise = activePromise;
 		return activePromise;
+	}
+
+	/**
+	 * Retry a run once when it failed with an auth-like error and the host
+	 * refreshed credentials via `config.onAuthError`. The failed attempt's
+	 * trail is already persisted to the conversation store, so the retry
+	 * continues from where the stream died instead of replaying the run.
+	 */
+	private async executeRunWithAuthRetry(input: {
+		userMessage?: string;
+		userImages?: string[];
+		userFiles?: string[];
+		isContinue: boolean;
+	}): Promise<AgentResult> {
+		const result = await this.executeRunInternal(input);
+		if (
+			result.finishReason !== "error" ||
+			!this.config.onAuthError ||
+			!isLikelyAuthError(result.text)
+		) {
+			return result;
+		}
+		const refreshed = await this.config.onAuthError().catch(() => false);
+		if (!refreshed) {
+			return result;
+		}
+		const retryResult = await this.executeRunInternal({ isContinue: true });
+		captureAuthRunRetry(this.telemetry, this.config.providerId, {
+			recovered: retryResult.finishReason !== "error",
+		});
+		return retryResult;
 	}
 
 	private async executeRunInternal(input: {
@@ -720,7 +830,14 @@ export class SessionRuntime {
 		// wins over a same-named extension tool (legacy behaviour:
 		// `validateTools` rejects duplicates; here we prefer the
 		// explicitly-declared config tool).
-		const extensionTools = this.contributionRegistry.getRegisteredTools();
+		const extensionToolsByName = new Map<string, AgentTool>();
+		for (const tool of this.contributionRegistry.getRegisteredTools()) {
+			extensionToolsByName.set(tool.name, tool);
+		}
+		const extensionTools = filterAvailableExtensionTools(
+			[...extensionToolsByName.values()],
+			this.config.toolPolicies,
+		);
 		const mergedToolsByName = new Map<string, AgentTool>();
 		for (const tool of extensionTools) {
 			mergedToolsByName.set(tool.name, tool);
@@ -730,7 +847,14 @@ export class SessionRuntime {
 		}
 		const conversationId = this.conversation.getConversationId();
 		const modelInfo = tryGetModelInfo(this.config);
-		const tools = Array.from(mergedToolsByName.values());
+		const dedicatedImageGeneration = usesImageGenerationOperation(
+			modelInfo ?? {},
+		);
+		const toolCallingDisabled =
+			dedicatedImageGeneration || !modelSupportsToolCalling(modelInfo ?? {});
+		const tools = toolCallingDisabled
+			? []
+			: Array.from(mergedToolsByName.values());
 		// Seed initialMessages with the full prior transcript (including
 		// the user message we just appended) so multi-turn history is
 		// preserved across runs. Fixes P1 #1: prior turns were silently
@@ -754,11 +878,11 @@ export class SessionRuntime {
 				modelSupportsImages:
 					modelInfo?.capabilities?.includes("images") ?? true,
 				...this.config.toolContextMetadata,
-				[CLINE_INTERNAL_TELEMETRY_METADATA_KEY]: this.telemetry,
 			},
 			hooks: this.createRuntimeHooks(),
 			prepareTurn: this.createRuntimePrepareTurn(modelInfo, tools),
 			initialMessages,
+			completionPolicy: toolCallingDisabled ? null : undefined,
 			systemPrompt,
 		});
 		const runtime = this.createAgentRuntimeImpl(runtimeConfig);
@@ -850,7 +974,9 @@ export class SessionRuntime {
 			return;
 		}
 		try {
-			await this.contributionRegistry.initialize();
+			await this.contributionRegistry.initialize({
+				tolerateSetupErrors: this.config.hookErrorMode !== "throw",
+			});
 		} catch (error) {
 			if (this.config.hookErrorMode === "throw") {
 				throw error;
@@ -926,6 +1052,7 @@ export class SessionRuntime {
 					provider: this.config.providerId,
 					info: modelInfo,
 				},
+				overflowRecovery: context.overflowRecovery,
 				emitStatusNotice: context.emitStatusNotice,
 			});
 			if (!result) {
@@ -988,6 +1115,9 @@ export class SessionRuntime {
 			case "tool-started": {
 				this.toolStartedAt.set(event.toolCall.toolCallId, new Date());
 				this.toolInputs.set(event.toolCall.toolCallId, event.toolCall.input);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Loop-detection inspection: identical consecutive
 				// tool-call signatures trip the tracker. On "soft"
 				// verdict we append a recovery notice; on "hard"
@@ -1022,6 +1152,7 @@ export class SessionRuntime {
 				const record: ToolCallRecord = {
 					id: event.toolCall.toolCallId,
 					name: event.toolCall.toolName,
+					execution: event.toolCall.execution,
 					input,
 					output:
 						resultPart?.type === "tool-result" ? resultPart.output : undefined,
@@ -1034,6 +1165,9 @@ export class SessionRuntime {
 					endedAt,
 				};
 				this.currentRunToolCalls.push(record);
+				if (event.toolCall.execution) {
+					break;
+				}
 				// Per-turn success/failure bookkeeping for MistakeTracker.
 				if (isError) {
 					this.currentTurnFailedTools += 1;
@@ -1225,8 +1359,8 @@ export class SessionRuntime {
 			? "error"
 			: deriveFinishReason(runResult);
 		const text =
-			runResult?.outputText ||
 			(runResult?.status === "failed" ? runResult.error?.message : undefined) ||
+			runResult?.outputText ||
 			"";
 		const usage: LegacyAgentUsage = runResult
 			? {

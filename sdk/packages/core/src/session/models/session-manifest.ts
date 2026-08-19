@@ -24,6 +24,7 @@ export const SessionManifestSchema = z.object({
 	prompt: z.string().optional(),
 	metadata: z.record(z.string(), z.unknown()).optional(),
 	messages_path: z.string().min(1).optional(),
+	compaction_path: z.string().min(1).optional(),
 });
 
 export type SessionManifest = z.infer<typeof SessionManifestSchema>;

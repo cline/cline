@@ -1,31 +1,20 @@
-import { ANTHROPIC_FAST_MODE_SUFFIX, anthropicModels, CLAUDE_SONNET_1M_SUFFIX } from "@shared/api"
+import { openAiModelInfoSafeDefaults } from "@shared/api"
 import type { Mode } from "@shared/storage/types"
 import { isClaudeOpusAdaptiveThinkingModel, resolveClaudeOpusAdaptiveThinking } from "@shared/utils/reasoning-support"
 import { useExtensionState } from "@/context/ExtensionStateContext"
+import { useProviderConfig } from "@/hooks/useProviderConfig"
+import { useProviderModelSelection } from "@/hooks/useProviderModelSelection"
+import { useStaticProviderSelection } from "@/hooks/useStaticProviderSelection"
 import { ApiKeyField } from "../common/ApiKeyField"
 import { BaseUrlField } from "../common/BaseUrlField"
-import { ContextWindowSwitcher } from "../common/ContextWindowSwitcher"
 import { ModelInfoView } from "../common/ModelInfoView"
 import { ModelSelector } from "../common/ModelSelector"
 import { RemotelyConfiguredInputWrapper } from "../common/RemotelyConfiguredInputWrapper"
 import ReasoningEffortSelector from "../ReasoningEffortSelector"
-import ThinkingBudgetSlider from "../ThinkingBudgetSlider"
-import { getModeSpecificFields, normalizeApiConfiguration } from "../utils/providerUtils"
-import { useApiConfigurationHandlers } from "../utils/useApiConfigurationHandlers"
+import { getModeSpecificFields } from "../utils/providerUtils"
+import { useProviderApiKeyField } from "../utils/useProviderApiKeyField"
 
-// Anthropic models that support thinking/reasoning mode
-export const SUPPORTED_ANTHROPIC_THINKING_MODELS = [
-	"claude-sonnet-4-6",
-	`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`,
-	"claude-3-7-sonnet-20250219",
-	"claude-sonnet-4-20250514",
-	`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`,
-	"claude-opus-4-20250514",
-	"claude-opus-4-1-20250805",
-	"claude-sonnet-4-5-20250929",
-	`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`,
-	"claude-haiku-4-5-20251001",
-]
+const PROVIDER_ID = "anthropic"
 
 /**
  * Props for the AnthropicProvider component
@@ -41,25 +30,69 @@ interface AnthropicProviderProps {
  */
 export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: AnthropicProviderProps) => {
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const { handleFieldChange, handleModeFieldChange } = useApiConfigurationHandlers()
 	const modeFields = getModeSpecificFields(apiConfiguration, currentMode)
+	const { config, write, commitSelection } = useProviderConfig(PROVIDER_ID)
 
 	// Get the normalized configuration
-	const { selectedModelId, selectedModelInfo } = normalizeApiConfiguration(apiConfiguration, currentMode)
+	const {
+		models,
+		defaultModelId,
+		selectedModelId: legacySelectedModelId,
+		selectedModelInfo: legacySelectedModelInfo,
+		hideUsageCost,
+	} = useStaticProviderSelection(PROVIDER_ID, apiConfiguration, currentMode)
+	const { selectedModelId, selectedModelInfo, commitModelSelection } = useProviderModelSelection(PROVIDER_ID, currentMode, {
+		models,
+		defaultModelId: defaultModelId || legacySelectedModelId,
+		config,
+		commitSelection,
+		fallbackModelInfo: legacySelectedModelInfo,
+	})
+	const { savedApiKeyMask, handleApiKeyChange } = useProviderApiKeyField({
+		apiKeyLength: config?.apiKeyLength,
+		providerName: "Anthropic",
+		write,
+	})
 	const isAdaptiveThinkingModel = isClaudeOpusAdaptiveThinkingModel(selectedModelId)
 	const adaptiveThinkingDefaultEffort =
 		resolveClaudeOpusAdaptiveThinking(modeFields.reasoningEffort, modeFields.thinkingBudgetTokens).effort ?? "none"
 
-	// Helper function for model switching
+	const handleBaseUrlChange = (value: string) => {
+		void write({ baseUrl: value }).catch((err) => console.error("Failed to update Anthropic base URL:", err))
+	}
+	const handleBaseUrlClear = async () => {
+		try {
+			await write({ baseUrl: "" })
+		} catch (error) {
+			console.error("Failed to clear Anthropic base URL:", error)
+			throw error
+		}
+	}
+
 	const handleModelChange = (modelId: string) => {
-		handleModeFieldChange({ plan: "planModeApiModelId", act: "actModeApiModelId" }, modelId, currentMode)
+		if (!modelId) {
+			return
+		}
+
+		const fallbackModelId = defaultModelId || Object.keys(models)[0] || modelId
+		const modelInfo = models[modelId] ?? models[fallbackModelId] ?? selectedModelInfo ?? openAiModelInfoSafeDefaults
+
+		void commitModelSelection({ modelId, modelInfo }).catch((err) =>
+			console.error("Failed to commit Anthropic model selection:", err),
+		)
+	}
+
+	const handleReasoningEffortChange = (effort: string) => {
+		void write({ reasoning: { enabled: effort !== "none", effort } }).catch((err) =>
+			console.error("Failed to update Anthropic reasoning effort:", err),
+		)
 	}
 
 	return (
 		<div>
 			<ApiKeyField
-				initialValue={apiConfiguration?.apiKey || ""}
-				onChange={(value) => handleFieldChange("apiKey", value)}
+				initialValue={savedApiKeyMask}
+				onChange={handleApiKeyChange}
 				providerName="Anthropic"
 				signupUrl="https://console.anthropic.com/settings/keys"
 			/>
@@ -67,9 +100,10 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 			<RemotelyConfiguredInputWrapper hidden={remoteConfigSettings?.anthropicBaseUrl === undefined}>
 				<BaseUrlField
 					disabled={!!remoteConfigSettings?.anthropicBaseUrl}
-					initialValue={apiConfiguration?.anthropicBaseUrl}
+					initialValue={config?.baseUrl}
 					label="Use custom base URL"
-					onChange={(value) => handleFieldChange("anthropicBaseUrl", value)}
+					onChange={handleBaseUrlChange}
+					onClear={handleBaseUrlClear}
 					placeholder="Default: https://api.anthropic.com"
 					showLockIcon={!!remoteConfigSettings?.anthropicBaseUrl}
 				/>
@@ -79,53 +113,8 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 				<>
 					<ModelSelector
 						label="Model"
-						models={anthropicModels}
-						onChange={(e) =>
-							handleModeFieldChange(
-								{ plan: "planModeApiModelId", act: "actModeApiModelId" },
-								e.target.value,
-								currentMode,
-							)
-						}
-						selectedModelId={selectedModelId}
-					/>
-
-					{/* Context window switcher for Claude Opus 4.6 */}
-					<ContextWindowSwitcher
-						base1mModelId={`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}`}
-						base200kModelId="claude-opus-4-6"
-						onModelChange={handleModelChange}
-						selectedModelId={selectedModelId}
-					/>
-
-					<ContextWindowSwitcher
-						base1mModelId={`claude-opus-4-6${CLAUDE_SONNET_1M_SUFFIX}${ANTHROPIC_FAST_MODE_SUFFIX}`}
-						base200kModelId={`claude-opus-4-6${ANTHROPIC_FAST_MODE_SUFFIX}`}
-						onModelChange={handleModelChange}
-						selectedModelId={selectedModelId}
-					/>
-
-					{/* Context window switcher for Claude Sonnet 4.6 */}
-					<ContextWindowSwitcher
-						base1mModelId={`claude-sonnet-4-6${CLAUDE_SONNET_1M_SUFFIX}`}
-						base200kModelId="claude-sonnet-4-6"
-						onModelChange={handleModelChange}
-						selectedModelId={selectedModelId}
-					/>
-
-					{/* Context window switcher for Claude Sonnet 4.5 */}
-					<ContextWindowSwitcher
-						base1mModelId={`claude-sonnet-4-5-20250929${CLAUDE_SONNET_1M_SUFFIX}`}
-						base200kModelId="claude-sonnet-4-5-20250929"
-						onModelChange={handleModelChange}
-						selectedModelId={selectedModelId}
-					/>
-
-					{/* Context window switcher for Claude Sonnet 4 */}
-					<ContextWindowSwitcher
-						base1mModelId={`claude-sonnet-4-20250514${CLAUDE_SONNET_1M_SUFFIX}`}
-						base200kModelId="claude-sonnet-4-20250514"
-						onModelChange={handleModelChange}
+						models={models}
+						onChange={(e) => handleModelChange(e.target.value)}
 						selectedModelId={selectedModelId}
 					/>
 
@@ -136,12 +125,23 @@ export const AnthropicProvider = ({ showModelOptions, isPopup, currentMode }: An
 							defaultEffort={adaptiveThinkingDefaultEffort}
 							description="Use None to disable adaptive thinking. Higher effort increases response detail and token usage."
 							label="Adaptive Thinking"
+							onEffortChange={handleReasoningEffortChange}
 						/>
-					) : SUPPORTED_ANTHROPIC_THINKING_MODELS.includes(selectedModelId) ? (
-						<ThinkingBudgetSlider currentMode={currentMode} maxBudget={selectedModelInfo.thinkingConfig?.maxBudget} />
+					) : selectedModelInfo.supportsReasoning === true ? (
+						<ReasoningEffortSelector
+							currentMode={currentMode}
+							defaultEffort="none"
+							description="Use None to disable extended thinking. Higher effort improves depth, but uses more tokens."
+							onEffortChange={handleReasoningEffortChange}
+						/>
 					) : null}
 
-					<ModelInfoView isPopup={isPopup} modelInfo={selectedModelInfo} selectedModelId={selectedModelId} />
+					<ModelInfoView
+						hideUsageCost={hideUsageCost}
+						isPopup={isPopup}
+						modelInfo={selectedModelInfo}
+						selectedModelId={selectedModelId}
+					/>
 				</>
 			)}
 		</div>

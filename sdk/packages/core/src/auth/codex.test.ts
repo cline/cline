@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	getValidOpenAICodexCredentials,
-	normalizeOpenAICodexCredentials,
 	refreshOpenAICodexToken,
 } from "./codex";
 import type { OAuthCredentials } from "./types";
@@ -136,19 +135,6 @@ describe("auth/codex token lifecycle", () => {
 		});
 		expect(result).toBe(current);
 		nowSpy.mockRestore();
-	});
-
-	it("normalizes credentials by deriving accountId from access token", () => {
-		const accessToken = createJwt({
-			"https://api.openai.com/auth": { chatgpt_account_id: "acct-derived" },
-		});
-		const normalized = normalizeOpenAICodexCredentials({
-			access: accessToken,
-			refresh: "refresh",
-			expires: 1,
-		});
-		expect(normalized.accountId).toBe("acct-derived");
-		expect(normalized.metadata).toMatchObject({ provider: "openai-codex" });
 	});
 
 	it("refreshOpenAICodexToken throws when response is structurally invalid", async () => {

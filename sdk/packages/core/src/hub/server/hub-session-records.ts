@@ -7,7 +7,7 @@ import type { SessionAccumulatedUsage } from "../../runtime/host/runtime-host";
 import type { SessionRecord as LocalSessionRecord } from "../../types/sessions";
 
 export type HubSessionState = {
-	createdByClientId: string;
+	createdByClientId?: string;
 	interactive: boolean;
 	participants: Map<string, SessionParticipant>;
 };

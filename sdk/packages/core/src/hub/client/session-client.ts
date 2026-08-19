@@ -8,6 +8,7 @@ import type {
 	TeamProgressProjectionEvent,
 } from "@cline/shared";
 import type { CheckpointEntry } from "../../hooks/checkpoint-hooks";
+import { isSessionNotFoundError } from "../../runtime/host/runtime-host";
 import { NodeHubClient } from "../client";
 
 type ScheduleClientRecord = Record<string, unknown> & {
@@ -28,6 +29,8 @@ export interface HubSessionClientOptions {
 export interface HubSessionRow {
 	sessionId: string;
 	parentSessionId?: string;
+	/** Hub runtime status when the server provided one. */
+	status?: string;
 	metadata?: Record<string, unknown>;
 	messagesPath?: string;
 }
@@ -56,7 +59,7 @@ export interface HubRestoreResponse {
 		manifestPath: string;
 		messagesPath: string;
 	};
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -96,6 +99,7 @@ function extractSessionRow(
 			typeof metadata?.parentSessionId === "string"
 				? metadata.parentSessionId
 				: undefined,
+		status: typeof session.status === "string" ? session.status : undefined,
 		messagesPath:
 			typeof metadata?.messagesPath === "string"
 				? metadata.messagesPath
@@ -204,16 +208,34 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.text_delta",
 				payload,
 			};
+		case "assistant.media":
+			return {
+				sessionId,
+				eventType: "runtime.chat.media",
+				payload,
+			};
 		case "usage.updated":
 			return {
 				sessionId,
 				eventType: "runtime.chat.usage",
 				payload,
 			};
+		case "session.notice":
+			return {
+				sessionId,
+				eventType: "runtime.chat.notice",
+				payload,
+			};
 		case "tool.started":
 			return {
 				sessionId,
 				eventType: "runtime.chat.tool_call_start",
+				payload,
+			};
+		case "tool.updated":
+			return {
+				sessionId,
+				eventType: "runtime.chat.tool_call_update",
 				payload,
 			};
 		case "tool.finished":
@@ -414,15 +436,21 @@ export class HubSessionClient {
 
 	async getSession(sessionId: string): Promise<HubSessionRow | undefined> {
 		await this.ensureMetadataApplied();
-		const reply = await this.client.command(
-			"session.get",
-			undefined,
-			sessionId,
-		);
+		let reply: Awaited<ReturnType<NodeHubClient["command"]>>;
+		try {
+			reply = await this.client.command("session.get", undefined, sessionId);
+		} catch (error) {
+			if (isSessionNotFoundError(error)) {
+				return undefined;
+			}
+			throw error;
+		}
 		return extractSessionRow(reply.payload);
 	}
 
-	async readMessages(sessionId: string): Promise<LlmsProviders.Message[]> {
+	async readMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -437,7 +465,9 @@ export class HubSessionClient {
 			throw new Error(hubReplyErrorMessage(reply, "session.messages"));
 		}
 		const messages = reply.payload?.messages;
-		return Array.isArray(messages) ? (messages as LlmsProviders.Message[]) : [];
+		return Array.isArray(messages)
+			? (messages as LlmsProviders.MessageWithMetadata[])
+			: [];
 	}
 
 	async restore(input: HubRestoreRequest): Promise<HubRestoreResponse> {

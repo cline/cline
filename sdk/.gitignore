@@ -17,9 +17,6 @@ pnpm-lock.yaml
 .actrc
 CLAUDE.local.md
 
-apps/vscode/webview-ui/src/**/*.js
-apps/vscode/webview-ui/src/**/*.js.map
-
 # Ignore coverage directories and files
 coverage
 coverage-unit

@@ -57,6 +57,7 @@ describe("buildModelOptions", () => {
 			reasoningEffort: "high",
 			thinkingBudgetTokens: 1024,
 			maxTokensPerTurn: 4096,
+			temperature: 0.2,
 			apiTimeoutMs: 60_000,
 		});
 		expect(buildModelOptions(config)).toEqual({
@@ -64,6 +65,7 @@ describe("buildModelOptions", () => {
 			reasoningEffort: "high",
 			thinkingBudgetTokens: 1024,
 			maxTokensPerTurn: 4096,
+			temperature: 0.2,
 			apiTimeoutMs: 60_000,
 		});
 	});
@@ -198,6 +200,18 @@ describe("createAgentRuntimeConfig", () => {
 			systemPrompt: "override",
 		});
 		expect(runtimeConfig.systemPrompt).toBe("override");
+	});
+
+	it("can explicitly disable an agent completion policy", () => {
+		const runtimeConfig = createAgentRuntimeConfig({
+			agentConfig: makeAgentConfig({
+				completionPolicy: { requireCompletionTool: true },
+			}),
+			agentId: "a",
+			model: nullModel,
+			completionPolicy: null,
+		});
+		expect(runtimeConfig.completionPolicy).toBeUndefined();
 	});
 
 	it("populates hooks when provided", () => {

@@ -8,6 +8,8 @@ const buildMode: BuildMode =
 
 const shouldEmitTypes = buildMode === "package";
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";
+// minify: true keeps identifier mangling active even when sourcemaps are enabled.
+const minify = Bun.env.CLINE_SOURCEMAPS !== "1";
 
 const runBuild = async (
 	name: string,
@@ -35,12 +37,13 @@ await runBuild("node", {
 		"./src/index.ts",
 		"./src/automation/index.ts",
 		"./src/db/index.ts",
+		"./src/node.ts",
 		"./src/remote-config/index.ts",
 		"./src/storage/index.ts",
 	],
 	outdir: "./dist",
 	target: "node",
-	minify: true,
+	minify,
 	sourcemap,
 });
 
@@ -48,7 +51,7 @@ await runBuild("browser", {
 	entrypoints: ["./src/index.browser.ts"],
 	outdir: "./dist",
 	target: "browser",
-	minify: true,
+	minify,
 	sourcemap,
 	packages: "bundle",
 	external: ["zod"],

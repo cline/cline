@@ -3,6 +3,7 @@ import type { AgentFinishReason } from "@cline/shared";
 import type { SessionAccumulatedUsage } from "../runtime/host/runtime-host";
 import type { BuiltRuntime } from "../runtime/orchestration/session-runtime";
 import type { SessionRuntime } from "../runtime/orchestration/session-runtime-orchestrator";
+import type { SessionCompactionState } from "../session/models/session-compaction";
 import type { SessionRow } from "../session/models/session-row";
 import type { RootSessionArtifacts } from "../session/services/session-service";
 import type { SessionSource, SessionStatus } from "./common";
@@ -26,6 +27,8 @@ export type ActiveSession = {
 	aborting: boolean;
 	interactive: boolean;
 	persistedMessages?: LlmsProviders.MessageWithMetadata[];
+	compactionState?: SessionCompactionState;
+	compactionStateWriteQueue?: Promise<void>;
 	activeTeamRunIds: Set<string>;
 	pendingTeamRunUpdates: TeamRunUpdate[];
 	teamRunWaiters: Array<() => void>;

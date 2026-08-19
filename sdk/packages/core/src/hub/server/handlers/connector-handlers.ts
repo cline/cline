@@ -1,0 +1,308 @@
+import type {
+	ConfiguredConnectorRecord,
+	ConnectorChannelsResponse,
+	ConnectorFieldDef,
+	ConnectorPlatformDef,
+	HubCommandEnvelope,
+	HubReplyEnvelope,
+} from "@cline/shared";
+import {
+	buildConnectorConnectArgs,
+	CONNECTOR_PLATFORMS,
+	connectorChannelsFromPlatforms,
+	listConnectorCatalog,
+	mergeConnectorConnectArgs,
+	shouldIncludeConnectorField,
+} from "@cline/shared";
+import { withConnectorStore } from "@cline/shared/db";
+import { listActiveConnectors } from "../../../services/connectors/active-connectors";
+import { getActiveConnectorSupervisor } from "../../../services/connectors/connector-supervisor";
+import { captureToolUsage } from "../../../services/telemetry/core-events";
+import { errorReply, type HubTransportContext, okReply } from "./context";
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+	return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asString(value: unknown): string | undefined {
+	return typeof value === "string" ? value.trim() : undefined;
+}
+
+function normalizeStringRecord(value: unknown): Record<string, string> {
+	if (!isRecord(value)) {
+		return {};
+	}
+	const entries: Record<string, string> = {};
+	for (const [key, raw] of Object.entries(value)) {
+		if (typeof raw === "string") {
+			entries[key] = raw.trim();
+		}
+	}
+	return entries;
+}
+
+function listConfiguredConnectors(): ConfiguredConnectorRecord[] {
+	return withConnectorStore((store) => store.listConfigs())
+		.map((entry) => ({
+			id: entry.channel,
+			type: entry.type,
+			configuredAt: entry.configuredAt,
+			updatedAt: entry.updatedAt,
+		}))
+		.sort((left, right) => left.type.localeCompare(right.type));
+}
+
+function connectorChannelsPayload(): ConnectorChannelsResponse {
+	return {
+		available: connectorChannelsFromPlatforms(),
+		active: listActiveConnectors(),
+		configured: listConfiguredConnectors(),
+	};
+}
+
+function validateRequiredField(
+	field: ConnectorFieldDef,
+	values: Record<string, string>,
+): void {
+	if (field.required && !values[field.flag]?.trim()) {
+		throw new Error(`${field.label} is required`);
+	}
+}
+
+function buildActiveConnectorFieldValues(
+	platform: ConnectorPlatformDef,
+	values: Record<string, string>,
+): Record<string, string> {
+	const fieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		fieldValues[field.flag] = values[field.flag] ?? field.initialValue ?? "";
+	}
+
+	const activeFieldValues: Record<string, string> = {};
+	for (const field of platform.fields) {
+		if (!shouldIncludeConnectorField(field, fieldValues)) {
+			continue;
+		}
+		validateRequiredField(field, fieldValues);
+		activeFieldValues[field.flag] = fieldValues[field.flag];
+	}
+	return activeFieldValues;
+}
+
+function configureConnector(payload: unknown): ConnectorChannelsResponse {
+	if (!isRecord(payload)) {
+		throw new Error("connector.configure payload must be an object.");
+	}
+	const channel = asString(payload.channel);
+	if (!channel) {
+		throw new Error("channel is required");
+	}
+	const platform = CONNECTOR_PLATFORMS.find((entry) => entry.id === channel);
+	if (!platform) {
+		throw new Error(`unknown connector channel: ${channel}`);
+	}
+	const supported = new Set(listConnectorCatalog().map((entry) => entry.name));
+	if (!supported.has(platform.id)) {
+		throw new Error(`connector channel is not available: ${channel}`);
+	}
+
+	const values = normalizeStringRecord(payload.values);
+	const fieldValues = buildActiveConnectorFieldValues(platform, values);
+
+	const securityInput = isRecord(payload.security) ? payload.security : {};
+	const securityEnabled = securityInput.enabled === true;
+	const securityValues = normalizeStringRecord(securityInput.values);
+	if (securityEnabled && platform.security) {
+		for (const field of platform.security.fields) {
+			const value = securityValues[field.key];
+			if (!value) {
+				throw new Error(field.requiredMessage);
+			}
+			const validationError = field.validate?.(value);
+			if (validationError) {
+				throw new Error(validationError);
+			}
+		}
+	}
+	const security = securityEnabled
+		? { enabled: true, values: securityValues }
+		: { enabled: false, values: {} };
+	const configuredConnectArgs = buildConnectorConnectArgs(
+		platform,
+		fieldValues,
+		security,
+	);
+
+	withConnectorStore((store) =>
+		store.upsertConfig({
+			channel,
+			type: channel,
+			values: fieldValues,
+			security,
+			updateConnectArgs: (existing) =>
+				mergeConnectorConnectArgs(
+					platform,
+					existing.connection.connectArgs,
+					configuredConnectArgs,
+					{
+						replaceSecurityArgs:
+							existing.config?.security?.enabled === true || security.enabled,
+					},
+				),
+		}),
+	);
+	return connectorChannelsPayload();
+}
+
+function deleteConnectorConfig(payload: unknown): ConnectorChannelsResponse {
+	if (!isRecord(payload)) {
+		throw new Error("connector.delete_config payload must be an object.");
+	}
+	const channel = asString(payload.channel);
+	if (!channel) {
+		throw new Error("channel is required");
+	}
+	withConnectorStore((store) => store.deleteConfig(channel));
+	return connectorChannelsPayload();
+}
+
+function asStringArray(value: unknown): string[] {
+	return Array.isArray(value)
+		? value.filter((entry): entry is string => typeof entry === "string")
+		: [];
+}
+
+/**
+ * The hub is the single authority on which connector processes may run, so the
+ * supervisor has to exist before these commands mean anything. It is absent in
+ * hosts that embed the hub server without the daemon entrypoint.
+ */
+function requireSupervisor() {
+	const supervisor = getActiveConnectorSupervisor();
+	if (!supervisor) {
+		throw new Error(
+			"connector supervision is unavailable in this hub; start connectors with the CLI instead",
+		);
+	}
+	return supervisor;
+}
+
+function parseInstanceTarget(payload: unknown): {
+	channel: string;
+	instanceId: string;
+} {
+	if (!isRecord(payload)) {
+		throw new Error("payload must be an object.");
+	}
+	const channel = asString(payload.channel);
+	if (!channel) {
+		throw new Error("channel is required");
+	}
+	const instanceId = asString(payload.instanceId);
+	if (!instanceId) {
+		throw new Error("instanceId is required");
+	}
+	return { channel, instanceId };
+}
+
+async function startSupervisedConnector(payload: unknown) {
+	const { channel, instanceId } = parseInstanceTarget(payload);
+	const record = isRecord(payload) ? payload : {};
+	return await requireSupervisor().start({
+		channel,
+		instanceId,
+		args: asStringArray(record.args),
+		restart: record.restart === true,
+	});
+}
+
+async function stopSupervisedConnector(payload: unknown) {
+	const { channel, instanceId } = parseInstanceTarget(payload);
+	const record = isRecord(payload) ? payload : {};
+	const stopped = await requireSupervisor().stop({
+		channel,
+		instanceId,
+		disableAutostart: record.disableAutostart !== false,
+	});
+	return { stopped, channel, instanceId };
+}
+
+function isStateMutatingConnectorCommand(
+	command: HubCommandEnvelope["command"],
+) {
+	return (
+		command === "connector.configure" ||
+		command === "connector.delete_config" ||
+		command === "connector.start" ||
+		command === "connector.stop"
+	);
+}
+
+function captureConnectorCommandUsage(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+	success: boolean,
+): void {
+	if (!isStateMutatingConnectorCommand(envelope.command)) {
+		return;
+	}
+	captureToolUsage(ctx.telemetry, {
+		ulid: envelope.sessionId ?? envelope.requestId ?? "hub",
+		tool: envelope.command,
+		success,
+	});
+}
+
+export async function handleConnectorCommand(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	try {
+		if (envelope.command === "connector.channels") {
+			return okReply(envelope, connectorChannelsPayload());
+		}
+		if (envelope.command === "connector.configure") {
+			const payload = configureConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.delete_config") {
+			const payload = deleteConnectorConfig(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.start") {
+			const payload = await startSupervisedConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.stop") {
+			const payload = await stopSupervisedConnector(envelope.payload);
+			captureConnectorCommandUsage(ctx, envelope, true);
+			return okReply(envelope, payload);
+		}
+		if (envelope.command === "connector.supervised") {
+			return okReply(envelope, { supervised: requireSupervisor().list() });
+		}
+		return errorReply(
+			envelope,
+			"unsupported_connector_command",
+			`unsupported connector command: ${envelope.command}`,
+		);
+	} catch (error) {
+		captureConnectorCommandUsage(ctx, envelope, false);
+		return errorReply(
+			envelope,
+			"connector_command_failed",
+			error instanceof Error ? error.message : String(error),
+		);
+	}
+}
+
+export const __test__ = {
+	configureConnector,
+	connectorChannelsPayload,
+	deleteConnectorConfig,
+	startSupervisedConnector,
+	stopSupervisedConnector,
+};

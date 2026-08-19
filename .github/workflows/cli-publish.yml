@@ -102,15 +102,15 @@ jobs:
           fi
 
           VERSION="${TAG#cli-v}"
-          PACKAGE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
+          PACKAGE_VERSION=$(node -p "require('./apps/cli/package.json').version")
 
           if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
-            echo "sdk/apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            echo "apps/cli/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
             exit 1
           fi
 
           if ! printf "%s\n" "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "sdk/apps/cli/package.json has invalid version: ${VERSION}"
+            echo "apps/cli/package.json has invalid version: ${VERSION}"
             exit 1
           fi
 
@@ -147,7 +147,7 @@ jobs:
 
       - name: Build platform binaries
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
@@ -172,7 +172,7 @@ jobs:
           )
 
           for package_name in "${EXPECTED[@]}"; do
-            dir="sdk/apps/cli/dist/${package_name#@cline/}"
+            dir="apps/cli/dist/${package_name#@cline/}"
             if [ ! -f "$dir/package.json" ]; then
               echo "Missing package manifest: $dir/package.json"
               exit 1
@@ -194,7 +194,7 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag latest
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
 
       - name: Get Previous CLI Tag
         id: prev_tag
@@ -207,8 +207,8 @@ jobs:
       - name: Get Changelog Entry
         id: changelog
         run: |
-          # Grab content between the first "## " header and the next one in sdk/apps/cli/CHANGELOG.md
-          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' sdk/apps/cli/CHANGELOG.md)
+          # Grab content between the first "## " header and the next one in apps/cli/CHANGELOG.md
+          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/cli/CHANGELOG.md)
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -349,7 +349,7 @@ jobs:
         if: steps.check_commits.outputs.skip != 'true'
         id: version
         run: |
-          BASE_VERSION=$(node -p "require('./sdk/apps/cli/package.json').version")
+          BASE_VERSION=$(node -p "require('./apps/cli/package.json').version")
           TIMESTAMP=$(date +%s)
           VERSION="${BASE_VERSION}-nightly.${TIMESTAMP}"
 
@@ -365,17 +365,17 @@ jobs:
         run: |
           node -e '
             const fs = require("node:fs");
-            const path = "sdk/apps/cli/package.json";
+            const path = "apps/cli/package.json";
             const pkg = JSON.parse(fs.readFileSync(path, "utf8"));
             pkg.version = process.env.VERSION;
             fs.writeFileSync(path, `${JSON.stringify(pkg, null, "\t")}\n`);
           '
-          cat sdk/apps/cli/package.json | grep '"version"'
+          cat apps/cli/package.json | grep '"version"'
 
       - name: Build platform binaries
         if: steps.check_commits.outputs.skip != 'true'
         run: bun script/build.ts --install-native-variants --skip-sdk-build
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
         env:
           TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
           ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
@@ -401,7 +401,7 @@ jobs:
           )
 
           for package_name in "${EXPECTED[@]}"; do
-            dir="sdk/apps/cli/dist/${package_name#@cline/}"
+            dir="apps/cli/dist/${package_name#@cline/}"
             if [ ! -f "$dir/package.json" ]; then
               echo "Missing package manifest: $dir/package.json"
               exit 1
@@ -424,7 +424,7 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: "true"
         run: bun script/publish-npm.ts --tag nightly
-        working-directory: sdk/apps/cli
+        working-directory: apps/cli
 
       - name: Summary
         if: steps.check_commits.outputs.skip != 'true'

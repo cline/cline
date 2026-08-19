@@ -2,6 +2,7 @@ import { mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { version as corePackageVersion } from "../../package.json";
 import type { ProviderSettings } from "../types/provider-settings";
 
 function createProviderSettingsManager(settings?: ProviderSettings) {
@@ -143,8 +144,10 @@ describe("prepareLocalRuntimeBootstrap", () => {
 					},
 				],
 				failures: [],
+				pluginPaths: [],
 				warnings: [],
 			})),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
 		}));
 
 		const { prepareLocalRuntimeBootstrap } = await import(
@@ -176,6 +179,7 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
+				registerMcpServer: () => {},
 			},
 			{},
 		);
@@ -228,9 +232,14 @@ describe("prepareLocalRuntimeBootstrap", () => {
 									},
 								],
 					failures: [],
+					pluginPaths:
+						providerId === "cline" && modelId === "anthropic/claude-haiku-4.5"
+							? ["/tmp/compatible-plugin.js"]
+							: [],
 					warnings: [],
 				}),
 			),
+			resolvePluginSkillDirectoriesFromPaths: vi.fn(() => []),
 		}));
 
 		const { prepareLocalRuntimeBootstrap } = await import(
@@ -262,11 +271,57 @@ describe("prepareLocalRuntimeBootstrap", () => {
 				registerRule: () => {},
 				registerProvider: () => {},
 				registerAutomationEventType: () => {},
+				registerMcpServer: () => {},
 			},
 			{},
 		);
 
 		expect(registeredTools).toEqual(["compatible_tool"]);
+	});
+
+	it("threads active plugin skill directories into the runtime builder input", async () => {
+		vi.resetModules();
+		resetModulesAfterEach = true;
+		const activePluginPath = "/tmp/review-plugin/index.js";
+		const activeSkillDirectory = "/tmp/review-plugin/skills";
+		const resolvePluginSkillDirectoriesFromPaths = vi.fn(() => [
+			activeSkillDirectory,
+		]);
+		vi.doMock("../extensions/plugin/plugin-config-loader", () => ({
+			resolveAndLoadAgentPlugins: vi.fn(async () => ({
+				extensions: [],
+				failures: [],
+				pluginPaths: [activePluginPath],
+				warnings: [],
+			})),
+			resolvePluginSkillDirectoriesFromPaths,
+		}));
+
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			localRuntime: {
+				configExtensions: ["plugins", "skills"],
+			},
+			sessionId: "sess-1",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(resolvePluginSkillDirectoriesFromPaths).toHaveBeenCalledWith([
+			activePluginPath,
+		]);
+		expect(bootstrap.runtimeBuilderInput.pluginSkillDirectories).toEqual([
+			activeSkillDirectory,
+		]);
 	});
 
 	it("threads defaultFetch into providerConfig.fetch", async () => {
@@ -338,6 +393,145 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 
 		expect(bootstrap.providerConfig.fetch).toBeUndefined();
+	});
+
+	it.each([
+		"cline",
+		"cline-pass",
+	])("adds required source request headers for %s", async (providerId) => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = createStartInput();
+		input.config.providerId = providerId;
+		input.config.modelId =
+			providerId === "cline-pass"
+				? "cline-pass/test-model"
+				: "anthropic/claude-haiku-4.5";
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+			providerConfig: {
+				providerId: string;
+				headers: Record<string, string>;
+			};
+		};
+		config.headers = {
+			"X-CLIENT-TYPE": "config-client",
+			"X-Task-ID": "config-task",
+			"x-config": "config",
+			"x-shared": "config-wins",
+		};
+		config.providerConfig = {
+			providerId,
+			headers: {
+				"X-CLIENT-VERSION": "provider-config-version",
+				"x-provider-config": "provider-config",
+			},
+		};
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			localRuntime: {
+				extensionContext: {
+					client: { name: "cline-cli", version: "3.0.38" },
+				},
+			},
+			sessionId: "sess-cline-headers",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: providerId,
+				model: input.config.modelId,
+				headers: {
+					"X-CLIENT-TYPE": "stored-client",
+					"x-stored": "stored",
+					"x-shared": "stored-loses",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"User-Agent": "Cline/3.0.38",
+			"X-IS-MULTIROOT": "false",
+			"X-CLIENT-TYPE": "cline-cli",
+			"X-CLIENT-VERSION": "3.0.38",
+			"X-PLATFORM": "cli",
+			"X-PLATFORM-VERSION": "3.0.38",
+			"X-CORE-VERSION": corePackageVersion,
+			"X-Task-ID": "sess-cline-headers",
+			"x-config": "config",
+			"x-provider-config": "provider-config",
+			"x-shared": "config-wins",
+			"x-stored": "stored",
+		});
+	});
+
+	it("uses host request headers for Cline providers on core sessions", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const input = {
+			...createStartInput(),
+			source: "core" as const,
+		};
+		const config = input.config as typeof input.config & {
+			headers: Record<string, string>;
+		};
+		config.headers = { "x-config": "config" };
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input,
+			localRuntime: {
+				extensionContext: {
+					client: {
+						name: "VSCode Extension",
+						version: "9.9.9",
+						platform: "Visual Studio Code",
+						platformVersion: "1.103.0",
+						isMultiRoot: true,
+					},
+				},
+			},
+			sessionId: "sess-non-cli",
+			providerSettingsManager: createProviderSettingsManager({
+				provider: "cline",
+				model: input.config.modelId,
+				headers: {
+					"x-stored": "stored",
+				},
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		expect(bootstrap.providerConfig.headers).toMatchObject({
+			"HTTP-Referer": "https://cline.bot",
+			"X-Title": "Cline",
+			"User-Agent": "Cline/9.9.9",
+			"X-IS-MULTIROOT": "true",
+			"X-CLIENT-TYPE": "VSCode Extension",
+			"X-CLIENT-VERSION": "9.9.9",
+			"X-PLATFORM": "Visual Studio Code",
+			"X-PLATFORM-VERSION": "1.103.0",
+			"X-CORE-VERSION": corePackageVersion,
+			"X-Task-ID": "sess-non-cli",
+			"x-config": "config",
+			"x-stored": "stored",
+		});
 	});
 
 	it("adds Codex backend headers for openai-codex from stored OAuth settings", async () => {

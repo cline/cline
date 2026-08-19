@@ -1,11 +1,8 @@
-import { VSCodeCheckbox } from "@vscode/webview-ui-toolkit/react"
 import React, { useEffect, useRef, useState } from "react"
 import { useClickAway } from "react-use"
-import { useExtensionState } from "@/context/ExtensionStateContext"
 import { useAutoApproveActions } from "@/hooks/useAutoApproveActions"
-import { getAsVar, VSC_DESCRIPTION_FOREGROUND, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
+import { getAsVar, VSC_TITLEBAR_INACTIVE_FOREGROUND } from "@/utils/vscStyles"
 import AutoApproveMenuItem from "./AutoApproveMenuItem"
-import { updateAutoApproveSettings } from "./AutoApproveSettingsAPI"
 import { ActionMetadata } from "./types"
 
 const breakpoint = 500
@@ -18,7 +15,6 @@ interface AutoApproveModalProps {
 }
 
 const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVisible, buttonRef, ACTION_METADATA }) => {
-	const { autoApprovalSettings } = useExtensionState()
 	const { isChecked, updateAction } = useAutoApproveActions()
 	const modalRef = useRef<HTMLDivElement>(null)
 	const itemsContainerRef = useRef<HTMLDivElement>(null)
@@ -105,35 +101,6 @@ const AutoApproveModal: React.FC<AutoApproveModalProps> = ({ isVisible, setIsVis
 					{ACTION_METADATA.map((action) => (
 						<AutoApproveMenuItem action={action} isChecked={isChecked} key={action.id} onToggle={updateAction} />
 					))}
-				</div>
-
-				{/* Separator line */}
-				<div
-					style={{
-						height: "0.5px",
-						background: getAsVar(VSC_DESCRIPTION_FOREGROUND),
-						opacity: 0.1,
-						margin: "8px 0",
-					}}
-				/>
-
-				{/* Notifications toggle */}
-				<div className="flex items-center gap-2">
-					<VSCodeCheckbox
-						checked={autoApprovalSettings.enableNotifications}
-						onChange={async (e: any) => {
-							const checked = e.target.checked === true
-							await updateAutoApproveSettings({
-								...autoApprovalSettings,
-								version: (autoApprovalSettings.version ?? 1) + 1,
-								enableNotifications: checked,
-							})
-						}}>
-						<span className="text-sm">Enable notifications</span>
-					</VSCodeCheckbox>
-				</div>
-				<div className="mt-1 text-xs text-muted-foreground">
-					Notifications may show abbreviated tool details for safety and privacy.
 				</div>
 			</div>
 		</div>

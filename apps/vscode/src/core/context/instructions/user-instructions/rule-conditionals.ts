@@ -9,7 +9,6 @@
  * - The `paths` conditional matches if any candidate path matches any glob pattern.
  * - Candidate paths are expected to be workspace-root-relative POSIX paths.
  */
-import * as path from "path"
 import picomatch from "picomatch"
 
 export type RuleEvaluationContext = {
@@ -19,8 +18,6 @@ export type RuleEvaluationContext = {
 	 */
 	paths?: string[]
 }
-
-export type ConditionalEvaluator = (frontmatterValue: unknown, context: RuleEvaluationContext) => boolean
 
 type MatchedConditions = Record<string, string[]>
 
@@ -153,15 +150,4 @@ export function extractPathLikeStrings(text: string): string[] {
 		}
 	}
 	return result
-}
-
-/**
- * Normalize an absolute filesystem path to a workspace-root-relative POSIX path.
- * Returns undefined if the absolute path is not within the given root.
- */
-export function toWorkspaceRelativePosixPath(absPath: string, workspaceRoot: string): string | undefined {
-	const rel = path.relative(workspaceRoot, absPath)
-	// Outside the root
-	if (rel.startsWith("..") || path.isAbsolute(rel)) return undefined
-	return toPosix(rel)
 }

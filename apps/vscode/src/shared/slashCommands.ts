@@ -6,9 +6,13 @@ export interface SlashCommand {
 }
 
 export const BASE_SLASH_COMMANDS: SlashCommand[] = [
+	// `/newtask` is an alias of `/compact`: condensing achieves its goal
+	// (continue working with a fresh, summarized context window) without the
+	// legacy new_task tool. The webview intercepts all three spellings and
+	// runs the condense RPC (see useMessageHandlers.handleSendMessage).
 	{
 		name: "newtask",
-		description: "Create a new task with context from the current task",
+		description: "Condenses the current task and continues with a fresh context window",
 		section: "default",
 		cliCompatible: true,
 	},
@@ -18,83 +22,22 @@ export const BASE_SLASH_COMMANDS: SlashCommand[] = [
 		section: "default",
 		cliCompatible: true,
 	},
+	// NOTE: legacy's /newrule and /reportbug are hidden until their prompt
+	// expansions are ported to the SDK runtime — without expansion the literal
+	// command text reaches the model, which silently degrades to plain chat.
 	{
-		name: "smol",
+		name: "compact",
 		description: "Condenses your current context window",
 		section: "default",
 		cliCompatible: true,
 	},
 	{
-		name: "newrule",
-		description: "Create a new Cline rule based on your conversation",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "reportbug",
-		description: "Create a Github issue with Cline",
+		name: "smol",
+		description: "Alias for /compact",
 		section: "default",
 		cliCompatible: true,
 	},
 ]
 
 // VS Code-only slash commands
-export const VSCODE_ONLY_COMMANDS: SlashCommand[] = [
-	{
-		name: "explain-changes",
-		description: "Explain code changes between git refs (PRs, commits, branches, etc.)",
-		section: "default",
-	},
-]
-
-// CLI-only slash commands (handled locally, not sent to backend)
-export const CLI_ONLY_COMMANDS: SlashCommand[] = [
-	{
-		name: "help",
-		description: "Learn how to use Cline CLI",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "settings",
-		description: "Change API provider, auto-approve, and feature settings",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "models",
-		description: "Change the model used for the current mode",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "history",
-		description: "Browse and search task history",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "clear",
-		description: "Clear the current task and start fresh",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "exit",
-		description: "Alternative to Ctrl+C",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "q",
-		description: "Alternative to Ctrl+C",
-		section: "default",
-		cliCompatible: true,
-	},
-	{
-		name: "skills",
-		description: "View and manage installed skills",
-		section: "default",
-		cliCompatible: true,
-	},
-]
+export const VSCODE_ONLY_COMMANDS: SlashCommand[] = []

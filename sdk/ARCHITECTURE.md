@@ -145,9 +145,121 @@ event payload and `source` field.
 4. Hosts attach and detach from shared sessions without stopping the authority runtime, so another client can keep streaming or resume the same session later.
 5. The hub-hosted runtime executes the agent loop using `@cline/agents` and `@cline/llms`.
 6. `@cline/core` hub services broker sessions, events, approvals, schedules, and client-owned runtime capabilities such as session-local tool executors.
-7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state.
+7. Hub event forwarding preserves structured streaming lifecycle boundaries: text/reasoning deltas, final text/reasoning completion, tool start/update/finish, and agent done events are translated across the hub transport so host UIs can reliably close loading/streaming state. `run.started` is emitted only after the target session is resolved and carries the originating command's `requestId` and `clientId`, allowing multi-client hosts to correlate delivery acknowledgments.
 8. Hub client adapters exported from `@cline/core/hub` (`NodeHubClient`, `HubSessionClient`, `HubUIClient`, `connectToHub`) translate command/reply and event streams into host-facing APIs.
 9. Hub `session.get` records include both canonical root-session usage and explicit aggregate usage from the hub-owned `RuntimeHost`, so attached clients can intentionally render either root-only or root-plus-teammate costs without replaying event streams.
+
+Command progress follows the same runtime event boundary as other agent output.
+Shell executors emit structured stdout/stderr chunks through
+`AgentToolContext.emitUpdate`; the agent runtime projects them as tool
+`content_update` events, and the Hub publishes them as `tool.updated` with the
+session, tool-call, and tool identifiers intact. Hub clients reconstruct the
+tool update for their host-facing event stream. Client-contributed executors
+must forward capability progress through this same path rather than creating a
+host-specific side channel. The built-in shell executor coalesces output on a
+short interval and bounds each stream's pending tail before it enters the event
+pipeline; consumers independently coalesce and cap their rendered scrollback.
+
+Proceed-while-running is an explicit command lifecycle, separate from client
+or session detachment. A shell process advertises detachability only after it
+has spawned and registered with the host-scoped command execution controller.
+The client sends `run.proceed_while_running` with the owning `sessionId` and,
+when available, `toolCallId`; the Hub delegates to the authoritative
+`RuntimeHost`, which releases every matching registered process from the tool
+call. The executor removes its abort and timeout ownership, resolves the tool
+call with the current bounded output and a temporary log path, and continues
+draining the process into that log. Detached logs are size-capped, retained for
+a bounded inspection window after the command exits, and then their temporary
+directories are removed. Every process that constructs a `LocalRuntimeHost`
+starts one detached-log reconciliation: it reaps completed logs outside the
+retention window, reschedules retained logs, and follows active detached-command
+identities until they exit, so cleanup does not depend on timers from the process
+that launched the command. Hub daemons and direct embedders therefore share the
+same detachment and restart lifecycle instead of relying on a daemon-specific
+entrypoint. Active-command markers pair the PID with a process-generation start
+token, preventing an unrelated process that later reuses the PID from extending
+the log lifetime. Completion markers distinguish a live, possibly silent command
+from a completed log. Process probes distinguish an absent process from an
+unavailable identity provider. Transient probe failures retain the active marker
+and are never treated as evidence of command completion. Reconciliation keeps
+the advertised log and retries until the provider can prove that the original
+process still exists, its PID belongs to a replacement process, or the process
+is absent. A host exit alone never starts the retention window for a surviving
+command; the replacement host continues polling the process identity and begins
+retention only after the command ends. During persistent provider unavailability,
+the capped log may outlive the normal retention window because preserving a
+potentially live command's advertised path takes precedence over guessing that
+it exited. A detached client connection alone never changes process ownership or
+command execution.
+
+### Generated Media Operation and Event Flow
+
+Model modalities and provider operations are separate facts. Modalities describe
+values a model accepts or produces; the explicit operation selects the provider
+transport. Language models keep the normal agent loop even when they can emit
+media, while `operation: "image-generation"` selects `generateImage` and
+`operation: "transcription"` selects a declared speech-to-text transport.
+Operation-specific execution variants such as recorded and realtime
+transcription live in `operationModes`, not in the generic capability list.
+Specialized operations fail closed unless the provider manifest and adapter
+both implement them, so an OpenAI-compatible chat endpoint never implies an
+image, audio, transcription, or video endpoint.
+
+Generated media crosses package boundaries as follows:
+
+1. `@cline/llms` validates provider output once and creates canonical
+   `GeneratedMedia` values. The contract carries a stable ID, modality, MIME type,
+   and a discriminated base64, HTTP(S), or artifact source. Current producers emit
+   images; audio, video, and large artifact-backed files use the same contract.
+2. Provider model tools are adapters, not raw AI SDK tools. An adapter owns its
+   native result projection into canonical media. The generic stream layer
+   coalesces preliminary or repeated results, enforces the per-turn media budget,
+   and persists only a compact activity summary rather than duplicating base64 in
+   model-tool metadata.
+3. `@cline/agents` appends media events at their exact stream position in the
+   assistant message. That message is the canonical replay and persistence source;
+   observational provider-tool activity remains display-only metadata.
+4. `@cline/core` projects live media as `content_end(media)`. The hub publishes
+   `assistant.media`, preserving the same media ID, and clients deduplicate live
+   and hydrated content by that ID.
+5. Web clients share `GeneratedMediaContent` from `@cline/ui` for image, audio,
+   video, file, and unavailable-source rendering. Inline bytes are exposed only
+   through short-lived browser-owned object URLs; remote and artifact sources
+   require a client-owned trusted resolver. CLI and ACP clients provide
+   transport-appropriate materialization or fallback output without changing
+   the canonical message.
+
+Image-edit inference is intentionally local: when a dedicated image model accepts
+image input and the current user message has no explicit image, only an image on
+the immediately preceding assistant message is reused. Older images are not
+implicitly attached across intervening turns.
+
+Session history provenance keeps the client surface and initiation mode separate.
+`StartSessionInput.source` identifies the client (`vscode`, `desktop`, `cli`,
+`core`, and so on), while top-level `StartSessionInput.mode` identifies how the
+session began (`user`, `automation`, `subagent`, or `team`). The persisted messages
+envelope records both values, along with client version and child-session
+lineage. Missing initiation mode defaults to `user`; automation runtime adapters
+must pass `mode: "automation"` explicitly.
+
+Root-session persistence is lazy. Starting a runtime allocates its session ID
+and keeps configuration or seeded history in memory, but does not create a
+database row, manifest, or messages artifact. The first accepted user turn
+persists that same ID and its artifacts. Closing a runtime before a user turn
+therefore leaves no empty history entry, and persistence code never allocates a
+replacement ID for an unknown session.
+
+Workspace bootstrap is owned by the runtime that executes the session. Hub
+clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
+the hub-side execution host can place the session in the shared chat
+workspace on its own filesystem at
+`<cline-data-dir>/workspaces/chat` (by default
+`~/.cline/data/workspaces/chat`). The chat workspace is seeded with an
+`AGENTS.md` rules file that tells the agent to treat the session as a chat
+and to create a named project folder only when the user asks for one.
+The resolved paths are returned in the session snapshot and are the source of
+truth for client-side manifests; transport clients must not invent a local path
+for a remote runtime.
 
 Detached daemon startup retries transient `ETXTBSY` spawn failures before
 polling discovery. This covers package-manager updates that replace the CLI
@@ -166,9 +278,24 @@ public health/build metadata, but they cannot attach to sessions, issue
 commands, or stop the daemon.
 
 Local hub rediscovery is limited to managed shared-daemon endpoints obtained
-through discovery or `ensure*HubServer(...)` startup paths. Explicit endpoints,
-including loopback URLs such as `ws://127.0.0.1:<port>/hub`, are sticky exact
-targets: reconnects may retry the same socket URL, but command recovery and
+through discovery or `ensure*HubServer(...)` startup paths. Managed local hubs
+must match both the supported wire protocol and the current Hub build identity;
+a protocol-compatible daemon from another build is retired before its
+replacement starts so upgrades cannot keep executing stale runtime code. SDK
+builds embed a deterministic fingerprint of the runtime sources, package
+manifests, build configuration, and dependency lock, so the identity changes
+with the executable Hub code even before package versions are bumped. Builds
+also embed a build epoch that orders them in time: when the fingerprints
+differ, a managed Hub produced *after* the client's own build is reused over
+the compatible wire protocol instead of being retired (replacing it would
+downgrade the daemon), and the client's build-mismatch watcher prompts the
+user to update and restart. Hubs that are older, unordered, or missing build
+metadata are retired and replaced as before, so two concurrently running
+installations converge on the newest build instead of repeatedly replacing
+each other's daemons.
+Explicit endpoints, including loopback URLs such as
+`ws://127.0.0.1:<port>/hub`, are sticky exact targets and remain protocol-only:
+reconnects may retry the same socket URL, but command recovery and
 startup-deadlock recovery must not replace them with the workspace-discovered
 hub. This keeps custom local hubs and remote hubs from silently drifting to a
 different process.
@@ -180,6 +307,15 @@ different process.
 3. Hub-required flows such as `cline hub`, schedules, connectors, and `--zen` may still call the explicit ensure path because those commands require a live hub before proceeding.
 4. Resume hydration is deferred until after `renderOpenTui()` so loading previous messages cannot block initial TUI paint.
 5. Any future CLI/TUI startup work should follow the same rule: daemon startup, discovery polling, provider catalog refreshes, file indexing, and resume reads must be background or user-action gated unless a command explicitly requires their result before output.
+
+### Connector Persistence and Recovery
+
+1. `@cline/shared/db` owns the low-level SQLite connector store and the one-time legacy JSON import.
+2. Dashboard configuration and CLI connection state are recorded separately. Configuration edits replace only dashboard-owned connector and security flags in stored reconnect arguments, preserving CLI-only runtime options, and refresh arguments only for connectors that have previously started successfully.
+3. `@cline/core` owns connector autostart persistence and reconnect orchestration. The detached hub daemon is the sole startup reconnect owner, preventing dashboard startup from racing it and launching duplicate processes.
+4. Detached connector starts are persisted only after a child process is created. Internal detached children preserve that state when they exit, while a clean user-interactive exit disables autostart.
+5. CLI and dashboard hosts pass their connector CLI launch specification through the detached process environment. The package-owned daemon entrypoint uses that specification to start connector reconnect wrappers without importing application code.
+6. The detached hub entrypoint exposes `hubDaemonReady`, which resolves only after the WebSocket server is listening. It begins reconnect attempts after signaling readiness, and reconnect failures remain best-effort rather than taking down the hub.
 
 ### Remote-Config Managed Runtime
 
@@ -323,15 +459,20 @@ Context compaction is owned by `core`.
 
 - `@cline/agents` owns the generic turn-preparation seam:
   - run normal lifecycle hooks
-  - allow hosts to rewrite message history or system prompt before the provider call
+  - allow hosts to project message history or system prompt before the provider call
+  - keep its canonical runtime transcript append-only when a projection is returned
 - `@cline/core` owns compaction policy:
   - inject a prepare-turn pipeline for root sessions
   - choose between built-in strategies through a registry map
+  - persist the latest compacted working context as a session compaction artifact
   - keep compaction logic out of the low-level agent message builder
 
 Design implications:
 
 - compaction is a context-pipeline concern owned by `core`
+- canonical session history lives in the session messages artifact at full fidelity; compaction state lives separately in `${sessionId}.compaction.json`
+- resume loads the canonical transcript for history/debugging and, when present, reuses the latest compaction state only after validating a hash of the canonical prefix covered by that state; valid state is projected by appending canonical messages written after the compaction boundary
+- sessions that were already persisted with compacted messages before this model are best-effort only because the omitted original transcript is not recoverable from the compacted artifact
 - `agents` stays focused on the stateless loop and provider/tool orchestration
 - delegated/subagent flows should inherit compaction behavior through core session config, not through a separate agent-level compaction hook surface
 
@@ -347,6 +488,25 @@ Design implications:
 
 - avoid mixing config discovery code into runtime/plugin code
 - avoid creating thin runtime wrapper files when a helper is fundamentally projecting watcher state
+
+Sandboxed plugin subprocesses are session-local but lazily recreatable. Core
+reclaims a sandbox after 30 minutes without an in-flight RPC call (configurable
+through `PluginSandboxOptions.idleTimeoutMs` or
+`CLINE_PLUGIN_IDLE_TIMEOUT_MS`), and the next plugin call starts and
+reinitializes it transparently. Pending requests are associated with the child
+generation that owns them so an old process exiting cannot reject work sent to
+its replacement. The bootstrap also exits when its parent IPC channel
+disconnects. The parent is the single authority for idle shutdown so competing
+deadlines cannot terminate a child while the parent is dispatching new work.
+
+Design implications:
+
+- sandbox process count scales with recently active sessions, not every session
+  observed since hub startup
+- eviction never interrupts an in-flight plugin call
+- in-process plugin state is ephemeral across idle eviction; durable plugin
+  state belongs in persistent storage
+- a sandbox must never outlive its owning hub process
 
 ## Architectural Constraints
 
@@ -425,9 +585,11 @@ orchestrator used by core and hub layers.
    renews the run claim while execution is active, writes a markdown report
    per run, and transactionally updates status. File specs can constrain
    tool availability, config extension loading (`rules`, `skills`,
-   `plugins`), session source, and a notes directory that is injected into
-   the system prompt. Event runs include the normalized trigger event context
-   in the prompt.
+   `plugins`), trigger source, and a notes directory that is injected into
+   the system prompt. The automation runtime adapters explicitly persist
+   `mode: "automation"` for every run and record the spec-defined trigger
+   source as `sessionHistoryOrigin.trigger` in session metadata. Event runs
+   include the normalized trigger event context in the prompt.
 8. **Reports** (`cron/reports/cron-report-writer.ts`): writes
    `.cline/cron/reports/<run-id>.md` with run frontmatter plus
    `## Summary`, `## Usage`, `## Tool Calls`, and, for event runs,

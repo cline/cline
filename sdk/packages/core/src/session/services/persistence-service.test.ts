@@ -11,6 +11,7 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { SessionSource } from "../../types/common";
+import { createSessionCompactionState } from "../models/session-compaction";
 import { FileSessionService } from "../services/file-session-service";
 import { CoreSessionService } from "../services/session-service";
 
@@ -36,6 +37,223 @@ describe("UnifiedSessionPersistenceService", () => {
 		for (const dir of tempDirs.splice(0)) {
 			rmSync(dir, { recursive: true, force: true });
 		}
+	});
+
+	it("does not allocate a session while rejecting messages for an unknown id", async () => {
+		const sessionsDir = mkdtempSync(
+			join(tmpdir(), "unknown-session-messages-"),
+		);
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "not-allocated";
+
+		await expect(
+			service.persistSessionMessages(sessionId, [
+				{ role: "user", content: "do not orphan me" },
+			]),
+		).rejects.toThrow(
+			`Cannot persist messages for unknown session: ${sessionId}`,
+		);
+		expect(await service.listSessions()).toEqual([]);
+		expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
+	});
+
+	sqliteIt(
+		"re-adopts the session row from the on-disk manifest when the DB row is missing",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "readopt-row-db-"));
+			const sessionsDir = mkdtempSync(join(tmpdir(), "readopt-row-"));
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "resumed-session-without-row";
+			const artifacts = await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: true,
+				provider: "anthropic",
+				model: "claude-sonnet",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "hello",
+				startedAt: "2026-01-01T00:00:00.000Z",
+			});
+			// Simulate a rebuilt session DB: artifacts on disk, row gone.
+			store.run("DELETE FROM sessions WHERE session_id = ?", [sessionId]);
+
+			await service.persistSessionMessages(sessionId, [
+				{ role: "user", content: "hello again" },
+			]);
+
+			const payload = JSON.parse(
+				readFileSync(artifacts.messagesPath, "utf8"),
+			) as { messages?: unknown[] };
+			expect(payload.messages).toHaveLength(1);
+			const rows = await service.listSessions();
+			expect(rows.map((row) => row.sessionId)).toContain(sessionId);
+		},
+	);
+
+	it("persists compaction state as a separate session artifact", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-artifact-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "session-with-compaction";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "anthropic",
+			model: "claude-sonnet",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "full transcript" },
+		];
+		const compactedMessages = [
+			{ id: "summary", role: "user" as const, content: "summary" },
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages,
+			conversationId: "conv-1",
+			updatedAt: "2026-01-01T00:00:01.000Z",
+		});
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).not.toHaveProperty("compaction_path");
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(false);
+
+		await service.persistSessionMessages(sessionId, sourceMessages);
+		await service.persistSessionCompactionState(sessionId, state);
+
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).toHaveProperty("compaction_path", artifacts.compactionPath);
+		const messagesPayload = JSON.parse(
+			readFileSync(artifacts.messagesPath, "utf8"),
+		) as { messages?: unknown[] };
+		const compactionPayload = JSON.parse(
+			readFileSync(artifacts.compactionPath ?? "", "utf8"),
+		) as { messages?: unknown[]; source_message_count?: number };
+		expect(messagesPayload.messages).toHaveLength(1);
+		expect(compactionPayload).toMatchObject({
+			source_message_count: 1,
+			messages: compactedMessages,
+		});
+		await expect(
+			service.readSessionCompactionState(sessionId),
+		).resolves.toMatchObject({
+			source_message_count: 1,
+			messages: compactedMessages,
+		});
+	});
+
+	it("deletes persisted compaction state without mutating canonical messages", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-delete-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "session-delete-compaction";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "anthropic",
+			model: "claude-sonnet",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const sourceMessages = [
+			{ id: "u1", role: "user" as const, content: "full transcript" },
+		];
+		const state = createSessionCompactionState({
+			sourceMessages,
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:01.000Z",
+		});
+
+		await service.persistSessionMessages(sessionId, sourceMessages);
+		await service.persistSessionCompactionState(sessionId, state);
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(true);
+		await service.deleteSessionCompactionState(sessionId);
+
+		expect(existsSync(artifacts.messagesPath)).toBe(true);
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(false);
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).not.toHaveProperty("compaction_path");
+		await expect(
+			service.readSessionCompactionState(sessionId),
+		).resolves.toBeUndefined();
+	});
+
+	it("adds compaction path to old manifests only when sidecar is written", async () => {
+		const sessionsDir = mkdtempSync(join(tmpdir(), "compaction-old-manifest-"));
+		tempDirs.push(sessionsDir);
+		const service = new FileSessionService(sessionsDir);
+		const sessionId = "session-old-manifest";
+		const artifacts = await service.createRootSessionWithArtifacts({
+			sessionId,
+			source: SessionSource.CLI,
+			pid: process.pid,
+			interactive: true,
+			provider: "anthropic",
+			model: "claude-sonnet",
+			cwd: "/tmp/project",
+			workspaceRoot: "/tmp/project",
+			enableTools: true,
+			enableSpawn: true,
+			enableTeams: false,
+			startedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const manifest = JSON.parse(
+			readFileSync(artifacts.manifestPath, "utf8"),
+		) as {
+			compaction_path?: string;
+		};
+		delete manifest.compaction_path;
+		writeFileSync(
+			artifacts.manifestPath,
+			`${JSON.stringify(manifest, null, 2)}\n`,
+			"utf8",
+		);
+		const state = createSessionCompactionState({
+			sourceMessages: [
+				{ id: "u1", role: "user" as const, content: "full transcript" },
+			],
+			compactedMessages: [
+				{ id: "summary", role: "user" as const, content: "summary" },
+			],
+			updatedAt: "2026-01-01T00:00:01.000Z",
+		});
+
+		await service.persistSessionCompactionState(sessionId, state);
+
+		expect(existsSync(artifacts.compactionPath ?? "")).toBe(true);
+		expect(
+			JSON.parse(readFileSync(artifacts.manifestPath, "utf8")),
+		).toHaveProperty("compaction_path", artifacts.compactionPath);
 	});
 
 	sqliteIt(
@@ -364,6 +582,8 @@ describe("UnifiedSessionPersistenceService", () => {
 			await service.createRootSessionWithArtifacts({
 				sessionId: rootSessionId,
 				source: SessionSource.CLI,
+				mode: "user",
+				version: "3.99.0",
 				pid: process.pid,
 				interactive: false,
 				provider: "anthropic",
@@ -439,14 +659,30 @@ describe("UnifiedSessionPersistenceService", () => {
 				agent?: string;
 				sessionId?: string;
 				taskType?: string;
+				origin?: {
+					source?: string;
+					mode?: string;
+					sessionId?: string;
+					parentThreadId?: string;
+					subagent?: string;
+					version?: string;
+				};
 				messages: Array<Record<string, unknown>>;
 			};
 			const user = payload.messages[0] as Record<string, unknown>;
 			const assistant = payload.messages[1] as Record<string, unknown>;
 
 			expect(payload.agent).toBe("teammate");
-			expect(payload.sessionId).toBe(rootSessionId);
+			expect(payload.sessionId).toBe(teammateSessionId);
 			expect(payload.taskType).toBe("team");
+			expect(payload.origin).toEqual({
+				source: "cli",
+				mode: "team",
+				sessionId: teammateSessionId,
+				parentThreadId: rootSessionId,
+				subagent: "java-haiku-agent",
+				version: "3.99.0",
+			});
 			expect(assistant.id).toEqual(expect.any(String));
 			expect(user.agent).toBeUndefined();
 			expect(user.sessionId).toBeUndefined();
@@ -673,10 +909,13 @@ describe("UnifiedSessionPersistenceService", () => {
 					contents: expect.stringContaining('"role": "user"'),
 					row: expect.objectContaining({
 						sessionId,
-						metadata: {
+						metadata: expect.objectContaining({
 							blobUpload: true,
+							sessionHistoryOrigin: {
+								mode: "user",
+							},
 							title: "hello",
-						},
+						}),
 					}),
 				}),
 			);
@@ -794,6 +1033,57 @@ describe("UnifiedSessionPersistenceService", () => {
 			expect(result).toEqual({ deleted: true });
 			expect(existsSync(artifacts.messagesPath)).toBe(false);
 			expect(existsSync(join(sessionsDir, sessionId))).toBe(false);
+		},
+	);
+
+	sqliteIt(
+		"deletes a session when compaction sidecar cleanup fails",
+		async () => {
+			const dbDir = mkdtempSync(join(tmpdir(), "delete-sidecar-fail-db-"));
+			const sessionsDir = mkdtempSync(
+				join(tmpdir(), "delete-sidecar-fail-sessions-"),
+			);
+			tempDirs.push(dbDir, sessionsDir);
+
+			const store = new SqliteSessionStore({ sessionsDir: dbDir });
+			stores.push(store);
+			const service = new CoreSessionService(store, {
+				sessionArtifactsDir: sessionsDir,
+			});
+			const sessionId = "sidecar-delete-fail-session";
+			await service.createRootSessionWithArtifacts({
+				sessionId,
+				source: SessionSource.CLI,
+				pid: process.pid,
+				interactive: false,
+				provider: "anthropic",
+				model: "claude-sonnet-4-6",
+				cwd: "/tmp/project",
+				workspaceRoot: "/tmp/project",
+				enableTools: true,
+				enableSpawn: false,
+				enableTeams: false,
+				prompt: "delete me",
+				startedAt: "2026-04-10T19:00:00.000Z",
+			});
+			const manifestStore = (
+				service as unknown as {
+					manifestStore: {
+						deleteSessionCompactionState: (sessionId: string) => Promise<void>;
+					};
+				}
+			).manifestStore;
+			const deleteSidecar = vi
+				.spyOn(manifestStore, "deleteSessionCompactionState")
+				.mockRejectedValue(new Error("sidecar busy"));
+
+			const result = await service.deleteSession(sessionId);
+
+			expect(result).toEqual({ deleted: true });
+			await expect(service.listSessions(10)).resolves.not.toEqual(
+				expect.arrayContaining([expect.objectContaining({ sessionId })]),
+			);
+			expect(deleteSidecar).toHaveBeenCalledWith(sessionId);
 		},
 	);
 });

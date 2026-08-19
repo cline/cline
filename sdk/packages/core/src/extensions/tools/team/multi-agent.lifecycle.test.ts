@@ -647,3 +647,61 @@ describe("AgentTeamsRuntime teammate lifecycle events", () => {
 		}
 	});
 });
+
+describe("AgentTeamsRuntime run failure reporting", () => {
+	it("marks a run failed when the teammate result finishes with an error", async () => {
+		const events: TeamEvent[] = [];
+		// biome-ignore lint/complexity/useArrowFunction: `new SessionRuntime(...)` requires a non-arrow callable.
+		createSessionRuntimeMock.mockImplementationOnce(function () {
+			return {
+				abort: vi.fn(),
+				run: vi.fn(async () => ({
+					text: "Unauthorized: Please re-authenticate your Cline account.",
+					iterations: 8,
+					finishReason: "error",
+					durationMs: 100,
+					usage: {
+						inputTokens: 10,
+						outputTokens: 20,
+						cacheReadTokens: 0,
+						cacheWriteTokens: 0,
+						totalCost: 0,
+					},
+					messages: [],
+				})),
+				continue: vi.fn(),
+				canStartRun: vi.fn(() => true),
+				getAgentId: vi.fn(() => "teammate-1"),
+				getConversationId: vi.fn(() => "conv-1"),
+				getMessages: vi.fn(() => []),
+				subscribeEvents: vi.fn(() => () => {}),
+			};
+		});
+		const runtime = new AgentTeamsRuntime({
+			teamName: "test-team",
+			onTeamEvent: (event) => events.push(event),
+		});
+
+		runtime.spawnTeammate({
+			agentId: "alice",
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5-20250929",
+				systemPrompt: "Helper teammate",
+				tools: [],
+			},
+		});
+
+		const run = runtime.startTeammateRun("alice", "do the thing");
+		const settledRun = await runtime.awaitRun(run.id, 1);
+
+		expect(settledRun.status).toBe("failed");
+		expect(settledRun.error).toContain("Unauthorized");
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: TeamMessageType.RunFailed,
+				run: expect.objectContaining({ id: run.id, status: "failed" }),
+			}),
+		);
+	});
+});
