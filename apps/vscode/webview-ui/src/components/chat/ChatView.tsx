@@ -60,6 +60,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		checkpointRestoreInput,
 		queuedPrompts,
 		activeMonitors,
+		activeMonitorsSessionId,
 		turnState,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
@@ -423,7 +424,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					mode={mode}
 					task={task}
 				/>
-				<ActiveMonitors items={activeMonitors} />
+				<ActiveMonitors items={activeMonitors} sessionId={activeMonitorsSessionId} />
 				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}

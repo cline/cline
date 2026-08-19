@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { MonitorStateSnapshot } from "../../runtime/session-events";
 import type { MonitorItem } from "../types";
 
@@ -59,10 +59,29 @@ export function formatMonitorListRow(
 
 export function useMonitors() {
 	const [monitors, setMonitors] = useState<MonitorItem[]>([]);
+	// External-store mirror so an open dialog can subscribe and stay live:
+	// dialog content is created once when opened, so props alone would freeze
+	// it at the opening snapshot.
+	const monitorsRef = useRef<MonitorItem[]>([]);
+	const listenersRef = useRef(new Set<() => void>());
 
 	const handleMonitorState = useCallback((event: MonitorStateSnapshot) => {
-		setMonitors(toMonitorItems(event));
+		const items = toMonitorItems(event);
+		monitorsRef.current = items;
+		setMonitors(items);
+		for (const listener of listenersRef.current) {
+			listener();
+		}
 	}, []);
 
-	return { monitors, handleMonitorState };
+	const subscribeMonitors = useCallback((listener: () => void) => {
+		listenersRef.current.add(listener);
+		return () => {
+			listenersRef.current.delete(listener);
+		};
+	}, []);
+
+	const getMonitors = useCallback(() => monitorsRef.current, []);
+
+	return { monitors, handleMonitorState, subscribeMonitors, getMonitors };
 }

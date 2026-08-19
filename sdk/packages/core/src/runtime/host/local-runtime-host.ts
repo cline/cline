@@ -436,6 +436,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 		wasSessionIdRequested: boolean,
 		existingResumeManifest?: SessionManifest,
 	): Promise<StartSessionResult> {
+		// A same-id start replaces the live session (config-only restarts and
+		// resumes reuse the id on purpose). Release the old runtime before
+		// building the new one: otherwise it is silently dropped from the map
+		// while its monitor registry keeps running background processes that no
+		// UI can list or stop, each delivery still starting a paid turn.
+		// Releasing disposes the registry, which emits the empty monitor_state
+		// snapshot that clears host rosters.
+		const replaced = this.sessions.get(sessionId);
+		if (replaced) {
+			try {
+				await this.releaseSessionRuntime(replaced, "session_replaced");
+			} catch (error) {
+				// Each cleanup stage is already logged individually; a partial
+				// release must not block the replacement start.
+				replaced.config.logger?.log("Replaced session released with errors", {
+					severity: "warn",
+					sessionId,
+					error,
+				});
+			}
+		}
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const startInput: ResolvedStartSessionInput =

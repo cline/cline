@@ -1,5 +1,5 @@
 import type { ActiveMonitor } from "@shared/ExtensionMessage"
-import { StringRequest } from "@shared/proto/cline/common"
+import { StopMonitorRequest } from "@shared/proto/cline/task"
 import { useState } from "react"
 import { TaskServiceClient } from "@/services/grpc-client"
 
@@ -18,19 +18,21 @@ export function selectRunningMonitors(items: ActiveMonitor[] | undefined): Activ
 
 interface ActiveMonitorsProps {
 	items?: ActiveMonitor[]
+	/** SDK session that owns `items`; stop requests echo it back. */
+	sessionId?: string
 }
 
-export function ActiveMonitors({ items = [] }: ActiveMonitorsProps) {
+export function ActiveMonitors({ items = [], sessionId }: ActiveMonitorsProps) {
 	const [stoppingIds, setStoppingIds] = useState<Set<string>>(() => new Set())
 
 	const running = selectRunningMonitors(items)
-	if (running.length === 0) {
+	if (running.length === 0 || !sessionId) {
 		return null
 	}
 
 	const stopMonitor = (monitorId: string) => {
 		setStoppingIds((current) => new Set(current).add(monitorId))
-		TaskServiceClient.stopMonitor(StringRequest.create({ value: monitorId }))
+		TaskServiceClient.stopMonitor(StopMonitorRequest.create({ monitorId, sessionId }))
 			.catch((error) => {
 				console.error("Failed to stop monitor:", error)
 			})

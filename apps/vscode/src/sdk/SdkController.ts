@@ -1455,11 +1455,17 @@ export class Controller {
 	 * Stops one background monitor on the user's behalf, without a model turn.
 	 * The agent learns about it from the monitor's terminal notification,
 	 * attributed to the user; the roster refreshes through monitor_state.
+	 *
+	 * The caller names the session the monitor belongs to. Monitor ids restart
+	 * at mon_1 per session, so if the active session changed between the click
+	 * and this handler, a bare id could stop an unrelated monitor in the new
+	 * session; a session mismatch is a no-op instead.
 	 */
-	async stopMonitor(monitorId: string): Promise<void> {
+	async stopMonitor(monitorId: string, sessionId: string): Promise<void> {
 		const trimmedMonitorId = monitorId.trim()
-		if (!trimmedMonitorId) {
-			Logger.warn("[SdkController] stopMonitor: Missing monitor id")
+		const trimmedSessionId = sessionId.trim()
+		if (!trimmedMonitorId || !trimmedSessionId) {
+			Logger.warn("[SdkController] stopMonitor: Missing monitor or session id")
 			return
 		}
 
@@ -1468,8 +1474,14 @@ export class Controller {
 			Logger.warn("[SdkController] stopMonitor: No active session")
 			return
 		}
+		if (activeSession.sessionId !== trimmedSessionId) {
+			Logger.warn(
+				`[SdkController] stopMonitor: Session changed since the stop was requested (requested ${trimmedSessionId}, active ${activeSession.sessionId})`,
+			)
+			return
+		}
 
-		const stopped = await activeSession.sdkHost.stopMonitor(activeSession.sessionId, trimmedMonitorId)
+		const stopped = await activeSession.sdkHost.stopMonitor(trimmedSessionId, trimmedMonitorId)
 		if (!stopped) {
 			Logger.warn(`[SdkController] stopMonitor: Monitor not found: ${trimmedMonitorId}`)
 		}
@@ -2307,8 +2319,10 @@ export class Controller {
 
 			let queuedPrompts: ExtensionState["queuedPrompts"] = []
 			let activeMonitors: ExtensionState["activeMonitors"] = []
+			let activeMonitorsSessionId: ExtensionState["activeMonitorsSessionId"]
 			const activeSession = this.sessions.getActiveSession()
 			if (activeSession) {
+				activeMonitorsSessionId = activeSession.sessionId
 				try {
 					queuedPrompts = await activeSession.sdkHost.pendingPrompts("list", { sessionId: activeSession.sessionId })
 				} catch (error) {
@@ -2344,6 +2358,7 @@ export class Controller {
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
 				activeMonitors,
+				activeMonitorsSessionId,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

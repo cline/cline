@@ -72,6 +72,12 @@ export interface ExtensionState {
 	 */
 	activeMonitors?: ActiveMonitor[]
 	/**
+	 * The SDK session that owns activeMonitors. Stop requests echo it back so
+	 * a session switch between render and click can never stop a same-id
+	 * monitor in a different session.
+	 */
+	activeMonitorsSessionId?: string
+	/**
 	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
 	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
 	 * ignored. Stamped by the extension. Optional for classic/legacy.
