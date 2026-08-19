@@ -7,8 +7,7 @@ import {
 	truncateStr,
 } from "@cline/shared";
 import { useTerminalDimensions } from "@opentui/react";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { HistoryExportFormat } from "../../session/history-export";
 import { listSessions } from "../../session/session";

@@ -1,4 +1,4 @@
-import type { DialogActions, DialogId } from "@opentui-ui/dialog/react";
+import type { DialogActions, DialogId } from "../../dialog";
 
 export type LoadingDialogActions = Pick<DialogActions, "show" | "close">;
 

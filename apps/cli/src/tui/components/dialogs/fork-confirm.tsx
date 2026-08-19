@@ -1,5 +1,4 @@
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 
 export function ForkConfirmContent(ctx: ChoiceContext<boolean>) {
 	useDialogKeyboard((key) => {

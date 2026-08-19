@@ -1,6 +1,5 @@
 import { useTerminalDimensions } from "@opentui/react";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 import { useEffect, useRef, useState } from "react";
 import { useThemeController } from "../../hooks/use-theme";
 import { palette } from "../../palette";

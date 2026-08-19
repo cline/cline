@@ -1,5 +1,4 @@
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import type { DialogActions } from "@opentui-ui/dialog/react";
+import type { ChoiceContext, DialogActions } from "../dialog";
 import { useCallback } from "react";
 import open from "../../utils/open";
 import type { ClineAccountSnapshot } from "../cline-account";

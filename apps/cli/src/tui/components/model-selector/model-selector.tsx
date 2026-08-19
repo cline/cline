@@ -1,7 +1,6 @@
 // @jsxImportSource @opentui/react
 import type { Llms } from "@cline/core";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 import { useMemo, useState } from "react";
 import { palette } from "../../palette";
 import { ProviderRow } from "./provider-row";

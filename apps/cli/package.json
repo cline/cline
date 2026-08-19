@@ -78,7 +78,6 @@
 		"@clack/prompts": "^1.2.0",
 		"@cline/cline-hub": "workspace:*",
 		"@gramio/format": "^0.7.0",
-		"@opentui-ui/dialog": "^0.1.2",
 		"@opentui/core": "0.4.3",
 		"@opentui/react": "0.4.3",
 		"chat": "^4.23.0",

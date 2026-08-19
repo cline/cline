@@ -7,12 +7,12 @@ import {
 import { formatDisplayUserInput } from "@cline/shared";
 import type { KeyEvent } from "@opentui/core";
 import { useRenderer, useTerminalDimensions } from "@opentui/react";
-import type { ChoiceContext } from "@opentui-ui/dialog";
 import {
+	type ChoiceContext,
 	DialogProvider,
 	useDialog,
 	useDialogState,
-} from "@opentui-ui/dialog/react";
+} from "./dialog";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { shouldSuppressClineCliMigrationNoticeForActiveProvider } from "../kanban-migration/notice";
 import { MigrationNoticeContent } from "../kanban-migration/notice-dialog";

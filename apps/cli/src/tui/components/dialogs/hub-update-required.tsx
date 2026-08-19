@@ -1,6 +1,5 @@
 // @jsxImportSource @opentui/react
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 import { palette } from "../../palette";
 import { resolveHubUpdateRequiredKeyAction } from "./hub-update-required-helpers";
 

@@ -43,7 +43,7 @@ vi.mock("@cline/core", () => ({
 	},
 }));
 
-vi.mock("@opentui-ui/dialog/react", () => ({
+vi.mock("../../dialog", () => ({
 	useDialogKeyboard: () => undefined,
 }));
 

@@ -1,7 +1,6 @@
 // @jsxImportSource @opentui/react
 import { useTerminalDimensions } from "@opentui/react";
-import type { ChoiceContext } from "@opentui-ui/dialog";
-import { useDialogKeyboard } from "@opentui-ui/dialog/react";
+import { type ChoiceContext, useDialogKeyboard } from "../../dialog";
 import { useMemo, useRef, useState } from "react";
 import { palette } from "../../palette";
 import {
