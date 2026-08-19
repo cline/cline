@@ -1957,6 +1957,47 @@ describe("cloud handoff gates", () => {
 		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
+	it("checks handoff readiness in the source session environment", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+		const sourceBinding = ctx.runtimeBindings.get("local");
+		if (!sourceBinding) throw new Error("missing local runtime binding");
+		const sourceGet = vi.fn(
+			async () =>
+				({
+					sessionId,
+					status: "running",
+					cwd: "/workspace/project",
+				}) as never,
+		);
+		ctx.runtimeBindings.set("ssh-source", {
+			...sourceBinding,
+			environmentId: "ssh-source",
+			kind: "ssh",
+			sessionManager: {
+				...sourceBinding.sessionManager,
+				get: sourceGet,
+			} as unknown as typeof sourceBinding.sessionManager,
+		});
+		ctx.runtimeBindings.set("local", {
+			...sourceBinding,
+			sessionManager: {
+				...sourceBinding.sessionManager,
+				get: vi.fn(async () => undefined),
+			} as unknown as typeof sourceBinding.sessionManager,
+		});
+		ctx.sessionEnvironmentIds.set(sessionId, "ssh-source");
+		ctx.activeEnvironmentId = "local";
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Stop the current run");
+		expect(sourceGet).toHaveBeenCalledWith(sessionId);
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
 	it("rejects an empty source before provisioning", async () => {
 		const { ctx, sessionId } = createHandoffGateContext({ messages: [] });
 		await expect(

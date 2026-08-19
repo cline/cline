@@ -1978,7 +1978,7 @@ async function prepareCloudHandoff(
 ): Promise<PreparedCloudHandoff> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sessionId, request.config);
 	await assertHandoffIdle(ctx, manager, sessionId);
 	if ((await manager.readLiveMessages(sessionId)).length === 0) {
 		throw new Error("Start a conversation before handing it off to cloud.");
@@ -2073,7 +2073,7 @@ async function handleHandoffOnce(
 			"The repository, branch, commit, or cloud model changed after handoff started. Review the handoff details and try again.",
 		);
 	}
-	const manager = getSessionManager(ctx);
+	const manager = getSessionManager(ctx, sourceSessionId, request.config);
 	const cloud = getCloudSessionManager(ctx);
 	const environment = getClineEnvironmentConfig();
 	const emitProgress = (

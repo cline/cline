@@ -1826,9 +1826,9 @@ function ChatThreadPane({
 					externalPresentation: destination === "external",
 				});
 				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
-					const opened = await onOpenSessionById?.(targetSessionId, {
-						silent: true,
-					}).catch(() => false);
+					const opened = await Promise.resolve(
+						onOpenSessionById?.(targetSessionId, undefined, { silent: true }),
+					).catch(() => false);
 					if (!opened) {
 						onHandoffUiAction({ type: "external", sourceSessionId });
 						await openExternalUrl(dashboardUrl).catch(() => undefined);
@@ -2476,9 +2476,11 @@ function ChatThreadPane({
 			return;
 		}
 		if (cloudAgentsEnabled) {
-			const opened = await onOpenSessionById?.(receipt.targetSessionId, {
-				silent: true,
-			}).catch(() => false);
+			const opened = await Promise.resolve(
+				onOpenSessionById?.(receipt.targetSessionId, undefined, {
+					silent: true,
+				}),
+			).catch(() => false);
 			if (opened) {
 				return;
 			}
