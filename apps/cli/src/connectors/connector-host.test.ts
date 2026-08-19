@@ -690,6 +690,51 @@ describe("handleConnectorUserTurn", () => {
 		).toBe(false);
 	});
 
+	it("suppresses Slack /idle replies without posting to the thread", async () => {
+		const dir = mkdtempSync(join(tmpdir(), "connector-host-test-"));
+		tempDirs.push(dir);
+		const bindingsPath = join(dir, "threads.json");
+		const { thread, posts } = createThread(
+			{
+				enableTools: false,
+				autoApproveTools: false,
+				cwd: "/tmp/work",
+				workspaceRoot: "/tmp/work",
+				welcomeSentAt: new Date().toISOString(),
+			},
+			false,
+		);
+		const runtime = createRuntimeClient(" /idle\n");
+		const resolveFallbackText = vi.fn(async () => undefined);
+
+		await handleConnectorUserTurn({
+			thread: thread as never,
+			text: "two other users are chatting in this thread",
+			client: runtime.client as never,
+			pendingApprovals: new Map(),
+			baseStartRequest: baseStartRequest() as never,
+			explicitSystemPrompt: undefined,
+			clientId: "client-1",
+			logger: {
+				core: { debug: vi.fn(), log: vi.fn(), error: vi.fn() },
+			} as never,
+			transport: "slack",
+			botUserName: "ClineAdapterBot",
+			requestStop: vi.fn(),
+			bindingsPath,
+			systemRules: "rules",
+			errorLabel: "Slack",
+			getSessionMetadata: () => ({}),
+			reusedLogMessage: "reused",
+			startedLogMessage: "started",
+			createEmptyRuntimeReplyResolver: async () => resolveFallbackText,
+		});
+
+		expect(runtime.sendRuntimeSession).toHaveBeenCalledTimes(1);
+		expect(posts).toEqual([]);
+		expect(resolveFallbackText).not.toHaveBeenCalled();
+	});
+
 	it("recovers when the bound session is wedged on a run that never drained", async () => {
 		// Cline Mom's failure: the thread pointed at a session whose runtime still
 		// had a run in flight, so every message came back as "SessionRuntime.shutdown

@@ -35,12 +35,14 @@ import {
 	maybeHandleConnectorApprovalReply,
 } from "../connector-host";
 import { dispatchConnectorHook } from "../hooks";
+import { formatConnectorMessageContext } from "../message-context";
 import {
 	type PendingConnectorApproval,
 	truncateConnectorText,
 } from "../runtime-turn";
 import {
 	buildConnectorStartRequest,
+	readSessionMessageCount,
 	readSessionReplyText,
 	stopConnectorSessions,
 } from "../session-runtime";
@@ -69,7 +71,11 @@ import { getConnectorSystemPrompt, getConnectorSystemRules } from "./prompts";
 
 const SLACK_SYSTEM_RULES = getConnectorSystemRules(
 	"Slack",
-	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+	[
+		"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
+		"Incoming Slack messages may include <slack_message_context> with authorId, authorLabel, participantKey, isDirectMention, and isSubscribedThreadMessage. Use it to distinguish which Slack user sent each message in shared threads.",
+		"Slack subscribed thread messages may arrive even when they are not addressed to you. Check <slack_message_context>: when isDirectMention is false and the message is part of another user or bot conversation that does not require your action, reply exactly /idle and nothing else. The connector treats /idle as a private no-op and will not post it to Slack.",
+	].join("\n"),
 );
 
 type SlackThreadState = ConnectorThreadState & {
@@ -77,6 +83,12 @@ type SlackThreadState = ConnectorThreadState & {
 };
 
 type SlackConnectionMode = ConnectSlackOptions["connectionMode"];
+type SlackParticipant = { key: string; label?: string };
+type SlackTurnContext = {
+	participant?: SlackParticipant;
+	isDirectMention?: boolean;
+	isSubscribedThreadMessage?: boolean;
+};
 
 function inferSlackConnectionMode(
 	baseUrl: string | undefined,
@@ -119,6 +131,29 @@ async function buildSlackStartRequest(
 	});
 }
 
+/**
+ * Mirrors the Discord connector: buffering the runtime reply (instead of
+ * streaming it straight into the thread) lets the connector host suppress
+ * exact `/idle` replies privately and fall back to the session history when
+ * the runtime stream completes without text.
+ */
+async function createSlackEmptyRuntimeReplyResolver(input: {
+	client: HubSessionClient;
+	sessionId: string;
+}): Promise<(() => Promise<string | undefined>) | undefined> {
+	const minMessageIndex = await readSessionMessageCount(
+		input.client,
+		input.sessionId,
+	);
+	if (minMessageIndex === undefined) {
+		return async () => undefined;
+	}
+	return () =>
+		readSessionReplyText(input.client, input.sessionId, {
+			minMessageIndex,
+		});
+}
+
 function asRecord(value: unknown): Record<string, unknown> | undefined {
 	return value && typeof value === "object"
 		? (value as Record<string, unknown>)
@@ -149,10 +184,40 @@ function buildSlackParticipantKey(teamId: string, userId: string): string {
 	return `slack:team:${teamId}:user:${userId}`;
 }
 
+function resolveSlackParticipantFromAuthor(
+	author: unknown,
+	teamId?: string,
+): SlackParticipant | undefined {
+	const record = asRecord(author);
+	const userId =
+		readString(record?.userId) ||
+		readString(record?.id) ||
+		readString(record?.user_id);
+	if (!userId || !teamId?.trim()) {
+		return undefined;
+	}
+	const label =
+		readString(record?.fullName) ||
+		readString(record?.displayName) ||
+		readString(record?.display_name) ||
+		readString(record?.userName) ||
+		readString(record?.username) ||
+		userId;
+	return {
+		key: buildSlackParticipantKey(teamId.trim(), userId),
+		label,
+	};
+}
+
 function resolveSlackParticipant(
 	rawMessage: unknown,
 	teamId?: string,
-): { key: string; label?: string } | undefined {
+	messageAuthor?: unknown,
+): SlackParticipant | undefined {
+	const fromAuthor = resolveSlackParticipantFromAuthor(messageAuthor, teamId);
+	if (fromAuthor) {
+		return fromAuthor;
+	}
 	const raw = asRecord(rawMessage);
 	const event = asRecord(raw?.event);
 	const message = asRecord(raw?.message);
@@ -173,6 +238,54 @@ function resolveSlackParticipant(
 		key: buildSlackParticipantKey(teamId.trim(), user),
 		label,
 	};
+}
+
+/**
+ * Build the runtime prompt for a Slack turn: the visible Slack text stays
+ * unchanged and participant/direct-mention metadata rides separately in a
+ * <slack_message_context> block. Every user-controlled value is encoded by
+ * the shared serializer so a crafted profile label cannot close or reopen
+ * the context block or inject additional metadata lines.
+ */
+function formatSlackRuntimeText(
+	text: string,
+	participant: SlackParticipant | undefined,
+	options?: {
+		isDirectMention?: boolean;
+		isSubscribedThreadMessage?: boolean;
+	},
+): string {
+	if (!participant) {
+		return text;
+	}
+	const authorId = participant.key.replace(/^slack:team:[^:]+:user:/, "");
+	return formatConnectorMessageContext({
+		tag: "slack_message_context",
+		fields: [
+			{ key: "authorId", value: authorId },
+			...(participant.label
+				? [{ key: "authorLabel", value: participant.label }]
+				: []),
+			{ key: "participantKey", value: participant.key },
+			...(options?.isDirectMention === undefined
+				? []
+				: [
+						{
+							key: "isDirectMention",
+							value: options.isDirectMention ? "true" : "false",
+						},
+					]),
+			...(options?.isSubscribedThreadMessage === undefined
+				? []
+				: [
+						{
+							key: "isSubscribedThreadMessage",
+							value: options.isSubscribedThreadMessage ? "true" : "false",
+						},
+					]),
+		],
+		text,
+	});
 }
 
 function extractSlackTeamId(raw: unknown): string | undefined {
@@ -237,6 +350,30 @@ function stripSlackBotMention(
 	);
 	const stripped = text.replace(leadingMention, "");
 	return stripped.trim() ? stripped.trimStart() : text;
+}
+
+/**
+ * A Slack message is addressed to the bot when the SDK marked it as a mention
+ * or the text mentions the bot user id anywhere (`<@U123>`, `<@U123|name>`,
+ * or the SDK-flattened `@U123` form). Matching is id-based with the same
+ * boundary rules as {@link stripSlackBotMention} so another user's id that
+ * merely starts with the bot id does not count.
+ */
+function isSlackMessageAddressedToBot(
+	message: Pick<Message, "isMention" | "text">,
+	botUserId: string | undefined,
+): boolean {
+	if (message.isMention === true) {
+		return true;
+	}
+	const botId = botUserId?.trim();
+	if (!botId || !message.text) {
+		return false;
+	}
+	const escapedBotId = botId.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+	return new RegExp(
+		`<@${escapedBotId}(?:\\|[^<>]*)?>|(?:^|\\s)@${escapedBotId}(?![A-Za-z0-9])`,
+	).test(message.text);
 }
 
 /**
@@ -365,12 +502,17 @@ async function persistSlackThreadContext(input: {
 	bindingsPath: string;
 	baseStartRequest: ChatStartSessionRequest;
 	rawMessage: unknown;
+	messageAuthor?: unknown;
 	errorLabel: string;
-}): Promise<void> {
+}): Promise<SlackParticipant | undefined> {
 	const teamId = extractSlackTeamId(input.rawMessage);
-	const participant = resolveSlackParticipant(input.rawMessage, teamId);
+	const participant = resolveSlackParticipant(
+		input.rawMessage,
+		teamId,
+		input.messageAuthor,
+	);
 	if (!teamId) {
-		return;
+		return participant;
 	}
 	const currentState = await loadThreadState(
 		input.thread,
@@ -382,7 +524,7 @@ async function persistSlackThreadContext(input: {
 		currentState.participantKey === participant?.key &&
 		currentState.participantLabel === participant?.label
 	) {
-		return;
+		return participant;
 	}
 	await persistMergedThreadState(
 		input.thread,
@@ -395,6 +537,77 @@ async function persistSlackThreadContext(input: {
 		},
 		input.errorLabel,
 	);
+	return participant;
+}
+
+type SlackMessageHandlerDeps = {
+	resolveBotUserId: (rawMessage: unknown) => string | undefined;
+	persistThreadContext: (input: {
+		thread: Thread<SlackThreadState>;
+		rawMessage: unknown;
+		messageAuthor: unknown;
+	}) => Promise<SlackParticipant | undefined>;
+	handleApprovalReply: (input: {
+		thread: Thread<SlackThreadState>;
+		text: string;
+	}) => Promise<boolean>;
+	handleTurn: (
+		thread: Thread<SlackThreadState>,
+		text: string,
+		context: SlackTurnContext,
+	) => Promise<void>;
+};
+
+/**
+ * Shared flow for mention and subscribed Slack messages, mirroring the
+ * Discord connector: persist the participant, resolve a pending approval
+ * reply before normal turn handling (so an unmentioned yes/no in a shared
+ * thread still lands on the approval), then forward every message to the
+ * runtime with participant/direct-mention context. Unrelated subscribed
+ * messages are not dropped here; the runtime answers exactly `/idle`, which
+ * the connector host suppresses privately.
+ */
+function createSlackMessageHandlers(deps: SlackMessageHandlerDeps): {
+	onNewMention: (
+		thread: Thread<SlackThreadState>,
+		message: Message,
+	) => Promise<void>;
+	onSubscribedMessage: (
+		thread: Thread<SlackThreadState>,
+		message: Message,
+	) => Promise<void>;
+} {
+	const handleIncomingMessage = async (
+		thread: Thread<SlackThreadState>,
+		message: Message,
+		isSubscribedThreadMessage: boolean,
+	) => {
+		const participant = await deps.persistThreadContext({
+			thread,
+			rawMessage: message.raw,
+			messageAuthor: message.author,
+		});
+		const botUserId = deps.resolveBotUserId(message.raw);
+		const text = stripSlackBotMention(message.text, botUserId);
+		if (await deps.handleApprovalReply({ thread, text })) {
+			return;
+		}
+		await deps.handleTurn(thread, text, {
+			participant,
+			isDirectMention: isSlackMessageAddressedToBot(message, botUserId),
+			isSubscribedThreadMessage,
+		});
+	};
+	return {
+		onNewMention: async (thread, message) => {
+			const mentionThread = resolveSlackChannelMentionThread(thread, message);
+			await mentionThread.subscribe();
+			await handleIncomingMessage(mentionThread, message, false);
+		},
+		onSubscribedMessage: async (thread, message) => {
+			await handleIncomingMessage(thread, message, true);
+		},
+	};
 }
 
 async function deliverScheduledResult(input: {
@@ -927,6 +1140,7 @@ class SlackConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<SlackThreadState>,
 			text: string,
+			context?: SlackTurnContext,
 		) => {
 			const currentState = await loadThreadState(
 				thread,
@@ -945,6 +1159,15 @@ class SlackConnector extends ConnectorBase<
 							handleConnectorUserTurn({
 								thread,
 								text,
+								runtimeText: formatSlackRuntimeText(
+									text,
+									context?.participant,
+									{
+										isDirectMention: context?.isDirectMention,
+										isSubscribedThreadMessage:
+											context?.isSubscribedThreadMessage,
+									},
+								),
 								client,
 								pendingApprovals,
 								baseStartRequest: startRequest,
@@ -982,6 +1205,8 @@ class SlackConnector extends ConnectorBase<
 								}),
 								reusedLogMessage: "Slack thread reusing RPC session",
 								startedLogMessage: "Slack thread started RPC session",
+								createEmptyRuntimeReplyResolver:
+									createSlackEmptyRuntimeReplyResolver,
 								onMessageReceived: async (details) => {
 									await dispatchConnectorHook(
 										options.hookCommand,
@@ -1051,61 +1276,33 @@ class SlackConnector extends ConnectorBase<
 			await enqueueTurn(runTurn);
 		};
 
-		bot.onNewMention(async (thread, message) => {
-			const mentionThread = resolveSlackChannelMentionThread(thread, message);
-			await mentionThread.subscribe();
-			await persistSlackThreadContext({
-				thread: mentionThread,
-				bindingsPath,
-				baseStartRequest: startRequest,
-				rawMessage: message.raw,
-				errorLabel: "Slack",
-			});
-			const text = stripSlackBotMention(
-				message.text,
-				resolveSlackBotUserId(slack, message.raw),
-			);
-			if (
-				await maybeHandleConnectorApprovalReply({
-					thread: mentionThread,
-					text,
-					client,
-					clientId,
-					pendingApprovals,
-					deniedReason: "Denied by Slack user",
-				})
-			) {
-				return;
-			}
-			await handleTurn(mentionThread, text);
-		});
-
-		bot.onSubscribedMessage(async (thread, message) => {
-			await persistSlackThreadContext({
-				thread,
-				bindingsPath,
-				baseStartRequest: startRequest,
-				rawMessage: message.raw,
-				errorLabel: "Slack",
-			});
-			const text = stripSlackBotMention(
-				message.text,
-				resolveSlackBotUserId(slack, message.raw),
-			);
-			if (
-				await maybeHandleConnectorApprovalReply({
+		const messageHandlers = createSlackMessageHandlers({
+			resolveBotUserId: (rawMessage) =>
+				resolveSlackBotUserId(slack, rawMessage),
+			persistThreadContext: ({ thread, rawMessage, messageAuthor }) =>
+				persistSlackThreadContext({
+					thread,
+					bindingsPath,
+					baseStartRequest: startRequest,
+					rawMessage,
+					messageAuthor,
+					errorLabel: "Slack",
+				}),
+			handleApprovalReply: ({ thread, text }) =>
+				maybeHandleConnectorApprovalReply({
 					thread,
 					text,
 					client,
 					clientId,
 					pendingApprovals,
 					deniedReason: "Denied by Slack user",
-				})
-			) {
-				return;
-			}
-			await handleTurn(thread, text);
+				}),
+			handleTurn,
 		});
+
+		bot.onNewMention(messageHandlers.onNewMention);
+
+		bot.onSubscribedMessage(messageHandlers.onSubscribedMessage);
 
 		bot.onSlashCommand(async (event) => {
 			const commandText = [event.command.trim(), event.text.trim()]
@@ -1122,14 +1319,19 @@ class SlackConnector extends ConnectorBase<
 				isSubscribedContext: true,
 			});
 			await thread.subscribe();
-			await persistSlackThreadContext({
+			const participant = await persistSlackThreadContext({
 				thread,
 				bindingsPath,
 				baseStartRequest: startRequest,
 				rawMessage: event.raw,
+				messageAuthor: event.user,
 				errorLabel: "Slack",
 			});
-			await handleTurn(thread, commandText);
+			await handleTurn(thread, commandText, {
+				participant,
+				isDirectMention: true,
+				isSubscribedThreadMessage: false,
+			});
 		});
 
 		await bot.initialize();
@@ -1313,8 +1515,13 @@ class SlackConnector extends ConnectorBase<
 export const slackConnector: ConnectCommandDefinition = new SlackConnector();
 
 export const __test__ = {
+	SLACK_SYSTEM_RULES,
 	inferSlackConnectionMode,
 	buildSlackParticipantKey,
+	createSlackEmptyRuntimeReplyResolver,
+	createSlackMessageHandlers,
+	formatSlackRuntimeText,
+	isSlackMessageAddressedToBot,
 	resolveSlackParticipant,
 	normalizeSlackMessageEventChannelType,
 	resolveSlackBotUserId,
