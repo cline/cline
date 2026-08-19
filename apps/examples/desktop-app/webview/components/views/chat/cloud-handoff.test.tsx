@@ -100,7 +100,8 @@ describe("CloudHandoffRecoveryNotice", () => {
 				onOpenCloud={onOpenCloud}
 			/>,
 		);
-		expect(view.textContent).toContain("may still be available");
+		expect(view.textContent).toContain("Cloud handoff was interrupted");
+		expect(view.textContent).toContain("retry /handoff");
 		expect(view.textContent).toContain("sessionId=orphan-1");
 		expect(view.querySelector(".animate-spin")).toBeNull();
 		act(() => view.querySelector("button")?.click());

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	humanizeCloudHandoffError,
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "./cloud-session-error";
@@ -58,5 +59,21 @@ describe("parseCloudSessionError", () => {
 				'CLOUD_SESSION_ERROR:{"code":"request_failed","message":"Switch to Personal and try again."}',
 			),
 		).toBe("Switch to Personal and try again.");
+	});
+
+	it("reassures handoff users when Cline Cloud is unreachable", () => {
+		for (const message of [
+			"fetch failed",
+			"Failed to fetch",
+			"network request failed",
+			"Load failed",
+		]) {
+			expect(humanizeCloudHandoffError(message)).toBe(
+				"Couldn’t reach Cline Cloud. Your local conversation is still available.",
+			);
+		}
+		expect(humanizeCloudHandoffError("Cloud session expired")).toBe(
+			"Cloud session expired",
+		);
 	});
 });

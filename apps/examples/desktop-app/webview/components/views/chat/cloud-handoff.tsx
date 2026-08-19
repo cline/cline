@@ -70,7 +70,10 @@ export function CloudHandoffRecoveryNotice({
 			className="mx-auto mb-2 flex w-full max-w-xl items-start justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs"
 		>
 			<div className="min-w-0">
-				<p className="font-medium">The cloud session may still be available.</p>
+				<p className="font-medium">Cloud handoff was interrupted.</p>
+				<p className="mt-1 text-muted-foreground">
+					Open the cloud session or retry /handoff.
+				</p>
 				<p className="mt-1 break-all text-muted-foreground">{dashboardUrl}</p>
 			</div>
 			<Button

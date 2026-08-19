@@ -41,6 +41,13 @@ export const HANDOFF_PROGRESS_LABELS: Record<HandoffProgressPhase, string> = {
 	complete: "Cloud handoff complete.",
 };
 
+export function formatHandoffModelFallback(
+	fallback?: HandoffPreflight["modelFallback"],
+): string | null {
+	if (!fallback?.from.trim() || !fallback.to.trim()) return null;
+	return `${fallback.from} isn’t available in Cline Cloud. Continuing with ${fallback.to}.`;
+}
+
 /** Returns null for ordinary prompts and slash-command lookalikes. */
 export function parseHandoffCommand(
 	input: string,

@@ -55,6 +55,7 @@ import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	formatHandoffModelFallback,
 	HANDOFF_PROGRESS_LABELS,
 	type HandoffPreflight,
 	type HandoffProgressPhase,
@@ -75,6 +76,7 @@ import {
 	isCloudProvisioningSessionId,
 } from "@/lib/cloud-repositories";
 import {
+	humanizeCloudHandoffError,
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
@@ -1460,17 +1462,14 @@ function ChatThreadPane({
 					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
 					retryAttachments: sourceAttachments,
 				});
-				const cloudError = parseCloudSessionError(
-					error instanceof Error ? error.message : String(error),
-				);
+				const rawError = error instanceof Error ? error.message : String(error);
+				const cloudError = parseCloudSessionError(rawError);
 				const connectUrl = cloudError?.connectUrl;
 				toast({
 					title: "Handoff failed",
-					description:
-						cloudError?.message ??
-						humanizeCloudSessionError(
-							error instanceof Error ? error.message : String(error),
-						),
+					description: humanizeCloudHandoffError(
+						cloudError?.message ?? rawError,
+					),
 					variant: "destructive",
 					action: connectUrl ? (
 						<ToastAction
@@ -1564,6 +1563,15 @@ function ChatThreadPane({
 						},
 					},
 				);
+				const fallbackMessage = formatHandoffModelFallback(
+					preflight.modelFallback,
+				);
+				if (fallbackMessage) {
+					toast({
+						title: "Using a cloud-compatible model",
+						description: fallbackMessage,
+					});
+				}
 				await runHandoff(
 					preflight,
 					nextCommand,
@@ -1578,17 +1586,14 @@ function ChatThreadPane({
 					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
 					retryAttachments: sourceAttachments,
 				});
-				const cloudError = parseCloudSessionError(
-					error instanceof Error ? error.message : String(error),
-				);
+				const rawError = error instanceof Error ? error.message : String(error);
+				const cloudError = parseCloudSessionError(rawError);
 				const connectUrl = cloudError?.connectUrl;
 				toast({
 					title: "Handoff is not ready",
-					description:
-						cloudError?.message ??
-						humanizeCloudSessionError(
-							error instanceof Error ? error.message : String(error),
-						),
+					description: humanizeCloudHandoffError(
+						cloudError?.message ?? rawError,
+					),
 					variant: "destructive",
 					action: connectUrl ? (
 						<ToastAction

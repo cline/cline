@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	formatHandoffModelFallback,
 	parseHandoffCommand,
 	readHandoffReceipt,
 	readPendingHandoffRecovery,
@@ -8,6 +9,18 @@ import {
 } from "./cloud-handoff";
 
 describe("cloud handoff helpers", () => {
+	it("discloses a cloud model fallback", () => {
+		expect(
+			formatHandoffModelFallback({
+				from: "local/model",
+				to: "cloud/model",
+			}),
+		).toBe(
+			"local/model isn’t available in Cline Cloud. Continuing with cloud/model.",
+		);
+		expect(formatHandoffModelFallback()).toBeNull();
+	});
+
 	it("parses the bare command and preserves an optional next command", () => {
 		expect(parseHandoffCommand("/handoff")).toEqual({ nextCommand: "" });
 		expect(parseHandoffCommand(" /HANDOFF   continue the tests ")).toEqual({

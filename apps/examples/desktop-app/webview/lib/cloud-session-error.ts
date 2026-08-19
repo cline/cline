@@ -71,3 +71,18 @@ export function parseCloudSessionError(
 export function humanizeCloudSessionError(value: string): string {
 	return parseCloudSessionError(value)?.message ?? value;
 }
+
+/** Adds handoff-specific reassurance for transport failures. */
+export function humanizeCloudHandoffError(value: string): string {
+	const message = humanizeCloudSessionError(value).trim();
+	const normalized = message.toLowerCase();
+	if (
+		normalized === "fetch failed" ||
+		normalized === "failed to fetch" ||
+		normalized === "network request failed" ||
+		normalized === "load failed"
+	) {
+		return "Couldn’t reach Cline Cloud. Your local conversation is still available.";
+	}
+	return message;
+}
