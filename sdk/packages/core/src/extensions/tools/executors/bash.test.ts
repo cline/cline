@@ -42,14 +42,14 @@ describe("createShellExecutor", () => {
 		expect(output.trim()).toBe("hello");
 	});
 
-	it("runs an object-form command with an empty args array as a shell command line", async () => {
+	it("keeps an object-form command with an explicit empty args array as direct exec", async () => {
 		const shell = createShellExecutor();
-		const output = await shell(
-			{ command: "echo spaced output", args: [] },
-			process.cwd(),
-			ctx,
-		);
-		expect(output.trim()).toBe("spaced output");
+		// An args key, even empty, marks structured input: the command is
+		// spawned verbatim rather than reinterpreted as a shell line, so a
+		// spaced command string fails instead of being split by the shell.
+		await expect(
+			shell({ command: "echo hello", args: [] }, process.cwd(), ctx),
+		).rejects.toThrow("Failed to execute command");
 	});
 
 	it("execs an object-form command with args directly without shell parsing", async () => {
