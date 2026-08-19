@@ -29,17 +29,47 @@ export { GatewayClient, GatewayRequestError } from "./client";
 export type {
 	ConnectorAdapter,
 	ConnectorAdapterContext,
+	ConnectorCredentialCheck,
 } from "./connectors/adapter";
+export { ConnectorDeliveryError } from "./connectors/adapter";
+export type {
+	DeliveryTickReport,
+	OutboundDeliveryWorkerOptions,
+} from "./connectors/delivery";
+export {
+	OutboundDeliveryWorker,
+	splitMessageForPlatform,
+} from "./connectors/delivery";
 export type { ConnectorManagerOptions } from "./connectors/manager";
 export { ConnectorManager } from "./connectors/manager";
+export type {
+	ConnectorDestination,
+	ConnectorMessengerOptions,
+	ProactiveSendParams,
+} from "./connectors/messenger";
+export {
+	ConnectorMessenger,
+	ProactiveSendRejectedError,
+} from "./connectors/messenger";
+export type {
+	EnqueueOutboundParams,
+	OutboundMessageOrigin,
+	OutboundMessageRecord,
+	OutboundMessageState,
+} from "./connectors/outbound-store";
+export { ConnectorOutboundStore } from "./connectors/outbound-store";
 export type {
 	SlackAdapterOptions,
 	SlackSocket,
 	SlackSocketFactory,
 } from "./connectors/slack";
 export {
+	parseSlackConversationId,
 	parseSlackCredential,
+	redactSlackTokens,
+	SLACK_MAX_MESSAGE_LENGTH,
 	SlackConnectorAdapter,
+	slackConversationId,
 } from "./connectors/slack";
 export type {
 	ConnectorInstanceClaim,
@@ -47,6 +77,7 @@ export type {
 	ConnectorStatus,
 } from "./connectors/store";
 export {
+	assertNonSecretConnectorConfig,
 	ConnectorCursorStore,
 	ConnectorInstanceStore,
 	ConnectorScopeViolationError,
@@ -54,7 +85,20 @@ export {
 	SqliteConnectorRouteStore,
 } from "./connectors/store";
 export type { TelegramAdapterOptions } from "./connectors/telegram";
-export { TelegramConnectorAdapter } from "./connectors/telegram";
+export {
+	redactTelegramToken,
+	TELEGRAM_MAX_MESSAGE_LENGTH,
+	TelegramConnectorAdapter,
+} from "./connectors/telegram";
+export type {
+	SendConnectorMessageInput,
+	SendConnectorMessageOutput,
+	SendConnectorMessageToolDeps,
+} from "./connectors/tool";
+export {
+	createSendConnectorMessageTool,
+	SEND_CONNECTOR_MESSAGE_TOOL,
+} from "./connectors/tool";
 export type { GatewayMigration } from "./db";
 export {
 	GATEWAY_MIGRATIONS,

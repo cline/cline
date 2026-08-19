@@ -50,10 +50,42 @@ export interface ConfiguredEngineOptions {
 		invocation: EngineInvocation,
 	) => EngineModelBinding | Promise<EngineModelBinding>;
 	paths?: GatewayPaths;
+	/**
+	 * Gateway-owned tools per invocation (e.g. the constrained
+	 * `send_connector_message`). A callback so late-bound providers (the
+	 * server exists after the engine port) can contribute.
+	 */
+	tools?: (invocation: EngineInvocation) => readonly AnyAgentTool[] | undefined;
 	env?: Record<string, string | undefined>;
 	providerSettingsPath?: string;
 	/** Built-in lead profile whose Agent Plugin tools are available to runs. */
 	leadProfile?: ResolvedLeadProfile;
+}
+
+// biome-ignore lint/suspicious/noExplicitAny: tool input/output types vary per tool
+type AnyAgentTool = AgentTool<any, any>;
+
+const CONNECTOR_REPLY_SYSTEM_PROMPT = `# Connector reply
+
+This turn came from an external chat connector. Answer the user's message
+directly with only the user-facing response. The Gateway automatically sends
+your final assistant text back to the originating conversation. Do not emit an
+internal completion summary, tool result, delivery status, or JSON envelope.`;
+
+function prepareConnectorInvocation(
+	invocation: EngineInvocation,
+): EngineInvocation {
+	if (invocation.source !== "connector") return invocation;
+	const existing = invocation.effectiveConfig.systemPrompt?.trim();
+	return {
+		...invocation,
+		effectiveConfig: {
+			...invocation.effectiveConfig,
+			systemPrompt: existing
+				? `${existing}\n\n---\n\n${CONNECTOR_REPLY_SYSTEM_PROMPT}`
+				: CONNECTOR_REPLY_SYSTEM_PROMPT,
+		},
+	};
 }
 
 const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -289,9 +321,10 @@ export function createConfiguredEnginePort(
 	return {
 		start(invocation): EngineRunHandle {
 			return deferredHandle(async () => {
+				const preparedInvocation = prepareConnectorInvocation(invocation);
 				let model: EngineModelBinding;
 				if (options.resolveModel) {
-					model = await options.resolveModel(invocation);
+					model = await options.resolveModel(preparedInvocation);
 				} else {
 					const resolutionOptions = {
 						env: options.env,
@@ -299,7 +332,7 @@ export function createConfiguredEnginePort(
 						providerSettingsPath: options.providerSettingsPath,
 					};
 					const preliminary = resolveProviderModel(
-						invocation,
+						preparedInvocation,
 						resolutionOptions,
 					);
 					const hasOverride = providerCredentialOverride(
@@ -324,7 +357,7 @@ export function createConfiguredEnginePort(
 						oauthApiKey = await clineRefreshInFlight;
 					}
 					model = oauthApiKey
-						? resolveProviderModel(invocation, {
+						? resolveProviderModel(preparedInvocation, {
 								...resolutionOptions,
 								resolvedApiKey: oauthApiKey,
 							})
@@ -334,7 +367,7 @@ export function createConfiguredEnginePort(
 					typeof options.approvals === "function"
 						? options.approvals()
 						: options.approvals;
-				const profileTools = await acquireProfileTools(invocation);
+				const profileTools = await acquireProfileTools(preparedInvocation);
 				const handle = createEngineExecutionPort({
 					model: () => model,
 					tools: (resolvedInvocation) => [
@@ -346,7 +379,12 @@ export function createConfiguredEnginePort(
 										tool.executorId === "worker:builtin" ||
 										tool.executorId === "gateway:builtin",
 								)
-								.map((tool) => tool.modelFacingName),
+								.map((tool) => tool.modelFacingName)
+								.filter(
+									(name) =>
+										resolvedInvocation.source !== "connector" ||
+										name !== "submit_and_exit",
+								),
 							...(approvals
 								? {
 										askQuestion: (
@@ -366,6 +404,9 @@ export function createConfiguredEnginePort(
 								: {}),
 						}),
 						...profileTools.tools,
+						...(resolvedInvocation.source === "connector"
+							? []
+							: (options.tools?.(resolvedInvocation) ?? [])),
 					],
 					requestApproval: approvals
 						? async (request) => {
@@ -395,7 +436,7 @@ export function createConfiguredEnginePort(
 								};
 							}
 						: undefined,
-				}).start(invocation);
+				}).start(preparedInvocation);
 				void handle.result.finally(() => {
 					for (const name of profileTools.definitionNames) {
 						mcpPool.drainDefinition(name);

@@ -22,6 +22,7 @@ import type { EnginePort } from "@cline/bot";
 import type {
 	BotId,
 	ClientId,
+	ConnectorId,
 	EventCursor,
 	GatewayEventScope,
 	GatewayInstanceId,
@@ -44,9 +45,12 @@ import {
 	IDEMPOTENCY_KEY_PARAM,
 } from "@cline/shared/gateway";
 import type { ConnectorAdapter } from "./connectors/adapter";
+import { OutboundDeliveryWorker } from "./connectors/delivery";
 import { ConnectorManager } from "./connectors/manager";
+import { ConnectorMessenger } from "./connectors/messenger";
 import { SlackConnectorAdapter } from "./connectors/slack";
 import { TelegramConnectorAdapter } from "./connectors/telegram";
+import { createSendConnectorMessageTool } from "./connectors/tool";
 import { type GatewayDatabase, openGatewayDatabase } from "./db";
 import {
 	createInstanceAuthToken,
@@ -117,6 +121,8 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	autoStartConnectors?: boolean;
 	/** Phase 6: scheduler tick cadence (0 disables the timer). */
 	schedulerTickMs?: number;
+	/** Phase 6: outbound delivery tick cadence (0 disables the timer). */
+	deliveryTickMs?: number;
 }
 
 interface Subscription {
@@ -229,6 +235,8 @@ export class GatewayServer {
 	readonly tools: GatewayToolSystem;
 	readonly connectors: ConnectorManager;
 	readonly scheduler: Scheduler;
+	readonly messenger: ConnectorMessenger;
+	readonly delivery: OutboundDeliveryWorker;
 	discovery: DiscoveryRecord | undefined;
 
 	private readonly database: GatewayDatabase;
@@ -256,6 +264,8 @@ export class GatewayServer {
 		tools: GatewayToolSystem;
 		connectors: ConnectorManager;
 		scheduler: Scheduler;
+		messenger: ConnectorMessenger;
+		delivery: OutboundDeliveryWorker;
 		instanceId: GatewayInstanceId;
 		authToken: string;
 		stopTimeoutMs: number;
@@ -270,6 +280,8 @@ export class GatewayServer {
 		this.tools = options.tools;
 		this.connectors = options.connectors;
 		this.scheduler = options.scheduler;
+		this.messenger = options.messenger;
+		this.delivery = options.delivery;
 		this.instanceId = options.instanceId;
 		this.authToken = options.authToken;
 		this.stopTimeoutMs = options.stopTimeoutMs;
@@ -363,6 +375,7 @@ export class GatewayServer {
 							connectorId: context.connectorId,
 							externalAccountId: context.externalAccountId,
 							externalConversationId: context.externalConversationId,
+							sessionId: context.sessionId,
 						}),
 				},
 				adapters: options.connectorAdapters ?? {
@@ -373,11 +386,58 @@ export class GatewayServer {
 				gatewayInstanceId: instanceId,
 			});
 
+			// Phase 6: outbound delivery supervision, independent from model
+			// execution. Pending deliveries resume after a restart.
+			const delivery = new OutboundDeliveryWorker({
+				database,
+				stores,
+				adapters: connectors.adapters,
+				readCredential: (credentialRef) => readSecretFile(paths, credentialRef),
+				instanceId,
+				tickIntervalMs: options.deliveryTickMs ?? 500,
+			});
+
+			// Phase 6: the messenger — run replies, proactive sends,
+			// notifications — all through one policy gate.
+			const messenger = new ConnectorMessenger({
+				database,
+				stores,
+				approvals: () => runtime.approvals,
+				onEnqueued: () => {
+					void delivery.tick().catch(() => {});
+				},
+			});
+			runtime.onRunTerminal((record) => messenger.handleRunTerminal(record));
+
 			// Phase 6: the scheduler; only this (lock-holding) instance claims.
 			const scheduler = new Scheduler({
 				database,
 				stores,
 				admitAutomationRun: (schedule) => runtime.startAutomationRun(schedule),
+				notifyOutcome: (notification) => {
+					if (!notification.schedule.notify) {
+						return;
+					}
+					const prefix =
+						notification.state === "completed"
+							? `[schedule:${notification.schedule.name}]`
+							: `[schedule:${notification.schedule.name}] FAILED:`;
+					messenger.notify({
+						botId: notification.schedule.botId,
+						connectorId: notification.schedule.notify.connectorId,
+						externalAccountId: notification.schedule.notify.externalAccountId,
+						externalConversationId:
+							notification.schedule.notify.externalConversationId,
+						text: `${prefix} ${notification.summary}`.trim(),
+						origin: "schedule",
+						originScheduleId: notification.schedule.scheduleId,
+						...(notification.runId
+							? { originRunId: notification.runId as never }
+							: {}),
+						idempotencyKey: `schedule-notify:${notification.schedule.scheduleId}:${notification.jobId}:${notification.state}`,
+						actor: `schedule:${notification.schedule.scheduleId}`,
+					});
+				},
 				instanceId,
 				tickIntervalMs: options.schedulerTickMs ?? 1_000,
 			});
@@ -393,6 +453,8 @@ export class GatewayServer {
 				tools,
 				connectors,
 				scheduler,
+				messenger,
+				delivery,
 				instanceId,
 				authToken: createInstanceAuthToken(),
 				stopTimeoutMs: options.stopTimeoutMs ?? 5_000,
@@ -416,6 +478,8 @@ export class GatewayServer {
 			runtime.recover();
 			outboxWorker.schedule();
 			scheduler.start();
+			// Resume outbound deliveries left pending by a previous process.
+			delivery.start();
 			if (options.autoStartConnectors ?? true) {
 				connectors.startAll();
 			}
@@ -474,6 +538,23 @@ export class GatewayServer {
 		}
 	}
 
+	/**
+	 * Gateway-owned tools for one engine invocation (currently the
+	 * constrained `send_connector_message`). Wired into the engine binding
+	 * by the CLI's serve path.
+	 */
+	connectorTools(invocation: {
+		botId: BotId;
+		runId: RunId;
+	}): ReturnType<typeof createSendConnectorMessageTool>[] {
+		return [
+			createSendConnectorMessageTool(invocation, {
+				messenger: this.messenger,
+				deliveryWorker: this.delivery,
+			}),
+		];
+	}
+
 	address(): { host: string; port: number } {
 		const address = this.server.address();
 		if (address === null || typeof address === "string") {
@@ -502,6 +583,7 @@ export class GatewayServer {
 		this.stopping = true;
 		this.unsubscribeEvents?.();
 		this.scheduler.stop();
+		this.delivery.stop();
 		await this.connectors.stop();
 		if (mode === "graceful") {
 			this.runtime.interruptAllActive("Gateway is stopping");
@@ -622,6 +704,15 @@ export class GatewayServer {
 				return;
 			}
 			const result = this.execute(connection, request.method, params);
+			// Read methods may be async (e.g. connector credential probes).
+			if (result instanceof Promise) {
+				result.then(
+					(value) => connection.send(okResponse(request.id, value)),
+					(error) =>
+						connection.send(errorResponse(request.id, toGatewayError(error))),
+				);
+				return;
+			}
 			connection.send(okResponse(request.id, result));
 		} catch (error) {
 			connection.send(errorResponse(request.id, toGatewayError(error)));
@@ -772,6 +863,7 @@ export class GatewayServer {
 				return this.runtime.startRun(actor, {
 					botId: p.botId as BotId,
 					prompt: p.prompt as string,
+					sessionId: p.sessionId as SessionId | undefined,
 					workspaceRoot: p.workspaceRoot as string | undefined,
 					newSession: p.newSession as boolean | undefined,
 					overrides: p.overrides as never,
@@ -894,11 +986,107 @@ export class GatewayServer {
 				return {
 					connectors: this.runtime.listConnectors(p.botId as BotId | undefined),
 				};
+			case "connector.inspect": {
+				const connectorId = p.connectorId as ConnectorId;
+				const record = this.runtime.requireConnector(connectorId);
+				return {
+					connector: record,
+					health: this.connectors.health(connectorId),
+				};
+			}
+			case "connector.setEnabled": {
+				const connectorId = p.connectorId as ConnectorId;
+				const record = this.runtime.setConnectorEnabled(
+					actor,
+					connectorId,
+					p.enabled as boolean,
+				);
+				if (record.status === "enabled") {
+					this.connectors.start(connectorId);
+				} else {
+					this.connectors.stopConnector(connectorId);
+				}
+				return record;
+			}
+			case "connector.updateConfig":
+				return this.runtime.updateConnectorConfig(
+					actor,
+					p.connectorId as ConnectorId,
+					p.config as Record<string, unknown>,
+				);
+			case "connector.setCredential":
+				return this.runtime.setConnectorCredentialRef(
+					actor,
+					p.connectorId as ConnectorId,
+					p.credentialRef as string | undefined,
+				);
+			case "connector.remove": {
+				const connectorId = p.connectorId as ConnectorId;
+				this.connectors.stopConnector(connectorId);
+				return this.runtime.removeConnector(actor, connectorId);
+			}
+			case "connector.routes":
+				return {
+					routes: this.runtime.listConnectorRoutes(
+						p.connectorId as ConnectorId,
+					),
+				};
+			case "connector.testCredentials": {
+				const connectorId = p.connectorId as ConnectorId;
+				const record = this.runtime.requireConnector(connectorId);
+				const adapter = this.connectors.adapterFor(record.kind);
+				if (!adapter) {
+					throw new GatewayCallError(
+						createGatewayError(
+							"not_found",
+							`No adapter for connector kind "${record.kind}"`,
+						),
+					);
+				}
+				// Async read: the credential is resolved and used here only —
+				// never returned over the wire.
+				return adapter
+					.testCredentials(
+						record.config,
+						this.connectors.credentialForConnector(connectorId),
+					)
+					.then((check) => ({ ...check }));
+			}
+			case "connector.sendTest": {
+				const connectorId = p.connectorId as ConnectorId;
+				const record = this.runtime.requireConnector(connectorId);
+				const conversation = p.externalConversationId as string;
+				const enqueued = this.messenger.notify({
+					botId: record.botId,
+					connectorId,
+					externalAccountId: (p.externalAccountId as string) ?? "operator",
+					externalConversationId: conversation,
+					text:
+						(p.text as string | undefined) ??
+						`Cline Gateway test message (${record.name})`,
+					origin: "test",
+					idempotencyKey: `test:${connectorId}:${conversation}:${String(
+						p.idempotencyKey,
+					)}`,
+					actor,
+				});
+				return { outbound: enqueued.record };
+			}
+			case "connector.outbound":
+				return {
+					messages: this.runtime.listOutboundMessages({
+						connectorId: p.connectorId as ConnectorId | undefined,
+						botId: p.botId as BotId | undefined,
+						state: p.state as never,
+						limit: p.limit as number | undefined,
+					}),
+				};
 			case "schedule.create":
 				return this.runtime.createSchedule(actor, {
 					botId: p.botId as BotId,
 					name: p.name as string,
 					prompt: p.prompt as string,
+					notify: p.notify as never,
 					intervalMs: p.intervalMs as number | undefined,
 					at: p.at as number | undefined,
 					maxAttempts: p.maxAttempts as number | undefined,

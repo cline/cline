@@ -25,16 +25,23 @@ Domain semantics for one bot, entirely behind injected ports:
 - **Per-turn overrides**: merge over the bot config for a single run.
 - **Memories**: file-backed discovery from `memories/` via a
   `MemorySource` port.
+- **Sessions and lanes**: a bot has one CANONICAL session (its own
+  desktop/CLI conversation, `submitPrompt`) plus any number of DEDICATED
+  sessions (`submitPromptToSession`) — one per external conversation.
+  Every session runs on its own lane: its own FIFO queue and single
+  active run, with per-run steer/interrupt/abort. Dedicated sessions
+  never share context with the canonical session or each other; desktop
+  joins one only by naming its session id explicitly.
 - **Connector semantics** (Gateway RFC, Phase 6): `ConnectorInbox` owns
   what an inbound connector message means — every connector targets
   exactly one bot, the mapping `(connectorId, externalAccountId,
   externalConversationId) -> (botId, sessionId, principal context)` is
   durable through a `ConnectorRouteRepository` port, admission goes
-  through a `ConnectorRunAdmission` port into the bot's canonical
-  session (shared with desktop/CLI prompts), and the bot side sees
-  normalized source metadata plus a narrow `ConnectorReplyPort` — never
-  adapter credentials. Transport, persistence, and supervision live in
-  the Gateway.
+  through a `ConnectorRunAdmission` port into the conversation's
+  DEDICATED session (created on first contact, reused afterwards), and
+  the bot side sees normalized source metadata plus a narrow
+  `ConnectorReplyPort` — never adapter credentials. Transport,
+  persistence, and supervision live in the Gateway.
 - **Execution**: engine invocation through an `EnginePort`;
   `createEngineExecutionPort` adapts the port onto the real
   `@cline/engine`.

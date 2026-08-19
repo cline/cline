@@ -413,7 +413,16 @@ export function createBuiltinCodingTools(
 					additionalProperties: false,
 				},
 				lifecycle: { completesRun: true },
-				execute: async (raw: unknown) => raw,
+				execute: async (raw: unknown) => {
+					const input = raw as { summary?: unknown; verified?: unknown };
+					if (
+						typeof input.summary !== "string" ||
+						typeof input.verified !== "boolean"
+					) {
+						return { error: "summary and verified are required" };
+					}
+					return input.summary;
+				},
 			}),
 		);
 	}

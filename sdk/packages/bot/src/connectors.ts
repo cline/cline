@@ -7,12 +7,17 @@
  *
  * - Every connector targets exactly one bot. A message claiming another
  *   connector's identity is rejected before anything is looked up.
- * - The mapping `(connectorId, externalAccountId, externalConversationId)
- *   -> (botId, sessionId, principal context)` is durable: the first
- *   accepted message admits a run (which lazily creates the bot's
- *   canonical session) and records the route; later messages reuse it.
- *   Connector, desktop, and CLI messages therefore share one canonical
- *   session — the bot's — rather than a connector-private one.
+ * - Conversation isolation: every external conversation gets its OWN
+ *   dedicated Gateway session. The mapping `(connectorId,
+ *   externalAccountId, externalConversationId) -> (botId, sessionId,
+ *   principal context)` is durable: the first accepted message admits a
+ *   run into a NEW dedicated session and records the route; later
+ *   messages from the same conversation reuse that session. Unrelated
+ *   Telegram chats, Slack channels, and Slack threads therefore never
+ *   share context — and an external user can never inherit the bot's
+ *   canonical (desktop/CLI) context, because connector runs never touch
+ *   the canonical session. Desktop participates in a connector
+ *   conversation only by explicitly addressing its session id.
  * - Bots see normalized source metadata and an authorized reply
  *   capability, never adapter credentials.
  */
@@ -58,6 +63,7 @@ export interface ConnectorRoute {
 	readonly externalAccountId: string;
 	readonly externalConversationId: string;
 	readonly botId: BotId;
+	/** The conversation's dedicated session. */
 	readonly sessionId: SessionId;
 	readonly principalId?: PrincipalId;
 	readonly createdAt: number;
@@ -75,8 +81,10 @@ export interface ConnectorRouteRepository {
 
 /**
  * Run admission port. The Gateway implements it over its runtime so a
- * connector message enters the same durable FIFO queue — and the same
- * canonical session — as desktop/CLI prompts for the bot.
+ * connector message enters the same durable FIFO admission path as
+ * desktop/CLI prompts — but into the conversation's DEDICATED session:
+ * with `sessionId` the run joins that session's lane; without it a new
+ * dedicated session is created and returned.
  */
 export interface ConnectorRunAdmission {
 	submit(
@@ -86,6 +94,8 @@ export interface ConnectorRunAdmission {
 			connectorId: ConnectorId;
 			externalAccountId: string;
 			externalConversationId: string;
+			/** The conversation's existing dedicated session, if routed. */
+			sessionId?: SessionId;
 		},
 	): RunAccepted & { sessionId: SessionId };
 }
@@ -101,7 +111,13 @@ export interface ConnectorReplyPort {
 			externalConversationId: string;
 		},
 		text: string,
-	): Promise<void>;
+	): Promise<
+		| {
+				/** Platform message id(s) of the delivered reply, if known. */
+				externalMessageIds?: readonly string[];
+		  }
+		| undefined
+	>;
 }
 
 export class ConnectorScopeError extends Error {
@@ -148,7 +164,8 @@ export class ConnectorInbox {
 
 	/**
 	 * Handle one normalized inbound message: resolve (or create) the
-	 * canonical route and admit the prompt into the bot's session queue.
+	 * conversation's dedicated session and admit the prompt into its FIFO
+	 * lane.
 	 */
 	handleMessage(
 		message: NormalizedConnectorMessage,
@@ -179,11 +196,14 @@ export class ConnectorInbox {
 				connectorId: this.descriptor.connectorId,
 				externalAccountId: message.externalAccountId,
 				externalConversationId: message.externalConversationId,
+				// Reuse the conversation's dedicated session when routed; a
+				// first message creates one.
+				sessionId: existing?.sessionId,
 			},
 		);
-		// The bot's session is canonical: if the session moved (e.g. the
-		// old one was closed and admission created a fresh one), the route
-		// follows it.
+		// The dedicated session is the conversation's identity: if admission
+		// landed in a fresh session (first contact, or the old one was
+		// closed), the route follows it.
 		if (!existing || existing.sessionId !== accepted.sessionId) {
 			const route: ConnectorRoute = {
 				connectorId: this.descriptor.connectorId,

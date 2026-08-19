@@ -126,6 +126,7 @@ function createHarness(options: { instanceStaleMs?: number } = {}) {
 					connectorId: context.connectorId,
 					externalAccountId: context.externalAccountId,
 					externalConversationId: context.externalConversationId,
+					sessionId: context.sessionId,
 				}),
 		},
 		adapters: { scripted: adapter },
@@ -213,8 +214,9 @@ describe("bot-scoped connector config", () => {
 });
 
 describe("admission and dedupe cursor", () => {
-	it("admits into the bot's canonical session with connector provenance", async () => {
-		const { manager, adapter, connector, stores, runtime } = createHarness();
+	it("admits into a dedicated per-conversation session with connector provenance", async () => {
+		const { manager, adapter, connector, stores, runtime, engine } =
+			createHarness();
 		adapter.enqueue(connector.connectorId, { id: "0001", text: "hi" });
 		expect(manager.start(connector.connectorId)).toBe(true);
 		await waitFor(
@@ -232,15 +234,83 @@ describe("admission and dedupe cursor", () => {
 		const provenance = runtime.runProvenance(runs[0].runId);
 		expect(provenance?.mode).toBe("connector");
 		expect(provenance?.connectorId).toBe(connector.connectorId);
+		expect(engine.handles[0]?.invocation.source).toBe("connector");
+		// The conversation's session is DEDICATED (not the canonical one).
+		expect(stores.sessions.get(route?.sessionId as never)?.kind).toBe(
+			"dedicated",
+		);
 
-		// A desktop/CLI prompt for the same bot shares that canonical session.
+		// A desktop/CLI prompt for the same bot lands in the bot's own
+		// canonical session — external users never inherit desktop context
+		// and vice versa.
 		const interactive = runtime.startRun("cli_test", {
 			botId: connector.botId,
 			prompt: "from desktop",
 		});
-		expect(stores.runs.get(interactive.runId)?.sessionId).toBe(
-			route?.sessionId,
+		const interactiveSession = stores.runs.get(interactive.runId)?.sessionId;
+		expect(interactiveSession).not.toBe(route?.sessionId);
+		expect(stores.sessions.get(interactiveSession as never)?.kind).toBe(
+			"canonical",
 		);
+
+		// Desktop can still join the conversation INTENTIONALLY by naming
+		// the dedicated session.
+		const joined = runtime.startRun("cli_test", {
+			botId: connector.botId,
+			prompt: "desktop assist",
+			sessionId: route?.sessionId,
+		});
+		expect(stores.runs.get(joined.runId)?.sessionId).toBe(route?.sessionId);
+		await manager.stop();
+	});
+
+	it("keeps unrelated external conversations in separate sessions", async () => {
+		const { manager, adapter, connector, stores } = createHarness();
+		adapter.enqueue(connector.connectorId, {
+			id: "0001",
+			text: "chat one",
+			conversation: "conv-1",
+		});
+		adapter.enqueue(connector.connectorId, {
+			id: "0002",
+			text: "chat two",
+			conversation: "conv-2",
+		});
+		adapter.enqueue(connector.connectorId, {
+			id: "0003",
+			text: "chat one again",
+			conversation: "conv-1",
+		});
+		manager.start(connector.connectorId);
+		await waitFor(
+			() => stores.connectorCursors.get(connector.connectorId) === "0003",
+		);
+		const routeOne = stores.connectorRoutes.get(
+			connector.connectorId,
+			"acct-1",
+			"conv-1",
+		);
+		const routeTwo = stores.connectorRoutes.get(
+			connector.connectorId,
+			"acct-1",
+			"conv-2",
+		);
+		// Separate conversations, separate dedicated sessions.
+		expect(routeOne?.sessionId).not.toBe(routeTwo?.sessionId);
+		// The follow-up message reused conversation one's session.
+		expect(
+			stores.runs
+				.listBySession(routeOne?.sessionId as never)
+				.map((run) => run.input),
+		).toEqual([
+			"[scripted:conv-1] chat one",
+			"[scripted:conv-1] chat one again",
+		]);
+		expect(
+			stores.runs
+				.listBySession(routeTwo?.sessionId as never)
+				.map((run) => run.input),
+		).toEqual(["[scripted:conv-2] chat two"]);
 		await manager.stop();
 	});
 

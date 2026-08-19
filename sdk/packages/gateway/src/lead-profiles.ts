@@ -44,16 +44,16 @@ export const PLAIN_LEAD_PROFILE: ResolvedLeadProfile = Object.freeze({
 });
 
 export function bundledLeadProfileFile(profileId: string): string | undefined {
-	if (profileId !== "cline-mom") return undefined;
+	if (profileId !== "cline-dad") return undefined;
 	const configuredRoot = process.env.CLINE_GATEWAY_PROFILES_DIR?.trim();
 	if (configuredRoot) {
-		return resolve(configuredRoot, "cline-mom", "profile.json");
+		return resolve(configuredRoot, "cline-dad", "profile.json");
 	}
 	return resolve(
 		dirname(fileURLToPath(import.meta.url)),
 		"..",
 		"default-agent",
-		"cline-mom",
+		"cline-dad",
 		"profile.json",
 	);
 }

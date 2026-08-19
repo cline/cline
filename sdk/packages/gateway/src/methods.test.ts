@@ -32,6 +32,11 @@ describe("method registry", () => {
 			[
 				"bot.delegate",
 				"connector.register",
+				"connector.remove",
+				"connector.sendTest",
+				"connector.setCredential",
+				"connector.setEnabled",
+				"connector.updateConfig",
 				"gateway.drain",
 				"gateway.stop",
 				"run.abort",

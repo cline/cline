@@ -21,7 +21,7 @@ use tauri::{Manager, RunEvent, State};
 
 const READY_TIMEOUT: Duration = Duration::from_secs(20);
 const DEFAULT_GATEWAY_NAMESPACE: &str = "default";
-const DEFAULT_LEAD_PROFILE: &str = "cline";
+const DEFAULT_LEAD_PROFILE: &str = "cline-dad";
 
 #[derive(Clone, Serialize)]
 struct BridgeEndpoint {
@@ -56,6 +56,33 @@ fn gateway_namespace() -> String {
 fn lead_profile() -> String {
     std::env::var("GATEWAY_DESKTOP_LEAD_PROFILE")
         .unwrap_or_else(|_| DEFAULT_LEAD_PROFILE.to_string())
+}
+
+fn lead_profiles_dir() -> Option<PathBuf> {
+    if let Ok(explicit) = std::env::var("CLINE_GATEWAY_PROFILES_DIR") {
+        let path = PathBuf::from(explicit);
+        if path.join("cline-dad").join("profile.json").exists() {
+            return Some(path);
+        }
+    }
+    let development = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("resources")
+        .join("default-agent");
+    if development.join("cline-dad").join("profile.json").exists() {
+        return Some(development);
+    }
+    let executable = std::env::current_exe().ok()?;
+    let packaged = executable
+        .parent()?
+        .join("..")
+        .join("Resources")
+        .join("resources")
+        .join("default-agent");
+    packaged
+        .join("cline-dad")
+        .join("profile.json")
+        .exists()
+        .then_some(packaged)
 }
 
 /// Locate the packaged Gateway sidecar, with a source fallback for `tauri dev`.
@@ -99,6 +126,9 @@ fn gateway_command() -> Result<Command, String> {
 /// Start the namespaced Gateway, or attach when another copy already owns it.
 fn ensure_gateway(namespace: &str) -> Result<Option<Child>, String> {
     let mut command = gateway_command()?;
+    if let Some(profiles_dir) = lead_profiles_dir() {
+        command.env("CLINE_GATEWAY_PROFILES_DIR", profiles_dir);
+    }
     command
         .arg("serve")
         .arg("--namespace")

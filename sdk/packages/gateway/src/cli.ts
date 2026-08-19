@@ -65,7 +65,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 		throw new Error(
 			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
 				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
-				"       cline-gateway serve [--lead-profile <cline|cline-mom>]\n" +
+				"       cline-gateway serve [--lead-profile <cline|cline-dad>]\n" +
 				"       cline-gateway secret-put <providerId>   (reads the secret from stdin)",
 		);
 	}
@@ -173,6 +173,9 @@ async function commandServe(
 			engine: createConfiguredEnginePort({
 				approvals: () => serverRef?.runtime.approvals,
 				paths: resolveGatewayPaths(args),
+				// Gateway-owned tools, including constrained proactive connector
+				// messaging, are late-bound after the server is constructed.
+				tools: (invocation) => serverRef?.connectorTools(invocation),
 				leadProfile,
 			}),
 		});

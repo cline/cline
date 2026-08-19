@@ -14,7 +14,18 @@ import type {
 	ConnectorReplyPort,
 	NormalizedConnectorMessage,
 } from "@cline/bot";
-import type { ConnectorAdapter, ConnectorAdapterContext } from "./adapter";
+import type {
+	ConnectorAdapter,
+	ConnectorAdapterContext,
+	ConnectorCredentialCheck,
+} from "./adapter";
+import { ConnectorDeliveryError } from "./adapter";
+
+/** Telegram sendMessage hard limit (characters). */
+export const TELEGRAM_MAX_MESSAGE_LENGTH = 4096;
+
+/** HTTP statuses that indicate a revoked/insufficient credential. */
+const PERMANENT_HTTP_STATUSES = new Set([400, 401, 403, 404]);
 
 export interface TelegramAdapterOptions {
 	fetchImpl?: typeof fetch;
@@ -43,6 +54,7 @@ interface TelegramUpdate {
 
 export class TelegramConnectorAdapter implements ConnectorAdapter {
 	readonly kind = "telegram";
+	readonly maxMessageLength = TELEGRAM_MAX_MESSAGE_LENGTH;
 	private readonly fetchImpl: typeof fetch;
 	private readonly apiBase: string;
 	private readonly pollTimeoutSeconds: number;
@@ -101,25 +113,86 @@ export class TelegramConnectorAdapter implements ConnectorAdapter {
 		return {
 			reply: async (conversation, text) => {
 				if (!credential) {
-					throw new Error("Telegram reply port has no credential");
-				}
-				const response = await fetchImpl(
-					`${apiBase}/bot${credential}/sendMessage`,
-					{
-						method: "POST",
-						headers: { "content-type": "application/json" },
-						body: JSON.stringify({
-							chat_id: conversation.externalConversationId,
-							text,
-						}),
-					},
-				);
-				if (!response.ok) {
-					throw new Error(
-						`Telegram sendMessage failed: HTTP ${response.status}`,
+					// A missing credential cannot heal by retrying.
+					throw new ConnectorDeliveryError(
+						"Telegram reply port has no credential",
+						{ retryable: false },
 					);
 				}
+				let response: Response;
+				try {
+					response = await fetchImpl(
+						`${apiBase}/bot${credential}/sendMessage`,
+						{
+							method: "POST",
+							headers: { "content-type": "application/json" },
+							body: JSON.stringify({
+								chat_id: conversation.externalConversationId,
+								text,
+							}),
+						},
+					);
+				} catch (error) {
+					// Network failures are transient. The raw error may embed
+					// the request URL (which carries the token): redact.
+					throw new ConnectorDeliveryError(
+						`Telegram sendMessage network failure: ${redactTelegramToken(
+							String(error),
+							credential,
+						)}`,
+						{ retryable: true },
+					);
+				}
+				if (!response.ok) {
+					// 401/403: revoked token; 400/404: bad chat — permanent.
+					// 429/5xx: transient platform failures.
+					throw new ConnectorDeliveryError(
+						`Telegram sendMessage failed: HTTP ${response.status}`,
+						{ retryable: !PERMANENT_HTTP_STATUSES.has(response.status) },
+					);
+				}
+				const body = (await response.json().catch(() => undefined)) as
+					| { ok?: boolean; result?: { message_id?: number } }
+					| undefined;
+				return {
+					externalMessageIds:
+						body?.result?.message_id !== undefined
+							? [String(body.result.message_id)]
+							: [],
+				};
 			},
+		};
+	}
+
+	/** Verify the bot token with `getMe`; the token never leaves here. */
+	async testCredentials(
+		_config: Readonly<Record<string, unknown>>,
+		credential: string | undefined,
+	): Promise<ConnectorCredentialCheck> {
+		if (!credential) {
+			return { ok: false, detail: "No credential configured" };
+		}
+		let response: Response;
+		try {
+			response = await this.fetchImpl(`${this.apiBase}/bot${credential}/getMe`);
+		} catch (error) {
+			return {
+				ok: false,
+				detail: `Network failure: ${redactTelegramToken(String(error), credential)}`,
+			};
+		}
+		if (!response.ok) {
+			return { ok: false, detail: `HTTP ${response.status}` };
+		}
+		const body = (await response.json().catch(() => undefined)) as
+			| { ok?: boolean; result?: { username?: string } }
+			| undefined;
+		if (!body?.ok) {
+			return { ok: false, detail: "Telegram getMe returned a non-ok body" };
+		}
+		return {
+			ok: true,
+			...(body.result?.username ? { detail: `@${body.result.username}` } : {}),
 		};
 	}
 
@@ -181,6 +254,11 @@ export class TelegramConnectorAdapter implements ConnectorAdapter {
 			},
 		};
 	}
+}
+
+/** Telegram tokens travel in request paths; scrub them from any text. */
+export function redactTelegramToken(text: string, token: string): string {
+	return token ? text.split(token).join("[REDACTED]") : text;
 }
 
 function sleep(ms: number, signal: AbortSignal): Promise<void> {

@@ -49,11 +49,19 @@ export interface WorkspaceRef {
 	readonly rootPath: string;
 }
 
+/**
+ * Session kind (Gateway RFC, Phase 6). `canonical` is the bot's own
+ * desktop/CLI conversation; `dedicated` isolates one external
+ * (connector) conversation. Absent means `canonical` (pre-Phase 6 rows).
+ */
+export type SessionKind = "canonical" | "dedicated";
+
 export interface SessionRecord {
 	readonly sessionId: SessionId;
 	readonly botId: BotId;
 	readonly workspace: WorkspaceRef;
 	readonly state: SessionState;
+	readonly kind?: SessionKind;
 	readonly createdAt: number;
 	readonly revision: number;
 }
@@ -110,6 +118,8 @@ export interface EngineInvocation {
 	readonly botId: BotId;
 	readonly input: string;
 	readonly workspaceRoot: string;
+	/** Durable admission source, attached by the Gateway before execution. */
+	readonly source?: "interactive" | "connector" | "automation";
 	/** Bot config with per-turn overrides already applied. */
 	readonly effectiveConfig: BotConfig;
 	readonly overrides?: TurnOverrides;

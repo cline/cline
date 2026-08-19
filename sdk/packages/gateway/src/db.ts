@@ -332,6 +332,51 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 			);`,
 		],
 	},
+	{
+		version: 5,
+		name: "phase-6-conversation-isolation-and-outbound",
+		statements: [
+			// Sessions carry a kind: `canonical` (the bot's own desktop/CLI
+			// conversation) or `dedicated` (one isolated external
+			// conversation). Pre-existing rows are canonical.
+			`ALTER TABLE sessions ADD COLUMN kind TEXT NOT NULL DEFAULT 'canonical';`,
+			// Outbound connector messages: persisted BEFORE delivery, then
+			// supervised independently from model execution. Idempotency
+			// keys make retries and crash recovery duplicate-free.
+			`CREATE TABLE connector_outbound (
+				outbound_id TEXT PRIMARY KEY,
+				bot_id TEXT NOT NULL,
+				connector_id TEXT NOT NULL,
+				external_account_id TEXT NOT NULL,
+				external_conversation_id TEXT NOT NULL,
+				origin TEXT NOT NULL,
+				origin_run_id TEXT,
+				origin_schedule_id TEXT,
+				idempotency_key TEXT NOT NULL UNIQUE,
+				content TEXT NOT NULL,
+				state TEXT NOT NULL DEFAULT 'pending',
+				attempts INTEGER NOT NULL DEFAULT 0,
+				next_attempt_at INTEGER NOT NULL DEFAULT 0,
+				claimed_by TEXT,
+				claim_expires_at INTEGER,
+				last_error TEXT,
+				external_message_ids_json TEXT,
+				created_at INTEGER NOT NULL,
+				last_attempt_at INTEGER,
+				delivered_at INTEGER
+			);`,
+			`CREATE INDEX idx_connector_outbound_state
+				ON connector_outbound(state, next_attempt_at);`,
+			`CREATE INDEX idx_connector_outbound_connector
+				ON connector_outbound(connector_id, created_at);`,
+			`CREATE INDEX idx_connector_outbound_run
+				ON connector_outbound(origin_run_id);`,
+			// Schedules may target a connector route for notifications.
+			`ALTER TABLE schedules ADD COLUMN notify_connector_id TEXT;`,
+			`ALTER TABLE schedules ADD COLUMN notify_external_account_id TEXT;`,
+			`ALTER TABLE schedules ADD COLUMN notify_external_conversation_id TEXT;`,
+		],
+	},
 ];
 
 export class GatewayDatabase {

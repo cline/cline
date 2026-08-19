@@ -68,4 +68,15 @@ describe("portable built-in coding tools", () => {
 			},
 		]);
 	});
+
+	it("returns only user-facing summary text from submit_and_exit", async () => {
+		const root = await mkdtemp(join(tmpdir(), "cline-tools-"));
+		const submit = createBuiltinCodingTools({
+			workspaceRoot: root,
+			enabledToolNames: ["submit_and_exit"],
+		})[0];
+		await expect(
+			submit.execute({ summary: "Finished cleanly.", verified: true }, context),
+		).resolves.toBe("Finished cleanly.");
+	});
 });

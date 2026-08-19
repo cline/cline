@@ -142,6 +142,164 @@ describe("status visibility", () => {
 	});
 });
 
+describe("connector management wire methods", () => {
+	class FakeWireAdapter {
+		readonly kind = "telegram";
+		readonly maxMessageLength = 4096;
+		readonly replies: { conversation: string; text: string }[] = [];
+
+		async run(context: { signal: AbortSignal }): Promise<void> {
+			await new Promise<void>((resolve) => {
+				context.signal.addEventListener("abort", () => resolve());
+			});
+		}
+
+		createReplyPort() {
+			return {
+				reply: async (
+					conversation: { externalConversationId: string },
+					text: string,
+				) => {
+					this.replies.push({
+						conversation: conversation.externalConversationId,
+						text,
+					});
+					return { externalMessageIds: ["wire-1"] };
+				},
+			};
+		}
+
+		async testCredentials() {
+			return { ok: true, detail: "@fake_bot" };
+		}
+	}
+
+	it("registers, inspects, configures, tests, disables, and removes a connector", async () => {
+		const adapter = new FakeWireAdapter();
+		const { client, botId, server } = await startServer({
+			connectorAdapters: { telegram: adapter as never },
+			deliveryTickMs: 25,
+		});
+		const registered = (await client.mutate("connector.register", {
+			botId,
+			kind: "telegram",
+			name: "wire-connector",
+			credentialRef: "wire-token",
+		})) as { connectorId: string };
+
+		// Inspect: record + live health, no credential material anywhere.
+		const inspected = (await client.request("connector.inspect", {
+			connectorId: registered.connectorId,
+			// biome-ignore lint/suspicious/noExplicitAny: test projection
+		})) as Record<string, any>;
+		expect(inspected.connector.name).toBe("wire-connector");
+		expect(inspected.health.running).toBe(true);
+		expect(inspected.health.hasCredential).toBe(true);
+		expect(JSON.stringify(inspected)).not.toContain("wire-token-value");
+
+		// Credential probe (fake adapter answers without network).
+		const check = (await client.request("connector.testCredentials", {
+			connectorId: registered.connectorId,
+		})) as { ok: boolean; detail?: string };
+		expect(check).toEqual({ ok: true, detail: "@fake_bot" });
+
+		// Non-secret config updates work; secret-like keys are refused.
+		await client.mutate("connector.updateConfig", {
+			connectorId: registered.connectorId,
+			config: { botUsername: "wire_bot" },
+		});
+		await expect(
+			client.mutate("connector.updateConfig", {
+				connectorId: registered.connectorId,
+				config: { botToken: "123:abc" },
+			}),
+		).rejects.toThrow(/credential material/);
+
+		// Replace the credential REFERENCE (never the secret itself).
+		const updated = (await client.mutate("connector.setCredential", {
+			connectorId: registered.connectorId,
+			credentialRef: "wire-token-v2",
+		})) as { credentialRef?: string };
+		expect(updated.credentialRef).toBe("wire-token-v2");
+
+		// Send a test message; the delivery worker posts it via the adapter.
+		(await client.mutate("connector.sendTest", {
+			connectorId: registered.connectorId,
+			externalConversationId: "chat-42",
+			text: "hello from the operator",
+		})) as { outbound: { outboundId: string } };
+		await waitFor(() =>
+			adapter.replies.some(
+				(reply) =>
+					reply.conversation === "chat-42" &&
+					reply.text === "hello from the operator",
+			),
+		);
+		const outbound = (await client.request("connector.outbound", {
+			connectorId: registered.connectorId,
+		})) as { messages: { state: string; origin: string }[] };
+		expect(outbound.messages[0]).toMatchObject({
+			state: "delivered",
+			origin: "test",
+		});
+
+		// Disable stops the worker; enable restarts it.
+		await client.mutate("connector.setEnabled", {
+			connectorId: registered.connectorId,
+			enabled: false,
+		});
+		const disabled = (await client.request("connector.inspect", {
+			connectorId: registered.connectorId,
+			// biome-ignore lint/suspicious/noExplicitAny: test projection
+		})) as Record<string, any>;
+		expect(disabled.connector.status).toBe("disabled");
+		expect(disabled.health.running).toBe(false);
+		await client.mutate("connector.setEnabled", {
+			connectorId: registered.connectorId,
+			enabled: true,
+		});
+
+		// Routes listing (empty here) and removal.
+		const routes = (await client.request("connector.routes", {
+			connectorId: registered.connectorId,
+		})) as { routes: unknown[] };
+		expect(routes.routes).toEqual([]);
+		await client.mutate("connector.remove", {
+			connectorId: registered.connectorId,
+		});
+		const listed = (await client.request("connector.list", {})) as {
+			connectors: unknown[];
+		};
+		expect(listed.connectors).toEqual([]);
+		// The outbound history is retained after removal.
+		expect(server.stores.connectorOutbound.list({})).toHaveLength(1);
+	});
+
+	it("run.start joins an explicit session over the wire", async () => {
+		const { client, botId, server } = await startServer();
+		const first = (await client.mutate("run.start", {
+			botId,
+			prompt: "canonical one",
+		})) as { runId: string };
+		const sessionId = server.stores.runs.get(first.runId as never)?.sessionId;
+		const joined = (await client.mutate("run.start", {
+			botId,
+			prompt: "same session please",
+			sessionId,
+		})) as { runId: string };
+		expect(server.stores.runs.get(joined.runId as never)?.sessionId).toBe(
+			sessionId,
+		);
+		await expect(
+			client.mutate("run.start", {
+				botId,
+				prompt: "nope",
+				sessionId: "ses_doesnotexist0001",
+			}),
+		).rejects.toThrow(/Unknown session/);
+	});
+});
+
 describe("connector and schedule wire methods", () => {
 	it("registers and lists bot-scoped connectors over the wire", async () => {
 		const { client, botId, server } = await startServer({

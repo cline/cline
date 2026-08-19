@@ -11,8 +11,16 @@ import type {
 import { createBotId, createConnectorId } from "@cline/shared/gateway";
 import { describe, expect, it } from "vitest";
 import type { ConnectorAdapterContext } from "./adapter";
+import { ConnectorDeliveryError } from "./adapter";
 import type { SlackSocket } from "./slack";
-import { parseSlackCredential, SlackConnectorAdapter } from "./slack";
+import {
+	parseSlackConversationId,
+	parseSlackCredential,
+	redactSlackTokens,
+	SLACK_MAX_MESSAGE_LENGTH,
+	SlackConnectorAdapter,
+	slackConversationId,
+} from "./slack";
 
 const DESCRIPTOR: ConnectorDescriptor = {
 	connectorId: createConnectorId(),
@@ -215,6 +223,155 @@ describe("slack adapter", () => {
 		harness.controller.abort();
 		harness.socket.close();
 		await harness.done;
+	});
+
+	it("separates channels and threads into distinct conversations (sessions)", async () => {
+		const harness = createHarness({});
+		await settle();
+		// Top-level channel message.
+		harness.socket.emit(messageEnvelope("Ev100", "in the channel"));
+		// Two different threads in the SAME channel.
+		harness.socket.emit(
+			messageEnvelope("Ev101", "thread one", { thread_ts: "111.000" }),
+		);
+		harness.socket.emit(
+			messageEnvelope("Ev102", "thread two", { thread_ts: "222.000" }),
+		);
+		// A later reply in thread one reuses ITS conversation id.
+		harness.socket.emit(
+			messageEnvelope("Ev103", "thread one again", { thread_ts: "111.000" }),
+		);
+		await settle();
+		expect(
+			harness.delivered.map((message) => message.externalConversationId),
+		).toEqual(["C7", "C7#111.000", "C7#222.000", "C7#111.000"]);
+		// The encoding round-trips for replies.
+		expect(parseSlackConversationId("C7#111.000")).toEqual({
+			channel: "C7",
+			threadTs: "111.000",
+		});
+		expect(slackConversationId("C7")).toBe("C7");
+		harness.controller.abort();
+		harness.socket.close();
+		await harness.done;
+	});
+
+	it("replies into the thread for thread conversations", async () => {
+		const requests: { url: string; init?: RequestInit }[] = [];
+		const adapter = new SlackConnectorAdapter({
+			fetchImpl: (async (input: string | URL | Request, init?: RequestInit) => {
+				requests.push({ url: String(input), init });
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({ ok: true, ts: "999.123" }),
+				} as Response;
+			}) as typeof fetch,
+			socketFactory: async () => new FakeSocket(),
+		});
+		const port = adapter.createReplyPort({}, CREDENTIAL);
+		const result = await port.reply(
+			{ externalAccountId: "U42", externalConversationId: "C7#111.000" },
+			"threaded reply",
+		);
+		expect(JSON.parse(String(requests[0].init?.body))).toEqual({
+			channel: "C7",
+			text: "threaded reply",
+			thread_ts: "111.000",
+		});
+		expect(result?.externalMessageIds).toEqual(["999.123"]);
+	});
+
+	it("classifies permanent vs transient delivery failures", async () => {
+		const scripted: { status: number; body: Record<string, unknown> }[] = [
+			{ status: 200, body: { ok: false, error: "invalid_auth" } },
+			{ status: 200, body: { ok: false, error: "ratelimited" } },
+			{ status: 503, body: {} },
+		];
+		const adapter = new SlackConnectorAdapter({
+			fetchImpl: (async () => {
+				const next = scripted.shift();
+				return {
+					ok: (next?.status ?? 500) < 400,
+					status: next?.status ?? 500,
+					json: async () => next?.body ?? {},
+				} as Response;
+			}) as typeof fetch,
+			socketFactory: async () => new FakeSocket(),
+		});
+		const port = adapter.createReplyPort({}, CREDENTIAL);
+		const conversation = {
+			externalAccountId: "U42",
+			externalConversationId: "C7",
+		};
+		// Revoked credential: permanent.
+		await expect(port.reply(conversation, "x")).rejects.toMatchObject({
+			name: "ConnectorDeliveryError",
+			retryable: false,
+		});
+		// Rate limit and 5xx: transient.
+		await expect(port.reply(conversation, "x")).rejects.toMatchObject({
+			retryable: true,
+		});
+		await expect(port.reply(conversation, "x")).rejects.toMatchObject({
+			retryable: true,
+		});
+	});
+
+	it("treats missing and malformed credentials as permanent failures", async () => {
+		const adapter = new SlackConnectorAdapter({
+			socketFactory: async () => new FakeSocket(),
+		});
+		await expect(
+			adapter
+				.createReplyPort({}, undefined)
+				.reply({ externalAccountId: "U42", externalConversationId: "C7" }, "x"),
+		).rejects.toMatchObject({ retryable: false });
+		const malformed = adapter.createReplyPort({}, "not json");
+		await expect(
+			malformed.reply(
+				{ externalAccountId: "U42", externalConversationId: "C7" },
+				"x",
+			),
+		).rejects.toSatisfy(
+			(error: unknown) =>
+				error instanceof ConnectorDeliveryError &&
+				!error.retryable &&
+				!error.message.includes("not json"),
+		);
+	});
+
+	it("verifies credentials via auth.test and never leaks tokens", async () => {
+		const requests: { url: string; init?: RequestInit }[] = [];
+		const adapter = new SlackConnectorAdapter({
+			fetchImpl: (async (input: string | URL | Request, init?: RequestInit) => {
+				requests.push({ url: String(input), init });
+				return {
+					ok: true,
+					status: 200,
+					json: async () => ({ ok: true, user: "gatewaybot", team: "acme" }),
+				} as Response;
+			}) as typeof fetch,
+			socketFactory: async () => new FakeSocket(),
+		});
+		const check = await adapter.testCredentials({}, CREDENTIAL);
+		expect(check.ok).toBe(true);
+		expect(check.detail).toBe("gatewaybot @ acme");
+		expect(requests[0].url).toContain("/auth.test");
+		// Missing credential: a clean failure, not an exception.
+		expect((await adapter.testCredentials({}, undefined)).ok).toBe(false);
+		// Redaction helper scrubs both tokens.
+		expect(
+			redactSlackTokens("failed at xapp-test and xoxb-test", CREDENTIAL),
+		).toBe("failed at [REDACTED] and [REDACTED]");
+	});
+
+	it("exposes the platform message limit", () => {
+		const adapter = new SlackConnectorAdapter({
+			socketFactory: async () => new FakeSocket(),
+		});
+		expect(adapter.maxMessageLength).toBe(SLACK_MAX_MESSAGE_LENGTH);
+		expect(SLACK_MAX_MESSAGE_LENGTH).toBe(40_000);
 	});
 
 	it("validates the credential shape", () => {

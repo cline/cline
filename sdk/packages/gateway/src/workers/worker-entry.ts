@@ -92,7 +92,7 @@ export const defaultWorkerWorkload: WorkerWorkloadFactory = (context) =>
 					)
 					.map((tool) => tool.modelFacingName),
 				askQuestion: (question, options) =>
-					context.capabilityCall("question.request", { question, options }),
+				context.capabilityCall("question.request", { question, options }),
 			}),
 		requestApproval: async (request) => {
 			const answer = (await context.capabilityCall("approval.request", {

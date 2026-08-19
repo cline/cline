@@ -12,8 +12,20 @@
  *   replaced, so no replacement session or duplicate run is created.
  */
 
-import type { BotId, RunId, ScheduleId } from "@cline/shared/gateway";
+import type {
+	BotId,
+	ConnectorId,
+	RunId,
+	ScheduleId,
+} from "@cline/shared/gateway";
 import type { GatewayDatabase } from "../db";
+
+/** Optional notification target: a connector conversation route. */
+export interface ScheduleNotifyTarget {
+	readonly connectorId: ConnectorId;
+	readonly externalAccountId: string;
+	readonly externalConversationId: string;
+}
 
 export interface ScheduleRecord {
 	readonly scheduleId: ScheduleId;
@@ -28,11 +40,18 @@ export interface ScheduleRecord {
 	readonly enabled: boolean;
 	/** Total run attempts per firing (1 = no retry). */
 	readonly maxAttempts: number;
+	/** When set, firing outcomes notify this connector conversation. */
+	readonly notify?: ScheduleNotifyTarget;
 	readonly createdAt: number;
 	readonly revision: number;
 }
 
 function rowToSchedule(row: Record<string, unknown>): ScheduleRecord {
+	const hasNotify =
+		row.notify_connector_id !== null &&
+		row.notify_connector_id !== undefined &&
+		row.notify_external_conversation_id !== null &&
+		row.notify_external_conversation_id !== undefined;
 	return {
 		scheduleId: String(row.schedule_id) as ScheduleId,
 		botId: String(row.bot_id) as BotId,
@@ -43,6 +62,15 @@ function rowToSchedule(row: Record<string, unknown>): ScheduleRecord {
 		nextDueAt: row.next_due_at === null ? undefined : Number(row.next_due_at),
 		enabled: Number(row.enabled) === 1,
 		maxAttempts: Number(row.max_attempts),
+		...(hasNotify
+			? {
+					notify: {
+						connectorId: String(row.notify_connector_id) as ConnectorId,
+						externalAccountId: String(row.notify_external_account_id ?? ""),
+						externalConversationId: String(row.notify_external_conversation_id),
+					},
+				}
+			: {}),
 		createdAt: Number(row.created_at),
 		revision: Number(row.revision),
 	};
@@ -92,8 +120,10 @@ export class ScheduleStore {
 			.prepare(
 				`INSERT INTO schedules (
 					schedule_id, bot_id, name, prompt, interval_ms, at,
-					next_due_at, enabled, max_attempts, created_at, revision
-				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+					next_due_at, enabled, max_attempts, created_at, revision,
+					notify_connector_id, notify_external_account_id,
+					notify_external_conversation_id
+				) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(schedule_id) DO UPDATE SET
 					name = excluded.name,
 					prompt = excluded.prompt,
@@ -102,7 +132,10 @@ export class ScheduleStore {
 					next_due_at = excluded.next_due_at,
 					enabled = excluded.enabled,
 					max_attempts = excluded.max_attempts,
-					revision = excluded.revision;`,
+					revision = excluded.revision,
+					notify_connector_id = excluded.notify_connector_id,
+					notify_external_account_id = excluded.notify_external_account_id,
+					notify_external_conversation_id = excluded.notify_external_conversation_id;`,
 			)
 			.run(
 				record.scheduleId,
@@ -116,6 +149,9 @@ export class ScheduleStore {
 				record.maxAttempts,
 				record.createdAt,
 				record.revision,
+				record.notify?.connectorId ?? null,
+				record.notify?.externalAccountId ?? null,
+				record.notify?.externalConversationId ?? null,
 			);
 	}
 

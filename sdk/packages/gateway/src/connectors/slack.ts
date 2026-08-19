@@ -9,6 +9,16 @@
  * admission each event caused. Replies go through `chat.postMessage`
  * with the bot token, which stays inside the reply port.
  *
+ * Conversation identity — DECISION: Slack channels and threads are
+ * SEPARATE conversations, hence separate dedicated Gateway sessions. A
+ * top-level channel message normalizes to `externalConversationId =
+ * <channel>`; a message inside a thread normalizes to
+ * `<channel>#<thread_ts>`. Replies honor the same encoding: a thread
+ * conversation replies into its thread (`thread_ts`), a channel
+ * conversation posts to the channel top level. This keeps a busy
+ * channel's threads contextually isolated from each other and from the
+ * channel itself.
+ *
  * The credential file holds JSON: `{"appToken": "xapp-...", "botToken":
  * "xoxb-..."}`.
  */
@@ -17,7 +27,71 @@ import type {
 	ConnectorReplyPort,
 	NormalizedConnectorMessage,
 } from "@cline/bot";
-import type { ConnectorAdapter, ConnectorAdapterContext } from "./adapter";
+import type {
+	ConnectorAdapter,
+	ConnectorAdapterContext,
+	ConnectorCredentialCheck,
+} from "./adapter";
+import { ConnectorDeliveryError } from "./adapter";
+
+/** Slack `chat.postMessage` hard limit for `text` (characters). */
+export const SLACK_MAX_MESSAGE_LENGTH = 40_000;
+
+/** Slack API error codes that a retry can never heal. */
+const PERMANENT_SLACK_ERRORS = new Set([
+	"invalid_auth",
+	"account_inactive",
+	"token_revoked",
+	"token_expired",
+	"not_authed",
+	"no_permission",
+	"missing_scope",
+	"ekm_access_denied",
+	"channel_not_found",
+	"not_in_channel",
+	"is_archived",
+	"restricted_action",
+	"msg_too_long",
+]);
+
+/**
+ * Encode/decode the channel-vs-thread conversation identity (see the
+ * module doc): `<channel>` or `<channel>#<thread_ts>`.
+ */
+export function slackConversationId(
+	channel: string,
+	threadTs?: string,
+): string {
+	return threadTs ? `${channel}#${threadTs}` : channel;
+}
+
+export function parseSlackConversationId(conversationId: string): {
+	channel: string;
+	threadTs?: string;
+} {
+	const separator = conversationId.indexOf("#");
+	if (separator === -1) {
+		return { channel: conversationId };
+	}
+	return {
+		channel: conversationId.slice(0, separator),
+		threadTs: conversationId.slice(separator + 1),
+	};
+}
+
+/** Scrub Slack tokens from any operator-visible text. */
+export function redactSlackTokens(text: string, credential: string): string {
+	try {
+		const parsed = parseSlackCredential(credential);
+		return text
+			.split(parsed.appToken)
+			.join("[REDACTED]")
+			.split(parsed.botToken)
+			.join("[REDACTED]");
+	} catch {
+		return credential ? text.split(credential).join("[REDACTED]") : text;
+	}
+}
 
 /** Narrow socket abstraction so tests can script envelopes. */
 export interface SlackSocket {
@@ -76,6 +150,7 @@ interface SlackEnvelope {
 			bot_id?: string;
 			channel?: string;
 			ts?: string;
+			thread_ts?: string;
 			channel_type?: string;
 		};
 	};
@@ -97,6 +172,7 @@ function decodeCursor(cursor: string | undefined): string[] {
 
 export class SlackConnectorAdapter implements ConnectorAdapter {
 	readonly kind = "slack";
+	readonly maxMessageLength = SLACK_MAX_MESSAGE_LENGTH;
 	private readonly fetchImpl: typeof fetch;
 	private readonly apiBase: string;
 	private readonly socketFactory: SlackSocketFactory;
@@ -154,30 +230,114 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 		return {
 			reply: async (conversation, text) => {
 				if (!credential) {
-					throw new Error("Slack reply port has no credential");
-				}
-				const { botToken } = parseSlackCredential(credential);
-				const response = await fetchImpl(`${apiBase}/chat.postMessage`, {
-					method: "POST",
-					headers: {
-						"content-type": "application/json",
-						authorization: `Bearer ${botToken}`,
-					},
-					body: JSON.stringify({
-						channel: conversation.externalConversationId,
-						text,
-					}),
-				});
-				const body = (await response.json()) as {
-					ok?: boolean;
-					error?: string;
-				};
-				if (!response.ok || !body.ok) {
-					throw new Error(
-						`Slack chat.postMessage failed: ${body.error ?? response.status}`,
+					throw new ConnectorDeliveryError(
+						"Slack reply port has no credential",
+						{ retryable: false },
 					);
 				}
+				let botToken: string;
+				try {
+					botToken = parseSlackCredential(credential).botToken;
+				} catch (error) {
+					// A malformed credential cannot heal by retrying.
+					throw new ConnectorDeliveryError(
+						`Slack credential is malformed: ${redactSlackTokens(String(error), credential)}`,
+						{ retryable: false },
+					);
+				}
+				// A thread conversation replies into its thread; a channel
+				// conversation posts top-level (see the module doc).
+				const { channel, threadTs } = parseSlackConversationId(
+					conversation.externalConversationId,
+				);
+				let response: Response;
+				try {
+					response = await fetchImpl(`${apiBase}/chat.postMessage`, {
+						method: "POST",
+						headers: {
+							"content-type": "application/json",
+							authorization: `Bearer ${botToken}`,
+						},
+						body: JSON.stringify({
+							channel,
+							text,
+							...(threadTs ? { thread_ts: threadTs } : {}),
+						}),
+					});
+				} catch (error) {
+					throw new ConnectorDeliveryError(
+						`Slack chat.postMessage network failure: ${redactSlackTokens(
+							String(error),
+							credential,
+						)}`,
+						{ retryable: true },
+					);
+				}
+				const body = (await response.json().catch(() => ({}))) as {
+					ok?: boolean;
+					error?: string;
+					ts?: string;
+				};
+				if (!response.ok || !body.ok) {
+					const code = body.error ?? `http_${response.status}`;
+					throw new ConnectorDeliveryError(
+						`Slack chat.postMessage failed: ${code}`,
+						{
+							retryable:
+								!PERMANENT_SLACK_ERRORS.has(code) &&
+								response.status !== 401 &&
+								response.status !== 403,
+						},
+					);
+				}
+				return {
+					externalMessageIds: body.ts ? [body.ts] : [],
+				};
 			},
+		};
+	}
+
+	/** Verify the bot token with `auth.test`; tokens never leave here. */
+	async testCredentials(
+		_config: Readonly<Record<string, unknown>>,
+		credential: string | undefined,
+	): Promise<ConnectorCredentialCheck> {
+		if (!credential) {
+			return { ok: false, detail: "No credential configured" };
+		}
+		let botToken: string;
+		try {
+			botToken = parseSlackCredential(credential).botToken;
+		} catch (error) {
+			return {
+				ok: false,
+				detail: `Malformed credential: ${redactSlackTokens(String(error), credential)}`,
+			};
+		}
+		let response: Response;
+		try {
+			response = await this.fetchImpl(`${this.apiBase}/auth.test`, {
+				method: "POST",
+				headers: { authorization: `Bearer ${botToken}` },
+			});
+		} catch (error) {
+			return {
+				ok: false,
+				detail: `Network failure: ${redactSlackTokens(String(error), credential)}`,
+			};
+		}
+		const body = (await response.json().catch(() => ({}))) as {
+			ok?: boolean;
+			error?: string;
+			user?: string;
+			team?: string;
+		};
+		if (!response.ok || !body.ok) {
+			return { ok: false, detail: body.error ?? `HTTP ${response.status}` };
+		}
+		return {
+			ok: true,
+			detail: [body.user, body.team].filter(Boolean).join(" @ ") || undefined,
 		};
 	}
 
@@ -219,10 +379,14 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 			return;
 		}
 		const nextSeen = [...seen, eventId].slice(-this.dedupeWindow);
+		// Channels and threads are separate conversations => separate
+		// dedicated sessions (module doc). A message carrying `thread_ts`
+		// is a thread reply and normalizes to `<channel>#<thread_ts>`.
+		const conversationId = slackConversationId(event.channel, event.thread_ts);
 		const message: NormalizedConnectorMessage = {
 			connectorId: context.descriptor.connectorId,
 			externalAccountId: event.user,
-			externalConversationId: event.channel,
+			externalConversationId: conversationId,
 			externalMessageId: eventId,
 			text: event.text,
 			...(event.ts
@@ -230,6 +394,8 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 				: {}),
 			metadata: {
 				platform: "slack",
+				channel: event.channel,
+				...(event.thread_ts ? { threadTs: event.thread_ts } : {}),
 				...(envelope.payload?.team_id
 					? { teamId: envelope.payload.team_id }
 					: {}),
