@@ -1,6 +1,6 @@
 /** Compile the broker and Gateway into target-named Tauri sidecars. */
 
-import { cpSync, mkdirSync } from "node:fs";
+import { mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { $ } from "bun";
 
@@ -8,22 +8,6 @@ const appRoot = join(import.meta.dirname, "..");
 const repoRoot = join(appRoot, "..", "..");
 const outDir = join(appRoot, "src-tauri", "bin");
 mkdirSync(outDir, { recursive: true });
-
-const profileSource = join(
-	repoRoot,
-	"sdk",
-	"packages",
-	"gateway",
-	"default-agent",
-);
-const profileResources = join(
-	appRoot,
-	"src-tauri",
-	"resources",
-	"default-agent",
-);
-mkdirSync(profileResources, { recursive: true });
-cpSync(profileSource, profileResources, { recursive: true, force: true });
 
 const triple =
 	process.env.GATEWAY_DESKTOP_TARGET_TRIPLE ??
@@ -64,4 +48,3 @@ if (
 
 console.log(`broker sidecar written to ${brokerOutfile}`);
 console.log(`Gateway sidecar written to ${gatewayOutfile}`);
-console.log(`Gateway lead profiles copied to ${profileResources}`);
