@@ -1039,11 +1039,14 @@ export function createDefaultTools(
 	// outlive the agent that started them.
 	//
 	// Shell access is the host's call. A monitor spawns its own child process,
-	// so offering it to a host that withheld the shell executor — or turned the
-	// shell tool off — would hand back the very capability that host declined.
-	// Both the flag and the executor are checked, since either alone is a
-	// sufficient signal that the host wants no shell.
-	if (enableMonitor && config.monitorRegistry && enableBash && executors.bash) {
+	// so offering it to a host that turned the shell tool off (`enableBash:
+	// false` via preset, routing, or config) would hand back the very
+	// capability that host declined. The bash *executor* is deliberately not
+	// consulted: hosts that replace the built-in run_commands tool with their
+	// own shell tool (the VS Code extension suppresses `executors.bash` for
+	// exactly that) still offer shell, and a monitor never runs through the
+	// bash executor anyway — the registry owns its own processes.
+	if (enableMonitor && config.monitorRegistry && enableBash) {
 		tools.push(createMonitorTool(config.monitorRegistry, config));
 	}
 

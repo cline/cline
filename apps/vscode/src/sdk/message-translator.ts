@@ -2140,9 +2140,10 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "team_progress":
-		case "pending_prompts": {
-			// These are handled by the team/subagent system, not translated
-			// to ClineMessages at this layer
+		case "pending_prompts":
+		case "monitor_state": {
+			// These are handled by the team/subagent/monitor-roster systems,
+			// not translated to ClineMessages at this layer
 			break
 		}
 

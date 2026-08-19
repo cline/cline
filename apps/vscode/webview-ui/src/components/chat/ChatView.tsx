@@ -14,6 +14,7 @@ import AutoApproveBar from "./auto-approve-menu/AutoApproveBar"
 // Import utilities and hooks from the new structure
 import {
 	ActionButtons,
+	ActiveMonitors,
 	CHAT_CONSTANTS,
 	ChatLayout,
 	convertHtmlToMarkdown,
@@ -58,6 +59,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 		hooksEnabled,
 		checkpointRestoreInput,
 		queuedPrompts,
+		activeMonitors,
 		turnState,
 	} = useExtensionState()
 	const isProdHostedApp = userInfo?.apiBaseUrl === "https://app.cline.bot"
@@ -421,6 +423,7 @@ const ChatView = ({ isHidden, showAnnouncement, hideAnnouncement, showHistoryVie
 					mode={mode}
 					task={task}
 				/>
+				<ActiveMonitors items={activeMonitors} />
 				<QueuedPrompts items={queuedPrompts} />
 				<InputSection
 					chatState={chatState}

@@ -49,15 +49,16 @@ describe("monitor tool", () => {
 		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 
-	it("is withheld from a host that supplies no shell executor", () => {
+	it("stays available to a host that replaces the shell executor", () => {
 		const registry = new MonitorRegistry({ notifier: () => {} });
 		const tools = createDefaultTools({
-			executors: {},
+			// Hosts that swap in their own run_commands tool suppress the
+			// built-in bash executor without declining shell (the VS Code
+			// extension does exactly this); monitors must survive that.
+			executors: { bash: undefined },
 			monitorRegistry: registry,
 		});
-		// A monitor spawns its own shell, so a host that withheld the bash
-		// executor must not get shell execution back through this door.
-		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
+		expect(tools.map((tool) => tool.name)).toContain("monitor");
 	});
 
 	it("is withheld when the shell tool is turned off", () => {

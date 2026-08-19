@@ -14,6 +14,8 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Cancels a queued prompt by ID
   rpc cancelQueuedPrompt(StringRequest) returns (Empty);
+  // Stops a background monitor by ID on the user's behalf
+  rpc stopMonitor(StringRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Detaches the running foreground terminal command ("Proceed While Running"):

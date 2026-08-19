@@ -303,6 +303,38 @@ describe("SdkSessionEventCoordinator", () => {
 		expect(options.sessions.setRunning).not.toHaveBeenCalled()
 	})
 
+	it("posts state when the monitor roster changes", async () => {
+		const { coordinator, options } = makeCoordinator({
+			translation: {
+				messages: [],
+				sessionEnded: false,
+				turnComplete: false,
+			},
+		})
+		const event: CoreSessionEvent = {
+			type: "monitor_state",
+			payload: {
+				sessionId: "session-123",
+				monitors: [
+					{
+						id: "mon_1",
+						name: "applog",
+						description: "watching the app log",
+						command: "tail -F app.log",
+						cwd: "/tmp",
+						startedAt: 0,
+						status: "running",
+						linesEmitted: 0,
+					},
+				],
+			},
+		} as CoreSessionEvent
+
+		await coordinator.handleSessionEvent(event)
+
+		expect(options.postStateToWebview).toHaveBeenCalledOnce()
+	})
+
 	it("captures provider failure telemetry for SDK agent errors", async () => {
 		const error = new Error("provider failed")
 		const { coordinator, options } = makeCoordinator()
