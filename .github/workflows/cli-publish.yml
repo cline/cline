@@ -206,12 +206,40 @@ jobs:
 
       - name: Get Changelog Entry
         id: changelog
+        env:
+          RELEASE_URL: https://github.com/${{ github.repository }}/releases/tag/${{ steps.version.outputs.tag }}
         run: |
           # Grab content between the first "## " header and the next one in apps/cli/CHANGELOG.md
           CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/cli/CHANGELOG.md)
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
+
+          # Slack section blocks reject text longer than 3000 characters, and the
+          # Slack action logs that rejection WITHOUT failing the step - so an
+          # over-long changelog silently drops the release announcement while the
+          # run stays green (cline@3.0.50 hit this). Post a trimmed copy to Slack
+          # and link out to the full notes. The GitHub release body stays whole.
+          SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os
+          content = os.environ["CONTENT"]
+          more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+          if len(content) <= 3000:
+              print(content, end="")
+          else:
+              budget = 3000 - len(more)
+              kept, used = [], 0
+              for line in content.splitlines(keepends=True):
+                  if used + len(line) > budget:
+                      break
+                  kept.append(line)
+                  used += len(line)
+              body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+              print(body + more, end="")
+          ')
+          echo "slack_content<<SLACK_EOF" >> $GITHUB_OUTPUT
+          echo "$SLACK_CONTENT" >> $GITHUB_OUTPUT
+          echo "SLACK_EOF" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
@@ -248,7 +276,7 @@ jobs:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: ${{ toJSON(steps.changelog.outputs.content) }}
+                  text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
               - type: "context"
                 elements:
                   - type: "mrkdwn"

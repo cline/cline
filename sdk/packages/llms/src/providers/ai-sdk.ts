@@ -1031,6 +1031,9 @@ function calculateUsageCostFromPricing(
  * Accepts both AI SDK's normalized shapes (AiSdkStreamTotalUsage, AiSdkStreamUsage)
  * and raw provider responses. Handles multiple naming conventions (camelCase vs snake_case),
  * extracts costs from provider-specific fields, and falls back to pricing-based calculation.
+ * Provider-reported billed cost takes precedence over market cost so gateway discounts
+ * are reflected in user-facing totals. Market cost remains a fallback when no billed
+ * cost is available.
  *
  * @param usageValue - AI SDK normalized usage or raw provider response object
  * @param providerMetadata - Provider-specific metadata for cost extraction
@@ -1091,9 +1094,13 @@ export function normalizeUsage(
 		baseCost !== undefined && baseCost > 0
 			? baseCost
 			: (upstreamInferenceCost ?? baseCost);
+	const billedCost = shouldAddUpstreamCost
+		? baseCost + upstreamInferenceCost
+		: costOrUpstream;
 	const totalCost =
-		marketCost ??
-		(shouldAddUpstreamCost ? baseCost + upstreamInferenceCost : costOrUpstream);
+		billedCost !== undefined && billedCost !== 0
+			? billedCost
+			: (marketCost ?? billedCost);
 	const normalizedUsage = {
 		inputTokens:
 			getNestedUsageValue(usage, "inputTokens", "total") ||
