@@ -14,6 +14,18 @@ export const TASK_RESUMPTION_PROMPT =
 export const ACT_MODE_CONTINUATION_PROMPT =
 	'<cline_internal_prompt kind="act_mode_continuation">The user approved switching to act mode. Continue with the approved plan now.</cline_internal_prompt>'
 
+/**
+ * The synthetic prompt shapes used before the <cline_internal_prompt> marker
+ * existed. Sessions persisted with them (and legacy-path resumptions, see
+ * core/prompts/responses.ts) must keep hiding them on reopen, or previously
+ * hidden prompts surface as user bubbles and shift every later
+ * edit/regenerate ordinal. Trade-off: a user message deliberately starting
+ * with "[TASK RESUMPTION]" is hidden too — accepted, matching the behavior
+ * these transcripts were recorded under.
+ */
+const LEGACY_TASK_RESUMPTION_PREFIX = "[TASK RESUMPTION]"
+const LEGACY_ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
+
 export type SdkUserMessage = {
 	role?: unknown
 	content?: unknown
@@ -61,7 +73,11 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
 	const normalized = stripModeNotices(normalizeUserInput(text))
-	return normalized.startsWith(SYNTHETIC_PROMPT_PREFIX)
+	return (
+		normalized.startsWith(SYNTHETIC_PROMPT_PREFIX) ||
+		normalized.startsWith(LEGACY_TASK_RESUMPTION_PREFIX) ||
+		normalized === LEGACY_ACT_MODE_CONTINUATION_PROMPT
+	)
 }
 
 function hasAttachmentBlocks(message: SdkUserMessage): boolean {

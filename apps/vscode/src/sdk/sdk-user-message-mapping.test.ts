@@ -23,11 +23,25 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt(wrapped(TASK_RESUMPTION_PROMPT, "plan"))).toBe(true)
 	})
 
-	it("does not flag ordinary or synthetic-looking user messages", () => {
+	it("does not flag ordinary user messages", () => {
 		expect(isSyntheticUserPrompt("make a plan for the auth refactor")).toBe(false)
 		expect(isSyntheticUserPrompt(wrapped("go ahead and implement step 1"))).toBe(false)
-		expect(isSyntheticUserPrompt("[TASK RESUMPTION] Please continue where you left off.")).toBe(false)
-		expect(isSyntheticUserPrompt("The user approved switching to act mode. Continue with the approved plan now.")).toBe(false)
+		expect(isSyntheticUserPrompt("[task resumption] lowercase lookalike")).toBe(false)
+	})
+
+	it("keeps flagging the pre-marker synthetic prompt shapes", () => {
+		// Sessions persisted before the <cline_internal_prompt> marker carry
+		// these exact shapes (and the legacy task path still generates the
+		// [TASK RESUMPTION] prefix). They must stay hidden on reopen or every
+		// later edit/regenerate ordinal in those transcripts shifts by one.
+		expect(isSyntheticUserPrompt("[TASK RESUMPTION] Please continue where you left off.")).toBe(true)
+		expect(isSyntheticUserPrompt(wrapped("[TASK RESUMPTION] Please continue where you left off."))).toBe(true)
+		expect(isSyntheticUserPrompt("The user approved switching to act mode. Continue with the approved plan now.")).toBe(true)
+		expect(
+			isSyntheticUserPrompt(
+				wrapped("The user approved switching to act mode. Continue with the approved plan now.", "plan"),
+			),
+		).toBe(true)
 	})
 
 	it("flags synthetic prompts that carry a mode-switch notice", () => {

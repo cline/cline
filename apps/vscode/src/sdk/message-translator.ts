@@ -49,7 +49,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
-import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
+import { isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -2149,14 +2149,18 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { id, prompt, userImages, userFiles } = event.payload
-			// Hide only the exact queue id associated with a Cline-generated bare
-			// Resume. Content inspection is insufficient: users may type the same
-			// text, and multiple identical queued prompts remain distinct turns.
+			// Hide the queue id associated with a Cline-generated bare Resume.
+			// The id binding can be wiped before this event arrives: state.reset()
+			// runs on the settling run's `ended` (which always precedes the queue
+			// drain) and on `iteration_start`. isSyntheticUserPrompt is the
+			// stateless fallback — safe now that synthetic prompts carry the
+			// <cline_internal_prompt> marker user text cannot accidentally match.
 			// Attachments carried by the generated resume still render.
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
-			const displayPrompt = state.consumeSyntheticPendingPrompt(id, prompt) ? "" : formatDisplayUserInput(prompt)
+			const suppress = state.consumeSyntheticPendingPrompt(id, prompt) || isSyntheticUserPrompt(prompt)
+			const displayPrompt = suppress ? "" : formatDisplayUserInput(prompt)
 			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0

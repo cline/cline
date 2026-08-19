@@ -175,7 +175,11 @@ describe("translateSessionEvent — chunk events", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — pending prompts", () => {
-	it("binds generated resume suppression to the new queue id, not identical content", () => {
+	it("hides every marker-carrying queued prompt, including duplicates", () => {
+		// Only Cline generates <cline_internal_prompt> content, so no
+		// marker-carrying submission may ever surface as a user bubble — even
+		// one whose queue id was never bound (e.g. a duplicate generated
+		// resume, or a binding lost to state.reset()).
 		const state = new MessageTranslatorState()
 		const prompt = TASK_RESUMPTION_PROMPT
 		state.recordSyntheticPendingPrompt(prompt)
@@ -185,7 +189,7 @@ describe("translateSessionEvent — pending prompts", () => {
 				payload: {
 					sessionId: "session-1",
 					prompts: [
-						{ id: "older-user", prompt, delivery: "queue", attachmentCount: 0 },
+						{ id: "older-resume", prompt, delivery: "queue", attachmentCount: 0 },
 						{ id: "generated-resume", prompt, delivery: "queue", attachmentCount: 0 },
 					],
 				},
@@ -196,18 +200,13 @@ describe("translateSessionEvent — pending prompts", () => {
 			type: "pending_prompt_submitted",
 			payload: {
 				sessionId: "session-1",
-				id: "older-user",
+				id: "older-resume",
 				prompt,
 				delivery: "queue",
 				attachmentCount: 0,
 			},
 		}
-		expect(translateSessionEvent(olderEvent, state).messages).toEqual([
-			expect.objectContaining({
-				say: "user_feedback",
-				text: prompt,
-			}),
-		])
+		expect(translateSessionEvent(olderEvent, state).messages).toEqual([])
 		expect(
 			translateSessionEvent(
 				{
@@ -317,27 +316,63 @@ describe("translateSessionEvent — pending prompts", () => {
 		])
 	})
 
-	it("renders user-authored text even when it resembles a synthetic prompt", () => {
+	it("hides a generated resume even when reset() wiped the id binding", () => {
+		// The settling run's `ended` always precedes the queue drain and calls
+		// state.reset(), which clears the synthetic-prompt id binding. The
+		// stateless marker check must still hide the generated resume or the
+		// raw <cline_internal_prompt> text leaks as a user bubble.
 		const state = new MessageTranslatorState()
-		const event: CoreSessionEvent = {
-			type: "pending_prompt_submitted",
-			payload: {
-				sessionId: "session-1",
-				id: "pending-1",
-				prompt: "[TASK RESUMPTION] Please continue where you left off.",
-				delivery: "queue",
-				attachmentCount: 0,
+		state.recordSyntheticPendingPrompt(TASK_RESUMPTION_PROMPT)
+		translateSessionEvent(
+			{
+				type: "pending_prompts",
+				payload: {
+					sessionId: "session-1",
+					prompts: [{ id: "generated-resume", prompt: TASK_RESUMPTION_PROMPT, delivery: "queue", attachmentCount: 0 }],
+				},
 			},
-		}
+			state,
+		)
+		state.reset()
 
-		const result = translateSessionEvent(event, state)
+		const result = translateSessionEvent(
+			{
+				type: "pending_prompt_submitted",
+				payload: {
+					sessionId: "session-1",
+					id: "generated-resume",
+					prompt: TASK_RESUMPTION_PROMPT,
+					delivery: "queue",
+					attachmentCount: 0,
+				},
+			},
+			state,
+		)
 
-		expect(result.messages).toEqual([
-			expect.objectContaining({
-				say: "user_feedback",
-				text: "[TASK RESUMPTION] Please continue where you left off.",
-			}),
-		])
+		expect(result.messages).toEqual([])
+	})
+
+	it("hides pre-marker legacy synthetic prompt shapes without an id binding", () => {
+		// Old sessions and the legacy task path still produce the
+		// [TASK RESUMPTION] prefix; hiding it here keeps the live transcript
+		// consistent with history projection (isSyntheticSdkUserMessage), which
+		// skips these shapes when computing edit/regenerate ordinals.
+		const state = new MessageTranslatorState()
+		const result = translateSessionEvent(
+			{
+				type: "pending_prompt_submitted",
+				payload: {
+					sessionId: "session-1",
+					id: "pending-1",
+					prompt: "[TASK RESUMPTION] Please continue where you left off.",
+					delivery: "queue",
+					attachmentCount: 0,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toEqual([])
 	})
 
 	it("hides id-bound generated resume text while retaining its attachments", () => {
