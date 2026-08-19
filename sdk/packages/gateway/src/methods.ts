@@ -58,6 +58,20 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	define(GATEWAY_HELLO_METHOD, false, GatewayHelloParamsSchema),
 	define("gateway.status", false, z.object({}).strict().optional()),
 	define(
+		"gateway.drain",
+		true,
+		IdempotentParamsBase.extend({
+			reason: z.string().optional(),
+		}).strict(),
+	),
+	define(
+		"gateway.stop",
+		true,
+		IdempotentParamsBase.extend({
+			reason: z.string().optional(),
+		}).strict(),
+	),
+	define(
 		"run.start",
 		true,
 		IdempotentParamsBase.extend({
@@ -118,6 +132,17 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		"session.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	define(
+		"run.list",
+		false,
+		z
+			.object({
+				sessionId: SessionIdSchema.optional(),
+				runId: RunIdSchema.optional(),
+			})
+			.strict()
+			.optional(),
 	),
 ];
 
