@@ -8,6 +8,7 @@ export type CloudSessionError = {
 		| "authentication_required"
 		| "session_not_found"
 		| "session_expired"
+		| "session_failed"
 		| "request_failed";
 	message: string;
 	connectUrl?: string;
@@ -53,6 +54,7 @@ export function parseCloudSessionError(
 			parsed.code !== "authentication_required" &&
 			parsed.code !== "session_not_found" &&
 			parsed.code !== "session_expired" &&
+			parsed.code !== "session_failed" &&
 			parsed.code !== "request_failed"
 		) {
 			return null;

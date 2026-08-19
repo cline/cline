@@ -280,6 +280,8 @@ export default function Home() {
 					phase?: HandoffProgressPhase;
 					message?: string;
 					dashboardUrl?: string;
+					sessionId?: string;
+					destination?: "in_app" | "external";
 				};
 				if (
 					!progress.sourceSessionId?.trim() ||
@@ -294,6 +296,8 @@ export default function Home() {
 					phase: progress.phase,
 					message: progress.message,
 					dashboardUrl: progress.dashboardUrl,
+					sessionId: progress.sessionId,
+					destination: progress.destination,
 				});
 			}),
 		[],
@@ -1835,12 +1839,21 @@ function ChatThreadPane({
 					).catch(() => false);
 					if (!opened) {
 						onHandoffUiAction({ type: "external", sourceSessionId });
-						await openExternalUrl(dashboardUrl).catch(() => undefined);
-						toast({
-							title: "Opened handoff in your browser",
-							description:
-								"The cloud session could not be attached inside Cline Code.",
-						});
+						try {
+							await openExternalUrl(dashboardUrl);
+							toast({
+								title: "Opened handoff in your browser",
+								description:
+									"The cloud session could not be attached inside Cline Code.",
+							});
+						} catch {
+							toast({
+								title: "Unable to open the browser",
+								description:
+									"Use the recovery link to open the cloud session manually.",
+								variant: "destructive",
+							});
+						}
 					}
 				} else if (destination === "external") {
 					await openExternalUrl(dashboardUrl).catch(() =>

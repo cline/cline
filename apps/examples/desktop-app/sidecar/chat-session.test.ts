@@ -8,7 +8,10 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { selectCloudHandoffModel } from "@cline/core";
+import {
+	CloudHandoffTranscriptMismatchError,
+	selectCloudHandoffModel,
+} from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
@@ -1955,6 +1958,18 @@ describe("cloud handoff gates", () => {
 				new CloudHandoffSeedUnsupportedError(),
 			),
 		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffSeedUnsupportedError(),
+				false,
+			),
+		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffTranscriptMismatchError(1, 2),
+				false,
+			),
+		).toBe(false);
 		expect(
 			shouldCleanupFailedHandoffVerification(
 				new CloudSessionError("request_failed", "temporary read failure"),

@@ -95,6 +95,7 @@ export type CreateCloudSessionInput = {
 		sourceSessionId: string;
 		resolveMessages: () => Promise<MessageWithMetadata[]>;
 		onOuterSessionCreated: (sessionId: string) => Promise<void>;
+		onOuterSessionRemoved?: (sessionId: string) => Promise<void>;
 		onSeeding?: () => void;
 	};
 };
@@ -136,6 +137,7 @@ type CloudErrorCode =
 	| "github_not_connected"
 	| "session_not_found"
 	| "session_expired"
+	| "session_failed"
 	| "request_failed";
 
 export class CloudSessionError extends Error {
@@ -556,7 +558,11 @@ export class CloudSessionApi {
 				creationAuthToken,
 			);
 			if (created.status === "provisioning" || !created.sandboxUrl?.trim()) {
-				await this.waitUntilReady(sessionId, controller.signal);
+				await this.waitUntilReady(
+					sessionId,
+					controller.signal,
+					creationAuthToken,
+				);
 			}
 			return {
 				sessionId,
@@ -564,7 +570,32 @@ export class CloudSessionApi {
 				cleanupAuthToken: creationAuthToken,
 			};
 		} catch (error) {
-			if (createdSessionId) throw error;
+			if (createdSessionId) {
+				if (
+					error instanceof CloudSessionError &&
+					error.code === "session_failed"
+				) {
+					try {
+						await this.delete(createdSessionId, creationAuthToken);
+					} catch (cleanupError) {
+						if (
+							!(
+								cleanupError instanceof CloudSessionError &&
+								(cleanupError.code === "session_not_found" ||
+									cleanupError.code === "session_expired")
+							)
+						) {
+							throw new AggregateError(
+								[error, cleanupError],
+								"The cloud workspace failed to provision and could not be cleaned up.",
+							);
+						}
+					}
+					this.claimedSessionIds.delete(createdSessionId);
+					await input.handoff?.onOuterSessionRemoved?.(createdSessionId);
+				}
+				throw error;
+			}
 			// Provisioning may outlive the synchronous request only when the
 			// POST timed out or the server failed after possibly accepting it
 			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
@@ -593,13 +624,10 @@ export class CloudSessionApi {
 					await Promise.allSettled(pending.map(([, settled]) => settled));
 				}
 				const requestedBranch = input.branch?.trim();
-				const recoveryToken =
-					(await this.options.getAuthToken().catch(() => undefined))?.trim() ||
-					creationAuthToken;
 				const candidates = (
 					await this.listWithToken(
 						input.organizationId ?? undefined,
-						recoveryToken,
+						creationAuthToken,
 					).catch(() => [])
 				)
 					.filter(
@@ -650,6 +678,7 @@ export class CloudSessionApi {
 							await this.waitUntilReady(
 								recovered.id,
 								recoveryController.signal,
+								creationAuthToken,
 							);
 						} finally {
 							clearTimeout(recoveryTimeout);
@@ -676,6 +705,7 @@ export class CloudSessionApi {
 	async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal = AbortSignal.timeout(CREATE_TIMEOUT_MS),
+		authToken?: string,
 	): Promise<void> {
 		while (!signal.aborted) {
 			let result:
@@ -687,6 +717,7 @@ export class CloudSessionApi {
 						signal,
 						AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 					]),
+					authToken,
 				});
 			} catch (error) {
 				if (signal.aborted) throw error;
@@ -703,7 +734,7 @@ export class CloudSessionApi {
 			if (status === "ready" || status === "active") return;
 			if (status === "failed") {
 				throw new CloudSessionError(
-					"request_failed",
+					"session_failed",
 					result?.statusReason?.trim() ||
 						"The cloud sandbox could not be prepared.",
 				);
@@ -1593,6 +1624,7 @@ export class CloudSessionManager {
 	async verifyHandoffTranscript(
 		outerSessionId: string,
 		expected: readonly MessageWithMetadata[],
+		options: { allowAppendedMessages?: boolean } = {},
 	): Promise<void> {
 		const connection = await this.ensureConnection(outerSessionId);
 		const innerSessionId = connection.innerSessionId;
@@ -1611,7 +1643,11 @@ export class CloudSessionManager {
 		if (expected.length > 0 && actual.length === 0) {
 			throw new CloudHandoffSeedUnsupportedError();
 		}
-		if (!cloudHandoffTranscriptsEqual(expected, actual)) {
+		const verified = options.allowAppendedMessages
+			? actual.length >= expected.length &&
+				cloudHandoffTranscriptsEqual(expected, actual.slice(0, expected.length))
+			: cloudHandoffTranscriptsEqual(expected, actual);
+		if (!verified) {
 			throw new CloudHandoffTranscriptMismatchError(
 				expected.length,
 				actual.length,
@@ -1972,6 +2008,12 @@ export class CloudSessionManager {
 					prompt,
 				);
 				if (promptOccurrencesAfterRecovery <= promptOccurrencesBeforeSend) {
+					if (delivery === "queue" && snapshot.prompts === undefined) {
+						throw new CloudSessionError(
+							"request_failed",
+							"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+						);
+					}
 					throw new CloudSessionError(
 						"request_failed",
 						"The connection was interrupted before this message could be confirmed. It was not found in the cloud session, so please send it again.",

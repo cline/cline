@@ -2055,10 +2055,12 @@ export async function reconcilePendingCloudHandoff(
 
 export function shouldCleanupFailedHandoffVerification(
 	error: unknown,
+	createdOuterSessionThisAttempt = true,
 ): boolean {
 	return (
-		error instanceof CloudHandoffTranscriptMismatchError ||
-		error instanceof CloudHandoffSeedUnsupportedError
+		error instanceof CloudHandoffSeedUnsupportedError ||
+		(createdOuterSessionThisAttempt &&
+			error instanceof CloudHandoffTranscriptMismatchError)
 	);
 }
 
@@ -2268,8 +2270,13 @@ async function handleHandoffOnce(
 		if (
 			!cloudHandoffGitStateMatchesFingerprint(currentGit, prepared.fingerprint)
 		) {
+			const dashboardUrl = outerSessionId
+				? buildCloudHandoffDashboardUrl(environment.appBaseUrl, outerSessionId)
+				: undefined;
 			const error = new Error(
-				"The repository branch changed while the cloud workspace was starting. Review the latest commit and run /handoff again.",
+				createdOuterSessionThisAttempt
+					? "The repository branch changed while the cloud workspace was starting. Review the latest commit and run /handoff again."
+					: `The repository branch changed after this cloud handoff started. Restore the source repository to commit ${prepared.headSha.slice(0, 12)} and retry, or open/delete the pending cloud workspace before starting another handoff${dashboardUrl ? `: ${dashboardUrl}` : "."}`,
 			);
 			if (createdOuterSessionThisAttempt && outerSessionId) {
 				try {
@@ -2290,6 +2297,17 @@ async function handleHandoffOnce(
 		seededMessages = messages;
 		return messages;
 	};
+	const clearPendingMetadata = async (): Promise<void> => {
+		const current = await manager.get(sourceSessionId);
+		await updateHandoffMetadataOrThrow(
+			manager,
+			sourceSessionId,
+			clearCloudHandoffMetadata(
+				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore,
+			),
+			"The cloud target was removed, but its local pending handoff record could not be cleared.",
+		);
+	};
 	const clearPendingTarget = async (sessionId: string): Promise<void> => {
 		try {
 			await cloud.delete(sessionId);
@@ -2309,15 +2327,7 @@ async function handleHandoffOnce(
 				);
 			}
 		}
-		const current = await manager.get(sourceSessionId);
-		await updateHandoffMetadataOrThrow(
-			manager,
-			sourceSessionId,
-			clearCloudHandoffMetadata(
-				(current?.metadata as JsonRecord | null | undefined) ?? metadataBefore,
-			),
-			"The cloud target was removed, but its local pending handoff record could not be cleared.",
-		);
+		await clearPendingMetadata();
 	};
 
 	if (outerSessionId) {
@@ -2370,7 +2380,9 @@ async function handleHandoffOnce(
 		} catch (error) {
 			if (
 				error instanceof CloudSessionError &&
-				(error.code === "session_not_found" || error.code === "session_expired")
+				(error.code === "session_not_found" ||
+					error.code === "session_expired" ||
+					error.code === "session_failed")
 			) {
 				await clearPendingTarget(outerSessionId);
 				outerSessionId = "";
@@ -2436,6 +2448,12 @@ async function handleHandoffOnce(
 						createdSessionId,
 					);
 				},
+				onOuterSessionRemoved: async () => {
+					await clearPendingMetadata();
+					outerSessionId = "";
+					innerSessionId = "";
+					seededMessages = undefined;
+				},
 				onSeeding: () =>
 					emitProgress(
 						"seeding",
@@ -2457,9 +2475,16 @@ async function handleHandoffOnce(
 		outerSessionId,
 	);
 	try {
-		await cloud.verifyHandoffTranscript(outerSessionId, seededMessages);
+		await cloud.verifyHandoffTranscript(outerSessionId, seededMessages, {
+			allowAppendedMessages: !createdOuterSessionThisAttempt,
+		});
 	} catch (error) {
-		if (!shouldCleanupFailedHandoffVerification(error)) {
+		if (
+			!shouldCleanupFailedHandoffVerification(
+				error,
+				createdOuterSessionThisAttempt,
+			)
+		) {
 			throw error;
 		}
 		try {
@@ -2478,13 +2503,15 @@ async function handleHandoffOnce(
 		const error = new Error(
 			"The local conversation changed during handoff. Nothing was closed; try again when the session is idle.",
 		);
-		try {
-			await clearPendingTarget(outerSessionId);
-		} catch (cleanupError) {
-			throw new AggregateError(
-				[error, cleanupError],
-				"The local conversation changed during handoff and the incomplete cloud handoff could not be cleaned up.",
-			);
+		if (createdOuterSessionThisAttempt) {
+			try {
+				await clearPendingTarget(outerSessionId);
+			} catch (cleanupError) {
+				throw new AggregateError(
+					[error, cleanupError],
+					"The local conversation changed during handoff and the incomplete cloud handoff could not be cleaned up.",
+				);
+			}
 		}
 		throw error;
 	}
@@ -2527,7 +2554,14 @@ async function handleHandoffOnce(
 		}
 	}
 	const destination = isCloudAgentsEnabled() ? "in_app" : "external";
-	emitProgress("complete", "Ready in Cline Cloud.", outerSessionId);
+	sendEvent(ctx, "cloud_handoff_progress", {
+		sourceSessionId,
+		phase: "complete",
+		message: "Ready in Cline Cloud.",
+		sessionId: outerSessionId,
+		dashboardUrl,
+		destination,
+	});
 	return {
 		sessionId: outerSessionId,
 		outerSessionId,

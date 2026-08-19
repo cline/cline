@@ -35,6 +35,8 @@ export type CloudHandoffUiAction =
 			phase: HandoffProgressPhase;
 			message?: string;
 			dashboardUrl?: string;
+			sessionId?: string;
+			destination?: "in_app" | "external";
 	  }
 	| {
 			type: "failed";
@@ -72,6 +74,23 @@ export function cloudHandoffUiReducer(
 				},
 			};
 		case "progress":
+			if (
+				action.phase === "complete" &&
+				action.sessionId?.trim() &&
+				action.dashboardUrl?.trim()
+			) {
+				return {
+					...state,
+					[action.sourceSessionId]: {
+						status: "complete",
+						receipt: {
+							targetSessionId: action.sessionId,
+							dashboardUrl: action.dashboardUrl,
+						},
+						externalPresentation: action.destination === "external",
+					},
+				};
+			}
 			if (
 				current?.status === "complete" ||
 				current?.status === "failed" ||

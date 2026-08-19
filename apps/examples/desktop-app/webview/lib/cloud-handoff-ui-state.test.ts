@@ -123,6 +123,32 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
+	it("reconciles an authoritative late completion after a webview failure", () => {
+		const failed = {
+			"local-1": {
+				status: "failed" as const,
+				retryDraft: "/handoff continue",
+			},
+		};
+		const completed = cloudHandoffUiReducer(failed, {
+			type: "progress",
+			sourceSessionId: "local-1",
+			phase: "complete",
+			sessionId: "cloud-1",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			destination: "in_app",
+		});
+
+		expect(completed["local-1"]).toEqual({
+			status: "complete",
+			receipt: {
+				targetSessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+			externalPresentation: false,
+		});
+	});
+
 	it("dismisses recovery for this app run without accepting late progress", () => {
 		const recovery = {
 			"local-1": {
