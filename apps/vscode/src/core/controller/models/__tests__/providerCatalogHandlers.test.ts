@@ -279,6 +279,80 @@ describe("provider model catalog handlers", () => {
 		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
 	})
 
+	it("commitModelSelection carries cached dynamic model metadata into the host store", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("litellm")
+		const store = makeStore({ providerId, apiKey: "litellm-key" })
+		const catalog = makeCatalog()
+		const modelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+		vi.mocked(catalog.peekModels).mockReturnValue({
+			ok: true,
+			providerId,
+			configFingerprint: computeConfigFingerprint(providerId, { providerId, apiKey: "litellm-key" }),
+			models: new Map([["openai/grok-4.6", modelInfo]]),
+			defaultModelId: "openai/grok-4.6",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await commitModelSelection(controller, {
+			providerId: "litellm",
+			mode: "act",
+			modelId: "openai/grok-4.6",
+		})
+
+		expect(catalog.peekModels).toHaveBeenCalledWith(providerId)
+		expect(store.commitSelection).toHaveBeenCalledWith(
+			providerId,
+			"act",
+			{
+				providerId,
+				modelId: "openai/grok-4.6",
+				overrides: undefined,
+			},
+			modelInfo,
+		)
+	})
+
+	it("commitModelSelection does not substitute a different cached model when the selected ID has no metadata", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("litellm")
+		const store = makeStore({ providerId, apiKey: "litellm-key" })
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue({
+			ok: true,
+			providerId,
+			configFingerprint: computeConfigFingerprint(providerId, { providerId, apiKey: "litellm-key" }),
+			models: new Map([
+				["openai/other-model", { name: "Other model", maxInputTokens: 200_000, supportsPromptCache: false }],
+			]),
+			defaultModelId: "openai/other-model",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await commitModelSelection(controller, {
+			providerId: "litellm",
+			mode: "act",
+			modelId: "custom/no-metadata",
+		})
+
+		expect(catalog.peekModels).toHaveBeenCalledWith(providerId)
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "custom/no-metadata",
+			overrides: undefined,
+		})
+	})
+
 	// The settings UI sources provider ids from the SDK catalog, whose OpenAI
 	// Compatible built-in is spelled `openai-compatible`. Committing under that
 	// spelling must land on the legacy `openai` state keys

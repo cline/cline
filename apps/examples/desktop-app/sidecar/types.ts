@@ -87,6 +87,7 @@ export type PendingToolApproval = {
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];

@@ -44,6 +44,7 @@ describe("hub capability custom tools", () => {
 		const result = await tools[0].execute(
 			{ command: "echo hello" },
 			{
+				sessionId: "session-1",
 				agentId: "agent-1",
 				conversationId: "conv-1",
 				iteration: 2,
@@ -60,6 +61,7 @@ describe("hub capability custom tools", () => {
 				toolName: "custom_exec",
 				input: { command: "echo hello" },
 				context: {
+					sessionId: "session-1",
 					agentId: "agent-1",
 					conversationId: "conv-1",
 					iteration: 2,

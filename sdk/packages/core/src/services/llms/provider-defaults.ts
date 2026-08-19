@@ -654,6 +654,17 @@ const PRIVATE_PROVIDER_MODEL_FETCHERS: Record<
 	poolside: fetchPoolsidePrivateModels,
 };
 
+/**
+ * Whether a provider's model catalog comes from the customer's configured
+ * endpoint rather than a shared public catalog.
+ *
+ * Keep this derived from the fetcher registry so host consumers cannot drift
+ * from the providers whose live metadata is endpoint-specific.
+ */
+export function isPrivateModelCatalogProvider(providerId: string): boolean {
+	return Object.hasOwn(PRIVATE_PROVIDER_MODEL_FETCHERS, providerId);
+}
+
 const PUBLIC_MODELS_CACHE = new Map<
 	string,
 	{ data: Record<string, ModelInfo>; expiresAt: number }
