@@ -1459,6 +1459,26 @@ Follow the desktop send workflow instructions.`,
 		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send skill instructions. write the docs",
+			}),
+		);
+	});
+
 	it("expands a leading workflow command into its instructions", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);

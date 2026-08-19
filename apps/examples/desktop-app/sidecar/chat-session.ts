@@ -9,6 +9,7 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	readGlobalSettings,
 	type SessionCompactionState,
@@ -100,28 +101,28 @@ function workspacePathKey(
 const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
- * Expand a leading `/workflow` token into its configured instructions before
- * dispatching the prompt. Skill commands deliberately pass through as typed:
- * the runtime registers the `skills` tool, whose description requires the
- * model to invoke it whenever the user references a slash command, so the
- * instructions reach the model as a tool result instead of being pasted into
- * the user message (where the transcript would render them as if the user
- * had typed the whole skill body). Workflows are not served by that tool, so
- * they keep textual expansion. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no workflow matches, or command
- * discovery fails.
+ * Expand a leading `/skill` or `/workflow` token into its configured
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
  */
 async function expandRuntimeSlashCommand(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
 	}
-	const rawName = prompt.match(/^\/(\S+)/)?.[1];
-	const name = rawName?.toLowerCase();
-	if (!rawName || !name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
+	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
 		return prompt;
 	}
 	const service = createUserInstructionConfigService({
@@ -131,22 +132,12 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		const resolved = service.resolveRuntimeSlashCommand(prompt);
-		if (resolved === prompt) {
-			return prompt;
-		}
-		// The resolver reports the expansion but not which command produced
-		// it; it matched a workflow iff some workflow's instructions plus the
-		// typed remainder reproduce the resolved text exactly.
-		const remainder = prompt.slice(rawName.length + 1);
-		const matchedWorkflow = service
-			.listRuntimeCommands()
-			.some(
-				(command) =>
-					command.kind === "workflow" &&
-					resolved === `${command.instructions}${remainder}`,
-			);
-		return matchedWorkflow ? resolved : prompt;
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -209,7 +200,7 @@ async function resolveDesktopRuntimePrompt(
 	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
 }
