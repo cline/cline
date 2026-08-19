@@ -216,7 +216,11 @@ const ClineRulesToggleModal: React.FC = () => {
 		.map(([path, enabled]): [string, boolean] => [path, enabled as boolean])
 		.sort(([a], [b]) => a.localeCompare(b))
 
-	const remoteConfigSettings = useRemoteConfigSettings(isVisible)
+	const {
+		settings: remoteConfigSettings,
+		isLoading: isRemoteConfigLoading,
+		error: remoteConfigError,
+	} = useRemoteConfigSettings(isVisible)
 	const remoteRules = remoteConfigSettings.filter((s) => s.type === "rule")
 	const remoteWorkflows = remoteConfigSettings.filter((s) => s.type === "workflow")
 	const remoteSkills = remoteConfigSettings.filter((s) => s.type === "skill")
@@ -500,6 +504,17 @@ const ClineRulesToggleModal: React.FC = () => {
 
 					{/* Scrollable content area */}
 					<div className="flex-1 overflow-y-auto px-3 pb-3" style={{ minHeight: 0 }}>
+						{isRemoteConfigLoading && remoteConfigSettings.length === 0 && (
+							<div className="text-xs text-description mb-3" role="status">
+								Loading managed configuration…
+							</div>
+						)}
+						{remoteConfigError && (
+							<div className="text-xs text-vscode-errorForeground mb-3" role="alert">
+								Could not refresh managed configuration: {remoteConfigError}
+								{remoteConfigSettings.length > 0 ? " Showing the last loaded configuration." : ""}
+							</div>
+						)}
 						{currentView === "rules" ? (
 							<>
 								{/* Remote Rules Section */}
@@ -518,7 +533,7 @@ const ClineRulesToggleModal: React.FC = () => {
 														key={rule.name}
 														rulePath={rule.name}
 														ruleType="cline"
-														toggleRule={rule.toggle}
+														toggleRule={(_path, enabled) => rule.toggle(enabled)}
 													/>
 												)
 											})}
@@ -617,7 +632,7 @@ const ClineRulesToggleModal: React.FC = () => {
 															key={workflow.name}
 															rulePath={workflow.name}
 															ruleType="workflow"
-															toggleRule={workflow.toggle}
+															toggleRule={(_path, enabled) => workflow.toggle(enabled)}
 														/>
 													)
 												})}
@@ -773,7 +788,7 @@ const ClineRulesToggleModal: React.FC = () => {
 															key={skill.name}
 															rulePath={skill.name}
 															ruleType="skill"
-															toggleRule={skill.toggle}
+															toggleRule={(_path, enabled) => skill.toggle(enabled)}
 														/>
 													)
 												})}

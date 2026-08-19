@@ -205,14 +205,18 @@ async function mergeKnownModels(
 
 	if (providerId === "cline") {
 		// Cline recommendations can use Vercel-style ids while the broader
-		// catalog includes OpenRouter aliases for the same models.
-		return Llms.sortModelsByReleaseDate({
-			...Llms.preferCanonicalModelIds(
-				knownModelsWithoutUserOverrides,
-				Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
-			),
-			...userKnownModels,
-		});
+		// catalog includes OpenRouter aliases for the same models. Image-output
+		// models are temporarily unavailable through Cline's inference backend,
+		// so filter them only at the Cline catalog boundary.
+		return Llms.sortModelsByReleaseDate(
+			Llms.filterImageOutputModels({
+				...Llms.preferCanonicalModelIds(
+					knownModelsWithoutUserOverrides,
+					Llms.VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
+				),
+				...userKnownModels,
+			}),
+		);
 	}
 
 	return Llms.sortModelsByReleaseDate({

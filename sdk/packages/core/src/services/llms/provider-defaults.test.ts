@@ -78,6 +78,77 @@ describe("resolveProviderConfig", () => {
 		);
 	});
 
+	it("filters image-output models from the merged Cline catalog", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-chat-model": {
+									name: "Live Chat Model",
+									tool_call: true,
+								},
+								"vendor/live-image-model": {
+									name: "Live Image Model",
+									tool_call: true,
+									modalities: {
+										input: ["text", "image"],
+										output: ["text", "image"],
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}),
+		);
+
+		const resolved = await resolveProviderConfig(
+			"cline",
+			{
+				loadLatestOnInit: true,
+				failOnError: false,
+				cacheTtlMs: 0,
+			},
+			{
+				providerId: "cline",
+				modelId: "vendor/live-chat-model",
+				knownModels: {
+					"vendor/custom-image-model": {
+						id: "vendor/custom-image-model",
+						name: "Custom Image Model",
+						modalities: {
+							input: ["text"],
+							output: ["image"],
+						},
+					},
+					"vendor/custom-image-operation-model": {
+						id: "vendor/custom-image-operation-model",
+						name: "Custom Image Operation Model",
+						operation: "image-generation",
+					},
+				},
+			},
+		);
+
+		expect(resolved?.knownModels?.["vendor/live-chat-model"]?.name).toBe(
+			"Live Chat Model",
+		);
+		expect(resolved?.knownModels?.["vendor/live-image-model"]).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-model"],
+		).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-operation-model"],
+		).toBeUndefined();
+	});
+
 	it("uses only live Cline recommended models for ClinePass when live models are found", async () => {
 		const fetchMock = vi.fn(async (url: string) => {
 			if (url === "https://models.test/api.json") {

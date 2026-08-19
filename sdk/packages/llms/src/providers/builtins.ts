@@ -13,6 +13,7 @@ import {
 	type ProviderConfigField,
 } from "@cline/shared";
 import { getGeneratedModelsForProvider } from "../catalog/catalog.generated-access";
+import { filterImageOutputModels } from "../catalog/model-filters";
 import {
 	isCanonicalModelIdForAliasRules,
 	preferCanonicalModelIds,
@@ -487,13 +488,17 @@ function buildClineModels(): Record<string, ModelInfo> {
 				) || VERCEL_ONLY_CLINE_MODEL_IDS.includes(modelId),
 		),
 	);
-	return preferCanonicalModelIds(
+	const models = preferCanonicalModelIds(
 		{
 			...generatedModels("openrouter"),
 			...vercelAliasModels,
 		},
 		VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES,
 	);
+
+	// Cline's inference backend currently rejects image-output models. Keep
+	// those models in their native OpenRouter and Vercel catalogs.
+	return filterImageOutputModels(models);
 }
 
 function buildVertexModels(): Record<string, ModelInfo> {

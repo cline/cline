@@ -2,7 +2,7 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useRef, useState } from "react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export function AskQuestionContent(
 	props: ChoiceContext<string | null> & {
@@ -11,6 +11,7 @@ export function AskQuestionContent(
 	},
 ) {
 	const { resolve, dialogId, question, options } = props;
+	const palette = useDialogPalette();
 	const [selected, setSelected] = useState(0);
 	const [inputKey, setInputKey] = useState(0);
 	const customRef = useRef("");
