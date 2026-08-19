@@ -197,6 +197,34 @@ describe("SearchCombobox", () => {
 		).toBe("DeepSeek");
 	});
 
+	it("centers the selected option on open, then scrolls minimally", async () => {
+		const scrollIntoView = vi.fn();
+		HTMLElement.prototype.scrollIntoView = scrollIntoView;
+		await act(async () =>
+			root.render(
+				<SearchCombobox
+					ariaLabel="Repository"
+					onValueChange={() => {}}
+					options={options}
+					value="core-platform"
+				/>,
+			),
+		);
+
+		await act(async () => container.querySelector("button")?.click());
+		expect(scrollIntoView).toHaveBeenCalledWith({ block: "center" });
+		const centeredCalls = scrollIntoView.mock.calls.length;
+
+		const search = container.querySelector("input");
+		await act(async () => {
+			search?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "ArrowUp" }),
+			);
+		});
+		expect(scrollIntoView.mock.calls.length).toBeGreaterThan(centeredCalls);
+		expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+	});
+
 	it("renders loading and disabled states", async () => {
 		const onValueChange = vi.fn();
 		const render = (disabled = false, loading = false) =>

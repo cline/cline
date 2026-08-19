@@ -98,11 +98,15 @@ export function SearchCombobox({
 	const [activeIndex, setActiveIndex] = useState(0);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
+	// Center the selected option when the panel opens; once the user starts
+	// navigating (keys, hover, typing), fall back to minimal scrolling.
+	const centerOnScrollRef = useRef(true);
 	const listboxId = useId();
 
 	useEffect(() => {
 		if (!open) {
 			setSearch("");
+			centerOnScrollRef.current = true;
 			return;
 		}
 		const handlePointerDown = (event: PointerEvent) => {
@@ -154,7 +158,9 @@ export function SearchCombobox({
 		if (!open) return;
 		const activeElement = document.getElementById(optionId(activeIndex));
 		if (typeof activeElement?.scrollIntoView === "function") {
-			activeElement.scrollIntoView({ block: "nearest" });
+			activeElement.scrollIntoView({
+				block: centerOnScrollRef.current ? "center" : "nearest",
+			});
 		}
 	}, [activeIndex, open, optionId]);
 
@@ -182,6 +188,7 @@ export function SearchCombobox({
 			return;
 		}
 		if (filtered.length === 0) return;
+		centerOnScrollRef.current = false;
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
 			setActiveIndex((current) => Math.min(current + 1, filtered.length - 1));
@@ -223,7 +230,10 @@ export function SearchCombobox({
 				key={option.value}
 				onClick={() => handleSelect(option)}
 				onMouseMove={() => {
-					if (!isActive) setActiveIndex(index);
+					if (!isActive) {
+						centerOnScrollRef.current = false;
+						setActiveIndex(index);
+					}
 				}}
 				role="option"
 				tabIndex={-1}
@@ -376,7 +386,10 @@ export function SearchCombobox({
 							// biome-ignore lint/a11y/noAutofocus: opening the picker focuses search
 							autoFocus
 							className="cline-ui-search-combobox__search h-8 w-full border-0 bg-transparent p-0 text-cline-ui-sm text-cline-ui-foreground outline-0 placeholder:text-cline-ui-muted-foreground"
-							onChange={(event) => setSearch(event.target.value)}
+							onChange={(event) => {
+								centerOnScrollRef.current = false;
+								setSearch(event.target.value);
+							}}
 							onKeyDown={handleSearchKeyDown}
 							placeholder={searchPlaceholder}
 							role="combobox"
