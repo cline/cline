@@ -1251,6 +1251,13 @@ export class CloudSessionManager {
 		);
 	}
 
+	/** Returns a session this process already created or discovered without
+	 * making account/environment availability a prerequisite for opening it. */
+	getCachedDiscoveryRecord(sessionId: string): JsonRecord | undefined {
+		const record = this.knownSessions.get(sessionId);
+		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
+	}
+
 	getProvisioningOutcome(
 		placeholderId: string,
 	): CloudProvisioningOutcome | null {

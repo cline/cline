@@ -1290,9 +1290,11 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
 			return (
+				cloud.getCachedDiscoveryRecord(sessionId) ??
 				(await cloud.listForDiscovery()).find(
 					(session) => session.sessionId === sessionId,
-				) ?? null
+				) ??
+				null
 			);
 		}
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;

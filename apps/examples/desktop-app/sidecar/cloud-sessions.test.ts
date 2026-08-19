@@ -3376,6 +3376,38 @@ describe("CloudSessionManager", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
+	it("opens a known cloud session without re-fetching account scope", async () => {
+		const { ctx } = createContext();
+		let listCalls = 0;
+		let failListing = false;
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => {
+					listCalls += 1;
+					if (failListing) throw new Error("environment lookup failed");
+					return [REMOTE_SESSION];
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.list();
+		ctx.cloudSessionManager = manager;
+		failListing = true;
+
+		await expect(
+			handleCommand(ctx, "get_discovered_session", {
+				session_id: "ses-outer",
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({
+				sessionId: "ses-outer",
+				origin: "cloud",
+			}),
+		);
+		expect(listCalls).toBe(1);
+	});
+
 	it("uses only the active organization for billing and session listing", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
