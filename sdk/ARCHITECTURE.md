@@ -146,8 +146,11 @@ identities, signals only validated PIDs — plus POSIX process groups, but only
 those whose leader is itself validated or is the direct child pinned by its
 open handle, since a bare group id can be recycled by foreign work — waits for
 the owned tree to exit, and escalates to `SIGKILL` before releasing its
-process handles. The direct child is always signaled through its own handle,
-which PID reuse cannot redirect.
+process handles. On Windows, validated descendants are terminated through
+per-process handles: the kill script re-checks the creation time through the
+handle it terminates, so PID reuse after validation cannot redirect the
+signal. The direct child is always signaled through its own Node handle on
+every platform.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local

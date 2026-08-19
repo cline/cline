@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	buildWindowsGenerationKillScript,
 	getLiveOwnedProcesses,
 	observeOwnedProcessTree,
 	parseProcessTable,
@@ -276,6 +277,65 @@ describe("windows table parsing", () => {
 		expect(owned.has(700)).toBe(true);
 		expect(owned.has(901)).toBe(true);
 		expect(owned.has(900)).toBe(false);
+	});
+});
+
+describe("buildWindowsGenerationKillScript", () => {
+	it("verifies the creation time through the same handle it kills", () => {
+		const script = buildWindowsGenerationKillScript([
+			{
+				pid: 1200,
+				parentPid: 800,
+				processGroupId: 0,
+				startedAt: "filetime:133700000000000000",
+				command: "cmd.exe",
+			},
+		]);
+		// The pid is resolved to a handle once; the start-time check and the
+		// kill both act on that handle, so pid reuse after the table read
+		// cannot receive the signal.
+		expect(script).toContain("'1200=133700000000000000'");
+		expect(script).toContain("GetProcessById");
+		expect(script).toContain("StartTime.ToFileTime()");
+		expect(script).toContain("$proc.Kill()");
+	});
+
+	it("refuses targets without a FileTime generation", () => {
+		// A pid with no generation token cannot be re-verified at kill time, so
+		// it is never handed to the script — disown, never guess.
+		expect(
+			buildWindowsGenerationKillScript([
+				{
+					pid: 42,
+					parentPid: 1,
+					processGroupId: 42,
+					startedAt: "Mon Aug 18 10:00:00 2026",
+					command: "tail",
+				},
+			]),
+		).toBeUndefined();
+		expect(buildWindowsGenerationKillScript([])).toBeUndefined();
+	});
+
+	it("interpolates digits only, so targets cannot inject script", () => {
+		const script = buildWindowsGenerationKillScript([
+			{
+				pid: 7,
+				parentPid: 1,
+				processGroupId: 0,
+				startedAt: "filetime:'; Remove-Item -Recurse /; '1",
+				command: "evil.exe",
+			},
+			{
+				pid: 8,
+				parentPid: 1,
+				processGroupId: 0,
+				startedAt: "filetime:133700000000000001",
+				command: "ok.exe",
+			},
+		]);
+		expect(script).not.toContain("Remove-Item");
+		expect(script).toContain("'8=133700000000000001'");
 	});
 });
 

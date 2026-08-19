@@ -13,6 +13,7 @@ import { StringDecoder } from "node:string_decoder";
 import { getDefaultShell, getShellInvocation } from "@cline/shared";
 import {
 	getLiveOwnedProcesses,
+	killWindowsProcessesByGeneration,
 	observeOwnedProcessTree,
 	type ProcessInfo,
 	type ProcessTable,
@@ -624,15 +625,22 @@ export class MonitorRegistry {
 		signal: NodeJS.Signals,
 	): void {
 		const child = entry.child;
-		// Process groups exist only on POSIX, where the direct child was made a
-		// group leader at spawn; a negative-pid kill has no Windows meaning.
-		if (process.platform !== "win32") {
-			// A group is blanket-signaled only when its leader is provably ours
-			// right now: either present in the validated set as the recorded
-			// generation, or the direct child itself, whose un-reaped handle
-			// pins the pid. A bare group id harvested from a member would
-			// otherwise be signaled after the id was recycled by foreign work.
-			// Members of leaderless groups are still killed individually below.
+		if (process.platform === "win32") {
+			// Validated descendants are terminated through per-process handles:
+			// the kill script opens a handle by pid, re-checks the creation time
+			// through that handle, and terminates the same handle's process, so
+			// a pid reused after the table read cannot receive the signal. Plain
+			// process.kill(pid) would leave exactly that window open.
+			killWindowsProcessesByGeneration(ownedProcesses);
+		} else {
+			// Process groups exist only on POSIX, where the direct child was
+			// made a group leader at spawn. A group is blanket-signaled only
+			// when its leader is provably ours right now: either present in the
+			// validated set as the recorded generation, or the direct child
+			// itself, whose un-reaped handle pins the pid. A bare group id
+			// harvested from a member would otherwise be signaled after the id
+			// was recycled by foreign work. Members of leaderless groups are
+			// still killed individually below.
 			const groups = new Set(selectProvenGroupLeaders(ownedProcesses));
 			if (child?.pid && this.isChildRunning(child)) groups.add(child.pid);
 
@@ -643,12 +651,18 @@ export class MonitorRegistry {
 					// The group may already have exited after the validated table read.
 				}
 			}
-		}
-		for (const owned of ownedProcesses) {
-			try {
-				process.kill(owned.pid, signal);
-			} catch {
-				// The process may already have exited after the validated table read.
+			// POSIX kill(2) is pid-addressed, so a residual read-to-signal
+			// window remains between the validating snapshot and this syscall.
+			// It is microseconds wide and closing it needs pidfd/cgroup
+			// primitives Node does not expose; the identity check above keeps
+			// it from being *steerable* (a replacement must also match group
+			// and command within the same second).
+			for (const owned of ownedProcesses) {
+				try {
+					process.kill(owned.pid, signal);
+				} catch {
+					// The process may already have exited after the validated table read.
+				}
 			}
 		}
 		// The direct child is also signaled through its own handle, which pid

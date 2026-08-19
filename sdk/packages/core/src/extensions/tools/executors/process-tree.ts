@@ -472,6 +472,76 @@ export function getLiveOwnedProcesses(
 }
 
 /**
+ * Builds the PowerShell script that terminates validated Windows generations.
+ *
+ * Numeric-pid signaling always leaves a window between validation and the
+ * signal in which the pid can be reused. Windows is the one platform where
+ * that window can be closed completely: `GetProcessById` opens a handle to
+ * whatever holds the pid at that instant, `StartTime` is read through that
+ * handle, and `Kill()` terminates the same handle's process object — so the
+ * creation-time check and the kill act on one pinned identity, and reuse
+ * between them cannot redirect the signal. A mismatch or a throw (pid gone,
+ * access denied) skips the target: disown, never guess.
+ *
+ * The recorded generation comes from CIM, which truncates creation time to
+ * the microsecond, while the handle's `StartTime` keeps 100ns units — hence
+ * the ≤10-unit (1µs) tolerance rather than strict equality. Only digits are
+ * interpolated, inside single quotes, so targets cannot inject script.
+ *
+ * Returns undefined when no target carries a FileTime generation.
+ */
+export function buildWindowsGenerationKillScript(
+	targets: readonly ProcessInfo[],
+): string | undefined {
+	const specs: string[] = [];
+	for (const target of targets) {
+		const fileTime = target.startedAt.startsWith("filetime:")
+			? target.startedAt.slice("filetime:".length)
+			: "";
+		if (!Number.isInteger(target.pid) || target.pid <= 0) continue;
+		if (!/^\d+$/.test(fileTime)) continue;
+		specs.push(`'${target.pid}=${fileTime}'`);
+	}
+	if (specs.length === 0) return undefined;
+	return (
+		`foreach ($t in @(${specs.join(",")})) { ` +
+		"$parts = $t.Split('='); " +
+		"try { " +
+		"$proc = [System.Diagnostics.Process]::GetProcessById([int]$parts[0]); " +
+		"if ([math]::Abs($proc.StartTime.ToFileTime() - [long]$parts[1]) -le 10) { $proc.Kill() } " +
+		"} catch {} }"
+	);
+}
+
+/**
+ * Terminates validated Windows generations through per-process handles.
+ * Fire-and-forget: callers observe the outcome by re-reading the table. The
+ * watchdog only reaps a wedged PowerShell; it cannot un-kill anything.
+ */
+export function killWindowsProcessesByGeneration(
+	targets: readonly ProcessInfo[],
+): void {
+	const script = buildWindowsGenerationKillScript(targets);
+	if (!script) return;
+	try {
+		const killer = spawn(
+			"powershell.exe",
+			["-NoProfile", "-NonInteractive", "-Command", script],
+			{ stdio: "ignore", windowsHide: true },
+		);
+		const watchdog = setTimeout(() => {
+			killer.kill();
+		}, WINDOWS_PROCESS_TABLE_TIMEOUT_MS);
+		watchdog.unref?.();
+		killer.once("exit", () => clearTimeout(watchdog));
+		killer.once("error", () => clearTimeout(watchdog));
+	} catch {
+		// PowerShell unavailable: the direct child is still killed through its
+		// Node handle; unobserved descendants are leaked, never guessed at.
+	}
+}
+
+/**
  * Selects group ids that may be signaled wholesale (`kill(-pgid)`).
  *
  * A group id read off a validated member is still just a reusable number: if
