@@ -17,7 +17,7 @@
 
 import type { EnginePort } from "@cline/bot";
 import { createEngineExecutionPort } from "@cline/bot";
-import { resolveModelFromEnvironment } from "../engine-binding";
+import { resolveProviderModel } from "../engine-binding";
 import type { WorkerEndpoint, WorkerWorkloadFactory } from "./host";
 import { WorkerHost } from "./host";
 import { SupervisorToWorkerMessageSchema } from "./protocol";
@@ -73,10 +73,13 @@ export function createStreamWorkerEndpoint(
 /**
  * Default workload: real engine execution with capability-routed
  * approvals and environment-resolved (sentinel) model credentials.
+ * Deliberately no `paths`: workers never read the Gateway's 0600 secret
+ * files — inside a sandboxed worker the credential env vars hold masked
+ * sentinels that the sandbox proxy substitutes on egress.
  */
 export const defaultWorkerWorkload: WorkerWorkloadFactory = (context) =>
 	createEngineExecutionPort({
-		model: (invocation) => resolveModelFromEnvironment(invocation),
+		model: (invocation) => resolveProviderModel(invocation),
 		requestApproval: async (request) => {
 			const answer = (await context.capabilityCall("approval.request", {
 				toolCallId: request.toolCallId,
