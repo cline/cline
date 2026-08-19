@@ -222,11 +222,16 @@ describe("BrowserWebSocketHubAdapter", () => {
 
 	it("allows a token-authenticated client to bind its registered workspace", async () => {
 		const transport = {
-			command: vi.fn(async (envelope: HubCommandEnvelope) => ({
-				version: "v1" as const,
-				requestId: envelope.requestId,
-				ok: true,
-			})),
+			command: vi.fn(
+				async (
+					envelope: HubCommandEnvelope,
+					_authority?: HubConnectionAuthority | null,
+				) => ({
+					version: "v1" as const,
+					requestId: envelope.requestId,
+					ok: true,
+				}),
+			),
 			subscribe: vi.fn(),
 		};
 		const socket = createSocket();
