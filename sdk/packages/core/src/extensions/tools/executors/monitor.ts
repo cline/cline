@@ -314,15 +314,23 @@ export class MonitorRegistry {
 			});
 		});
 		child.on("exit", (code, signal) => {
-			// Windows has no process groups and no ownership table here, so a
-			// wrapper that exits on its own strands any descendants: by teardown
-			// its pid may name unrelated work, making a tree kill unsafe. Firing
-			// it here, in the same tick the pid is released, is the last moment
-			// the parent links are still ours to follow.
-			if (isWindows && !entry.windowsTreeKilled) {
-				entry.windowsTreeKilled = true;
-				this.killWindowsTree(child);
-			}
+			// Deliberately no tree kill here. An earlier revision fired
+			// `taskkill /T /F` from this handler to catch descendants stranded by
+			// a wrapper that exited on its own, reasoning that this was the last
+			// moment the parent links were still ours. That reasoning was wrong:
+			// the pid is already released by the time `exit` fires, taskkill
+			// resolves it asynchronously later still, and Windows reassigns pids
+			// aggressively — so the target could be an unrelated process, whose
+			// entire tree would be killed. There is no generation data on Windows
+			// to rule that out.
+			//
+			// The tree is therefore only killed while the child is verifiably
+			// alive (see terminateEntry). Descendants stranded by a wrapper that
+			// exits on its own are left running, matching the POSIX rule that
+			// nothing is signaled without proof it is ours. Closing that gap for
+			// real needs a durable ownership marker — a job object here, cgroups
+			// on Linux — rather than a pid heuristic.
+			//
 			// Settlement is driven from `exit`, not `close`. `close` additionally
 			// waits for every copy of the stdio pipes to be released, and a
 			// background descendant that inherited stdout or stderr holds them
@@ -413,6 +421,10 @@ export class MonitorRegistry {
 		const child = entry.child;
 		if (!child) return;
 		if (process.platform === "win32") {
+			// Gated on the child still running, and that gate is the whole safety
+			// argument on Windows: a live pid cannot have been reassigned, so the
+			// tree taskkill walks is provably ours. Once it has exited there is no
+			// way to re-establish that, so nothing is killed.
 			if (this.isChildRunning(child)) {
 				const exited = this.waitForExit(child);
 				if (!entry.windowsTreeKilled) {
