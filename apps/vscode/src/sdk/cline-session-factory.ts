@@ -271,7 +271,8 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 
 	const maxTokens = positiveFiniteNumber(modelInfo.maxTokens)
 	const contextWindow = positiveFiniteNumber(modelInfo.contextWindow)
-	const maxInputTokens = positiveFiniteNumber(selection.overrides?.maxInputTokens)
+	const maxInputTokens =
+		positiveFiniteNumber(selection.overrides?.maxInputTokens) ?? positiveFiniteNumber(modelInfo.maxInputTokens)
 	const temperature = nonNegativeFiniteNumber(modelInfo.temperature)
 	const inputPrice = nonNegativeFiniteNumber(modelInfo.inputPrice)
 	const outputPrice = nonNegativeFiniteNumber(modelInfo.outputPrice)

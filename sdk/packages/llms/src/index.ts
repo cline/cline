@@ -110,6 +110,7 @@ export {
 export {
 	type ModelToolSupportInput,
 	providerManifestSupportsModelTool,
+	providerOffersModelTool,
 	supportsModelTool,
 } from "./providers/model-tools";
 export { resolveProviderModelCatalogKeys } from "./providers/provider-keys";

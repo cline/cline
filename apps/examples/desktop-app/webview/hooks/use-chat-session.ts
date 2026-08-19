@@ -934,35 +934,67 @@ export function useChatSession() {
 
 	useEffect(() => {
 		const activeSessionId = sessionId;
+		setPendingToolApprovals([]);
+		setPendingAskQuestions([]);
 		if (!activeSessionId) {
-			setPendingToolApprovals([]);
 			return;
 		}
+		let cancelled = false;
 
 		void desktopClient
 			.invoke<ToolApprovalRequestItem[]>("poll_tool_approvals", {
 				sessionId: activeSessionId,
 				limit: 20,
 			})
-			.then((pending) => setPendingToolApprovals(pending))
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingToolApprovals(pending);
+				}
+			})
 			.catch(() => {});
 
-		return desktopClient.subscribe("tool_approval_state", (payload) => {
-			if (!payload || typeof payload !== "object") return;
-			const record = payload as {
-				sessionId?: string;
-				items?: ToolApprovalRequestItem[];
-			};
-			if (record.sessionId !== activeSessionId) return;
-			setPendingToolApprovals(Array.isArray(record.items) ? record.items : []);
-		});
+		void desktopClient
+			.invoke<AskQuestionRequestItem[]>("poll_ask_questions", {
+				sessionId: activeSessionId,
+			})
+			.then((pending) => {
+				if (!cancelled) {
+					setPendingAskQuestions(pending);
+				}
+			})
+			.catch(() => {});
+
+		const unsubscribe = desktopClient.subscribe(
+			"tool_approval_state",
+			(payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const record = payload as {
+					sessionId?: string;
+					items?: ToolApprovalRequestItem[];
+				};
+				if (record.sessionId !== activeSessionId) return;
+				setPendingToolApprovals(
+					Array.isArray(record.items) ? record.items : [],
+				);
+			},
+		);
+
+		return () => {
+			cancelled = true;
+			unsubscribe();
+		};
 	}, [sessionId]);
 
 	useEffect(() => {
 		return desktopClient.subscribe("ask_question_requested", (payload) => {
 			if (!payload || typeof payload !== "object") return;
 			const item = payload as AskQuestionRequestItem;
-			if (!item.requestId || !item.question || !Array.isArray(item.options)) {
+			if (
+				item.sessionId !== activeSessionIdRef.current ||
+				!item.requestId ||
+				!item.question ||
+				!Array.isArray(item.options)
+			) {
 				return;
 			}
 			setPendingAskQuestions((prev) => {

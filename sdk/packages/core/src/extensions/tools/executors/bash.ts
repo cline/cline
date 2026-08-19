@@ -331,13 +331,21 @@ export function createShellExecutor(
 		MAX_COMMAND_OUTPUT_CHARS;
 
 	return (command, cwd, context) => {
-		const isStructured = typeof command !== "string";
-		const invocation = isStructured
+		// Spawn without a shell only when the args key is present (even
+		// empty), marking input the caller already split. An object with no
+		// args key, like { command: "echo hello" }, holds a full command
+		// line, and spawning that string as an executable fails with ENOENT.
+		// Same key-presence rule as the VS Code host's formatCommandForTerminal.
+		const directExec = typeof command !== "string" && "args" in command;
+		const invocation = directExec
 			? { args: command.args ?? [] }
-			: getShellInvocation(shell, command);
+			: getShellInvocation(
+					shell,
+					typeof command === "string" ? command : command.command,
+				);
 		return spawnAndCollect(
 			{
-				executable: isStructured ? command.command : shell,
+				executable: directExec ? command.command : shell,
 				args: invocation.args,
 				cwd,
 				env,
