@@ -30,6 +30,7 @@ import {
 	invalidateProviderCatalogCache,
 	notifyVoiceInputSettingsChanged,
 	publishProviderModels,
+	subscribeToProviderCatalogInvalidation,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
@@ -608,24 +609,33 @@ function GeneralSettingsContent({
 
 	useEffect(() => {
 		let cancelled = false;
-		void fetchProviderCatalog()
-			.then((payload) => {
-				if (cancelled) return;
-				setWebSearchReadyProviders(
-					(payload.providers ?? [])
-						.filter(
-							(provider) =>
-								provider.enabled &&
-								providerOffersModelTool(provider.id, "web_search"),
-						)
-						.map((provider) => provider.name),
-				);
-			})
-			.catch(() => {
-				// Support status is best-effort; the toggle works without it.
-			});
+		const loadWebSearchSupport = () => {
+			void fetchProviderCatalog()
+				.then((payload) => {
+					if (cancelled) return;
+					setWebSearchReadyProviders(
+						(payload.providers ?? [])
+							.filter(
+								(provider) =>
+									provider.enabled &&
+									providerOffersModelTool(provider.id, "web_search"),
+							)
+							.map((provider) => provider.name),
+					);
+				})
+				.catch(() => {
+					// Support status is best-effort; the toggle works without it.
+				});
+		};
+		loadWebSearchSupport();
+		// Provider saves invalidate the catalog cache when they complete, so
+		// refetching on invalidation keeps the status current even when the
+		// user navigates here while a save is still in flight.
+		const unsubscribe =
+			subscribeToProviderCatalogInvalidation(loadWebSearchSupport);
 		return () => {
 			cancelled = true;
+			unsubscribe();
 		};
 	}, []);
 
@@ -946,8 +956,8 @@ function GeneralSettingsContent({
 						{webSearchReadyProviders ===
 						null ? null : webSearchReadyProviders.length > 0 ? (
 							<p className="text-xs text-muted-foreground">
-								Ready to use with {webSearchReadyProviders.join(", ")} — no
-								extra setup needed.
+								Ready to use with {webSearchReadyProviders.join(", ")} on models
+								that support it — no extra setup needed.
 							</p>
 						) : (
 							<p className="text-xs text-amber-700 dark:text-amber-300">
