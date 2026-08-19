@@ -2031,7 +2031,17 @@ async function prepareCloudHandoff(
 ): Promise<PreparedCloudHandoff> {
 	const sessionId = request.sessionId?.trim();
 	if (!sessionId) throw new Error("sessionId is required");
-	const manager = getSessionManager(ctx, sessionId, request.config);
+	const binding = getSessionRuntimeBinding(
+		ctx,
+		sessionId,
+		readEnvironmentId(request.config),
+	);
+	if (binding.kind === "ssh") {
+		throw new Error(
+			"Cloud handoff from an SSH workspace is not supported yet. Open the repository locally before using /handoff.",
+		);
+	}
+	const manager = binding.sessionManager;
 	await assertHandoffIdle(ctx, manager, sessionId);
 	if ((await manager.readLiveMessages(sessionId)).length === 0) {
 		throw new Error("Start a conversation before handing it off to cloud.");

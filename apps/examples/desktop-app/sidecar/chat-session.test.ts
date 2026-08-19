@@ -2090,7 +2090,7 @@ describe("cloud handoff gates", () => {
 		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
-	it("checks handoff readiness in the source session environment", async () => {
+	it("rejects remote SSH handoff before running Git preflight locally", async () => {
 		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
 		const sourceBinding = ctx.runtimeBindings.get("local");
 		if (!sourceBinding) throw new Error("missing local runtime binding");
@@ -2126,8 +2126,8 @@ describe("cloud handoff gates", () => {
 				action: "prepare_handoff",
 				sessionId,
 			}),
-		).rejects.toThrow("Stop the current run");
-		expect(sourceGet).toHaveBeenCalledWith(sessionId);
+		).rejects.toThrow("SSH workspace is not supported");
+		expect(sourceGet).not.toHaveBeenCalled();
 		expect(ctx.cloudSessionManager).toBeFalsy();
 	});
 
