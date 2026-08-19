@@ -23,6 +23,7 @@ import {
 } from "../utils/repo-status";
 import { buildCheckpointPickerItems } from "./checkpoint-picker-items";
 import type { TranscriptScrollHandle } from "./components/chat-message-list";
+import { DialogThemeSync } from "./components/dialog-theme-sync";
 import {
 	CheckpointConfirmContent,
 	type CheckpointRestoreMode,
@@ -1038,6 +1039,7 @@ export function Root(
 		<TerminalColorsContext value={terminalColors}>
 			<ThemeProvider initialThemeId={props.initialThemeId}>
 				<DialogProvider size="medium">
+					<DialogThemeSync />
 					<SessionProvider
 						config={props.config}
 						initialEntries={initialEntries}

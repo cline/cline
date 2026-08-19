@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 import { diffPalettes, themePalette } from "./palette";
 import {
 	AUTO_THEME_ID,
+	DEFAULT_DIALOG_SURFACE,
 	getDialogAccents,
 	getDialogPalette,
+	getDialogSurface,
 	getThemeDefinition,
 	getThemeModeAccent,
 	getThemeSwatchColors,
@@ -187,5 +189,44 @@ describe("theme helpers", () => {
 			expect(dialogPalette.selection).toBe(dialogPalette.act);
 			expect(["#000000", "#ffffff"]).toContain(dialogPalette.textOnSelection);
 		}
+	});
+
+	it("getDialogSurface lifts dark theme backgrounds and keeps hue", () => {
+		// Dark themes derive the panel from their own background: a different,
+		// lighter color than both the background and the neutral default.
+		for (const id of ["tokyo-night", "dracula", "gruvbox-dark", "nord"]) {
+			const theme = resolveTheme(id, noDetection);
+			const surface = getDialogSurface(theme);
+			expect(surface).toMatch(/^#[0-9a-f]{6}$/i);
+			expect(surface).not.toBe(theme.background);
+			expect(surface).not.toBe(DEFAULT_DIALOG_SURFACE);
+		}
+
+		// Auto with no detected background has nothing to derive from.
+		expect(getDialogSurface(resolveTheme(AUTO_THEME_ID, noDetection))).toBe(
+			DEFAULT_DIALOG_SURFACE,
+		);
+		// Auto on a detected dark terminal lifts the detected background.
+		expect(
+			getDialogSurface(
+				resolveTheme(AUTO_THEME_ID, {
+					background: "#000000",
+					foreground: null,
+				}),
+			),
+		).not.toBe(DEFAULT_DIALOG_SURFACE);
+
+		// Light themes keep the neutral dark panel (dialog content still uses
+		// the dark accent fallback, and hardcoded light text must stay legible).
+		expect(getDialogSurface(resolveTheme("light", noDetection))).toBe(
+			DEFAULT_DIALOG_SURFACE,
+		);
+		expect(getDialogSurface(resolveTheme("solarized-light", noDetection))).toBe(
+			DEFAULT_DIALOG_SURFACE,
+		);
+
+		// The palette exposes the same surface.
+		const dracula = resolveTheme("dracula", noDetection);
+		expect(getDialogPalette(dracula).surface).toBe(getDialogSurface(dracula));
 	});
 });
