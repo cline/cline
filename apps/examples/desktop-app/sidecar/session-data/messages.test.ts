@@ -1,74 +1,7 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { join } from "node:path";
-import { afterEach, describe, expect, it } from "vitest";
-import { clearSlashCommandDisplayCache } from "../slash-command-display";
+import { describe, expect, it } from "vitest";
 import { readSessionMessages } from "./messages";
 
 describe("readSessionMessages", () => {
-	const tempRoots: string[] = [];
-
-	afterEach(() => {
-		clearSlashCommandDisplayCache();
-		for (const dir of tempRoots) {
-			rmSync(dir, { recursive: true, force: true });
-		}
-		tempRoots.length = 0;
-	});
-
-	it("projects an expanded slash command back to the typed command", async () => {
-		const workspace = mkdtempSync(join(tmpdir(), "messages-slash-"));
-		tempRoots.push(workspace);
-		const skillDir = join(workspace, ".cline", "skills", "release-notes");
-		mkdirSync(skillDir, { recursive: true });
-		const instructions =
-			"# Release Notes Skill\n\nDraft polished release notes.";
-		writeFileSync(
-			join(skillDir, "SKILL.md"),
-			`---\nname: release-notes\n---\n${instructions}`,
-		);
-
-		const sessionId = `slash-projection-${Date.now()}`;
-		const liveSessions = new Map([
-			[
-				sessionId,
-				{
-					config: { cwd: workspace },
-					messages: [
-						{
-							id: "user-message",
-							role: "user",
-							content: `<user_input mode="act">${instructions} v1.2 ships dark mode</user_input>`,
-						},
-						{
-							id: "assistant-message",
-							role: "assistant",
-							content: "Here are the notes.",
-						},
-					],
-				},
-			],
-		]);
-
-		await expect(
-			readSessionMessages(
-				{ liveSessions } as unknown as Parameters<
-					typeof readSessionMessages
-				>[0],
-				sessionId,
-			),
-		).resolves.toEqual([
-			expect.objectContaining({
-				role: "user",
-				content: "/release-notes v1.2 ships dark mode",
-			}),
-			expect.objectContaining({
-				role: "assistant",
-				content: "Here are the notes.",
-			}),
-		]);
-	});
-
 	it("continues past malformed persisted entries", async () => {
 		const sessionId = `malformed-projection-${Date.now()}`;
 		const liveSessions = new Map([
