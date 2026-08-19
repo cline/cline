@@ -1641,17 +1641,18 @@ describe("ChatMessages work collapse", () => {
 		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
 	});
 
-	it.each(["cancelled", "failed", "error"] as const)(
-		"keeps an interrupted run's rows visible even with partial trailing text (%s)",
-		async (status) => {
-			// Stop can land mid-answer, leaving partial assistant text after the
-			// tool calls; the run still must not fold into a summary.
-			await renderMessages(completedRun, { status });
+	it.each([
+		"cancelled",
+		"failed",
+		"error",
+	] as const)("keeps an interrupted run's rows visible even with partial trailing text (%s)", async (status) => {
+		// Stop can land mid-answer, leaving partial assistant text after the
+		// tool calls; the run still must not fold into a summary.
+		await renderMessages(completedRun, { status });
 
-			expect(container.querySelector(".cline-chat-work")).toBeNull();
-			expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
-		},
-	);
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
 });
 
 describe("ChatMessages thinking indicator", () => {

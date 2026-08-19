@@ -1,6 +1,6 @@
 {
 	"name": "@cline/llms",
-	"version": "0.0.75",
+	"version": "0.0.76",
 	"description": "Config-driven SDK for selecting, extending, and instantiating LLM providers and models",
 	"repository": {
 		"type": "git",
@@ -53,8 +53,8 @@
 		"@ai-sdk/amazon-bedrock": "^5.0.50",
 		"@ai-sdk/anthropic": "^4.0.36",
 		"@ai-sdk/gateway": "^4",
-		"@ai-sdk/google": "^4.0.39",
-		"@ai-sdk/google-vertex": "^5.0.47",
+		"@ai-sdk/google": "4.0.44",
+		"@ai-sdk/google-vertex": "5.0.53",
 		"@ai-sdk/mistral": "^4.0.27",
 		"@ai-sdk/openai": "^4.0.36",
 		"@ai-sdk/openai-compatible": "^3.0.27",

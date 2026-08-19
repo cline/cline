@@ -1,5 +1,15 @@
 # Cline SDK Changelog
 
+## 0.0.76
+
+- Pinned `@ai-sdk/google` and `@ai-sdk/google-vertex` to the exact versions the SDK is built and tested against (4.0.44 / 5.0.53). An upstream AI SDK release briefly left `@ai-sdk/google@4.0.46` half-published on npm (version metadata live, tarball 404) while `@ai-sdk/google-vertex@5.0.57` pinned it exactly, so every fresh install failed with `ETARGET`/`404 Not Found` until the registry caught up. Exact pins keep installs on the tested tree instead of floating into upstream publishes while they propagate
+- Fixed Gemini custom base URLs that point at a host root (e.g. a proxy origin with no path) being rejected; legacy host-root values are normalized instead
+- Chat model pickers no longer list non-chat models such as image and embedding models
+- Skill slash commands now load through the skills tool instead of expanding the skill file into the user message
+- Fixed `run_commands` object form without `args` failing with `ENOENT`; it now routes through the shell
+- Added model-driven image generation for models that support it
+- Refreshed the model catalog with the latest models.dev data
+
 ## 0.0.75
 
 - Added provider-executed web search. Models that support it can search the web during a turn, and the search calls and their results are persisted in session history so they replay on reload. Off by default; enable the `web_search` model tool in settings
