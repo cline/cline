@@ -229,6 +229,24 @@ const MEDIA_TYPE_PRESENTATION: Record<
 	video: { label: "Video generation", modelLabel: "Video model" },
 };
 
+function isValidMediaSelection(
+	config: GenerateMediaToolConfig,
+	media: MediaTypeConfiguration,
+): boolean {
+	const selection = media.selection;
+	if (!selection) return false;
+	const provider = config.providers.find(
+		(candidate) => candidate.enabled && candidate.id === selection.providerId,
+	);
+	if (!provider) return false;
+	if (!media.modelIdsByProvider[provider.id]?.includes(selection.modelId)) {
+		return false;
+	}
+	return (
+		provider.modelList?.some((model) => model.id === selection.modelId) === true
+	);
+}
+
 export function MediaModelConfiguration({
 	config,
 	media,
@@ -250,6 +268,7 @@ export function MediaModelConfiguration({
 		(entry) => entry.provider.id === media.selection?.providerId,
 	);
 	const selectedModels = selectedProvider?.models ?? [];
+	const hasValidSelection = isValidMediaSelection(config, media);
 
 	if (eligibleProviders.length === 0) {
 		return (
@@ -278,7 +297,7 @@ export function MediaModelConfiguration({
 			<p className="text-xs font-medium text-foreground">
 				{presentation.label}
 			</p>
-			{media.selection ? null : (
+			{hasValidSelection ? null : (
 				<p className="text-xs text-amber-600 dark:text-amber-400">
 					Select a provider and model to enable {media.mediaType} generation.
 				</p>
@@ -329,7 +348,7 @@ export function MediaModelConfiguration({
 								modelId: event.target.value,
 							});
 						}}
-						value={media.selection?.modelId ?? ""}
+						value={hasValidSelection ? media.selection?.modelId : ""}
 					>
 						{selectedModels.length === 0 ? (
 							<option value="">Select a provider first</option>
@@ -1900,8 +1919,8 @@ export function CustomizationSectionView({
 									const isGenerateMedia = tool.id === "generate_media";
 									const isExpanded = expandedToolIds.has(tool.id);
 									const hasMediaConfiguration = Boolean(
-										generateMediaConfig?.mediaTypes.some(
-											(media) => media.selection,
+										generateMediaConfig?.mediaTypes.some((media) =>
+											isValidMediaSelection(generateMediaConfig, media),
 										),
 									);
 									const setupRequired =
