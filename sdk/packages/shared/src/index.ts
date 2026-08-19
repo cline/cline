@@ -211,6 +211,9 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -232,6 +235,7 @@ export {
 	modelHasCapability,
 	modelProducesImages,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
@@ -330,6 +334,7 @@ export { CLINE_DEFAULT_MODEL_ID } from "./providers/defaults";
 export { isClineProvider } from "./providers/utils";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
+	clearMaterializedRemoteConfigRuntime,
 	clearRemoteConfigSessionBlobUpload,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	prepareRemoteConfigRuntime,
@@ -341,6 +346,7 @@ export type {
 	PreparedRemoteConfigRuntime,
 	PrepareRemoteConfigRuntimeOptions,
 	RemoteConfigBundle,
+	RemoteConfigManagedInstructionFile,
 } from "./remote-config/bundle";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {

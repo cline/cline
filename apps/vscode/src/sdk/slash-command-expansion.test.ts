@@ -74,8 +74,18 @@ describe("expandSlashCommands", () => {
 		expect(expandSlashCommands("/newtask use /release", commands)).toBe("/newtask use Run the release workflow.")
 	})
 
-	it("expands skills by name", () => {
-		expect(expandSlashCommands("/debug this failure", commands)).toBe("Use the debugging skill. this failure")
+	it("keeps configured skills typed so the skills tool loads them", () => {
+		expect(expandSlashCommands("/debug this failure", commands)).toBe("/debug this failure")
+	})
+
+	it("still expands builtin pseudo-skills, which the skills tool does not serve", () => {
+		const builtin: AvailableRuntimeCommand = {
+			id: "builtin:deep-planning",
+			name: "deep-planning",
+			instructions: "Plan deeply.",
+			kind: "skill",
+		}
+		expect(expandSlashCommands("/deep-planning the refactor", [builtin])).toBe("Plan deeply. the refactor")
 	})
 
 	it("does not treat path segments as commands", () => {
@@ -91,10 +101,8 @@ describe("expandSlashCommands", () => {
 		const disabled = new Set(["release"])
 		expect(expandSlashCommands("/release", commands, { disabledWorkflowNames: disabled })).toBe("/release")
 		expect(expandSlashCommands("/release.md", commands, { disabledWorkflowNames: disabled })).toBe("/release.md")
-		// Skills are governed by frontmatter, not workflow toggles.
-		expect(expandSlashCommands("/debug", commands, { disabledWorkflowNames: new Set(["debug"]) })).toBe(
-			"Use the debugging skill.",
-		)
+		// Skills stay typed either way; workflow toggles never applied to them.
+		expect(expandSlashCommands("/debug", commands, { disabledWorkflowNames: new Set(["debug"]) })).toBe("/debug")
 	})
 
 	it("applies workflow toggles to normalized runtime command names", () => {

@@ -1,10 +1,13 @@
+import {
+	agentMarkdownControls,
+	markdownCodeHighlighter,
+} from "@cline/ui/components/markdown";
 import { cjk } from "@streamdown/cjk";
 import { CheckIcon, CopyIcon } from "lucide-react";
 import type { ComponentProps, MouseEvent, ReactNode } from "react";
 import { isValidElement, memo, useState } from "react";
 import {
 	type Components,
-	type ControlsConfig,
 	type ExtraProps,
 	type LinkSafetyModalProps,
 	Streamdown,
@@ -21,15 +24,9 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "./alert-dialog";
-import { markdownCodeHighlighter } from "./markdown-highlighter";
 
 const streamdownPlugins = { cjk, code: markdownCodeHighlighter };
 const streamdownIcons = { CheckIcon, CopyIcon };
-const streamdownControls = {
-	code: { copy: true, download: false },
-	mermaid: false,
-	table: false,
-} satisfies ControlsConfig;
 
 export function MarkdownLinkSafetyModal({
 	isOpen,
@@ -309,7 +306,7 @@ export const MemoizedMarkdown = memo(
 		<Streamdown
 			className={cn("cline-markdown", className)}
 			components={markdownComponents}
-			controls={streamdownControls}
+			controls={agentMarkdownControls}
 			dir="auto"
 			isAnimating={streaming}
 			icons={streamdownIcons}
