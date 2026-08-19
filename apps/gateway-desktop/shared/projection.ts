@@ -22,10 +22,14 @@ export interface ConnectionProjection {
 	gatewayId?: string;
 	instanceId?: string;
 	protocolVersion?: number;
-	/** Gateway-reported execution mode ("development" until Phase 4). */
+	/** Gateway-reported execution mode ("development" until Phase 4 ships). */
 	executionMode?: string;
-	/** False until Phase 4: the UI must NOT claim sandboxed execution. */
+	/** False until real sandboxing is proven: never claim otherwise. */
 	sandboxed?: boolean;
+	/** Gateway-reported worker isolation (e.g. "in-process-direct"). */
+	isolation?: string;
+	/** True when the Gateway reports development (unsandboxed) execution. */
+	developmentExecution?: boolean;
 	lastError?: PublicDesktopError;
 	/** Copyable shell instructions shown when the Gateway is missing. */
 	startInstructions?: string;
@@ -85,6 +89,14 @@ export interface QueuedTurnProjection {
 	acceptedAt: number;
 }
 
+/** How a run was admitted (Gateway-reported, Phase 6 provenance). */
+export interface RunProvenanceProjection {
+	mode: string;
+	submittedBy?: string;
+	scheduleId?: string;
+	connectorId?: string;
+}
+
 export interface RunProjection {
 	runId: string;
 	state: string;
@@ -96,6 +108,7 @@ export interface RunProjection {
 	retryable: boolean;
 	error?: { name: string; message: string };
 	outputPreview?: string;
+	provenance?: RunProvenanceProjection;
 }
 
 export interface ToolProjection {
@@ -145,6 +158,42 @@ export interface ApprovalProjection {
 	receivedAt: number;
 }
 
+/** Plugin catalog summary (counts only; never plugin entries). */
+export interface PluginCatalogProjection {
+	generation: number;
+	pluginCount: number;
+	heldGenerations: number[];
+	pinnedByRuns: number;
+	lastReloadOk: boolean;
+}
+
+/** Bot-scoped connector (read-only diagnostics; no onboarding UI). */
+export interface ConnectorProjection {
+	connectorId: string;
+	botId: string;
+	kind: string;
+	name: string;
+	status: string;
+	/** Whether a credential file is referenced (never the name/value). */
+	hasCredential: boolean;
+	/** Live worker state when the Gateway reports it. */
+	workerState?: string;
+	workerRestarts?: number;
+}
+
+/** Schedule (read-only diagnostics; automation provenance source). */
+export interface ScheduleProjection {
+	scheduleId: string;
+	botId: string;
+	name: string;
+	/** "every Nms" or "once at <epoch>". */
+	trigger: string;
+	enabled: boolean;
+	nextDueAt?: number;
+	lastJobState?: string;
+	lastRunId?: string;
+}
+
 export interface DiagnosticsProjection {
 	/** Bounded, redacted, user-presentable notices (newest last). */
 	notices: string[];
@@ -152,6 +201,10 @@ export interface DiagnosticsProjection {
 	eventsApplied: number;
 	/** True when the native shell can reveal the diagnostics folder. */
 	revealAvailable: boolean;
+	/** Phase 4 plugin catalog summary from gateway.status. */
+	plugins?: PluginCatalogProjection;
+	/** Durable catalog generation from gateway.status/hello. */
+	catalogGeneration?: number;
 }
 
 export interface DesktopProjection {
@@ -167,6 +220,10 @@ export interface DesktopProjection {
 	selectedSessionId?: string;
 	activeSession?: ActiveSessionProjection;
 	approvals: ApprovalProjection[];
+	/** Bot-scoped connectors (Phase 6, read-only). */
+	connectors: ConnectorProjection[];
+	/** Schedules (Phase 6, read-only). */
+	schedules: ScheduleProjection[];
 	diagnostics: DiagnosticsProjection;
 }
 
@@ -202,6 +259,8 @@ export function createInitialProjection(): DesktopProjection {
 		],
 		sessions: [],
 		approvals: [],
+		connectors: [],
+		schedules: [],
 		diagnostics: {
 			notices: [],
 			lastEventSequence: -1,

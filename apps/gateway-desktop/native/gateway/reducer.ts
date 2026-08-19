@@ -11,7 +11,10 @@
 
 import type {
 	BotRecord,
+	ConnectorRecord,
 	RunRecord,
+	ScheduleJobRecord,
+	ScheduleRecord,
 	SessionRecord,
 	SessionSnapshot,
 } from "@cline/gateway/client";
@@ -21,9 +24,12 @@ import type {
 	ApprovalProjection,
 	BotProjection,
 	ConnectionProjection,
+	ConnectorProjection,
 	DesktopProjection,
 	MessageProjection,
 	RunProjection,
+	RunProvenanceProjection,
+	ScheduleProjection,
 	SessionSummaryProjection,
 	WorkspaceProjection,
 } from "../../shared/projection";
@@ -52,6 +58,8 @@ export interface ReducerContext {
 	workspaceIdByPath: Map<string, string>;
 	/** Prompts of runs this client started (queued-turn previews). */
 	promptPreviews: Map<string, string>;
+	/** Provenance learned from events before the run entry existed. */
+	provenanceHints: Map<string, RunProvenanceProjection>;
 	/** Top-level projection keys touched since the last flush. */
 	dirtyKeys: Set<ProjectionKey>;
 	clock: () => number;
@@ -66,6 +74,7 @@ export function createReducerContext(
 		workspacePathById: new Map(),
 		workspaceIdByPath: new Map(),
 		promptPreviews: new Map(),
+		provenanceHints: new Map(),
 		dirtyKeys: new Set(),
 		clock,
 	};
@@ -192,11 +201,45 @@ function toBotProjection(
 	};
 }
 
-function runProjectionFrom(record: RunRecord, attempt: number): RunProjection {
+/** Structural read of the Gateway-reported run provenance (untrusted). */
+export function provenanceProjectionFrom(
+	value: unknown,
+): RunProvenanceProjection | undefined {
+	if (typeof value !== "object" || value === null) {
+		return undefined;
+	}
+	const typed = value as {
+		mode?: unknown;
+		submittedBy?: unknown;
+		scheduleId?: unknown;
+		connectorId?: unknown;
+	};
+	if (typeof typed.mode !== "string") {
+		return undefined;
+	}
+	return {
+		mode: typed.mode,
+		...(typeof typed.submittedBy === "string"
+			? { submittedBy: typed.submittedBy }
+			: {}),
+		...(typeof typed.scheduleId === "string"
+			? { scheduleId: typed.scheduleId }
+			: {}),
+		...(typeof typed.connectorId === "string"
+			? { connectorId: typed.connectorId }
+			: {}),
+	};
+}
+
+function runProjectionFrom(
+	record: RunRecord & { provenance?: unknown },
+	attempt: number,
+): RunProjection {
 	const retryable = record.state === "failed" || record.state === "interrupted";
 	const output = record.outputText
 		? truncateForProjection(record.outputText, MAX_PREVIEW_CHARS)
 		: undefined;
+	const provenance = provenanceProjectionFrom(record.provenance);
 	return {
 		runId: record.runId,
 		state: record.state,
@@ -207,6 +250,7 @@ function runProjectionFrom(record: RunRecord, attempt: number): RunProjection {
 		retryable,
 		...(record.error ? { error: { ...record.error } } : {}),
 		...(output ? { outputPreview: output.text } : {}),
+		...(provenance ? { provenance } : {}),
 	};
 }
 
@@ -303,12 +347,21 @@ export interface HydrationInput {
 		executionMode?: unknown;
 		sandboxed?: unknown;
 		defaultBotId?: unknown;
+		catalogGeneration?: unknown;
+		execution?: unknown;
+		plugins?: unknown;
+		connectorHealth?: unknown;
 		counts?: { lastEventSequence?: unknown };
 	};
 	bots: readonly BotRecord[];
 	sessions: readonly SessionRecord[];
 	/** Queued + running runs across sessions (activity derivation). */
 	pendingRuns: readonly RunRecord[];
+	/** Bot-scoped connectors (Phase 6 diagnostics). */
+	connectors?: readonly ConnectorRecord[];
+	/** Schedules plus their most recent job reports (Phase 6). */
+	schedules?: readonly ScheduleRecord[];
+	scheduleJobs?: ReadonlyMap<string, readonly ScheduleJobRecord[]>;
 	/** Snapshot of the selected session, when one is selected. */
 	snapshot?: SessionSnapshot;
 	/**
@@ -316,6 +369,93 @@ export interface HydrationInput {
 	 * Taken BEFORE the list reads so replay can only overlap, never gap.
 	 */
 	cursorBasis: number;
+}
+
+/** Structural read of `gateway.status.execution` (untrusted). */
+function executionHealthFrom(value: unknown): {
+	isolation?: string;
+	development?: boolean;
+} {
+	if (typeof value !== "object" || value === null) {
+		return {};
+	}
+	const typed = value as { isolation?: unknown; development?: unknown };
+	return {
+		...(typeof typed.isolation === "string"
+			? { isolation: typed.isolation }
+			: {}),
+		...(typeof typed.development === "boolean"
+			? { development: typed.development }
+			: {}),
+	};
+}
+
+/** Structural read of `gateway.status.plugins` (untrusted). */
+function pluginSummaryFrom(
+	value: unknown,
+): DesktopProjection["diagnostics"]["plugins"] {
+	if (typeof value !== "object" || value === null) {
+		return undefined;
+	}
+	const typed = value as {
+		generation?: unknown;
+		plugins?: unknown;
+		heldGenerations?: unknown;
+		pinnedByRuns?: unknown;
+		lastReloadOk?: unknown;
+	};
+	if (typeof typed.generation !== "number") {
+		return undefined;
+	}
+	return {
+		generation: typed.generation,
+		pluginCount: typeof typed.plugins === "number" ? typed.plugins : 0,
+		heldGenerations: Array.isArray(typed.heldGenerations)
+			? typed.heldGenerations.filter(
+					(entry): entry is number => typeof entry === "number",
+				)
+			: [],
+		pinnedByRuns:
+			typeof typed.pinnedByRuns === "number" ? typed.pinnedByRuns : 0,
+		lastReloadOk: typed.lastReloadOk !== false,
+	};
+}
+
+function connectorWorkerStates(
+	value: unknown,
+): Map<string, { state: string; restarts: number }> {
+	const byId = new Map<string, { state: string; restarts: number }>();
+	if (typeof value !== "object" || value === null) {
+		return byId;
+	}
+	const running = (value as { running?: unknown }).running;
+	if (!Array.isArray(running)) {
+		return byId;
+	}
+	for (const entry of running) {
+		const typed = entry as {
+			connectorId?: unknown;
+			state?: unknown;
+			restarts?: unknown;
+		};
+		if (typeof typed.connectorId === "string") {
+			byId.set(typed.connectorId, {
+				state: typeof typed.state === "string" ? typed.state : "unknown",
+				restarts: typeof typed.restarts === "number" ? typed.restarts : 0,
+			});
+		}
+	}
+	return byId;
+}
+
+function scheduleTrigger(record: ScheduleRecord): string {
+	if (record.intervalMs !== undefined) {
+		return `every ${record.intervalMs}ms`;
+	}
+	if (record.at !== undefined) {
+		return `once at ${new Date(record.at).toISOString()}`;
+	}
+	return "unknown trigger";
 }
 
 /** Rebuild the projection wholesale from Gateway state. */
@@ -326,6 +466,7 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 			? input.status.defaultBotId
 			: undefined;
 
+	const execution = executionHealthFrom(input.status.execution);
 	projection.connection = {
 		state: "connected",
 		gatewayId: input.hello.gatewayId,
@@ -336,6 +477,9 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 				? input.status.executionMode
 				: "development",
 		sandboxed: input.status.sandboxed === true,
+		...(execution.isolation ? { isolation: execution.isolation } : {}),
+		// Absent execution health means development until proven otherwise.
+		developmentExecution: execution.development !== false,
 	};
 
 	projection.bots = input.bots.map((record) =>
@@ -379,6 +523,43 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 		projection.selectedSessionId = undefined;
 	}
 
+	// Phase 6 read-only diagnostics: connectors and schedules.
+	const workerStates = connectorWorkerStates(input.status.connectorHealth);
+	projection.connectors = (input.connectors ?? []).map(
+		(record): ConnectorProjection => {
+			const worker = workerStates.get(record.connectorId);
+			return {
+				connectorId: record.connectorId,
+				botId: record.botId,
+				kind: record.kind,
+				name: record.name,
+				status: record.status,
+				hasCredential: Boolean(record.credentialRef),
+				...(worker
+					? { workerState: worker.state, workerRestarts: worker.restarts }
+					: {}),
+			};
+		},
+	);
+	projection.schedules = (input.schedules ?? []).map(
+		(record): ScheduleProjection => {
+			const jobs = input.scheduleJobs?.get(record.scheduleId) ?? [];
+			const lastJob = jobs.at(-1);
+			return {
+				scheduleId: record.scheduleId,
+				botId: record.botId,
+				name: record.name,
+				trigger: scheduleTrigger(record),
+				enabled: record.enabled,
+				...(record.nextDueAt !== undefined
+					? { nextDueAt: record.nextDueAt }
+					: {}),
+				...(lastJob ? { lastJobState: lastJob.state } : {}),
+				...(lastJob?.runId ? { lastRunId: lastJob.runId } : {}),
+			};
+		},
+	);
+
 	if (input.snapshot) {
 		applySnapshot(context, input.snapshot);
 	} else if (!projection.selectedSessionId) {
@@ -386,6 +567,10 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 	}
 
 	projection.diagnostics.lastEventSequence = input.cursorBasis;
+	projection.diagnostics.plugins = pluginSummaryFrom(input.status.plugins);
+	if (typeof input.status.catalogGeneration === "number") {
+		projection.diagnostics.catalogGeneration = input.status.catalogGeneration;
+	}
 	context.cursorSequence = input.cursorBasis;
 	commit(
 		context,
@@ -395,6 +580,8 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 		"sessions",
 		"selectedSessionId",
 		"activeSession",
+		"connectors",
+		"schedules",
 		"diagnostics",
 	);
 }
@@ -576,6 +763,7 @@ function applyRunStateEvent(
 	}
 	let run = active.runs.find((entry) => entry.runId === runId);
 	if (!run) {
+		const hintedProvenance = context.provenanceHints.get(runId);
 		run = {
 			runId,
 			state,
@@ -585,8 +773,14 @@ function applyRunStateEvent(
 					? payload.acceptedAt
 					: context.clock(),
 			retryable: false,
+			...(hintedProvenance ? { provenance: hintedProvenance } : {}),
 		};
 		active.runs.push(run);
+	} else if (!run.provenance) {
+		const hintedProvenance = context.provenanceHints.get(runId);
+		if (hintedProvenance) {
+			run.provenance = hintedProvenance;
+		}
 	}
 	run.state = state;
 	run.retryable = state === "failed" || state === "interrupted";
@@ -857,6 +1051,83 @@ function applyEventBody(context: ReducerContext, event: GatewayEvent): void {
 		case "gateway.recoveryCompleted":
 			addNotice(context, "Gateway completed restart recovery");
 			return;
+		case "connector.registered": {
+			if (
+				typeof payload.connectorId === "string" &&
+				typeof payload.kind === "string" &&
+				!context.projection.connectors.some(
+					(connector) => connector.connectorId === payload.connectorId,
+				)
+			) {
+				context.projection.connectors.push({
+					connectorId: payload.connectorId,
+					botId: event.scope.botId ?? "",
+					kind: payload.kind,
+					name: typeof payload.name === "string" ? payload.name : "",
+					status: "enabled",
+					// Unknown until the next hydration refreshes the record.
+					hasCredential: false,
+				});
+				commit(context, "connectors");
+			}
+			addNotice(
+				context,
+				`Connector registered: ${typeof payload.name === "string" ? payload.name : payload.connectorId}`,
+			);
+			return;
+		}
+		case "connector.messageAdmitted": {
+			if (
+				typeof payload.connectorId === "string" &&
+				event.scope.runId
+			) {
+				// Provenance for the run this admission created: the run's
+				// lifecycle events carry no provenance, so remember the hint.
+				context.provenanceHints.set(event.scope.runId, {
+					mode: "connector",
+					connectorId: payload.connectorId,
+					submittedBy: `connector:${payload.connectorId}`,
+				});
+				const run = active?.runs.find(
+					(entry) => entry.runId === event.scope.runId,
+				);
+				if (run && !run.provenance) {
+					run.provenance = {
+						mode: "connector",
+						connectorId: payload.connectorId,
+					};
+					commit(context, "activeSession");
+				}
+			}
+			addNotice(
+				context,
+				`Connector message admitted into session ${event.scope.sessionId ?? "?"} (run ${event.scope.runId ?? "?"})`,
+			);
+			return;
+		}
+		case "schedule.created": {
+			if (
+				typeof payload.scheduleId === "string" &&
+				!context.projection.schedules.some(
+					(schedule) => schedule.scheduleId === payload.scheduleId,
+				)
+			) {
+				context.projection.schedules.push({
+					scheduleId: payload.scheduleId,
+					botId: event.scope.botId ?? "",
+					name: typeof payload.name === "string" ? payload.name : "",
+					// Details land with the next hydration refresh.
+					trigger: "pending refresh",
+					enabled: true,
+				});
+				commit(context, "schedules");
+			}
+			addNotice(
+				context,
+				`Schedule created: ${typeof payload.name === "string" ? payload.name : payload.scheduleId}`,
+			);
+			return;
+		}
 		default:
 			// Unknown additive events must never break the client.
 			return;

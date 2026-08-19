@@ -50,11 +50,16 @@ afterEach(async () => {
 	}
 });
 
-async function startGateway(dataRoot: string, engine: ScriptedEnginePort) {
+async function startGateway(
+	dataRoot: string,
+	engine: ScriptedEnginePort,
+	overrides: Record<string, unknown> = {},
+) {
 	const server = await GatewayServer.start({
 		dataRoot,
 		namespace: "default",
 		engine,
+		...overrides,
 	});
 	cleanups.push(async () => {
 		await server.stop("graceful").catch(() => {});
@@ -77,11 +82,13 @@ function createBroker(dataRoot: string, appDataDir: string) {
 	return { broker, stateStore };
 }
 
-async function startWorld(): Promise<World> {
+async function startWorld(
+	overrides: Record<string, unknown> = {},
+): Promise<World> {
 	const dataRoot = mkdtempSync(join(tmpdir(), "gwd-e2e-gateway-"));
 	const appDataDir = mkdtempSync(join(tmpdir(), "gwd-e2e-app-"));
 	const engine = new ScriptedEnginePort();
-	const server = await startGateway(dataRoot, engine);
+	const server = await startGateway(dataRoot, engine, overrides);
 	const { broker, stateStore } = createBroker(dataRoot, appDataDir);
 	await broker.start();
 	const botId = server.runtime.defaultBotId;
@@ -530,6 +537,103 @@ describe("restart resilience", () => {
 		expect(
 			server2.stores.attempts.listByRun(accepted.runId as never).length,
 		).toBeGreaterThanOrEqual(2);
+	});
+});
+
+describe("phase 4-6 surface", () => {
+	it("surfaces execution isolation and the plugin catalog summary", async () => {
+		const world = await startWorld({
+			executionHealth: () => ({
+				isolation: "unsandboxed-development",
+				development: true,
+			}),
+		});
+		const projection = world.broker.projectionSnapshot;
+		expect(projection.connection.isolation).toBe("unsandboxed-development");
+		expect(projection.connection.developmentExecution).toBe(true);
+		expect(projection.connection.sandboxed).toBe(false);
+		expect(projection.diagnostics.plugins?.generation).toBeGreaterThan(0);
+		expect(projection.diagnostics.plugins?.lastReloadOk).toBe(true);
+	});
+
+	it("lists connectors registered by another client (no onboarding UI)", async () => {
+		// No adapter workers start: registration is metadata-only here.
+		const world = await startWorld({ autoStartConnectors: false });
+		const second = await connectSecondClient(world);
+		const registered = await second.registerConnector({
+			botId: world.botId as never,
+			kind: "telegram",
+			name: "e2e-telegram",
+			credentialRef: "telegram-token",
+		});
+		// The connector.registered event appends a live entry.
+		await waitFor(() =>
+			world.broker.projectionSnapshot.connectors.some(
+				(connector) => connector.connectorId === registered.connectorId,
+			),
+		);
+		const live = world.broker.projectionSnapshot.connectors.find(
+			(connector) => connector.connectorId === registered.connectorId,
+		);
+		expect(live).toMatchObject({ kind: "telegram", name: "e2e-telegram" });
+
+		// A fresh hydration (relaunch) recovers the full record.
+		world.broker.stop();
+		const relaunched = createBroker(world.dataRoot, world.appDataDir);
+		await relaunched.broker.start();
+		expect(relaunched.broker.projectionSnapshot.connectors[0]).toMatchObject({
+			connectorId: registered.connectorId,
+			hasCredential: true,
+			status: "enabled",
+		});
+	});
+
+	it("shows automation provenance for schedule-admitted runs", async () => {
+		const world = await startWorld({ schedulerTickMs: 25 });
+		world.engine.autoOutcome = () => ({ outputText: "scheduled output" });
+
+		// Open the bot's session interactively so the desktop is watching it.
+		await world.broker.execute({
+			command: "run.start",
+			clientRequestId: requestId(),
+			botId: world.botId,
+			prompt: "open the session first",
+		});
+		await waitFor(
+			() =>
+				world.broker.projectionSnapshot.activeSession?.currentRun?.state ===
+				"completed",
+		);
+
+		const second = await connectSecondClient(world);
+		const schedule = await second.createSchedule({
+			botId: world.botId as never,
+			name: "e2e-automation",
+			prompt: "run on the timer",
+			intervalMs: 30,
+		});
+		// The schedule.created event lists the schedule immediately.
+		await waitFor(() =>
+			world.broker.projectionSnapshot.schedules.some(
+				(entry) => entry.scheduleId === schedule.scheduleId,
+			),
+		);
+
+		// The scheduler admits an automation run into the SAME canonical
+		// session; the snapshot refresh reveals its provenance.
+		await waitFor(
+			() =>
+				world.broker.projectionSnapshot.activeSession?.runs.some(
+					(run) =>
+						run.provenance?.mode === "automation" &&
+						run.provenance.scheduleId === schedule.scheduleId,
+				) === true,
+			{ timeoutMs: 15_000 },
+		);
+		const report = await second.scheduleReport({
+			scheduleId: schedule.scheduleId,
+		});
+		expect(report.jobs.length).toBeGreaterThan(0);
 	});
 });
 

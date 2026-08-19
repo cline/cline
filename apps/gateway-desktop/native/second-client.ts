@@ -13,6 +13,9 @@
  *   bun run second-client -- watch            # stream events
  *   bun run second-client -- approve-all      # answer approvals with yes
  *   bun run second-client -- deny-all         # answer approvals with no
+ *   bun run second-client -- connectors       # list bot-scoped connectors
+ *   bun run second-client -- schedules        # list schedules + last jobs
+ *   bun run second-client -- schedule <name> <intervalMs> <prompt…>
  */
 
 import { createEventCursor, encodeEventCursor } from "@cline/shared/gateway";
@@ -117,9 +120,40 @@ async function main(): Promise<void> {
 			await new Promise(() => {});
 			break;
 		}
+		case "connectors": {
+			const listed = await client.listConnectors();
+			process.stdout.write(`${JSON.stringify(listed.connectors, null, 2)}\n`);
+			break;
+		}
+		case "schedules": {
+			const listed = await client.listSchedules();
+			for (const schedule of listed.schedules) {
+				const report = await client.scheduleReport({
+					scheduleId: schedule.scheduleId,
+				});
+				process.stdout.write(
+					`${JSON.stringify({ schedule, lastJob: report.jobs.at(-1) }, null, 2)}\n`,
+				);
+			}
+			break;
+		}
+		case "schedule": {
+			const [name, intervalMs, ...prompt] = rest;
+			if (!botId || !name || !intervalMs || prompt.length === 0) {
+				throw new Error("usage: schedule <name> <intervalMs> <prompt…>");
+			}
+			const created = await client.createSchedule({
+				botId,
+				name,
+				prompt: prompt.join(" "),
+				intervalMs: Number(intervalMs),
+			});
+			process.stdout.write(`${JSON.stringify(created)}\n`);
+			break;
+		}
 		default:
 			process.stderr.write(
-				"usage: second-client <status|prompt|steer|interrupt|retry|watch|approve-all|deny-all>\n",
+				"usage: second-client <status|prompt|steer|interrupt|retry|watch|approve-all|deny-all|connectors|schedules|schedule>\n",
 			);
 			process.exit(2);
 	}

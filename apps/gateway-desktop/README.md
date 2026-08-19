@@ -26,6 +26,20 @@ early with minimal product code.
 - Reconnect after app or Gateway restart (no auto-resume, no replacement sessions)
 - Local diagnostics with redacted structured logs
 
+### Phase 4-6 surface (read-only diagnostics)
+
+- Gateway-reported worker isolation (`gateway.status.execution`) and the
+  honest development/unsandboxed warning
+- Plugin catalog summary: generation, plugin count, generations held by
+  pinned runs, last reload health (counts only — no plugin authoring UI)
+- Bot-scoped connectors (Telegram/Slack registrations) with live worker
+  state when reported; connector-admitted runs land in the SAME
+  canonical session and are labeled with `connector` provenance
+- Schedules with trigger, next due, and last job state; schedule-admitted
+  runs are labeled with `automation` provenance (Gateway-recorded run
+  provenance via `session.get`)
+- No MCP pool health: the Gateway does not expose it over the wire yet
+
 ## Architecture (three processes)
 
 ```
@@ -78,7 +92,35 @@ CLINE_GATEWAY_DATA_ROOT=/tmp/gwd-demo bun run dev
 
 Demo engine behavior: every prompt streams a scripted response; a
 prompt containing `fail` fails its first attempt (exercises manual
-retry); a prompt containing `approve` first requests tool approval.
+retry); a prompt containing `approve` first requests tool approval. The
+demo Gateway also seeds one credential-less Telegram connector and one
+recurring schedule so the diagnostics panel and `automation` provenance
+chips have real data.
+
+### Provider credentials (Phase 3 secrets, no onboarding UI)
+
+Gateway Desktop deliberately has no credential onboarding. Real engine
+runs need provider credentials configured ON THE GATEWAY as mode-0600
+secret files (the desktop never sees them):
+
+```sh
+# Preferred: the Gateway CLI writes the 0600 file for you.
+printf '%s' "$ANTHROPIC_API_KEY" | cline-gateway secret-put anthropic
+
+# Equivalent: drop a mode-0600 file into the gateway's secrets dir:
+#   ~/.cline/gateway/<namespace>/secrets/<providerId>
+# Then select provider/model for runs:
+CLINE_GATEWAY_PROVIDER=anthropic CLINE_GATEWAY_MODEL=claude-sonnet-4-5 cline-gateway serve
+```
+
+Environment variables (`ANTHROPIC_API_KEY`, `CLINE_GATEWAY_API_KEY`, …)
+still work as a development override. A run started without usable
+credentials fails its attempt with `MissingProviderCredentialError`,
+which the desktop surfaces as an ordinary retryable run failure.
+Connector credentials (Telegram bot token, Slack app/bot tokens) live in
+the same secrets directory and are referenced by filename
+(`credentialRef`) at `connector.register` time — the wire record names
+the file, never its contents.
 
 ### Second client fixture
 

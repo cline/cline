@@ -188,9 +188,42 @@ const demoEngine: EnginePort = {
 	start: (invocation) => new DemoHandle(invocation),
 };
 
-const server = await GatewayServer.start({ engine: demoEngine });
+const server = await GatewayServer.start({
+	engine: demoEngine,
+	// Phase 4-6 demo surface: report the honest development isolation and
+	// keep connector adapter workers off (no Telegram/Slack credentials).
+	executionHealth: () => ({
+		isolation: "unsandboxed-development",
+		development: true,
+	}),
+	autoStartConnectors: false,
+	schedulerTickMs: 500,
+});
 approvals = (scope, params) =>
 	server.runtime.approvals.request("client.requestToolApproval", scope, params);
+
+// Seed read-only Phase 6 diagnostics: one bot-scoped connector (metadata
+// only; its worker never starts without credentials) and one recurring
+// schedule that admits automation runs into the bot's canonical session.
+const demoBotId = server.runtime.defaultBotId;
+if (demoBotId) {
+	if (server.runtime.listConnectors().length === 0) {
+		server.runtime.registerConnector("demo", {
+			botId: demoBotId,
+			kind: "telegram",
+			name: "demo-telegram",
+			config: { botUsername: "demo_bot" },
+		});
+	}
+	if (server.runtime.listSchedules().length === 0) {
+		server.runtime.createSchedule("demo", {
+			botId: demoBotId,
+			name: "demo-automation",
+			prompt: "Scheduled check-in: report one line of status.",
+			intervalMs: 120_000,
+		});
+	}
+}
 const address = server.address();
 console.log(
 	`demo gateway serving on ${address.host}:${address.port} (data: ${server.paths.dataDir})`,

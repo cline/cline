@@ -9,8 +9,11 @@
 
 import type {
 	BotRecord,
+	ConnectorRecord,
 	GatewayStatusSummary,
 	RunRecord,
+	ScheduleJobRecord,
+	ScheduleRecord,
 	SessionRecord,
 	SessionSnapshot,
 } from "@cline/gateway/client";
@@ -38,6 +41,10 @@ export class FakeGatewayAuthority {
 	readonly sessions: SessionRecord[] = [];
 	readonly runs = new Map<string, RunRecord>();
 	readonly attemptsByRun = new Map<string, number>();
+	readonly connectors: ConnectorRecord[] = [];
+	readonly schedules: ScheduleRecord[] = [];
+	readonly scheduleJobs = new Map<string, ScheduleJobRecord[]>();
+	readonly provenanceByRun = new Map<string, Record<string, unknown>>();
 	readonly messagesBySession = new Map<
 		string,
 		{
@@ -154,6 +161,126 @@ export class FakeGatewayAuthority {
 		);
 	}
 
+	/** Register a fake connector (diagnostics fixtures). */
+	addConnector(input: {
+		botId: string;
+		kind: string;
+		name: string;
+		credentialRef?: string;
+	}): ConnectorRecord {
+		fakeCounter += 1;
+		const record: ConnectorRecord = {
+			connectorId: `con_fake${fakeCounter}` as never,
+			botId: input.botId as never,
+			kind: input.kind,
+			name: input.name,
+			config: Object.freeze({}),
+			...(input.credentialRef ? { credentialRef: input.credentialRef } : {}),
+			status: "enabled",
+			createdAt: Date.now(),
+			revision: 0,
+		};
+		this.connectors.push(record);
+		this.appendEvent(
+			"connector.registered",
+			{ botId: input.botId },
+			{ connectorId: record.connectorId, kind: record.kind, name: record.name },
+		);
+		return record;
+	}
+
+	/** Create a fake schedule (diagnostics fixtures). */
+	addSchedule(input: {
+		botId: string;
+		name: string;
+		prompt: string;
+		intervalMs?: number;
+		at?: number;
+	}): ScheduleRecord {
+		fakeCounter += 1;
+		const record: ScheduleRecord = {
+			scheduleId: `sch_fake${fakeCounter}` as never,
+			botId: input.botId as never,
+			name: input.name,
+			prompt: input.prompt,
+			...(input.intervalMs !== undefined
+				? { intervalMs: input.intervalMs }
+				: {}),
+			...(input.at !== undefined ? { at: input.at } : {}),
+			nextDueAt: Date.now() + (input.intervalMs ?? 0),
+			enabled: true,
+			maxAttempts: 1,
+			createdAt: Date.now(),
+			revision: 0,
+		};
+		this.schedules.push(record);
+		this.appendEvent(
+			"schedule.created",
+			{ botId: input.botId },
+			{ scheduleId: record.scheduleId, name: record.name },
+		);
+		return record;
+	}
+
+	/** Admit a run the way a connector message would (provenance). */
+	admitConnectorRun(
+		connectorId: string,
+		botId: string,
+		prompt: string,
+	): RunAccepted {
+		const accepted = this.startRun({ botId, prompt });
+		this.provenanceByRun.set(accepted.runId, {
+			mode: "connector",
+			submittedBy: `connector:${connectorId}`,
+			connectorId,
+			externalAccountId: "acct-1",
+			externalConversationId: "conv-1",
+		});
+		const run = this.runs.get(accepted.runId);
+		this.appendEvent(
+			"connector.messageAdmitted",
+			{
+				botId,
+				sessionId: run?.sessionId ?? "",
+				runId: accepted.runId,
+			},
+			{
+				connectorId,
+				externalConversationId: "conv-1",
+				externalMessageId: "msg-1",
+				routeCreated: true,
+			},
+		);
+		return accepted;
+	}
+
+	/** Admit a run the way the scheduler would (automation provenance). */
+	admitAutomationRun(
+		scheduleId: string,
+		botId: string,
+		prompt: string,
+	): RunAccepted {
+		const accepted = this.startRun({ botId, prompt });
+		this.provenanceByRun.set(accepted.runId, {
+			mode: "automation",
+			submittedBy: `schedule:${scheduleId}`,
+			scheduleId,
+		});
+		const jobs = this.scheduleJobs.get(scheduleId) ?? [];
+		jobs.push({
+			jobId: jobs.length + 1,
+			scheduleId: scheduleId as never,
+			dueAt: Date.now(),
+			state: "completed",
+			attempts: 1,
+			runId: accepted.runId as never,
+			createdAt: Date.now(),
+			settledAt: Date.now(),
+		});
+		this.scheduleJobs.set(scheduleId, jobs);
+		return accepted;
+	}
+
 	startRun(input: {
 		botId: string;
 		prompt: string;
@@ -215,6 +342,10 @@ export class FakeGatewayAuthority {
 			state: "queued",
 			input: input.prompt,
 			acceptedAt: accepted.acceptedAt,
+		});
+		this.provenanceByRun.set(runId, {
+			mode: "interactive",
+			submittedBy: "cli_fake_client",
 		});
 		this.appendEvent(
 			"run.queued",
@@ -330,9 +461,25 @@ export class FakeGatewayPort implements GatewayPort {
 			startedAt: 1,
 			protocolVersion: 1,
 			defaultBotId: this.authority.defaultBotId as never,
-			catalogGeneration: 1,
+			catalogGeneration: 3,
 			namespace: "default",
 			dataDir: "/fake/data",
+			execution: { isolation: "in-process-direct", development: true },
+			plugins: {
+				generation: 3,
+				plugins: 2,
+				heldGenerations: [3],
+				pinnedByRuns: 0,
+				lastReloadOk: true,
+			},
+			connectorHealth: {
+				running: this.authority.connectors.map((connector) => ({
+					connectorId: connector.connectorId,
+					workerId: `worker_${connector.connectorId}`,
+					restarts: 0,
+					state: "running",
+				})),
+			},
 			counts: {
 				bots: this.authority.bots.length,
 				sessions: this.authority.sessions.length,
@@ -342,10 +489,41 @@ export class FakeGatewayPort implements GatewayPort {
 				pendingOutbox: 0,
 				lastEventSequence: this.authority.lastSequence,
 				pendingServerRequests: this.authority.pendingServerRequests.size,
+				connectors: this.authority.connectors.length,
+				schedules: this.authority.schedules.length,
 			},
 			port: 0,
 			connections: this.authority.ports.size,
 		};
+	}
+
+	async listConnectors(input?: {
+		botId?: string;
+	}): Promise<{ connectors: readonly ConnectorRecord[] }> {
+		this.assertOpen();
+		return {
+			connectors: this.authority.connectors.filter(
+				(connector) => !input?.botId || connector.botId === input.botId,
+			),
+		};
+	}
+
+	async listSchedules(input?: {
+		botId?: string;
+	}): Promise<{ schedules: readonly ScheduleRecord[] }> {
+		this.assertOpen();
+		return {
+			schedules: this.authority.schedules.filter(
+				(schedule) => !input?.botId || schedule.botId === input.botId,
+			),
+		};
+	}
+
+	async scheduleReport(input: {
+		scheduleId: string;
+	}): Promise<{ jobs: readonly ScheduleJobRecord[] }> {
+		this.assertOpen();
+		return { jobs: this.authority.scheduleJobs.get(input.scheduleId) ?? [] };
 	}
 
 	async listBots(): Promise<{ bots: readonly BotRecord[] }> {
@@ -409,6 +587,13 @@ export class FakeGatewayPort implements GatewayPort {
 						startedAt: run.acceptedAt,
 					}),
 				),
+				...(this.authority.provenanceByRun.has(run.runId)
+					? {
+							provenance: this.authority.provenanceByRun.get(
+								run.runId,
+							) as never,
+						}
+					: {}),
 			}));
 		return {
 			session,

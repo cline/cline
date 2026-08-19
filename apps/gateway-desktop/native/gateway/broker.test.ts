@@ -392,6 +392,149 @@ describe("commands", () => {
 	});
 });
 
+describe("phase 4-6 diagnostics", () => {
+	it("hydrates isolation, plugin summary, connectors, and schedules", async () => {
+		const authority = new FakeGatewayAuthority();
+		const connector = authority.addConnector({
+			botId: authority.defaultBotId,
+			kind: "telegram",
+			name: "team-telegram",
+			credentialRef: "telegram-token",
+		});
+		const schedule = authority.addSchedule({
+			botId: authority.defaultBotId,
+			name: "nightly",
+			prompt: "scheduled work",
+			intervalMs: 60_000,
+		});
+		authority.admitAutomationRun(
+			schedule.scheduleId,
+			authority.defaultBotId,
+			"scheduled work",
+		);
+		const harness = createHarness({ authority });
+		await harness.broker.start();
+		const projection = harness.broker.projectionSnapshot;
+
+		expect(projection.connection.isolation).toBe("in-process-direct");
+		expect(projection.connection.developmentExecution).toBe(true);
+		expect(projection.diagnostics.plugins?.generation).toBe(3);
+		expect(projection.diagnostics.plugins?.lastReloadOk).toBe(true);
+
+		expect(projection.connectors).toHaveLength(1);
+		expect(projection.connectors[0]).toMatchObject({
+			connectorId: connector.connectorId,
+			kind: "telegram",
+			name: "team-telegram",
+			status: "enabled",
+			hasCredential: true,
+			workerState: "running",
+		});
+
+		expect(projection.schedules).toHaveLength(1);
+		expect(projection.schedules[0]).toMatchObject({
+			scheduleId: schedule.scheduleId,
+			name: "nightly",
+			trigger: "every 60000ms",
+			enabled: true,
+			lastJobState: "completed",
+		});
+	});
+
+	it("shows automation provenance on snapshot-hydrated runs", async () => {
+		const authority = new FakeGatewayAuthority();
+		const schedule = authority.addSchedule({
+			botId: authority.defaultBotId,
+			name: "auto",
+			prompt: "on a timer",
+			intervalMs: 1_000,
+		});
+		authority.admitAutomationRun(
+			schedule.scheduleId,
+			authority.defaultBotId,
+			"on a timer",
+		);
+		const harness = createHarness({ authority });
+		await harness.broker.start();
+		const run = harness.broker.projectionSnapshot.activeSession?.currentRun;
+		expect(run?.provenance).toMatchObject({
+			mode: "automation",
+			scheduleId: schedule.scheduleId,
+		});
+	});
+
+	it("learns connector provenance and real previews for live-admitted runs", async () => {
+		const harness = createHarness();
+		await harness.broker.start();
+		const botId = harness.authority.defaultBotId;
+		const connector = harness.authority.addConnector({
+			botId,
+			kind: "slack",
+			name: "support-slack",
+		});
+		// Establish the active session with an interactive run first.
+		const first = (await harness.broker.execute({
+			command: "run.start",
+			clientRequestId: "req_p46_000001",
+			botId,
+			prompt: "open the session",
+		})) as { runId: string };
+		harness.authority.setRunState(first.runId, "running");
+		harness.authority.setRunState(first.runId, "completed");
+		await settle();
+
+		// A connector message admits a run this client never started.
+		harness.authority.admitConnectorRun(
+			connector.connectorId,
+			botId,
+			"hello from slack",
+		);
+		// The unknown run triggers a debounced snapshot refresh (150ms).
+		await new Promise((resolve) => setTimeout(resolve, 400));
+		const active = harness.broker.projectionSnapshot.activeSession;
+		const connectorRun = active?.runs.find(
+			(run) => run.provenance?.mode === "connector",
+		);
+		expect(connectorRun?.provenance?.connectorId).toBe(
+			connector.connectorId,
+		);
+		// The snapshot refresh recovered the real prompt preview too.
+		expect(
+			active?.queuedTurns.find((turn) => turn.runId === connectorRun?.runId)
+				?.promptPreview,
+		).toBe("hello from slack");
+	});
+
+	it("appends connector and schedule entries from live events", async () => {
+		const harness = createHarness();
+		await harness.broker.start();
+		harness.authority.addConnector({
+			botId: harness.authority.defaultBotId,
+			kind: "telegram",
+			name: "late-connector",
+		});
+		harness.authority.addSchedule({
+			botId: harness.authority.defaultBotId,
+			name: "late-schedule",
+			prompt: "later",
+			intervalMs: 5_000,
+		});
+		await settle();
+		const projection = harness.broker.projectionSnapshot;
+		expect(
+			projection.connectors.map((connector) => connector.name),
+		).toContain("late-connector");
+		expect(projection.schedules.map((schedule) => schedule.name)).toContain(
+			"late-schedule",
+		);
+		expect(
+			projection.diagnostics.notices.some((notice) =>
+				notice.includes("late-connector"),
+			),
+		).toBe(true);
+	});
+});
+
 describe("approvals", () => {
 	it("projects approval requests and answers them from the webview command", async () => {
 		const harness = createHarness();

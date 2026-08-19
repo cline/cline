@@ -58,7 +58,41 @@ export function fixtureConnectedIdle(): DesktopProjection {
 		protocolVersion: 1,
 		executionMode: "development",
 		sandboxed: false,
+		isolation: "in-process-direct",
+		developmentExecution: true,
 	};
+	projection.diagnostics.plugins = {
+		generation: 3,
+		pluginCount: 2,
+		heldGenerations: [3],
+		pinnedByRuns: 0,
+		lastReloadOk: true,
+	};
+	projection.diagnostics.catalogGeneration = 3;
+	projection.connectors = [
+		{
+			connectorId: "con_fixture0000001",
+			botId: "bot_fixturelead000001",
+			kind: "telegram",
+			name: "team-telegram",
+			status: "enabled",
+			hasCredential: true,
+			workerState: "running",
+			workerRestarts: 0,
+		},
+	];
+	projection.schedules = [
+		{
+			scheduleId: "sch_fixture0000001",
+			botId: "bot_fixturelead000001",
+			name: "nightly-summary",
+			trigger: "every 86400000ms",
+			enabled: true,
+			nextDueAt: 1_700_086_400_000,
+			lastJobState: "completed",
+			lastRunId: "run_fixture00000009",
+		},
+	];
 	projection.bots = [
 		{
 			botId: "bot_fixturelead000001",

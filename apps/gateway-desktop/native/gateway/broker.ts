@@ -108,6 +108,7 @@ export class DesktopBroker {
 	>();
 	private readonly commandCache = new Map<string, Promise<unknown>>();
 	private persistTimer: ReturnType<typeof setTimeout> | undefined;
+	private snapshotRefreshTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(options: DesktopBrokerOptions) {
 		this.options = options;
@@ -132,6 +133,10 @@ export class DesktopBroker {
 		this.stopped = true;
 		if (this.reconnectTimer) {
 			clearTimeout(this.reconnectTimer);
+		}
+		if (this.snapshotRefreshTimer) {
+			clearTimeout(this.snapshotRefreshTimer);
+			this.snapshotRefreshTimer = undefined;
 		}
 		if (this.persistTimer) {
 			clearTimeout(this.persistTimer);
@@ -308,11 +313,18 @@ export class DesktopBroker {
 				? persistedCursor
 				: lastEventSequence;
 
-		const [bots, sessions, pendingRuns] = await Promise.all([
-			port.listBots(),
-			port.listSessions(),
-			port.listRuns(),
-		]);
+		const [bots, sessions, pendingRuns, connectors, schedules] =
+			await Promise.all([
+				port.listBots(),
+				port.listSessions(),
+				port.listRuns(),
+				port.listConnectors(),
+				port.listSchedules(),
+			]);
+		const scheduleJobs = await this.collectScheduleJobs(
+			port,
+			schedules.schedules,
+		);
 
 		let snapshot: Awaited<ReturnType<GatewayPort["getSession"]>> | undefined;
 		let selectedSessionId =
@@ -362,6 +374,9 @@ export class DesktopBroker {
 			bots: bots.bots,
 			sessions: sessions.sessions,
 			pendingRuns: pendingRuns.runs,
+			connectors: connectors.connectors,
+			schedules: schedules.schedules,
+			scheduleJobs,
 			snapshot,
 			cursorBasis,
 		});
@@ -370,6 +385,61 @@ export class DesktopBroker {
 		await port.subscribe({
 			cursor: encodeEventCursor(createEventCursor(cursorBasis)),
 		});
+	}
+
+	/** Recent job reports per schedule (bounded read-only diagnostics). */
+	private async collectScheduleJobs(
+		port: GatewayPort,
+		schedules: readonly { scheduleId: string }[],
+	): Promise<Map<string, Awaited<ReturnType<GatewayPort["scheduleReport"]>>["jobs"]>> {
+		const jobs = new Map<
+			string,
+			Awaited<ReturnType<GatewayPort["scheduleReport"]>>["jobs"]
+		>();
+		for (const schedule of schedules.slice(0, 20)) {
+			try {
+				const report = await port.scheduleReport({
+					scheduleId: schedule.scheduleId,
+				});
+				jobs.set(schedule.scheduleId, report.jobs);
+			} catch {
+				// Diagnostics only: a failed report never blocks hydration.
+			}
+		}
+		return jobs;
+	}
+
+	/**
+	 * Refresh the active-session snapshot (debounced). Used when runs are
+	 * admitted by OTHER actors (second clients, connectors, schedules):
+	 * their lifecycle events carry no prompt or provenance, so the
+	 * snapshot supplies both.
+	 */
+	private scheduleSnapshotRefresh(): void {
+		if (this.snapshotRefreshTimer) {
+			return;
+		}
+		this.snapshotRefreshTimer = setTimeout(() => {
+			this.snapshotRefreshTimer = undefined;
+			void this.refreshActiveSessionSnapshot();
+		}, 150);
+	}
+
+	private async refreshActiveSessionSnapshot(): Promise<void> {
+		const port = this.port;
+		const sessionId = this.context.projection.activeSession?.sessionId;
+		if (!port || !sessionId) {
+			return;
+		}
+		try {
+			const snapshot = await port.getSession({ sessionId });
+			applySnapshot(this.context, snapshot);
+			this.flush();
+		} catch (error) {
+			this.options.logger.warn("snapshot.refresh.failed", {
+				error: toPublicDesktopError(error),
+			});
+		}
 	}
 
 	private handleEvent(event: GatewayEvent): void {
@@ -400,6 +470,17 @@ export class DesktopBroker {
 				this.pendingApprovals.delete(event.payload.requestId);
 				pending({ approved: false, reason: "resolved by another client" });
 			}
+		}
+		if (
+			event.event === "run.queued" &&
+			event.scope.runId &&
+			event.scope.sessionId ===
+				this.context.projection.activeSession?.sessionId &&
+			!this.context.promptPreviews.has(event.scope.runId)
+		) {
+			// A run admitted by another actor (second client, connector, or
+			// schedule): fetch the snapshot for its prompt and provenance.
+			this.scheduleSnapshotRefresh();
 		}
 		this.schedulePersist();
 		this.flush();
@@ -649,6 +730,8 @@ export class DesktopBroker {
 			// produced its event yet when this snapshot returns).
 			const all = await port.listSessions();
 			const pending = await port.listRuns();
+			const connectors = await port.listConnectors();
+			const schedules = await port.listSchedules();
 			hydrate(this.context, {
 				hello: {
 					gatewayId: port.hello.gatewayId,
@@ -659,6 +742,12 @@ export class DesktopBroker {
 				bots: (await port.listBots()).bots,
 				sessions: all.sessions,
 				pendingRuns: pending.runs,
+				connectors: connectors.connectors,
+				schedules: schedules.schedules,
+				scheduleJobs: await this.collectScheduleJobs(
+					port,
+					schedules.schedules,
+				),
 				snapshot,
 				cursorBasis: this.context.cursorSequence,
 			});

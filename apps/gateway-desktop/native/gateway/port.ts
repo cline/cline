@@ -9,8 +9,11 @@
 
 import type {
 	BotRecord,
+	ConnectorRecord,
 	GatewayStatusSummary,
 	RunRecord,
+	ScheduleJobRecord,
+	ScheduleRecord,
 	SessionRecord,
 	SessionSnapshot,
 } from "@cline/gateway/client";
@@ -40,6 +43,15 @@ export interface GatewayPort {
 		runId?: string;
 	}): Promise<{ runs: readonly RunRecord[] }>;
 	getSession(input: { sessionId: string }): Promise<SessionSnapshot>;
+	listConnectors(input?: {
+		botId?: string;
+	}): Promise<{ connectors: readonly ConnectorRecord[] }>;
+	listSchedules(input?: {
+		botId?: string;
+	}): Promise<{ schedules: readonly ScheduleRecord[] }>;
+	scheduleReport(input: {
+		scheduleId: string;
+	}): Promise<{ jobs: readonly ScheduleJobRecord[] }>;
 	startRun(input: {
 		botId: string;
 		prompt: string;

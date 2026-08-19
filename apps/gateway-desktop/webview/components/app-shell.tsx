@@ -5,6 +5,7 @@ import { ApprovalList } from "@/components/approval-list";
 import { Composer } from "@/components/composer";
 import { Conversation } from "@/components/conversation";
 import { GatewayGate } from "@/components/gateway-gate";
+import { GatewayPanel } from "@/components/gateway-panel";
 import { Header } from "@/components/header";
 import { SessionList } from "@/components/session-list";
 import { BridgeClient, type BridgeState } from "@/lib/bridge-client";
@@ -46,6 +47,7 @@ export function AppShell() {
 				<div className="flex min-h-0 flex-1">
 					<aside className="flex w-64 shrink-0 flex-col border-r">
 						<SessionList client={client} projection={projection} />
+						<GatewayPanel projection={projection} />
 					</aside>
 					<main className="flex min-w-0 flex-1 flex-col">
 						<Conversation client={client} projection={projection} />
