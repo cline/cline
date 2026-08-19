@@ -1452,6 +1452,85 @@ describe("LocalRuntimeHost", () => {
 		expect(runtime.shutdown).not.toHaveBeenCalled();
 	});
 
+	it("releases the previous runtime when the same session id is started again", async () => {
+		const sessionId = "sess-replaced-on-restart";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimes: Array<{ tools: never[]; shutdown: ReturnType<typeof vi.fn> }> =
+			[];
+		const runtimeBuilder = {
+			build: vi.fn().mockImplementation(() => {
+				const runtime = {
+					tools: [],
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				};
+				runtimes.push(runtime as never);
+				return runtime;
+			}),
+		};
+		const agents: Array<{ shutdown: ReturnType<typeof vi.fn> }> = [];
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => {
+				const agent = {
+					run: vi.fn().mockResolvedValue(createResult()),
+					continue: vi.fn().mockResolvedValue(createResult()),
+					getMessages: vi.fn().mockReturnValue([]),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+				};
+				agents.push(agent);
+				return agent as never;
+			},
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+		expect(runtimes).toHaveLength(1);
+
+		// Config-only restarts (model/mode/compaction changes) reuse the session
+		// id on purpose. The replaced runtime must be shut down, disposing its
+		// monitor registry, instead of being dropped from the map while its
+		// background processes keep running unreachable.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		expect(runtimes).toHaveLength(2);
+		expect(runtimes[0]?.shutdown).toHaveBeenCalledWith("session_replaced");
+		expect(agents[0]?.shutdown).toHaveBeenCalledWith("session_replaced");
+		expect(runtimes[1]?.shutdown).not.toHaveBeenCalled();
+
+		// The replacement stays live and remains individually stoppable.
+		await manager.stopSession(sessionId);
+		expect(runtimes[1]?.shutdown).toHaveBeenCalled();
+	});
+
 	it("disposes idle interactive sessions without changing status", async () => {
 		const sessionId = "sess-interactive-dispose";
 		const manifest = createManifest(sessionId);

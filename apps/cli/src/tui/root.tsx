@@ -95,7 +95,8 @@ function App(props: TuiProps) {
 		props.initialRepoStatus ?? { branch: null, diffStats: null },
 	);
 	const { queuedPrompts, handlePendingPrompts } = useQueuedPrompts();
-	const { monitors, handleMonitorState } = useMonitors();
+	const { monitors, handleMonitorState, subscribeMonitors, getMonitors } =
+		useMonitors();
 	const [selectedQueuedPromptId, setSelectedQueuedPromptId] = useState<
 		string | null
 	>(null);
@@ -254,8 +255,6 @@ function App(props: TuiProps) {
 		[dialog, termHeight],
 	);
 
-	const monitorsRef = useRef(monitors);
-	monitorsRef.current = monitors;
 	const openMonitors = useCallback(async () => {
 		await dialog.choice<boolean>({
 			size: "large",
@@ -264,13 +263,20 @@ function App(props: TuiProps) {
 			content: (ctx: ChoiceContext<boolean>) => (
 				<MonitorsContent
 					{...ctx}
-					monitors={monitorsRef.current}
+					subscribeMonitors={subscribeMonitors}
+					getMonitors={getMonitors}
 					onStopMonitor={props.onStopMonitor}
 				/>
 			),
 		});
 		refocusTextareaRef.current();
-	}, [dialog, termHeight, props.onStopMonitor]);
+	}, [
+		dialog,
+		termHeight,
+		props.onStopMonitor,
+		subscribeMonitors,
+		getMonitors,
+	]);
 	const propsOnToggleConfigItem = props.onToggleConfigItem;
 	const onToggleConfigItem = useMemo<TuiProps["onToggleConfigItem"]>(() => {
 		if (!propsOnToggleConfigItem) {
