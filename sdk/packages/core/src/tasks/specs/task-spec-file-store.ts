@@ -9,7 +9,6 @@ import {
 	realpathSync,
 	renameSync,
 	rmSync,
-	statSync,
 	writeFileSync,
 } from "node:fs";
 import {
@@ -227,13 +226,14 @@ export class AgendaTaskSpecFileStore {
 	}
 
 	/**
-	 * A usable exclusion is a regular file, possibly behind a symlink a user
-	 * pointed at their own ignore rules. Dangling symlinks and directories
-	 * are entries Git cannot read, so they do not count as installed.
+	 * A usable exclusion is a regular file at the path itself. Git refuses to
+	 * read in-tree `.gitignore` symlinks (even ones resolving to a real
+	 * file), so symlinks, directories, and other non-file entries do not
+	 * count as installed — hence lstat, which never follows links.
 	 */
 	private hasUsableGitignore(gitignorePath: string): boolean {
 		try {
-			return statSync(gitignorePath).isFile();
+			return lstatSync(gitignorePath).isFile();
 		} catch {
 			return false;
 		}

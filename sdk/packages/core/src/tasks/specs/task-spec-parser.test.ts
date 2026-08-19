@@ -370,7 +370,7 @@ describe("AgendaTaskSpecFileStore", () => {
 		);
 	});
 
-	it("rejects a non-file gitignore entry but accepts a symlink to a real file", () => {
+	it("rejects non-file gitignore entries, including symlinks to real files", () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
 		roots.push(root);
 		const store = new AgendaTaskSpecFileStore({
@@ -381,15 +381,14 @@ describe("AgendaTaskSpecFileStore", () => {
 		expect(() => store.ensureSpecsDir()).toThrow("not a regular file");
 		rmSync(join(store.specsDir, ".gitignore"), { recursive: true });
 
+		// Git refuses to read in-tree .gitignore symlinks, so even a link
+		// that resolves to a real ignore file is not an effective exclusion.
 		writeFileSync(join(root, "shared-ignore"), "*.task.md\n", "utf8");
 		symlinkSync(
 			join(root, "shared-ignore"),
 			join(store.specsDir, ".gitignore"),
 		);
-		expect(() => store.ensureSpecsDir()).not.toThrow();
-		expect(readFileSync(join(store.specsDir, ".gitignore"), "utf8")).toBe(
-			"*.task.md\n",
-		);
+		expect(() => store.ensureSpecsDir()).toThrow("not a regular file");
 	});
 
 	it.skipIf(process.getuid?.() === 0 || process.platform === "win32")(
