@@ -723,6 +723,7 @@
         "@cline/bot": "workspace:*",
         "@cline/engine": "workspace:*",
         "@cline/shared": "workspace:*",
+        "@cline/tools": "workspace:*",
         "ws": "^8.18.0",
         "zod": "^4.3.6",
       },
@@ -791,6 +792,13 @@
         "nanoid": "^5.1.7",
         "zod": "^4.3.6",
         "zod-to-json-schema": "^3.25.1",
+      },
+    },
+    "sdk/packages/tools": {
+      "name": "@cline/tools",
+      "version": "0.0.75",
+      "dependencies": {
+        "@cline/shared": "workspace:*",
       },
     },
     "sdk/packages/ui": {
@@ -1160,6 +1168,8 @@
     "@cline/sdk": ["@cline/sdk@workspace:sdk/packages/sdk"],
 
     "@cline/shared": ["@cline/shared@workspace:sdk/packages/shared"],
+
+    "@cline/tools": ["@cline/tools@workspace:sdk/packages/tools"],
 
     "@cline/ui": ["@cline/ui@workspace:sdk/packages/ui"],
 

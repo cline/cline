@@ -9,6 +9,7 @@
 
 import {
 	BotIdSchema,
+	BotToolConfigurationSchema,
 	createGatewayError,
 	GATEWAY_HELLO_METHOD,
 	type GatewayError,
@@ -20,6 +21,7 @@ import {
 	RunIdSchema,
 	ScheduleIdSchema,
 	SessionIdSchema,
+	ToolProfileSchema,
 } from "@cline/shared/gateway";
 import { z } from "zod";
 
@@ -42,6 +44,7 @@ const TurnOverridesSchema = z
 		modelId: z.string().min(1).optional(),
 		systemPrompt: z.string().optional(),
 		maxIterations: z.number().int().positive().optional(),
+		tools: BotToolConfigurationSchema.optional(),
 	})
 	.strict();
 
@@ -146,6 +149,65 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			})
 			.strict()
 			.optional(),
+	),
+	define("tools.catalog", false, z.object({}).strict().optional()),
+	define("tools.profiles.list", false, z.object({}).strict().optional()),
+	define(
+		"tools.profiles.put",
+		true,
+		IdempotentParamsBase.extend({
+			profile: ToolProfileSchema,
+			expectedRevision: z.number().int().nonnegative().optional(),
+		}).strict(),
+	),
+	define(
+		"tools.configuration.get",
+		false,
+		z
+			.object({
+				scope: z.discriminatedUnion("kind", [
+					z.object({ kind: z.literal("global") }).strict(),
+					z
+						.object({
+							kind: z.literal("workspace"),
+							workspaceRoot: z.string().min(1),
+						})
+						.strict(),
+					z.object({ kind: z.literal("bot"), botId: BotIdSchema }).strict(),
+				]),
+			})
+			.strict(),
+	),
+	define(
+		"tools.configuration.put",
+		true,
+		IdempotentParamsBase.extend({
+			scope: z.discriminatedUnion("kind", [
+				z.object({ kind: z.literal("global") }).strict(),
+				z
+					.object({
+						kind: z.literal("workspace"),
+						workspaceRoot: z.string().min(1),
+					})
+					.strict(),
+				z.object({ kind: z.literal("bot"), botId: BotIdSchema }).strict(),
+			]),
+			config: BotToolConfigurationSchema,
+			expectedRevision: z.number().int().nonnegative().optional(),
+		}).strict(),
+	),
+	define(
+		"tools.previewEffective",
+		false,
+		z
+			.object({
+				botId: BotIdSchema,
+				workspaceRoot: z.string().min(1),
+				providerId: z.string().min(1),
+				modelId: z.string().min(1),
+				turn: BotToolConfigurationSchema.optional(),
+			})
+			.strict(),
 	),
 	// Statistics read surface (bounded aggregate queries; the equivalents
 	// of GET /statistics/{summary,activity,rankings,usage} for clients).

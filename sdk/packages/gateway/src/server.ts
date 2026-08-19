@@ -54,6 +54,7 @@ import {
 	removeDiscoveryRecord,
 	writeDiscoveryRecord,
 } from "./discovery";
+import { resolveProviderModelSelection } from "./engine-binding";
 import { negotiateHello, SUPPORTED_PROTOCOL_VERSIONS } from "./hello";
 import { GatewayLock } from "./lock";
 import { validateGatewayRequest } from "./methods";
@@ -84,6 +85,9 @@ import {
 import { Scheduler } from "./schedules/scheduler";
 import { readSecretFile } from "./secrets";
 import { createGatewayStores, type GatewayStores } from "./stores";
+import { ToolCatalog } from "./tools/catalog";
+import { ToolConfigurationStore } from "./tools/store";
+import { GatewayToolSystem } from "./tools/system";
 import type { PriceResolver } from "./usage";
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024;
@@ -251,6 +255,7 @@ export class GatewayServer {
 	readonly stores: GatewayStores;
 	readonly outboxWorker: OutboxWorker;
 	readonly plugins: PluginCatalog;
+	readonly tools: GatewayToolSystem;
 	readonly connectors: ConnectorManager;
 	readonly scheduler: Scheduler;
 	discovery: DiscoveryRecord | undefined;
@@ -278,6 +283,7 @@ export class GatewayServer {
 		runtime: GatewayRuntime;
 		outboxWorker: OutboxWorker;
 		plugins: PluginCatalog;
+		tools: GatewayToolSystem;
 		connectors: ConnectorManager;
 		scheduler: Scheduler;
 		instanceId: GatewayInstanceId;
@@ -291,6 +297,7 @@ export class GatewayServer {
 		this.runtime = options.runtime;
 		this.outboxWorker = options.outboxWorker;
 		this.plugins = options.plugins;
+		this.tools = options.tools;
 		this.connectors = options.connectors;
 		this.scheduler = options.scheduler;
 		this.instanceId = options.instanceId;
@@ -336,6 +343,15 @@ export class GatewayServer {
 					stores.meta.bumpCatalogGeneration();
 				},
 			});
+			const tools = new GatewayToolSystem({
+				catalog: new ToolCatalog(),
+				configurations: new ToolConfigurationStore(database),
+				attempts: stores.attempts,
+				getBot: (botId) => stores.bots.get(botId as BotId),
+				resolveModelSelection: (invocation) =>
+					resolveProviderModelSelection(invocation),
+				clock: () => options.clock?.now() ?? Date.now(),
+			});
 
 			let workerRef: OutboxWorker | undefined;
 			const runtime = new GatewayRuntime({
@@ -350,6 +366,8 @@ export class GatewayServer {
 				onOutboxEnqueued: () => workerRef?.schedule(),
 				plugins,
 				executionHealth: options.executionHealth,
+				prepareInvocation: (invocation, attempt) =>
+					tools.prepareAttempt(invocation, attempt),
 			});
 			const outboxWorker = new OutboxWorker(
 				stores,
@@ -397,6 +415,7 @@ export class GatewayServer {
 				runtime,
 				outboxWorker,
 				plugins,
+				tools,
 				connectors,
 				scheduler,
 				instanceId,
@@ -796,6 +815,13 @@ export class GatewayServer {
 			case "gateway.status":
 				return {
 					...this.runtime.status(),
+					tools: {
+						generation: this.tools.catalog.current.generation,
+						registered: this.tools.catalog.current.entries.length,
+						available: this.tools.catalog.current.entries.filter(
+							(entry) => entry.available,
+						).length,
+					},
 					port: this.address().port,
 					remote: this.remoteAddress(),
 					connections: this.connections.size,
@@ -840,6 +866,44 @@ export class GatewayServer {
 						runId: p.runId as RunId | undefined,
 					}),
 				};
+			case "tools.catalog":
+				return this.tools.catalog.current;
+			case "tools.profiles.list":
+				return { profiles: this.tools.configurations.listProfiles() };
+			case "tools.profiles.put": {
+				const profile = this.tools.configurations.putProfile(
+					p.profile as never,
+					p.expectedRevision as number | undefined,
+				);
+				this.stores.audit.record(actor, "tools.profile.put", profile.name, {
+					revision: profile.revision,
+				});
+				return profile;
+			}
+			case "tools.configuration.get":
+				return this.tools.configurations.get(p.scope as never) ?? null;
+			case "tools.configuration.put": {
+				const record = this.tools.configurations.put(
+					p.scope as never,
+					p.config as never,
+					p.expectedRevision as number | undefined,
+				);
+				this.stores.audit.record(
+					actor,
+					"tools.configuration.put",
+					JSON.stringify(p.scope),
+					{ revision: record.revision },
+				);
+				return record;
+			}
+			case "tools.previewEffective":
+				return this.tools.previewFor({
+					botId: p.botId as string,
+					workspaceRoot: p.workspaceRoot as string,
+					providerId: p.providerId as string,
+					modelId: p.modelId as string,
+					turn: p.turn as never,
+				});
 			case "bot.delegate":
 				return this.runtime.delegateBot(actor, {
 					parentBotId: p.parentBotId as BotId,

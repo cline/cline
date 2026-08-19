@@ -42,6 +42,7 @@
 		"@cline/bot": "workspace:*",
 		"@cline/engine": "workspace:*",
 		"@cline/shared": "workspace:*",
+		"@cline/tools": "workspace:*",
 		"ws": "^8.18.0",
 		"zod": "^4.3.6"
 	},

@@ -6,6 +6,7 @@ const external = [
 	"@cline/engine",
 	"@cline/shared",
 	"@cline/shared/gateway",
+	"@cline/tools",
 	"ws",
 	"zod",
 ];

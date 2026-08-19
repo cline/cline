@@ -190,6 +190,13 @@ export type {
 } from "./plugins/state-store";
 export { PluginStateStore } from "./plugins/state-store";
 export { RunProvenanceStore } from "./provenance-store";
+export {
+	gatewayProviderSettingsPath,
+	listSavedProviderSummaries,
+	readSavedProviderSelection,
+	savedProviderApiKey,
+	savedProviderOptions,
+} from "./provider-settings";
 export type {
 	GatewayRemoteAddress,
 	GatewayRemoteOptions,
@@ -246,6 +253,18 @@ export {
 	SqliteRunRepository,
 	SqliteSessionRepository,
 } from "./stores";
+export type { ToolCatalogEntry, ToolCatalogSnapshot } from "./tools/catalog";
+export { builtinToolEntries, ToolCatalog } from "./tools/catalog";
+export { DEFAULT_TOOL_PROFILES, expandProfiles } from "./tools/profiles";
+export type { ToolResolutionInput } from "./tools/resolver";
+export { previewTools, resolveToolSnapshot } from "./tools/resolver";
+export type {
+	ToolConfigurationScope,
+	VersionedToolConfiguration,
+} from "./tools/store";
+export { ToolConfigurationStore } from "./tools/store";
+export type { GatewayToolSystemOptions } from "./tools/system";
+export { GatewayToolSystem } from "./tools/system";
 export type {
 	NormalizedModelCall,
 	PriceResolver,

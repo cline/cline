@@ -312,8 +312,6 @@ function listPluginRoots(sourceDir: string): string[] {
 		const candidate = join(sourceDir, name);
 		try {
 			if (statSync(candidate).isDirectory()) {
-				// Catalog keys must match the canonical root stored by loadPlugin.
-				// On macOS, for example, /var resolves to /private/var.
 				roots.push(realpathSync(candidate));
 			}
 		} catch {

@@ -1,23 +1,4 @@
-/**
- * Default engine binding for a serving Gateway (Gateway RFC, Phase 3).
- *
- * Wraps the Phase 2 composition proof (`createEngineExecutionPort` over
- * the real `@cline/engine`) with:
- *
- * - model resolution from the run's snapshotted config;
- * - credential injection owned by the Gateway (ADR 0001): the provider
- *   key comes from the owner-only mode-0600 secret file
- *   `<dataDir>/secrets/<providerId>`, with environment variables
- *   (`CLINE_GATEWAY_API_KEY`, provider-specific keys) as a local/dev
- *   override. The key lives in memory at the engine boundary only —
- *   never in the database, events, projections, or logs;
- * - tool approvals routed through the ApprovalBroker as server-initiated
- *   requests to subscribed clients;
- * - fail-fast handles: a run whose model or credential cannot be
- *   resolved settles as a failed attempt with a stable error instead of
- *   poisoning admission.
- */
-
+/** Gateway-owned model and credential resolution at the engine boundary. */
 import type {
 	EngineInvocation,
 	EngineOutcome,
@@ -27,11 +8,17 @@ import type {
 import { createEngineExecutionPort } from "@cline/bot";
 import type { EngineModelBinding } from "@cline/engine";
 import { SERVER_REQUEST_METHODS } from "@cline/shared/gateway";
+import { createBuiltinCodingTools } from "@cline/tools";
 import type { GatewayPaths } from "./paths";
+import {
+	readSavedProviderSelection,
+	resolveSavedClineOAuthApiKey,
+	savedProviderApiKey,
+	savedProviderOptions,
+} from "./provider-settings";
 import type { ApprovalBroker } from "./runtime";
 import { readSecretFile } from "./secrets";
 
-/** Stable failure: the run's provider/model is not configured. */
 export class ModelNotConfiguredError extends Error {
 	constructor(message: string) {
 		super(message);
@@ -39,30 +26,23 @@ export class ModelNotConfiguredError extends Error {
 	}
 }
 
-/** Stable failure: no credential for the run's provider. */
 export class MissingProviderCredentialError extends Error {
 	constructor(providerId: string) {
 		super(
-			`No credential for provider "${providerId}": create the owner-only secret file ` +
-				`with \`cline-gateway secret-put ${providerId}\` (or drop a mode-0600 file into ` +
-				`the data directory's secrets/), or set an environment override`,
+			`No credential for provider "${providerId}": configure providers.json, create it with \`cline-gateway secret-put ${providerId}\`, or set an environment override`,
 		);
 		this.name = "MissingProviderCredentialError";
 	}
 }
 
 export interface ConfiguredEngineOptions {
-	/**
-	 * Route tool approvals to clients as server requests. A getter is
-	 * accepted because the broker lives on the runtime, which is created
-	 * after the engine port (the server takes the port as an option).
-	 */
 	approvals?: ApprovalBroker | (() => ApprovalBroker | undefined);
-	/** Override model resolution (defaults to snapshot + secrets + env). */
-	resolveModel?: (invocation: EngineInvocation) => EngineModelBinding;
-	/** Data directory paths; enables mode-0600 secret file lookup. */
+	resolveModel?: (
+		invocation: EngineInvocation,
+	) => EngineModelBinding | Promise<EngineModelBinding>;
 	paths?: GatewayPaths;
 	env?: Record<string, string | undefined>;
+	providerSettingsPath?: string;
 }
 
 const PROVIDER_KEY_ENV: Record<string, string> = {
@@ -70,47 +50,95 @@ const PROVIDER_KEY_ENV: Record<string, string> = {
 	openrouter: "OPENROUTER_API_KEY",
 	openai: "OPENAI_API_KEY",
 	cline: "CLINE_API_KEY",
+	gemini: "GEMINI_API_KEY",
+	google: "GOOGLE_API_KEY",
+	mistral: "MISTRAL_API_KEY",
 };
 
 export interface ResolveProviderModelOptions {
 	env?: Record<string, string | undefined>;
-	/** Enables `<dataDir>/secrets/<providerId>` lookup. */
 	paths?: GatewayPaths;
+	providerSettingsPath?: string;
+	resolvedApiKey?: string;
 }
 
-/**
- * Resolve the model binding for one invocation. Provider and model come
- * from the invocation's (snapshotted) config, with environment defaults;
- * the credential comes from the environment override when present,
- * otherwise from the provider's mode-0600 secret file. A missing
- * credential throws `MissingProviderCredentialError` — an unauthenticated
- * binding is never handed to the engine.
- */
+export function resolveProviderModelSelection(
+	invocation: EngineInvocation,
+	options: Pick<
+		ResolveProviderModelOptions,
+		"env" | "providerSettingsPath"
+	> = {},
+): { providerId: string; modelId: string } {
+	const env = options.env ?? process.env;
+	const explicitProviderId =
+		invocation.effectiveConfig.providerId ?? env.CLINE_GATEWAY_PROVIDER;
+	const saved = readSavedProviderSelection(explicitProviderId, {
+		filePath: options.providerSettingsPath,
+		env,
+	});
+	const providerId = explicitProviderId ?? saved?.providerId;
+	const modelId =
+		invocation.effectiveConfig.modelId ??
+		env.CLINE_GATEWAY_MODEL ??
+		saved?.settings.model;
+	if (!providerId || !modelId) {
+		throw new ModelNotConfiguredError(
+			"No model configured: configure providers.json, bot config, or Gateway environment overrides",
+		);
+	}
+	return { providerId, modelId };
+}
+
+function providerCredentialOverride(
+	providerId: string,
+	options: ResolveProviderModelOptions,
+): string | undefined {
+	const env = options.env ?? process.env;
+	return (
+		env.CLINE_GATEWAY_API_KEY ??
+		env[PROVIDER_KEY_ENV[providerId] ?? ""] ??
+		(options.paths ? readSecretFile(options.paths, providerId) : undefined)
+	);
+}
+
 export function resolveProviderModel(
 	invocation: EngineInvocation,
 	options: ResolveProviderModelOptions = {},
-): EngineModelBinding {
+): Extract<EngineModelBinding, { kind: "provider" }> {
 	const env = options.env ?? process.env;
-	const providerId =
-		invocation.effectiveConfig.providerId ?? env.CLINE_GATEWAY_PROVIDER;
-	const modelId = invocation.effectiveConfig.modelId ?? env.CLINE_GATEWAY_MODEL;
-	if (!providerId || !modelId) {
-		throw new ModelNotConfiguredError(
-			"No model configured: set bot config or CLINE_GATEWAY_PROVIDER / CLINE_GATEWAY_MODEL",
-		);
-	}
+	const selection = resolveProviderModelSelection(invocation, options);
+	const saved = readSavedProviderSelection(selection.providerId, {
+		filePath: options.providerSettingsPath,
+		env,
+	});
+	const { providerId, modelId } = selection;
 	const apiKey =
-		env.CLINE_GATEWAY_API_KEY ??
-		env[PROVIDER_KEY_ENV[providerId] ?? ""] ??
-		(options.paths ? readSecretFile(options.paths, providerId) : undefined);
-	if (!apiKey) {
-		throw new MissingProviderCredentialError(providerId);
-	}
-	return { kind: "provider", providerId, modelId, apiKey };
+		options.resolvedApiKey ??
+		providerCredentialOverride(providerId, options) ??
+		(saved ? savedProviderApiKey(providerId, saved.settings) : undefined);
+	if (!apiKey) throw new MissingProviderCredentialError(providerId);
+	return {
+		kind: "provider",
+		providerId,
+		modelId,
+		apiKey,
+		baseUrl: saved?.settings.baseUrl,
+		headers: saved?.settings.headers,
+		timeoutMs: saved?.settings.timeout,
+		options: saved ? savedProviderOptions(saved.settings) : undefined,
+	};
 }
 
-function failedHandle(error: unknown): EngineRunHandle {
-	const outcome: EngineOutcome = {
+export function resolveModelFromEnvironment(
+	invocation: EngineInvocation,
+	env: Record<string, string | undefined> = process.env,
+	providerSettingsPath?: string,
+): EngineModelBinding {
+	return resolveProviderModel(invocation, { env, providerSettingsPath });
+}
+
+function failedOutcome(error: unknown): EngineOutcome {
+	return {
 		status: "failed",
 		outputText: "",
 		error: {
@@ -118,33 +146,127 @@ function failedHandle(error: unknown): EngineRunHandle {
 			message: error instanceof Error ? error.message : String(error),
 		},
 	};
+}
+
+/** Bridge async OAuth resolution onto the synchronous EnginePort contract. */
+function deferredHandle(
+	start: () => Promise<EngineRunHandle>,
+): EngineRunHandle {
+	let delegate: EngineRunHandle | undefined;
+	let interrupted: string | undefined;
+	let aborted: string | undefined;
+	const listeners = new Set<(event: unknown) => void>();
+	const ready = start().then((handle) => {
+		delegate = handle;
+		for (const listener of listeners) handle.subscribe?.(listener);
+		if (aborted !== undefined) handle.abort(aborted);
+		else if (interrupted !== undefined) handle.interrupt(interrupted);
+		return handle;
+	});
 	return {
-		steer: () => false,
-		interrupt: () => {},
-		abort: () => {},
-		result: Promise.resolve(outcome),
+		steer: (text) => delegate?.steer(text) ?? false,
+		interrupt: (reason) => {
+			interrupted = reason ?? "";
+			delegate?.interrupt(reason);
+		},
+		abort: (reason) => {
+			aborted = reason ?? "";
+			delegate?.abort(reason);
+		},
+		result: ready.then((handle) => handle.result).catch(failedOutcome),
+		subscribe: (listener) => {
+			listeners.add(listener);
+			const unsubscribe = delegate?.subscribe?.(listener);
+			return () => {
+				listeners.delete(listener);
+				unsubscribe?.();
+			};
+		},
 	};
 }
 
-/** Real engine port for a serving Gateway. */
 export function createConfiguredEnginePort(
 	options: ConfiguredEngineOptions = {},
 ): EnginePort {
+	let clineRefreshInFlight: Promise<string | undefined> | undefined;
 	return {
-		start(invocation: EngineInvocation): EngineRunHandle {
-			try {
-				const model =
-					options.resolveModel?.(invocation) ??
-					resolveProviderModel(invocation, {
+		start(invocation): EngineRunHandle {
+			return deferredHandle(async () => {
+				let model: EngineModelBinding;
+				if (options.resolveModel) {
+					model = await options.resolveModel(invocation);
+				} else {
+					const resolutionOptions = {
 						env: options.env,
 						paths: options.paths,
-					});
+						providerSettingsPath: options.providerSettingsPath,
+					};
+					const preliminary = resolveProviderModel(
+						invocation,
+						resolutionOptions,
+					);
+					const hasOverride = providerCredentialOverride(
+						preliminary.providerId,
+						resolutionOptions,
+					);
+					let oauthApiKey: string | undefined;
+					if (
+						!hasOverride &&
+						(preliminary.providerId === "cline" ||
+							preliminary.providerId === "cline-pass")
+					) {
+						clineRefreshInFlight ??= resolveSavedClineOAuthApiKey(
+							preliminary.providerId,
+							{
+								filePath: options.providerSettingsPath,
+								env: options.env,
+							},
+						).finally(() => {
+							clineRefreshInFlight = undefined;
+						});
+						oauthApiKey = await clineRefreshInFlight;
+					}
+					model = oauthApiKey
+						? resolveProviderModel(invocation, {
+								...resolutionOptions,
+								resolvedApiKey: oauthApiKey,
+							})
+						: preliminary;
+				}
 				const approvals =
 					typeof options.approvals === "function"
 						? options.approvals()
 						: options.approvals;
-				const port = createEngineExecutionPort({
+				return createEngineExecutionPort({
 					model: () => model,
+					tools: (resolvedInvocation) =>
+						createBuiltinCodingTools({
+							workspaceRoot: resolvedInvocation.workspaceRoot,
+							enabledToolNames: resolvedInvocation.executionSnapshot?.tools
+								.filter(
+									(tool) =>
+										tool.executorId === "worker:builtin" ||
+										tool.executorId === "gateway:builtin",
+								)
+								.map((tool) => tool.modelFacingName),
+							...(approvals
+								? {
+										askQuestion: (
+											question: string,
+											choices: readonly string[],
+										) =>
+											approvals.request(
+												SERVER_REQUEST_METHODS.question,
+												{
+													botId: resolvedInvocation.botId,
+													sessionId: resolvedInvocation.sessionId,
+													runId: resolvedInvocation.runId,
+												},
+												{ question, options: choices },
+											),
+									}
+								: {}),
+						}),
 					requestApproval: approvals
 						? async (request) => {
 								const answer = await approvals.request(
@@ -173,11 +295,8 @@ export function createConfiguredEnginePort(
 								};
 							}
 						: undefined,
-				});
-				return port.start(invocation);
-			} catch (error) {
-				return failedHandle(error);
-			}
+				}).start(invocation);
+			});
 		},
 	};
 }
