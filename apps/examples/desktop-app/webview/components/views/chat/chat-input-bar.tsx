@@ -7,10 +7,7 @@ import {
 import { AgentPromptQueue, SearchCombobox } from "@cline/ui";
 import {
 	ArrowRight,
-	ArrowUp,
-	Brain,
 	CircleStop,
-	Cloud,
 	Cpu,
 	Paperclip,
 	Signal,
@@ -36,7 +33,6 @@ import {
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
-	SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { useWorkspace } from "@/contexts/workspace-context";
@@ -96,7 +92,11 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "handoff",
+		description: "Continue this local session in Cline Cloud",
+	},
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
@@ -378,7 +378,6 @@ function ChatInputBarImpl({
 	provider,
 	model,
 	modelContextWindow,
-	mode,
 	thinking,
 	reasoningEffort,
 	gitBranch,
@@ -390,7 +389,6 @@ function ChatInputBarImpl({
 	onPromptInputChange,
 	onProviderChange,
 	onModelChange,
-	onModeToggle,
 	onReasoningChange,
 	onListGitBranches,
 	onSwitchGitBranch,

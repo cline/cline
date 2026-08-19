@@ -3,12 +3,10 @@
 import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	Check,
-	Cloud,
 	FilePlus2,
 	Folder,
 	GitBranch,
 	Github,
-	HardDrive,
 	LoaderCircle,
 	LogIn,
 	Plus,
@@ -64,41 +62,6 @@ const TRIGGER_CLASS =
 	"inline-flex items-center gap-1.5 rounded-md border border-border/70 bg-background/80 px-3 py-1.5 text-sm font-medium text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring";
 const PANEL_CLASS =
 	"absolute left-0 top-full z-50 mt-2 w-72 rounded-lg border border-border bg-popover shadow-xl";
-
-function ExecutionTargetPicker({
-	executionTarget,
-	onChange,
-}: {
-	executionTarget: "local" | "cloud";
-	onChange: (target: "local" | "cloud") => void;
-}) {
-	return (
-		<fieldset className="inline-flex shrink-0 items-center rounded-md border border-border/70 bg-background/80 p-0.5">
-			<legend className="sr-only">Execution location</legend>
-			{(["local", "cloud"] as const).map((target) => {
-				const active = executionTarget === target;
-				const Icon = target === "local" ? HardDrive : Cloud;
-				return (
-					<button
-						aria-pressed={active}
-						className={cn(
-							"inline-flex items-center gap-1.5 rounded px-2.5 py-1 text-xs font-medium transition-colors",
-							active
-								? "bg-accent text-foreground shadow-xs"
-								: "text-muted-foreground hover:text-foreground",
-						)}
-						key={target}
-						onClick={() => onChange(target)}
-						type="button"
-					>
-						<Icon className="size-3" />
-						{target === "local" ? "Local" : "Cloud"}
-					</button>
-				);
-			})}
-		</fieldset>
-	);
-}
 
 function CloudRepositoryPicker({
 	open,
@@ -906,7 +869,6 @@ export function WelcomeWorkspaceControls({
 	cloudBranch,
 	signedIn,
 	signingIn,
-	onExecutionTargetChange,
 	onCloudBranchChange,
 	onListCloudRepositories,
 	onListCloudBranches,
@@ -941,7 +903,6 @@ export function WelcomeWorkspaceControls({
 	onOpenExternalUrl: (url: string) => Promise<void>;
 	signedIn: boolean;
 	signingIn: boolean;
-	onExecutionTargetChange: (target: "local" | "cloud") => void;
 	onRepoUrlChange: (repoUrl: string) => void;
 	onSignIn: () => void | Promise<void>;
 	workspaceRoot: string;
@@ -996,15 +957,6 @@ export function WelcomeWorkspaceControls({
 			className="flex min-w-0 flex-wrap items-center gap-2"
 			ref={containerRef}
 		>
-			{cloudEnabled ? (
-				<ExecutionTargetPicker
-					executionTarget={executionTarget}
-					onChange={(target) => {
-						setOpenMenu(null);
-						onExecutionTargetChange(target);
-					}}
-				/>
-			) : null}
 			{cloudEnabled && executionTarget === "cloud" ? (
 				cloudControlsHidden ? null : signedIn ? (
 					<>

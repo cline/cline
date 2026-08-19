@@ -10,6 +10,7 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import {
+	BUILTIN_SLASH_COMMANDS,
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
@@ -223,6 +224,10 @@ describe("ChatInputBar", () => {
 	});
 
 	it("builds slash commands from both workflows and skills", () => {
+		expect(BUILTIN_SLASH_COMMANDS).toContainEqual({
+			name: "handoff",
+			description: "Continue this local session in Cline Cloud",
+		});
 		expect(
 			buildUserInstructionSlashCommands({
 				runtimeCommands: [
@@ -238,6 +243,7 @@ describe("ChatInputBar", () => {
 						kind: "skill",
 					},
 					{ id: "skill:fork", name: "fork", kind: "skill" },
+					{ id: "workflow:handoff", name: "handoff", kind: "workflow" },
 				],
 			}),
 		).toEqual([

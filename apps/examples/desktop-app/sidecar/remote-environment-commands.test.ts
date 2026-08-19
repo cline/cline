@@ -745,6 +745,7 @@ describe("remote environment command routing", () => {
 		const update = vi.fn(async () => ({ updated: true }));
 		const deleteSession = vi.fn(async () => true);
 		const sessionManager = {
+			get: vi.fn(async () => ({ sessionId: "remote-session", metadata: {} })),
 			readMessages,
 			update,
 			delete: deleteSession,
