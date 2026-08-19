@@ -22,6 +22,7 @@ import {
 	HUB_MISTAKE_LIMIT_CAPABILITY,
 	HUB_TOOL_EXECUTOR_CAPABILITY_PREFIX,
 	HUB_USER_INSTRUCTIONS_SNAPSHOT_CAPABILITY,
+	isGeneratedMedia,
 	isHubToolExecutorName,
 } from "@cline/shared";
 import { version as corePackageVersion } from "../../../package.json";
@@ -1453,7 +1454,7 @@ export class HubRuntimeHost implements RuntimeHost {
 
 	async readSessionMessages(
 		sessionId: string,
-	): Promise<import("@cline/llms").Message[]> {
+	): Promise<import("@cline/llms").MessageWithMetadata[]> {
 		const target = sessionId.trim();
 		if (!target) {
 			return [];
@@ -1481,7 +1482,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		}
 		const messages = reply.payload?.messages;
 		return Array.isArray(messages)
-			? (messages as import("@cline/llms").Message[])
+			? (messages as import("@cline/llms").MessageWithMetadata[])
 			: [];
 	}
 
@@ -1730,6 +1731,29 @@ export class HubRuntimeHost implements RuntimeHost {
 							type: "content_start",
 							contentType: "text",
 							text,
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.media": {
+				const media =
+					event.payload?.media &&
+					typeof event.payload.media === "object" &&
+					!Array.isArray(event.payload.media)
+						? (event.payload.media as Record<string, unknown>)
+						: undefined;
+				if (!isGeneratedMedia(media)) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "media",
+							media,
 						},
 					},
 				});

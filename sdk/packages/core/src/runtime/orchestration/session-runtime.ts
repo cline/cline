@@ -6,6 +6,7 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
@@ -40,6 +41,7 @@ type LeadAgentHandle = {
 
 export interface BuiltRuntime {
 	tools: AgentTool[];
+	modelTools?: ModelTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;

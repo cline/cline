@@ -16,11 +16,7 @@ import { Button } from "@/components/ui/button";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { appendCappedCommandOutput } from "@/lib/command-output";
 import { cn } from "@/lib/utils";
-import {
-	EXPANDED_PANEL_RAIL_CLASS,
-	IS_DEBUG,
-	STREAMING_TITLE_CLASS,
-} from "./constants";
+import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
 import { getToolNameIcon } from "./tool-icons";
 import {
 	buildToolPresentation,
@@ -177,7 +173,7 @@ const ToolCallRow = memo(function ToolCallRow({
 				showDisclosureIcon={false}
 				status={hasError ? "error" : inProgress ? "running" : "success"}
 			/>
-			<ToolActivityContent className={EXPANDED_PANEL_RAIL_CLASS}>
+			<ToolActivityContent presentation="rail">
 				{details.length > 0 ? (
 					<ToolActivityDetails
 						className={cn(

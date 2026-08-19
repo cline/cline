@@ -697,6 +697,188 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("appends live generated images to the active assistant message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Here it is.",
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_media",
+				chunk: JSON.stringify({
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/webp",
+					source: { type: "base64", data: "aGVsbG8=" },
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const assistantMessages = current.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessages).toEqual([
+			expect.objectContaining({ content: "Here it is." }),
+			expect.objectContaining({
+				media: [
+					expect.objectContaining({
+						id: "generated-1",
+						mediaType: "image/webp",
+					}),
+				],
+			}),
+		]);
+	});
+
+	it("deduplicates repeated live generated image events", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Draw three puppies"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			for (const [index, media] of [
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-1", data: "aGVsbG8=" },
+				{ id: "generated-2", data: "d29ybGQ=" },
+			].entries()) {
+				chatEventHandler?.({
+					sessionId: current.sessionId,
+					stream: "chat_media",
+					chunk: JSON.stringify({
+						id: media.id,
+						modality: "image",
+						mediaType: "image/webp",
+						source: { type: "base64", data: media.data },
+					}),
+					ts: Date.now(),
+					index: index + 1,
+				});
+			}
+		});
+
+		expect(
+			current.messages.flatMap((message) =>
+				(message.media ?? []).map((media) => media.id),
+			),
+		).toEqual(["generated-1", "generated-2"]);
+	});
+
+	it("renders generated images returned in the completed RPC result", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId ?? "session-test" };
+					}
+					if (request?.action === "send") {
+						return {
+							ok: true,
+							result: {
+								text: "",
+								finishReason: "completed",
+								messages: [
+									{
+										role: "assistant",
+										content: [
+											{
+												type: "image",
+												data: "aGVsbG8=",
+												mediaType: "image/png",
+											},
+										],
+									},
+								],
+							},
+						};
+					}
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "persisted-user",
+							sessionId: "session-test",
+							role: "user",
+							content: "Draw a lighthouse",
+							createdAt: 1,
+						},
+					];
+				}
+				return [];
+			},
+		);
+
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+
+		expect(current.status).toBe("completed");
+		expect(
+			current.messages.findLast((message) => message.role === "assistant"),
+		).toMatchObject({
+			content: "",
+			images: [
+				expect.objectContaining({
+					data: "aGVsbG8=",
+					mediaType: "image/png",
+				}),
+			],
+		});
+	});
+
 	it("re-keys the optimistic bubble when the runtime queues the same prompt", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1152,6 +1334,78 @@ describe("useChatSession", () => {
 			cacheReadTokens: 8_000,
 		});
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
+	});
+
+	it("restores a pending question when switching to its session", async () => {
+		const hydratedSessionId = "session-with-question";
+		const pendingQuestion = {
+			requestId: "question-1",
+			sessionId: hydratedSessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		const askQuestionHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "ask_question_requested",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(askQuestionHandler).toBeTypeOf("function");
+
+		await act(async () => {
+			askQuestionHandler?.(pendingQuestion);
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "poll_ask_questions") {
+					return args?.sessionId === hydratedSessionId ? [pendingQuestion] : [];
+				}
+				if (
+					command === "poll_tool_approvals" ||
+					command === "read_session_messages" ||
+					command === "read_session_hooks"
+				) {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-11T00:00:00.000Z",
+			});
+		});
+
+		await vi.waitFor(() =>
+			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			sessionId: hydratedSessionId,
+		});
 	});
 
 	it("resets to the remembered provider/model after viewing a historical session", async () => {

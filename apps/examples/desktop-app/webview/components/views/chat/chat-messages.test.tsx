@@ -291,9 +291,17 @@ describe("ChatMessages tool disclosures", () => {
 			...container.querySelectorAll(".cline-chat-tool"),
 		];
 		// The edit group's diff panel is visible without a click…
-		expect(editBlock?.querySelector(".cline-chat-tool-content")).not.toBeNull();
+		expect(
+			editBlock
+				?.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("open");
 		// …while the read group stays collapsed.
-		expect(readBlock?.querySelector(".cline-chat-tool-content")).toBeNull();
+		expect(
+			readBlock
+				?.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("closed");
 	});
 
 	it("opens a streaming group when an edit diff arrives after mount", async () => {
@@ -310,7 +318,11 @@ describe("ChatMessages tool disclosures", () => {
 		};
 		// The group mounts with only the read call, so it starts collapsed.
 		await renderMessages([read]);
-		expect(container.querySelector(".cline-chat-tool-content")).toBeNull();
+		expect(
+			container
+				.querySelector(".cline-chat-disclosure-content-motion")
+				?.getAttribute("data-state"),
+		).toBe("closed");
 
 		// The edit call joins the same group mid-stream; the diff should
 		// surface without a click.
@@ -328,7 +340,11 @@ describe("ChatMessages tool disclosures", () => {
 				createdAt: 2,
 			},
 		]);
-		expect(container.querySelector(".cline-chat-tool-content")).not.toBeNull();
+		expect(
+			[
+				...container.querySelectorAll(".cline-chat-disclosure-content-motion"),
+			].some((panel) => panel.getAttribute("data-state") === "open"),
+		).toBe(true);
 	});
 
 	it("summarizes spawned teammates and expands their agent IDs", async () => {
@@ -611,12 +627,15 @@ describe("ChatMessages tool disclosures", () => {
 		const message = container.querySelector(
 			'.cline-chat-message[data-role="assistant"]',
 		);
-		const messageList = message?.parentElement;
+		// This narration-then-tool tail renders inside a tight run group,
+		// which in turn sits in the gap-4 conversation list; the content column
+		// keeps the gap-2 spacing between blocks within one message.
+		const runGroup = message?.parentElement;
+		const messageList = runGroup?.parentElement;
 		const content = message?.querySelector(".cline-chat-message-content");
 
-		// The list owns conversation spacing via gap-8, while the content column
-		// keeps the tighter gap-2 spacing between blocks within one message.
-		expect(messageList?.classList.contains("gap-8")).toBe(true);
+		expect(runGroup?.classList.contains("gap-1")).toBe(true);
+		expect(messageList?.classList.contains("gap-4")).toBe(true);
 		expect(content?.classList.contains("flex")).toBe(true);
 		expect(content?.classList.contains("flex-col")).toBe(true);
 		expect(content?.classList.contains("gap-2")).toBe(true);
@@ -1026,15 +1045,22 @@ describe("ChatMessages follow-up questions", () => {
 						options: ["Continue", "Stop"],
 						question: "Continue this task?",
 						requestId: "request-1",
+						sessionId: "session-1",
 					},
 				],
 			},
 		);
 
-		const answer = [...container.querySelectorAll("button")].find(
-			(button) => button.textContent === "Continue",
+		const answer = [...container.querySelectorAll("button")].find((button) =>
+			button.textContent?.includes("Continue"),
 		);
 		await act(async () => answer?.click());
+		expect(onAnswerAskQuestion).not.toHaveBeenCalled();
+
+		const submit = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent === "Submit",
+		);
+		await act(async () => submit?.click());
 
 		expect(onAnswerAskQuestion).toHaveBeenCalledWith("request-1", "Continue");
 	});
@@ -1062,6 +1088,83 @@ describe("ChatMessages image attachments", () => {
 		expect(image?.className).toContain("max-h-56.25");
 		expect(image?.className).toContain("max-w-56.25");
 		expect(container.textContent).toContain("Describe this");
+	});
+
+	it("renders an image-only assistant response", async () => {
+		await renderMessages([
+			{
+				id: "assistant-image",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/webp",
+						data: "aGVsbG8=",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/webp;base64,aGVsbG8=");
+	});
+
+	it("shows one generated image at a time and navigates the result set", async () => {
+		await renderMessages([
+			{
+				id: "assistant-images",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "",
+				images: [
+					{
+						id: "generated-image-1",
+						mediaType: "image/png",
+						data: "Zmlyc3Q=",
+					},
+					{
+						id: "generated-image-2",
+						mediaType: "image/png",
+						data: "c2Vjb25k",
+					},
+				],
+				createdAt: 1,
+			},
+		]);
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
+		expect(container.querySelector('img[alt="Generated result 2"]')).toBeNull();
+		expect(container.textContent).toContain("1 / 2");
+
+		const previous = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Previous generated image"]',
+		);
+		const next = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Next generated image"]',
+		);
+		expect(previous?.disabled).toBe(true);
+		await act(async () => next?.click());
+
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 2"]')
+				?.src,
+		).toBe("data:image/png;base64,c2Vjb25k");
+		expect(container.textContent).toContain("2 / 2");
+		expect(next?.disabled).toBe(true);
+
+		await act(async () => previous?.click());
+		expect(
+			container.querySelector<HTMLImageElement>('img[alt="Generated result 1"]')
+				?.src,
+		).toBe("data:image/png;base64,Zmlyc3Q=");
 	});
 
 	it("expands an attachment within the conversation and closes it", async () => {
@@ -1168,24 +1271,15 @@ describe("ChatMessages reasoning disclosure", () => {
 			element.textContent?.includes("Thought for 7s"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
+		expect(trigger?.querySelector(".cline-chat-thinking-icon")).not.toBeNull();
 		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
-		expect(trigger?.classList.contains("text-sm")).toBe(true);
-		expect(trigger?.classList.contains("text-xs")).toBe(false);
 
 		await act(async () => trigger?.click());
 
 		const content = container.querySelector(".cline-chat-reasoning-content");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
 		expect(content?.textContent).toContain("Carefully considered the request.");
-		expect(content?.classList.contains("border-l")).toBe(true);
-		expect(content?.classList.contains("rounded-none")).toBe(true);
-		expect(content?.classList.contains("bg-transparent")).toBe(true);
-		// Inset off the rail, without pinning the exact step — the shared-rail
-		// test owns the specific values.
-		expect(
-			[...(content?.classList ?? [])].some((name) => /^p[lx]-/.test(name)),
-		).toBe(true);
+		expect(content?.classList.contains("cline-chat-panel-rail")).toBe(true);
 	});
 
 	it("hangs expanded reasoning and tool panels off the same left rail", async () => {
@@ -1231,40 +1325,20 @@ describe("ChatMessages reasoning disclosure", () => {
 		expect(reasoningContent).not.toBeNull();
 		expect(toolContent).not.toBeNull();
 
-		// Compared as sets rather than pinned to literals, so retuning the rail
-		// stays a one-line change but can never drift between the two panels.
-		const railClasses = (element: Element | null) =>
-			[...(element?.classList ?? [])]
-				.filter((name) =>
-					/^(-?m[a-z]?|p[a-z]?|border|rounded|bg|max-w)-/.test(name),
-				)
-				.sort();
-		expect(railClasses(reasoningContent).length).toBeGreaterThan(0);
-		expect(railClasses(toolContent)).toEqual(railClasses(reasoningContent));
-
-		// Reasoning remains capped; tool output grows into the conversation scroller.
-		expect(
-			[...(reasoningContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
-		).toBe(true);
-		expect(
-			[...(toolContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
-		).toBe(false);
-		for (const panel of [reasoningContent, toolContent]) {
-			expect(
-				[...(panel?.classList ?? [])].some((name) => name.startsWith("max-w-")),
-			).toBe(true);
-		}
-
-		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
-		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
-		expect(reasoningContent?.classList.contains("overflow-x-hidden")).toBe(
+		expect(reasoningContent?.classList.contains("cline-chat-panel-rail")).toBe(
 			true,
 		);
-		expect(reasoningContent?.classList.contains("overflow-auto")).toBe(false);
+		expect(toolContent?.classList.contains("cline-chat-panel-rail")).toBe(true);
+
+		// Reasoning remains capped and scrolls internally (the shared
+		// cline-chat-thinking-content styling); tool output grows into the
+		// conversation scroller.
+		expect(
+			reasoningContent?.classList.contains("cline-chat-thinking-content"),
+		).toBe(true);
+		expect(toolContent?.classList.contains("cline-chat-thinking-content")).toBe(
+			false,
+		);
 		expect(toolContent?.classList.contains("overflow-auto")).toBe(false);
 
 		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.
@@ -1397,6 +1471,14 @@ describe("ChatMessages reasoning disclosure", () => {
 			},
 		]);
 
+		// The completed run's working rows collapse; expand them so both
+		// disclosures render, proving they were never merged across the tool.
+		const workTrigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement | null;
+		expect(workTrigger).not.toBeNull();
+		await act(async () => workTrigger?.click());
+
 		expect(container.querySelectorAll(".cline-chat-reasoning")).toHaveLength(2);
 	});
 
@@ -1415,6 +1497,139 @@ describe("ChatMessages reasoning disclosure", () => {
 		expect(container.textContent).toContain("Thinking");
 		expect(container.textContent).not.toContain("Thought for");
 	});
+});
+
+describe("ChatMessages send auto-scroll", () => {
+	const baseMessages: ChatMessage[] = [
+		{
+			id: "user-1",
+			sessionId: "session-1",
+			role: "user",
+			content: "First",
+			createdAt: 1_000,
+		},
+		{
+			id: "assistant-1",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Reply",
+			createdAt: 2_000,
+		},
+	];
+
+	it("scrolls to the bottom when a new user message lands, but not for assistant output", async () => {
+		await renderMessages(baseMessages);
+		const scrollTo = HTMLElement.prototype.scrollTo as ReturnType<typeof vi.fn>;
+		scrollTo.mockClear();
+
+		// Assistant output alone must not force the reader back down.
+		await renderMessages([
+			...baseMessages,
+			{
+				id: "assistant-2",
+				sessionId: "session-1",
+				role: "assistant",
+				content: "More output",
+				createdAt: 3_000,
+			},
+		]);
+		expect(scrollTo).not.toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+
+		await renderMessages([
+			...baseMessages,
+			{
+				id: "user-2",
+				sessionId: "session-1",
+				role: "user",
+				content: "Second",
+				createdAt: 4_000,
+			},
+		]);
+		expect(scrollTo).toHaveBeenCalledWith(
+			expect.objectContaining({ behavior: "smooth" }),
+		);
+	});
+});
+
+describe("ChatMessages work collapse", () => {
+	const completedRun: ChatMessage[] = [
+		{
+			id: "user-run",
+			sessionId: "session-1",
+			role: "user",
+			content: "Fix the bug",
+			createdAt: 1_000,
+		},
+		{
+			id: "tool-run-1",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "read_files",
+				input: { paths: ["bug.ts"] },
+				result: {},
+			}),
+			createdAt: 2_000,
+		},
+		{
+			id: "tool-run-2",
+			sessionId: "session-1",
+			role: "tool",
+			content: JSON.stringify({
+				toolName: "editor",
+				input: { path: "bug.ts", old_text: "before", new_text: "after" },
+				result: {},
+			}),
+			createdAt: 3_000,
+		},
+		{
+			id: "assistant-run",
+			sessionId: "session-1",
+			role: "assistant",
+			content: "Fixed it.",
+			createdAt: 5_000,
+		},
+	];
+
+	it("folds a finished run into a work summary that expands back into rows", async () => {
+		await renderMessages(completedRun);
+
+		const trigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement | null;
+		expect(trigger?.textContent).toContain(
+			"Worked for 4s and made 2 tool calls",
+		);
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		// Collapsed content is lazy: the tool rows do not render until opened.
+		expect(container.querySelector(".cline-chat-tool")).toBeNull();
+		expect(container.textContent).toContain("Fixed it.");
+
+		await act(async () => trigger?.click());
+		expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
+
+	it("keeps the live run's rows visible while the session is active", async () => {
+		await renderMessages(completedRun, { status: "running" });
+
+		expect(container.querySelector(".cline-chat-work")).toBeNull();
+		expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+	});
+
+	it.each(["cancelled", "failed", "error"] as const)(
+		"keeps an interrupted run's rows visible even with partial trailing text (%s)",
+		async (status) => {
+			// Stop can land mid-answer, leaving partial assistant text after the
+			// tool calls; the run still must not fold into a summary.
+			await renderMessages(completedRun, { status });
+
+			expect(container.querySelector(".cline-chat-work")).toBeNull();
+			expect(container.querySelectorAll(".cline-chat-tool")).toHaveLength(2);
+		},
+	);
 });
 
 describe("ChatMessages thinking indicator", () => {

@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { writeDesktopDebugLog } from "./desktop-client";
 
 type SentDesktopRequest = {
 	id: string;
@@ -97,6 +98,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+	vi.restoreAllMocks();
 	vi.clearAllTimers();
 	vi.useRealTimers();
 	globalThis.WebSocket = originalWebSocket;
@@ -314,5 +316,49 @@ describe("DesktopClient command deadlines", () => {
 				}
 			).pending.size,
 		).toBe(0);
+	});
+});
+
+describe("writeDesktopDebugLog", () => {
+	it.each([
+		"debug",
+		"info",
+		"error",
+	] as const)("prints valid %s sidecar diagnostics with a static format string", (level) => {
+		const consoleSpy = vi.spyOn(console, level).mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level,
+			message: "Starting audio transcription",
+			timestamp: "2026-07-28T00:00:00.000Z",
+			metadata: {
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			},
+		});
+
+		expect(consoleSpy).toHaveBeenCalledWith(
+			"%s %o",
+			"[desktop:voice-input] Starting audio transcription",
+			expect.objectContaining({
+				providerId: "vercel-ai-gateway",
+				modelId: "openai/whisper-1",
+				endpoint: "https://ai-gateway.vercel.sh/v1/ai/transcription-model",
+			}),
+		);
+	});
+
+	it("ignores malformed debug events", () => {
+		const debugSpy = vi.spyOn(console, "debug").mockImplementation(() => {});
+
+		writeDesktopDebugLog({
+			scope: "voice-input",
+			level: "verbose",
+			message: "invalid",
+		});
+
+		expect(debugSpy).not.toHaveBeenCalled();
 	});
 });

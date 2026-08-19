@@ -157,7 +157,7 @@ export interface StartSessionInput {
 	prompt?: string;
 	interactive?: boolean;
 	sessionMetadata?: Record<string, unknown>;
-	initialMessages?: LlmsProviders.Message[];
+	initialMessages?: LlmsProviders.MessageWithMetadata[];
 	initialCompactionState?: SessionCompactionState;
 	userImages?: string[];
 	userFiles?: string[];
@@ -351,7 +351,7 @@ export interface RestoreSessionInput {
 export interface RestoreSessionResult {
 	sessionId?: string;
 	startResult?: StartSessionResult;
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpoint: CheckpointEntry;
 }
 
@@ -386,7 +386,9 @@ export interface RuntimeHost {
 	readSessionCompactionState(
 		sessionId: string,
 	): Promise<SessionCompactionState | undefined>;
-	readSessionMessages(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readSessionMessages(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]>;
 	/**
 	 * Like {@link readSessionMessages}, but prefers the resident session's
 	 * in-memory conversation over the persisted transcript. Disk persistence
@@ -396,7 +398,9 @@ export interface RuntimeHost {
 	 * session for a mode switch. Optional: hosts without live-session access
 	 * (e.g. hub clients) fall back to the persisted transcript.
 	 */
-	readLiveSessionMessages?(sessionId: string): Promise<LlmsProviders.Message[]>;
+	readLiveSessionMessages?(
+		sessionId: string,
+	): Promise<LlmsProviders.MessageWithMetadata[]>;
 	dispatchHookEvent(payload: HookEventPayload): Promise<void>;
 	subscribe(
 		listener: (event: CoreSessionEvent) => void,

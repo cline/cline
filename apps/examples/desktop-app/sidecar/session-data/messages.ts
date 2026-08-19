@@ -1,7 +1,15 @@
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
-import { getUserRunSpan, resolveMessageDisplayRole } from "@cline/core";
-import { validateImageMedia } from "@cline/shared";
+import {
+	getUserRunSpan,
+	projectSessionMessagesForDisplay,
+	resolveMessageDisplayRole,
+} from "@cline/core";
+import {
+	isGeneratedMedia,
+	type MessageWithMetadata,
+	validateImageMedia,
+} from "@cline/shared";
 import {
 	readSessionManifest,
 	sharedSessionMessagesPath,
@@ -144,15 +152,17 @@ function extractImageBlock(
 		: undefined;
 }
 
-export function readPersistedChatMessages(sessionId: string): unknown[] | null {
+export function readPersistedChatMessages(
+	sessionId: string,
+): MessageWithMetadata[] | null {
 	const path = sharedSessionMessagesPath(sessionId);
 	if (!existsSync(path)) {
 		return null;
 	}
 	try {
 		const parsed = JSON.parse(readFileSync(path, "utf8")) as
-			| { messages?: unknown[] }
-			| unknown[];
+			| { messages?: MessageWithMetadata[] }
+			| MessageWithMetadata[];
 		if (Array.isArray(parsed)) {
 			return parsed;
 		}
@@ -336,6 +346,12 @@ export async function readSessionMessages(
 			: (ctx.liveSessions.get(sessionId)?.messages ?? []);
 	const max = Math.max(1, maxMessages);
 	const start = Math.max(0, messages.length - max);
+	const displayMessages = projectSessionMessagesForDisplay(
+		messages.slice(start),
+	).map((entry) => ({
+		message: entry.message,
+		sourceIndex: start + entry.sourceIndex,
+	}));
 	const baseTs = nowMs() - messages.length;
 	const out: JsonRecord[] = [];
 	const checkpointsByRunCount = readCheckpointEntriesByRunCount(sessionId);
@@ -346,7 +362,7 @@ export async function readSessionMessages(
 		if (!rawMessage || typeof rawMessage !== "object") {
 			continue;
 		}
-		const message = rawMessage as JsonRecord;
+		const message = rawMessage as unknown as JsonRecord;
 		const metadata = readMessageMetadata(message);
 		userRunCount += getUserRunSpan({
 			role: normalizeRole(message.role),
@@ -355,13 +371,29 @@ export async function readSessionMessages(
 		});
 	}
 
-	for (let idx = start; idx < messages.length; idx += 1) {
-		const rawMessage = messages[idx];
+	let previousCreatedAt: number | undefined;
+	for (const projectedMessage of displayMessages) {
+		const idx = projectedMessage.sourceIndex;
+		const rawMessage = projectedMessage.message;
 		if (!rawMessage || typeof rawMessage !== "object") {
 			continue;
 		}
-		const message = rawMessage as JsonRecord;
-		const createdAt = resolveMessageCreatedAt(message, baseTs + idx);
+		const message = rawMessage as unknown as JsonRecord;
+		const storedCreatedAt = resolveMessageCreatedAt(message, baseTs + idx);
+		// Provider activity projects to messages immediately before its owning
+		// assistant answer. Give projected messages a stable chronological order
+		// even when they share the source timestamp: the webview sorts timestamp
+		// ties by id, which would otherwise put the answer before its tool card.
+		let partCreatedAt =
+			previousCreatedAt === undefined
+				? storedCreatedAt
+				: Math.max(storedCreatedAt, previousCreatedAt + 1);
+		const nextPartCreatedAt = () => {
+			const value = partCreatedAt;
+			partCreatedAt += 1;
+			previousCreatedAt = value;
+			return value;
+		};
 		let textMeta = extractMessageUsageMeta(message);
 		const storedMeta = extractStoredMessageMeta(message);
 		if (storedMeta) {
@@ -422,7 +454,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
 			continue;
@@ -448,7 +480,7 @@ export async function readSessionMessages(
 				sessionId,
 				role,
 				content: joined,
-				createdAt,
+				createdAt: nextPartCreatedAt(),
 				// A persisted user message can project into more than one text
 				// segment around tool blocks. Only its first segment represents
 				// the run; later segments must not acquire a fallback ordinal in
@@ -482,7 +514,7 @@ export async function readSessionMessages(
 					sessionId,
 					role: "tool",
 					content: buildToolPayloadJson(toolName, input, null, false),
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: {
 						toolName,
 						...(toolUseId ? { toolCallId: toolUseId } : {}),
@@ -512,6 +544,9 @@ export async function readSessionMessages(
 							isError,
 						);
 						target.meta = {
+							...(target.meta && typeof target.meta === "object"
+								? (target.meta as JsonRecord)
+								: {}),
 							toolName,
 							...(toolUseId ? { toolCallId: toolUseId } : {}),
 							hookEventName: "history_tool_result",
@@ -524,7 +559,7 @@ export async function readSessionMessages(
 						sessionId,
 						role: "tool",
 						content: buildToolPayloadJson("tool_result", null, result, isError),
-						createdAt,
+						createdAt: nextPartCreatedAt(),
 						meta: {
 							toolName: "tool_result",
 							...(toolUseId ? { toolCallId: toolUseId } : {}),
@@ -556,6 +591,20 @@ export async function readSessionMessages(
 				}
 				continue;
 			}
+			if (blockType === "media" && isGeneratedMedia(record.media)) {
+				flushTextParts();
+				out.push({
+					id: `${messageIdBase}_media_${blockIdx}`,
+					sessionId,
+					role,
+					content: "",
+					media: [record.media],
+					createdAt: nextPartCreatedAt(),
+					meta: textMeta,
+				});
+				textMeta = undefined;
+				continue;
+			}
 			const line = stringifyMessageContent(block);
 			if (line.trim()) {
 				textParts.push(line);
@@ -576,7 +625,7 @@ export async function readSessionMessages(
 					role,
 					content: "",
 					images,
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});
 				textMeta = undefined;
@@ -602,7 +651,7 @@ export async function readSessionMessages(
 					content: "",
 					reasoning: reasoning || undefined,
 					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt,
+					createdAt: nextPartCreatedAt(),
 					meta: textMeta,
 				});
 				textMeta = undefined;

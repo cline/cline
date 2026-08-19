@@ -136,7 +136,7 @@ export async function createClaudeCodeProviderModule(
 	}
 	const provider = createClaudeCode({ ...options, defaultSettings });
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -159,7 +159,7 @@ export async function createOpenAICodexProviderModule(
 	}
 	const provider = createCodexExec(readOptions(config));
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -208,7 +208,7 @@ export async function createOpenCodeProviderModule(
 		return createOpencode(readOptions(config));
 	});
 	return {
-		model: (modelId) => provider(modelId),
+		operations: { language: (modelId) => provider(modelId) },
 	};
 }
 
@@ -223,10 +223,12 @@ export async function createDifyProviderModule(
 		...readOptions(config),
 	});
 	return {
-		model: (modelId) =>
-			provider(modelId, {
-				apiKey,
-			}),
+		operations: {
+			language: (modelId) =>
+				provider(modelId, {
+					apiKey,
+				}),
+		},
 	};
 }
 
@@ -323,8 +325,6 @@ async function withSapServiceKey<T>(
 	process.env.AICORE_SERVICE_KEY = serviceKey;
 	try {
 		return await fn();
-	} catch (error) {
-		throw error;
 	} finally {
 		restoreSapServiceKey(previous);
 		releaseQueue();
@@ -393,7 +393,9 @@ export async function createSapAiCoreProviderModule(
 		},
 	});
 	return {
-		model: (modelId) =>
-			wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		operations: {
+			language: (modelId) =>
+				wrapSapModelWithServiceKey(provider(modelId), serviceKey),
+		},
 	};
 }

@@ -143,6 +143,7 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 		mcpDisplayMode,
 		useAutoCondense,
 		compactionStrategy,
+		webSearchEnabled,
 		subagentsEnabled,
 		worktreesEnabled,
 		backgroundEditEnabled,
@@ -202,6 +203,12 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 									</SelectContent>
 								</Select>
 							</div>
+							<FeatureRow
+								checked={webSearchEnabled}
+								description="Let the model search the web when the selected provider and model support it. Applies to new tasks."
+								label="Web Search"
+								onChange={(checked) => updateSetting("webSearchEnabled", checked)}
+							/>
 						</div>
 					</div>
 
@@ -223,7 +230,6 @@ const FeatureSettingsSection = ({ renderSectionHeader }: FeatureSettingsSectionP
 							))}
 						</div>
 					</div>
-
 				</div>
 
 				{/* Advanced */}
