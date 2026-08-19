@@ -11,6 +11,7 @@ const HEAD = "a".repeat(40);
 function fakeGit(overrides: Record<string, string | Error> = {}): GitCommand {
 	const outputs: Record<string, string | Error> = {
 		"rev-parse --is-inside-work-tree": "true\n",
+		"rev-parse --show-prefix": "",
 		"status --porcelain=v1 --untracked-files=all": "",
 		"symbolic-ref --quiet --short HEAD": "feature/handoff\n",
 		"config --get branch.feature/handoff.remote": "origin\n",
@@ -58,6 +59,17 @@ describe("preflightCloudHandoffGit", () => {
 		});
 	});
 
+	it("preserves a workspace path relative to the repository root", async () => {
+		await expect(
+			preflightCloudHandoffGit({
+				cwd: "/repo/apps/desktop",
+				git: fakeGit({ "rev-parse --show-prefix": "apps/desktop/\n" }),
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({ workspaceRelativePath: "apps/desktop" }),
+		);
+	});
+
 	it("refuses tracked or untracked worktree changes with a compact summary", async () => {
 		const dirty = Array.from(
 			{ length: 8 },
@@ -80,6 +92,7 @@ describe("preflightCloudHandoffGit", () => {
 
 	it("classifies detached HEAD errors", async () => {
 		const detached = Object.assign(new Error("not a symbolic ref"), {
+			code: 1,
 			stderr: "fatal: ref HEAD is not a symbolic ref",
 		});
 		const error = await preflightCloudHandoffGit({
@@ -90,6 +103,20 @@ describe("preflightCloudHandoffGit", () => {
 		}).catch((caught) => caught);
 
 		expect(error.code).toBe("detached_head");
+	});
+
+	it("does not misclassify branch inspection failures as detached HEAD", async () => {
+		const failed = Object.assign(new Error("git unavailable"), {
+			code: 128,
+			stderr: "fatal: unable to read repository",
+		});
+		const error = await preflightCloudHandoffGit({
+			cwd: "/repo",
+			git: fakeGit({ "symbolic-ref --quiet --short HEAD": failed }),
+		}).catch((caught) => caught);
+
+		expect(error.code).toBe("git_command_failed");
+		expect(error.message).toContain("Could not inspect");
 	});
 
 	it("refuses when local HEAD differs from the remote branch", async () => {

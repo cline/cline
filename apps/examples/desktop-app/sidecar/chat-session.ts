@@ -43,6 +43,7 @@ import {
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
 import {
+	type AgentMode,
 	buildClineSystemPrompt,
 	formatUserCommandBlock,
 	getClineEnvironmentConfig,
@@ -1960,21 +1961,28 @@ async function assertHandoffIdle(
 	if (!live && !persisted) {
 		throw new Error(`Session ${sessionId} was not found.`);
 	}
-	if (
+	const liveIsBusy =
 		live?.busy ||
 		live?.transitioningProvider ||
 		live?.status === "starting" ||
 		live?.status === "running" ||
-		live?.status === "stopping" ||
-		persisted?.status === "running" ||
-		persisted?.status === "pending"
-	) {
+		live?.status === "stopping";
+	const persistedIsBusy =
+		!live &&
+		(persisted?.status === "running" || persisted?.status === "pending");
+	if (liveIsBusy || persistedIsBusy) {
 		throw new Error("Stop the current run before handing off to cloud.");
 	}
 	const queued = await manager.pendingPrompts.list({ sessionId });
 	if (queued.length > 0 || (live?.promptsInQueue.length ?? 0) > 0) {
 		throw new Error("Remove queued prompts before handing off to cloud.");
 	}
+}
+
+function readCloudHandoffMode(value: unknown): AgentMode {
+	return value === "plan" || value === "yolo" || value === "zen"
+		? value
+		: "act";
 }
 
 export async function updateHandoffMetadataOrThrow(
@@ -2077,22 +2085,35 @@ async function prepareCloudHandoff(
 	const localModelId = String(
 		config.model ?? config.modelId ?? persisted?.model ?? "",
 	).trim();
-	const selection = options.pinnedModelId
-		? {
-				modelId: options.pinnedModelId,
-				usedFallback: options.pinnedModelId !== localModelId,
-			}
-		: selectCloudHandoffModel({
-				localModelId,
-				models: await loadCloudHandoffModels(),
-				isOrganizationSession: Boolean(organizationId),
-			});
+	const models = await loadCloudHandoffModels();
+	let selection = selectCloudHandoffModel({
+		localModelId: options.pinnedModelId ?? localModelId,
+		models,
+		isOrganizationSession: Boolean(organizationId),
+	});
+	if (options.pinnedModelId) {
+		if (selection.modelId !== options.pinnedModelId) {
+			throw new Error(
+				`Cloud model ${options.pinnedModelId} is no longer available for this account. Run /handoff again to select an available model.`,
+			);
+		}
+		selection = {
+			modelId: options.pinnedModelId,
+			usedFallback: options.pinnedModelId !== localModelId,
+			catalogId: selection.catalogId,
+		};
+	}
+	const mode = readCloudHandoffMode(config.mode);
 	const fingerprint = createCloudHandoffFingerprint({
 		repoUrl: git.repoUrl,
 		branch: git.branch,
 		headSha: git.headSha,
 		modelId: selection.modelId,
 		...(organizationId ? { organizationId } : {}),
+		...(git.workspaceRelativePath
+			? { workspaceRelativePath: git.workspaceRelativePath }
+			: {}),
+		...(mode !== "act" ? { mode } : {}),
 	});
 	return {
 		fingerprint,
@@ -2118,6 +2139,12 @@ function readRequestedHandoffFingerprint(
 		modelId: String(value.modelId ?? ""),
 		...(typeof value.organizationId === "string"
 			? { organizationId: value.organizationId }
+			: {}),
+		...(typeof value.workspaceRelativePath === "string"
+			? { workspaceRelativePath: value.workspaceRelativePath }
+			: {}),
+		...(value.mode === "plan" || value.mode === "yolo" || value.mode === "zen"
+			? { mode: value.mode }
 			: {}),
 	});
 }
@@ -2266,6 +2293,8 @@ async function handleHandoffOnce(
 			const resumed = await cloud.seedHandoff(outerSessionId, {
 				sourceSessionId,
 				messages: seed,
+				workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
+				mode: prepared.fingerprint.mode ?? "act",
 				onSeeding: () =>
 					emitProgress(
 						"seeding",
@@ -2275,14 +2304,19 @@ async function handleHandoffOnce(
 			});
 			innerSessionId = resumed.innerSessionId;
 			if (!pendingHandoff.dashboardUrl) {
+				const current = await manager.get(sourceSessionId);
 				await updateHandoffMetadataOrThrow(
 					manager,
 					sourceSessionId,
-					mergeCloudHandoffMetadata(metadataBefore, {
-						...pendingHandoff,
-						dashboardUrl,
-						innerSessionId,
-					}),
+					mergeCloudHandoffMetadata(
+						(current?.metadata as JsonRecord | null | undefined) ??
+							metadataBefore,
+						{
+							...pendingHandoff,
+							dashboardUrl,
+							innerSessionId,
+						},
+					),
 					"The resumed cloud handoff could not update its local recovery record.",
 				);
 			}
@@ -2306,6 +2340,8 @@ async function handleHandoffOnce(
 			repoUrl: prepared.repoUrl,
 			branch: prepared.branch,
 			modelId: prepared.modelId,
+			mode: prepared.fingerprint.mode ?? "act",
+			workspaceRelativePath: prepared.fingerprint.workspaceRelativePath,
 			organizationId: prepared.fingerprint.organizationId ?? null,
 			...(typeof request.config?.autoApproveTools === "boolean"
 				? { autoApproveTools: request.config.autoApproveTools }

@@ -13,6 +13,7 @@ export type CloudHandoffGitContext = {
 	branch: string;
 	remoteName: string;
 	headSha: string;
+	workspaceRelativePath?: string;
 };
 
 export type CloudHandoffGitPreflightErrorCode =
@@ -129,6 +130,22 @@ function parseRemoteHead(stdout: string, branch: string): string | null {
 	return null;
 }
 
+function normalizeWorkspaceRelativePath(value: string): string | undefined {
+	const normalized = value.trim().replace(/\/+$/, "");
+	if (!normalized) return undefined;
+	const parts = normalized.split("/");
+	if (
+		normalized.startsWith("/") ||
+		parts.some((part) => !part || part === "." || part === "..")
+	) {
+		throw new CloudHandoffGitPreflightError(
+			"git_command_failed",
+			"Could not resolve the workspace path relative to the Git repository.",
+		);
+	}
+	return normalized;
+}
+
 /**
  * Refuses handoff unless a fresh GitHub clone of the upstream branch will be
  * byte-for-byte anchored at the current local commit.
@@ -155,6 +172,16 @@ export async function preflightCloudHandoffGit(input: {
 			"Cloud handoff requires a Git working tree.",
 		);
 	}
+	const workspaceRelativePath = normalizeWorkspaceRelativePath(
+		await runRequired(
+			git,
+			cwd,
+			["rev-parse", "--show-prefix"],
+			"git_command_failed",
+			"Could not resolve the workspace path relative to the Git repository.",
+			input.signal,
+		),
+	);
 
 	const dirty = await runRequired(
 		git,
@@ -175,14 +202,26 @@ export async function preflightCloudHandoffGit(input: {
 		);
 	}
 
-	const branch = await runRequired(
-		git,
-		cwd,
-		["symbolic-ref", "--quiet", "--short", "HEAD"],
-		"detached_head",
-		"Cloud handoff requires a checked-out branch; detached HEAD is not supported.",
-		input.signal,
-	);
+	let branch: string;
+	try {
+		branch = (
+			await git(["symbolic-ref", "--quiet", "--short", "HEAD"], {
+				cwd,
+				signal: input.signal,
+			})
+		).stdout.trim();
+	} catch (error) {
+		const detached = commandExitCode(error) === 1;
+		const detail = commandErrorMessage(error);
+		const message = detached
+			? "Cloud handoff requires a checked-out branch; detached HEAD is not supported."
+			: "Could not inspect the current Git branch.";
+		throw new CloudHandoffGitPreflightError(
+			detached ? "detached_head" : "git_command_failed",
+			detail ? `${message} (${detail})` : message,
+			{ cause: error },
+		);
+	}
 	if (!branch) {
 		throw new CloudHandoffGitPreflightError(
 			"detached_head",
@@ -233,7 +272,7 @@ export async function preflightCloudHandoffGit(input: {
 		cwd,
 		["remote", "get-url", remoteName],
 		"missing_upstream",
-		`Could not resolve the ${remoteName} remote.`,
+		"Could not resolve the upstream remote.",
 		input.signal,
 	);
 	const repoUrl = normalizeGitHubRemoteUrl(rawRemoteUrl);
@@ -254,13 +293,12 @@ export async function preflightCloudHandoffGit(input: {
 		).stdout.trim();
 	} catch (error) {
 		const missing = commandExitCode(error) === 2;
-		const detail = commandErrorMessage(error);
 		const message = missing
-			? `Remote branch ${remoteName}/${upstreamBranch} was not found. Push it before handing off.`
+			? `The upstream branch ${upstreamBranch} was not found. Push it before handing off.`
 			: "Could not verify the remote branch. Check your network and GitHub authentication, then try again.";
 		throw new CloudHandoffGitPreflightError(
 			missing ? "remote_branch_missing" : "git_command_failed",
-			detail ? `${message} (${detail})` : message,
+			message,
 			{ cause: error },
 		);
 	}
@@ -268,13 +306,13 @@ export async function preflightCloudHandoffGit(input: {
 	if (!remoteSha) {
 		throw new CloudHandoffGitPreflightError(
 			"remote_branch_missing",
-			`Remote branch ${remoteName}/${upstreamBranch} was not found. Push it before handing off.`,
+			`The upstream branch ${upstreamBranch} was not found. Push it before handing off.`,
 		);
 	}
 	if (remoteSha.toLowerCase() !== headSha.toLowerCase()) {
 		throw new CloudHandoffGitPreflightError(
 			"unpushed_commits",
-			`Local HEAD does not match ${remoteName}/${upstreamBranch}. Push the current commit before handing off.`,
+			`Local HEAD does not match the upstream branch ${upstreamBranch}. Push the current commit before handing off.`,
 		);
 	}
 
@@ -283,5 +321,6 @@ export async function preflightCloudHandoffGit(input: {
 		branch: upstreamBranch,
 		remoteName,
 		headSha,
+		...(workspaceRelativePath ? { workspaceRelativePath } : {}),
 	};
 }

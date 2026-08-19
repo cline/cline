@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { posix } from "node:path";
 import {
 	buildCloudHandoffDashboardUrl,
 	buildCloudHandoffSystemPrompt,
@@ -12,6 +13,7 @@ import {
 	ProviderSettingsManager,
 } from "@cline/core";
 import {
+	type AgentMode,
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 	type MessageWithMetadata,
@@ -82,6 +84,10 @@ export type CreateCloudSessionInput = {
 	autoApproveTools?: boolean;
 	thinking?: boolean;
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
+	/** Handoff-only source mode; ordinary cloud creation defaults to Act. */
+	mode?: AgentMode;
+	/** Handoff-only source cwd relative to the repository root. */
+	workspaceRelativePath?: string;
 	/** Null selects personal scope; omit to use the currently active scope. */
 	organizationId?: string | null;
 	/** Desktop handoff-only hooks; never serialized into the provisioning API body. */
@@ -96,8 +102,16 @@ export type CreateCloudSessionInput = {
 type CloudHandoffSeed = {
 	sourceSessionId: string;
 	messages: MessageWithMetadata[];
+	mode?: AgentMode;
+	workspaceRelativePath?: string;
 	onSeeding?: () => void;
 };
+
+function cloudWorkspaceCwd(workspaceRelativePath?: string): string {
+	return workspaceRelativePath
+		? posix.join(CLOUD_WORKSPACE_ROOT, workspaceRelativePath)
+		: CLOUD_WORKSPACE_ROOT;
+}
 
 // The repository/branch wire contract is owned by the webview lib so the two
 // sides of the desktop client cannot silently drift; re-exported here for
@@ -127,16 +141,26 @@ type CloudErrorCode =
 export class CloudSessionError extends Error {
 	constructor(
 		readonly code: CloudErrorCode,
-		message: string,
+		readonly detail: string,
 		readonly connectUrl?: string,
 		/** HTTP status of the failed request, when one was received. */
 		readonly status?: number,
 	) {
 		super(
-			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message, connectUrl })}`,
+			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
 		);
 		this.name = "CloudSessionError";
 	}
+}
+
+function isTransientGitHubTokenVendFailure(error: unknown): boolean {
+	if (!(error instanceof CloudSessionError) || error.status !== 502)
+		return false;
+	const detail = error.detail.toLowerCase();
+	return (
+		detail.includes("couldn't authenticate with github") &&
+		detail.includes("reconnecting the integration")
+	);
 }
 
 export class CloudHandoffSeedUnsupportedError extends Error {
@@ -869,6 +893,8 @@ type CloudSessionManagerOptions = {
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
+	/** Test seam for the narrow GitHub token-vending retry. */
+	sleep?: (ms: number) => Promise<void>;
 };
 
 /** Recognizes server ids even before the in-memory cloud registry is warm. */
@@ -1279,6 +1305,31 @@ export class CloudSessionManager {
 		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
 	}
 
+	/** Revalidates a cached row by id when the active-scope list does not include it. */
+	async getCrossScopeDiscoveryRecord(
+		sessionId: string,
+	): Promise<JsonRecord | undefined> {
+		const cached = this.getCachedDiscoveryRecord(sessionId);
+		if (!cached || typeof this.options.api.status !== "function") {
+			return undefined;
+		}
+		try {
+			const status = await this.options.api.status(sessionId);
+			const value = status.status?.trim();
+			return value ? { ...cached, status: value } : cached;
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				this.knownSessions.delete(sessionId);
+				return undefined;
+			}
+			// A scope/auth/network failure cannot prove the cached session is gone.
+			return cached;
+		}
+	}
+
 	getProvisioningOutcome(
 		placeholderId: string,
 	): CloudProvisioningOutcome | null {
@@ -1503,6 +1554,8 @@ export class CloudSessionManager {
 			String(input.thinking ?? ""),
 			input.reasoningEffort ?? "",
 			String(input.autoApproveTools ?? ""),
+			input.mode ?? "act",
+			input.workspaceRelativePath ?? "",
 			input.handoff?.sourceSessionId ?? "",
 		].join("\u0000");
 		const existing = this.createRequests.get(key);
@@ -1585,7 +1638,7 @@ export class CloudSessionManager {
 			model: input.modelId,
 			repoUrl: input.repoUrl,
 			branch: input.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd: cloudWorkspaceCwd(input.workspaceRelativePath),
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			...(input.initialPrompt?.trim()
 				? { prompt: input.initialPrompt.trim() }
@@ -1646,10 +1699,25 @@ export class CloudSessionManager {
 			input.organizationId === undefined
 				? await this.resolveActiveOrganizationId({ fresh: true })
 				: (input.organizationId ?? undefined);
-		const created = await this.options.api.create({
-			...input,
-			organizationId,
-		});
+		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			try {
+				created = await this.options.api.create({
+					...input,
+					organizationId,
+				});
+				break;
+			} catch (error) {
+				if (!isTransientGitHubTokenVendFailure(error) || attempt === 2) {
+					throw error;
+				}
+				await (
+					this.options.sleep ??
+					((ms: number) =>
+						new Promise<void>((resolve) => setTimeout(resolve, ms)))
+				)(500 * (attempt + 1));
+			}
+		}
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
@@ -1695,6 +1763,8 @@ export class CloudSessionManager {
 			? {
 					sourceSessionId: input.handoff.sourceSessionId,
 					messages: await input.handoff.resolveMessages(),
+					mode: input.mode ?? "act",
+					workspaceRelativePath: input.workspaceRelativePath,
 					onSeeding: input.handoff.onSeeding,
 				}
 			: undefined;
@@ -1730,7 +1800,7 @@ export class CloudSessionManager {
 			model: input.modelId,
 			repoUrl: input.repoUrl,
 			branch: input.branch ?? "",
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd: cloudWorkspaceCwd(input.workspaceRelativePath),
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
 			...(live.prompt ? { prompt: live.prompt } : {}),
 			...(this.connections.get(record.id)?.innerSessionId
@@ -2646,26 +2716,28 @@ export class CloudSessionManager {
 			throw new Error("Cloud session is missing its model id");
 		}
 		const live = this.ctx.liveSessions.get(connection.remote.id);
+		const cwd = cloudWorkspaceCwd(handoffSeed?.workspaceRelativePath);
+		const mode = handoffSeed?.mode ?? "act";
 		handoffSeed?.onSeeding?.();
 		const reply = await connection.client.command("session.create", {
 			workspaceRoot: CLOUD_WORKSPACE_ROOT,
-			cwd: CLOUD_WORKSPACE_ROOT,
+			cwd,
 			...(handoffSeed ? { initialMessages: handoffSeed.messages } : {}),
 			sessionConfig: {
 				providerId: "cline",
 				modelId,
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
-				cwd: CLOUD_WORKSPACE_ROOT,
+				cwd,
 				systemPrompt: handoffSeed
-					? buildCloudHandoffSystemPrompt({
+					? `${buildCloudHandoffSystemPrompt({
 							repoUrl:
 								connection.remote.repoContext.repoUrl ?? "the repository",
 							branch:
 								connection.remote.repoContext.branch ?? "the selected branch",
 							workspaceRoot: CLOUD_WORKSPACE_ROOT,
-						})
+						})}${cwd === CLOUD_WORKSPACE_ROOT ? "" : `\n\nContinue from the original repository subdirectory at ${cwd}.`}`
 					: CLOUD_GITHUB_AUTH_SYSTEM_PROMPT,
-				mode: "act",
+				mode,
 				enableTools: true,
 				...(typeof live?.config.thinking === "boolean"
 					? { thinking: live.config.thinking }
@@ -2689,7 +2761,7 @@ export class CloudSessionManager {
 						}
 					: {}),
 			},
-			runtimeOptions: { mode: "act" },
+			runtimeOptions: { mode },
 			modelSelection: { provider: "cline", model: modelId },
 			toolPolicies: {
 				"*": { autoApprove: live?.config.autoApproveTools !== false },

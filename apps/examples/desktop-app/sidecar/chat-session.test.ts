@@ -2056,6 +2056,7 @@ describe("cloud handoff gates", () => {
 
 	function createHandoffGateContext(options: {
 		busy?: boolean;
+		persistedStatus?: string;
 		messages?: Array<{ role: "user" | "assistant"; content: string }>;
 		metadata?: Record<string, unknown>;
 	}) {
@@ -2090,7 +2091,9 @@ describe("cloud handoff gates", () => {
 				{
 					get: vi.fn(async () => ({
 						sessionId,
-						status: options.busy ? "running" : "completed",
+						status:
+							options.persistedStatus ??
+							(options.busy ? "running" : "completed"),
 						cwd: "/workspace/project",
 						model: "anthropic/claude-sonnet-4.6",
 						metadata: options.metadata,
@@ -2114,6 +2117,20 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Stop the current run");
 		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("trusts an authoritative idle live session over a legacy running record", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({
+			busy: false,
+			persistedStatus: "running",
+		});
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.not.toThrow("Stop the current run");
 	});
 
 	it("rejects remote SSH handoff before running Git preflight locally", async () => {

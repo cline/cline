@@ -18,6 +18,8 @@ export function createCloudHandoffFingerprint(input: {
 	headSha: string;
 	modelId: string;
 	organizationId?: string;
+	workspaceRelativePath?: string;
+	mode?: "plan" | "yolo" | "zen";
 }): CloudHandoffFingerprint {
 	const repoUrl = readRequiredString(input.repoUrl);
 	const branch = readRequiredString(input.branch);
@@ -27,12 +29,16 @@ export function createCloudHandoffFingerprint(input: {
 		throw new Error("Cloud handoff fingerprint fields cannot be empty.");
 	}
 	const organizationId = readRequiredString(input.organizationId);
+	const workspaceRelativePath = readRequiredString(input.workspaceRelativePath);
+	const mode = input.mode;
 	return {
 		repoUrl,
 		branch,
 		headSha,
 		modelId,
 		...(organizationId ? { organizationId } : {}),
+		...(workspaceRelativePath ? { workspaceRelativePath } : {}),
+		...(mode ? { mode } : {}),
 	};
 }
 
@@ -47,7 +53,9 @@ export function cloudHandoffFingerprintsEqual(
 		left.branch === right.branch &&
 		left.headSha.toLowerCase() === right.headSha.toLowerCase() &&
 		left.modelId === right.modelId &&
-		left.organizationId === right.organizationId
+		left.organizationId === right.organizationId &&
+		left.workspaceRelativePath === right.workspaceRelativePath &&
+		left.mode === right.mode
 	);
 }
 
@@ -72,6 +80,14 @@ function readCloudHandoffFingerprint(
 			modelId: fingerprint.modelId,
 			...(typeof fingerprint.organizationId === "string"
 				? { organizationId: fingerprint.organizationId }
+				: {}),
+			...(typeof fingerprint.workspaceRelativePath === "string"
+				? { workspaceRelativePath: fingerprint.workspaceRelativePath }
+				: {}),
+			...(fingerprint.mode === "plan" ||
+			fingerprint.mode === "yolo" ||
+			fingerprint.mode === "zen"
+				? { mode: fingerprint.mode }
 				: {}),
 		});
 	} catch {

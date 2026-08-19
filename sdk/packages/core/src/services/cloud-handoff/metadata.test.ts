@@ -14,6 +14,8 @@ describe("cloud handoff metadata", () => {
 		branch: " main ",
 		headSha: "A".repeat(40),
 		modelId: " cloud/model ",
+		workspaceRelativePath: " apps/desktop ",
+		mode: "plan",
 	});
 
 	it("merges, reads, and clears handoff metadata without losing siblings", () => {
@@ -74,6 +76,18 @@ describe("cloud handoff metadata", () => {
 			cloudHandoffFingerprintsEqual(fingerprint, {
 				...fingerprint,
 				branch: "other",
+			}),
+		).toBe(false);
+		expect(
+			cloudHandoffFingerprintsEqual(fingerprint, {
+				...fingerprint,
+				workspaceRelativePath: "apps/cli",
+			}),
+		).toBe(false);
+		expect(
+			cloudHandoffFingerprintsEqual(fingerprint, {
+				...fingerprint,
+				mode: "yolo",
 			}),
 		).toBe(false);
 		expect(cloudHandoffFingerprintsEqual(undefined, undefined)).toBe(false);

@@ -1914,10 +1914,13 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (!requestedEnvironmentId(args) && cloud.isCloudSession(sessionId)) {
 			try {
+				const listed = (await cloud.listForDiscovery()).find(
+					(session) => session.sessionId === sessionId,
+				);
 				return (
-					(await cloud.listForDiscovery()).find(
-						(session) => session.sessionId === sessionId,
-					) ?? null
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
 				);
 			} catch {
 				// Preserve offline access, but never let a successful fresh list be
