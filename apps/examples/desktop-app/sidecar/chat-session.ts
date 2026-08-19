@@ -44,6 +44,7 @@ import {
 	trackQueuedAttachments,
 } from "./attachments";
 import {
+	CloudHandoffSeedUnsupportedError,
 	CloudSessionError,
 	type CloudSessionManager,
 	getCloudSessionManager,
@@ -1781,6 +1782,15 @@ export async function reconcilePendingCloudHandoff(
 	return { metadata };
 }
 
+export function shouldCleanupFailedHandoffVerification(
+	error: unknown,
+): boolean {
+	return (
+		error instanceof CloudHandoffTranscriptMismatchError ||
+		error instanceof CloudHandoffSeedUnsupportedError
+	);
+}
+
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -2106,7 +2116,7 @@ async function handleHandoffOnce(
 	try {
 		await cloud.verifyHandoffTranscript(outerSessionId, seededMessages);
 	} catch (error) {
-		if (!(error instanceof CloudHandoffTranscriptMismatchError)) {
+		if (!shouldCleanupFailedHandoffVerification(error)) {
 			throw error;
 		}
 		try {

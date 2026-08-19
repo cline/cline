@@ -20,10 +20,15 @@ import {
 	prewarmWorkspaceMetadata,
 	reconcilePendingCloudHandoff,
 	rewriteDesktopTeamPrompt,
+	shouldCleanupFailedHandoffVerification,
 	shouldUpdateSessionConnection,
 	updateHandoffMetadataOrThrow,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import {
+	CloudHandoffSeedUnsupportedError,
+	CloudSessionError,
+} from "./cloud-sessions";
 import type { SidecarContext } from "./types";
 
 describe("rewriteDesktopTeamPrompt", () => {
@@ -1599,6 +1604,19 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
+	it("cleans up an old runtime that ignored the seeded transcript", () => {
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffSeedUnsupportedError(),
+			),
+		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudSessionError("request_failed", "temporary read failure"),
+			),
+		).toBe(false);
+	});
+
 	const pendingFingerprint = {
 		repoUrl: "https://github.com/cline/cline.git",
 		branch: "main",
