@@ -93,8 +93,9 @@ import {
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
 import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
+import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
-	subscribeToDesktopMenuActions,
+	subscribeToDesktopActions,
 	watchDesktopTrayStatus,
 } from "@/lib/desktop-tray";
 import { syncDesktopWindowTitle } from "@/lib/desktop-window-title";
@@ -492,6 +493,7 @@ export default function Home() {
 	);
 
 	useEffect(() => watchDesktopTrayStatus(), []);
+	useEffect(() => watchDesktopNotifications(), []);
 
 	const createThreadForEnvironment = useCallback((environmentId: string) => {
 		dispatchApp({
@@ -725,25 +727,6 @@ export default function Home() {
 		},
 		[navigateWith],
 	);
-	useEffect(
-		() =>
-			subscribeToDesktopMenuActions((action) => {
-				switch (action) {
-					case "new-session":
-						handleNewThread();
-						break;
-					case "open-settings":
-						handleViewChange("settings");
-						break;
-					case "zoom-in":
-					case "zoom-out":
-					case "zoom-reset":
-						applyAppZoomAction(action);
-						break;
-				}
-			}),
-		[handleNewThread, handleViewChange],
-	);
 	// Standard app shortcuts: Cmd/Ctrl+N for a new session, Cmd/Ctrl+, for
 	// settings — matching the tray menu actions.
 	useEffect(() => {
@@ -777,13 +760,17 @@ export default function Home() {
 		onOpenSession: handleOpenSession,
 		onUpdateSessionMetadata: handleUpdateSessionMetadata,
 	});
+	const sessionHistoryRef = useRef(sessionHistory.sessions);
+	useEffect(() => {
+		sessionHistoryRef.current = sessionHistory.sessions;
+	}, [sessionHistory.sessions]);
 	const handleOpenSessionById = useCallback(
 		async (
 			sessionId: string,
 			environmentId?: string,
 			options: { silent?: boolean } = {},
 		): Promise<boolean> => {
-			const cachedSession = sessionHistory.sessions.find(
+			const cachedSession = sessionHistoryRef.current.find(
 				(session) =>
 					session.sessionId === sessionId &&
 					(environmentId === undefined ||
@@ -798,7 +785,7 @@ export default function Home() {
 					"get_discovered_session",
 					{
 						...(environmentId ? { environmentId } : {}),
-						session_id: sessionId,
+						sessionId,
 					},
 				);
 				if (!session) {
@@ -827,7 +814,29 @@ export default function Home() {
 				return false;
 			}
 		},
-		[handleOpenSession, sessionHistory.sessions],
+		[handleOpenSession],
+	);
+	useEffect(
+		() =>
+			subscribeToDesktopActions((action) => {
+				switch (action.type) {
+					case "new-session":
+						handleNewThread();
+						break;
+					case "open-settings":
+						handleViewChange("settings");
+						break;
+					case "open-session":
+						void handleOpenSessionById(action.sessionId);
+						break;
+					case "zoom-in":
+					case "zoom-out":
+					case "zoom-reset":
+						applyAppZoomAction(action.type);
+						break;
+				}
+			}),
+		[handleNewThread, handleOpenSessionById, handleViewChange],
 	);
 
 	// Replace an open provisioning placeholder with its real session.
@@ -1140,6 +1149,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -2918,6 +2928,7 @@ function ChatThreadPane({
 											? provisioningPhase
 											: undefined
 								}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

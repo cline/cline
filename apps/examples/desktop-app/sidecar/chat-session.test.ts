@@ -21,11 +21,14 @@ import {
 	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
 	copySessionGeneratedArtifacts,
+	formatPendingHandoffVerificationError,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	reconcilePendingCloudHandoff,
+	resolveCloudHandoffDestination,
+	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldCleanupFailedHandoffVerification,
 	shouldUpdateSessionConnection,
@@ -96,6 +99,20 @@ describe("cloud handoff model catalog", () => {
 			catalogId: "cline",
 			usedFallback: false,
 		});
+	});
+});
+
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
+
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
 	});
 });
 
@@ -1755,6 +1772,7 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
 });
 
@@ -1919,6 +1937,33 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
+	it("keeps handoff available in the browser when in-app Cloud is disabled", () => {
+		const previous = process.env.CLINE_CODE_CLOUD_AGENTS;
+		try {
+			process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+			expect(resolveCloudHandoffDestination()).toBe("external");
+			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+			expect(resolveCloudHandoffDestination()).toBe("in_app");
+		} finally {
+			if (previous === undefined) {
+				delete process.env.CLINE_CODE_CLOUD_AGENTS;
+			} else {
+				process.env.CLINE_CODE_CLOUD_AGENTS = previous;
+			}
+		}
+	});
+
+	it("explains how to recover a mismatched resumed handoff", () => {
+		const dashboardUrl = "https://app.cline.bot/agents?sessionId=ses-pending";
+		const message = formatPendingHandoffVerificationError(
+			new CloudHandoffTranscriptMismatchError(2, 3),
+			dashboardUrl,
+		);
+
+		expect(message).toContain("delete it before retrying /handoff");
+		expect(message).toContain(dashboardUrl);
+	});
+
 	it("detects repository drift after cloud provisioning", () => {
 		const fingerprint = {
 			repoUrl: "https://github.com/cline/cline",
@@ -2279,6 +2324,15 @@ name: desktop-send-skill
 ---
 Follow the desktop send skill instructions.`,
 		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
 		return workspace;
 	}
 
@@ -2324,7 +2378,7 @@ Follow the desktop send skill instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
-	it("expands a leading skill command into its instructions", async () => {
+	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
 
@@ -2334,16 +2388,59 @@ Follow the desktop send skill instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "Follow the desktop send skill instructions. write the docs",
 			}),
 		);
-		// The session's display prompt keeps the raw token.
-		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("expands a skill command when a queued prompt is edited", async () => {
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
+	});
+
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
@@ -2357,7 +2454,25 @@ Follow the desktop send skill instructions.`,
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "Follow the desktop send skill instructions. later please",
+			prompt: "/desktop-send-skill later please",
+		});
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
 		});
 	});
 

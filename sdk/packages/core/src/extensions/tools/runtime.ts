@@ -227,6 +227,22 @@ export function getCoreBuiltinToolCatalog(
 	).map((entry) => buildCatalogEntry(entry, context));
 }
 
+/**
+ * Whether the `skills` tool is part of a session's default toolset for this
+ * availability context. Hosts consult this before dispatching a typed
+ * `/skill` command: when the tool is available the command passes through as
+ * typed and the model loads the instructions via the tool; when it is not
+ * (e.g. the yolo preset or a user toggle disables it), textual expansion is
+ * the only delivery path left.
+ */
+export function isSkillsToolAvailable(
+	context: BuiltinToolAvailabilityContext = {},
+): boolean {
+	return getCoreBuiltinToolCatalog(context).some(
+		(entry) => entry.id === "skills" && entry.defaultEnabled,
+	);
+}
+
 export function getCoreDefaultEnabledToolIds(
 	context: BuiltinToolAvailabilityContext = {},
 ): string[] {

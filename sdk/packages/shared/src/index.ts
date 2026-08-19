@@ -213,7 +213,10 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
 	isAudioGenerationModel,
+	isChatCompatibleModel,
 	isDedicatedAudioGenerationModel,
 	isDedicatedImageGenerationModel,
 	isDedicatedVideoGenerationModel,
@@ -240,6 +243,7 @@ export {
 	modelHasCapability,
 	modelProducesImages,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
@@ -342,6 +346,7 @@ export {
 } from "./realtime-voice";
 export {
 	buildRemoteConfigSessionBlobUploadMetadata,
+	clearMaterializedRemoteConfigRuntime,
 	clearRemoteConfigSessionBlobUpload,
 	createRemoteConfigSessionMessagesArtifactUploader,
 	prepareRemoteConfigRuntime,
@@ -353,6 +358,7 @@ export type {
 	PreparedRemoteConfigRuntime,
 	PrepareRemoteConfigRuntimeOptions,
 	RemoteConfigBundle,
+	RemoteConfigManagedInstructionFile,
 } from "./remote-config/bundle";
 export { REMOTE_URI_SCHEME } from "./remote-config/constants";
 export type {

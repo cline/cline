@@ -1713,6 +1713,33 @@ export async function handleCommand(
 				(args as ChatSessionCommandRequest),
 		);
 	}
+	if (command === "proceed_while_running") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		if (!sessionId) {
+			throw new Error("sessionId is required");
+		}
+		const toolCallId = asTrimmedString(args?.toolCallId);
+		const binding =
+			(await getCommandSessionBinding(ctx, sessionId, args)) ??
+			getCommandRuntimeBinding(ctx, args);
+		const hubClient = binding.hubClient;
+		const reply = await hubClient.command(
+			"run.proceed_while_running",
+			{ sessionId, ...(toolCallId ? { toolCallId } : {}) },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(
+				reply.error?.message ?? "Could not proceed while command is running.",
+			);
+		}
+		return {
+			detachedCount:
+				typeof reply.payload?.detachedCount === "number"
+					? reply.payload.detachedCount
+					: 0,
+		};
+	}
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {
@@ -1857,6 +1884,12 @@ export async function handleCommand(
 			items: remaining,
 		});
 		return true;
+	}
+	if (command === "poll_ask_questions") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		return Array.from(ctx.pendingQuestions.values())
+			.filter((question) => question.item.sessionId === sessionId)
+			.map((question) => question.item);
 	}
 	if (command === "respond_ask_question") {
 		const requestId = String(args?.requestId ?? "").trim();

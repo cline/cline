@@ -75,6 +75,9 @@ describe("restore_checkpoint", () => {
 			pendingQuestions: new Map(),
 			streamIndices: new Map(),
 			wsClients: new Set(),
+			activeEnvironmentId: "local",
+			localWorkspaceRoot: "/tmp/project",
+			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
 			runtimeBindings: new Map([
 				[
 					"local",
@@ -88,10 +91,7 @@ describe("restore_checkpoint", () => {
 					},
 				],
 			]),
-			sessionEnvironmentIds: new Map([[sessionId, "local"]]),
-			activeEnvironmentId: "local",
 			remoteEnvironments: null,
-			localWorkspaceRoot: "/tmp/project",
 		} as unknown as SidecarContext;
 
 		await handleChatSessionCommand(ctx, {

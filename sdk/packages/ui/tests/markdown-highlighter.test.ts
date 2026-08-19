@@ -2,7 +2,7 @@ import { describe, expect, test } from "vitest";
 import {
 	markdownCodeHighlighter,
 	SUPPORTED_MARKDOWN_LANGUAGES,
-} from "./markdown-highlighter";
+} from "../components/markdown";
 
 function highlight(code: string, language: "typescript") {
 	return new Promise<

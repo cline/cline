@@ -11,6 +11,7 @@
  *   id: string,                  // only consistently-required field
  *   name?: string,
  *   contextWindow?: number,
+ *   maxInputTokens?: number,
  *   maxTokens?: number,
  *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
  *   modalities?: { input: string[], output: string[] },
@@ -28,7 +29,8 @@
  * | extension ModelInfo field | source | default if missing |
  * | --- | --- | --- |
  * | name | `sdk.name ?? sdk.id` | n/a (id is required) |
- * | contextWindow | `sdk.contextWindow` if finite number (null = missing) | safe default: 128_000 |
+ * | contextWindow | `sdk.contextWindow`, or positive `sdk.maxInputTokens` for legacy display compatibility | safe default: 128_000 |
+ * | maxInputTokens | `sdk.maxInputTokens` if finite number (null = missing) | omitted (undefined) |
  * | maxTokens | `sdk.maxTokens` if finite number (null = missing) | safe default: -1 |
  * | supportsImages | capabilities includes `images` or `vision` | safe default: true when capabilities absent |
  * | supportsPromptCache | capabilities includes `prompt-cache` | safe default: false when capabilities absent |
@@ -226,6 +228,13 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		})
 	}
 
+	const rawMaxInputTokens = input.maxInputTokens
+	if (rawMaxInputTokens !== undefined && rawMaxInputTokens !== null && !isFiniteNumber(rawMaxInputTokens)) {
+		throw new CatalogShapeError("SDK model-info `maxInputTokens` must be a finite number when present.", {
+			details: { receivedType: typeof rawMaxInputTokens },
+		})
+	}
+
 	const rawMaxTokens = input.maxTokens
 	if (rawMaxTokens !== undefined && rawMaxTokens !== null && !isFiniteNumber(rawMaxTokens)) {
 		throw new CatalogShapeError("SDK model-info `maxTokens` must be a finite number when present.", {
@@ -249,15 +258,29 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 		})
 	}
 
+	const maxInputTokens = isFiniteNumber(rawMaxInputTokens) ? rawMaxInputTokens : undefined
+	// Legacy extension consumers display and budget exclusively from
+	// `contextWindow`. When a provider reports only a positive prompt limit,
+	// use it as a conservative compatibility proxy while still preserving the
+	// authoritative `maxInputTokens` field independently for the SDK runtime.
+	const contextWindow = isFiniteNumber(rawContextWindow)
+		? rawContextWindow
+		: maxInputTokens !== undefined && maxInputTokens > 0
+			? maxInputTokens
+			: openAiModelInfoSafeDefaults.contextWindow
+
 	const result: ModelInfo = {
 		name: rawName ?? id,
-		contextWindow: isFiniteNumber(rawContextWindow) ? rawContextWindow : openAiModelInfoSafeDefaults.contextWindow,
+		contextWindow,
 		maxTokens: isFiniteNumber(rawMaxTokens) ? rawMaxTokens : openAiModelInfoSafeDefaults.maxTokens,
 		supportsPromptCache: capabilities
 			? capabilities.includes(PROMPT_CACHE_CAPABILITY)
 			: openAiModelInfoSafeDefaults.supportsPromptCache,
 		inputPrice: pricing?.input ?? openAiModelInfoSafeDefaults.inputPrice,
 		outputPrice: pricing?.output ?? openAiModelInfoSafeDefaults.outputPrice,
+	}
+	if (maxInputTokens !== undefined) {
+		result.maxInputTokens = maxInputTokens
 	}
 
 	if (capabilities) {

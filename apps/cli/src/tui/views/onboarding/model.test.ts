@@ -128,6 +128,31 @@ describe("onboarding model helpers", () => {
 		]);
 	});
 
+	it("keeps non-chat models out of the onboarding model picker", () => {
+		expect(
+			toModelEntriesFromKnownModels({
+				"operation-only-whisper": {
+					name: "Operation-only Whisper",
+					operation: "transcription",
+				},
+				"whisper-large-v3": {
+					name: "Whisper Large V3",
+					modalities: { input: ["audio"], output: ["text"] },
+				},
+				"llama-chat": {
+					name: "Llama Chat",
+					modalities: { input: ["text"], output: ["text"] },
+				},
+			}),
+		).toEqual([
+			{
+				id: "llama-chat",
+				name: "Llama Chat",
+				supportsReasoning: false,
+			},
+		]);
+	});
+
 	it("formats OAuth provider labels for onboarding status views", () => {
 		expect(getOAuthProviderLabel("cline")).toBe("Cline");
 		expect(getOAuthProviderLabel("cline-pass")).toBe("ClinePass");
