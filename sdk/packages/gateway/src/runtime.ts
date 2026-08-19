@@ -64,6 +64,7 @@ import type { GatewayDatabase } from "./db";
 import { OUTBOX_KIND_SESSION_PROJECTION } from "./outbox";
 import type { GatewayPaths } from "./paths";
 import type { GatewayStores } from "./stores";
+import { UsageQueryError } from "./usage";
 
 /**
  * Sentinel workspace root: the Gateway materializes a managed directory
@@ -92,6 +93,9 @@ export function toGatewayError(error: unknown): GatewayError {
 		return error.gatewayError;
 	}
 	if (error instanceof EventCursorDecodeError) {
+		return error.gatewayError;
+	}
+	if (error instanceof UsageQueryError) {
 		return error.gatewayError;
 	}
 	if (error instanceof BotDomainError) {
@@ -243,6 +247,15 @@ class InstrumentedRunRepository {
 			now,
 		);
 		if (TERMINAL_STATES.has(record.state)) {
+			if (record.startedAt !== undefined && record.endedAt !== undefined) {
+				// Statistics "Longest Task": fold the run duration into the
+				// daily aggregate at completion time (no rescan later).
+				this.sinks.stores.usage.recordRunDuration(
+					record.botId,
+					now,
+					record.endedAt - record.startedAt,
+				);
+			}
 			this.sinks.stores.outbox.enqueue(
 				OUTBOX_KIND_SESSION_PROJECTION,
 				{ sessionId: record.sessionId },
@@ -448,6 +461,14 @@ function persistEngineEvent(
 				// The payload is the AgentMessage messages contract.
 				message as Parameters<GatewayStores["messages"]["append"]>[2],
 			);
+			// Message-completion statistics land in the same transaction as
+			// the canonical message itself.
+			sinks.stores.usage.recordMessage({
+				occurredAt: now,
+				botId: invocation.botId,
+				sessionId: invocation.sessionId,
+				role: message.role,
+			});
 			sinks.stores.events.append(
 				"run.messageAppended",
 				scope,
@@ -461,6 +482,33 @@ function persistEngineEvent(
 			);
 			sinks.outboxEnqueued();
 			return;
+		}
+		if (eventType === "model-call-completed") {
+			// Usage pipeline: normalize the engine's per-call metadata and
+			// commit the usage event plus every aggregate atomically with
+			// the durable engine event below.
+			const call = event as {
+				providerId?: string;
+				modelId?: string;
+				inputTokens?: number;
+				outputTokens?: number;
+				providerCost?: number;
+				durationMs?: number;
+				status?: string;
+			};
+			sinks.stores.usage.recordModelCall({
+				occurredAt: now,
+				botId: invocation.botId,
+				sessionId: invocation.sessionId,
+				runId: invocation.runId,
+				providerId: call.providerId,
+				modelId: call.modelId,
+				inputTokens: Number(call.inputTokens ?? 0),
+				outputTokens: Number(call.outputTokens ?? 0),
+				providerCost: call.providerCost,
+				durationMs: call.durationMs,
+				status: call.status === "error" ? "error" : "ok",
+			});
 		}
 		sinks.stores.events.append(
 			`engine.${kebabToCamel(eventType)}`,

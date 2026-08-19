@@ -22,6 +22,7 @@ import type {
 	AgentRuntimeEvent,
 	AgentRuntimeHooks,
 	AgentStopControl,
+	AgentUsage,
 	ToolApprovalResult,
 } from "@cline/shared";
 import type {
@@ -70,6 +71,17 @@ export class Engine {
 	private interruptReason?: string;
 	private abortRequested = false;
 	private abortReason?: string;
+
+	// Per-model-call usage metering (usage-updated carries cumulative
+	// totals; model-call-completed events carry the per-call delta).
+	private meteredUsage: AgentUsage = {
+		inputTokens: 0,
+		outputTokens: 0,
+		cacheReadTokens: 0,
+		cacheWriteTokens: 0,
+	};
+	private modelCallStartedAt?: number;
+	private modelCallInFlight = false;
 
 	private readonly persistenceDeltas: EnginePersistenceDelta[] = [];
 
@@ -204,6 +216,7 @@ export class Engine {
 		this.finalResult = result;
 
 		if (status === "failed" && error) {
+			this.emitAbandonedModelCall();
 			this.emit({ type: "run-failed", error, result });
 		} else {
 			this.emit({ type: "run-finished", result });
@@ -261,7 +274,12 @@ export class Engine {
 		const check = (): AgentStopControl | undefined => this.stopControl();
 		return {
 			beforeRun: check,
-			beforeModel: check,
+			beforeModel: () => {
+				// Checkpoint for per-call duration metering.
+				this.modelCallStartedAt = this.clock.now();
+				this.modelCallInFlight = true;
+				return check();
+			},
 			afterTool: check,
 		};
 	}
@@ -422,6 +440,7 @@ export class Engine {
 			}
 			case "usage-updated":
 				this.emit({ type: "usage-updated", usage: event.usage });
+				this.emitModelCallCompleted(event.usage);
 				break;
 			case "turn-finished":
 				this.emit({
@@ -445,6 +464,85 @@ export class Engine {
 			case "run-failed":
 				break;
 		}
+	}
+
+	private modelIdentity(): { providerId?: string; modelId?: string } {
+		if (this.spec.model.kind === "provider") {
+			return {
+				providerId: this.spec.model.providerId,
+				modelId: this.spec.model.modelId,
+			};
+		}
+		return {
+			providerId: this.spec.model.modelInfo?.provider,
+			modelId: this.spec.model.modelInfo?.id,
+		};
+	}
+
+	/** Emit the per-call usage delta for a completed model call. */
+	private emitModelCallCompleted(cumulative: AgentUsage): void {
+		const previous = this.meteredUsage;
+		const delta = {
+			inputTokens: Math.max(0, cumulative.inputTokens - previous.inputTokens),
+			outputTokens: Math.max(
+				0,
+				cumulative.outputTokens - previous.outputTokens,
+			),
+			cacheReadTokens: Math.max(
+				0,
+				cumulative.cacheReadTokens - previous.cacheReadTokens,
+			),
+			cacheWriteTokens: Math.max(
+				0,
+				cumulative.cacheWriteTokens - previous.cacheWriteTokens,
+			),
+			providerCost:
+				cumulative.totalCost !== undefined
+					? Math.max(0, cumulative.totalCost - (previous.totalCost ?? 0))
+					: undefined,
+		};
+		this.meteredUsage = { ...cumulative };
+		const now = this.clock.now();
+		const durationMs =
+			this.modelCallStartedAt !== undefined
+				? Math.max(0, now - this.modelCallStartedAt)
+				: undefined;
+		this.modelCallInFlight = false;
+		this.emit({
+			type: "model-call-completed",
+			...this.modelIdentity(),
+			inputTokens: delta.inputTokens,
+			outputTokens: delta.outputTokens,
+			totalTokens: delta.inputTokens + delta.outputTokens,
+			cacheReadTokens: delta.cacheReadTokens,
+			cacheWriteTokens: delta.cacheWriteTokens,
+			providerCost: delta.providerCost,
+			durationMs,
+			status: "ok",
+		});
+	}
+
+	/** A run failed while a model call was in flight and unreported. */
+	private emitAbandonedModelCall(): void {
+		if (!this.modelCallInFlight) {
+			return;
+		}
+		this.modelCallInFlight = false;
+		const now = this.clock.now();
+		this.emit({
+			type: "model-call-completed",
+			...this.modelIdentity(),
+			inputTokens: 0,
+			outputTokens: 0,
+			totalTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			durationMs:
+				this.modelCallStartedAt !== undefined
+					? Math.max(0, now - this.modelCallStartedAt)
+					: undefined,
+			status: "error",
+		});
 	}
 
 	private emit(payload: EngineEventPayload): void {

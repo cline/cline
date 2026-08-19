@@ -384,6 +384,96 @@ describe("run config snapshot (credentials-free, captured at admission)", () => 
 	});
 });
 
+describe("usage pipeline wiring", () => {
+	it("a model-call-completed engine event writes the usage event and aggregates atomically", async () => {
+		const { runtime, stores, engine, database } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) {
+			throw new Error("bootstrap failed");
+		}
+		const accepted = runtime.startRun("cli_test", {
+			botId,
+			prompt: "meter me",
+		});
+		const handle = engine.handles[0];
+		handle.emit({
+			type: "model-call-completed",
+			providerId: "anthropic",
+			modelId: "claude-x",
+			inputTokens: 120,
+			outputTokens: 30,
+			totalTokens: 150,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			durationMs: 850,
+			status: "ok",
+		});
+		handle.emit({
+			type: "message-appended",
+			message: {
+				id: "msg_metered",
+				role: "assistant",
+				content: [{ type: "text", text: "metered" }],
+				createdAt: Date.now(),
+			},
+			index: 0,
+		});
+		handle.settle({});
+		await waitFor(() => stores.runs.get(accepted.runId)?.state === "completed");
+
+		const run = stores.runs.get(accepted.runId);
+		const events = database.db.prepare("SELECT * FROM usage_events;").all();
+		expect(events).toHaveLength(1);
+		expect(events[0]).toMatchObject({
+			bot_id: botId,
+			session_id: run?.sessionId,
+			run_id: accepted.runId,
+			agent_id: botId,
+			topic_id: run?.sessionId,
+			provider_id: "anthropic",
+			model_id: "claude-x",
+			input_tokens: 120,
+			output_tokens: 30,
+			total_tokens: 150,
+			duration_ms: 850,
+			status: "ok",
+		});
+		const daily = database.db.prepare("SELECT * FROM daily_usage;").all();
+		expect(daily).toHaveLength(1);
+		// 1 model call + 1 assistant message + run duration, all folded in.
+		expect(daily[0]).toMatchObject({
+			bot_id: botId,
+			tokens: 150,
+			model_calls: 1,
+			messages: 1,
+			active_sessions: 1,
+		});
+		expect(Number(daily[0].max_run_duration_ms)).toBeGreaterThan(0);
+		expect(
+			database.db.prepare("SELECT * FROM model_usage;").all()[0],
+		).toMatchObject({
+			model_id: "claude-x",
+			provider_id: "anthropic",
+			tokens: 150,
+		});
+		expect(
+			database.db.prepare("SELECT * FROM agent_usage;").all()[0],
+		).toMatchObject({ agent_id: botId, tokens: 150, messages: 1 });
+		expect(
+			database.db.prepare("SELECT * FROM topic_usage;").all()[0],
+		).toMatchObject({ topic_id: run?.sessionId, tokens: 150, messages: 1 });
+		// The durable engine event committed in the same transaction.
+		const engineEvents = stores.events.listAfter(
+			-1,
+			{ runId: accepted.runId },
+			100,
+		);
+		expect(
+			engineEvents.some((event) => event.event === "engine.modelCallCompleted"),
+		).toBe(true);
+	});
+});
+
 describe("manual crash recovery", () => {
 	it("interrupts abandoned attempts and re-admits committed queued runs FIFO", async () => {
 		const dataRoot = tempDataRoot();

@@ -169,6 +169,105 @@ describe("completion", () => {
 });
 
 // -----------------------------------------------------------------------------
+// Model call usage metering
+// -----------------------------------------------------------------------------
+
+describe("model call usage metering", () => {
+	it("emits one model-call-completed per model response with per-call deltas", async () => {
+		const usageToolTurn: AgentModelEvent[] = [
+			{
+				type: "tool-call-delta",
+				toolCallId: "call_1",
+				toolName: "echo",
+				input: {},
+			},
+			{
+				type: "usage",
+				usage: {
+					inputTokens: 10,
+					outputTokens: 5,
+					cacheReadTokens: 0,
+					cacheWriteTokens: 0,
+				},
+			},
+			{ type: "finish", reason: "tool-calls" },
+		];
+		const engine = createEngine(
+			baseSpec({
+				model: {
+					kind: "model",
+					model: scriptedModel([usageToolTurn, textTurn("done")]),
+					modelInfo: { id: "model-x", provider: "provider-y" },
+				},
+				tools: [echoTool()],
+			}),
+			{ clock: fakeClock() },
+		);
+		await engine.run();
+
+		const calls = engine.events.filter(
+			(event) => event.type === "model-call-completed",
+		);
+		expect(calls).toHaveLength(2);
+		for (const call of calls) {
+			expect(call).toMatchObject({
+				providerId: "provider-y",
+				modelId: "model-x",
+				inputTokens: 10,
+				outputTokens: 5,
+				totalTokens: 15,
+				status: "ok",
+			});
+			expect(
+				(call as { durationMs?: number }).durationMs,
+			).toBeGreaterThanOrEqual(0);
+		}
+		// Deltas, not cumulative: the run total is 20/10 but each call
+		// reports its own 10/5.
+		expect(engine.result?.usage.inputTokens).toBe(20);
+	});
+
+	it("reports an errored in-flight model call when the run fails", async () => {
+		const engine = createEngine(
+			baseSpec({
+				model: { kind: "model", model: scriptedModel([errorTurn("boom")]) },
+			}),
+			{ clock: fakeClock() },
+		);
+		const result = await engine.run();
+		expect(result.status).toBe("failed");
+		const calls = engine.events.filter(
+			(event) => event.type === "model-call-completed",
+		);
+		expect(calls).toHaveLength(1);
+		expect(calls[0]).toMatchObject({
+			inputTokens: 0,
+			outputTokens: 0,
+			totalTokens: 0,
+			status: "error",
+		});
+	});
+
+	it("carries provider identity from a provider-kind binding", async () => {
+		const engine = createEngine(
+			baseSpec({
+				model: {
+					kind: "model",
+					model: scriptedModel([textTurn("ok")]),
+				},
+			}),
+		);
+		await engine.run();
+		// No modelInfo on a bare model binding: identity is simply absent,
+		// never invented.
+		const call = engine.events.find(
+			(event) => event.type === "model-call-completed",
+		);
+		expect(call).toMatchObject({ providerId: undefined, modelId: undefined });
+	});
+});
+
+// -----------------------------------------------------------------------------
 // Tool runs
 // -----------------------------------------------------------------------------
 

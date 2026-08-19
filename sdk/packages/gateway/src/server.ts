@@ -70,6 +70,7 @@ import {
 	toGatewayError,
 } from "./runtime";
 import { createGatewayStores, type GatewayStores } from "./stores";
+import type { PriceResolver } from "./usage";
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024;
 const EVENT_PAGE_SIZE = 100;
@@ -86,6 +87,8 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	maxPendingRunsPerSession?: number;
 	projector?: OutboxProjector;
 	outbox?: OutboxWorkerOptions;
+	/** Price snapshots for providers that do not report costs. */
+	usagePrices?: PriceResolver;
 	/** Graceful-stop budget before sockets are closed anyway. */
 	stopTimeoutMs?: number;
 }
@@ -255,7 +258,9 @@ export class GatewayServer {
 			// 2. Durable state: open + migrate the SQLite authority.
 			database = openGatewayDatabase(paths.databaseFile);
 			const instanceId = createGatewayInstanceId();
-			const stores = createGatewayStores(database, instanceId);
+			const stores = createGatewayStores(database, instanceId, {
+				usage: { prices: options.usagePrices },
+			});
 
 			let workerRef: OutboxWorker | undefined;
 			const runtime = new GatewayRuntime({
@@ -673,6 +678,27 @@ export class GatewayServer {
 				return {
 					sessions: this.runtime.listSessions(p.botId as BotId | undefined),
 				};
+			// Statistics: bounded reads over the maintained aggregates only —
+			// never a rescan of runs, events, or session message history.
+			case "statistics.summary":
+				return this.stores.usage.summary({
+					from: p.from as string | undefined,
+					to: p.to as string | undefined,
+				});
+			case "statistics.activity":
+				return this.stores.usage.activity({
+					from: p.from as string | undefined,
+					to: p.to as string | undefined,
+				});
+			case "statistics.rankings":
+				return this.stores.usage.rankings({
+					dimension: p.dimension as "model" | "agent" | "topic",
+					from: p.from as string | undefined,
+					to: p.to as string | undefined,
+					limit: p.limit as number | undefined,
+				});
+			case "statistics.usage":
+				return this.stores.usage.month(p.month as string);
 			default:
 				throw new GatewayCallError(
 					createGatewayError("not_found", `Unhandled method: ${method}`),

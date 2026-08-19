@@ -132,6 +132,84 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 				last_seen_at INTEGER NOT NULL,
 				connections INTEGER NOT NULL DEFAULT 0
 			);`,
+			// --- Usage/statistics pipeline (write path; Phase 7 reads it) ---
+			// One normalized record per model call. Original cost fields are
+			// immutable; recalculations land in recalculated_* columns.
+			`CREATE TABLE usage_events (
+				event_id INTEGER PRIMARY KEY AUTOINCREMENT,
+				occurred_at INTEGER NOT NULL,
+				date TEXT NOT NULL,
+				bot_id TEXT NOT NULL,
+				session_id TEXT NOT NULL,
+				run_id TEXT NOT NULL,
+				provider_id TEXT,
+				model_id TEXT,
+				agent_id TEXT NOT NULL,
+				topic_id TEXT NOT NULL,
+				input_tokens INTEGER NOT NULL,
+				output_tokens INTEGER NOT NULL,
+				total_tokens INTEGER NOT NULL,
+				estimated_cost REAL,
+				cost_is_estimate INTEGER NOT NULL DEFAULT 1,
+				price_snapshot_json TEXT,
+				recalculated_cost REAL,
+				recalculated_price_json TEXT,
+				duration_ms INTEGER,
+				status TEXT NOT NULL
+			);`,
+			`CREATE INDEX idx_usage_events_bot ON usage_events(bot_id, occurred_at);`,
+			`CREATE INDEX idx_usage_events_model ON usage_events(model_id, occurred_at);`,
+			`CREATE INDEX idx_usage_events_topic ON usage_events(topic_id, occurred_at);`,
+			`CREATE INDEX idx_usage_events_time ON usage_events(occurred_at);`,
+			`CREATE TABLE daily_usage (
+				date TEXT NOT NULL,
+				bot_id TEXT NOT NULL,
+				tokens INTEGER NOT NULL DEFAULT 0,
+				input_tokens INTEGER NOT NULL DEFAULT 0,
+				output_tokens INTEGER NOT NULL DEFAULT 0,
+				messages INTEGER NOT NULL DEFAULT 0,
+				model_calls INTEGER NOT NULL DEFAULT 0,
+				estimated_cost REAL NOT NULL DEFAULT 0,
+				active_sessions INTEGER NOT NULL DEFAULT 0,
+				active_agents INTEGER NOT NULL DEFAULT 1,
+				max_run_duration_ms INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (date, bot_id)
+			);`,
+			`CREATE TABLE model_usage (
+				date TEXT NOT NULL,
+				model_id TEXT NOT NULL,
+				provider_id TEXT NOT NULL,
+				messages INTEGER NOT NULL DEFAULT 0,
+				tokens INTEGER NOT NULL DEFAULT 0,
+				estimated_cost REAL NOT NULL DEFAULT 0,
+				PRIMARY KEY (date, model_id, provider_id)
+			);`,
+			`CREATE TABLE agent_usage (
+				date TEXT NOT NULL,
+				agent_id TEXT NOT NULL,
+				messages INTEGER NOT NULL DEFAULT 0,
+				tokens INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (date, agent_id)
+			);`,
+			`CREATE TABLE topic_usage (
+				date TEXT NOT NULL,
+				topic_id TEXT NOT NULL,
+				messages INTEGER NOT NULL DEFAULT 0,
+				tokens INTEGER NOT NULL DEFAULT 0,
+				PRIMARY KEY (date, topic_id)
+			);`,
+			`CREATE TABLE streak_usage (
+				date TEXT PRIMARY KEY,
+				active INTEGER NOT NULL DEFAULT 1
+			);`,
+			// Uniqueness helper so daily_usage.active_sessions stays an O(1)
+			// incremental counter instead of a rescan.
+			`CREATE TABLE usage_seen_sessions (
+				date TEXT NOT NULL,
+				session_id TEXT NOT NULL,
+				bot_id TEXT NOT NULL,
+				PRIMARY KEY (date, session_id)
+			);`,
 		],
 	},
 ];

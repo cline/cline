@@ -373,6 +373,105 @@ describe("server requests (approvals)", () => {
 	});
 });
 
+describe("statistics over the wire", () => {
+	it("serves bounded summary/activity/rankings/usage from the aggregates", async () => {
+		const {
+			server,
+			engine,
+			connect: connectClient,
+			defaultBotId,
+		} = await startServer();
+		const client = await connectClient();
+		const accepted = (await client.mutate("run.start", {
+			botId: defaultBotId(),
+			prompt: "measure this turn",
+		})) as RunAccepted;
+		await waitFor(() => engine.handles.length === 1);
+		engine.handles[0].emit({
+			type: "model-call-completed",
+			providerId: "anthropic",
+			modelId: "claude-x",
+			inputTokens: 900,
+			outputTokens: 100,
+			totalTokens: 1000,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			providerCost: 0.05,
+			durationMs: 500,
+			status: "ok",
+		});
+		engine.handles[0].emit({
+			type: "message-appended",
+			message: {
+				id: "msg_stats",
+				role: "assistant",
+				content: [{ type: "text", text: "measured" }],
+				createdAt: Date.now(),
+			},
+			index: 0,
+		});
+		engine.handles[0].settle({ outputText: "measured" });
+		await waitFor(
+			() => server.stores.runs.get(accepted.runId)?.state === "completed",
+		);
+
+		const summary = (await client.request("statistics.summary")) as {
+			totals: { tokens: number; modelCalls: number; estimatedCost: number };
+			agents: number;
+			topics: number;
+			activeModels: { modelId: string }[];
+		};
+		expect(summary.totals).toMatchObject({
+			tokens: 1000,
+			modelCalls: 1,
+		});
+		expect(summary.totals.estimatedCost).toBeCloseTo(0.05, 10);
+		expect(summary.agents).toBe(1);
+		expect(summary.topics).toBe(1);
+		expect(summary.activeModels).toEqual([
+			{ modelId: "claude-x", providerId: "anthropic" },
+		]);
+
+		const activity = (await client.request("statistics.activity")) as {
+			days: { tokens: number; activeAgents: number }[];
+		};
+		expect(activity.days).toHaveLength(1);
+		expect(activity.days[0]).toMatchObject({ tokens: 1000, activeAgents: 1 });
+
+		const rankings = (await client.request("statistics.rankings", {
+			dimension: "model",
+		})) as { rows: { modelId: string; tokens: number }[] };
+		expect(rankings.rows).toEqual([
+			expect.objectContaining({ modelId: "claude-x", tokens: 1000 }),
+		]);
+
+		const month = (await client.request("statistics.usage", {
+			month: new Date().toISOString().slice(0, 7),
+		})) as { monthSpend: number };
+		expect(month.monthSpend).toBeCloseTo(0.05, 10);
+	});
+
+	it("rejects malformed or unbounded statistics queries at the wire", async () => {
+		const { connect: connectClient } = await startServer();
+		const client = await connectClient();
+		await expect(
+			client.request("statistics.summary", { from: "not-a-date" }),
+		).rejects.toMatchObject({ gatewayError: { code: "invalid_request" } });
+		await expect(
+			client.request("statistics.summary", {
+				from: "2020-01-01",
+				to: "2026-01-01",
+			}),
+		).rejects.toMatchObject({ gatewayError: { code: "invalid_request" } });
+		await expect(
+			client.request("statistics.rankings", { dimension: "vibe" }),
+		).rejects.toMatchObject({ gatewayError: { code: "invalid_request" } });
+		await expect(
+			client.request("statistics.usage", { month: "2026-13-01" }),
+		).rejects.toMatchObject({ gatewayError: { code: "invalid_request" } });
+	});
+});
+
 describe("drain and stop", () => {
 	it("draining refuses new mutating work but lets active runs finish", async () => {
 		const {

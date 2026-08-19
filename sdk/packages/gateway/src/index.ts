@@ -127,3 +127,17 @@ export {
 	SqliteRunRepository,
 	SqliteSessionRepository,
 } from "./stores";
+export type {
+	NormalizedModelCall,
+	PriceResolver,
+	PriceSnapshot,
+	StatisticsRange,
+	UsageEventRecord,
+	UsageStoreOptions,
+} from "./usage";
+export {
+	MAX_STATISTICS_RANGE_DAYS,
+	UsageQueryError,
+	UsageStore,
+	utcDateOf,
+} from "./usage";

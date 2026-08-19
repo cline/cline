@@ -43,6 +43,7 @@ import {
 import type { GatewayDatabase } from "./db";
 import type { IdempotencyBeginOutcome } from "./idempotency-ledger";
 import { stableStringify } from "./idempotency-ledger";
+import { UsageStore, type UsageStoreOptions } from "./usage";
 
 // -----------------------------------------------------------------------------
 // Meta
@@ -985,11 +986,13 @@ export interface GatewayStores {
 	readonly outbox: OutboxStore;
 	readonly audit: AuditLog;
 	readonly clients: ClientRegistryStore;
+	readonly usage: UsageStore;
 }
 
 export function createGatewayStores(
 	database: GatewayDatabase,
 	instanceId: string,
+	options: { usage?: UsageStoreOptions } = {},
 ): GatewayStores {
 	return {
 		meta: new MetaStore(database),
@@ -1003,5 +1006,6 @@ export function createGatewayStores(
 		outbox: new OutboxStore(database),
 		audit: new AuditLog(database),
 		clients: new ClientRegistryStore(database),
+		usage: new UsageStore(database, options.usage),
 	};
 }

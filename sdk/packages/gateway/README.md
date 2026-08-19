@@ -137,6 +137,39 @@ and the key never reaches the database, event log, audit trail,
 projections, or logs (machine-checked in
 `src/credential-hygiene.test.ts`).
 
+### Usage statistics (write path; Phase 7 reads it)
+
+Statistics are collected at run/message completion time and folded into
+daily aggregates immediately — queries never rescan session message
+history:
+
+```
+engine model response -> model-call-completed (per-call token deltas,
+duration, provider/model ids, status) -> usage normalizer -> ONE SQLite
+transaction: usage_events (immutable) + daily_usage + model_usage +
+agent_usage + topic_usage + streak_usage
+```
+
+Identity mapping (no parallel agent system): `agent_id` **is** the
+existing `botId`; `topic_id` **is** the existing `sessionId` — both
+denormalized onto each event so the mapping can diverge later without
+rewriting history. Messages are counted (user/assistant) when the
+canonical message is appended; the longest run duration per day is folded
+in when the run reaches a terminal state.
+
+Cost accuracy: provider-reported tokens/costs are recorded verbatim
+(`cost_is_estimate = 0`); otherwise the injected `PriceResolver`'s price
+snapshot is stored **on the event** and the cost is flagged as an
+estimate; with no pricing the cost is NULL (flagged), never invented.
+`recalculateEstimates` re-prices flagged events into `recalculated_*`
+columns and shifts aggregates by the delta — original event fields are
+immutable.
+
+Read surface (RPC methods, the `GET /statistics/*` equivalents; bounded
+to 400 days, aggregates only): `statistics.summary`,
+`statistics.activity` (heatmap rows), `statistics.rankings`
+(`dimension=model|agent|topic`), `statistics.usage` (`month=YYYY-MM`).
+
 ### What lives where
 
 | Concern | Location |
@@ -149,6 +182,7 @@ projections, or logs (machine-checked in
 | SQLite authority + migrations | `src/db.ts`, `src/stores.ts` |
 | Discovery record + instance secret | `src/discovery.ts` |
 | Provider credentials (0600 secret files) + engine injection | `src/secrets.ts`, `src/engine-binding.ts` |
+| Usage/statistics pipeline (events + daily aggregates + queries) | `src/usage.ts` |
 | Async runtime (queue, attempts, recovery, approvals) | `src/runtime.ts` |
 | Loopback server + event replay | `src/server.ts` |
 | Loopback client | `src/client.ts` |
