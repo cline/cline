@@ -27,6 +27,26 @@ export interface PendingPromptSubmittedEvent {
 	attachmentCount: number;
 }
 
+/**
+ * Full roster of the session's background monitors. Emitted on every monitor
+ * lifecycle change; an empty roster after monitors existed means they ended
+ * (stopped, exited, or the session runtime was rebuilt).
+ */
+export interface MonitorStateSnapshot {
+	sessionId: string;
+	monitors: Array<{
+		id: string;
+		name: string;
+		description: string;
+		command: string;
+		startedAt: number;
+		status: "running" | "exited" | "stopped" | "failed";
+		exitCode?: number | null;
+		error?: string;
+		linesEmitted: number;
+	}>;
+}
+
 interface InteractiveEventBridge {
 	on(event: "agent", listener: (event: AgentEvent) => void): this;
 	on(event: "team", listener: (event: TeamEvent) => void): this;
@@ -48,6 +68,14 @@ interface InteractiveEventBridge {
 		event: "pending-prompt-submitted",
 		listener: (event: PendingPromptSubmittedEvent) => void,
 	): this;
+	on(
+		event: "monitor-state",
+		listener: (event: MonitorStateSnapshot) => void,
+	): this;
+	off(
+		event: "monitor-state",
+		listener: (event: MonitorStateSnapshot) => void,
+	): this;
 	emit(event: "agent", payload: AgentEvent): boolean;
 	emit(event: "team", payload: TeamEvent): boolean;
 	emit(event: "pending-prompts", payload: PendingPromptSnapshot): boolean;
@@ -55,6 +83,7 @@ interface InteractiveEventBridge {
 		event: "pending-prompt-submitted",
 		payload: PendingPromptSubmittedEvent,
 	): boolean;
+	emit(event: "monitor-state", payload: MonitorStateSnapshot): boolean;
 }
 
 type SessionManagerSubscriber = {
@@ -167,6 +196,18 @@ export function subscribeToPendingPromptEvents(
 		}
 		if (typedEvent.type === "pending_prompt_submitted") {
 			handlers.onPendingPromptSubmitted(typedEvent.payload);
+		}
+	});
+}
+
+export function subscribeToMonitorStateEvents(
+	sessionManager: SessionManagerSubscriber,
+	onMonitorState: (event: MonitorStateSnapshot) => void,
+): () => void {
+	return sessionManager.subscribe((event: unknown) => {
+		const typedEvent = event as CoreSessionEvent;
+		if (typedEvent.type === "monitor_state") {
+			onMonitorState(typedEvent.payload);
 		}
 	});
 }

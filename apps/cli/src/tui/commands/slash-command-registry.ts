@@ -15,6 +15,7 @@ export type LocalSlashCommandName =
 	| "config"
 	| "mcp"
 	| "plugins"
+	| "monitors"
 	| "account"
 	| "model"
 	| "theme"
@@ -80,6 +81,10 @@ const TUI_LOCAL_COMMANDS: Array<{
 		description: "Manage plugins",
 	},
 	{
+		name: "monitors",
+		description: "View and stop background monitors",
+	},
+	{
 		name: "compact",
 		description: "Compact context",
 	},
@@ -121,6 +126,7 @@ const SYSTEM_COMMAND_ORDER = [
 	"account",
 	"mcp",
 	"plugins",
+	"monitors",
 	"compact",
 	"skills",
 	"fork",

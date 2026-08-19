@@ -8,6 +8,7 @@ export interface LocalSlashCommandActionInput {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	openMonitors: () => Promise<void>;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	openThemePicker: () => void;
 	invocation?: LocalSlashCommandInvocation;
@@ -38,6 +39,9 @@ export function runLocalSlashCommandAction(
 	}
 	if (normalized === "mcp") {
 		return input.openMcpManager().then(() => true);
+	}
+	if (normalized === "monitors") {
+		return input.openMonitors().then(() => true);
 	}
 	if (normalized === "account") {
 		input.openAccount();

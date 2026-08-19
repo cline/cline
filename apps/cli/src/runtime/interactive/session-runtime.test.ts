@@ -19,6 +19,9 @@ const setActiveCliSessionMock = vi.hoisted(() => vi.fn());
 const loadInteractiveResumeMessagesMock = vi.hoisted(() => vi.fn());
 const subscribeToAgentEventsMock = vi.hoisted(() => vi.fn());
 const subscribeToPendingPromptEventsMock = vi.hoisted(() => vi.fn());
+const subscribeToMonitorStateEventsMock = vi.hoisted(() =>
+	vi.fn(() => () => {}),
+);
 const markAbortInProgressMock = vi.hoisted(() => vi.fn());
 const submitAndExitInTerminalMock = vi.hoisted(() => vi.fn());
 const createInteractiveExitSummaryMock = vi.hoisted(() => vi.fn());
@@ -50,6 +53,7 @@ vi.mock("../active-runtime", () => ({
 vi.mock("../session-events", () => ({
 	subscribeToAgentEvents: subscribeToAgentEventsMock,
 	subscribeToPendingPromptEvents: subscribeToPendingPromptEventsMock,
+	subscribeToMonitorStateEvents: subscribeToMonitorStateEventsMock,
 }));
 
 vi.mock("./compaction", () => ({
@@ -218,6 +222,7 @@ async function makeRuntime(
 		onTeamEvent: vi.fn(),
 		onPendingPrompts: vi.fn(),
 		onPendingPromptSubmitted: vi.fn(),
+		onMonitorState: vi.fn(),
 	});
 }
 
@@ -230,6 +235,8 @@ describe("createInteractiveSessionRuntime", () => {
 		loadInteractiveResumeMessagesMock.mockReset();
 		subscribeToAgentEventsMock.mockReset();
 		subscribeToPendingPromptEventsMock.mockReset();
+		subscribeToMonitorStateEventsMock.mockReset();
+		subscribeToMonitorStateEventsMock.mockReturnValue(() => {});
 		markAbortInProgressMock.mockReset();
 		submitAndExitInTerminalMock.mockReset();
 		createInteractiveExitSummaryMock.mockReset();
@@ -295,6 +302,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -369,6 +377,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -466,6 +475,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -532,6 +542,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -690,6 +701,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -765,6 +777,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();

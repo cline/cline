@@ -136,6 +136,9 @@ export interface StatusBarProps {
 		additions: number;
 		deletions: number;
 	} | null;
+	/** e.g. "◉ 2 monitors"; empty/undefined hides the row. */
+	monitorStatusText?: string;
+	onOpenMonitors?: () => void;
 	onToggleMode?: () => void;
 	variant?: "home" | "chat";
 }
@@ -273,6 +276,13 @@ export function StatusBar(props: StatusBarProps) {
 			) : (
 				<text fg="gray">Auto-approve all disabled (Shift+Tab)</text>
 			)}
+
+			{props.monitorStatusText ? (
+				<text fg={defaultFg} onMouseDown={props.onOpenMonitors}>
+					<span fg={successColor}>{props.monitorStatusText}</span>
+					<span fg="gray"> (/monitors)</span>
+				</text>
+			) : null}
 		</box>
 	);
 }

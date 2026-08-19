@@ -22,6 +22,7 @@ export function useLocalCommandActions(input: {
 	openConfig: (options?: OpenConfigOptions) => void;
 	openMcpManager: () => Promise<boolean>;
 	openModelSelector: () => void;
+	openMonitors: () => Promise<void>;
 	openSkills: (invocation?: LocalSlashCommandInvocation) => void;
 	openThemePicker: () => void;
 	refocusTextarea: () => void;
@@ -45,6 +46,7 @@ export function useLocalCommandActions(input: {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		openMonitors,
 		openSkills,
 		openThemePicker,
 		refocusTextarea,
@@ -228,6 +230,7 @@ export function useLocalCommandActions(input: {
 				openConfig,
 				openMcpManager,
 				openModelSelector,
+				openMonitors,
 				openSkills,
 				openThemePicker,
 				runCompact,
@@ -249,6 +252,7 @@ export function useLocalCommandActions(input: {
 			openHelp,
 			openHistory,
 			openModelSelector,
+			openMonitors,
 			openSkills,
 			openThemePicker,
 			runCompact,

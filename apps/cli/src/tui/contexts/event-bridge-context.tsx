@@ -2,6 +2,7 @@ import type { AgentEvent, TeamEvent } from "@cline/core";
 import type React from "react";
 import { createContext, useEffect, useRef } from "react";
 import type {
+	MonitorStateSnapshot,
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../../runtime/session-events";
@@ -12,6 +13,7 @@ interface EventBridgeHandlers {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onMonitorState: (event: MonitorStateSnapshot) => void;
 }
 
 const EventBridgeContext = createContext<null>(null);
@@ -34,6 +36,7 @@ export function EventBridgeProvider(props: {
 			onPendingPrompts: (event) => handlersRef.current.onPendingPrompts(event),
 			onPendingPromptSubmitted: (event) =>
 				handlersRef.current.onPendingPromptSubmitted(event),
+			onMonitorState: (event) => handlersRef.current.onMonitorState(event),
 		});
 		return unsubscribe;
 	}, []);

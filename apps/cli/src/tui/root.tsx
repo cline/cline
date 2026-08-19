@@ -41,6 +41,7 @@ import {
 } from "./components/dialogs/command-palette-items";
 import { HubUpdateRequiredContent } from "./components/dialogs/hub-update-required";
 import { shouldWatchManagedHubBuild } from "./components/dialogs/hub-update-required-helpers";
+import { MonitorsContent } from "./components/dialogs/monitors-dialog";
 import {
 	SKILLS_MARKETPLACE_ACTION,
 	SKILLS_MARKETPLACE_URL,
@@ -58,6 +59,7 @@ import { useConfigPanel } from "./hooks/use-config-panel";
 import { useLocalCommandActions } from "./hooks/use-local-command-actions";
 import { useMcpManager } from "./hooks/use-mcp-manager";
 import { useModelSelector } from "./hooks/use-model-selector";
+import { formatMonitorStatusText, useMonitors } from "./hooks/use-monitors";
 import { usePromptInputController } from "./hooks/use-prompt-input-controller";
 import { useQueuedPrompts } from "./hooks/use-queued-prompts";
 import { useRootKeyboard } from "./hooks/use-root-keyboard";
@@ -93,6 +95,7 @@ function App(props: TuiProps) {
 		props.initialRepoStatus ?? { branch: null, diffStats: null },
 	);
 	const { queuedPrompts, handlePendingPrompts } = useQueuedPrompts();
+	const { monitors, handleMonitorState } = useMonitors();
 	const [selectedQueuedPromptId, setSelectedQueuedPromptId] = useState<
 		string | null
 	>(null);
@@ -250,6 +253,24 @@ function App(props: TuiProps) {
 		},
 		[dialog, termHeight],
 	);
+
+	const monitorsRef = useRef(monitors);
+	monitorsRef.current = monitors;
+	const openMonitors = useCallback(async () => {
+		await dialog.choice<boolean>({
+			size: "large",
+			style: { maxHeight: termHeight - 2 },
+			closeOnEscape: true,
+			content: (ctx: ChoiceContext<boolean>) => (
+				<MonitorsContent
+					{...ctx}
+					monitors={monitorsRef.current}
+					onStopMonitor={props.onStopMonitor}
+				/>
+			),
+		});
+		refocusTextareaRef.current();
+	}, [dialog, termHeight, props.onStopMonitor]);
 	const propsOnToggleConfigItem = props.onToggleConfigItem;
 	const onToggleConfigItem = useMemo<TuiProps["onToggleConfigItem"]>(() => {
 		if (!propsOnToggleConfigItem) {
@@ -688,6 +709,7 @@ function App(props: TuiProps) {
 		openConfig,
 		openMcpManager,
 		openModelSelector,
+		openMonitors,
 		openSkills,
 		openThemePicker,
 		refocusTextarea: () => refocusTextareaRef.current(),
@@ -927,8 +949,9 @@ function App(props: TuiProps) {
 			onTeamEvent: agentHandlers.handleTeamEvent,
 			onPendingPrompts: handlePendingPrompts,
 			onPendingPromptSubmitted: agentHandlers.handlePendingPromptSubmitted,
+			onMonitorState: handleMonitorState,
 		}),
-		[agentHandlers, handlePendingPrompts],
+		[agentHandlers, handlePendingPrompts, handleMonitorState],
 	);
 
 	const viewProps = {
@@ -951,6 +974,10 @@ function App(props: TuiProps) {
 			void saveQueuedPromptEdit(id, prompt);
 		},
 		onToggleMode: toggleMode,
+		monitorStatusText: formatMonitorStatusText(monitors),
+		onOpenMonitors: () => {
+			void openMonitors();
+		},
 		runtimeInteraction,
 		onResolveToolApproval: runtimeBridge.resolveToolApproval,
 		onResolveAskQuestion: runtimeBridge.resolveAskQuestion,

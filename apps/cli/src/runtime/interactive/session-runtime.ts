@@ -28,11 +28,13 @@ import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
 import type {
+	MonitorStateSnapshot,
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../session-events";
 import {
 	subscribeToAgentEvents,
+	subscribeToMonitorStateEvents,
 	subscribeToPendingPromptEvents,
 } from "../session-events";
 import { compactInteractiveMessages } from "./compaction";
@@ -106,10 +108,12 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onMonitorState: (event: MonitorStateSnapshot) => void;
 }) {
 	let sessionManager: CliCore | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
+	let unsubscribeMonitorState = () => {};
 	let unsubscribePendingPrompts = () => {};
 	let startupPromise: Promise<void> | undefined;
 	let startupError: unknown;
@@ -189,6 +193,10 @@ export function createInteractiveSessionRuntime(input: {
 			onPendingPrompts: input.onPendingPrompts,
 			onPendingPromptSubmitted: input.onPendingPromptSubmitted,
 		});
+		unsubscribeMonitorState = subscribeToMonitorStateEvents(
+			manager,
+			input.onMonitorState,
+		);
 		return manager;
 	};
 
@@ -864,6 +872,7 @@ export function createInteractiveSessionRuntime(input: {
 			} finally {
 				unsubscribeAgent();
 				unsubscribePendingPrompts();
+				unsubscribeMonitorState();
 			}
 			try {
 				exitSummary = await getExitSummary();
@@ -881,10 +890,26 @@ export function createInteractiveSessionRuntime(input: {
 		return await cleanupPromise;
 	};
 
+	const stopMonitor = async (monitorId: string): Promise<boolean> => {
+		if (!sessionManager || !activeSessionId) {
+			return false;
+		}
+		return await sessionManager.stopMonitor(activeSessionId, monitorId);
+	};
+
+	const listMonitors = async () => {
+		if (!sessionManager || !activeSessionId) {
+			return [];
+		}
+		return await sessionManager.listMonitors(activeSessionId);
+	};
+
 	return {
 		ensureReady,
 		sendCurrentTurn,
 		updatePendingPrompt,
+		stopMonitor,
+		listMonitors,
 		getAccumulatedUsage,
 		readCurrentMessages,
 		restartEmpty,
