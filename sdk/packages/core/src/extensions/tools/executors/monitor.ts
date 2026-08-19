@@ -18,6 +18,7 @@ import {
 	type ProcessTable,
 	processIdentity,
 	readProcessTable,
+	selectProvenGroupLeaders,
 } from "./process-tree";
 
 /** Lifecycle state of a single monitor. */
@@ -626,11 +627,13 @@ export class MonitorRegistry {
 		// Process groups exist only on POSIX, where the direct child was made a
 		// group leader at spawn; a negative-pid kill has no Windows meaning.
 		if (process.platform !== "win32") {
-			const groups = new Set(
-				ownedProcesses
-					.map((owned) => owned.processGroupId)
-					.filter((processGroupId) => processGroupId > 0),
-			);
+			// A group is blanket-signaled only when its leader is provably ours
+			// right now: either present in the validated set as the recorded
+			// generation, or the direct child itself, whose un-reaped handle
+			// pins the pid. A bare group id harvested from a member would
+			// otherwise be signaled after the id was recycled by foreign work.
+			// Members of leaderless groups are still killed individually below.
+			const groups = new Set(selectProvenGroupLeaders(ownedProcesses));
 			if (child?.pid && this.isChildRunning(child)) groups.add(child.pid);
 
 			for (const processGroupId of groups) {

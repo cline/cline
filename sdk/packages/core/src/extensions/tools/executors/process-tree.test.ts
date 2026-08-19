@@ -5,6 +5,7 @@ import {
 	parseProcessTable,
 	parseProcStat,
 	parseWindowsProcessTable,
+	selectProvenGroupLeaders,
 } from "./process-tree";
 
 describe("process tree ownership", () => {
@@ -275,6 +276,37 @@ describe("windows table parsing", () => {
 		expect(owned.has(700)).toBe(true);
 		expect(owned.has(901)).toBe(true);
 		expect(owned.has(900)).toBe(false);
+	});
+});
+
+describe("selectProvenGroupLeaders", () => {
+	it("signals only groups whose leader is in the validated set", () => {
+		const table = parseProcessTable(
+			[
+				// A validated leader of its own group: blanket-signalable.
+				"  100     1   100 Mon Aug 18 10:00:00 2026 sh -c watch.sh",
+				// A validated member of a leaderless group (its leader 300 is
+				// gone): the bare id 300 could name a recreated foreign group by
+				// signal time, so it is not blanket-signaled. The member itself
+				// is still killed by its own validated pid.
+				"  301     1   300 Mon Aug 18 10:00:01 2026 tail -F app.log",
+			].join("\n"),
+		);
+		const validated = [...table.byPid.values()];
+		expect(selectProvenGroupLeaders(validated)).toEqual([100]);
+	});
+
+	it("ignores a zero group id", () => {
+		const validated = [
+			{
+				pid: 0,
+				parentPid: 0,
+				processGroupId: 0,
+				startedAt: "x",
+				command: "kernel",
+			},
+		];
+		expect(selectProvenGroupLeaders(validated)).toEqual([]);
 	});
 });
 

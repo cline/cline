@@ -142,10 +142,12 @@ mismatch disowns the process (a bounded leak) rather than misattributing it (a
 stray kill of unrelated work); on Windows, where parent links are historical
 records, a claimed child is additionally believed only if it was created after
 its claimed parent. During session shutdown the registry revalidates those
-identities, signals only validated PIDs (plus POSIX process groups; the direct
-child is always signaled through its own handle, which PID reuse cannot
-redirect), waits for the owned tree to exit, and escalates to `SIGKILL` before
-releasing its process handles.
+identities, signals only validated PIDs — plus POSIX process groups, but only
+those whose leader is itself validated or is the direct child pinned by its
+open handle, since a bare group id can be recycled by foreign work — waits for
+the owned tree to exit, and escalates to `SIGKILL` before releasing its
+process handles. The direct child is always signaled through its own handle,
+which PID reuse cannot redirect.
 
 Completion telemetry is anchored to the assistant's explicit completion
 declaration, not session shutdown. After each agent turn, the local

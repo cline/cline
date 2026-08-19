@@ -470,3 +470,30 @@ export function getLiveOwnedProcesses(
 	}
 	return live;
 }
+
+/**
+ * Selects group ids that may be signaled wholesale (`kill(-pgid)`).
+ *
+ * A group id read off a validated member is still just a reusable number: if
+ * the original leader died, the id can name a recreated, foreign group by the
+ * time the signal lands, and a group-wide kill would amplify that mistake
+ * across every member. So a group is blanket-signaled only on the same
+ * positive proof {@link OwnedProcessGroup} claims require — its *leader* (the
+ * process whose pid equals the group id) is itself in the validated set. A
+ * live leader means the id cannot have been recycled at read time, leaving
+ * only the read-to-signal window that every pid-addressed signal has.
+ *
+ * Validated members of a leaderless group are not abandoned: callers still
+ * signal each one individually by its own validated pid. What is given up is
+ * only the blanket coverage of members never observed — a bounded leak,
+ * chosen over an unbounded stray group kill.
+ */
+export function selectProvenGroupLeaders(
+	validated: readonly ProcessInfo[],
+): number[] {
+	return validated
+		.filter(
+			(info) => info.processGroupId > 0 && info.pid === info.processGroupId,
+		)
+		.map((info) => info.pid);
+}
