@@ -40,8 +40,10 @@ import {
 	IDEMPOTENCY_KEY_PARAM,
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
+import type { ConnectorRecord } from "./connectors/store";
 import type { DiscoveryRecord } from "./discovery";
 import type { SessionSnapshot } from "./runtime";
+import type { ScheduleJobRecord, ScheduleRecord } from "./schedules/store";
 
 export class GatewayRequestError extends Error {
 	readonly gatewayError: GatewayError;
@@ -76,6 +78,11 @@ export type GatewayServerRequestHandler = (
 export type { SessionSnapshot } from "./runtime";
 export type { RunAttemptRecord, StoredMessage } from "./stores";
 export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
+export type { ConnectorRecord } from "./connectors/store";
+export type {
+	ScheduleJobRecord,
+	ScheduleRecord,
+} from "./schedules/store";
 export type { DiscoveryRecord } from "./discovery";
 export { DiscoveryRecordSchema, readDiscoveryRecord } from "./discovery";
 export type { GatewayPaths, GatewayPathsOptions } from "./paths";
@@ -102,6 +109,29 @@ export interface GatewayStatusSummary {
 	catalogGeneration: number;
 	namespace: string;
 	dataDir: string;
+	/** Worker isolation health (Phase 4): driver/isolation/development. */
+	execution?: {
+		isolation: string;
+		development: boolean;
+		[extra: string]: unknown;
+	};
+	/** Plugin catalog summary (Phase 4): counts only, never entries. */
+	plugins?: {
+		generation: number;
+		plugins: number;
+		heldGenerations: readonly number[];
+		pinnedByRuns: number;
+		lastReloadOk: boolean;
+	};
+	/** Live connector worker health (Phase 6, read-only diagnostics). */
+	connectorHealth?: {
+		running: readonly {
+			connectorId: string;
+			workerId: string;
+			restarts: number;
+			state: string;
+		}[];
+	};
 	counts: {
 		bots: number;
 		sessions: number;
@@ -111,6 +141,8 @@ export interface GatewayStatusSummary {
 		pendingOutbox: number;
 		lastEventSequence: number;
 		pendingServerRequests: number;
+		connectors?: number;
+		schedules?: number;
 	};
 	port: number;
 	connections: number;
@@ -328,6 +360,78 @@ export class GatewayClient {
 				: {}),
 		});
 		return RunAcceptedSchema.parse(result);
+	}
+
+	listConnectors(
+		input: { botId?: BotId } = {},
+	): Promise<{ connectors: readonly ConnectorRecord[] }> {
+		return this.request("connector.list", { ...input }) as Promise<{
+			connectors: readonly ConnectorRecord[];
+		}>;
+	}
+
+	/** Register a bot-scoped connector; `credentialRef` names a secret file, never a secret. */
+	registerConnector(input: {
+		botId: BotId;
+		kind: string;
+		name: string;
+		config?: Record<string, unknown>;
+		credentialRef?: string;
+		idempotencyKey?: string;
+	}): Promise<ConnectorRecord> {
+		return this.mutate("connector.register", {
+			botId: input.botId,
+			kind: input.kind,
+			name: input.name,
+			...(input.config ? { config: input.config } : {}),
+			...(input.credentialRef ? { credentialRef: input.credentialRef } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ConnectorRecord>;
+	}
+
+	listSchedules(
+		input: { botId?: BotId } = {},
+	): Promise<{ schedules: readonly ScheduleRecord[] }> {
+		return this.request("schedule.list", { ...input }) as Promise<{
+			schedules: readonly ScheduleRecord[];
+		}>;
+	}
+
+	/** Create a schedule (exactly one of `intervalMs` / `at`). */
+	createSchedule(input: {
+		botId: BotId;
+		name: string;
+		prompt: string;
+		intervalMs?: number;
+		at?: number;
+		maxAttempts?: number;
+		idempotencyKey?: string;
+	}): Promise<ScheduleRecord> {
+		return this.mutate("schedule.create", {
+			botId: input.botId,
+			name: input.name,
+			prompt: input.prompt,
+			...(input.intervalMs !== undefined
+				? { intervalMs: input.intervalMs }
+				: {}),
+			...(input.at !== undefined ? { at: input.at } : {}),
+			...(input.maxAttempts !== undefined
+				? { maxAttempts: input.maxAttempts }
+				: {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<ScheduleRecord>;
+	}
+
+	scheduleReport(input: {
+		scheduleId: string;
+	}): Promise<{ jobs: readonly ScheduleJobRecord[] }> {
+		return this.request("schedule.report", {
+			scheduleId: input.scheduleId,
+		}) as Promise<{ jobs: readonly ScheduleJobRecord[] }>;
 	}
 
 	/**

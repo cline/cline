@@ -274,6 +274,109 @@ describe("run.retry (same runId, new attempt)", () => {
 	});
 });
 
+describe("Phase 4-6 typed surface", () => {
+	it("exposes execution health, plugin summary, and connector health in status", async () => {
+		const { connect } = await startServer({
+			executionHealth: () => ({
+				isolation: "unsandboxed-development",
+				development: true,
+			}),
+		});
+		const client = await connect();
+		const status = await client.getStatus();
+		expect(status.execution?.isolation).toBe("unsandboxed-development");
+		expect(status.execution?.development).toBe(true);
+		expect(status.plugins?.generation).toBeGreaterThan(0);
+		expect(status.plugins?.lastReloadOk).toBe(true);
+		expect(status.connectorHealth?.running).toEqual([]);
+		expect(status.counts.connectors).toBe(0);
+		expect(status.counts.schedules).toBe(0);
+	});
+
+	it("registers and lists connectors through the typed surface", async () => {
+		const { connect, defaultBotId } = await startServer({
+			autoStartConnectors: false,
+		});
+		const client = await connect();
+		const registered = await client.registerConnector({
+			botId: defaultBotId(),
+			kind: "telegram",
+			name: "team-telegram",
+			credentialRef: "telegram-token",
+		});
+		expect(registered.connectorId).toMatch(/^con_/);
+		const listed = await client.listConnectors({ botId: defaultBotId() });
+		expect(listed.connectors).toHaveLength(1);
+		expect(listed.connectors[0].credentialRef).toBe("telegram-token");
+	});
+
+	it("creates schedules and reports automation provenance in session.get", async () => {
+		const engine = new ScriptedEnginePort();
+		engine.autoOutcome = () => ({ outputText: "scheduled work done" });
+		const { server, connect, defaultBotId } = await startServer({
+			engine,
+			schedulerTickMs: 25,
+		});
+		const client = await connect();
+		const schedule = await client.createSchedule({
+			botId: defaultBotId(),
+			name: "surface-schedule",
+			prompt: "run on a timer",
+			intervalMs: 30,
+		});
+		expect(schedule.scheduleId).toMatch(/^sch_/);
+		const listed = await client.listSchedules({ botId: defaultBotId() });
+		expect(listed.schedules.map((entry) => entry.scheduleId)).toContain(
+			schedule.scheduleId,
+		);
+
+		await waitFor(
+			() =>
+				server.stores.scheduleJobs
+					.report(schedule.scheduleId)
+					.some((job) => job.state === "completed"),
+			{ timeoutMs: 10_000 },
+		);
+		const report = await client.scheduleReport({
+			scheduleId: schedule.scheduleId,
+		});
+		const completed = report.jobs.find((job) => job.state === "completed");
+		expect(completed?.runId).toMatch(/^run_/);
+
+		// The automation run's provenance is visible on the snapshot.
+		const sessions = await client.listSessions({ botId: defaultBotId() });
+		const snapshot = await client.getSession({
+			sessionId: sessions.sessions[0].sessionId,
+		});
+		const automationRun = snapshot.runs.find(
+			(run) => run.runId === completed?.runId,
+		);
+		expect(automationRun?.provenance).toMatchObject({
+			mode: "automation",
+			scheduleId: schedule.scheduleId,
+		});
+	});
+
+	it("reports interactive provenance for ordinary client runs", async () => {
+		const { server, engine, connect, defaultBotId } = await startServer();
+		const client = await connect();
+		const accepted = await client.startRun({
+			botId: defaultBotId(),
+			prompt: "plain interactive run",
+		});
+		await waitFor(() => engine.handles.length === 1);
+		engine.handles[0].settle({ outputText: "done" });
+		await waitFor(
+			() => server.stores.runs.get(accepted.runId)?.state === "completed",
+		);
+		const sessions = await client.listSessions();
+		const snapshot = await client.getSession({
+			sessionId: sessions.sessions[0].sessionId,
+		});
+		expect(snapshot.runs[0].provenance?.mode).toBe("interactive");
+	});
+});
+
 describe("approval.resolved broadcast", () => {
 	it("first answer wins and every subscriber sees approval.resolved", async () => {
 		const { server, engine, connect, defaultBotId } = await startServer();

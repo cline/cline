@@ -710,6 +710,8 @@ export class GatewayServer {
 			case "gateway.status":
 				return {
 					...this.runtime.status(),
+					// Live connector worker health (read-only diagnostics).
+					connectorHealth: this.connectors.status(),
 					port: this.address().port,
 					connections: this.connections.size,
 				};

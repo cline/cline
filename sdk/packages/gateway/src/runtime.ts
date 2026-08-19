@@ -749,6 +749,11 @@ export interface SessionSnapshot {
 	readonly session: SessionRecord;
 	readonly runs: readonly (RunRecord & {
 		readonly attempts: readonly RunAttemptRecord[];
+		/**
+		 * How the run was admitted (interactive | connector | automation),
+		 * so clients can show schedule/connector provenance honestly.
+		 */
+		readonly provenance?: RunProvenance;
 	})[];
 	readonly messages: readonly StoredMessage[];
 	/**
@@ -1257,10 +1262,14 @@ export class GatewayRuntime {
 			}
 			return {
 				session,
-				runs: this.stores.runs.listBySession(sessionId).map((run) => ({
-					...run,
-					attempts: this.stores.attempts.listByRun(run.runId),
-				})),
+				runs: this.stores.runs.listBySession(sessionId).map((run) => {
+					const provenance = this.stores.provenance.get(run.runId);
+					return {
+						...run,
+						attempts: this.stores.attempts.listByRun(run.runId),
+						...(provenance ? { provenance } : {}),
+					};
+				}),
 				messages: this.stores.messages.listBySession(sessionId),
 				lastEventSequence: this.stores.events.lastSequence(),
 			};
