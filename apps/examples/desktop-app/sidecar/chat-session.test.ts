@@ -17,11 +17,26 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
 import type { SidecarContext } from "./types";
+
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
+
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
+	});
+});
 
 describe("rewriteDesktopTeamPrompt", () => {
 	it("rewrites /team for the core runtime", () => {
