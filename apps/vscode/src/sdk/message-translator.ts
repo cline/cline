@@ -130,6 +130,12 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
+	/**
+	 * A user message already rendered by the idle follow-up path. If an abort
+	 * race makes that same send enter Core's queue, suppress the later
+	 * pending_prompt_submitted echo exactly once.
+	 */
+	private optimisticPendingPromptKey: string | undefined
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
 	/**
@@ -166,6 +172,23 @@ export class MessageTranslatorState {
 	/** Model backing the active turn, if the host can supply it. */
 	activeModelId(): string | undefined {
 		return this.getActiveModelId?.()
+	}
+
+	recordOptimisticPendingPrompt(prompt: string, userImages?: string[], userFiles?: string[]): void {
+		this.optimisticPendingPromptKey = this.pendingPromptKey(prompt, userImages, userFiles)
+	}
+
+	consumeOptimisticPendingPrompt(prompt: string, userImages?: string[], userFiles?: string[]): boolean {
+		const key = this.pendingPromptKey(prompt, userImages, userFiles)
+		if (key !== this.optimisticPendingPromptKey) {
+			return false
+		}
+		this.optimisticPendingPromptKey = undefined
+		return true
+	}
+
+	private pendingPromptKey(prompt: string, userImages?: string[], userFiles?: string[]): string {
+		return JSON.stringify([formatDisplayUserInput(prompt), userImages ?? [], userFiles ?? []])
 	}
 
 	/**
@@ -506,6 +529,7 @@ export class MessageTranslatorState {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
+		this.optimisticPendingPromptKey = undefined
 		this.clearApprovedToolMessageTs()
 		this.deniedToolApprovalsByCallId.clear()
 		this.clearSpawnAgents()
@@ -2109,6 +2133,9 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 
 		case "pending_prompt_submitted": {
 			const { prompt, userImages, userFiles } = event.payload
+			if (state.consumeOptimisticPendingPrompt(prompt, userImages, userFiles)) {
+				break
+			}
 			// Synthetic prompts (task resumption, plan -> act auto-continue) are
 			// hidden from every other transcript surface, and this echo must
 			// hide them too: a send that races a settling abort is auto-queued

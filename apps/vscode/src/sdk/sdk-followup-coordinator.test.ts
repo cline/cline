@@ -61,6 +61,7 @@ describe("SdkFollowupCoordinator", () => {
 		)
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
+		expect(options.recordOptimisticPendingPrompt).toHaveBeenCalledWith("resolved: hello @file", ["image.png"], ["a.ts"])
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
@@ -633,6 +634,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		isClineManagedProviderActive: vi.fn(() => false),
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
+		recordOptimisticPendingPrompt: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
@@ -670,6 +672,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		isClineManagedProviderActive: ReturnType<typeof vi.fn>
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
+		recordOptimisticPendingPrompt: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>

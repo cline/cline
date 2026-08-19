@@ -42,6 +42,7 @@ export interface SdkFollowupCoordinatorOptions {
 	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
+	recordOptimisticPendingPrompt?: (prompt: string, images?: string[], files?: string[]) => void
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no session rebuild is in flight. */
 	waitForPendingRebuilds: () => Promise<void>
@@ -170,6 +171,9 @@ export class SdkFollowupCoordinator {
 
 		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
+		if (prompt?.trim() || images?.length || files?.length) {
+			this.options.recordOptimisticPendingPrompt?.(resolvedPrompt, images, files)
+		}
 		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
 	}
 

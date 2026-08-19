@@ -174,6 +174,31 @@ describe("translateSessionEvent — chunk events", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — pending prompts", () => {
+	it("does not echo an idle follow-up again when an abort race queued it", () => {
+		const state = new MessageTranslatorState()
+		state.recordOptimisticPendingPrompt("please just finish", ["image.png"], ["notes.txt"])
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "please just finish",
+				delivery: "queue",
+				attachmentCount: 2,
+				userImages: ["image.png"],
+				userFiles: ["notes.txt"],
+			},
+		}
+
+		expect(translateSessionEvent(event, state).messages).toEqual([])
+		expect(translateSessionEvent(event, state).messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "please just finish",
+			}),
+		])
+	})
+
 	it("renders a submitted queued prompt as user feedback", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
