@@ -175,7 +175,8 @@ Supported commands:
 ## Dev Workflow
 
 ```bash
-bun run dev:sidecar   # Start sidecar on port 3126
-bun run dev:web       # Start Next.js on port 3125
+bun run dev:headless  # Start sidecar and Next.js with a fresh shared approval credential
+bun run dev:sidecar   # Start only the sidecar (no browser approval surface)
+bun run dev:web       # Start only Next.js (no authenticated approval connection)
 bun run dev           # Both concurrently
 ```
