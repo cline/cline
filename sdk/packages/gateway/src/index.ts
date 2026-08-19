@@ -20,6 +20,7 @@ export { GATEWAY_CLI_COMMANDS, runGatewayCli } from "./cli";
 export type {
 	GatewayClientOptions,
 	GatewayEventListener,
+	GatewayRemoteClientOptions,
 	GatewayServerRequestHandler,
 } from "./client";
 export { GatewayClient, GatewayRequestError } from "./client";
@@ -189,6 +190,12 @@ export type {
 } from "./plugins/state-store";
 export { PluginStateStore } from "./plugins/state-store";
 export { RunProvenanceStore } from "./provenance-store";
+export type {
+	GatewayRemoteAddress,
+	GatewayRemoteOptions,
+	GatewayTlsOptions,
+} from "./remote";
+export { isLoopbackHost, validateRemoteOptions } from "./remote";
 export type {
 	EngineRetryPolicy,
 	GatewayRecoveryReport,

@@ -708,7 +708,11 @@
         "@cline/bot": "workspace:*",
         "@cline/engine": "workspace:*",
         "@cline/shared": "workspace:*",
+        "ws": "^8.18.0",
         "zod": "^4.3.6",
+      },
+      "devDependencies": {
+        "@types/ws": "^8.5.13",
       },
     },
     "sdk/packages/llms": {

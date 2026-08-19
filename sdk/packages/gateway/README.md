@@ -47,6 +47,41 @@ Engine never imports bot or Gateway types; bot never imports Gateway
 implementations; no new package depends on `@cline/core`. These rules are
 machine-checked in `src/boundaries.test.ts` (and mirrored per-package).
 
+## Phase 7 remote clients
+
+The local discovery listener remains loopback-only. Operators may add a
+separate WebSocket listener for desktop, CLI, or mobile clients. Remote access
+uses its own owner-only token and never exposes or reuses the local discovery
+secret.
+
+```sh
+openssl rand -hex 32 | cline-gateway secret-put remote-access
+
+cline-gateway serve \
+  --remote-host 0.0.0.0 \
+  --remote-port 443 \
+  --tls-cert /etc/cline/fullchain.pem \
+  --tls-key /etc/cline/privkey.pem
+```
+
+Clients connect by URL without placing credentials in that URL:
+
+```ts
+const client = await GatewayClient.connectRemote({
+  url: "wss://gateway.example.com",
+  auth: remoteAccessToken,
+  clientName: "cline-desktop",
+  clientVersion: "1.0.0",
+})
+```
+
+For loopback development, `ws://127.0.0.1` is supported. Binding plaintext
+WebSocket beyond loopback requires the explicit `--allow-insecure-remote`
+escape hatch.
+
+Remote access is client-to-Gateway, not Gateway federation. A remote client
+sees only bots owned by the authority it connected to; see ADR 0005.
+
 ## The Phase 3 authority
 
 ### Lifecycle
