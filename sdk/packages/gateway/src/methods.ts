@@ -9,6 +9,7 @@
 
 import {
 	BotIdSchema,
+	ConnectorIdSchema,
 	createGatewayError,
 	GATEWAY_HELLO_METHOD,
 	type GatewayError,
@@ -80,6 +81,12 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		IdempotentParamsBase.extend({
 			botId: BotIdSchema,
 			prompt: z.string().min(1),
+			/**
+			 * Target session (canonical by default). Desktop names a
+			 * connector conversation's dedicated session here to join it
+			 * intentionally.
+			 */
+			sessionId: SessionIdSchema.optional(),
 			workspaceRoot: z.string().min(1).optional(),
 			overrides: TurnOverridesSchema.optional(),
 		}).strict(),
@@ -211,6 +218,77 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
 	),
+	define(
+		"connector.inspect",
+		false,
+		z.object({ connectorId: ConnectorIdSchema }).strict(),
+	),
+	define(
+		"connector.setEnabled",
+		true,
+		IdempotentParamsBase.extend({
+			connectorId: ConnectorIdSchema,
+			enabled: z.boolean(),
+		}).strict(),
+	),
+	define(
+		"connector.updateConfig",
+		true,
+		IdempotentParamsBase.extend({
+			connectorId: ConnectorIdSchema,
+			/** Non-secret configuration only; secret-like keys are refused. */
+			config: z.record(z.string(), z.unknown()),
+		}).strict(),
+	),
+	define(
+		"connector.setCredential",
+		true,
+		IdempotentParamsBase.extend({
+			connectorId: ConnectorIdSchema,
+			/** Secret FILE reference; omitted clears it. Never a token. */
+			credentialRef: z.string().min(1).optional(),
+		}).strict(),
+	),
+	define(
+		"connector.remove",
+		true,
+		IdempotentParamsBase.extend({
+			connectorId: ConnectorIdSchema,
+		}).strict(),
+	),
+	define(
+		"connector.routes",
+		false,
+		z.object({ connectorId: ConnectorIdSchema }).strict(),
+	),
+	define(
+		"connector.testCredentials",
+		false,
+		z.object({ connectorId: ConnectorIdSchema }).strict(),
+	),
+	define(
+		"connector.sendTest",
+		true,
+		IdempotentParamsBase.extend({
+			connectorId: ConnectorIdSchema,
+			externalConversationId: z.string().min(1),
+			externalAccountId: z.string().min(1).optional(),
+			text: z.string().min(1).optional(),
+		}).strict(),
+	),
+	define(
+		"connector.outbound",
+		false,
+		z
+			.object({
+				connectorId: ConnectorIdSchema.optional(),
+				botId: BotIdSchema.optional(),
+				state: z.enum(["pending", "sending", "delivered", "failed"]).optional(),
+				limit: z.number().int().min(1).max(500).optional(),
+			})
+			.strict()
+			.optional(),
+	),
 	// Phase 6: schedules — durable triggers creating ordinary automation runs.
 	define(
 		"schedule.create",
@@ -222,6 +300,15 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 			intervalMs: z.number().int().positive().optional(),
 			at: z.number().int().nonnegative().optional(),
 			maxAttempts: z.number().int().positive().optional(),
+			/** Deliver firing outcomes to a connector conversation. */
+			notify: z
+				.object({
+					connectorId: ConnectorIdSchema,
+					externalAccountId: z.string().min(1),
+					externalConversationId: z.string().min(1),
+				})
+				.strict()
+				.optional(),
 		}).strict(),
 	),
 	define(

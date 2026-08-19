@@ -51,6 +51,9 @@ interface RunningConnector {
 	readonly controller: AbortController;
 	restarts: number;
 	state: "running" | "stopped";
+	lastError?: string;
+	lastErrorAt?: number;
+	startedAt: number;
 	heartbeatTimer?: ReturnType<typeof setInterval>;
 }
 
@@ -121,6 +124,7 @@ export class ConnectorManager {
 			controller,
 			restarts: 0,
 			state: "running",
+			startedAt: this.clock(),
 		};
 		this.running.set(connectorId, running);
 		const heartbeatIntervalMs = this.options.heartbeatIntervalMs ?? 5_000;
@@ -160,6 +164,58 @@ export class ConnectorManager {
 				state: entry.state,
 			})),
 		};
+	}
+
+	/** Health view of one connector (management/inspection surface). */
+	health(connectorId: ConnectorId): Record<string, unknown> {
+		const record = this.options.stores.connectors.get(connectorId);
+		const running = this.running.get(connectorId);
+		const instance = this.options.stores.connectorInstances.get(connectorId);
+		return {
+			connectorId,
+			status: record?.status ?? "removed",
+			running: running?.state === "running",
+			...(running
+				? {
+						workerId: running.workerId,
+						startedAt: running.startedAt,
+						restarts: running.restarts,
+						...(running.lastError
+							? {
+									lastError: running.lastError,
+									lastErrorAt: running.lastErrorAt,
+								}
+							: {}),
+					}
+				: {}),
+			...(instance
+				? {
+						instanceClaim: {
+							workerId: instance.workerId,
+							gatewayInstanceId: instance.gatewayInstanceId,
+							heartbeatAt: instance.heartbeatAt,
+						},
+					}
+				: {}),
+			cursor: this.options.stores.connectorCursors.get(connectorId) ?? null,
+			hasCredential: Boolean(record?.credentialRef),
+		};
+	}
+
+	/** The adapter registered for a connector kind, if any. */
+	adapterFor(kind: string): ConnectorAdapter | undefined {
+		return this.options.adapters[kind];
+	}
+
+	/** The full adapter registry (delivery worker wiring). */
+	get adapters(): Record<string, ConnectorAdapter> {
+		return this.options.adapters;
+	}
+
+	/** Resolve a connector's credential (Gateway-internal use only). */
+	credentialForConnector(connectorId: ConnectorId): string | undefined {
+		const record = this.options.stores.connectors.get(connectorId);
+		return record ? this.credentialFor(record) : undefined;
 	}
 
 	async stop(): Promise<void> {
@@ -248,11 +304,14 @@ export class ConnectorManager {
 					return;
 				}
 				running.restarts += 1;
+				running.lastError =
+					error instanceof Error ? error.message : String(error);
+				running.lastErrorAt = this.clock();
 				this.telemetry({
 					kind: "connector.workerCrashed",
 					connectorId: record.connectorId,
 					restarts: running.restarts,
-					error: error instanceof Error ? error.message : String(error),
+					error: running.lastError,
 				});
 				this.options.stores.audit.record(
 					"gateway",

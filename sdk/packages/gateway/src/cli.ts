@@ -155,6 +155,9 @@ async function commandServe(
 			engine: createConfiguredEnginePort({
 				approvals: () => serverRef?.runtime.approvals,
 				paths: resolveGatewayPaths(args),
+				// Gateway-owned tools: the constrained proactive
+				// send_connector_message (Phase 6).
+				tools: (invocation) => serverRef?.connectorTools(invocation),
 			}),
 		});
 		serverRef = server;

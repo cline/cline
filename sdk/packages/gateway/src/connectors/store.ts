@@ -56,6 +56,28 @@ export class ConnectorScopeViolationError extends Error {
 	}
 }
 
+/** Config keys that smell like secret material. */
+const SECRETLIKE_CONFIG_KEY =
+	/token|secret|password|credential|api[-_]?key|private[-_]?key/i;
+
+/**
+ * Connector configuration is non-secret by contract: tokens live in
+ * owner-only 0600 secret files referenced by `credentialRef`, never in
+ * the config row (which lands in the database and over the wire).
+ */
+export function assertNonSecretConnectorConfig(
+	config: Readonly<Record<string, unknown>>,
+): void {
+	for (const key of Object.keys(config)) {
+		if (SECRETLIKE_CONFIG_KEY.test(key)) {
+			throw new ConnectorScopeViolationError(
+				`Connector config key "${key}" looks like credential material; ` +
+					"store secrets as owner-only files (cline-gateway secret-put) and reference them via credentialRef",
+			);
+		}
+	}
+}
+
 export class ConnectorStore {
 	private readonly database: GatewayDatabase;
 
@@ -112,6 +134,14 @@ export class ConnectorStore {
 			)
 			.all()
 			.map(rowToConnector);
+	}
+
+	/** Remove a connector row (routes/outbound history are retained). */
+	delete(connectorId: ConnectorId): boolean {
+		const result = this.database.db
+			.prepare("DELETE FROM connectors WHERE connector_id = ?;")
+			.run(connectorId);
+		return Boolean(result.changes);
 	}
 
 	save(record: ConnectorRecord): void {

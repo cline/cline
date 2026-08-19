@@ -40,6 +40,7 @@ import {
 	GATEWAY_PROTOCOL_VERSION,
 	GatewayEventSchema,
 } from "@cline/shared/gateway";
+import { ConnectorOutboundStore } from "./connectors/outbound-store";
 import {
 	ConnectorCursorStore,
 	ConnectorInstanceStore,
@@ -49,10 +50,10 @@ import {
 import type { GatewayDatabase } from "./db";
 import type { IdempotencyBeginOutcome } from "./idempotency-ledger";
 import { stableStringify } from "./idempotency-ledger";
-import { UsageStore, type UsageStoreOptions } from "./usage";
 import { PluginStateStore } from "./plugins/state-store";
 import { RunProvenanceStore } from "./provenance-store";
 import { ScheduleJobStore, ScheduleStore } from "./schedules/store";
+import { UsageStore, type UsageStoreOptions } from "./usage";
 
 // -----------------------------------------------------------------------------
 // Meta
@@ -203,6 +204,10 @@ function rowToSessionRecord(row: Record<string, unknown>): SessionRecord {
 		botId: String(row.bot_id) as BotId,
 		workspace: Object.freeze({ rootPath: String(row.workspace_root) }),
 		state: String(row.state) as SessionRecord["state"],
+		kind:
+			row.kind === "dedicated"
+				? "dedicated"
+				: ("canonical" as SessionRecord["kind"]),
 		createdAt: Number(row.created_at),
 		revision: Number(row.revision),
 	};
@@ -248,8 +253,8 @@ export class SqliteSessionRepository implements SessionRepository {
 		this.database.db
 			.prepare(
 				`INSERT INTO sessions (
-					session_id, bot_id, workspace_root, state, created_at, revision
-				) VALUES (?, ?, ?, ?, ?, ?)
+					session_id, bot_id, workspace_root, state, kind, created_at, revision
+				) VALUES (?, ?, ?, ?, ?, ?, ?)
 				ON CONFLICT(session_id) DO UPDATE SET
 					state = excluded.state,
 					revision = excluded.revision;`,
@@ -259,6 +264,7 @@ export class SqliteSessionRepository implements SessionRepository {
 				record.botId,
 				record.workspace.rootPath,
 				record.state,
+				record.kind ?? "canonical",
 				record.createdAt,
 				record.revision,
 			);
@@ -1003,6 +1009,8 @@ export interface GatewayStores {
 	readonly connectorRoutes: SqliteConnectorRouteStore;
 	readonly connectorCursors: ConnectorCursorStore;
 	readonly connectorInstances: ConnectorInstanceStore;
+	/** Phase 6: outbound connector messages (persisted before delivery). */
+	readonly connectorOutbound: ConnectorOutboundStore;
 	/** Phase 6: schedules — triggers, durable claims, reports. */
 	readonly schedules: ScheduleStore;
 	readonly scheduleJobs: ScheduleJobStore;
@@ -1033,6 +1041,7 @@ export function createGatewayStores(
 		connectorRoutes: new SqliteConnectorRouteStore(database),
 		connectorCursors: new ConnectorCursorStore(database),
 		connectorInstances: new ConnectorInstanceStore(database),
+		connectorOutbound: new ConnectorOutboundStore(database),
 		schedules: new ScheduleStore(database),
 		scheduleJobs: new ScheduleJobStore(database),
 		provenance: new RunProvenanceStore(database),

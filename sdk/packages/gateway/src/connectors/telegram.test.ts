@@ -11,7 +11,11 @@ import type {
 import { createBotId, createConnectorId } from "@cline/shared/gateway";
 import { describe, expect, it } from "vitest";
 import type { ConnectorAdapterContext } from "./adapter";
-import { TelegramConnectorAdapter } from "./telegram";
+import {
+	redactTelegramToken,
+	TELEGRAM_MAX_MESSAGE_LENGTH,
+	TelegramConnectorAdapter,
+} from "./telegram";
 
 const DESCRIPTOR: ConnectorDescriptor = {
 	connectorId: createConnectorId(),
@@ -159,10 +163,13 @@ describe("telegram adapter", () => {
 	it("replies through sendMessage with the token kept inside the port", async () => {
 		const requests: RecordedRequest[] = [];
 		const adapter = new TelegramConnectorAdapter({
-			fetchImpl: fakeFetch(() => ({ ok: true, result: {} }), requests),
+			fetchImpl: fakeFetch(
+				() => ({ ok: true, result: { message_id: 777 } }),
+				requests,
+			),
 		});
 		const port = adapter.createReplyPort({}, "TEST_TOKEN");
-		await port.reply(
+		const result = await port.reply(
 			{ externalAccountId: "99", externalConversationId: "-100" },
 			"done",
 		);
@@ -171,5 +178,81 @@ describe("telegram adapter", () => {
 			chat_id: "-100",
 			text: "done",
 		});
+		expect(result?.externalMessageIds).toEqual(["777"]);
+	});
+
+	it("classifies delivery failures: 401/403/400 permanent, 429/5xx transient", async () => {
+		const statuses = [401, 403, 400, 429, 500];
+		const adapter = new TelegramConnectorAdapter({
+			fetchImpl: (async () => {
+				const status = statuses.shift() ?? 500;
+				return {
+					ok: false,
+					status,
+					json: async () => ({}),
+				} as Response;
+			}) as typeof fetch,
+		});
+		const port = adapter.createReplyPort({}, "TEST_TOKEN");
+		const conversation = {
+			externalAccountId: "99",
+			externalConversationId: "-100",
+		};
+		for (const expected of [false, false, false, true, true]) {
+			await expect(port.reply(conversation, "x")).rejects.toMatchObject({
+				name: "ConnectorDeliveryError",
+				retryable: expected,
+			});
+		}
+		// A missing credential is permanent too.
+		await expect(
+			adapter.createReplyPort({}, undefined).reply(conversation, "x"),
+		).rejects.toMatchObject({ retryable: false });
+	});
+
+	it("redacts the bot token from network error text", async () => {
+		const adapter = new TelegramConnectorAdapter({
+			fetchImpl: (async () => {
+				throw new Error(
+					"connect failed for https://api.telegram.org/botTEST_TOKEN/sendMessage",
+				);
+			}) as typeof fetch,
+		});
+		const port = adapter.createReplyPort({}, "TEST_TOKEN");
+		await expect(
+			port.reply(
+				{ externalAccountId: "99", externalConversationId: "-100" },
+				"x",
+			),
+		).rejects.toSatisfy(
+			(error: unknown) =>
+				error instanceof Error &&
+				!error.message.includes("TEST_TOKEN") &&
+				error.message.includes("[REDACTED]"),
+		);
+		expect(redactTelegramToken("x TEST_TOKEN y", "TEST_TOKEN")).toBe(
+			"x [REDACTED] y",
+		);
+	});
+
+	it("verifies credentials via getMe", async () => {
+		const requests: RecordedRequest[] = [];
+		const adapter = new TelegramConnectorAdapter({
+			fetchImpl: fakeFetch(
+				() => ({ ok: true, result: { username: "gateway_bot" } }),
+				requests,
+			),
+		});
+		const check = await adapter.testCredentials({}, "TEST_TOKEN");
+		expect(check).toEqual({ ok: true, detail: "@gateway_bot" });
+		expect(requests[0].url).toContain("/botTEST_TOKEN/getMe");
+		expect((await adapter.testCredentials({}, undefined)).ok).toBe(false);
+	});
+
+	it("exposes the platform message limit", () => {
+		expect(new TelegramConnectorAdapter().maxMessageLength).toBe(
+			TELEGRAM_MAX_MESSAGE_LENGTH,
+		);
+		expect(TELEGRAM_MAX_MESSAGE_LENGTH).toBe(4_096);
 	});
 });

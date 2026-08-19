@@ -17,11 +17,26 @@ import type { GatewayDatabase } from "../db";
 import type { GatewayStores } from "../stores";
 import type { ScheduleJobRecord, ScheduleRecord } from "./store";
 
+export interface ScheduleOutcomeNotification {
+	readonly schedule: ScheduleRecord;
+	readonly jobId: number;
+	readonly state: "completed" | "failed";
+	readonly runId?: string;
+	/** Completed: the run's output; failed: the error text. */
+	readonly summary: string;
+}
+
 export interface SchedulerOptions {
 	database: GatewayDatabase;
 	stores: GatewayStores;
 	/** Admit one automation run for a schedule (runtime-backed). */
 	admitAutomationRun: (schedule: ScheduleRecord) => RunAccepted;
+	/**
+	 * Deliver a firing's outcome to the schedule's notify target
+	 * (connector route). Wired to the ConnectorMessenger by the server;
+	 * called once per settled firing, only for schedules with a target.
+	 */
+	notifyOutcome?: (notification: ScheduleOutcomeNotification) => void;
 	instanceId: string;
 	clock?: () => number;
 	claimTtlMs?: number;
@@ -265,6 +280,7 @@ export class Scheduler {
 		if (run.state === "completed") {
 			this.options.stores.scheduleJobs.settle(job.jobId, "completed", now);
 			report.settled += 1;
+			this.notifySettled(job, "completed", run.outputText ?? "");
 			return true;
 		}
 		this.retryOrFail(
@@ -299,11 +315,44 @@ export class Scheduler {
 		}
 		this.options.stores.scheduleJobs.settle(job.jobId, "failed", now, error);
 		report.settled += 1;
+		this.notifySettled(job, "failed", error);
 		this.telemetry({
 			kind: "scheduler.jobFailed",
 			scheduleId: job.scheduleId,
 			jobId: job.jobId,
 			error,
 		});
+	}
+
+	/** Schedule/event notifications to connector routes (Phase 6). */
+	private notifySettled(
+		job: ScheduleJobRecord,
+		state: "completed" | "failed",
+		summary: string,
+	): void {
+		if (!this.options.notifyOutcome) {
+			return;
+		}
+		const schedule = this.options.stores.schedules.get(job.scheduleId);
+		if (!schedule?.notify) {
+			return;
+		}
+		try {
+			this.options.notifyOutcome({
+				schedule,
+				jobId: job.jobId,
+				state,
+				runId: job.runId,
+				summary,
+			});
+		} catch (error) {
+			// A notification failure never fails the firing itself.
+			this.telemetry({
+				kind: "scheduler.notifyFailed",
+				scheduleId: job.scheduleId,
+				jobId: job.jobId,
+				error: error instanceof Error ? error.message : String(error),
+			});
+		}
 	}
 }
