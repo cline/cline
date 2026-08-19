@@ -1,7 +1,6 @@
 "use client";
 
 import {
-	Activity,
 	ArrowDownUp,
 	Bot,
 	ChevronDown,
@@ -19,9 +18,7 @@ import {
 	Pencil,
 	Plug,
 	Plus,
-	Radio,
 	Search,
-	Server,
 	Settings,
 	SlidersHorizontal,
 	Star,
@@ -138,12 +135,9 @@ function hubPort(url: string | null): string | null {
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
-	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
 	Plugins: Plug,
-	Skills: Activity,
-	MCP: Server,
 	Hooks: Code,
 	Rules: FileText,
 	Agents: Bot,

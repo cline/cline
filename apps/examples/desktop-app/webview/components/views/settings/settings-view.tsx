@@ -52,10 +52,9 @@ import { cn } from "@/lib/utils";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
-import { ChannelsContent } from "./channels-view";
 import { CustomizationSectionView } from "./extensions-view";
-import { McpServersContent } from "./mcp-view";
 import { NotificationSettings } from "./notification-settings";
+import { PluginsHubView } from "./plugins-hub-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -510,11 +509,7 @@ export function SettingsView({
 		activeNav === "Models" ? (
 			providerContent
 		) : activeNav === "Plugins" ? (
-			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
-		) : activeNav === "Skills" ? (
-			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
-		) : activeNav === "MCP" ? (
-			<McpServersContent />
+			<PluginsHubView />
 		) : activeNav === "Hooks" ? (
 			<CustomizationSectionView section="Hooks" />
 		) : activeNav === "Rules" ? (
@@ -523,8 +518,6 @@ export function SettingsView({
 			<CustomizationSectionView section="Agents" />
 		) : activeNav === "Tools" ? (
 			<CustomizationSectionView section="Tools" />
-		) : activeNav === "Channels" ? (
-			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Account" ? (

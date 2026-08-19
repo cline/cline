@@ -250,6 +250,15 @@ let extensionHookStatsCache: {
 	fetchedAt: number;
 } | null = null;
 
+/**
+ * Drops the module-level inventory cache so the next mounted customization
+ * view refetches. Used by the Plugins hub after directory installs/uninstalls
+ * that happen outside these views.
+ */
+export function invalidateExtensionInventoryCache() {
+	extensionListsCache = null;
+}
+
 function hasFreshExtensionsListsCache(
 	cache: typeof extensionListsCache,
 	now: number,
@@ -325,10 +334,19 @@ function isUnsupportedDesktopCommand(error: unknown, command: string): boolean {
 
 export function CustomizationSectionView({
 	catalogPrimitive,
+	chrome = "page",
+	marketplaceVariant = "full",
+	onInventoryChanged,
 	section = "Rules",
 	showTabs = false,
 }: {
 	catalogPrimitive?: MarketplacePrimitiveType;
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Which marketplace sections the embedded MarketplaceView shows. */
+	marketplaceVariant?: "full" | "installed";
+	/** Invoked after a forced inventory refresh (installs, uninstalls). */
+	onInventoryChanged?: () => void;
 	section?: CustomizationSection;
 	showTabs?: boolean;
 }) {
@@ -391,49 +409,55 @@ export function CustomizationSectionView({
 		setActiveTab(section);
 	}, [section]);
 
-	const refresh = useCallback(async (force = false) => {
-		const now = Date.now();
-		if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
-			setWorkspaceRoot(extensionListsCache.workspaceRoot);
-			setRules(extensionListsCache.rules);
-			setWorkflows(extensionListsCache.workflows);
-			setSkills(extensionListsCache.skills);
-			setAgents(extensionListsCache.agents);
-			setPlugins(extensionListsCache.plugins);
-			setTools(extensionListsCache.tools);
-			setHooks(extensionListsCache.hooks);
-			setMcp(extensionListsCache.mcp);
-			setWarnings(extensionListsCache.warnings);
-			setErrorMessage(null);
-			setIsLoading(false);
-			return;
-		}
+	const refresh = useCallback(
+		async (force = false) => {
+			const now = Date.now();
+			if (!force && hasFreshExtensionsListsCache(extensionListsCache, now)) {
+				setWorkspaceRoot(extensionListsCache.workspaceRoot);
+				setRules(extensionListsCache.rules);
+				setWorkflows(extensionListsCache.workflows);
+				setSkills(extensionListsCache.skills);
+				setAgents(extensionListsCache.agents);
+				setPlugins(extensionListsCache.plugins);
+				setTools(extensionListsCache.tools);
+				setHooks(extensionListsCache.hooks);
+				setMcp(extensionListsCache.mcp);
+				setWarnings(extensionListsCache.warnings);
+				setErrorMessage(null);
+				setIsLoading(false);
+				return;
+			}
 
-		setIsLoading(true);
-		setErrorMessage(null);
-		try {
-			const response = await fetchUserInstructionLists();
-			setWorkspaceRoot(response.workspaceRoot);
-			setRules(response.rules);
-			setWorkflows(response.workflows);
-			setSkills(response.skills);
-			setAgents(response.agents);
-			setPlugins(response.plugins);
-			setTools(response.tools);
-			setHooks(response.hooks);
-			setMcp(response.mcp);
-			setWarnings(response.warnings);
-			extensionListsCache = {
-				...response,
-				fetchedAt: Date.now(),
-			};
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-		} finally {
-			setIsLoading(false);
-		}
-	}, []);
+			setIsLoading(true);
+			setErrorMessage(null);
+			try {
+				const response = await fetchUserInstructionLists();
+				setWorkspaceRoot(response.workspaceRoot);
+				setRules(response.rules);
+				setWorkflows(response.workflows);
+				setSkills(response.skills);
+				setAgents(response.agents);
+				setPlugins(response.plugins);
+				setTools(response.tools);
+				setHooks(response.hooks);
+				setMcp(response.mcp);
+				setWarnings(response.warnings);
+				extensionListsCache = {
+					...response,
+					fetchedAt: Date.now(),
+				};
+				if (force) {
+					onInventoryChanged?.();
+				}
+			} catch (error) {
+				const message = error instanceof Error ? error.message : String(error);
+				setErrorMessage(message);
+			} finally {
+				setIsLoading(false);
+			}
+		},
+		[onInventoryChanged],
+	);
 
 	const loadHookExecutionStats = useCallback(async (force = false) => {
 		const now = Date.now();
@@ -1173,28 +1197,39 @@ export function CustomizationSectionView({
 							}),
 						)
 					: null;
-	return (
-		<PageFrame>
-			<PageHeader
-				description={sectionDescriptions[activeTab]}
-				title={activeTab}
-				meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
-				actions={
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => {
-							void refresh(true);
-							if (activeTab === "Hooks") {
-								void loadHookExecutionStats(true);
-							}
-						}}
-						disabled={isLoading}
-					>
-						<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
-					</Button>
+	const refreshButton = (
+		<Button
+			variant="outline"
+			size="sm"
+			onClick={() => {
+				void refresh(true);
+				if (activeTab === "Hooks") {
+					void loadHookExecutionStats(true);
 				}
-			/>
+			}}
+			disabled={isLoading}
+		>
+			<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+		</Button>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={sectionDescriptions[activeTab]}
+					title={activeTab}
+					meta={<CommandBadge>{sectionCommands[activeTab]}</CommandBadge>}
+					actions={refreshButton}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{sectionDescriptions[activeTab]}
+					</p>
+					{refreshButton}
+				</div>
+			)}
 
 			{showTabs ? (
 				<div className="mb-6 flex items-center gap-0 border-b border-border">
@@ -1245,6 +1280,7 @@ export function CustomizationSectionView({
 					installedItems={installedCatalogLocalItems ?? undefined}
 					onInstalledItemsChanged={() => refresh(true)}
 					primitive={catalogPrimitive}
+					variant={marketplaceVariant}
 				/>
 			) : null}
 
@@ -1709,7 +1745,13 @@ export function CustomizationSectionView({
 					</div>
 				</div>
 			)}
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }
 
