@@ -43,10 +43,14 @@ export interface GatewayPaths {
 	readonly projectionsDir: string;
 	/** Owner-only secret files (mode 0600, dir 0700). Never mounted. */
 	readonly secretsDir: string;
+	/** Global plugin packages: `<dataDir>/plugins/<pluginDir>`. */
+	readonly pluginsDir: string;
 	botDir(botId: BotId): string;
 	workspacesDir(botId: BotId): string;
 	sessionWorkspaceDir(botId: BotId, sessionId: SessionId): string;
 	memoriesDir(botId: BotId): string;
+	/** Bot plugin packages: `bots/<botId>/plugins/<pluginDir>`. */
+	botPluginsDir(botId: BotId): string;
 	secretFile(name: string): string;
 	sessionProjectionFile(sessionId: SessionId): string;
 }
@@ -96,11 +100,13 @@ export function resolveGatewayPaths(
 		botsDir,
 		projectionsDir,
 		secretsDir,
+		pluginsDir: join(dataDir, "plugins"),
 		botDir: (botId) => join(botsDir, botId),
 		workspacesDir: (botId) => join(botsDir, botId, "workspaces"),
 		sessionWorkspaceDir: (botId, sessionId) =>
 			join(botsDir, botId, "workspaces", sessionId),
 		memoriesDir: (botId) => join(botsDir, botId, "memories"),
+		botPluginsDir: (botId) => join(botsDir, botId, "plugins"),
 		secretFile: (name) => {
 			if (!SECRET_NAME_PATTERN.test(name)) {
 				throw new Error(`Invalid secret name "${name}"`);
