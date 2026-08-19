@@ -16,33 +16,18 @@ function createQueue(options?: {
 	let prompts: SessionPendingPrompt[] = [];
 	let nextId = 1;
 	let clock = 1_000_000;
-	const enqueue = vi.fn(
-		(
-			_sessionId: string,
-			entry: { prompt: string; origin?: SessionPendingPrompt["origin"] },
-		) => {
-			prompts.push({
-				id: `p${nextId++}`,
-				prompt: entry.prompt,
-				delivery: "steer",
-				attachmentCount: 0,
-				origin: entry.origin,
-			});
-		},
-	);
-	const update = vi.fn(
-		(input: {
-			promptId: string;
-			prompt: string;
-			origin?: SessionPendingPrompt["origin"];
-		}) => {
-			const found = prompts.find((prompt) => prompt.id === input.promptId);
-			if (found) {
-				found.prompt = input.prompt;
-				found.origin = input.origin;
-			}
-		},
-	);
+	const enqueue = vi.fn((_sessionId: string, entry: { prompt: string }) => {
+		prompts.push({
+			id: `p${nextId++}`,
+			prompt: entry.prompt,
+			delivery: "steer",
+			attachmentCount: 0,
+		});
+	});
+	const update = vi.fn((input: { promptId: string; prompt: string }) => {
+		const found = prompts.find((prompt) => prompt.id === input.promptId);
+		if (found) found.prompt = input.prompt;
+	});
 	const queue = new MonitorSteerQueue(
 		{
 			list: () => prompts,
@@ -197,65 +182,5 @@ describe("MonitorSteerQueue", () => {
 		} finally {
 			vi.useRealTimers();
 		}
-	});
-
-	it("carries structured origin metadata alongside the fenced text", () => {
-		const harness = createQueue();
-		harness.queue.deliver("s1", "fenced text", {
-			monitorId: "mon_1",
-			name: "ci",
-			description: "CI status",
-			lines: ["build failed"],
-		});
-
-		expect(harness.prompts[0]?.origin).toEqual({
-			kind: "monitor",
-			updates: [
-				expect.objectContaining({
-					monitorId: "mon_1",
-					lines: ["build failed"],
-				}),
-			],
-		});
-	});
-
-	it("merges origin updates into the outstanding prompt", () => {
-		const harness = createQueue();
-		harness.queue.deliver("s1", "first", {
-			monitorId: "mon_1",
-			name: "ci",
-			description: "CI status",
-			lines: ["one"],
-		});
-		harness.queue.deliver("s1", "second", {
-			monitorId: "mon_1",
-			name: "ci",
-			description: "CI status",
-			lines: ["two"],
-		});
-
-		expect(harness.prompts).toHaveLength(1);
-		const origin = harness.prompts[0]?.origin;
-		expect(origin?.kind).toBe("monitor");
-		expect(origin?.updates.map((update) => update.lines[0])).toEqual([
-			"one",
-			"two",
-		]);
-	});
-
-	it("keeps only the newest origin updates when merged past the cap", () => {
-		const harness = createQueue();
-		for (let index = 0; index < 25; index += 1) {
-			harness.queue.deliver("s1", `report ${index}`, {
-				monitorId: "mon_1",
-				name: "ci",
-				description: "CI status",
-				lines: [`line ${index}`],
-			});
-		}
-
-		const origin = harness.prompts[0]?.origin;
-		expect(origin?.updates).toHaveLength(20);
-		expect(origin?.updates.at(-1)?.lines).toEqual(["line 24"]);
 	});
 });

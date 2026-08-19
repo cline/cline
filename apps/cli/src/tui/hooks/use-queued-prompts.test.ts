@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { PendingPromptSnapshot } from "../../runtime/session-events";
 import {
-	monitorPromptLabel,
 	resolveQueuedPromptSelection,
 	toQueuedPromptItems,
 } from "./use-queued-prompts";
@@ -77,55 +76,5 @@ describe("queued prompt helpers", () => {
 				direction: "down",
 			}),
 		).toBeNull();
-	});
-});
-
-describe("monitorPromptLabel", () => {
-	it("summarizes monitor origins with names and line counts", () => {
-		expect(
-			monitorPromptLabel({
-				kind: "monitor",
-				updates: [
-					{
-						monitorId: "mon_1",
-						name: "ci",
-						description: "CI status",
-						lines: ["one", "two"],
-					},
-					{
-						monitorId: "mon_1",
-						name: "ci",
-						description: "CI status",
-						lines: ["three"],
-					},
-				],
-			}),
-		).toBe("Monitor update from ci (3 lines)");
-	});
-
-	it("labels queue items from monitor origins", () => {
-		const items = toQueuedPromptItems({
-			sessionId: "sess-1",
-			prompts: [
-				{
-					id: "pending-1",
-					prompt: "<monitor-output>fenced</monitor-output>",
-					delivery: "steer",
-					attachmentCount: 0,
-					origin: {
-						kind: "monitor",
-						updates: [
-							{
-								monitorId: "mon_1",
-								name: "applog",
-								description: "watching",
-								lines: ["hello"],
-							},
-						],
-					},
-				},
-			],
-		});
-		expect(items[0]?.displayLabel).toBe("Monitor update from applog (1 line)");
 	});
 });
