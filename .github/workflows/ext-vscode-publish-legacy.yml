@@ -58,14 +58,12 @@ jobs:
               with:
                   ref: legacy-extension
 
+            # Deliberately no dependency cache here: publish workflows do clean
+            # installs and should not restore actions caches.
             - name: Setup Node.js
               uses: actions/setup-node@v4
               with:
                   node-version: 22
-                  cache: 'npm'
-                  cache-dependency-path: |
-                      apps/vscode/package-lock.json
-                      apps/vscode/webview-ui/package-lock.json
 
             - name: Install extension dependencies
               working-directory: ${{ github.workspace }}
