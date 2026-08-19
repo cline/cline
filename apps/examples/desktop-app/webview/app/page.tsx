@@ -584,6 +584,7 @@ function ChatThreadPane({
 		answerAskQuestion,
 		restoreCheckpoint,
 		forkSession,
+		proceedWhileRunning,
 		reset,
 		abort,
 		hydrateSession,
@@ -1623,6 +1624,7 @@ function ChatThreadPane({
 								onEditMessage={handleEditMessage}
 								onRestoreCheckpoint={handleRestoreCheckpoint}
 								onForkSession={handleForkSession}
+								onProceedWhileRunning={proceedWhileRunning}
 								pendingToolApprovals={pendingToolApprovals}
 								pendingAskQuestions={pendingAskQuestions}
 								sessionId={displayedSessionId}

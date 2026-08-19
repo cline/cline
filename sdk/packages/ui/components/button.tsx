@@ -2,16 +2,15 @@
 
 import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
+import { clsx } from "clsx";
 import {
+	type ButtonHTMLAttributes,
 	cloneElement,
 	forwardRef,
-	type ButtonHTMLAttributes,
 	isValidElement,
 	type MouseEventHandler,
 	type ReactNode,
 } from "react";
-
-import { clsx } from "clsx";
 
 const BASE =
 	"inline-flex items-center justify-center whitespace-nowrap rounded-cline-ui-md font-cline-ui-medium cursor-pointer " +

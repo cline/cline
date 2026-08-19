@@ -3,6 +3,10 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	appendCappedCommandOutput,
+	MAX_LIVE_COMMAND_OUTPUT_CHARS,
+} from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
 import { useChatSession } from "./use-chat-session";
 
@@ -59,6 +63,211 @@ afterEach(async () => {
 });
 
 describe("useChatSession", () => {
+	it("caps command output while preserving the newest tail", () => {
+		const result = appendCappedCommandOutput(
+			"head\n",
+			`${"x".repeat(MAX_LIVE_COMMAND_OUTPUT_CHARS)}tail`,
+		);
+		expect(result.truncated).toBe(true);
+		expect(result.output.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(
+			result.output.startsWith("\u001b[0m[Earlier command output truncated]"),
+		).toBe(true);
+		expect(result.output.endsWith("tail")).toBe(true);
+	});
+
+	it("coalesces live command updates and exposes detach by tool call", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return {
+						cwd: "/workspace/cline",
+						workspaceRoot: "/workspace/cline",
+					};
+				}
+				if (command === "proceed_while_running") {
+					return { detachedCount: 1 };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return {
+							sessionId: request.config?.sessionId ?? "session-output",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.start(current.config));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const longAnsiOutput = `\u001b[31m${"x".repeat(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS + 100,
+		)}tail\u001b[0m`;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "call-output",
+					toolName: "run_commands",
+					input: { commands: ["bun test"] },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-output",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: longAnsiOutput,
+						detachable: true,
+					},
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.role === "tool",
+		);
+		expect(toolMessage?.meta).toMatchObject({
+			toolCallId: "call-output",
+			toolDetachable: true,
+			toolOutputTruncated: true,
+		});
+		expect(toolMessage?.meta?.toolOutput?.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(toolMessage?.meta?.toolOutput).toContain("tail\u001b[0m");
+
+		if (!current.sessionId) throw new Error("Expected active session");
+		await act(async () =>
+			current.proceedWhileRunning(current.sessionId as string, "call-output"),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("proceed_while_running", {
+			sessionId: current.sessionId,
+			toolCallId: "call-output",
+		});
+	});
+
+	it("routes command updates after attaching to an in-flight tool call", async () => {
+		const hydratedSessionId = "session-in-flight-command";
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return [
+						{
+							id: "history-tool-call",
+							sessionId: hydratedSessionId,
+							role: "tool",
+							content: JSON.stringify({
+								toolName: "run_commands",
+								input: { commands: ["bun test"] },
+								result: null,
+								isError: false,
+							}),
+							createdAt: 1,
+							meta: {
+								toolName: "run_commands",
+								toolCallId: "call-in-flight",
+								hookEventName: "history_tool_use",
+							},
+						},
+					];
+				}
+				if (command === "read_session_hooks") return [];
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-12T00:00:00.000Z",
+			});
+		});
+
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_update",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "still running\n" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			await new Promise((resolve) => setTimeout(resolve, 60));
+		});
+
+		expect(current.messages).toHaveLength(1);
+		expect(current.messages[0]?.meta?.toolOutput).toBe("still running\n");
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: hydratedSessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "call-in-flight",
+					toolName: "run_commands",
+					output: "done",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const completedPayload = JSON.parse(current.messages[0]?.content ?? "{}");
+		expect(completedPayload).toMatchObject({
+			input: { commands: ["bun test"] },
+			result: "done",
+		});
+		expect(current.messages[0]?.meta?.hookEventName).toBe("tool_call_end");
+	});
+
 	it("starts without a selected workspace and adopts the SDK temporary path", async () => {
 		let startedSessionId = "";
 		await act(async () => {
@@ -1350,6 +1559,180 @@ describe("useChatSession", () => {
 			});
 		});
 		expect(current.status).toBe("completed");
+	});
+
+	it("finalizes a queued turn on chat_done: clears the streaming id and reconciles persisted history", async () => {
+		// Queued turns resolve their send() RPC early ({ ok: true } without a
+		// result), so chat_done is their only finalization signal. Without the
+		// turn-end reconcile, a turn whose deltas were incomplete would stay
+		// visually streaming forever and only heal when a later non-queued send
+		// rehydrated history.
+		let canonicalMessages: unknown[] = [];
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					return canonicalMessages;
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+		// A transport hiccup dropped the tail of the stream: only a truncated
+		// prefix of the assistant text arrives live.
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "The answer is",
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+		canonicalMessages = [
+			{
+				id: "persisted_user_1",
+				sessionId: current.sessionId,
+				role: "user",
+				content: "First prompt",
+				createdAt: Date.now(),
+			},
+			{
+				id: "persisted_assistant_1",
+				sessionId: current.sessionId,
+				role: "assistant",
+				content: "The answer is 42.",
+				createdAt: Date.now(),
+			},
+		];
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+
+		// The streaming shimmer clears as soon as the turn settles.
+		expect(current.status).toBe("completed");
+		expect(current.activeAssistantMessageId).toBeNull();
+
+		// The delayed reconcile replaces the truncated live transcript with the
+		// persisted one.
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+		const assistantMessages = current.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessages).toHaveLength(1);
+		expect(assistantMessages[0]?.content).toBe("The answer is 42.");
+	});
+
+	it("keeps the live transcript when the turn-end reconcile finds no persisted assistant turn", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "read_session_messages") {
+					// Persistence has not caught up yet.
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.sendPrompt("First prompt");
+		});
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(chatEventHandler).toBeDefined();
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_queued_prompt_start",
+				chunk: JSON.stringify({
+					promptId: "queued-prompt-1",
+					prompt: "First prompt",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Streamed live content",
+				ts: Date.now(),
+				index: 2,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_done",
+				chunk: JSON.stringify({ reason: "completed" }),
+				ts: Date.now(),
+				index: 3,
+			});
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 400));
+		});
+
+		expect(current.status).toBe("completed");
+		const assistantMessages = current.messages.filter(
+			(message) => message.role === "assistant",
+		);
+		expect(assistantMessages).toHaveLength(1);
+		expect(assistantMessages[0]?.content).toBe("Streamed live content");
 	});
 
 	it("stays running on chat_done while more prompts wait in the queue", async () => {
