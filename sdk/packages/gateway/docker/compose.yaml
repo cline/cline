@@ -1,0 +1,20 @@
+services:
+  gateway:
+    build:
+      context: ../../../..
+      dockerfile: sdk/packages/gateway/docker/Dockerfile
+    image: cline-gateway:dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - gateway-data:/data
+    secrets:
+      - cline_gateway_remote_token
+
+secrets:
+  cline_gateway_remote_token:
+    file: ./secrets/remote-access-token
+
+volumes:
+  gateway-data:

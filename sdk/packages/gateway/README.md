@@ -82,6 +82,13 @@ escape hatch.
 Remote access is client-to-Gateway, not Gateway federation. A remote client
 sees only bots owned by the authority it connected to; see ADR 0005.
 
+### Container and VM deployment
+
+The production-oriented multi-stage image bundles standalone Gateway and worker
+executables, runs without root privileges, and persists the complete authority
+under `/data`. See [`docker/README.md`](docker/README.md) for Docker Compose,
+direct TLS, TLS-proxy, secret provisioning, and VM deployment instructions.
+
 ## The Phase 3 authority
 
 ### Lifecycle

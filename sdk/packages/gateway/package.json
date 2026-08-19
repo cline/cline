@@ -29,6 +29,7 @@
 	"license": "Apache-2.0",
 	"scripts": {
 		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"docker:build": "docker build -f docker/Dockerfile -t cline-gateway:dev ../../..",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
 		"test": "vitest run",
 		"test:watch": "vitest"
