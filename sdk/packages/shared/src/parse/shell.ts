@@ -54,6 +54,58 @@ export interface ShellInvocation {
 	input?: string;
 }
 
+// Matches a command line that is nothing but a nested PowerShell invocation:
+// a bare powershell/pwsh executable name, optionally followed by flags that do
+// not change how -Command is interpreted, then -Command and the script tail.
+// Full executable paths, -File, -EncodedCommand, and any other flags do not
+// match — those invocations are left untouched.
+const NESTED_POWERSHELL_COMMAND_PATTERN = new RegExp(
+	"^\\s*(?:powershell|pwsh)(?:\\.exe)?" +
+		"(?:\\s+(?:-NoProfile|-NonInteractive|-NoLogo|-Mta|-Sta|-ExecutionPolicy\\s+\\S+))*" +
+		"\\s+-Command\\s+([\\s\\S]+)$",
+	"i",
+);
+
+/**
+ * Rewrite a redundant nested PowerShell invocation to its inner script.
+ *
+ * The PowerShell executor runs the submitted command as script text
+ * (ScriptBlock::Create), not as a process command line. Models frequently
+ * submit `powershell -NoProfile -Command "…pipeline with $_…"` anyway; parsed
+ * as script, the -Command argument is a double-quoted STRING, so `$_` (and any
+ * other `$` expression) is interpolated away in the outer scope before the
+ * inner shell ever sees it. A Where-Object body then degrades to e.g.
+ * `.Name -match …`, which raises one error per enumerated item — minutes of
+ * stderr flood on large trees under 'Continue', or an immediate confusing
+ * failure under the wrapper's fail-fast 'Stop' preference.
+ *
+ * Since the wrapper already provides everything the nested invocation asks
+ * for (a PowerShell interpreting a command, with -NoProfile -NonInteractive),
+ * the redundant wrapping is dropped and the inner script runs directly, so
+ * `$` expressions reach their intended scope intact.
+ *
+ * Only the clearly-redundant single-level form is rewritten. Returns the
+ * command unchanged when it is not a nested invocation, when the quoting of
+ * the tail is anything but one plain wrapping pair (interior double quotes
+ * imply escaping this helper does not try to interpret), or when the inner
+ * script is itself another nested invocation.
+ */
+export function unwrapNestedPowerShellCommand(command: string): string {
+	const match = NESTED_POWERSHELL_COMMAND_PATTERN.exec(command);
+	if (!match) return command;
+	let tail = match[1].trim();
+	if (tail.startsWith('"')) {
+		if (tail.length < 2 || !tail.endsWith('"')) return command;
+		const interior = tail.slice(1, -1);
+		if (interior.includes('"')) return command;
+		tail = interior.trim();
+	}
+	// An empty or flag-shaped tail (e.g. `-Command -`) is not a script.
+	if (!tail || tail.startsWith("-")) return command;
+	if (NESTED_POWERSHELL_COMMAND_PATTERN.test(tail)) return command;
+	return tail;
+}
+
 export function getShellInvocation(
 	shell: string,
 	command: string,
@@ -100,7 +152,11 @@ export function getShellInvocation(
 						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
 						"& ([ScriptBlock]::Create($c))",
 				],
-				input: command,
+				// A redundant `powershell -Command "…"` wrapper around the script
+				// would be parsed as a double-quoted string here, interpolating $_
+				// and friends away before the nested shell runs. Unwrap it so the
+				// script executes directly. See unwrapNestedPowerShellCommand.
+				input: unwrapNestedPowerShellCommand(command),
 			};
 		case "cmd":
 			return { args: ["/d", "/s", "/c", command] };
