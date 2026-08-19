@@ -16,19 +16,25 @@ export type ProviderModelCatalog = {
 	providerReasoningModels: Record<string, string[]>;
 };
 
+export function filterChatModels(
+	models: ProviderModel[] | undefined,
+): ProviderModel[] {
+	return (models ?? []).filter((model) =>
+		isChatCompatibleModel({
+			operation: model.operation,
+			modalities: {
+				input: model.inputModalities,
+				output: model.outputModalities,
+			},
+		}),
+	);
+}
+
 export function buildProviderModelCatalog(
 	providers: Provider[],
 ): ProviderModelCatalog {
 	const providerEntries = providers.map((provider) => {
-		const chatModels = (provider.modelList ?? []).filter((model) =>
-			isChatCompatibleModel({
-				operation: model.operation,
-				modalities: {
-					input: model.inputModalities,
-					output: model.outputModalities,
-				},
-			}),
-		);
+		const chatModels = filterChatModels(provider.modelList);
 		return {
 			provider,
 			modelIds: chatModels.map((model) => model.id),
