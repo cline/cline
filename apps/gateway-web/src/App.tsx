@@ -29,6 +29,17 @@ interface Approval extends GatewayServerRequest {
 	answered?: "approved" | "denied";
 }
 
+type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
+
+const connectionStages: Array<{
+	id: Exclude<ConnectionStage, "idle">;
+	label: string;
+}> = [
+	{ id: "opening", label: "Opening channel" },
+	{ id: "authenticated", label: "Identity verified" },
+	{ id: "syncing", label: "Loading bots" },
+];
+
 const savedUrl =
 	localStorage.getItem("cline.gateway.url") ?? "ws://127.0.0.1:8080";
 export function App() {
@@ -39,6 +50,8 @@ export function App() {
 	const [status, setStatus] = useState<
 		"disconnected" | "connecting" | "connected"
 	>("disconnected");
+	const [connectionStage, setConnectionStage] =
+		useState<ConnectionStage>("idle");
 	const [error, setError] = useState("");
 	const [gatewayName, setGatewayName] = useState("");
 	const [bots, setBots] = useState<BotRecord[]>([]);
@@ -77,6 +90,7 @@ export function App() {
 	async function connect(event: FormEvent) {
 		event.preventDefault();
 		setStatus("connecting");
+		setConnectionStage("opening");
 		setError("");
 		clientRef.current?.close();
 		try {
@@ -87,6 +101,7 @@ export function App() {
 				allowInsecure,
 			});
 			clientRef.current = client;
+			setConnectionStage("authenticated");
 			localStorage.setItem("cline.gateway.url", url);
 			localStorage.setItem("cline.gateway.clientId", client.hello.clientId);
 			setGatewayName(client.hello.gatewayId);
@@ -108,10 +123,13 @@ export function App() {
 				}
 			});
 			await client.request("run.subscribe", { cursor: initialEventCursor() });
+			setConnectionStage("syncing");
 			await refresh(client);
 			setStatus("connected");
+			setConnectionStage("idle");
 		} catch (cause) {
 			setStatus("disconnected");
+			setConnectionStage("idle");
 			setError(messageOf(cause));
 		}
 	}
@@ -199,18 +217,25 @@ export function App() {
 	if (status !== "connected") {
 		return (
 			<main className="connect-shell">
-				<section className="connect-card">
-					<div className="brand-mark">C</div>
-					<p className="eyebrow">CLINE GATEWAY</p>
-					<h1>
-						Talk to your bots
-						<br />
-						from anywhere.
-					</h1>
-					<p className="lede">
-						Connect directly to a remote Gateway. Your access token stays in
-						this tab and is never stored or added to the URL.
-					</p>
+				<div className="connect-aurora" aria-hidden="true" />
+				<div className="connect-grain" aria-hidden="true" />
+				<section className="connect-card" aria-busy={status === "connecting"}>
+					<header className="connect-brand">
+						<span className="brand-signal" aria-hidden="true">
+							<i />
+						</span>
+						CLINE GATEWAY
+					</header>
+					<div className="connect-copy">
+						<h1>
+							Talk to your bots
+							<br />
+							from anywhere.
+						</h1>
+						<p className="lede">
+							Connect directly. Your access token is never stored.
+						</p>
+					</div>
 					<form onSubmit={connect} className="connect-form">
 						<label>
 							Gateway address
@@ -241,14 +266,53 @@ export function App() {
 							Allow insecure ws:// outside loopback (development only)
 						</label>
 						{error && <div className="error">{error}</div>}
+						{status === "connecting" && (
+							<div className="connection-progress" aria-live="polite">
+								<div className="connection-route" aria-hidden="true">
+									<span className="route-line" />
+									{connectionStages.map((stage, index) => {
+										const activeIndex = connectionStages.findIndex(
+											(item) => item.id === connectionStage,
+										);
+										return (
+											<i
+												key={stage.id}
+												className={index <= activeIndex ? "active" : ""}
+											/>
+										);
+									})}
+									<span className="route-packet" />
+								</div>
+								<div>
+									<strong>
+										{connectionStages.find(
+											(stage) => stage.id === connectionStage,
+										)?.label ?? "Preparing connection"}
+									</strong>
+									<span>Establishing an encrypted path to your Gateway</span>
+								</div>
+							</div>
+						)}
 						<button
 							type="submit"
 							className="primary"
 							disabled={status === "connecting"}
 						>
-							{status === "connecting" ? "Connecting…" : "Connect to Gateway"}
+							<span className="button-glyph" aria-hidden="true">
+								<i />
+							</span>
+							{status === "connecting"
+								? "Connecting to Gateway"
+								: "Connect to Gateway"}
+							<span className="button-arrow" aria-hidden="true">
+								→
+							</span>
 						</button>
 					</form>
+					<footer className="connect-footer">
+						<span>REMOTE PROTOCOL / 01</span>
+						<span>DIRECT · PRIVATE · DURABLE</span>
+					</footer>
 				</section>
 			</main>
 		);
