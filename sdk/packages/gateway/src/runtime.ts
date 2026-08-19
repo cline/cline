@@ -43,26 +43,35 @@ import {
 } from "@cline/bot";
 import type {
 	BotId,
+	ConnectorId,
 	GatewayError,
 	GatewayEventScope,
 	GatewayInstanceId,
 	GatewayServerRequest,
 	RunAccepted,
 	RunId,
+	RunProvenance,
+	ScheduleId,
 	SessionId,
 } from "@cline/shared/gateway";
 import {
 	createBotId,
+	createConnectorId,
 	createGatewayError,
 	createRunId,
+	createScheduleId,
 	createSessionId,
 	EventCursorDecodeError,
 	GATEWAY_PROTOCOL_VERSION,
+	RunProvenanceSchema,
 	RunStateTransitionError,
 } from "@cline/shared/gateway";
+import type { ConnectorRecord } from "./connectors/store";
 import type { GatewayDatabase } from "./db";
 import { OUTBOX_KIND_SESSION_PROJECTION } from "./outbox";
 import type { GatewayPaths } from "./paths";
+import type { CatalogPin, PluginCatalog } from "./plugins/catalog";
+import type { ScheduleRecord } from "./schedules/store";
 import type { GatewayStores } from "./stores";
 import { UsageQueryError } from "./usage";
 
@@ -186,6 +195,7 @@ interface InstrumentationSinks {
 	stores: GatewayStores;
 	clock: BotClock;
 	outboxEnqueued(): void;
+	runTerminal?(record: RunRecord): void;
 }
 
 class InstrumentedRunRepository {
@@ -262,6 +272,7 @@ class InstrumentedRunRepository {
 				now,
 			);
 			this.sinks.outboxEnqueued();
+			this.sinks.runTerminal?.(record);
 		}
 	}
 }
@@ -689,6 +700,10 @@ export interface GatewayRuntimeOptions {
 	materializeWorkspace?: (rootPath: string) => void;
 	/** Called whenever a transaction enqueued outbox work. */
 	onOutboxEnqueued?: () => void;
+	/** Phase 4: plugin catalog; active runs pin their generation. */
+	plugins?: PluginCatalog;
+	/** Phase 4: worker/execution health reported through gateway.status. */
+	executionHealth?: () => Record<string, unknown>;
 }
 
 export interface RunStartParams {
@@ -696,6 +711,8 @@ export interface RunStartParams {
 	prompt: string;
 	workspaceRoot?: string;
 	overrides?: TurnOverrides;
+	/** Explicit provenance; defaults to interactive by the calling actor. */
+	provenance?: RunProvenance;
 }
 
 export interface GatewayRecoveryReport {
@@ -721,6 +738,10 @@ export class GatewayRuntime {
 	private readonly bots = new Map<BotId, Bot>();
 	private readonly maxPendingRunsPerSession: number;
 	private readonly onOutboxEnqueued: () => void;
+	private readonly plugins: PluginCatalog | undefined;
+	private readonly executionHealth: (() => Record<string, unknown>) | undefined;
+	/** Catalog generation pins held by active (non-terminal) runs. */
+	private readonly catalogPins = new Map<RunId, CatalogPin>();
 	private draining = false;
 	private defaultBot: BotRecord | undefined;
 
@@ -733,10 +754,13 @@ export class GatewayRuntime {
 		this.startedAt = this.clock.now();
 		this.maxPendingRunsPerSession = options.maxPendingRunsPerSession ?? 32;
 		this.onOutboxEnqueued = options.onOutboxEnqueued ?? (() => {});
+		this.plugins = options.plugins;
+		this.executionHealth = options.executionHealth;
 		const sinks: InstrumentationSinks = {
 			stores: this.stores,
 			clock: this.clock,
 			outboxEnqueued: () => this.onOutboxEnqueued(),
+			runTerminal: (record) => this.releaseCatalogPin(record.runId),
 		};
 		this.ids = {
 			botId: () => createBotId(),
@@ -838,6 +862,7 @@ export class GatewayRuntime {
 		for (const record of this.stores.runs.listQueued()) {
 			try {
 				this.getBot(record.botId).recoverQueuedRun(record);
+				this.pinCatalog(record.runId);
 				requeued.push(record.runId);
 			} catch {
 				// The session is closed or the bot retired; the run cannot be
@@ -913,6 +938,9 @@ export class GatewayRuntime {
 				);
 			}
 		}
+		const provenance = RunProvenanceSchema.parse(
+			params.provenance ?? { mode: "interactive", submittedBy: actor },
+		);
 		return this.database.transaction(() => {
 			// Effective config at admission (provider/model/prompt settings —
 			// never credentials). Persisted as the run's snapshot below;
@@ -933,15 +961,103 @@ export class GatewayRuntime {
 				overrides: params.overrides,
 			});
 			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
+			this.stores.provenance.record(
+				accepted.runId,
+				provenance,
+				this.clock.now(),
+			);
+			this.pinCatalog(accepted.runId);
 			this.stores.audit.record(
 				actor,
 				"run.start",
 				accepted.runId,
-				{ botId: params.botId, queuePosition: accepted.queuePosition },
+				{
+					botId: params.botId,
+					queuePosition: accepted.queuePosition,
+					mode: provenance.mode,
+				},
 				this.clock.now(),
 			);
 			return accepted;
 		});
+	}
+
+	/**
+	 * Connector admission (Gateway RFC, Phase 6): the same durable FIFO
+	 * queue and the same canonical session as desktop/CLI prompts, plus
+	 * explicit connector provenance and the resolved session identity.
+	 */
+	startConnectorRun(params: {
+		botId: BotId;
+		prompt: string;
+		connectorId: ConnectorId;
+		externalAccountId: string;
+		externalConversationId: string;
+	}): RunAccepted & { sessionId: SessionId } {
+		const accepted = this.startRun(`connector:${params.connectorId}`, {
+			botId: params.botId,
+			prompt: params.prompt,
+			provenance: {
+				mode: "connector",
+				submittedBy: `connector:${params.connectorId}`,
+				connectorId: params.connectorId,
+				externalAccountId: params.externalAccountId,
+				externalConversationId: params.externalConversationId,
+			},
+		});
+		const record = this.stores.runs.get(accepted.runId);
+		if (!record) {
+			throw new Error(`invariant violation: run ${accepted.runId} vanished`);
+		}
+		return { ...accepted, sessionId: record.sessionId };
+	}
+
+	/** Automation admission for the scheduler: an ordinary run. */
+	startAutomationRun(schedule: {
+		scheduleId: ScheduleId;
+		botId: BotId;
+		prompt: string;
+		name: string;
+	}): RunAccepted {
+		return this.startRun(`schedule:${schedule.scheduleId}`, {
+			botId: schedule.botId,
+			prompt: schedule.prompt,
+			provenance: {
+				mode: "automation",
+				submittedBy: `schedule:${schedule.scheduleId}`,
+				scheduleId: schedule.scheduleId,
+				reason: schedule.name,
+			},
+		});
+	}
+
+	runProvenance(runId: RunId): RunProvenance | undefined {
+		return this.stores.provenance.get(runId);
+	}
+
+	/** Catalog generations currently pinned by active runs (tests/status). */
+	pinnedCatalogGenerations(): readonly number[] {
+		return [...this.catalogPins.values()]
+			.map((pin) => pin.snapshot.generation)
+			.sort((a, b) => a - b);
+	}
+
+	catalogGenerationForRun(runId: RunId): number | undefined {
+		return this.catalogPins.get(runId)?.snapshot.generation;
+	}
+
+	private pinCatalog(runId: RunId): void {
+		if (this.plugins && !this.catalogPins.has(runId)) {
+			this.catalogPins.set(runId, this.plugins.pin());
+		}
+	}
+
+	private releaseCatalogPin(runId: RunId): void {
+		const pin = this.catalogPins.get(runId);
+		if (pin) {
+			this.catalogPins.delete(runId);
+			pin.release();
+		}
 	}
 
 	/** Merge steering text into the active run. */
@@ -1039,6 +1155,152 @@ export class GatewayRuntime {
 		return this.stores.bots.list();
 	}
 
+	/**
+	 * Register a bot-scoped connector (Gateway RFC, Phase 6). The config
+	 * is non-secret; the credential stays an owner-only 0600 file named
+	 * by `credentialRef`.
+	 */
+	registerConnector(
+		actor: string,
+		params: {
+			botId: BotId;
+			kind: string;
+			name: string;
+			config?: Record<string, unknown>;
+			credentialRef?: string;
+		},
+	): ConnectorRecord {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		const bot = this.stores.bots.get(params.botId);
+		if (!bot) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
+			);
+		}
+		return this.database.transaction(() => {
+			const record: ConnectorRecord = {
+				connectorId: createConnectorId(),
+				botId: params.botId,
+				kind: params.kind,
+				name: params.name,
+				config: params.config ?? {},
+				credentialRef: params.credentialRef,
+				status: "enabled",
+				createdAt: this.clock.now(),
+				revision: 0,
+			};
+			this.stores.connectors.save(record);
+			this.stores.events.append(
+				"connector.registered",
+				{ botId: params.botId },
+				{
+					connectorId: record.connectorId,
+					kind: params.kind,
+					name: params.name,
+				},
+				this.clock.now(),
+			);
+			this.stores.audit.record(
+				actor,
+				"connector.register",
+				record.connectorId,
+				{ botId: params.botId, kind: params.kind },
+				this.clock.now(),
+			);
+			return record;
+		});
+	}
+
+	listConnectors(botId?: BotId): readonly ConnectorRecord[] {
+		return this.stores.connectors.list(botId);
+	}
+
+	/** Create a schedule (Gateway RFC, Phase 6): a durable trigger. */
+	createSchedule(
+		actor: string,
+		params: {
+			botId: BotId;
+			name: string;
+			prompt: string;
+			intervalMs?: number;
+			at?: number;
+			maxAttempts?: number;
+		},
+	): ScheduleRecord {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		const bot = this.stores.bots.get(params.botId);
+		if (!bot) {
+			throw new GatewayCallError(
+				createGatewayError("not_found", `Unknown bot: ${params.botId}`),
+			);
+		}
+		if ((params.intervalMs === undefined) === (params.at === undefined)) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_request",
+					"A schedule takes exactly one trigger: intervalMs (recurring) or at (one-shot)",
+				),
+			);
+		}
+		return this.database.transaction(() => {
+			const now = this.clock.now();
+			const record: ScheduleRecord = {
+				scheduleId: createScheduleId(),
+				botId: params.botId,
+				name: params.name,
+				prompt: params.prompt,
+				intervalMs: params.intervalMs,
+				at: params.at,
+				nextDueAt: params.at ?? now + (params.intervalMs ?? 0),
+				enabled: true,
+				maxAttempts: Math.max(1, params.maxAttempts ?? 1),
+				createdAt: now,
+				revision: 0,
+			};
+			this.stores.schedules.save(record);
+			this.stores.events.append(
+				"schedule.created",
+				{ botId: params.botId },
+				{ scheduleId: record.scheduleId, name: params.name },
+				now,
+			);
+			this.stores.audit.record(
+				actor,
+				"schedule.create",
+				record.scheduleId,
+				{ botId: params.botId },
+				now,
+			);
+			return record;
+		});
+	}
+
+	listSchedules(botId?: BotId): readonly ScheduleRecord[] {
+		return this.stores.schedules.list(botId);
+	}
+
+	scheduleReport(
+		scheduleId: ScheduleId,
+	): ReturnType<GatewayStores["scheduleJobs"]["report"]> {
+		return this.stores.scheduleJobs.report(scheduleId);
+	}
+
 	listSessions(botId?: BotId): readonly SessionRecord[] {
 		return botId
 			? this.stores.sessions.listByBot(botId)
@@ -1121,6 +1383,23 @@ export class GatewayRuntime {
 			catalogGeneration: this.stores.meta.catalogGeneration(),
 			namespace: this.paths.namespace,
 			dataDir: this.paths.dataDir,
+			// Isolation is always visible in health/telemetry — including
+			// the default direct in-process execution (a development mode).
+			execution: this.executionHealth?.() ?? {
+				isolation: "in-process-direct",
+				development: true,
+			},
+			...(this.plugins
+				? {
+						plugins: {
+							generation: this.plugins.current.generation,
+							plugins: this.plugins.current.entries.length,
+							heldGenerations: this.plugins.heldGenerations(),
+							pinnedByRuns: this.catalogPins.size,
+							lastReloadOk: this.plugins.lastReloadReport?.ok ?? true,
+						},
+					}
+				: {}),
 			counts: {
 				bots: this.stores.bots.list().length,
 				sessions: this.stores.sessions.list().length,
@@ -1130,6 +1409,8 @@ export class GatewayRuntime {
 				pendingOutbox: this.stores.outbox.countPending(),
 				lastEventSequence: this.stores.events.lastSequence(),
 				pendingServerRequests: this.approvals.pendingCount,
+				connectors: this.stores.connectors.list().length,
+				schedules: this.stores.schedules.list().length,
 			},
 		};
 	}

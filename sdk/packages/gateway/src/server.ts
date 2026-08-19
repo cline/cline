@@ -29,6 +29,7 @@ import type {
 	GatewayServerRequest,
 	IdempotencyKey,
 	RunId,
+	ScheduleId,
 	SessionId,
 } from "@cline/shared/gateway";
 import {
@@ -41,6 +42,10 @@ import {
 	GatewayServerResponseSchema,
 	IDEMPOTENCY_KEY_PARAM,
 } from "@cline/shared/gateway";
+import type { ConnectorAdapter } from "./connectors/adapter";
+import { ConnectorManager } from "./connectors/manager";
+import { SlackConnectorAdapter } from "./connectors/slack";
+import { TelegramConnectorAdapter } from "./connectors/telegram";
 import { type GatewayDatabase, openGatewayDatabase } from "./db";
 import {
 	createInstanceAuthToken,
@@ -63,12 +68,15 @@ import {
 	type GatewayPathsOptions,
 	resolveGatewayPaths,
 } from "./paths";
+import { PluginCatalog, type PluginSource } from "./plugins/catalog";
 import {
 	GatewayCallError,
 	GatewayRuntime,
 	type GatewayRuntimeOptions,
 	toGatewayError,
 } from "./runtime";
+import { Scheduler } from "./schedules/scheduler";
+import { readSecretFile } from "./secrets";
 import { createGatewayStores, type GatewayStores } from "./stores";
 import type { PriceResolver } from "./usage";
 
@@ -91,6 +99,16 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	usagePrices?: PriceResolver;
 	/** Graceful-stop budget before sockets are closed anyway. */
 	stopTimeoutMs?: number;
+	/** Phase 4: extra plugin discovery sources (global dir is implicit). */
+	pluginSources?: readonly PluginSource[];
+	/** Phase 4: worker/execution health surfaced in gateway.status. */
+	executionHealth?: () => Record<string, unknown>;
+	/** Phase 6: connector adapters (defaults: telegram + slack). */
+	connectorAdapters?: Record<string, ConnectorAdapter>;
+	/** Phase 6: start enabled connectors on boot (default true). */
+	autoStartConnectors?: boolean;
+	/** Phase 6: scheduler tick cadence (0 disables the timer). */
+	schedulerTickMs?: number;
 }
 
 interface Subscription {
@@ -199,6 +217,9 @@ export class GatewayServer {
 	readonly runtime: GatewayRuntime;
 	readonly stores: GatewayStores;
 	readonly outboxWorker: OutboxWorker;
+	readonly plugins: PluginCatalog;
+	readonly connectors: ConnectorManager;
+	readonly scheduler: Scheduler;
 	discovery: DiscoveryRecord | undefined;
 
 	private readonly database: GatewayDatabase;
@@ -222,6 +243,9 @@ export class GatewayServer {
 		stores: GatewayStores;
 		runtime: GatewayRuntime;
 		outboxWorker: OutboxWorker;
+		plugins: PluginCatalog;
+		connectors: ConnectorManager;
+		scheduler: Scheduler;
 		instanceId: GatewayInstanceId;
 		authToken: string;
 		stopTimeoutMs: number;
@@ -232,6 +256,9 @@ export class GatewayServer {
 		this.stores = options.stores;
 		this.runtime = options.runtime;
 		this.outboxWorker = options.outboxWorker;
+		this.plugins = options.plugins;
+		this.connectors = options.connectors;
+		this.scheduler = options.scheduler;
 		this.instanceId = options.instanceId;
 		this.authToken = options.authToken;
 		this.stopTimeoutMs = options.stopTimeoutMs;
@@ -262,6 +289,18 @@ export class GatewayServer {
 				usage: { prices: options.usagePrices },
 			});
 
+			// Phase 4: the plugin catalog. The global source is implicit;
+			// bot/workspace sources are added by the caller or per bot below.
+			const plugins = new PluginCatalog({
+				sources: [
+					{ scope: { kind: "global" }, dir: paths.pluginsDir },
+					...(options.pluginSources ?? []),
+				],
+				onPublish: () => {
+					stores.meta.bumpCatalogGeneration();
+				},
+			});
+
 			let workerRef: OutboxWorker | undefined;
 			const runtime = new GatewayRuntime({
 				database,
@@ -273,6 +312,8 @@ export class GatewayServer {
 				retry: options.retry,
 				maxPendingRunsPerSession: options.maxPendingRunsPerSession,
 				onOutboxEnqueued: () => workerRef?.schedule(),
+				plugins,
+				executionHealth: options.executionHealth,
 			});
 			const outboxWorker = new OutboxWorker(
 				stores,
@@ -281,6 +322,37 @@ export class GatewayServer {
 			);
 			workerRef = outboxWorker;
 
+			// Phase 6: connector supervision over the bot-owned semantics.
+			const connectors = new ConnectorManager({
+				database,
+				stores,
+				admission: {
+					submit: (botId, prompt, context) =>
+						runtime.startConnectorRun({
+							botId,
+							prompt,
+							connectorId: context.connectorId,
+							externalAccountId: context.externalAccountId,
+							externalConversationId: context.externalConversationId,
+						}),
+				},
+				adapters: options.connectorAdapters ?? {
+					telegram: new TelegramConnectorAdapter(),
+					slack: new SlackConnectorAdapter(),
+				},
+				readCredential: (credentialRef) => readSecretFile(paths, credentialRef),
+				gatewayInstanceId: instanceId,
+			});
+
+			// Phase 6: the scheduler; only this (lock-holding) instance claims.
+			const scheduler = new Scheduler({
+				database,
+				stores,
+				admitAutomationRun: (schedule) => runtime.startAutomationRun(schedule),
+				instanceId,
+				tickIntervalMs: options.schedulerTickMs ?? 1_000,
+			});
+
 			const server = new GatewayServer({
 				paths,
 				lock,
@@ -288,15 +360,29 @@ export class GatewayServer {
 				stores,
 				runtime,
 				outboxWorker,
+				plugins,
+				connectors,
+				scheduler,
 				instanceId,
 				authToken: createInstanceAuthToken(),
 				stopTimeoutMs: options.stopTimeoutMs ?? 5_000,
 			});
 
 			// 3. Bootstrap + manual crash recovery before accepting clients.
-			runtime.bootstrap();
+			const lead = runtime.bootstrap();
+			// The lead bot's plugin dir is a standing source; reload imports
+			// global + bot plugins into the first published generation.
+			plugins.addSource({
+				scope: { kind: "bot", botId: lead.identity.botId },
+				dir: paths.botPluginsDir(lead.identity.botId),
+			});
+			plugins.reload();
 			runtime.recover();
 			outboxWorker.schedule();
+			scheduler.start();
+			if (options.autoStartConnectors ?? true) {
+				connectors.startAll();
+			}
 
 			// 4. Exclusive loopback bind. Ephemeral by default: the singleton
 			//    scope is the data directory, never a port.
@@ -379,6 +465,8 @@ export class GatewayServer {
 		// New connections are refused from here on (handleConnection guard).
 		this.stopping = true;
 		this.unsubscribeEvents?.();
+		this.scheduler.stop();
+		await this.connectors.stop();
 		if (mode === "graceful") {
 			this.runtime.interruptAllActive("Gateway is stopping");
 			await Promise.race([
@@ -699,6 +787,38 @@ export class GatewayServer {
 				});
 			case "statistics.usage":
 				return this.stores.usage.month(p.month as string);
+			case "connector.register": {
+				const record = this.runtime.registerConnector(actor, {
+					botId: p.botId as BotId,
+					kind: p.kind as string,
+					name: p.name as string,
+					config: p.config as Record<string, unknown> | undefined,
+					credentialRef: p.credentialRef as string | undefined,
+				});
+				this.connectors.start(record.connectorId);
+				return record;
+			}
+			case "connector.list":
+				return {
+					connectors: this.runtime.listConnectors(p.botId as BotId | undefined),
+				};
+			case "schedule.create":
+				return this.runtime.createSchedule(actor, {
+					botId: p.botId as BotId,
+					name: p.name as string,
+					prompt: p.prompt as string,
+					intervalMs: p.intervalMs as number | undefined,
+					at: p.at as number | undefined,
+					maxAttempts: p.maxAttempts as number | undefined,
+				});
+			case "schedule.list":
+				return {
+					schedules: this.runtime.listSchedules(p.botId as BotId | undefined),
+				};
+			case "schedule.report":
+				return {
+					jobs: this.runtime.scheduleReport(p.scheduleId as ScheduleId),
+				};
 			default:
 				throw new GatewayCallError(
 					createGatewayError("not_found", `Unhandled method: ${method}`),

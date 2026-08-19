@@ -18,6 +18,7 @@ import {
 	IDEMPOTENCY_KEY_PARAM,
 	IdempotencyKeySchema,
 	RunIdSchema,
+	ScheduleIdSchema,
 	SessionIdSchema,
 } from "@cline/shared/gateway";
 import { z } from "zod";
@@ -191,6 +192,47 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 				month: z.string().regex(/^\d{4}-\d{2}$/),
 			})
 			.strict(),
+	),
+	// Phase 6: connectors are bot-scoped; registration names exactly one bot.
+	define(
+		"connector.register",
+		true,
+		IdempotentParamsBase.extend({
+			botId: BotIdSchema,
+			kind: z.enum(["telegram", "slack"]),
+			name: z.string().min(1),
+			config: z.record(z.string(), z.unknown()).optional(),
+			/** Name of an owner-only secret file — never the secret itself. */
+			credentialRef: z.string().min(1).optional(),
+		}).strict(),
+	),
+	define(
+		"connector.list",
+		false,
+		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	// Phase 6: schedules — durable triggers creating ordinary automation runs.
+	define(
+		"schedule.create",
+		true,
+		IdempotentParamsBase.extend({
+			botId: BotIdSchema,
+			name: z.string().min(1),
+			prompt: z.string().min(1),
+			intervalMs: z.number().int().positive().optional(),
+			at: z.number().int().nonnegative().optional(),
+			maxAttempts: z.number().int().positive().optional(),
+		}).strict(),
+	),
+	define(
+		"schedule.list",
+		false,
+		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	define(
+		"schedule.report",
+		false,
+		z.object({ scheduleId: ScheduleIdSchema }).strict(),
 	),
 ];
 
