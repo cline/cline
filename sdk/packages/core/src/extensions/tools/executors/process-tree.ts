@@ -2,6 +2,8 @@ import { type ChildProcess, spawn } from "node:child_process";
 import { readdir, readFile } from "node:fs/promises";
 
 const PROCESS_TABLE_TIMEOUT_MS = 1_000;
+/** PowerShell cold start alone can exceed the POSIX budget. */
+const WINDOWS_PROCESS_TABLE_TIMEOUT_MS = 5_000;
 
 export interface ProcessInfo {
 	pid: number;
@@ -10,10 +12,20 @@ export interface ProcessInfo {
 	/**
 	 * Platform-specific start-time token. On Linux this is the kernel's
 	 * `starttime` from `/proc/<pid>/stat` — clock ticks since boot, so it is
-	 * monotonic for the life of the boot and resolves to ~10ms. Elsewhere it is
-	 * the whole-second `ps lstart` string.
+	 * monotonic for the life of the boot and resolves to ~10ms. On Windows it
+	 * is the process creation FileTime (100ns resolution) from CIM. Elsewhere
+	 * it is the whole-second `ps lstart` string.
 	 */
 	startedAt: string;
+	/**
+	 * Numeric ordering of `startedAt`, where the platform provides one.
+	 * Windows needs it because a `ParentProcessId` there is a historical
+	 * record, not a live link: the recorded parent may be long dead and its
+	 * pid reused, so a claimed child is believed only if it was created after
+	 * its claimed parent. POSIX parent links are kernel-maintained (orphans
+	 * are reparented), so the field stays unset there.
+	 */
+	startedAtOrder?: number;
 	/** Command line (or kernel `comm` on Linux), an extra identity discriminator. */
 	command: string;
 }
@@ -26,8 +38,10 @@ export interface ProcessInfo {
  * - Start time. On Linux it comes from `/proc/<pid>/stat` in clock ticks since
  *   boot, so two holders of the same pid can only present the same value if the
  *   pid space wrapped around within one tick (~10ms) — not reachable in
- *   practice. On macOS/BSD, portable `ps` resolves only to the second, so the
- *   other two components carry the discrimination there.
+ *   practice. On Windows it is the creation FileTime (100ns resolution) from
+ *   CIM, which reuse likewise cannot replay. On macOS/BSD, portable `ps`
+ *   resolves only to the second, so the other two components carry the
+ *   discrimination there.
  * - Process group id. Stable for a process's lifetime, unlike the parent pid,
  *   which changes on reparenting — precisely the case ownership tracking
  *   exists to follow.
@@ -186,8 +200,58 @@ async function readProcProcessTable(): Promise<ProcessTable | undefined> {
 	return buildProcessTable(rows);
 }
 
-/** Reads one bounded `ps` snapshot on POSIX platforms without procfs. */
-function readPsProcessTable(): Promise<ProcessTable | undefined> {
+/**
+ * Parses the pipe-delimited rows emitted by the Windows table query:
+ * `ProcessId|ParentProcessId|CreationDate.ToFileTime()|Name`.
+ *
+ * FileTime counts 100ns intervals since 1601, so it is a generation token far
+ * finer than pid reuse can collide with. It is kept verbatim in `startedAt`
+ * (exact identity comparison) and, rounded through a JS number, in
+ * `startedAtOrder` for creation-order checks. Rows without a readable
+ * creation time cannot be attributed to any generation and are skipped —
+ * such a process can never be claimed, which is the safe direction. Windows
+ * has no process groups; the field is fixed at 0, which every group-claiming
+ * code path already treats as "no group".
+ */
+export function parseWindowsProcessTable(output: string): ProcessTable {
+	const rows: ProcessInfo[] = [];
+	for (const line of output.split(/\r?\n/)) {
+		const parts = line.trim().split("|");
+		if (parts.length < 4) continue;
+		const pid = Number.parseInt(parts[0] ?? "", 10);
+		const parentPid = Number.parseInt(parts[1] ?? "", 10);
+		const fileTime = parts[2] ?? "";
+		// `Name` is an executable file name and cannot contain `|` on Windows;
+		// re-joining is purely defensive.
+		const command = parts.slice(3).join("|");
+		if (
+			!Number.isInteger(pid) ||
+			!Number.isInteger(parentPid) ||
+			!/^\d+$/.test(fileTime) ||
+			!command
+		) {
+			continue;
+		}
+		rows.push({
+			pid,
+			parentPid,
+			processGroupId: 0,
+			startedAt: `filetime:${fileTime}`,
+			startedAtOrder: Number(fileTime),
+			command,
+		});
+	}
+	return buildProcessTable(rows);
+}
+
+/** Runs one bounded table-listing command and parses its stdout. */
+function readTableViaCommand(
+	command: string,
+	args: readonly string[],
+	parse: (output: string) => ProcessTable,
+	timeoutMs: number,
+	env?: NodeJS.ProcessEnv,
+): Promise<ProcessTable | undefined> {
 	return new Promise((resolve) => {
 		let output = "";
 		let finished = false;
@@ -198,43 +262,73 @@ function readPsProcessTable(): Promise<ProcessTable | undefined> {
 			if (watchdog) clearTimeout(watchdog);
 			resolve(result);
 		};
-		let ps: ChildProcess;
+		let lister: ChildProcess;
 		try {
-			// LC_ALL=C pins `lstart` to the asctime layout the parser expects; in
-			// other locales its token count varies. `-ww` prevents column-width
-			// truncation of the command, which would make identities compare
-			// unequal between snapshots and disown live descendants.
-			ps = spawn(
-				"ps",
-				["-A", "-ww", "-o", "pid=,ppid=,pgid=,lstart=,command="],
-				{
-					stdio: ["ignore", "pipe", "ignore"],
-					windowsHide: true,
-					env: { ...process.env, LC_ALL: "C" },
-				},
-			);
+			lister = spawn(command, [...args], {
+				stdio: ["ignore", "pipe", "ignore"],
+				windowsHide: true,
+				env,
+			});
 		} catch {
 			finish();
 			return;
 		}
 		watchdog = setTimeout(() => {
-			ps.kill();
+			lister.kill();
 			finish();
-		}, PROCESS_TABLE_TIMEOUT_MS);
-		ps.stdout?.setEncoding("utf8");
-		ps.stdout?.on("data", (chunk: string) => {
+		}, timeoutMs);
+		lister.stdout?.setEncoding("utf8");
+		lister.stdout?.on("data", (chunk: string) => {
 			output += chunk;
 		});
-		ps.once("error", () => finish());
-		ps.once("close", (code) =>
-			finish(code === 0 ? parseProcessTable(output) : undefined),
+		lister.once("error", () => finish());
+		lister.once("close", (code) =>
+			finish(code === 0 ? parse(output) : undefined),
 		);
 	});
 }
 
-/** Reads one bounded process-table snapshot on POSIX. */
+/** Reads one bounded `ps` snapshot on POSIX platforms without procfs. */
+function readPsProcessTable(): Promise<ProcessTable | undefined> {
+	// LC_ALL=C pins `lstart` to the asctime layout the parser expects; in
+	// other locales its token count varies. `-ww` prevents column-width
+	// truncation of the command, which would make identities compare
+	// unequal between snapshots and disown live descendants.
+	return readTableViaCommand(
+		"ps",
+		["-A", "-ww", "-o", "pid=,ppid=,pgid=,lstart=,command="],
+		parseProcessTable,
+		PROCESS_TABLE_TIMEOUT_MS,
+		{ ...process.env, LC_ALL: "C" },
+	);
+}
+
+/**
+ * Reads the Windows process table through CIM.
+ *
+ * `Win32_Process.CreationDate` carries the kernel's creation FileTime, giving
+ * each pid a generation token that reuse cannot replay — the discriminator
+ * `taskkill /T` never had. The larger timeout absorbs PowerShell's cold
+ * start; a timeout or failure yields no table, which downstream code treats
+ * as "nothing can be proven owned".
+ */
+function readWindowsProcessTable(): Promise<ProcessTable | undefined> {
+	const script =
+		"Get-CimInstance -ClassName Win32_Process | ForEach-Object { " +
+		"'{0}|{1}|{2}|{3}' -f $_.ProcessId, $_.ParentProcessId, " +
+		"$(if ($_.CreationDate) { $_.CreationDate.ToFileTime() } else { '' }), $_.Name }";
+	return readTableViaCommand(
+		"powershell.exe",
+		["-NoProfile", "-NonInteractive", "-Command", script],
+		parseWindowsProcessTable,
+		WINDOWS_PROCESS_TABLE_TIMEOUT_MS,
+	);
+}
+
+/** Reads one bounded process-table snapshot for the current platform. */
 export function readProcessTable(): Promise<ProcessTable | undefined> {
 	if (process.platform === "linux") return readProcProcessTable();
+	if (process.platform === "win32") return readWindowsProcessTable();
 	return readPsProcessTable();
 }
 
@@ -326,8 +420,20 @@ export function observeOwnedProcessTree(
 	for (let index = 0; index < processTree.length; index += 1) {
 		const parentPid = processTree[index];
 		if (parentPid === undefined) continue;
+		const parentInfo = table.byPid.get(parentPid);
 		for (const descendant of table.childrenByParent.get(parentPid) ?? []) {
 			if (seen.has(descendant.pid)) continue;
+			// Where parent links are historical records (Windows), a process
+			// whose recorded parent pid was reused by one of ours would be
+			// adopted here. A real child cannot predate its parent, so anything
+			// created before the claimed parent is rejected as a stale link.
+			if (
+				parentInfo?.startedAtOrder !== undefined &&
+				descendant.startedAtOrder !== undefined &&
+				descendant.startedAtOrder < parentInfo.startedAtOrder
+			) {
+				continue;
+			}
 			seen.add(descendant.pid);
 			processTree.push(descendant.pid);
 		}

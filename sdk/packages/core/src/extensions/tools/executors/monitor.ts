@@ -126,7 +126,9 @@ const DEFAULT_KILL_TIMEOUT_MS = 2_000;
 const DEFAULT_EXIT_FLUSH_GRACE_MS = 2_000;
 /** Absolute ceiling on post-exit flushing, so extensions cannot run forever. */
 const EXIT_FLUSH_MAX_TOTAL_MS = 15_000;
-const PROCESS_TREE_TRACK_INTERVAL_MS = 250;
+/** Windows snapshots go through PowerShell/CIM, too heavy for a 250ms cadence. */
+const PROCESS_TREE_TRACK_INTERVAL_MS =
+	process.platform === "win32" ? 2_000 : 250;
 const PROCESS_EXIT_POLL_INTERVAL_MS = 50;
 const TRUNCATION_SUFFIX = "… [truncated]";
 
@@ -156,8 +158,6 @@ interface MonitorEntry extends MonitorRecord {
 	ownedProcessGroupIdentity?: string;
 	/** Set once teardown gives up, so the exit poll stops looping. */
 	terminationAbandoned?: boolean;
-	/** Windows only: guards against issuing the tree kill twice. */
-	windowsTreeKilled?: boolean;
 	/** Recorded at `exit`, since `close` may never arrive. */
 	exitOutcome?: { code: number | null; signal: NodeJS.Signals | null };
 	/** Grace window letting late stdio flush before settling from `exit`. */
@@ -196,7 +196,7 @@ export class MonitorRegistry {
 	private disposed = false;
 	private processTracker?: NodeJS.Timeout;
 	private processTracking?: Promise<void>;
-	private processTrackingAvailable = process.platform !== "win32";
+	private processTrackingAvailable = true;
 
 	constructor(private readonly options: MonitorRegistryOptions = {}) {}
 
@@ -315,22 +315,12 @@ export class MonitorRegistry {
 			});
 		});
 		child.on("exit", (code, signal) => {
-			// Deliberately no tree kill here. An earlier revision fired
-			// `taskkill /T /F` from this handler to catch descendants stranded by
-			// a wrapper that exited on its own, reasoning that this was the last
-			// moment the parent links were still ours. That reasoning was wrong:
-			// the pid is already released by the time `exit` fires, taskkill
-			// resolves it asynchronously later still, and Windows reassigns pids
-			// aggressively — so the target could be an unrelated process, whose
-			// entire tree would be killed. There is no generation data on Windows
-			// to rule that out.
-			//
-			// The tree is therefore only killed while the child is verifiably
-			// alive (see terminateEntry). Descendants stranded by a wrapper that
-			// exits on its own are left running, matching the POSIX rule that
-			// nothing is signaled without proof it is ours. Closing that gap for
-			// real needs a durable ownership marker — a job object here, cgroups
-			// on Linux — rather than a pid heuristic.
+			// Deliberately nothing is killed from this handler. By the time
+			// `exit` fires the pid is already released, so any kill issued from
+			// here — an earlier revision ran `taskkill /T /F` — races pid reuse
+			// and can only target a number, never a proven generation. Cleanup
+			// belongs to terminateEntry, which signals only pids revalidated
+			// against the generations recorded while the wrapper was alive.
 			//
 			// Settlement is driven from `exit`, not `close`. `close` additionally
 			// waits for every copy of the stdio pipes to be released, and a
@@ -421,28 +411,6 @@ export class MonitorRegistry {
 
 		const child = entry.child;
 		if (!child) return;
-		if (process.platform === "win32") {
-			// Gated on the child still running, and that gate is the whole safety
-			// argument on Windows: a live pid cannot have been reassigned, so the
-			// tree taskkill walks is provably ours. Once it has exited there is no
-			// way to re-establish that, so nothing is killed.
-			if (this.isChildRunning(child)) {
-				const exited = this.waitForExit(child);
-				if (!entry.windowsTreeKilled) {
-					entry.windowsTreeKilled = true;
-					this.killWindowsTree(child);
-				}
-				// taskkill can fail (elevated target, already-reaped pid). Bound
-				// the wait so a refusal cannot wedge session shutdown.
-				const killTimeout =
-					this.options.killTimeoutMs ?? DEFAULT_KILL_TIMEOUT_MS;
-				if (!(await this.waitUntil(exited, killTimeout))) {
-					entry.terminationAbandoned = true;
-					entry.error = `Monitor "${entry.name}" did not exit after taskkill (pid ${child.pid ?? "unknown"}).`;
-				}
-			}
-			return;
-		}
 
 		const initialTable = await this.refreshProcessOwnership([entry]);
 		const initialProcesses = initialTable
@@ -451,6 +419,9 @@ export class MonitorRegistry {
 		if (!this.isChildRunning(child) && initialProcesses.length === 0) return;
 
 		const exited = this.waitForOwnedProcessesExit(entry);
+		// On Windows both signals degrade to TerminateProcess, so the "grace"
+		// phase is nominal there — the first pass already kills outright, and
+		// the escalation just re-reads the table to catch late descendants.
 		this.signalOwnedProcesses(entry, initialProcesses, "SIGTERM");
 		const gracePeriod =
 			this.options.terminationGracePeriodMs ??
@@ -458,10 +429,10 @@ export class MonitorRegistry {
 		if (await this.waitUntil(exited, gracePeriod)) return;
 
 		// Re-read the table before escalation. A numeric PID is signaled only
-		// when its identity — start time (tick-resolution from /proc on Linux),
-		// process group, and command — still matches the monitor-owned
-		// generation captured while it was a descendant, so PID reuse cannot
-		// target unrelated work.
+		// when its identity — start time (tick-resolution /proc counters on
+		// Linux, creation FileTime on Windows), process group, and command —
+		// still matches the monitor-owned generation captured while it was a
+		// descendant, so PID reuse cannot target unrelated work.
 		const finalTable = await this.refreshProcessOwnership([entry]);
 		const finalProcesses = finalTable
 			? getLiveOwnedProcesses(entry.ownedProcesses, finalTable)
@@ -555,7 +526,6 @@ export class MonitorRegistry {
 	private async refreshProcessOwnership(
 		entries: readonly MonitorEntry[] = [...this.monitors.values()],
 	): Promise<ProcessTable | undefined> {
-		if (process.platform === "win32") return undefined;
 		const table = await readProcessTable();
 		if (!table) return undefined;
 
@@ -638,40 +608,28 @@ export class MonitorRegistry {
 		return undefined;
 	}
 
-	private killWindowsTree(child: ChildProcess): void {
-		const pid = child.pid;
-		if (!pid) {
-			child.kill();
-			return;
-		}
-		try {
-			spawn("taskkill.exe", ["/PID", String(pid), "/T", "/F"], {
-				stdio: "ignore",
-				windowsHide: true,
-			});
-		} catch {
-			child.kill();
-		}
-	}
-
 	private signalOwnedProcesses(
 		entry: MonitorEntry,
 		ownedProcesses: readonly ProcessInfo[],
 		signal: NodeJS.Signals,
 	): void {
-		const groups = new Set(
-			ownedProcesses
-				.map((owned) => owned.processGroupId)
-				.filter((processGroupId) => processGroupId > 0),
-		);
 		const child = entry.child;
-		if (child?.pid && this.isChildRunning(child)) groups.add(child.pid);
+		// Process groups exist only on POSIX, where the direct child was made a
+		// group leader at spawn; a negative-pid kill has no Windows meaning.
+		if (process.platform !== "win32") {
+			const groups = new Set(
+				ownedProcesses
+					.map((owned) => owned.processGroupId)
+					.filter((processGroupId) => processGroupId > 0),
+			);
+			if (child?.pid && this.isChildRunning(child)) groups.add(child.pid);
 
-		for (const processGroupId of groups) {
-			try {
-				process.kill(-processGroupId, signal);
-			} catch {
-				// The group may already have exited after the validated table read.
+			for (const processGroupId of groups) {
+				try {
+					process.kill(-processGroupId, signal);
+				} catch {
+					// The group may already have exited after the validated table read.
+				}
 			}
 		}
 		for (const owned of ownedProcesses) {
@@ -681,7 +639,10 @@ export class MonitorRegistry {
 				// The process may already have exited after the validated table read.
 			}
 		}
-		if (ownedProcesses.length === 0 && child && this.isChildRunning(child)) {
+		// The direct child is also signaled through its own handle, which pid
+		// reuse cannot redirect — on Windows this is the one fully race-free
+		// kill, and everywhere it covers a child the table read never saw.
+		if (child && this.isChildRunning(child)) {
 			child.kill(signal);
 		}
 	}

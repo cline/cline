@@ -4,6 +4,7 @@ import {
 	observeOwnedProcessTree,
 	parseProcessTable,
 	parseProcStat,
+	parseWindowsProcessTable,
 } from "./process-tree";
 
 describe("process tree ownership", () => {
@@ -179,6 +180,79 @@ describe("procfs stat parsing", () => {
 			childrenByParent: new Map(),
 		};
 		expect(getLiveOwnedProcesses(owned, reused)).toEqual([]);
+	});
+});
+
+describe("windows table parsing", () => {
+	it("parses pipe-delimited rows with FileTime generations", () => {
+		const table = parseWindowsProcessTable(
+			[
+				"1200|800|133700000000000000|cmd.exe",
+				"1300|1200|133700000000500000|node.exe",
+			].join("\r\n"),
+		);
+		expect(table.byPid.get(1200)).toMatchObject({
+			pid: 1200,
+			parentPid: 800,
+			processGroupId: 0,
+			startedAt: "filetime:133700000000000000",
+			command: "cmd.exe",
+		});
+		expect(table.childrenByParent.get(1200)?.map(({ pid }) => pid)).toEqual([
+			1300,
+		]);
+	});
+
+	it("skips rows without a readable creation time", () => {
+		// A process whose creation time cannot be read has no generation and can
+		// never be proven owned; it must be invisible rather than claimable.
+		const table = parseWindowsProcessTable(
+			[
+				"4||protected.exe",
+				"4|0||protected.exe",
+				"8|4|133700000000000000|ok.exe",
+			].join("\n"),
+		);
+		expect(table.byPid.has(4)).toBe(false);
+		expect(table.byPid.has(8)).toBe(true);
+	});
+
+	it("rejects a reused pid via the FileTime generation", () => {
+		const original = parseWindowsProcessTable(
+			"500|400|133700000000000000|node.exe",
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [500], original);
+
+		// Same pid, same executable, later creation time: a different process.
+		const reused = parseWindowsProcessTable(
+			"500|400|133700000009999999|node.exe",
+		);
+		expect(getLiveOwnedProcesses(owned, reused)).toEqual([]);
+	});
+
+	it("does not adopt a child created before its claimed parent", () => {
+		// Windows parent pids are historical records: the recorded parent may be
+		// long dead and its pid reused by one of ours. A real child cannot
+		// predate its parent, so the stale link is rejected instead of adopted
+		// and signaled.
+		const table = parseWindowsProcessTable(
+			[
+				// Our monitor child, holding a pid that once belonged to the
+				// long-dead creator of the unrelated process below.
+				"700|100|133700000005000000|cmd.exe",
+				// Unrelated process created *before* our 700 existed.
+				"900|700|133700000001000000|foreign.exe",
+				// A genuine descendant, created after its parent.
+				"901|700|133700000006000000|node.exe",
+			].join("\n"),
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [700], table);
+
+		expect(owned.has(700)).toBe(true);
+		expect(owned.has(901)).toBe(true);
+		expect(owned.has(900)).toBe(false);
 	});
 });
 
