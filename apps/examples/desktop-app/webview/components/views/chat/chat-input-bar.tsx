@@ -33,6 +33,12 @@ import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
+	buildModelPickerData,
+	EMPTY_FEATURED_MODELS,
+	type FeaturedModelsData,
+	loadClineFeaturedModels,
+} from "@/lib/featured-models";
+import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
@@ -44,6 +50,7 @@ import {
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
+import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
@@ -1531,6 +1538,15 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	const [modelDetails, setModelDetails] = useState<
+		Record<string, ProviderModel[]>
+	>({});
+	const [featuredModels, setFeaturedModels] = useState<FeaturedModelsData>(
+		EMPTY_FEATURED_MODELS,
+	);
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
@@ -1598,6 +1614,14 @@ const ModelSelector = memo(function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setProviderNames((current) => ({
+					...current,
+					...(payload.providerNames ?? {}),
+				}));
+				setModelDetails((current) => ({
+					...current,
+					...(payload.providerModelDetails ?? {}),
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
@@ -1635,6 +1659,10 @@ const ModelSelector = memo(function ModelSelector({
 					...current,
 					[normalizedProvider]: reasoningModelIds,
 				}));
+				setModelDetails((current) => ({
+					...current,
+					[normalizedProvider]: models,
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
 					current.includes(normalizedProvider)
@@ -1665,10 +1693,24 @@ const ModelSelector = memo(function ModelSelector({
 					.filter((entry) => entry.supportsReasoning)
 					.map((entry) => entry.id),
 			}));
+			setModelDetails((current) => ({
+				...current,
+				[normalizedId]: models,
+			}));
 			setEnabledProviderIds((current) =>
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void loadClineFeaturedModels().then((data) => {
+			if (!cancelled) setFeaturedModels(data);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
@@ -1788,6 +1830,30 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	const providerOptions = useMemo(
+		() =>
+			providers.map((value) => ({
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
+		[providerNames, providers],
+	);
+	// Sectioned picker data: display names from the catalog, plus the
+	// Recommended/Free tiers from the Cline model feed for cline/cline-pass.
+	const modelPicker = useMemo(() => {
+		const detailsById = new Map(
+			(modelDetails[resolvedProvider] ?? []).map(
+				(entry) => [entry.id, entry] as const,
+			),
+		);
+		const models = modelsForProvider.map(
+			(id) => detailsById.get(id) ?? { id, name: id },
+		);
+		return buildModelPickerData(resolvedProvider, models, featuredModels);
+	}, [featuredModels, modelDetails, modelsForProvider, resolvedProvider]);
+	const selectedModelLabel =
+		modelPicker.options.find((option) => option.value === resolvedModel)
+			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -1795,7 +1861,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || providers.length === 0}
 			emptyText="No providers found."
 			onValueChange={handleProviderSelect}
-			options={providers.map((value) => ({ label: value, value }))}
+			options={providerOptions}
 			placeholder="Provider"
 			placement="top"
 			searchPlaceholder="Search providers"
@@ -1815,10 +1881,12 @@ const ModelSelector = memo(function ModelSelector({
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelsForProvider.map((value) => ({ label: value, value }))}
+			options={modelPicker.options}
+			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
+			sections={modelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
@@ -1832,7 +1900,7 @@ const ModelSelector = memo(function ModelSelector({
 				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -1848,7 +1916,7 @@ const ModelSelector = memo(function ModelSelector({
 					/>
 					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
@@ -1856,7 +1924,7 @@ const ModelSelector = memo(function ModelSelector({
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(

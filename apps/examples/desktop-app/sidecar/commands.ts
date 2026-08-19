@@ -20,6 +20,7 @@ import {
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
+	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
 	listHookConfigFiles,
@@ -1522,6 +1523,11 @@ export async function handleCommand(
 			String(args?.provider ?? ""),
 			manager.getProviderConfig(String(args?.provider ?? "").trim()),
 		);
+	}
+	if (command === "list_cline_recommended_models") {
+		// Tiered picker data (recommended / free / clinePass) with
+		// display-ready names; falls back to a bundled list offline.
+		return await fetchClineRecommendedModels();
 	}
 	if (command === "create_streaming_transcription_session") {
 		const manager = new ProviderSettingsManager();
