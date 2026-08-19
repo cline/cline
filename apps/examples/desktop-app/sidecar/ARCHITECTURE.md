@@ -132,6 +132,26 @@ The frontend `desktop-client.ts` connects directly to the sidecar WebSocket:
 - No Tauri dependency needed
 - Same `invoke()` / `subscribe()` API
 
+### 8. Transport Authentication
+
+The command plane is authenticated with a per-launch bearer token; the
+browser `Origin` allowlist is only a CSRF control and is never treated as
+authentication.
+
+- The sidecar generates a 256-bit token at startup and prints it on the
+  `ready` stdout line, a pipe private to the spawning app shell. The token
+  never touches disk.
+- The Tauri shell reads the token from the ready line and returns it from
+  `get_desktop_backend_endpoint`; the webview authenticates with a
+  first-message `{type:"auth", token}` handshake on the WebSocket. The
+  sidecar serves no commands and sends no events until the handshake
+  succeeds, and closes connections that never authenticate (10s window).
+  `/shutdown` requires `Authorization: Bearer <token>`.
+- Dev mode (`bun run dev:sidecar` + `bun run dev:web`, webview in a plain
+  browser) pins a known token via `CLINE_SIDECAR_TOKEN` /
+  `NEXT_PUBLIC_SIDECAR_WS_TOKEN`, both set by the package.json scripts.
+  Integration tests can inject `window.__SIDECAR_WS_TOKEN__`.
+
 ## Command Map
 
 Supported commands:

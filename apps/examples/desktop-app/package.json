@@ -5,8 +5,8 @@
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",
 		"predev:web": "bun run build:ui",
-		"dev:web": "next dev webview -p 3125 --turbo",
-		"dev:sidecar": "bun run sidecar/index.ts",
+		"dev:web": "NEXT_PUBLIC_SIDECAR_WS_TOKEN=cline-dev-sidecar-token next dev webview -p 3125 --turbo",
+		"dev:sidecar": "CLINE_SIDECAR_TOKEN=cline-dev-sidecar-token bun run sidecar/index.ts",
 		"dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
 		"prebuild": "bun run build:ui",
 		"build": "bun run bun.mts",

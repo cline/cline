@@ -1,3 +1,4 @@
+import { randomBytes } from "node:crypto";
 import { homedir } from "node:os";
 import {
 	createClineTelemetryServiceConfig,
@@ -24,6 +25,19 @@ const SHUTDOWN_TIMEOUT_MS = 5_000;
 let activeObservability:
 	| ReturnType<typeof createDesktopObservability>
 	| undefined;
+
+/**
+ * Bearer credential guarding the control plane for this sidecar's lifetime.
+ * Generated per launch and handed to the app shell over the private stdout
+ * pipe via the ready line, so it never touches disk. CLINE_SIDECAR_TOKEN
+ * pins a known token for local dev, where the webview is a separate browser
+ * process that cannot see this stdout (pair it with
+ * NEXT_PUBLIC_SIDECAR_WS_TOKEN on the dev server).
+ */
+function resolveAuthToken(): string {
+	const fromEnv = process.env.CLINE_SIDECAR_TOKEN?.trim();
+	return fromEnv || randomBytes(32).toString("base64url");
+}
 
 function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
 	let timeout: ReturnType<typeof setTimeout> | undefined;
@@ -128,7 +142,10 @@ async function main() {
 		void shutdown("code_sidecar_before_exit");
 	});
 
-	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
+	const authToken = resolveAuthToken();
+	const { port } = startServer(ctx, SIDECAR_PORT, shutdown, {
+		token: authToken,
+	});
 	observability.logger.log("Desktop sidecar ready", {
 		port,
 		mode: SIDECAR_MODE,
@@ -153,11 +170,14 @@ async function main() {
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
 	const endpoint = `http://${dialHost}:${port}`;
 	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
+	// The token rides this line: stdout is a pipe private to the parent
+	// process, so the credential never touches disk or the network.
 	process.stdout.write(
 		`${JSON.stringify({
 			type: "ready",
 			endpoint,
 			wsEndpoint,
+			token: authToken,
 			pid: process.pid,
 			mode: SIDECAR_MODE,
 		})}\n`,

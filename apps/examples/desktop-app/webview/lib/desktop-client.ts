@@ -2,6 +2,8 @@
 
 import type {
 	DesktopDebugLogPayload,
+	DesktopTransportAuthRequest,
+	DesktopTransportAuthResponse,
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -25,43 +27,62 @@ async function tryTauriInvoke<T>(
 	}
 }
 
+export type DesktopBackendConnection = {
+	wsEndpoint: string;
+	/** Per-launch sidecar auth token; null only for legacy/dev sidecars. */
+	authToken: string | null;
+};
+
 /** Resolved once on first call; cached for subsequent calls. */
-let resolvedEndpointCache: string | null = null;
+let resolvedConnectionCache: DesktopBackendConnection | null = null;
+
+function readInjectedValue(key: string): string | undefined {
+	if (typeof window === "undefined") return undefined;
+	const value = (window as unknown as Record<string, unknown>)[key];
+	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
 
 /**
- * Resolve the backend WebSocket endpoint.
+ * Resolve the backend WebSocket endpoint plus the auth token the sidecar
+ * requires before serving its command plane.
  *
  * Priority order:
- * 1. `window.__SIDECAR_WS_ENDPOINT__` — injected by the sidecar's HTML scaffold
- *    or an integration test harness.
+ * 1. `window.__SIDECAR_WS_ENDPOINT__` / `window.__SIDECAR_WS_TOKEN__` —
+ *    injected by the sidecar's HTML scaffold or an integration test harness.
  * 2. Tauri `get_desktop_backend_endpoint` command — used when running inside
- *    the full Tauri app shell.
- * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
- *    to `ws://127.0.0.1:3126/transport` — the sidecar's default port when
+ *    the full Tauri app shell, which learned the token from the sidecar's
+ *    private stdout pipe.
+ * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` / `NEXT_PUBLIC_SIDECAR_WS_TOKEN`
+ *    (inlined at build time), then fallback to
+ *    `ws://127.0.0.1:3126/transport` — the sidecar's default port when
  *    running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
  */
-export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
-	if (resolvedEndpointCache) return resolvedEndpointCache;
+export async function resolveDesktopBackendConnection(): Promise<DesktopBackendConnection> {
+	if (resolvedConnectionCache) return resolvedConnectionCache;
 
 	// 1. Explicit injection from sidecar or test harness.
-	const injected =
-		typeof window !== "undefined"
-			? (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__
-			: undefined;
-	if (typeof injected === "string" && injected.trim()) {
-		resolvedEndpointCache = injected.trim();
-		return resolvedEndpointCache;
+	const injected = readInjectedValue("__SIDECAR_WS_ENDPOINT__");
+	if (injected) {
+		resolvedConnectionCache = {
+			wsEndpoint: injected,
+			authToken: readInjectedValue("__SIDECAR_WS_TOKEN__") ?? null,
+		};
+		return resolvedConnectionCache;
 	}
 
 	// 2. Tauri command (full desktop app).
 	if (isTauriAvailable()) {
-		const endpoint = await tryTauriInvoke<string>(
-			"get_desktop_backend_endpoint",
-		);
-		const trimmed = endpoint.trim();
-		if (trimmed) {
-			resolvedEndpointCache = trimmed;
-			return resolvedEndpointCache;
+		const connection = await tryTauriInvoke<{
+			endpoint: string;
+			authToken?: string | null;
+		}>("get_desktop_backend_endpoint");
+		const endpoint = connection.endpoint?.trim();
+		if (endpoint) {
+			resolvedConnectionCache = {
+				wsEndpoint: endpoint,
+				authToken: connection.authToken?.trim() || null,
+			};
+			return resolvedConnectionCache;
 		}
 		throw new Error("Tauri returned an empty desktop backend endpoint");
 	}
@@ -69,8 +90,24 @@ export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
 	// 3. Env override, then default sidecar port for local dev mode without
 	// the Tauri bridge.
 	const envEndpoint = process.env.NEXT_PUBLIC_SIDECAR_WS_ENDPOINT?.trim();
-	resolvedEndpointCache = envEndpoint || "ws://127.0.0.1:3126/transport";
-	return resolvedEndpointCache;
+	resolvedConnectionCache = {
+		wsEndpoint: envEndpoint || "ws://127.0.0.1:3126/transport",
+		authToken: process.env.NEXT_PUBLIC_SIDECAR_WS_TOKEN?.trim() || null,
+	};
+	return resolvedConnectionCache;
+}
+
+export async function resolveDesktopBackendWsEndpoint(): Promise<string> {
+	return (await resolveDesktopBackendConnection()).wsEndpoint;
+}
+
+/**
+ * Drop the cached connection so the next resolve re-reads it from the source.
+ * Needed when the sidecar restarts: a new sidecar generates a new auth token,
+ * so a cached token can never authenticate again.
+ */
+export function invalidateDesktopBackendConnectionCache(): void {
+	resolvedConnectionCache = null;
 }
 
 export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
@@ -227,7 +264,7 @@ class DesktopClient {
 	private transportState: DesktopTransportState = "connecting";
 	private transportError: string | null = null;
 	private hasConnectedOnce = false;
-	private endpoint: string | null = null;
+	private connection: DesktopBackendConnection | null = null;
 	private recentErrorReports = new Map<string, number>();
 	private reportedErrorObjects = new WeakSet<object>();
 	private errorObjectDeliveries = new WeakMap<object, Promise<boolean>>();
@@ -311,13 +348,12 @@ class DesktopClient {
 		}
 	}
 
-	private async getBackendEndpoint(): Promise<string> {
-		if (this.endpoint?.trim()) {
-			return this.endpoint;
+	private async getBackendConnection(): Promise<DesktopBackendConnection> {
+		if (this.connection?.wsEndpoint.trim()) {
+			return this.connection;
 		}
-		const endpoint = await resolveDesktopBackendWsEndpoint();
-		this.endpoint = endpoint;
-		return this.endpoint;
+		this.connection = await resolveDesktopBackendConnection();
+		return this.connection;
 	}
 
 	private takePending(requestId: string): PendingRequest | undefined {
@@ -419,18 +455,69 @@ class DesktopClient {
 		);
 
 		this.connectPromise = (async () => {
-			const endpoint = await this.getBackendEndpoint();
+			const connection = await this.getBackendConnection();
 			await new Promise<void>((resolve, reject) => {
-				const socket = new WebSocket(endpoint);
+				const socket = new WebSocket(connection.wsEndpoint);
 				this.socket = socket;
-				socket.onopen = () => {
+				// The sidecar serves no commands until the client authenticates.
+				// When no token is configured (legacy/dev sidecar) there is
+				// nothing to prove and the socket is usable as soon as it opens.
+				let authSettled = !connection.authToken;
+				const markConnected = () => {
 					this.hasConnectedOnce = true;
 					this.transportError = null;
 					this.setTransportState("connected");
 					resolve();
 				};
+				socket.onopen = () => {
+					if (!connection.authToken) {
+						markConnected();
+						return;
+					}
+					socket.send(
+						JSON.stringify({
+							type: "auth",
+							token: connection.authToken,
+						} satisfies DesktopTransportAuthRequest),
+					);
+				};
 				socket.onmessage = (event) => {
-					this.handleMessage(String(event.data));
+					const raw = String(event.data);
+					if (!authSettled) {
+						let authResult: DesktopTransportAuthResponse | null = null;
+						try {
+							const parsed = JSON.parse(raw) as { type?: unknown };
+							if (parsed?.type === "auth") {
+								authResult = parsed as DesktopTransportAuthResponse;
+							}
+						} catch {
+							authResult = null;
+						}
+						if (authResult) {
+							authSettled = true;
+							if (authResult.ok) {
+								markConnected();
+							} else {
+								// A restarted sidecar has a new token; drop the cached
+								// connection so the next attempt re-resolves it from
+								// the app shell instead of failing with a stale token.
+								this.connection = null;
+								invalidateDesktopBackendConnectionCache();
+								reject(
+									new Error(
+										`Desktop backend rejected the transport auth token: ${authResult.error ?? "unknown error"}`,
+									),
+								);
+								socket.close();
+							}
+							return;
+						}
+						// A sidecar that answers commands without an auth exchange
+						// predates transport auth; accept it and carry on.
+						authSettled = true;
+						markConnected();
+					}
+					this.handleMessage(raw);
 				};
 				socket.onerror = () => {
 					// Wait for onclose to reject or reconnect.
@@ -441,7 +528,9 @@ class DesktopClient {
 					}
 					if (this.transportState !== "connected") {
 						reject(
-							new Error(`Desktop backend transport unavailable at ${endpoint}`),
+							new Error(
+								`Desktop backend transport unavailable at ${connection.wsEndpoint}`,
+							),
 						);
 						return;
 					}

@@ -252,12 +252,24 @@ async fn run_update_loop(app: tauri::AppHandle, state: Arc<UpdateState>) {
     }
 }
 
-/// Lock order: `process` may be held while acquiring `ws_endpoint`, never
+/// Connection details published by the sidecar on its ready line. The auth
+/// token is a per-launch bearer credential the sidecar requires on its
+/// WebSocket transport and on /shutdown; it arrives over the sidecar's
+/// stdout pipe, which is private to this process.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+struct DesktopBackendConnection {
+    endpoint: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    auth_token: Option<String>,
+}
+
+/// Lock order: `process` may be held while acquiring `connection`, never
 /// the reverse. Anything that touches both (including stop()) must either
 /// nest in that order or take them strictly sequentially.
 #[derive(Default)]
 struct DesktopBackendState {
-    ws_endpoint: Mutex<Option<String>>,
+    connection: Mutex<Option<DesktopBackendConnection>>,
     process: Mutex<Option<Child>>,
     shutting_down: Mutex<bool>,
 }
@@ -275,9 +287,12 @@ impl DesktopBackendState {
             *guard = true;
         }
 
-        if let Ok(endpoint_guard) = self.ws_endpoint.lock() {
-            if let Some(endpoint) = endpoint_guard.as_ref() {
-                request_desktop_backend_shutdown(endpoint);
+        if let Ok(connection_guard) = self.connection.lock() {
+            if let Some(connection) = connection_guard.as_ref() {
+                request_desktop_backend_shutdown(
+                    &connection.endpoint,
+                    connection.auth_token.as_deref(),
+                );
             }
         }
 
@@ -309,8 +324,8 @@ impl DesktopBackendState {
             *process_guard = None;
         }
 
-        if let Ok(mut endpoint_guard) = self.ws_endpoint.lock() {
-            *endpoint_guard = None;
+        if let Ok(mut connection_guard) = self.connection.lock() {
+            *connection_guard = None;
         }
     }
 }
@@ -328,6 +343,7 @@ struct DesktopBackendReadyLine {
     line_type: String,
     endpoint: Option<String>,
     ws_endpoint: Option<String>,
+    token: Option<String>,
     pid: Option<u64>,
     mode: Option<String>,
 }
@@ -353,7 +369,7 @@ fn resolve_workspace_root(launch_cwd: &str) -> String {
     }
 }
 
-fn request_desktop_backend_shutdown(endpoint: &str) {
+fn request_desktop_backend_shutdown(endpoint: &str, auth_token: Option<&str>) {
     let trimmed = endpoint.trim();
     if trimmed.is_empty() {
         return;
@@ -364,13 +380,22 @@ fn request_desktop_backend_shutdown(endpoint: &str) {
 
     #[cfg(target_os = "windows")]
     {
+        // The sidecar rejects shutdown requests without the per-launch token.
+        let headers = match auth_token {
+            Some(token) => format!(
+                "@{{ Authorization = 'Bearer {}' }}",
+                token.replace('\'', "''")
+            ),
+            None => "@{}".to_string(),
+        };
         let _ = Command::new("powershell")
             .args([
                 "-NoProfile",
                 "-Command",
                 &format!(
-                    "try {{ Invoke-WebRequest -UseBasicParsing -Method Post -Uri '{}' -TimeoutSec {} | Out-Null }} catch {{ }}",
+                    "try {{ Invoke-WebRequest -UseBasicParsing -Method Post -Uri '{}' -Headers {} -TimeoutSec {} | Out-Null }} catch {{ }}",
                     url.replace('\'', "''"),
+                    headers,
                     timeout_seconds
                 ),
             ])
@@ -381,17 +406,23 @@ fn request_desktop_backend_shutdown(endpoint: &str) {
 
     #[cfg(not(target_os = "windows"))]
     {
-        let _ = Command::new("curl")
-            .args([
-                "-fsS",
-                "--connect-timeout",
-                timeout_seconds,
-                "--max-time",
-                timeout_seconds,
-                "-X",
-                "POST",
-                &url,
-            ])
+        // The sidecar rejects shutdown requests without the per-launch token.
+        let mut command = Command::new("curl");
+        command.args([
+            "-fsS",
+            "--connect-timeout",
+            timeout_seconds,
+            "--max-time",
+            timeout_seconds,
+            "-X",
+            "POST",
+        ]);
+        if let Some(token) = auth_token {
+            let header = format!("Authorization: Bearer {token}");
+            command.args(["-H", &header]);
+        }
+        let _ = command
+            .arg(&url)
             .stdout(Stdio::null())
             .stderr(Stdio::null())
             .status();
@@ -538,8 +569,8 @@ fn ensure_desktop_backend_started_with(
             Ok(None) => return Ok(()),
             Ok(Some(_)) | Err(_) => {
                 *process_guard = None;
-                if let Ok(mut endpoint_guard) = state.ws_endpoint.lock() {
-                    *endpoint_guard = None;
+                if let Ok(mut connection_guard) = state.connection.lock() {
+                    *connection_guard = None;
                 }
             }
         }
@@ -576,8 +607,14 @@ fn ensure_desktop_backend_started_with(
             if let Ok(parsed) = serde_json::from_str::<DesktopBackendReadyLine>(trimmed) {
                 if parsed.line_type == "ready" {
                     if let Some(endpoint) = parsed.ws_endpoint.or(parsed.endpoint) {
-                        if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-                            *endpoint_guard = Some(endpoint);
+                        if let Ok(mut connection_guard) = state_for_stdout.connection.lock() {
+                            *connection_guard = Some(DesktopBackendConnection {
+                                endpoint,
+                                auth_token: parsed
+                                    .token
+                                    .map(|token| token.trim().to_string())
+                                    .filter(|token| !token.is_empty()),
+                            });
                         }
                     }
                     continue;
@@ -585,9 +622,9 @@ fn ensure_desktop_backend_started_with(
             }
             eprintln!("[desktop-backend] {trimmed}");
         }
-        // Only clear the endpoint if this thread's child is still the one
+        // Only clear the connection if this thread's child is still the one
         // being tracked — a late EOF from a replaced child must not wipe the
-        // endpoint its successor already published.
+        // connection its successor already published.
         let owns_tracked_child = state_for_stdout
             .process
             .lock()
@@ -595,8 +632,8 @@ fn ensure_desktop_backend_started_with(
             .map(|guard| guard.as_ref().map(|child| child.id()) == Some(child_pid))
             .unwrap_or(false);
         if owns_tracked_child {
-            if let Ok(mut endpoint_guard) = state_for_stdout.ws_endpoint.lock() {
-                *endpoint_guard = None;
+            if let Ok(mut connection_guard) = state_for_stdout.connection.lock() {
+                *connection_guard = None;
             }
         }
     });
@@ -678,7 +715,7 @@ fn open_path_with_default_app(path: &Path) -> Result<(), String> {
 fn get_desktop_backend_endpoint(
     backend_state: State<'_, Arc<DesktopBackendState>>,
     context: State<'_, AppContext>,
-) -> Result<String, String> {
+) -> Result<DesktopBackendConnection, String> {
     ensure_desktop_backend_started(backend_state.inner(), context.inner())?;
     // Sidecar startup includes login-shell PATH resolution (bounded at 3s,
     // see sidecar/shell-path.ts) plus session-manager init, whose duration
@@ -687,14 +724,14 @@ fn get_desktop_backend_endpoint(
     // While pending this only waits — respawning is ensure's job, and it
     // refuses to start a second sidecar while the first one is still alive.
     for _ in 0..150 {
-        if let Some(endpoint) = backend_state
-            .ws_endpoint
+        if let Some(connection) = backend_state
+            .connection
             .lock()
             .ok()
             .and_then(|value| value.as_ref().cloned())
-            .filter(|value| !value.trim().is_empty())
+            .filter(|value| !value.endpoint.trim().is_empty())
         {
-            return Ok(endpoint);
+            return Ok(connection);
         }
         let child_exited = backend_state
             .process

@@ -1,8 +1,9 @@
+import { timingSafeEqual } from "node:crypto";
 import { captureSdkError } from "@cline/shared";
 import type { DesktopTransportRequest } from "../webview/lib/desktop-transport";
 import { MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES } from "../webview/lib/voice-input-limits";
 import { handleCommand } from "./commands";
-import { encodeSidecarEvent, sendEvent } from "./context";
+import { encodeSidecarEvent } from "./context";
 import { fetchMarketplaceCatalog } from "./marketplace";
 import { cancelMcpOAuthAuthorizationsForOwner } from "./mcp-oauth";
 import { cancelProviderOAuthLoginsForOwner } from "./oauth-login";
@@ -19,6 +20,36 @@ type SidecarServer = {
 	port: number;
 	upgrade(req: Request): boolean;
 };
+
+/**
+ * Per-launch bearer credential guarding the control plane. The Origin
+ * allowlist below is only a CSRF control: browsers always send Origin, but a
+ * non-browser local process can omit or forge it, so origin alone cannot
+ * authenticate anyone. The token is generated at startup, handed to the app
+ * shell over the sidecar's private stdout pipe, and required on the WebSocket
+ * transport (first-message handshake) and on /shutdown.
+ */
+export type SidecarAuth = {
+	token: string;
+};
+
+/** Connections that never authenticate are dropped within this window. */
+const WS_AUTH_TIMEOUT_MS = 10_000;
+
+function sidecarTokensEqual(provided: string, expected: string): boolean {
+	const a = Buffer.from(provided);
+	const b = Buffer.from(expected);
+	return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function hasValidAuthToken(req: Request, auth: SidecarAuth): boolean {
+	const header = req.headers.get("authorization")?.trim();
+	if (!header?.toLowerCase().startsWith("bearer ")) {
+		return false;
+	}
+	const provided = header.slice("bearer ".length).trim();
+	return provided.length > 0 && sidecarTokensEqual(provided, auth.token);
+}
 
 // Comma-separated extra origins (e.g. a dev server on a nonstandard port when
 // the sidecar runs inside a container). Origin validation itself stays on.
@@ -149,9 +180,13 @@ export function startServer(
 	ctx: SidecarContext,
 	preferredPort: number = SIDECAR_PORT,
 	onShutdown?: (reason?: string) => Promise<void>,
+	auth: SidecarAuth = { token: "" },
 ): { port: number } {
 	if (!BunRuntime) {
 		throw new Error("sidecar must be run with Bun");
+	}
+	if (!auth.token) {
+		throw new Error("sidecar requires an auth token to start its server");
 	}
 
 	let server: SidecarServer | undefined;
@@ -164,8 +199,8 @@ export function startServer(
 			server = BunRuntime.serve({
 				hostname: SIDECAR_HOST,
 				port: candidate,
-				fetch: createFetchHandler(ctx, onShutdown),
-				websocket: createWebSocketHandler(ctx),
+				fetch: createFetchHandler(ctx, onShutdown, auth),
+				websocket: createWebSocketHandler(ctx, auth),
 			}) as SidecarServer;
 			break;
 		} catch (error) {
@@ -183,6 +218,7 @@ export function startServer(
 export function createFetchHandler(
 	ctx: SidecarContext,
 	onShutdown?: (reason?: string) => Promise<void>,
+	auth: SidecarAuth = { token: "" },
 ) {
 	return async (req: Request, server: SidecarServer) => {
 		const url = new URL(req.url);
@@ -297,7 +333,7 @@ export function createFetchHandler(
 		}
 
 		if (url.pathname === "/shutdown" && req.method === "POST") {
-			if (!isTrustedRequestOrigin(req)) {
+			if (!hasValidAuthToken(req, auth)) {
 				return new Response(JSON.stringify({ ok: false }), {
 					status: 403,
 					headers: jsonHeaders(req),
@@ -320,22 +356,92 @@ export function createFetchHandler(
 	};
 }
 
-export function createWebSocketHandler(ctx: SidecarContext) {
+export function createWebSocketHandler(
+	ctx: SidecarContext,
+	auth: SidecarAuth = { token: "" },
+) {
+	// Connections that have presented the auth token. Anything else may stay
+	// open only long enough to complete the handshake. The origin check at
+	// upgrade stays as-is: it is CSRF defense for browsers, while this
+	// handshake is what actually authenticates the connection.
+	const authenticated = new WeakSet<SidecarWebSocketClient>();
+	const authTimeouts = new Map<
+		SidecarWebSocketClient,
+		ReturnType<typeof setTimeout>
+	>();
+
+	const closeUnauthenticated = (ws: SidecarWebSocketClient, error: string) => {
+		try {
+			ws.send(JSON.stringify({ type: "auth", ok: false, error }));
+		} catch {
+			// The socket is already gone; closing below is best-effort too.
+		}
+		try {
+			ws.close?.();
+		} catch {
+			// Ignore: the peer may have raced us to the close.
+		}
+	};
+
 	return {
 		maxPayloadLength: MAX_DESKTOP_TRANSPORT_PAYLOAD_BYTES,
 		open(ws: SidecarWebSocketClient) {
-			ctx.wsClients.add(ws);
-			sendEvent(ctx, "host_ready", {
-				pid: process.pid,
-				mode: SIDECAR_MODE,
-			});
-			// Replay a pending mismatch so webviews that connect (or reload)
-			// after detection still prompt the user to update and restart.
-			if (ctx.hubBuildMismatch) {
-				ws.send(encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch));
-			}
+			// Nothing is sent and no command is served until the client
+			// authenticates; host_ready and any pending mismatch replay happen
+			// after a successful handshake.
+			authTimeouts.set(
+				ws,
+				setTimeout(() => {
+					authTimeouts.delete(ws);
+					if (!authenticated.has(ws)) {
+						closeUnauthenticated(ws, "authentication required");
+					}
+				}, WS_AUTH_TIMEOUT_MS),
+			);
 		},
 		async message(ws: SidecarWebSocketClient, raw: string) {
+			if (!authenticated.has(ws)) {
+				let handshake: { type?: unknown; token?: unknown } | null = null;
+				try {
+					const parsed: unknown = JSON.parse(String(raw));
+					if (parsed !== null && typeof parsed === "object") {
+						handshake = parsed as { type?: unknown; token?: unknown };
+					}
+				} catch {
+					handshake = null;
+				}
+				if (
+					handshake?.type !== "auth" ||
+					typeof handshake.token !== "string" ||
+					!sidecarTokensEqual(handshake.token, auth.token)
+				) {
+					closeUnauthenticated(ws, "invalid auth token");
+					return;
+				}
+				const timeout = authTimeouts.get(ws);
+				if (timeout) {
+					clearTimeout(timeout);
+					authTimeouts.delete(ws);
+				}
+				authenticated.add(ws);
+				ctx.wsClients.add(ws);
+				ws.send(JSON.stringify({ type: "auth", ok: true }));
+				ws.send(
+					encodeSidecarEvent("host_ready", {
+						pid: process.pid,
+						mode: SIDECAR_MODE,
+					}),
+				);
+				// Replay a pending mismatch so webviews that connect (or reload)
+				// after detection still prompt the user to update and restart.
+				if (ctx.hubBuildMismatch) {
+					ws.send(
+						encodeSidecarEvent("hub_build_mismatch", ctx.hubBuildMismatch),
+					);
+				}
+				return;
+			}
+
 			let request: DesktopTransportRequest;
 			try {
 				request = JSON.parse(String(raw)) as DesktopTransportRequest;
@@ -364,6 +470,11 @@ export function createWebSocketHandler(ctx: SidecarContext) {
 			}
 		},
 		close(ws: SidecarWebSocketClient) {
+			const timeout = authTimeouts.get(ws);
+			if (timeout) {
+				clearTimeout(timeout);
+				authTimeouts.delete(ws);
+			}
 			ctx.wsClients.delete(ws);
 			// Browser OAuth flows are interactive: if the connection that started
 			// one goes away (webview reload, transport drop), cancel its callback

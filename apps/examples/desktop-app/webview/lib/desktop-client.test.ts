@@ -55,6 +55,12 @@ class FakeWebSocket {
 		});
 	}
 
+	respondAuth(ok: boolean, error?: string): void {
+		this.onmessage?.({
+			data: JSON.stringify({ type: "auth", ok, ...(error ? { error } : {}) }),
+		});
+	}
+
 	lastRequest(): SentDesktopRequest {
 		const raw = this.sent.at(-1);
 		if (!raw) {
@@ -104,6 +110,7 @@ afterEach(() => {
 	globalThis.WebSocket = originalWebSocket;
 	globalThis.fetch = originalFetch;
 	delete (window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__;
+	delete (window as unknown as Record<string, unknown>).__SIDECAR_WS_TOKEN__;
 });
 
 describe("DesktopClient command deadlines", () => {
@@ -316,6 +323,85 @@ describe("DesktopClient command deadlines", () => {
 				}
 			).pending.size,
 		).toBe(0);
+	});
+});
+
+describe("DesktopClient transport auth handshake", () => {
+	beforeEach(() => {
+		(window as unknown as Record<string, unknown>).__SIDECAR_WS_TOKEN__ =
+			"test-sidecar-token";
+	});
+
+	it("authenticates before sending commands when a token is configured", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke<{ ok: boolean }>(
+			"get_process_context",
+		);
+		const socket = await connectLatestSocket();
+
+		// The first frame on the wire must be the auth handshake, not the command.
+		expect(JSON.parse(socket.sent[0] ?? "{}")).toEqual({
+			type: "auth",
+			token: "test-sidecar-token",
+		});
+		expect(socket.sent).toHaveLength(1);
+
+		socket.respondAuth(true);
+		await vi.waitFor(() => expect(socket.sent).toHaveLength(2));
+		expect(socket.lastRequest().command).toBe("get_process_context");
+
+		socket.respond({ ok: true });
+		await expect(invocation).resolves.toEqual({ ok: true });
+	});
+
+	it("fails the connection when the sidecar rejects the token", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const invocation = desktopClient.invoke<{ ok: boolean }>(
+			"get_process_context",
+		);
+		const socket = await connectLatestSocket();
+
+		socket.respondAuth(false, "invalid auth token");
+		await expect(invocation).rejects.toThrow(
+			"Desktop backend rejected the transport auth token",
+		);
+	});
+
+	it("re-resolves the connection after an auth rejection so a restarted sidecar is picked up", async () => {
+		const { desktopClient } = await import("./desktop-client");
+		const first = desktopClient.invoke("get_process_context");
+		const firstSocket = await connectLatestSocket();
+		expect(JSON.parse(firstSocket.sent[0] ?? "{}")).toEqual({
+			type: "auth",
+			token: "test-sidecar-token",
+		});
+
+		// Simulate the connection source learning the restarted sidecar's new
+		// token (in the app shell this is the Tauri command returning the fresh
+		// ready-line token; in tests it is the injected global).
+		(window as unknown as Record<string, unknown>).__SIDECAR_WS_TOKEN__ =
+			"rotated-token";
+		firstSocket.respondAuth(false, "invalid auth token");
+		await expect(first).rejects.toThrow(
+			"Desktop backend rejected the transport auth token",
+		);
+
+		// The next attempt must not reuse the rejected token.
+		const second = desktopClient.invoke<{ ok: boolean }>("get_process_context");
+		// Wait for a fresh socket; the first one is closed and must not be reused.
+		await vi.waitFor(() => expect(sockets.length).toBeGreaterThan(1));
+		const secondSocket = sockets.at(-1)!;
+		secondSocket.open();
+		await vi.waitFor(() => expect(secondSocket.sent).toHaveLength(1));
+		expect(JSON.parse(secondSocket.sent[0] ?? "{}")).toEqual({
+			type: "auth",
+			token: "rotated-token",
+		});
+
+		secondSocket.respondAuth(true);
+		await vi.waitFor(() => expect(secondSocket.sent).toHaveLength(2));
+		secondSocket.respond({ ok: true });
+		await expect(second).resolves.toEqual({ ok: true });
 	});
 });
 
