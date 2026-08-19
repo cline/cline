@@ -1,5 +1,16 @@
 # Cline CLI Changelog
 
+## 3.0.56
+
+- Hardened installs against upstream npm publish windows: an AI SDK release briefly left `@ai-sdk/google@4.0.46` half-published (version metadata live, tarball 404) while `@ai-sdk/google-vertex@5.0.57` pinned it exactly, so `npm install -g cline` failed with `ETARGET: No matching version found for @ai-sdk/google@4.0.46` or `404 Not Found ... google-4.0.46.tgz` until the registry caught up. The Google AI SDK packages are now pinned to the exact versions we build and test against instead of floating to the newest upstream publish (from SDK v0.0.76)
+- Fixed Gemini custom base URLs that point at a host root (e.g. a proxy origin with no path) being rejected; legacy host-root values are normalized instead (from SDK v0.0.76)
+- Chat model pickers no longer list non-chat models such as image and embedding models (from SDK v0.0.76)
+- Skill slash commands now load through the skills tool instead of expanding the skill file into the user message (from SDK v0.0.76)
+- Fixed `run_commands` object form without `args` failing with `ENOENT`; it now routes through the shell (from SDK v0.0.76)
+- TUI dialog colors now follow theme changes live
+- Fixed the selection chevron in the account dialog to match other dialogs
+- Refreshed the model catalog with the latest models.dev data (from SDK v0.0.76)
+
 ## 3.0.55
 
 - Auto-updates no longer install while a CLI is attached to the Hub. The update is recorded at startup and installed on exit, once the Hub confirms nothing else is attached, so a background update can no longer swap the package out from under a live session and kill it with `Hub connection closed (code=1006)`. `cline update` still installs immediately and now tells you the update applies on next start
