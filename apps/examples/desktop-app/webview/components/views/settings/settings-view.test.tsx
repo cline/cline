@@ -145,17 +145,17 @@ describe("SettingsView app icon", () => {
 			);
 		});
 
-		const hologramButton = container.querySelector<HTMLButtonElement>(
-			'button[aria-label="Hologram"]',
+		const chipButton = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Chip"]',
 		);
-		expect(hologramButton).not.toBeNull();
+		expect(chipButton).not.toBeNull();
 
 		await act(async () => {
-			hologramButton?.click();
+			chipButton?.click();
 		});
 
-		expect(hologramButton?.getAttribute("aria-pressed")).toBe("true");
-		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("hologram");
+		expect(chipButton?.getAttribute("aria-pressed")).toBe("true");
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("chip");
 	});
 
 	it("applies rapid native icon selections in request order", async () => {

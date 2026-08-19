@@ -719,10 +719,10 @@ async fn check_for_update_now(
     Ok(update_state.snapshot())
 }
 
-/// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
-/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
-/// resource at icons/dock/<id>.png.
-const APP_DOCK_ICONS: [&str; 4] = ["classic", "hologram", "steel", "midnight"];
+/// Icon ids accepted by `set_app_icon`; validated against APP_ICONS in
+/// webview/lib/app-icon-manifest.ts by scripts/sync-app-icons.ts. Every id has
+/// a matching bundled resource at icons/dock/<id>.png.
+const APP_DOCK_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 
 #[tauri::command]
 async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {

@@ -21,7 +21,7 @@
 		"package:desktop:windows": "bun run scripts/package-desktop.ts --platform windows",
 		"package:desktop:linux": "bun run scripts/package-desktop.ts --platform linux",
 		"start": "next start webview",
-		"pretypecheck": "bun run build:ui",
+		"pretypecheck": "bun run build:ui && bun run check:app-icons",
 		"typecheck": "tsc -p tsconfig.dev.json --noEmit",
 		"pretest:chat-ui": "bun run build:ui",
 		"test:chat-ui": "vitest run webview/components/views/chat/chat-messages.test.tsx webview/components/views/chat/messages --config vitest.config.ts",

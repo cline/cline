@@ -1,21 +1,16 @@
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import {
+	APP_ICONS,
+	type AppIconId,
+	DEFAULT_APP_ICON,
+	isRetiredAppIconId,
+	RETIRED_APP_ICON_MIGRATIONS,
+} from "./app-icon-manifest";
+
+export { APP_ICONS, DEFAULT_APP_ICON };
+export type { AppIconId };
 
 export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
-
-/**
- * App icon variants selectable in Settings. src-tauri/icons/dock is the source
- * of truth; the build syncs those files to webview/public/app-icons for the
- * picker and browser favicon.
- */
-export const APP_ICONS = [
-	{ id: "classic", label: "Classic" },
-	{ id: "midnight", label: "Midnight" },
-	{ id: "hologram", label: "Hologram" },
-] as const;
-
-export type AppIconId = (typeof APP_ICONS)[number]["id"];
-
-export const DEFAULT_APP_ICON: AppIconId = "midnight";
 
 export function isAppIconId(value: unknown): value is AppIconId {
 	return APP_ICONS.some((icon) => icon.id === value);
@@ -28,9 +23,10 @@ export function appIconAssetPath(icon: AppIconId): string {
 export function readStoredAppIcon(): AppIconId {
 	try {
 		const stored = window.localStorage.getItem(APP_ICON_STORAGE_KEY);
-		if (stored === "sunrise") {
-			window.localStorage.setItem(APP_ICON_STORAGE_KEY, "hologram");
-			return "hologram";
+		if (isRetiredAppIconId(stored)) {
+			const migrated = RETIRED_APP_ICON_MIGRATIONS[stored];
+			window.localStorage.setItem(APP_ICON_STORAGE_KEY, migrated);
+			return migrated;
 		}
 		return isAppIconId(stored) ? stored : DEFAULT_APP_ICON;
 	} catch {
@@ -76,7 +72,5 @@ export async function setStoredAppIcon(icon: AppIconId): Promise<void> {
  */
 export async function syncAppIcon(): Promise<void> {
 	const icon = readStoredAppIcon();
-	if (icon !== DEFAULT_APP_ICON) {
-		await applyAppIcon(icon);
-	}
+	await applyAppIcon(icon);
 }

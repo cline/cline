@@ -63,18 +63,24 @@ describe("app icon", () => {
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "bogus");
 		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "toString");
+		expect(readStoredAppIcon()).toBe(DEFAULT_APP_ICON);
 		expect(isAppIconId("midnight")).toBe(true);
 		expect(isAppIconId("hologram")).toBe(true);
+		expect(isAppIconId("chip")).toBe(true);
 		expect(isAppIconId("steel")).toBe(false);
 		expect(isAppIconId("sunrise")).toBe(false);
 		expect(isAppIconId("bogus")).toBe(false);
 	});
 
-	it("migrates the replaced sunrise preference to hologram", () => {
-		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "sunrise");
+	it.each([
+		["sunrise", "hologram"],
+		["steel", "midnight"],
+	])("migrates the retired %s preference to %s", (retired, replacement) => {
+		window.localStorage.setItem(APP_ICON_STORAGE_KEY, retired);
 
-		expect(readStoredAppIcon()).toBe("hologram");
-		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe("hologram");
+		expect(readStoredAppIcon()).toBe(replacement);
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBe(replacement);
 	});
 
 	it("persists the choice and swaps the favicon in browser mode", async () => {
@@ -105,12 +111,13 @@ describe("app icon", () => {
 		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBeNull();
 	});
 
-	it("re-applies only non-bundled choices at boot", async () => {
+	it("re-applies the default and stored choices at boot", async () => {
 		isTauriAvailable.mockReturnValue(true);
 		invoke.mockResolvedValue(true);
 		await syncAppIcon();
-		expect(invoke).not.toHaveBeenCalled();
+		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
 
+		invoke.mockClear();
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "classic");
 		await syncAppIcon();
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "classic" });
