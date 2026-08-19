@@ -357,6 +357,21 @@
         "vite": "^8.0.0",
       },
     },
+    "apps/gateway-web": {
+      "name": "@cline/gateway-web",
+      "version": "0.0.0",
+      "dependencies": {
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+      },
+      "devDependencies": {
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react-swc": "^4.3.0",
+        "typescript": "^5.9.3",
+        "vite": "^8.0.0",
+      },
+    },
     "apps/vscode": {
       "name": "claude-dev",
       "version": "4.1.10",
@@ -1134,6 +1149,8 @@
     "@cline/example-quickstart": ["@cline/example-quickstart@workspace:apps/examples/quickstart"],
 
     "@cline/gateway": ["@cline/gateway@workspace:sdk/packages/gateway"],
+
+    "@cline/gateway-web": ["@cline/gateway-web@workspace:apps/gateway-web"],
 
     "@cline/llms": ["@cline/llms@workspace:sdk/packages/llms"],
 
