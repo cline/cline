@@ -69,8 +69,13 @@ export function getShellInvocation(
 			// fast on the first error. Under the default 'Continue', a pipeline that
 			// errors per item (e.g. a bad Where-Object over Get-ChildItem -Recurse)
 			// emits one error record per file — flooding stderr for minutes on large
-			// trees — and can still exit 0. The preamble is concatenated on the same
-			// line as the user command so error line numbers stay unshifted.
+			// trees — and can still exit 0. The preference is set in the bootstrap
+			// scope, not prepended to the script text: preference variables are
+			// dynamically scoped, so the scriptblock invoked below inherits it, while
+			// the user's script stays byte-identical — error line/column positions
+			// are untouched and a script that begins with param(...) keeps param in
+			// the mandatory first-statement position. A command can still opt out
+			// per-cmdlet with -ErrorAction or by reassigning $ErrorActionPreference.
 			return {
 				args: [
 					"-NoProfile",
@@ -78,7 +83,8 @@ export function getShellInvocation(
 					"-Command",
 					"[Console]::InputEncoding=[Text.UTF8Encoding]::new();" +
 						"[Console]::OutputEncoding=[Text.UTF8Encoding]::new();" +
-						"$c='$ErrorActionPreference=''Stop'';'+[Console]::In.ReadToEnd();" +
+						"$ErrorActionPreference='Stop';" +
+						"$c=[Console]::In.ReadToEnd();" +
 						"$c+=[Environment]::NewLine+'if(-not $?){exit 1}';" +
 						"& ([ScriptBlock]::Create($c))",
 				],
