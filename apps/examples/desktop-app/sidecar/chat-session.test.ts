@@ -12,7 +12,7 @@ import {
 	CloudHandoffTranscriptMismatchError,
 	selectCloudHandoffModel,
 } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	assertSessionDeleteAllowedDuringHandoff,
@@ -27,7 +27,6 @@ import {
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	reconcilePendingCloudHandoff,
-	resolveCloudHandoffDestination,
 	resolveDesktopSessionMode,
 	rewriteDesktopTeamPrompt,
 	shouldCleanupFailedHandoffVerification,
@@ -40,6 +39,11 @@ import {
 	CloudSessionError,
 } from "./cloud-sessions";
 import type { SidecarContext } from "./types";
+
+afterEach(() => {
+	delete process.env.CLINE_CODE_CLOUD_AGENTS;
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+});
 
 function localRuntimeContext(
 	sessionManager: Record<string, unknown>,
@@ -481,6 +485,8 @@ describe("session forks", () => {
 	});
 
 	it("blocks deletion while the handoff request is starting", async () => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
 		const sessionId = "starting-handoff-source";
 		let releaseGet: ((value: undefined) => void) | undefined;
 		const manager = {
@@ -1937,20 +1943,30 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
-	it("keeps handoff available in the browser when in-app Cloud is disabled", () => {
-		const previous = process.env.CLINE_CODE_CLOUD_AGENTS;
-		try {
-			process.env.CLINE_CODE_CLOUD_AGENTS = "0";
-			expect(resolveCloudHandoffDestination()).toBe("external");
-			process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-			expect(resolveCloudHandoffDestination()).toBe("in_app");
-		} finally {
-			if (previous === undefined) {
-				delete process.env.CLINE_CODE_CLOUD_AGENTS;
-			} else {
-				process.env.CLINE_CODE_CLOUD_AGENTS = previous;
-			}
-		}
+	beforeEach(() => {
+		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+	});
+
+	it("requires both the handoff flag and Cloud Agents", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("requires Cloud Agents");
+
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		process.env.CLINE_CODE_CLOUD_AGENTS = "0";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("requires Cloud Agents");
 	});
 
 	it("explains how to recover a mismatched resumed handoff", () => {

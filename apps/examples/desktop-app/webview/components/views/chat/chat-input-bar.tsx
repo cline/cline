@@ -104,6 +104,15 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 	{ name: "team", description: "Start the task with an agent team" },
 ];
 
+export function filterSlashCommandsForHandoff(
+	commands: SlashCommand[],
+	cloudHandoffEnabled: boolean,
+): SlashCommand[] {
+	return cloudHandoffEnabled
+		? commands
+		: commands.filter((command) => command.name !== "handoff");
+}
+
 // Last known user commands, kept across composer instances so reopening the
 // slash menu paints instantly (stale-while-revalidate); the fetch that
 // follows still picks up newly installed skills and workflows.
@@ -336,6 +345,7 @@ type ChatInputBarProps = {
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
+	cloudHandoffEnabled?: boolean;
 	repoUrl?: string;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
@@ -382,6 +392,7 @@ function ChatInputBarImpl({
 	reasoningEffort,
 	gitBranch,
 	executionTarget = "local",
+	cloudHandoffEnabled = false,
 	repoUrl,
 	cloudBranch,
 	hasActiveSession = false,
@@ -1068,11 +1079,15 @@ function ChatInputBarImpl({
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashOpen) return [];
+		const availableCommands = filterSlashCommandsForHandoff(
+			slashCommands,
+			cloudHandoffEnabled,
+		);
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return slashCommands.slice(0, 10);
+			return availableCommands.slice(0, 10);
 		}
-		return slashCommands
+		return availableCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -1082,7 +1097,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands]);
+	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffEnabled]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {

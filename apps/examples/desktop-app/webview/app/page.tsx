@@ -1182,6 +1182,8 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
+	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
@@ -1224,9 +1226,12 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						setCloudAgentsEnabled(
-							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-						);
+						const featureFlags = flags as {
+							cloudAgents?: boolean;
+							cloudHandoff?: boolean;
+						};
+						setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
+						setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -1243,9 +1248,12 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					setCloudAgentsEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
+					const featureFlags = payload as {
+						cloudAgents?: boolean;
+						cloudHandoff?: boolean;
+					};
+					setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
+					setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 				}
 			},
 		);
@@ -1835,8 +1843,7 @@ function ChatThreadPane({
 					throw new Error("Cloud handoff did not return a cloud session.");
 				}
 				const receipt = { targetSessionId, dashboardUrl };
-				const destination =
-					result.destination ?? (cloudAgentsEnabled ? "in_app" : "external");
+				const destination = result.destination ?? "in_app";
 				onHandoffUiAction({
 					type: "complete",
 					sourceSessionId,
@@ -1912,13 +1919,7 @@ function ChatThreadPane({
 				});
 			}
 		},
-		[
-			cloudAgentsEnabled,
-			config,
-			isThreadActive,
-			onOpenSessionById,
-			onHandoffUiAction,
-		],
+		[config, isThreadActive, onOpenSessionById, onHandoffUiAction],
 	);
 
 	const prepareHandoff = useCallback(
@@ -1929,6 +1930,15 @@ function ChatThreadPane({
 				toast({
 					title: "Already in Cline Cloud",
 					description: "Handoff is available from local sessions.",
+				});
+				return;
+			}
+			if (!cloudHandoffAvailable) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Cloud handoff is not available",
+					description:
+						"Cloud handoff requires both Cloud Agents and the handoff feature to be enabled.",
 				});
 				return;
 			}
@@ -2039,6 +2049,7 @@ function ChatThreadPane({
 			}
 		},
 		[
+			cloudHandoffAvailable,
 			config,
 			historySession?.sessionId,
 			isCloudSession,
@@ -2736,6 +2747,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			cloudHandoffEnabled={cloudHandoffAvailable}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}

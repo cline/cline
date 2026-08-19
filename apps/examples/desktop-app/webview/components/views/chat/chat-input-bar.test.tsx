@@ -14,6 +14,7 @@ import {
 	buildUserInstructionSlashCommands,
 	buildWorkspaceFileSearchKey,
 	ChatInputBar,
+	filterSlashCommandsForHandoff,
 } from "./chat-input-bar";
 
 const {
@@ -250,6 +251,15 @@ describe("ChatInputBar", () => {
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
+	});
+
+	it("hides handoff unless its effective feature gate is enabled", () => {
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, false),
+		).not.toContainEqual(expect.objectContaining({ name: "handoff" }));
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, true),
+		).toContainEqual(expect.objectContaining({ name: "handoff" }));
 	});
 
 	it("allows cloud image and model selection without replacing local defaults", async () => {

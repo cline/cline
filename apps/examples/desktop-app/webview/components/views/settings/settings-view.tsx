@@ -1270,8 +1270,9 @@ function GeneralSettingsContent({
 							</p>
 							<p className="text-sm text-muted-foreground">
 								Run Cline on your GitHub repositories in secure cloud sandboxes.
-								Adds a Cloud option to the new-session composer. Requires a
-								Cline account with GitHub connected.
+								Adds a Cloud option to the new-session composer and enables
+								local-to-cloud handoff when available. Requires a Cline account
+								with GitHub connected.
 							</p>
 							{cloudSessionsError ? (
 								<p className="mt-2 text-xs text-destructive" role="alert">

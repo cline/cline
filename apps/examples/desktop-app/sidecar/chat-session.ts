@@ -68,7 +68,7 @@ import {
 	nowMs,
 	sendEvent,
 } from "./context";
-import { isCloudAgentsEnabled } from "./feature-flags";
+import { isCloudAgentsEnabled, isCloudHandoffAvailable } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -2095,8 +2095,12 @@ export function formatPendingHandoffVerificationError(
 	return `${error.message} Open the pending cloud workspace to inspect it, or delete it before retrying /handoff: ${dashboardUrl}`;
 }
 
-export function resolveCloudHandoffDestination(): "in_app" | "external" {
-	return isCloudAgentsEnabled() ? "in_app" : "external";
+function assertCloudHandoffAvailable(): void {
+	if (!isCloudHandoffAvailable()) {
+		throw new Error(
+			"Cloud handoff requires Cloud Agents and is not enabled for this account.",
+		);
+	}
 }
 
 async function prepareCloudHandoff(
@@ -2210,6 +2214,7 @@ async function handlePrepareHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<PreparedCloudHandoff> {
+	assertCloudHandoffAvailable();
 	return await prepareCloudHandoff(ctx, request);
 }
 
@@ -2603,7 +2608,7 @@ async function handleHandoffOnce(
 			warning = `The handoff completed, but the follow-up command was not queued: ${error instanceof Error ? error.message : String(error)}`;
 		}
 	}
-	const destination = resolveCloudHandoffDestination();
+	const destination = "in_app" as const;
 	sendEvent(ctx, "cloud_handoff_progress", {
 		sourceSessionId,
 		phase: "complete",
@@ -2666,6 +2671,7 @@ async function handleHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
 ): Promise<unknown> {
+	assertCloudHandoffAvailable();
 	const sourceSessionId = request.sessionId?.trim();
 	if (!sourceSessionId) throw new Error("sessionId is required");
 	let requests = handoffRequests.get(ctx);

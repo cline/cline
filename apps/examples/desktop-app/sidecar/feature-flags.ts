@@ -19,3 +19,21 @@ export function isCloudAgentsEnabled(): boolean {
 	}
 	return readDesktopSettings().cloudSessionsEnabled;
 }
+
+/** Independent rollout/kill-switch for local-to-cloud handoff. */
+export function isCloudHandoffEnabled(): boolean {
+	const override = process.env.CLINE_CODE_CLOUD_HANDOFF?.trim().toLowerCase();
+	if (override === "1" || override === "true") {
+		return true;
+	}
+	if (override === "0" || override === "false") {
+		return false;
+	}
+	// Handoff ships enabled on desktop-experimental; Cloud Agents remains a
+	// separate required prerequisite through isCloudHandoffAvailable().
+	return true;
+}
+
+export function isCloudHandoffAvailable(): boolean {
+	return isCloudAgentsEnabled() && isCloudHandoffEnabled();
+}
