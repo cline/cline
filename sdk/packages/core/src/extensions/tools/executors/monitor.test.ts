@@ -214,6 +214,43 @@ describe("MonitorRegistry", () => {
 		}
 	});
 
+	it("bounds a stream that never emits a newline", async () => {
+		const collector = createCollector();
+		const registry = new MonitorRegistry({
+			notifier: collector.notifier,
+			flushIntervalMs: 20,
+			maxLineChars: 40,
+		});
+		try {
+			// One endless line, written in bursts, followed by a real line. The
+			// unterminated tail must not be retained and re-copied per chunk: the
+			// overflowed line is reported once, truncated, and the rest of it is
+			// discarded until the newline.
+			registry.start({
+				name: "newline-free",
+				command: nodeCommand(
+					"for (let i = 0; i < 64; i += 1) process.stdout.write('y'.repeat(16_384)); " +
+						"process.stdout.write('\\nafter\\n')",
+				),
+				description: "floods stdout without newlines",
+			});
+
+			await collector.waitFor((all) =>
+				all.some((notification) => notification.exit),
+			);
+			const lines = allLines(collector.notifications);
+			const flood = lines.filter((line) => line.includes("y"));
+			// The megabyte of newline-free output collapses into a single
+			// truncated report, not a fragment per chunk.
+			expect(flood).toHaveLength(1);
+			expect(flood[0]).toHaveLength(40);
+			expect(flood[0]).toContain("truncated");
+			expect(lines).toContain("after");
+		} finally {
+			await registry.dispose();
+		}
+	});
+
 	it("caps lines per notification and reports the drop", async () => {
 		const collector = createCollector();
 		const registry = new MonitorRegistry({

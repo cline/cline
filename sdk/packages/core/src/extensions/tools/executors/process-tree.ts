@@ -334,7 +334,8 @@ export function readProcessTable(): Promise<ProcessTable | undefined> {
 
 /**
  * Extends an owner's remembered PID generations from current roots and any
- * still-live descendants observed in an earlier snapshot.
+ * still-live descendants observed in an earlier snapshot, and drops
+ * generations whose processes have since exited.
  */
 export interface OwnedProcessGroup {
 	/** Group id, which is the pid of the leader that created it. */
@@ -442,6 +443,18 @@ export function observeOwnedProcessTree(
 	for (const pid of processTree) {
 		const owned = table.byPid.get(pid);
 		if (owned) ownedProcesses.set(pid, processIdentity(owned));
+	}
+
+	// A generation that no longer matches the live table is finished for good:
+	// its process is dead, and any future holder of the pid presents a
+	// different identity. Dropping it keeps the map bounded when a monitor's
+	// command churns through short-lived children for hours, instead of
+	// remembering every descendant that ever existed.
+	for (const [pid, identity] of ownedProcesses) {
+		const current = table.byPid.get(pid);
+		if (!current || processIdentity(current) !== identity) {
+			ownedProcesses.delete(pid);
+		}
 	}
 }
 

@@ -171,6 +171,13 @@ interface MonitorEntry extends MonitorRecord {
 	stderrDecoder: StringDecoder;
 	stdoutRemainder: string;
 	stderrRemainder: string;
+	/**
+	 * Set while the stream is inside a line that already overflowed
+	 * `maxLineChars`. Its truncated head has been queued; the rest is dropped
+	 * until the next newline, so a newline-free stream cannot grow memory.
+	 */
+	stdoutDiscarding: boolean;
+	stderrDiscarding: boolean;
 	/** Guards against a double `exit`/`error` settle. */
 	settled: boolean;
 }
@@ -271,6 +278,8 @@ export class MonitorRegistry {
 			stderrDecoder: new StringDecoder("utf8"),
 			stdoutRemainder: "",
 			stderrRemainder: "",
+			stdoutDiscarding: false,
+			stderrDiscarding: false,
 			settled: false,
 		};
 		this.monitors.set(entry.id, entry);
@@ -655,21 +664,52 @@ export class MonitorRegistry {
 		if (entry.settled) return;
 		const decoder =
 			stream === "stdout" ? entry.stdoutDecoder : entry.stderrDecoder;
+		let text = decoder.write(chunk);
+
+		// A stream stuck inside an already-overflowed line contributes nothing
+		// until its next newline: the line's truncated head has been queued, and
+		// everything up to the newline is dropped without being retained — the
+		// chunk is scanned, never buffered.
+		if (stream === "stdout" ? entry.stdoutDiscarding : entry.stderrDiscarding) {
+			const newline = text.indexOf("\n");
+			if (newline === -1) return;
+			if (stream === "stdout") {
+				entry.stdoutDiscarding = false;
+			} else {
+				entry.stderrDiscarding = false;
+			}
+			text = text.slice(newline + 1);
+			if (!text) return;
+		}
+
 		const remainder =
 			stream === "stdout" ? entry.stdoutRemainder : entry.stderrRemainder;
-		const text = remainder + decoder.write(chunk);
-		const parts = text.split(/\r?\n/);
+		const parts = (remainder + text).split(/\r?\n/);
 		// The trailing element is an unterminated line; hold it until more
 		// arrives so a line split across chunks is never reported twice.
-		const tail = parts.pop() ?? "";
+		let tail = parts.pop() ?? "";
+
+		for (const part of parts) {
+			this.queueLine(entry, stream === "stderr" ? `[stderr] ${part}` : part);
+		}
+
+		// The retained tail is what a newline-free stream would otherwise grow
+		// without bound while re-copying it on every chunk. Once it exceeds the
+		// line cap it can only ever be reported truncated, so queue that
+		// truncation now and switch to discarding the rest of the line.
+		if (tail.length > this.maxLineChars) {
+			this.queueLine(entry, stream === "stderr" ? `[stderr] ${tail}` : tail);
+			tail = "";
+			if (stream === "stdout") {
+				entry.stdoutDiscarding = true;
+			} else {
+				entry.stderrDiscarding = true;
+			}
+		}
 		if (stream === "stdout") {
 			entry.stdoutRemainder = tail;
 		} else {
 			entry.stderrRemainder = tail;
-		}
-
-		for (const part of parts) {
-			this.queueLine(entry, stream === "stderr" ? `[stderr] ${part}` : part);
 		}
 		if (entry.pending.length > 0) this.scheduleFlush(entry);
 		// Output arriving after `exit` means the pipe is still draining, not that

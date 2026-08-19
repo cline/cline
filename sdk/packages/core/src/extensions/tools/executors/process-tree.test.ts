@@ -25,6 +25,28 @@ describe("process tree ownership", () => {
 		]);
 	});
 
+	it("prunes generations that no longer match the live table", () => {
+		// A monitor command that churns through short-lived children must not
+		// accumulate every descendant that ever existed: a dead generation can
+		// never match again, so it is dropped on the next observation.
+		const before = parseProcessTable(
+			[
+				"10 1 10 Mon Aug 17 18:00:00 2026 sh -c watch.sh",
+				"11 10 10 Mon Aug 17 18:00:01 2026 curl --retry 1 status",
+			].join("\n"),
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [10], before);
+		expect(owned.size).toBe(2);
+
+		// The short-lived child exited; only the live generation is retained.
+		const after = parseProcessTable(
+			"10 1 10 Mon Aug 17 18:00:00 2026 sh -c watch.sh",
+		);
+		observeOwnedProcessTree(owned, [10], after);
+		expect([...owned.keys()]).toEqual([10]);
+	});
+
 	it("rejects a reused PID with a different process start time", () => {
 		const original = parseProcessTable(
 			"42 1 42 Mon Aug 17 18:00:00 2026 tail -F app.log",
