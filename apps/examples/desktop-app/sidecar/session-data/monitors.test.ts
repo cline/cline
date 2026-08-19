@@ -1,8 +1,9 @@
 import type { MessageWithMetadata } from "@cline/shared";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
 	collectPersistedActiveMonitors,
 	createMonitorResumeNotice,
+	persistMonitorResumeNotice,
 } from "./monitors";
 
 function toolResult(text: string): MessageWithMetadata {
@@ -51,5 +52,29 @@ describe("monitor resume semantics", () => {
 		expect(
 			collectPersistedActiveMonitors([started, notice as MessageWithMetadata]),
 		).toEqual([]);
+	});
+
+	it("persists the notice before a resumed session runs a turn", () => {
+		let disk: MessageWithMetadata[] = [
+			toolResult('Started monitor mon_1 ("ci"): Watches CI'),
+		];
+		const persist = (_sessionId: string, messages: MessageWithMetadata[]) => {
+			disk = messages;
+		};
+
+		const firstResume = persistMonitorResumeNotice("session_1", disk, persist);
+		expect(firstResume).toHaveLength(2);
+		expect(disk).toEqual(firstResume);
+
+		// Stop without an agent turn, then resume from the messages the first
+		// resume already wrote. The notice must not be generated or persisted twice.
+		const secondPersist = vi.fn();
+		const secondResume = persistMonitorResumeNotice(
+			"session_1",
+			disk,
+			secondPersist,
+		);
+		expect(secondResume).toBe(disk);
+		expect(secondPersist).not.toHaveBeenCalled();
 	});
 });
