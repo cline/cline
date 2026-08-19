@@ -5,6 +5,7 @@ import {
 	findSdkUserMessageIndexByOrdinal,
 	getSdkCheckpointRunCountForMessageIndex,
 	isSyntheticUserPrompt,
+	TASK_RESUMPTION_PROMPT,
 } from "./sdk-user-message-mapping"
 
 // Persisted prompts are wrapped by formatModePrompt before they reach SDK
@@ -12,19 +13,21 @@ import {
 const wrapped = (text: string, mode = "act") => `<user_input mode="${mode}">${text}</user_input>`
 
 describe("isSyntheticUserPrompt", () => {
-	it("flags task resumption and act-mode continuation prompts", () => {
-		expect(isSyntheticUserPrompt("[TASK RESUMPTION] Please continue where you left off.")).toBe(true)
+	it("flags internally marked task resumption and act-mode continuation prompts", () => {
+		expect(isSyntheticUserPrompt(TASK_RESUMPTION_PROMPT)).toBe(true)
 		expect(isSyntheticUserPrompt(ACT_MODE_CONTINUATION_PROMPT)).toBe(true)
 	})
 
 	it("flags the wrapped persisted shape of synthetic prompts", () => {
 		expect(isSyntheticUserPrompt(wrapped(ACT_MODE_CONTINUATION_PROMPT))).toBe(true)
-		expect(isSyntheticUserPrompt(wrapped("[TASK RESUMPTION] Please continue where you left off.", "plan"))).toBe(true)
+		expect(isSyntheticUserPrompt(wrapped(TASK_RESUMPTION_PROMPT, "plan"))).toBe(true)
 	})
 
-	it("does not flag ordinary user messages, wrapped or raw", () => {
+	it("does not flag ordinary or synthetic-looking user messages", () => {
 		expect(isSyntheticUserPrompt("make a plan for the auth refactor")).toBe(false)
 		expect(isSyntheticUserPrompt(wrapped("go ahead and implement step 1"))).toBe(false)
+		expect(isSyntheticUserPrompt("[TASK RESUMPTION] Please continue where you left off.")).toBe(false)
+		expect(isSyntheticUserPrompt("The user approved switching to act mode. Continue with the approved plan now.")).toBe(false)
 	})
 
 	it("flags synthetic prompts that carry a mode-switch notice", () => {
@@ -71,7 +74,7 @@ describe("findSdkUserMessageIndexByOrdinal", () => {
 		const messages = [
 			user(wrapped("original task")),
 			assistant("partial work"),
-			user(wrapped("[TASK RESUMPTION] Please continue where you left off.")),
+			user(wrapped(TASK_RESUMPTION_PROMPT)),
 			assistant("resumed work"),
 			user(wrapped("looks good, keep going")),
 		]

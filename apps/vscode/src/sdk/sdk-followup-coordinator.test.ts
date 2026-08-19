@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkFollowupCoordinator, type SdkFollowupCoordinatorOptions } from "./sdk-followup-coordinator"
+import { TASK_RESUMPTION_PROMPT } from "./sdk-user-message-mapping"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -47,27 +48,17 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("hello @file", ["image.png"], ["a.ts"])
 
 		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					type: "say",
-					say: "user_feedback",
-					text: "hello @file",
-					images: ["image.png"],
-					files: ["a.ts"],
-				}),
-			],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-		)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.resolveContextMentions).toHaveBeenCalledWith("hello @file")
-		expect(options.recordOptimisticPendingPrompt).toHaveBeenCalledWith("resolved: hello @file", ["image.png"], ["a.ts"])
+		expect(options.recordSyntheticPendingPrompt).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
+			"queue",
 		)
 	})
 
@@ -149,16 +140,7 @@ describe("SdkFollowupCoordinator", () => {
 
 		await coordinator.askResponse("next request", undefined, undefined, "messageResponse", "completed")
 
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					type: "say",
-					say: "user_feedback",
-					text: "next request",
-				}),
-			],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-		)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.resetMessageTranslator).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
@@ -166,6 +148,7 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: next request",
 			undefined,
 			undefined,
+			"queue",
 		)
 	})
 
@@ -229,6 +212,7 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: after rebuild",
 			undefined,
 			undefined,
+			"queue",
 		)
 	})
 
@@ -441,7 +425,9 @@ describe("SdkFollowupCoordinator", () => {
 		const [sdkHost, sessionId, sentPrompt] = options.sessions.fireAndForgetSend.mock.calls[0]
 		expect(sdkHost).toBe(activeSession.sdkHost)
 		expect(sessionId).toBe("session-123")
-		expect(sentPrompt).toContain("[TASK RESUMPTION]")
+		expect(sentPrompt).toBe(`resolved: ${TASK_RESUMPTION_PROMPT}`)
+		expect(options.recordSyntheticPendingPrompt).toHaveBeenCalledWith(sentPrompt, undefined, undefined)
+		expect(options.sessions.fireAndForgetSend.mock.calls[0][5]).toBe("queue")
 		// A bare resumption prompt is synthetic and must not render a user bubble.
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
@@ -454,22 +440,14 @@ describe("SdkFollowupCoordinator", () => {
 		await coordinator.askResponse("keep going", ["image.png"], undefined)
 
 		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
-		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
-			[
-				expect.objectContaining({
-					say: "user_feedback",
-					text: "keep going",
-					images: ["image.png"],
-				}),
-			],
-			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
-		)
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			activeSession.sdkHost,
 			"session-123",
 			"resolved: keep going",
 			["image.png"],
 			undefined,
+			"queue",
 		)
 	})
 
@@ -512,7 +490,7 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
 		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
-		expect(sentPrompt).toBe("resolved: [TASK RESUMPTION] Please continue where you left off.")
+		expect(sentPrompt).toBe(`resolved: ${TASK_RESUMPTION_PROMPT}`)
 		expect(sentPrompt).not.toContain("Run the five terminal commands")
 		// A bare resumption prompt is synthetic and must not render a user bubble.
 		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
@@ -548,7 +526,7 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"resumed-session",
-			expect.stringContaining("[TASK RESUMPTION]"),
+			expect.stringContaining("cline_internal_prompt"),
 			["data:image/png;base64,abc"],
 			[],
 		)
@@ -634,7 +612,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		isClineManagedProviderActive: vi.fn(() => false),
 		emitClineAuthError: vi.fn(),
 		resetMessageTranslator: vi.fn(),
-		recordOptimisticPendingPrompt: vi.fn(),
+		recordSyntheticPendingPrompt: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
 		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
@@ -672,7 +650,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		isClineManagedProviderActive: ReturnType<typeof vi.fn>
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
-		recordOptimisticPendingPrompt: ReturnType<typeof vi.fn>
+		recordSyntheticPendingPrompt: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
 		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>

@@ -8,6 +8,7 @@ import { deleteLegacyTask, readApiConversationHistory, readTaskHistory, readUiMe
 import { sdkMessagesToClineMessages } from "./message-translator"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import { SdkTaskHistory, sessionHistoryRecordToHistoryItem } from "./sdk-task-history"
+import { ACT_MODE_CONTINUATION_PROMPT, TASK_RESUMPTION_PROMPT } from "./sdk-user-message-mapping"
 import type { VscodeSessionHost } from "./vscode-session-host"
 
 vi.mock("@/core/storage/disk", () => ({
@@ -268,8 +269,7 @@ describe("SdkTaskHistory", () => {
 			{ role: "assistant", content: [{ type: "text", text: "Here is the plan." }] },
 			{
 				role: "user",
-				content:
-					'<user_input mode="act"><mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>The user approved switching to act mode. Continue with the approved plan now.</user_input>',
+				content: `<user_input mode="act"><mode_notice>The user switched from plan mode to act mode before sending this message.</mode_notice>${ACT_MODE_CONTINUATION_PROMPT}</user_input>`,
 			},
 			{ role: "assistant", content: [{ type: "text", text: "Implemented." }] },
 		] as never)
@@ -283,14 +283,14 @@ describe("SdkTaskHistory", () => {
 		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Implemented." }))
 	})
 
-	it("hides [TASK RESUMPTION] prompts when rehydrating from history", async () => {
+	it("hides internally marked task resumption prompts when rehydrating from history", async () => {
 		const { history, readMessages } = makeHistory([makeSessionRecord("task-1")])
 		readMessages.mockResolvedValueOnce([
 			{ role: "user", content: '<user_input mode="act">build the feature</user_input>' },
 			{ role: "assistant", content: [{ type: "text", text: "Partway done." }] },
 			{
 				role: "user",
-				content: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				content: `<user_input mode="act">${TASK_RESUMPTION_PROMPT}</user_input>`,
 			},
 			{ role: "assistant", content: [{ type: "text", text: "Finished." }] },
 		] as never)
@@ -298,7 +298,7 @@ describe("SdkTaskHistory", () => {
 		const result = await history.getClineMessages("task-1")
 
 		expect(result.filter((m) => m.say === "user_feedback")).toHaveLength(0)
-		expect(result.map((m) => m.text).join("\n")).not.toContain("[TASK RESUMPTION]")
+		expect(result.map((m) => m.text).join("\n")).not.toContain("cline_internal_prompt")
 		expect(result).toContainEqual(expect.objectContaining({ type: "say", say: "completion_result", text: "Finished." }))
 	})
 

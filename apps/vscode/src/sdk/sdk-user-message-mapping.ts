@@ -6,7 +6,13 @@ import { normalizeUserInput, stripModeNotices } from "@cline/shared"
  * coordinator so display-layer consumers (message-translator, ordinal
  * mapping) don't pull the coordinator's heavy import graph into their tests.
  */
-export const ACT_MODE_CONTINUATION_PROMPT = "The user approved switching to act mode. Continue with the approved plan now."
+const SYNTHETIC_PROMPT_PREFIX = '<cline_internal_prompt kind="'
+
+export const TASK_RESUMPTION_PROMPT =
+	'<cline_internal_prompt kind="task_resumption">Please continue where you left off.</cline_internal_prompt>'
+
+export const ACT_MODE_CONTINUATION_PROMPT =
+	'<cline_internal_prompt kind="act_mode_continuation">The user approved switching to act mode. Continue with the approved plan now.</cline_internal_prompt>'
 
 export type SdkUserMessage = {
 	role?: unknown
@@ -55,7 +61,7 @@ export function isSyntheticUserPrompt(text: string): boolean {
 	// the synthetic prompt would start counting as a visible user message and
 	// shift every later edit/regenerate ordinal by one.
 	const normalized = stripModeNotices(normalizeUserInput(text))
-	return normalized.startsWith("[TASK RESUMPTION]") || normalized === ACT_MODE_CONTINUATION_PROMPT
+	return normalized.startsWith(SYNTHETIC_PROMPT_PREFIX)
 }
 
 function hasAttachmentBlocks(message: SdkUserMessage): boolean {

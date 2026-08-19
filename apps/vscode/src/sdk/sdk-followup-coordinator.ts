@@ -10,6 +10,7 @@ import type { SdkSessionConfigBuilder } from "./sdk-session-config-builder"
 import type { SdkSessionLifecycle } from "./sdk-session-lifecycle"
 import type { SdkTaskHistory } from "./sdk-task-history"
 import { prepareTaskResumeStartInput } from "./sdk-task-resume"
+import { TASK_RESUMPTION_PROMPT } from "./sdk-user-message-mapping"
 import type { SdkSessionHost } from "./session-host"
 import type { TaskProxy } from "./task-proxy"
 import type { VscodeSessionHost } from "./vscode-session-host"
@@ -22,9 +23,9 @@ type SessionConfig = Awaited<ReturnType<SdkSessionConfigBuilder["build"]>>
  * start without a prompt, so the Resume button needs a synthetic one. Never
  * include the original task text here — the model treats it as new
  * instructions and redoes already-completed work (#12975). Hidden from the
- * transcript by isSyntheticUserPrompt via the [TASK RESUMPTION] prefix.
+ * transcript by an internal prompt marker that user-authored text cannot
+ * accidentally match.
  */
-const TASK_RESUMPTION_PROMPT = "[TASK RESUMPTION] Please continue where you left off."
 
 export interface SdkFollowupCoordinatorOptions {
 	stateManager: StateManager
@@ -42,7 +43,7 @@ export interface SdkFollowupCoordinatorOptions {
 	isClineManagedProviderActive: () => boolean
 	emitClineAuthError: () => void
 	resetMessageTranslator: () => void
-	recordOptimisticPendingPrompt?: (prompt: string, images?: string[], files?: string[]) => void
+	recordSyntheticPendingPrompt?: (prompt: string, images?: string[], files?: string[]) => void
 	postStateToWebview: () => Promise<void>
 	/** Resolves once no session rebuild is in flight. */
 	waitForPendingRebuilds: () => Promise<void>
@@ -150,9 +151,9 @@ export class SdkFollowupCoordinator {
 	 * Continue a live idle session in place instead of tearing it down and
 	 * rebuilding it from task history. A bare resume (no user content) sends
 	 * the synthetic resumption prompt without echoing a user bubble;
-	 * user-provided content is echoed and sent as-is. If the session's abort
-	 * is still settling, the runtime auto-queues the send and drains it once
-	 * the abort completes.
+	 * user-provided content is emitted by Core's submitted-prompt event. Always
+	 * queue through Core so an abort-settling race and a truly idle session use
+	 * the same single, id-addressable transcript path.
 	 */
 	private async continueIdleSession(
 		activeSession: NonNullable<ReturnType<SdkSessionLifecycle["getActiveSession"]>>,
@@ -164,17 +165,15 @@ export class SdkFollowupCoordinator {
 		Logger.log(`[SdkController] Continuing idle session for follow-up: ${sessionId}`)
 
 		this.options.sessions.setRunning(true)
-		if (prompt?.trim() || images?.length || files?.length) {
-			this.emitUserFeedback(sessionId, prompt, images, files)
-		}
 		this.options.resetMessageTranslator()
 
+		const hasUserPrompt = Boolean(prompt?.trim())
 		const effectivePrompt = prompt?.trim() || TASK_RESUMPTION_PROMPT
 		const resolvedPrompt = await this.options.resolveContextMentions(effectivePrompt)
-		if (prompt?.trim() || images?.length || files?.length) {
-			this.options.recordOptimisticPendingPrompt?.(resolvedPrompt, images, files)
+		if (!hasUserPrompt) {
+			this.options.recordSyntheticPendingPrompt?.(resolvedPrompt, images, files)
 		}
-		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files)
+		this.options.sessions.fireAndForgetSend(sdkHost, sessionId, resolvedPrompt, images, files, "queue")
 	}
 
 	private async tryResumeSessionFromTask(task: TaskProxy, prompt?: string, images?: string[], files?: string[]): Promise<void> {

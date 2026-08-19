@@ -550,8 +550,8 @@ export class Controller {
 			isClineManagedProviderActive: () => this.isClineManagedProviderActive(),
 			emitClineAuthError: () => this.emitClineAuthErrorWithTelemetry(),
 			resetMessageTranslator: () => this.resetMessageTranslatorAndFence(),
-			recordOptimisticPendingPrompt: (prompt, images, files) =>
-				this.messageTranslatorState.recordOptimisticPendingPrompt(prompt, images, files),
+			recordSyntheticPendingPrompt: (prompt, images, files) =>
+				this.messageTranslatorState.recordSyntheticPendingPrompt(prompt, images, files),
 			postStateToWebview: () => this.postStateToWebview(),
 			onResumeFailed: () => {
 				this.turnStateTracker.set("error")

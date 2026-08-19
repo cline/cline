@@ -2,6 +2,7 @@ import type { ClineMessage } from "@shared/ExtensionMessage"
 import { beforeEach, describe, expect, it, vi } from "vitest"
 import type { StateManager } from "@/core/storage/StateManager"
 import { SdkModeCoordinator, type SdkModeCoordinatorOptions } from "./sdk-mode-coordinator"
+import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-user-message-mapping"
 
 vi.mock("@/shared/services/Logger", () => ({
 	Logger: {
@@ -151,7 +152,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
+			ACT_MODE_CONTINUATION_PROMPT,
 			undefined,
 			undefined,
 		)
@@ -186,7 +187,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
+			ACT_MODE_CONTINUATION_PROMPT,
 			undefined,
 			undefined,
 		)
@@ -211,7 +212,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
+			ACT_MODE_CONTINUATION_PROMPT,
 			undefined,
 			undefined,
 		)
@@ -309,7 +310,7 @@ describe("SdkModeCoordinator", () => {
 		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
 			expect.anything(),
 			"new-session",
-			"The user approved switching to act mode. Continue with the approved plan now.",
+			ACT_MODE_CONTINUATION_PROMPT,
 			["data:image/png;base64,abc"],
 			undefined,
 		)

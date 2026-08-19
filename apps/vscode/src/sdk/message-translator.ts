@@ -26,7 +26,7 @@
 // - SDK "agent_event" usage → ClineMessage say="api_req_started" with ClineApiReqInfo JSON
 // - SDK "ended" event → finalizes the session
 
-import type { CoreSessionEvent } from "@cline/core"
+import type { CoreSessionEvent, SessionPendingPrompt } from "@cline/core"
 import { PATCH_MARKERS, projectSessionMessagesForDisplay } from "@cline/core"
 import type { MessageWithMetadata as SdkMessage } from "@cline/llms"
 import { type AgentEvent, formatDisplayUserInput } from "@cline/shared"
@@ -49,7 +49,7 @@ import { arePathsEqual, getDesktopDir } from "@/utils/path"
 import { CLINE_FREE_PROMOTION_ENDED_ERROR_CODE, isClineFreePromotionEndedMessage } from "../services/error/ClineError"
 import { MessageIdMinter } from "./message-id-minter"
 import { describeMissingCredentialError } from "./provider-credential-error"
-import { isSyntheticSdkUserMessage, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
+import { isSyntheticSdkUserMessage } from "./sdk-user-message-mapping"
 import { isDeniedToolApprovalMistake, isKnownToolApprovalDenial } from "./tool-approval-denial"
 
 // ---------------------------------------------------------------------------
@@ -130,12 +130,8 @@ export class MessageTranslatorState {
 	private streamingToolInput: unknown | undefined
 	/** Stored tool name from content_start — used at content_end for consistency */
 	private streamingToolName: string | undefined
-	/**
-	 * A user message already rendered by the idle follow-up path. If an abort
-	 * race makes that same send enter Core's queue, suppress the later
-	 * pending_prompt_submitted echo exactly once.
-	 */
-	private optimisticPendingPromptKey: string | undefined
+	/** Cline-generated resume text waiting to be associated with Core's queue id. */
+	private syntheticPendingPrompt: { key: string; displayPrompt: string; id?: string } | undefined
 	/** Approved tool-call ids mapped to the approval row that should be updated in place. */
 	private approvedToolMessageTsByCallId = new Map<string, number>()
 	/**
@@ -174,17 +170,32 @@ export class MessageTranslatorState {
 		return this.getActiveModelId?.()
 	}
 
-	recordOptimisticPendingPrompt(prompt: string, userImages?: string[], userFiles?: string[]): void {
-		this.optimisticPendingPromptKey = this.pendingPromptKey(prompt, userImages, userFiles)
+	recordSyntheticPendingPrompt(prompt: string, userImages?: string[], userFiles?: string[]): void {
+		this.syntheticPendingPrompt = {
+			key: this.pendingPromptKey(prompt, userImages, userFiles),
+			displayPrompt: formatDisplayUserInput(prompt),
+		}
 	}
 
-	consumeOptimisticPendingPrompt(prompt: string, userImages?: string[], userFiles?: string[]): boolean {
-		const key = this.pendingPromptKey(prompt, userImages, userFiles)
-		if (key !== this.optimisticPendingPromptKey) {
-			return false
+	observePendingPrompts(prompts: readonly SessionPendingPrompt[]): void {
+		if (!this.syntheticPendingPrompt || this.syntheticPendingPrompt.id) return
+		const match = [...prompts]
+			.reverse()
+			.find(
+				(prompt) =>
+					this.pendingPromptKey(prompt.prompt, prompt.userImages, prompt.userFiles) ===
+					this.syntheticPendingPrompt?.key,
+			)
+		if (match) {
+			this.syntheticPendingPrompt.id = match.id
 		}
-		this.optimisticPendingPromptKey = undefined
-		return true
+	}
+
+	consumeSyntheticPendingPrompt(id: string, prompt: string): boolean {
+		if (this.syntheticPendingPrompt?.id !== id) return false
+		const suppress = this.syntheticPendingPrompt.displayPrompt === formatDisplayUserInput(prompt)
+		this.syntheticPendingPrompt = undefined
+		return suppress
 	}
 
 	private pendingPromptKey(prompt: string, userImages?: string[], userFiles?: string[]): string {
@@ -529,7 +540,7 @@ export class MessageTranslatorState {
 		this.streamingToolTs = undefined
 		this.streamingToolInput = undefined
 		this.streamingToolName = undefined
-		this.optimisticPendingPromptKey = undefined
+		this.syntheticPendingPrompt = undefined
 		this.clearApprovedToolMessageTs()
 		this.deniedToolApprovalsByCallId.clear()
 		this.clearSpawnAgents()
@@ -2131,24 +2142,21 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			break
 		}
 
+		case "pending_prompts": {
+			state.observePendingPrompts(event.payload.prompts)
+			break
+		}
+
 		case "pending_prompt_submitted": {
-			const { prompt, userImages, userFiles } = event.payload
-			if (state.consumeOptimisticPendingPrompt(prompt, userImages, userFiles)) {
-				break
-			}
-			// Synthetic prompts (task resumption, plan -> act auto-continue) are
-			// hidden from every other transcript surface, and this echo must
-			// hide them too: a send that races a settling abort is auto-queued
-			// by the runtime, so a bare Resume can arrive here carrying the
-			// synthetic resumption prompt. Echoing it would leak model-facing
-			// text as a user bubble and shift the visible-user-message ordinals
-			// that edit/regenerate mapping relies on. Attachments the user
-			// supplied alongside a synthetic prompt still render (matching
-			// isSyntheticSdkUserMessage, which counts those as visible).
+			const { id, prompt, userImages, userFiles } = event.payload
+			// Hide only the exact queue id associated with a Cline-generated bare
+			// Resume. Content inspection is insufficient: users may type the same
+			// text, and multiple identical queued prompts remain distinct turns.
+			// Attachments carried by the generated resume still render.
 			// Display boundary: formatDisplayUserInput strips runtime-generated
 			// notice elements (e.g. mode_notice) that normalizeUserInput must
 			// preserve, since the latter also sanitizes model-bound prompts.
-			const displayPrompt = isSyntheticUserPrompt(prompt) ? "" : formatDisplayUserInput(prompt)
+			const displayPrompt = state.consumeSyntheticPendingPrompt(id, prompt) ? "" : formatDisplayUserInput(prompt)
 			const hasPrompt = displayPrompt.trim().length > 0
 			const hasImages = (userImages?.length ?? 0) > 0
 			const hasFiles = (userFiles?.length ?? 0) > 0
@@ -2166,8 +2174,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 			break
 		}
 
-		case "team_progress":
-		case "pending_prompts": {
+		case "team_progress": {
 			// These are handled by the team/subagent system, not translated
 			// to ClineMessages at this layer
 			break

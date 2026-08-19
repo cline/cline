@@ -12,6 +12,7 @@ import {
 	sdkMessagesToClineMessages,
 	translateSessionEvent,
 } from "./message-translator"
+import { TASK_RESUMPTION_PROMPT } from "./sdk-user-message-mapping"
 
 // ---------------------------------------------------------------------------
 // MessageTranslatorState
@@ -174,27 +175,89 @@ describe("translateSessionEvent — chunk events", () => {
 // ---------------------------------------------------------------------------
 
 describe("translateSessionEvent — pending prompts", () => {
-	it("does not echo an idle follow-up again when an abort race queued it", () => {
+	it("binds generated resume suppression to the new queue id, not identical content", () => {
 		const state = new MessageTranslatorState()
-		state.recordOptimisticPendingPrompt("please just finish", ["image.png"], ["notes.txt"])
-		const event: CoreSessionEvent = {
+		const prompt = TASK_RESUMPTION_PROMPT
+		state.recordSyntheticPendingPrompt(prompt)
+		translateSessionEvent(
+			{
+				type: "pending_prompts",
+				payload: {
+					sessionId: "session-1",
+					prompts: [
+						{ id: "older-user", prompt, delivery: "queue", attachmentCount: 0 },
+						{ id: "generated-resume", prompt, delivery: "queue", attachmentCount: 0 },
+					],
+				},
+			},
+			state,
+		)
+		const olderEvent: CoreSessionEvent = {
 			type: "pending_prompt_submitted",
 			payload: {
 				sessionId: "session-1",
-				id: "pending-1",
-				prompt: "please just finish",
+				id: "older-user",
+				prompt,
 				delivery: "queue",
-				attachmentCount: 2,
-				userImages: ["image.png"],
-				userFiles: ["notes.txt"],
+				attachmentCount: 0,
 			},
 		}
-
-		expect(translateSessionEvent(event, state).messages).toEqual([])
-		expect(translateSessionEvent(event, state).messages).toEqual([
+		expect(translateSessionEvent(olderEvent, state).messages).toEqual([
 			expect.objectContaining({
 				say: "user_feedback",
-				text: "please just finish",
+				text: prompt,
+			}),
+		])
+		expect(
+			translateSessionEvent(
+				{
+					...olderEvent,
+					payload: { ...olderEvent.payload, id: "generated-resume" },
+				},
+				state,
+			).messages,
+		).toEqual([])
+	})
+
+	it("renders an id-bound generated resume when the user edits its text", () => {
+		const state = new MessageTranslatorState()
+		state.recordSyntheticPendingPrompt(TASK_RESUMPTION_PROMPT)
+		translateSessionEvent(
+			{
+				type: "pending_prompts",
+				payload: {
+					sessionId: "session-1",
+					prompts: [
+						{
+							id: "generated-resume",
+							prompt: TASK_RESUMPTION_PROMPT,
+							delivery: "queue",
+							attachmentCount: 0,
+						},
+					],
+				},
+			},
+			state,
+		)
+
+		const result = translateSessionEvent(
+			{
+				type: "pending_prompt_submitted",
+				payload: {
+					sessionId: "session-1",
+					id: "generated-resume",
+					prompt: "finish the edited task",
+					delivery: "queue",
+					attachmentCount: 0,
+				},
+			},
+			state,
+		)
+
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "finish the edited task",
 			}),
 		])
 	})
@@ -254,12 +317,7 @@ describe("translateSessionEvent — pending prompts", () => {
 		])
 	})
 
-	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
-		// A bare Resume that races the abort settling is auto-queued by the
-		// runtime; when it drains, the submitted-prompt echo must not leak the
-		// synthetic [TASK RESUMPTION] text as a visible user bubble (it is
-		// hidden from every other transcript surface, and a visible bubble
-		// would shift edit/regenerate ordinal mapping).
+	it("renders user-authored text even when it resembles a synthetic prompt", () => {
 		const state = new MessageTranslatorState()
 		const event: CoreSessionEvent = {
 			type: "pending_prompt_submitted",
@@ -274,20 +332,45 @@ describe("translateSessionEvent — pending prompts", () => {
 
 		const result = translateSessionEvent(event, state)
 
-		expect(result.messages).toEqual([])
+		expect(result.messages).toEqual([
+			expect.objectContaining({
+				say: "user_feedback",
+				text: "[TASK RESUMPTION] Please continue where you left off.",
+			}),
+		])
 	})
 
-	it("still renders attachments carried by a synthetic resumption prompt, without the synthetic text", () => {
+	it("hides id-bound generated resume text while retaining its attachments", () => {
 		// Attachment-only follow-ups ride on the synthetic prompt; the user's
 		// images/files are real content and must stay visible (matching
 		// isSyntheticSdkUserMessage, which counts such messages as visible).
 		const state = new MessageTranslatorState()
+		const prompt = `<user_input mode="act">${TASK_RESUMPTION_PROMPT}</user_input>`
+		state.recordSyntheticPendingPrompt(prompt, ["image.png"])
+		translateSessionEvent(
+			{
+				type: "pending_prompts",
+				payload: {
+					sessionId: "session-1",
+					prompts: [
+						{
+							id: "pending-1",
+							prompt,
+							delivery: "queue",
+							attachmentCount: 1,
+							userImages: ["image.png"],
+						},
+					],
+				},
+			},
+			state,
+		)
 		const event: CoreSessionEvent = {
 			type: "pending_prompt_submitted",
 			payload: {
 				sessionId: "session-1",
 				id: "pending-1",
-				prompt: '<user_input mode="act">[TASK RESUMPTION] Please continue where you left off.</user_input>',
+				prompt,
 				delivery: "queue",
 				attachmentCount: 1,
 				userImages: ["image.png"],
