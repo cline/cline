@@ -63,6 +63,9 @@ export function createMonitorResumeNotice(
 			kind: "monitor_resume_notice",
 			displayRole: "system",
 			reason: "session_resumed",
+			// System-injected user-role messages contribute no runs; without
+			// this the notice would inflate checkpoint run numbering.
+			userRunSpan: 0,
 		},
 	};
 }
