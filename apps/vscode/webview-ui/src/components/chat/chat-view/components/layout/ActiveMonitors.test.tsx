@@ -11,8 +11,8 @@ vi.mock("@/services/grpc-client", () => ({
 	},
 }))
 
-vi.mock("@shared/proto/cline/common", () => ({
-	StringRequest: {
+vi.mock("@shared/proto/cline/task", () => ({
+	StopMonitorRequest: {
 		create: (request: unknown) => request,
 	},
 }))
@@ -37,28 +37,40 @@ describe("ActiveMonitors", () => {
 	})
 
 	it("renders nothing when no monitors are running", () => {
-		const { container } = render(<ActiveMonitors items={[makeMonitor({ status: "stopped" })]} />)
+		const { container } = render(<ActiveMonitors items={[makeMonitor({ status: "stopped" })]} sessionId="sess-1" />)
+		expect(container.firstChild).toBeNull()
+	})
+
+	it("renders nothing without an owning session id", () => {
+		// Without the owning session a stop request could not be qualified, so
+		// the strip does not offer controls at all.
+		const { container } = render(<ActiveMonitors items={[makeMonitor()]} />)
 		expect(container.firstChild).toBeNull()
 	})
 
 	it("lists running monitors with name, description, and line count", () => {
-		render(<ActiveMonitors items={[makeMonitor()]} />)
+		render(<ActiveMonitors items={[makeMonitor()]} sessionId="sess-1" />)
 		expect(screen.getByText("Watching in the background")).toBeInTheDocument()
 		expect(screen.getByText("applog")).toBeInTheDocument()
 		expect(screen.getByText("watching the app log")).toBeInTheDocument()
 		expect(screen.getByText("3 lines")).toBeInTheDocument()
 	})
 
-	it("stops a monitor through the task service", async () => {
-		render(<ActiveMonitors items={[makeMonitor()]} />)
+	it("stops a monitor through the task service with its owning session", async () => {
+		render(<ActiveMonitors items={[makeMonitor()]} sessionId="sess-1" />)
 		fireEvent.click(screen.getByRole("button", { name: "Stop monitor" }))
 		await waitFor(() => {
-			expect(stopMonitorMock).toHaveBeenCalledWith({ value: "mon_1" })
+			expect(stopMonitorMock).toHaveBeenCalledWith({ monitorId: "mon_1", sessionId: "sess-1" })
 		})
 	})
 
 	it("hides ended monitors while keeping running ones", () => {
-		render(<ActiveMonitors items={[makeMonitor(), makeMonitor({ id: "mon_2", name: "oldwatch", status: "exited" })]} />)
+		render(
+			<ActiveMonitors
+				items={[makeMonitor(), makeMonitor({ id: "mon_2", name: "oldwatch", status: "exited" })]}
+				sessionId="sess-1"
+			/>,
+		)
 		expect(screen.getByText("applog")).toBeInTheDocument()
 		expect(screen.queryByText("oldwatch")).not.toBeInTheDocument()
 	})
