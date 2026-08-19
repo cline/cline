@@ -3,6 +3,7 @@ import type { HubEventEnvelope, MessageWithMetadata } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
 import {
+	CloudHandoffSeedUnsupportedError,
 	CloudSessionApi,
 	CloudSessionError,
 	CloudSessionManager,
@@ -269,6 +270,54 @@ class FakeHubClient {
 }
 
 describe("CloudSessionApi", () => {
+	it("never adopts a list-recovered session for a handoff without request identity", async () => {
+		const now = new Date().toISOString();
+		const onOuterSessionCreated = vi.fn();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:fresh",
+			fetch: async (_input, init) =>
+				init?.method === "POST"
+					? jsonResponse({ success: false, error: "gateway timeout" }, 500)
+					: jsonResponse({
+							success: true,
+							data: [
+								{
+									id: "ses-unproven",
+									status: "ready",
+									sandboxUrl: "https://pod.example",
+									repoContext: {
+										repoUrl: "https://github.com/cline/test",
+									},
+									metadata: { modelId: "model" },
+									createdAt: now,
+									updatedAt: now,
+								},
+							],
+						}),
+		});
+
+		const error = await api
+			.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated,
+				},
+			})
+			.catch((caught) => caught);
+
+		expect(error).toMatchObject({
+			code: "request_failed",
+			connectUrl: "https://app.example/agents",
+		});
+		expect(String(error)).toContain("cannot prove it created it");
+		expect(onOuterSessionCreated).not.toHaveBeenCalled();
+	});
+
 	it("reports the outer id before returning and keeps handoff hooks off the wire", async () => {
 		let postedBody: Record<string, unknown> | undefined;
 		const order: string[] = [];
@@ -2245,9 +2294,11 @@ describe("CloudSessionManager", () => {
 			},
 		});
 
-		await expect(
-			manager.verifyHandoffTranscript("ses-handoff", expected),
-		).rejects.toThrow("must use @cline/core 0.0.72 or newer");
+		const error = await manager
+			.verifyHandoffTranscript("ses-handoff", expected)
+			.catch((caught) => caught);
+		expect(error).toBeInstanceOf(CloudHandoffSeedUnsupportedError);
+		expect(String(error)).toContain("must use @cline/core 0.0.72 or newer");
 	});
 
 	it("reuses only one inner session owned by the same handoff source", async () => {

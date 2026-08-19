@@ -138,6 +138,15 @@ export class CloudSessionError extends Error {
 	}
 }
 
+export class CloudHandoffSeedUnsupportedError extends Error {
+	constructor() {
+		super(
+			"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /handoff against this same pod will not help.",
+		);
+		this.name = "CloudHandoffSeedUnsupportedError";
+	}
+}
+
 type ApiResponse<T> = {
 	success?: boolean;
 	data?: T;
@@ -585,6 +594,16 @@ export class CloudSessionApi {
 					([peerSequence]) => !awaited.has(peerSequence),
 				);
 				await Promise.allSettled(latePeers.map(([, settled]) => settled));
+				const unclaimedCandidates = candidates.filter(
+					(candidate) => !this.claimedSessionIds.has(candidate.id),
+				);
+				if (input.handoff && unclaimedCandidates.length > 0) {
+					throw new CloudSessionError(
+						"request_failed",
+						"Cloud session creation had an ambiguous result. Check Cline Cloud for the new workspace before retrying; it was not adopted because this client cannot prove it created it.",
+						new URL("/agents", this.appBaseUrl).toString(),
+					);
+				}
 				const recovered = this.claimOnlyUnclaimed(candidates);
 				if (recovered) {
 					await this.persistHandoffOuterSession(
@@ -1533,9 +1552,7 @@ export class CloudSessionManager {
 			throw new Error("Cloud runtime returned no transcript after seeding.");
 		}
 		if (expected.length > 0 && actual.length === 0) {
-			throw new Error(
-				"The cloud session was created, but its transcript was not persisted. This cloud runtime cannot durably seed handoff transcripts and must use @cline/core 0.0.72 or newer. Updating the cloud runtime or pod is required; retrying /handoff against this same pod will not help.",
-			);
+			throw new CloudHandoffSeedUnsupportedError();
 		}
 		if (!cloudHandoffTranscriptsEqual(expected, actual)) {
 			throw new CloudHandoffTranscriptMismatchError(
