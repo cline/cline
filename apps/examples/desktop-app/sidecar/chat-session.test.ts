@@ -18,7 +18,6 @@ import {
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
 	rewriteDesktopTeamPrompt,
-	shouldReplaceSessionTitle,
 	shouldUpdateSessionConnection,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
@@ -1387,6 +1386,15 @@ name: desktop-send-skill
 ---
 Follow the desktop send skill instructions.`,
 		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
 		return workspace;
 	}
 
@@ -1430,7 +1438,7 @@ Follow the desktop send skill instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
-	it("expands a leading skill command into its instructions", async () => {
+	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
 
@@ -1440,57 +1448,84 @@ Follow the desktop send skill instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
-				prompt: "Follow the desktop send skill instructions. write the docs",
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
 			}),
 		);
 		// The session's display prompt keeps the raw token.
-		expect(session.prompt).toBe("/desktop-send-skill write the docs");
-		// The typed prompt is recorded so queue displays and queued-prompt
-		// events can echo it instead of the expanded instructions.
-		expect(
-			(
-				session as unknown as {
-					typedPromptByRuntimePrompt?: Map<string, string>;
-				}
-			).typedPromptByRuntimePrompt?.get(
-				"Follow the desktop send skill instructions. write the docs",
-			),
-		).toBe("/desktop-send-skill write the docs");
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
 	});
 
-	it("expands a skill command when a queued prompt is edited", async () => {
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
-		const response = (await handleChatSessionCommand(ctx, {
+		await handleChatSessionCommand(ctx, {
 			action: "update_pending_prompt",
 			sessionId,
 			promptId: "queued-1",
 			prompt: "/desktop-send-skill later please",
-		})) as { prompt?: { prompt?: string } };
+		});
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "Follow the desktop send skill instructions. later please",
+			prompt: "/desktop-send-skill later please",
 		});
-		// The runtime stores the expanded prompt, but the response echoes the
-		// typed command back for display.
-		expect(response.prompt?.prompt).toBe("/desktop-send-skill later please");
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
+		});
 	});
 
 	it("rewrites a team command when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
-		const response = (await handleChatSessionCommand(ctx, {
+		await handleChatSessionCommand(ctx, {
 			action: "update_pending_prompt",
 			sessionId,
 			promptId: "queued-team",
 			prompt: "/team inspect the app",
-		})) as { prompt?: { prompt?: string } };
+		});
 
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
@@ -1498,40 +1533,6 @@ Follow the desktop send skill instructions.`,
 			prompt:
 				'<user_command slash="team">spawn a team of agents for the following task: inspect the app</user_command>',
 		});
-		expect(response.prompt?.prompt).toBe("/team inspect the app");
-	});
-
-	it("only replaces missing or runtime-derived titles with the typed command", () => {
-		const typedTitle = "/desktop-send-skill write the docs";
-		const autoDerivedTitle = "Follow the desktop send skill instructions.";
-
-		// Untitled session, or still carrying the runtime's auto-derived title.
-		expect(shouldReplaceSessionTitle({ typedTitle, autoDerivedTitle })).toBe(
-			true,
-		);
-		expect(
-			shouldReplaceSessionTitle({
-				currentTitle: autoDerivedTitle,
-				typedTitle,
-				autoDerivedTitle,
-			}),
-		).toBe(true);
-		expect(
-			shouldReplaceSessionTitle({
-				currentTitle: typedTitle,
-				typedTitle,
-				autoDerivedTitle,
-			}),
-		).toBe(true);
-
-		// A rename made while the turn was running must win.
-		expect(
-			shouldReplaceSessionTitle({
-				currentTitle: "My custom session name",
-				typedTitle,
-				autoDerivedTitle,
-			}),
-		).toBe(false);
 	});
 
 	it("leaves built-in and unknown slash commands untouched", async () => {

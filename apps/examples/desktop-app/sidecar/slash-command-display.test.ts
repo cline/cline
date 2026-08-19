@@ -5,54 +5,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
 	clearSlashCommandDisplayCache,
 	createSlashCommandDisplayInverter,
-	displayPromptFor,
-	recordTypedPrompt,
 } from "./slash-command-display";
-import type { LiveSession } from "./types";
-
-function makeSession(): LiveSession {
-	return {
-		config: {},
-		messages: [],
-		promptsInQueue: [],
-		busy: false,
-		startedAt: Date.now(),
-		status: "idle",
-	};
-}
-
-describe("typed prompt registry", () => {
-	it("maps a runtime prompt back to the typed prompt", () => {
-		const session = makeSession();
-
-		recordTypedPrompt(session, "Follow the instructions. now", "/skill now");
-
-		expect(displayPromptFor(session, "Follow the instructions. now")).toBe(
-			"/skill now",
-		);
-		expect(displayPromptFor(session, "something else")).toBe("something else");
-		expect(displayPromptFor(undefined, "anything")).toBe("anything");
-	});
-
-	it("skips prompts that were not rewritten", () => {
-		const session = makeSession();
-
-		recordTypedPrompt(session, "plain prompt", "plain prompt");
-
-		expect(session.typedPromptByRuntimePrompt).toBeUndefined();
-	});
-
-	it("evicts the oldest entries beyond the cap", () => {
-		const session = makeSession();
-		for (let i = 0; i < 40; i += 1) {
-			recordTypedPrompt(session, `expanded ${i}`, `/cmd ${i}`);
-		}
-
-		expect(session.typedPromptByRuntimePrompt?.size).toBe(32);
-		expect(displayPromptFor(session, "expanded 0")).toBe("expanded 0");
-		expect(displayPromptFor(session, "expanded 39")).toBe("/cmd 39");
-	});
-});
 
 describe("createSlashCommandDisplayInverter", () => {
 	const tempRoots: string[] = [];

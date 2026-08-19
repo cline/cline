@@ -11,7 +11,6 @@ import {
 	getCoreBuiltinToolCatalog,
 	projectSessionCompactionState,
 	readGlobalSettings,
-	resolveSessionBackend,
 	type SessionCompactionState,
 	type SessionPendingPrompt,
 	type SessionRecord,
@@ -20,12 +19,7 @@ import {
 	trimMessagesBeforeUserRun,
 } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/llms";
-import {
-	buildClineSystemPrompt,
-	formatUserCommandBlock,
-	normalizeUserInput,
-	stripModeNotices,
-} from "@cline/shared";
+import { buildClineSystemPrompt, formatUserCommandBlock } from "@cline/shared";
 import {
 	deleteMaterializedAttachments,
 	discardAllTrackedAttachments,
@@ -34,9 +28,7 @@ import {
 } from "./attachments";
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
-import { normalizeSessionTitle } from "./session-data/common";
 import { persistSessionMessages } from "./session-data/messages";
-import { displayPromptFor, recordTypedPrompt } from "./slash-command-display";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -108,10 +100,15 @@ function workspacePathKey(
 const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
- * Expand a leading `/skill` or `/workflow` token into its configured
- * instructions before dispatching the prompt, mirroring the CLI's
- * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no command matches, or command
+ * Expand a leading `/workflow` token into its configured instructions before
+ * dispatching the prompt. Skill commands deliberately pass through as typed:
+ * the runtime registers the `skills` tool, whose description requires the
+ * model to invoke it whenever the user references a slash command, so the
+ * instructions reach the model as a tool result instead of being pasted into
+ * the user message (where the transcript would render them as if the user
+ * had typed the whole skill body). Workflows are not served by that tool, so
+ * they keep textual expansion. Returns the prompt unchanged when it is not a
+ * slash command, the token is a built-in, no workflow matches, or command
  * discovery fails.
  */
 async function expandRuntimeSlashCommand(
@@ -122,8 +119,9 @@ async function expandRuntimeSlashCommand(
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
 	}
-	const name = prompt.match(/^\/(\S+)/)?.[1]?.toLowerCase();
-	if (!name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
+	const rawName = prompt.match(/^\/(\S+)/)?.[1];
+	const name = rawName?.toLowerCase();
+	if (!rawName || !name || BUILTIN_SLASH_COMMAND_NAMES.has(name)) {
 		return prompt;
 	}
 	const service = createUserInstructionConfigService({
@@ -133,7 +131,22 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		return service.resolveRuntimeSlashCommand(prompt);
+		const resolved = service.resolveRuntimeSlashCommand(prompt);
+		if (resolved === prompt) {
+			return prompt;
+		}
+		// The resolver reports the expansion but not which command produced
+		// it; it matched a workflow iff some workflow's instructions plus the
+		// typed remainder reproduce the resolved text exactly.
+		const remainder = prompt.slice(rawName.length + 1);
+		const matchedWorkflow = service
+			.listRuntimeCommands()
+			.some(
+				(command) =>
+					command.kind === "workflow" &&
+					resolved === `${command.instructions}${remainder}`,
+			);
+		return matchedWorkflow ? resolved : prompt;
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -606,15 +619,10 @@ function sendPromptsInQueueSnapshot(
 	});
 }
 
-function mapPendingPrompt(
-	session: LiveSession | undefined,
-	item: SessionPendingPrompt,
-): PromptInQueue {
+function mapPendingPrompt(item: SessionPendingPrompt): PromptInQueue {
 	return {
 		id: item.id,
-		// Queued prompts are stored expanded (slash commands resolve before
-		// enqueueing); show the typed text the expansion came from.
-		prompt: displayPromptFor(session, item.prompt),
+		prompt: item.prompt,
 		steer: item.delivery === "steer",
 		attachmentCount: item.attachmentCount,
 		userImages: item.userImages,
@@ -626,10 +634,8 @@ function applyPendingPrompts(
 	sessionId: string,
 	prompts: SessionPendingPrompt[],
 ): PromptInQueue[] {
+	const mapped = prompts.map(mapPendingPrompt).filter((item) => item.id);
 	const session = ctx.liveSessions.get(sessionId);
-	const mapped = prompts
-		.map((item) => mapPendingPrompt(session, item))
-		.filter((item) => item.id);
 	if (session) {
 		session.promptsInQueue = mapped;
 	}
@@ -645,81 +651,6 @@ function applyPendingPrompts(
 function getSessionManager(ctx: SidecarContext): ClineCore {
 	if (!ctx.sessionManager) throw new Error("Session manager not initialized");
 	return ctx.sessionManager;
-}
-
-/**
- * Mirrors the runtime's deriveTitleFromPrompt: the title it auto-assigns to
- * an untitled session from the prompt it receives (the expanded one).
- */
-function autoDerivedTitleFor(prompt: string): string | undefined {
-	const normalized = stripModeNotices(normalizeUserInput(prompt)).trim();
-	return normalized.split("\n")[0]?.trim().slice(0, 120) || undefined;
-}
-
-/**
- * Whether the typed-command title may replace the session's current title.
- * The untitled check happens before dispatch and the user can rename the
- * session while the turn runs; only a missing title or the one the runtime
- * auto-derived from the expanded prompt may be replaced — a rename wins.
- */
-export function shouldReplaceSessionTitle(options: {
-	currentTitle?: string;
-	typedTitle: string;
-	autoDerivedTitle?: string;
-}): boolean {
-	const current = options.currentTitle?.trim();
-	return (
-		!current ||
-		current === options.autoDerivedTitle ||
-		current === options.typedTitle
-	);
-}
-
-/**
- * Best-effort: title an untitled session from the typed prompt so a slash
- * command session isn't titled with the first line of the expanded
- * instructions (e.g. the skill markdown heading).
- */
-async function applyTypedPromptTitle(
-	ctx: SidecarContext,
-	sessionId: string,
-	typedPrompt: string,
-	runtimePrompt: string,
-): Promise<void> {
-	const title = normalizeSessionTitle(typedPrompt)
-		?.split("\n")[0]
-		?.trim()
-		.slice(0, 120);
-	if (!title) {
-		return;
-	}
-	const currentTitle =
-		ctx.liveSessions.get(sessionId)?.title?.trim() ||
-		readSessionMetadataTitle(sessionId);
-	if (
-		!shouldReplaceSessionTitle({
-			currentTitle,
-			typedTitle: title,
-			autoDerivedTitle: autoDerivedTitleFor(runtimePrompt),
-		})
-	) {
-		return;
-	}
-	try {
-		const backend = await resolveSessionBackend({ backendMode: "local" });
-		const result = await backend.updateSession({ sessionId, title });
-		if (result.updated) {
-			const session = ctx.liveSessions.get(sessionId);
-			if (session) {
-				session.title = title;
-			}
-		}
-	} catch (error) {
-		ctx.logger?.debug("Failed to title session from typed prompt", {
-			sessionId,
-			error,
-		});
-	}
 }
 
 // ---------------------------------------------------------------------------
@@ -1004,13 +935,6 @@ async function handleSend(
 		prompt,
 		request.config?.mode ?? session?.config?.mode,
 	);
-	recordTypedPrompt(session, runtimePrompt, prompt);
-	// The runtime derives a fresh session's title from the prompt it receives,
-	// which is the expanded instructions — pin the typed command instead.
-	const needsTypedPromptTitle =
-		runtimePrompt !== prompt &&
-		!session?.title?.trim() &&
-		!readSessionMetadataTitle(sessionId);
 	let delivery = request.delivery;
 	if (!delivery && session?.busy) {
 		delivery = "queue";
@@ -1082,11 +1006,6 @@ async function handleSend(
 				userImages: request.attachments?.userImages,
 				userFiles,
 			});
-			// Set before the queued prompt runs so the runtime's own title
-			// derivation (existing title wins) never sees a missing title.
-			if (needsTypedPromptTitle) {
-				await applyTypedPromptTitle(ctx, sessionId, prompt, runtimePrompt);
-			}
 			const prompts = await manager.pendingPrompts.list({ sessionId });
 			trackQueuedAttachments(session, prompts, userFiles);
 			return {
@@ -1102,7 +1021,7 @@ async function handleSend(
 				// prompts_in_queue_state here would resurrect a phantom queue
 				// entry for every connected webview.
 				promptsInQueue: prompts
-					.map((item) => mapPendingPrompt(session, item))
+					.map(mapPendingPrompt)
 					.filter((item) => item.id)
 					.map(({ id, prompt, steer, attachmentCount }) => ({
 						id,
@@ -1150,11 +1069,6 @@ async function handleSend(
 			finishReason: result?.finishReason,
 			textLength: result?.text?.length ?? 0,
 		});
-		if (needsTypedPromptTitle) {
-			// After the turn: a fresh session's row only exists once the send
-			// ran, and the runtime has titled it from the expanded prompt.
-			await applyTypedPromptTitle(ctx, sessionId, prompt, runtimePrompt);
-		}
 		if (session && ownsBusyState) {
 			session.status = "idle";
 			if (result?.messages) session.messages = result.messages;
@@ -1572,16 +1486,6 @@ async function handleSteerPrompt(
 	};
 }
 
-function mapOwnPendingPrompt(
-	ctx: SidecarContext,
-	sessionId: string,
-	prompt: SessionPendingPrompt | undefined,
-): PromptInQueue | undefined {
-	return prompt
-		? mapPendingPrompt(ctx.liveSessions.get(sessionId), prompt)
-		: undefined;
-}
-
 async function handleUpdatePendingPrompt(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -1596,8 +1500,7 @@ async function handleUpdatePendingPrompt(
 		throw new Error("prompt is required");
 	}
 	const manager = getSessionManager(ctx);
-	const session = ctx.liveSessions.get(sessionId);
-	const sessionConfig = session?.config;
+	const sessionConfig = ctx.liveSessions.get(sessionId)?.config;
 	// Queued prompts are delivered by the runtime without another pass
 	// through handleSend, so resolve slash commands here too.
 	const runtimePrompt = await resolveDesktopRuntimePrompt(
@@ -1606,7 +1509,6 @@ async function handleUpdatePendingPrompt(
 		prompt,
 		sessionConfig?.mode,
 	);
-	recordTypedPrompt(session, runtimePrompt, prompt);
 	const result = await manager.pendingPrompts.update({
 		sessionId,
 		promptId,
@@ -1615,7 +1517,7 @@ async function handleUpdatePendingPrompt(
 	return {
 		sessionId,
 		updated: result.updated === true,
-		prompt: mapOwnPendingPrompt(ctx, sessionId, result.prompt),
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
 	};
 }
@@ -1641,7 +1543,7 @@ async function handleRemovePendingPrompt(
 	return {
 		sessionId,
 		removed: result.removed === true,
-		prompt: mapOwnPendingPrompt(ctx, sessionId, result.prompt),
+		prompt: result.prompt ? mapPendingPrompt(result.prompt) : undefined,
 		promptsInQueue: applyPendingPrompts(ctx, sessionId, result.prompts),
 	};
 }

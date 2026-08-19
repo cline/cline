@@ -1,63 +1,18 @@
 import { createUserInstructionConfigService } from "@cline/core";
 import { normalizeUserInput, stripModeNotices } from "@cline/shared";
-import type { LiveSession } from "./types";
 
 /**
- * Display-side handling for slash command expansion.
+ * Display-side inversion of slash command expansion.
  *
- * The sidecar expands a leading `/skill` or `/workflow` token into its
- * configured instructions before dispatching a prompt, so the runtime (and
- * its persisted transcript) only ever sees the expanded text. The CLI TUI
- * solves the display side by keeping the typed text in its own transcript;
- * the desktop webview instead re-hydrates from the runtime's history after
- * every turn, so the typed command has to be recovered here, in the sidecar's
- * display boundaries. Two mechanisms cover them:
- *
- * 1. A per-session map from the dispatched runtime prompt back to the typed
- *    prompt, recorded at expansion time. Used by the synchronous queue
- *    boundaries (pending-prompt snapshots and chat_queued_prompt_start
- *    events), which echo the runtime's copy of the prompt.
- * 2. An inverter for persisted transcript text: a user message produced by
- *    expansion starts with a configured command's instructions, so it can be
- *    rewritten back to `/name remainder`. Used by the history projection,
- *    which also covers sessions reopened after a restart.
+ * Workflow slash commands (and, in sessions recorded before skills switched
+ * to the skills tool, skill commands too) were expanded into their
+ * instruction text before dispatch, so the runtime's persisted transcript
+ * holds the instructions as the user message. The desktop webview re-hydrates
+ * its transcript from that history after every turn, so the history
+ * projection recovers the typed `/command` here: a user message produced by
+ * expansion starts with a configured command's instructions, which is
+ * invertible back to `/name remainder`.
  */
-
-const MAX_TRACKED_PROMPTS = 32;
-
-/**
- * Remember the prompt the user actually typed for a runtime prompt produced
- * by slash command expansion or rewriting. No-op when nothing changed.
- */
-export function recordTypedPrompt(
-	session: LiveSession | undefined,
-	runtimePrompt: string,
-	typedPrompt: string,
-): void {
-	if (!session || !runtimePrompt || runtimePrompt === typedPrompt) {
-		return;
-	}
-	const map = (session.typedPromptByRuntimePrompt ??= new Map());
-	// Re-insert to refresh recency before trimming the oldest entries.
-	map.delete(runtimePrompt);
-	map.set(runtimePrompt, typedPrompt);
-	while (map.size > MAX_TRACKED_PROMPTS) {
-		const oldest = map.keys().next().value;
-		if (oldest === undefined) {
-			break;
-		}
-		map.delete(oldest);
-	}
-}
-
-/** The typed form of a runtime prompt, when known; the prompt otherwise. */
-export function displayPromptFor(
-	session: LiveSession | undefined,
-	runtimePrompt: string | undefined,
-): string {
-	const prompt = runtimePrompt ?? "";
-	return session?.typedPromptByRuntimePrompt?.get(prompt) ?? prompt;
-}
 
 export type SlashCommandDisplayInverter = (content: string) => string;
 
