@@ -1026,7 +1026,7 @@ export async function initializeSessionManager(
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 			clientType: "code-sidecar",
-			displayName: "Code App sidecar",
+			displayName: "Cline Desktop sidecar",
 		},
 	});
 
@@ -1074,7 +1074,7 @@ export async function ensureSharedHubClient(
 		const client = new NodeHubClient({
 			url,
 			clientType: "code-sidecar-observer",
-			displayName: "Code App observer",
+			displayName: "Cline Desktop observer",
 			workspaceRoot: ctx.workspaceRoot,
 			cwd: ctx.workspaceRoot,
 		});

@@ -49,7 +49,7 @@ const sessionManager = await ClineCore.create({
     workspaceRoot,
     cwd: workspaceRoot,
     clientType: "code-sidecar",
-    displayName: "Code App sidecar",
+    displayName: "Cline Desktop sidecar",
   },
   capabilities: {
     requestToolApproval: async (request) => {
