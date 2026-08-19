@@ -14,6 +14,7 @@ import {
 	type ClineCore,
 	type ClineCoreStartConfig,
 	type CloudHandoffFingerprint,
+	type CloudHandoffMetadata,
 	type CloudHandoffModel,
 	CloudHandoffTranscriptMismatchError,
 	clearCloudHandoffMetadata,
@@ -52,7 +53,11 @@ import {
 	materializeUserFiles,
 	trackQueuedAttachments,
 } from "./attachments";
-import { CloudSessionError, getCloudSessionManager } from "./cloud-sessions";
+import {
+	CloudSessionError,
+	type CloudSessionManager,
+	getCloudSessionManager,
+} from "./cloud-sessions";
 import {
 	emitChunk,
 	findSessionRuntimeBinding,
@@ -1972,6 +1977,38 @@ export async function updateHandoffMetadataOrThrow(
 	if (!result.updated) throw new Error(failureMessage);
 }
 
+export async function reconcilePendingCloudHandoff(
+	manager: Pick<ClineCore, "update">,
+	cloud: Pick<CloudSessionManager, "handoffTargetExists">,
+	input: {
+		sourceSessionId: string;
+		metadata: JsonRecord;
+		pending?: CloudHandoffMetadata;
+		fingerprint: CloudHandoffFingerprint;
+		dashboardUrl: string;
+	},
+): Promise<{ metadata: JsonRecord; pending?: CloudHandoffMetadata }> {
+	if (
+		input.pending?.status !== "pending" ||
+		cloudHandoffFingerprintsEqual(input.pending.fingerprint, input.fingerprint)
+	) {
+		return { metadata: input.metadata, pending: input.pending };
+	}
+	if (await cloud.handoffTargetExists(input.pending.toCloudSessionId)) {
+		throw new Error(
+			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${input.dashboardUrl}`,
+		);
+	}
+	const metadata = clearCloudHandoffMetadata(input.metadata);
+	await updateHandoffMetadataOrThrow(
+		manager,
+		input.sourceSessionId,
+		metadata,
+		"The previous cloud workspace is gone, but its local pending handoff record could not be cleared.",
+	);
+	return { metadata };
+}
+
 async function prepareCloudHandoff(
 	ctx: SidecarContext,
 	request: ChatSessionCommandRequest,
@@ -2104,24 +2141,25 @@ async function handleHandoffOnce(
 	};
 
 	const persistedBefore = await manager.get(sourceSessionId);
-	const metadataBefore =
+	let metadataBefore =
 		(persistedBefore?.metadata as JsonRecord | null | undefined) ??
-		readSessionMetadata(sourceSessionId);
-	const pending = readCloudHandoffMetadata(metadataBefore);
-	if (
-		pending?.status === "pending" &&
-		!cloudHandoffFingerprintsEqual(pending.fingerprint, prepared.fingerprint)
-	) {
-		const dashboardUrl =
-			pending.dashboardUrl ??
+		readSessionMetadata(sourceSessionId) ??
+		{};
+	let pending = readCloudHandoffMetadata(metadataBefore);
+	const reconciled = await reconcilePendingCloudHandoff(manager, cloud, {
+		sourceSessionId,
+		metadata: metadataBefore,
+		pending,
+		fingerprint: prepared.fingerprint,
+		dashboardUrl:
+			pending?.dashboardUrl ??
 			buildCloudHandoffDashboardUrl(
 				environment.appBaseUrl,
-				pending.toCloudSessionId,
-			);
-		throw new Error(
-			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${dashboardUrl}`,
-		);
-	}
+				pending?.toCloudSessionId ?? "",
+			),
+	});
+	metadataBefore = reconciled.metadata;
+	pending = reconciled.pending;
 
 	let outerSessionId = pending?.toCloudSessionId ?? "";
 	let innerSessionId = pending?.innerSessionId ?? "";
