@@ -106,10 +106,12 @@ export interface MonitorRegistryOptions {
 	 */
 	killTimeoutMs?: number;
 	/**
-	 * Grace window after the process exits for late stdio to flush before the
-	 * monitor settles anyway. Keeps a descendant holding an inherited pipe from
-	 * stranding an ended monitor in "running".
-	 * @default 250
+	 * Quiet period after the process exits before the monitor settles anyway.
+	 * Extended whenever more output arrives, so this bounds silence rather than
+	 * total flush time: a descendant holding an inherited pipe open cannot
+	 * strand an ended monitor in "running", while a slow but active flush is
+	 * still read to completion.
+	 * @default 2000
 	 */
 	exitFlushGraceMs?: number;
 }
@@ -120,7 +122,9 @@ const DEFAULT_MAX_LINE_CHARS = 2_000;
 const DEFAULT_MAX_MONITORS = 10;
 const DEFAULT_TERMINATION_GRACE_PERIOD_MS = 2_000;
 const DEFAULT_KILL_TIMEOUT_MS = 2_000;
-const DEFAULT_EXIT_FLUSH_GRACE_MS = 250;
+const DEFAULT_EXIT_FLUSH_GRACE_MS = 2_000;
+/** Absolute ceiling on post-exit flushing, so extensions cannot run forever. */
+const EXIT_FLUSH_MAX_TOTAL_MS = 15_000;
 const PROCESS_TREE_TRACK_INTERVAL_MS = 250;
 const PROCESS_EXIT_POLL_INTERVAL_MS = 50;
 const TRUNCATION_SUFFIX = "… [truncated]";
@@ -157,6 +161,8 @@ interface MonitorEntry extends MonitorRecord {
 	exitOutcome?: { code: number | null; signal: NodeJS.Signals | null };
 	/** Grace window letting late stdio flush before settling from `exit`. */
 	settleTimer?: NodeJS.Timeout;
+	/** Absolute cutoff for post-exit flushing, set when the process ends. */
+	exitFlushDeadline?: number;
 	pending: string[];
 	droppedInBatch: number;
 	flushTimer?: NodeJS.Timeout;
@@ -690,6 +696,13 @@ export class MonitorRegistry {
 			this.queueLine(entry, stream === "stderr" ? `[stderr] ${part}` : part);
 		}
 		if (entry.pending.length > 0) this.scheduleFlush(entry);
+		// Output arriving after `exit` means the pipe is still draining, not that
+		// a descendant is sitting on it. Restart the quiet period so a slow flush
+		// is read to completion instead of being cut off and lost.
+		if (entry.settleTimer) {
+			this.clearSettleTimer(entry);
+			this.scheduleSettleAfterExit(entry);
+		}
 	}
 
 	private queueLine(entry: MonitorEntry, line: string): void {
@@ -717,7 +730,14 @@ export class MonitorRegistry {
 	 */
 	private scheduleSettleAfterExit(entry: MonitorEntry): void {
 		if (entry.settled || entry.settleTimer) return;
-		const grace = this.options.exitFlushGraceMs ?? DEFAULT_EXIT_FLUSH_GRACE_MS;
+		entry.exitFlushDeadline ??= Date.now() + EXIT_FLUSH_MAX_TOTAL_MS;
+		const grace = Math.max(
+			0,
+			Math.min(
+				this.options.exitFlushGraceMs ?? DEFAULT_EXIT_FLUSH_GRACE_MS,
+				entry.exitFlushDeadline - Date.now(),
+			),
+		);
 		entry.settleTimer = setTimeout(() => {
 			entry.settleTimer = undefined;
 			this.settle(entry, {

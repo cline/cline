@@ -21,7 +21,7 @@ function createCollector() {
 		/** Resolves once `predicate` holds, or rejects after `timeoutMs`. */
 		async waitFor(
 			predicate: (all: MonitorNotification[]) => boolean,
-			timeoutMs = 5_000,
+			timeoutMs = 20_000,
 		): Promise<void> {
 			const deadline = Date.now() + timeoutMs;
 			while (!predicate(notifications)) {
@@ -55,6 +55,11 @@ const nodeCommand = (script: string): string => {
 	const encoded = Buffer.from(script, "utf8").toString("base64");
 	return `node -e "eval(Buffer.from('${encoded}','base64').toString('utf8'))"`;
 };
+
+// These tests spawn real shells. A cold PowerShell plus Node start on a loaded
+// Windows CI agent routinely exceeds the 10s default, which showed up as an
+// empty-notification timeout rather than as a slow-but-correct run.
+vi.setConfig({ testTimeout: 60_000, hookTimeout: 60_000 });
 
 describe("MonitorRegistry", () => {
 	it("delivers output lines as notifications after the tool call returns", async () => {
@@ -368,6 +373,9 @@ describe("MonitorRegistry", () => {
 			const registry = new MonitorRegistry({
 				notifier: collector.notifier,
 				flushIntervalMs: 20,
+				// Pinned: this test is about the quiet-period mechanism itself, so
+				// it must not depend on the production default.
+				exitFlushGraceMs: 200,
 			});
 
 			try {
