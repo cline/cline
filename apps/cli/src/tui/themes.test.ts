@@ -3,6 +3,7 @@ import { diffPalettes, themePalette } from "./palette";
 import {
 	AUTO_THEME_ID,
 	getDialogAccents,
+	getDialogPalette,
 	getThemeDefinition,
 	getThemeModeAccent,
 	getThemeSwatchColors,
@@ -163,5 +164,28 @@ describe("theme helpers", () => {
 	it("getThemeDefinition finds registered themes", () => {
 		expect(getThemeDefinition("gruvbox-dark")?.label).toBe("Gruvbox Dark");
 		expect(getThemeDefinition("missing")).toBeUndefined();
+	});
+
+	it("getDialogPalette follows the theme's dialog accents", () => {
+		const dracula = getDialogPalette(resolveTheme("dracula", noDetection));
+		expect(dracula.act).toBe("#bd93f9");
+		expect(dracula.selection).toBe("#bd93f9");
+		expect(dracula.success).toBe("#50fa7b");
+		expect(dracula.error).toBe("#ff5555");
+		expect(dracula.textOnSelection).toBe("#000000");
+
+		// Light themes fall back to dark accents (dialog surfaces stay dark).
+		const solarizedLight = getDialogPalette(
+			resolveTheme("solarized-light", noDetection),
+		);
+		expect(solarizedLight.act).toBe(themePalette.dark.act);
+
+		for (const definition of THEMES) {
+			const dialogPalette = getDialogPalette(
+				resolveTheme(definition.id, noDetection),
+			);
+			expect(dialogPalette.selection).toBe(dialogPalette.act);
+			expect(["#000000", "#ffffff"]).toContain(dialogPalette.textOnSelection);
+		}
 	});
 });

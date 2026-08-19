@@ -567,6 +567,32 @@ export function getDialogAccents(theme: ResolvedTheme): ThemeAccents {
 	return theme.variant === "dark" ? theme.accents : baseAccents.dark;
 }
 
+/**
+ * Colors for content rendered on the always-dark dialog surface, following
+ * the active theme's accents (see getDialogAccents). Mirrors the shape of
+ * the static `palette` so dialog components can consume it as a drop-in
+ * replacement that re-resolves on every theme change (including previews).
+ */
+export interface DialogPalette extends ThemeAccents {
+	selection: string;
+	textOnSelection: string;
+	muted: string;
+}
+
+export function getDialogPalette(theme: ResolvedTheme): DialogPalette {
+	const accents = getDialogAccents(theme);
+	const selection = accents.act;
+	return {
+		...accents,
+		selection,
+		textOnSelection:
+			relativeLuminance(selection) > WHITE_TEXT_LUMINANCE_CUTOFF
+				? "#000000"
+				: "#ffffff",
+		muted: "gray",
+	};
+}
+
 /** Small color strip rendered next to each entry in the theme picker. */
 export function getThemeSwatchColors(definition: ThemeDefinition): string[] {
 	const variant = definition.variant === "auto" ? "dark" : definition.variant;

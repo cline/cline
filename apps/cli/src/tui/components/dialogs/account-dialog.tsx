@@ -8,7 +8,7 @@ import {
 	formatClineCredits,
 	isClineAccountAuthErrorMessage,
 } from "../../cline-account";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 
 export type AccountDialogAction =
 	| "change-model"
@@ -121,6 +121,7 @@ function AccountActionRow(props: {
 	selected: boolean;
 	onSelect: () => void;
 }) {
+	const palette = useDialogPalette();
 	const fg = props.selected ? palette.textOnSelection : undefined;
 	return (
 		<box
@@ -161,6 +162,7 @@ function OrganizationRow(props: {
 	selected: boolean;
 	onSelect: () => void;
 }) {
+	const palette = useDialogPalette();
 	return (
 		<box
 			flexDirection="row"
@@ -234,6 +236,7 @@ export function AccountDialogContent(
 		switchAccount,
 		onAccountChange,
 	} = props;
+	const palette = useDialogPalette();
 	const [state, setState] = useState<AccountState>({
 		status: "loading",
 		message: "Loading account details...",
