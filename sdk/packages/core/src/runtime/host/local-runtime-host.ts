@@ -594,9 +594,28 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// and pacing a chatty log would grow the queue without bound and
 			// start a paid turn per report.
 			monitorNotifier: (notification) => {
+				// The formatted text is what the model receives (fully fenced for
+				// injection defense); the structured update lets UIs render a
+				// clean card instead of showing the fence to the user.
 				this.monitorSteerQueue.deliver(
 					sessionId,
 					formatMonitorNotification(notification),
+					{
+						monitorId: notification.monitorId,
+						name: notification.name,
+						description: notification.description,
+						lines: notification.lines,
+						droppedLines: notification.droppedLines,
+						exit: notification.exit
+							? {
+									status: notification.exit.status,
+									stoppedBy: notification.exit.stoppedBy,
+									code: notification.exit.code,
+									signal: notification.exit.signal,
+									error: notification.exit.error,
+								}
+							: undefined,
+					},
 				);
 			},
 			// Host-facing roster state for UIs, separate from the agent-facing
