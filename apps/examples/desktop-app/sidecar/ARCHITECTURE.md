@@ -161,7 +161,7 @@ Supported commands:
 | `read_session_hooks` | Session data readers |
 | `delete_chat_session` | `SqliteSessionStore.delete` + file cleanup; cloud sessions also delete the sandbox |
 | `update_chat_session_title` | `resolveSessionBackend().updateSession`; cloud sessions PATCH the cloud API |
-| `get_feature_flags` | Cloud Agents and independent handoff gates (handoff requires both) |
+| `get_feature_flags` | `isCloudAgentsEnabled()` (env override + settings toggle) |
 | `get_desktop_settings` | `readDesktopSettings()` |
 | `set_cloud_sessions_enabled` | `setCloudSessionsEnabled()` + `feature_flags_changed` broadcast |
 | `list_cloud_repositories` | `CloudSessionManager.listRepositories()` (GitHub integration) |

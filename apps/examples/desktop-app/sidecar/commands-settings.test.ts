@@ -44,7 +44,6 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
-	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
 });
@@ -58,7 +57,6 @@ describe("desktop settings commands", () => {
 		).resolves.toEqual({ cloudSessionsEnabled: false });
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: false,
-			cloudHandoff: true,
 		});
 	});
 
@@ -86,12 +84,11 @@ describe("desktop settings commands", () => {
 		expect(events).toEqual([
 			{
 				name: "feature_flags_changed",
-				payload: { cloudAgents: true, cloudHandoff: true },
+				payload: { cloudAgents: true },
 			},
 		]);
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,
-			cloudHandoff: true,
 		});
 
 		await handleCommand(ctx, "set_cloud_sessions_enabled", {
@@ -99,7 +96,7 @@ describe("desktop settings commands", () => {
 		});
 		expect(events.at(-1)).toEqual({
 			name: "feature_flags_changed",
-			payload: { cloudAgents: false, cloudHandoff: true },
+			payload: { cloudAgents: false },
 		});
 	});
 
@@ -109,7 +106,6 @@ describe("desktop settings commands", () => {
 
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,
-			cloudHandoff: true,
 		});
 		// The toggle's stored value is reported as-is; the override only
 		// affects the effective gate.

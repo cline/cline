@@ -106,9 +106,9 @@ export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
 
 export function filterSlashCommandsForHandoff(
 	commands: SlashCommand[],
-	cloudHandoffEnabled: boolean,
+	cloudHandoffAvailable: boolean,
 ): SlashCommand[] {
-	return cloudHandoffEnabled
+	return cloudHandoffAvailable
 		? commands
 		: commands.filter((command) => command.name !== "handoff");
 }
@@ -345,7 +345,7 @@ type ChatInputBarProps = {
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
-	cloudHandoffEnabled?: boolean;
+	cloudHandoffAvailable?: boolean;
 	repoUrl?: string;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
@@ -392,7 +392,7 @@ function ChatInputBarImpl({
 	reasoningEffort,
 	gitBranch,
 	executionTarget = "local",
-	cloudHandoffEnabled = false,
+	cloudHandoffAvailable = false,
 	repoUrl,
 	cloudBranch,
 	hasActiveSession = false,
@@ -1081,7 +1081,7 @@ function ChatInputBarImpl({
 		if (!slashOpen) return [];
 		const availableCommands = filterSlashCommandsForHandoff(
 			slashCommands,
-			cloudHandoffEnabled,
+			cloudHandoffAvailable,
 		);
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
@@ -1097,7 +1097,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffEnabled]);
+	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffAvailable]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {

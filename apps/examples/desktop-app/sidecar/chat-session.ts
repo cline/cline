@@ -68,7 +68,7 @@ import {
 	nowMs,
 	sendEvent,
 } from "./context";
-import { isCloudAgentsEnabled, isCloudHandoffAvailable } from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
 import type {
@@ -2096,9 +2096,9 @@ export function formatPendingHandoffVerificationError(
 }
 
 function assertCloudHandoffAvailable(): void {
-	if (!isCloudHandoffAvailable()) {
+	if (!isCloudAgentsEnabled()) {
 		throw new Error(
-			"Cloud handoff requires Cloud Agents and is not enabled for this account.",
+			"Cloud handoff requires Cloud sessions to be enabled in Settings.",
 		);
 	}
 }

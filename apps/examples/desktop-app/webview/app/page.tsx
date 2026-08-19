@@ -1182,8 +1182,6 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
-	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
-	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
@@ -1226,12 +1224,8 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						const featureFlags = flags as {
-							cloudAgents?: boolean;
-							cloudHandoff?: boolean;
-						};
+						const featureFlags = flags as { cloudAgents?: boolean };
 						setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
-						setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -1248,12 +1242,8 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					const featureFlags = payload as {
-						cloudAgents?: boolean;
-						cloudHandoff?: boolean;
-					};
+					const featureFlags = payload as { cloudAgents?: boolean };
 					setCloudAgentsEnabled(Boolean(featureFlags.cloudAgents));
-					setCloudHandoffEnabled(Boolean(featureFlags.cloudHandoff));
 				}
 			},
 		);
@@ -1933,12 +1923,12 @@ function ChatThreadPane({
 				});
 				return;
 			}
-			if (!cloudHandoffAvailable) {
+			if (!cloudAgentsEnabled) {
 				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
 				toast({
 					title: "Cloud handoff is not available",
 					description:
-						"Cloud handoff requires both Cloud Agents and the handoff feature to be enabled.",
+						"Enable Cloud sessions in Settings before using /handoff.",
 				});
 				return;
 			}
@@ -2049,7 +2039,7 @@ function ChatThreadPane({
 			}
 		},
 		[
-			cloudHandoffAvailable,
+			cloudAgentsEnabled,
 			config,
 			historySession?.sessionId,
 			isCloudSession,
@@ -2747,7 +2737,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
-			cloudHandoffEnabled={cloudHandoffAvailable}
+			cloudHandoffAvailable={cloudAgentsEnabled}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}

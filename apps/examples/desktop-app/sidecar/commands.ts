@@ -97,7 +97,7 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
-import { isCloudAgentsEnabled, isCloudHandoffEnabled } from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -1832,10 +1832,7 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		return {
-			cloudAgents: isCloudAgentsEnabled(),
-			cloudHandoff: isCloudHandoffEnabled(),
-		};
+		return { cloudAgents: isCloudAgentsEnabled() };
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -2608,7 +2605,6 @@ export async function handleCommand(
 		// gate immediately instead of waiting for the next sign-in refresh.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
-			cloudHandoff: isCloudHandoffEnabled(),
 		});
 		return settings;
 	}

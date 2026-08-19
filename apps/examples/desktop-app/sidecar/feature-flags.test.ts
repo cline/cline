@@ -3,11 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { setCloudSessionsEnabled } from "./desktop-settings";
-import {
-	isCloudAgentsEnabled,
-	isCloudHandoffAvailable,
-	isCloudHandoffEnabled,
-} from "./feature-flags";
+import { isCloudAgentsEnabled } from "./feature-flags";
 
 let dataDir: string;
 
@@ -18,23 +14,8 @@ beforeEach(() => {
 
 afterEach(() => {
 	delete process.env.CLINE_CODE_CLOUD_AGENTS;
-	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
 	delete process.env.CLINE_DATA_DIR;
 	rmSync(dataDir, { recursive: true, force: true });
-});
-
-describe("isCloudHandoffEnabled", () => {
-	it("uses an independent override and still requires Cloud Agents", () => {
-		expect(isCloudHandoffEnabled()).toBe(true);
-		expect(isCloudHandoffAvailable()).toBe(false);
-
-		process.env.CLINE_CODE_CLOUD_AGENTS = "1";
-		expect(isCloudHandoffAvailable()).toBe(true);
-
-		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
-		expect(isCloudHandoffEnabled()).toBe(false);
-		expect(isCloudHandoffAvailable()).toBe(false);
-	});
 });
 
 describe("isCloudAgentsEnabled", () => {
