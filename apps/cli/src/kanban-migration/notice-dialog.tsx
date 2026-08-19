@@ -2,7 +2,7 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useMemo, useState } from "react";
-import { palette } from "../tui/palette";
+import { useDialogPalette } from "../tui/hooks/use-theme";
 import {
 	type DialogDismissKey,
 	isAnyKeyDismiss,
@@ -35,6 +35,7 @@ export function MigrationNoticeContent(
 	},
 ) {
 	const { dialogId, notice, resolve } = props;
+	const palette = useDialogPalette();
 	const subscriptionUrl = useMemo(() => getCliSubscriptionUrl(), []);
 	const [status, setStatus] = useState<string | undefined>();
 
