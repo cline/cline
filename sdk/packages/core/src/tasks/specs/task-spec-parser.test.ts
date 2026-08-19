@@ -339,7 +339,7 @@ describe("AgendaTaskSpecFileStore", () => {
 		expect(existsSync(join(globalStore.specsDir, ".gitignore"))).toBe(false);
 	});
 
-	it("tolerates losing the gitignore creation race", () => {
+	it("refuses to treat a dangling gitignore symlink as an installed exclusion", () => {
 		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
 		roots.push(root);
 		const store = new AgendaTaskSpecFileStore({
@@ -347,15 +347,49 @@ describe("AgendaTaskSpecFileStore", () => {
 			workspaceRoot: root,
 		});
 		mkdirSync(store.specsDir, { recursive: true });
-		// A dangling symlink is invisible to the existsSync guard but still
-		// makes the exclusive create fail with EEXIST, exactly like a
-		// concurrent writer winning the race between the check and the write.
+		// A dangling symlink makes the exclusive create fail with EEXIST even
+		// though Git cannot read any exclusion from it. writeSpec must fail
+		// loudly instead of leaving specs trackable.
 		symlinkSync(
 			join(root, "missing-target"),
 			join(store.specsDir, ".gitignore"),
 		);
 
+		expect(() => store.ensureSpecsDir()).toThrow("not a regular file");
+		expect(() =>
+			store.writeSpec({
+				taskId: "task_blocked",
+				type: "todo",
+				title: "Blocked",
+				instructions: "Must not be written silently.",
+				expiresAt: "2035-01-04T00:00:00.000Z",
+			}),
+		).toThrow("not a regular file");
+		expect(existsSync(join(store.specsDir, "task_blocked.task.md"))).toBe(
+			false,
+		);
+	});
+
+	it("rejects a non-file gitignore entry but accepts a symlink to a real file", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+		roots.push(root);
+		const store = new AgendaTaskSpecFileStore({
+			scope: "workspace",
+			workspaceRoot: root,
+		});
+		mkdirSync(join(store.specsDir, ".gitignore"), { recursive: true });
+		expect(() => store.ensureSpecsDir()).toThrow("not a regular file");
+		rmSync(join(store.specsDir, ".gitignore"), { recursive: true });
+
+		writeFileSync(join(root, "shared-ignore"), "*.task.md\n", "utf8");
+		symlinkSync(
+			join(root, "shared-ignore"),
+			join(store.specsDir, ".gitignore"),
+		);
 		expect(() => store.ensureSpecsDir()).not.toThrow();
+		expect(readFileSync(join(store.specsDir, ".gitignore"), "utf8")).toBe(
+			"*.task.md\n",
+		);
 	});
 
 	it.skipIf(process.getuid?.() === 0 || process.platform === "win32")(

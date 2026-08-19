@@ -9,6 +9,7 @@ import {
 	realpathSync,
 	renameSync,
 	rmSync,
+	statSync,
 	writeFileSync,
 } from "node:fs";
 import {
@@ -206,17 +207,35 @@ export class AgendaTaskSpecFileStore {
 	private ensureWorkspaceGitignore(): void {
 		if (this.scope !== "workspace") return;
 		const gitignorePath = join(this.specsDir, ".gitignore");
-		if (existsSync(gitignorePath)) return;
+		if (this.hasUsableGitignore(gitignorePath)) return;
 		try {
 			writeFileSync(gitignorePath, "*\n", { encoding: "utf8", flag: "wx" });
 		} catch (error) {
-			// Losing the exclusive create to a concurrent writer is fine —
-			// either copy delivers the default. Any other failure means the
-			// promised exclusion was not installed and must surface.
+			// EEXIST alone does not prove the exclusion is installed: the
+			// exclusive create also fails with EEXIST on a dangling symlink
+			// or other non-file entry. Success is only a usable ignore file
+			// (a concurrent writer winning the race delivers one); anything
+			// else must surface instead of leaving specs trackable by Git.
 			if ((error as NodeJS.ErrnoException | undefined)?.code === "EEXIST") {
-				return;
+				if (this.hasUsableGitignore(gitignorePath)) return;
+				throw new Error(
+					`cannot install the default task-spec .gitignore: ${gitignorePath} exists but is not a regular file`,
+				);
 			}
 			throw error;
+		}
+	}
+
+	/**
+	 * A usable exclusion is a regular file, possibly behind a symlink a user
+	 * pointed at their own ignore rules. Dangling symlinks and directories
+	 * are entries Git cannot read, so they do not count as installed.
+	 */
+	private hasUsableGitignore(gitignorePath: string): boolean {
+		try {
+			return statSync(gitignorePath).isFile();
+		} catch {
+			return false;
 		}
 	}
 
