@@ -1327,10 +1327,7 @@ mod tests {
         assert_eq!(running_sessions_text(1), "1 session running");
         assert_eq!(running_sessions_text(3), "3 sessions running");
         assert_eq!(tray_tooltip_text("Cline", 0), "Cline");
-        assert_eq!(
-            tray_tooltip_text("Cline", 3),
-            "Cline — 3 sessions running"
-        );
+        assert_eq!(tray_tooltip_text("Cline", 3), "Cline — 3 sessions running");
         assert_eq!(
             tray_tooltip_text("Cline Beta", 2),
             "Cline Beta — 2 sessions running"
