@@ -1617,6 +1617,26 @@ describe("cloud handoff gates", () => {
 	};
 	const changedFingerprint = { ...pendingFingerprint, headSha: "new-head" };
 
+	it("does not build a recovery URL for a fresh handoff", async () => {
+		const handoffTargetExists = vi.fn();
+		await expect(
+			reconcilePendingCloudHandoff(
+				{ update: vi.fn() } as never,
+				{ handoffTargetExists },
+				{
+					sourceSessionId: "local-1",
+					metadata: { workspace: "preserved" },
+					fingerprint: changedFingerprint,
+					appBaseUrl: "not a valid URL",
+				},
+			),
+		).resolves.toEqual({
+			metadata: { workspace: "preserved" },
+			pending: undefined,
+		});
+		expect(handoffTargetExists).not.toHaveBeenCalled();
+	});
+
 	it("preserves a mismatched pending handoff while its target exists", async () => {
 		const update = vi.fn();
 		await expect(
@@ -1628,7 +1648,7 @@ describe("cloud handoff gates", () => {
 					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
-					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("still pending for a different");
@@ -1646,7 +1666,7 @@ describe("cloud handoff gates", () => {
 					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
-					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).resolves.toEqual({ metadata: { workspace: "preserved" } });
@@ -1670,7 +1690,7 @@ describe("cloud handoff gates", () => {
 					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
-					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("network unavailable");
@@ -1687,7 +1707,7 @@ describe("cloud handoff gates", () => {
 					metadata: pendingMetadata,
 					pending: pendingMetadata.handoff,
 					fingerprint: changedFingerprint,
-					dashboardUrl: pendingMetadata.handoff.dashboardUrl,
+					appBaseUrl: "https://app.cline.bot",
 				},
 			),
 		).rejects.toThrow("local pending handoff record could not be cleared");

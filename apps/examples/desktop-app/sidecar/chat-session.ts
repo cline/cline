@@ -1751,7 +1751,7 @@ export async function reconcilePendingCloudHandoff(
 		metadata: JsonRecord;
 		pending?: CloudHandoffMetadata;
 		fingerprint: CloudHandoffFingerprint;
-		dashboardUrl: string;
+		appBaseUrl: string;
 	},
 ): Promise<{ metadata: JsonRecord; pending?: CloudHandoffMetadata }> {
 	if (
@@ -1761,8 +1761,14 @@ export async function reconcilePendingCloudHandoff(
 		return { metadata: input.metadata, pending: input.pending };
 	}
 	if (await cloud.handoffTargetExists(input.pending.toCloudSessionId)) {
+		const dashboardUrl =
+			input.pending.dashboardUrl ??
+			buildCloudHandoffDashboardUrl(
+				input.appBaseUrl,
+				input.pending.toCloudSessionId,
+			);
 		throw new Error(
-			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${input.dashboardUrl}`,
+			`A previous cloud handoff is still pending for a different repository, branch, commit, or model. Continue or delete it before retrying: ${dashboardUrl}`,
 		);
 	}
 	const metadata = clearCloudHandoffMetadata(input.metadata);
@@ -1917,12 +1923,7 @@ async function handleHandoffOnce(
 		metadata: metadataBefore,
 		pending,
 		fingerprint: prepared.fingerprint,
-		dashboardUrl:
-			pending?.dashboardUrl ??
-			buildCloudHandoffDashboardUrl(
-				environment.appBaseUrl,
-				pending?.toCloudSessionId ?? "",
-			),
+		appBaseUrl: environment.appBaseUrl,
 	});
 	metadataBefore = reconciled.metadata;
 	pending = reconciled.pending;
