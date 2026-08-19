@@ -67,9 +67,19 @@ jobs:
         outputs:
             matrix: ${{ steps.set-matrix.outputs.matrix }}
         steps:
+            # PRs run the Linux leg only: the Windows/macOS legs routinely took
+            # 8-15+ minutes, were the dominant source of red-but-nonblocking PR
+            # checks (none of the e2e jobs are required for merge), and mostly
+            # exercise the same extension paths. Pushes to main and manual
+            # dispatches still run the full 3-OS matrix, so OS-specific
+            # regressions are caught on merge.
             - id: set-matrix
               run: |
-                  echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+                  if [ "${{ github.event_name }}" = "pull_request" ]; then
+                    echo 'matrix=[{"runner":"ubuntu"}]' >> $GITHUB_OUTPUT
+                  else
+                    echo 'matrix=[{"runner":"ubuntu"},{"runner":"windows"},{"runner":"macos"}]' >> $GITHUB_OUTPUT
+                  fi
 
     e2e:
         needs: [detect-changes, matrix_prep]
@@ -156,9 +166,10 @@ jobs:
             # `test:e2e:build` script invokes `vsce` via `bun run`, which puts the local
             # .bin on PATH. No global install needed.
 
-            - name: Install xvfb on Linux
-              if: matrix.runner == 'ubuntu'
-              run: sudo apt-get update && sudo apt-get install -y xvfb
+            # NOTE: no xvfb install step. ubuntu-latest runner images ship xvfb
+            # (ext-vscode-test.yml already relies on that), and the old
+            # `apt-get update && apt-get install xvfb` step was observed hanging
+            # on apt locks until the 20-minute job timeout killed the run.
 
             # Run optimized E2E tests (eliminates redundant builds)
             - name: Run E2E tests - Linux
