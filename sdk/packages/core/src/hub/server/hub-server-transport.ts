@@ -5,7 +5,11 @@ import type {
 	HubReplyEnvelope,
 	ToolApprovalRequest,
 } from "@cline/shared";
-import { captureSdkError, createSessionId } from "@cline/shared";
+import {
+	captureSdkError,
+	createSessionId,
+	parseClineDeepLink,
+} from "@cline/shared";
 import { CronService } from "../../cron/service/cron-service";
 import { HubScheduleCommandService } from "../../cron/service/schedule-command-service";
 import { HubScheduleService } from "../../cron/service/schedule-service";
@@ -14,6 +18,12 @@ import type {
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
+import {
+	completeLocalProviderOAuthCallback,
+	createLocalProviderDeepLinkOAuthAuthorization,
+	normalizeOAuthProvider,
+} from "../../services/providers/local-provider-service";
+import { ProviderSettingsManager } from "../../services/storage/provider-settings-manager";
 import { SqliteSessionStore } from "../../services/storage/sqlite-session-store";
 import { CoreSessionService } from "../../session/services/session-service";
 import {
@@ -23,6 +33,10 @@ import {
 	type CoreSettingsType,
 } from "../../settings";
 import type { CoreSessionEvent } from "../../types/events";
+import {
+	type DeepLinkOAuthTransaction,
+	DeepLinkOAuthTransactionStore,
+} from "./deep-link-oauth";
 import {
 	handleApprovalRespond,
 	requestToolApproval as requestToolApprovalHandler,
@@ -44,6 +58,7 @@ import {
 import { handleConnectorCommand } from "./handlers/connector-handlers";
 import {
 	buildHubEvent,
+	errorReply,
 	type HubTransportContext,
 	okReply,
 	type PendingApproval,
@@ -183,6 +198,7 @@ export class HubServerTransport implements NativeHubTransport {
 	private readonly sessionHost: RuntimeHost &
 		Partial<PendingPromptsRuntimeService>;
 	private readonly hubId = createSessionId("hub_");
+	private readonly deepLinkOAuth = new DeepLinkOAuthTransactionStore();
 	private readonly ctx: HubTransportContext;
 
 	constructor(readonly options: HubWebSocketServerOptions) {
@@ -407,6 +423,103 @@ export class HubServerTransport implements NativeHubTransport {
 			case "ui.show_window":
 				this.publish(buildHubEvent("ui.show_window", envelope.payload ?? {}));
 				return okReply(envelope);
+			case "deep_link.open": {
+				const rawUrl =
+					typeof envelope.payload?.url === "string"
+						? envelope.payload.url.trim()
+						: "";
+				const action = parseClineDeepLink(rawUrl);
+				if (!action) {
+					return errorReply(
+						envelope,
+						"invalid_deep_link",
+						"Expected a supported cline:// deep link.",
+					);
+				}
+				let routedAction = action;
+				if (action.type === "auth") {
+					const callback = new URL(rawUrl);
+					let transaction: DeepLinkOAuthTransaction;
+					try {
+						transaction = this.deepLinkOAuth.consume(callback);
+					} catch (error) {
+						return errorReply(
+							envelope,
+							"invalid_oauth_transaction",
+							error instanceof Error ? error.message : String(error),
+						);
+					}
+					const code = callback.searchParams.get("code")?.trim();
+					if (!code) {
+						return errorReply(
+							envelope,
+							"invalid_oauth_callback",
+							"OAuth callback is missing the authorization code.",
+						);
+					}
+					await completeLocalProviderOAuthCallback(
+						new ProviderSettingsManager(),
+						{
+							providerId: transaction.providerId,
+							code,
+							redirectUri: transaction.redirectUri,
+							authProvider: callback.searchParams.get("provider")?.trim(),
+						},
+					);
+					routedAction = { type: "auth", provider: transaction.providerId };
+				}
+				this.publish(
+					buildHubEvent(
+						"deep_link.opened",
+						routedAction as unknown as Record<string, unknown>,
+					),
+				);
+				this.publish(
+					buildHubEvent("ui.show_window", {
+						reason: "deep_link",
+						action: routedAction as unknown as Record<string, unknown>,
+					}),
+				);
+				return okReply(envelope, {
+					action: routedAction as unknown as Record<string, unknown>,
+				});
+			}
+			case "deep_link.oauth.begin": {
+				const providerId =
+					typeof envelope.payload?.providerId === "string"
+						? envelope.payload.providerId.trim()
+						: "";
+				if (!providerId) {
+					return errorReply(
+						envelope,
+						"invalid_provider",
+						"deep_link.oauth.begin requires a providerId.",
+					);
+				}
+				try {
+					const normalizedProviderId = normalizeOAuthProvider(providerId);
+					const { state, transaction } =
+						this.deepLinkOAuth.begin(normalizedProviderId);
+					const authorization = createLocalProviderDeepLinkOAuthAuthorization(
+						new ProviderSettingsManager(),
+						{
+							providerId: normalizedProviderId,
+							redirectUri: transaction.redirectUri,
+							state,
+						},
+					);
+					return okReply(envelope, {
+						providerId: authorization.providerId,
+						authorizationUrl: authorization.authorizationUrl,
+					});
+				} catch (error) {
+					return errorReply(
+						envelope,
+						"oauth_not_supported",
+						error instanceof Error ? error.message : String(error),
+					);
+				}
+			}
 			case "settings.list":
 				return await this.handleSettingsList(envelope);
 			case "settings.toggle":

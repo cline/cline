@@ -734,12 +734,16 @@ function formatCheckpointTime(createdAt: number): string {
 }
 
 type ChatProps = {
+	initialPrompt?: string;
 	initialSessionId?: string;
+	initialWorkspacePath?: string;
 	onSessionSelected?: (sessionId?: string) => void;
 };
 
 export default function Chat({
+	initialPrompt,
 	initialSessionId,
+	initialWorkspacePath,
 	onSessionSelected,
 }: ChatProps) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -752,8 +756,8 @@ export default function Chat({
 		Record<string, WebviewProviderModel[]>
 	>({});
 	const [defaults, setDefaults] = useState<WebviewDefaults>({
-		workspaceRoot: "",
-		cwd: "",
+		workspaceRoot: initialWorkspacePath ?? "",
+		cwd: initialWorkspacePath ?? "",
 	});
 	const [sessions, setSessions] = useState<WebviewSessionSummary[]>([]);
 	const [sessionTitleDraft, setSessionTitleDraft] = useState("");
@@ -873,7 +877,15 @@ export default function Chat({
 					});
 					return;
 				case "defaults":
-					setDefaults(message.defaults);
+					setDefaults(
+						initialWorkspacePath
+							? {
+									...message.defaults,
+									workspaceRoot: initialWorkspacePath,
+									cwd: initialWorkspacePath,
+								}
+							: message.defaults,
+					);
 					if (message.defaults.provider) {
 						setProvider(message.defaults.provider);
 					}
@@ -1095,7 +1107,7 @@ export default function Chat({
 		return () => {
 			window.removeEventListener("message", handleMessage);
 		};
-	}, []);
+	}, [initialWorkspacePath]);
 
 	useEffect(() => {
 		if (!initialSessionId || initialSessionIdRef.current === initialSessionId) {
@@ -1423,6 +1435,7 @@ export default function Chat({
 				) : null}
 				<Composer
 					autoApproveTools={autoApproveTools}
+					initialPrompt={initialPrompt}
 					disabled={isHydrating}
 					enableSpawn={enableSpawn}
 					enableTeams={enableTeams}
@@ -1478,6 +1491,8 @@ export default function Chat({
 							prompt,
 							attachments,
 							config: {
+								workspaceRoot: defaults.workspaceRoot || undefined,
+								cwd: defaults.cwd || undefined,
 								autoApproveTools,
 								enableSpawn,
 								enableTeams,

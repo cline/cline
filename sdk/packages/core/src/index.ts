@@ -656,7 +656,9 @@ export {
 export {
 	addLocalProvider,
 	type CreateConfiguredStreamingTranscriptionSessionRequest,
+	completeLocalProviderOAuthCallback,
 	createConfiguredStreamingTranscriptionSession,
+	createLocalProviderDeepLinkOAuthAuthorization,
 	type DeleteLocalProviderRequest,
 	deleteLocalProvider,
 	ensureCustomProvidersLoaded,

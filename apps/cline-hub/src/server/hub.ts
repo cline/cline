@@ -14,6 +14,7 @@ import {
 } from "./approvals";
 import { configureConnectorCliLaunch } from "./connectors";
 import { workspaceRoot } from "./deps";
+import { loadProviders, sendProviderCatalog } from "./providers";
 import {
 	formatClientName,
 	formatSessionCreator,
@@ -121,6 +122,33 @@ export async function attachHub(ctx: HubContext): Promise<void> {
 	await ctx.uiClient.connect();
 
 	ctx.uiClient.subscribeUI({
+		onDeepLink(action) {
+			ctx.pushEvent(
+				"Deep link opened",
+				`Routing ${action.type.replaceAll("_", " ")}`,
+				"info",
+			);
+			ctx.broadcast({ type: "deep_link", action });
+			broadcastHubState(ctx);
+			if (action.type === "auth" && action.provider) {
+				for (const peer of ctx.peers) {
+					ctx.send(peer, {
+						type: "provider_oauth_login_done",
+						providerId: action.provider,
+						accessTokenPresent: true,
+					});
+					void Promise.all([
+						sendProviderCatalog(ctx, peer),
+						loadProviders(ctx, peer),
+					]).catch((error) => {
+						console.warn(
+							"Failed to refresh providers after deep-link OAuth:",
+							error,
+						);
+					});
+				}
+			}
+		},
 		onNotify(payload: HubUINotifyPayload) {
 			ctx.pushEvent(
 				payload.title,

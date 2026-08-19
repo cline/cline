@@ -10,9 +10,12 @@ import type {
 	SaveProviderSettingsActionRequest,
 	VoiceInputSelection,
 } from "@cline/shared";
+import { getClineEnvironmentConfig } from "@cline/shared";
 import { createOAuthClientCallbacks } from "../../auth/client";
+import { completeClineAuthorizationCode } from "../../auth/cline";
 import {
 	getProviderAuthHandler,
+	getProviderAuthStorageId,
 	loginAndSaveProviderOAuthCredentials,
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
@@ -1106,6 +1109,61 @@ export async function loginLocalProvider(
 		},
 	});
 	return handler.login({ settings: existing, callbacks, telemetry });
+}
+
+export async function completeLocalProviderOAuthCallback(
+	manager: ProviderSettingsManager,
+	input: {
+		providerId: string;
+		code: string;
+		redirectUri: string;
+		authProvider?: string;
+	},
+): Promise<ProviderSettings> {
+	const providerId = normalizeOAuthProvider(input.providerId);
+	if (providerId !== "cline" && providerId !== "cline-pass") {
+		throw new Error(
+			`deep-link OAuth callbacks are not supported for "${providerId}"`,
+		);
+	}
+	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
+	const existing = manager.getProviderSettings(storageProviderId);
+	const credentials = await completeClineAuthorizationCode({
+		code: input.code,
+		redirectUri: input.redirectUri,
+		apiBaseUrl:
+			existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+		provider: input.authProvider,
+	});
+	return saveLocalProviderOAuthCredentials(
+		manager,
+		providerId,
+		existing,
+		credentials,
+	);
+}
+
+export function createLocalProviderDeepLinkOAuthAuthorization(
+	manager: ProviderSettingsManager,
+	input: { providerId: string; redirectUri: string; state: string },
+): { providerId: string; authorizationUrl: string } {
+	const providerId = normalizeOAuthProvider(input.providerId);
+	if (providerId !== "cline" && providerId !== "cline-pass") {
+		throw new Error(
+			`deep-link OAuth callbacks are not supported for "${providerId}"`,
+		);
+	}
+	const storageProviderId = getProviderAuthStorageId(providerId) ?? providerId;
+	const existing = manager.getProviderSettings(storageProviderId);
+	const authorizationUrl = new URL(
+		"/api/v1/auth/authorize",
+		existing?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
+	);
+	authorizationUrl.searchParams.set("client_type", "extension");
+	authorizationUrl.searchParams.set("callback_url", input.redirectUri);
+	authorizationUrl.searchParams.set("redirect_uri", input.redirectUri);
+	authorizationUrl.searchParams.set("state", input.state);
+	return { providerId, authorizationUrl: authorizationUrl.toString() };
 }
 
 export function saveLocalProviderOAuthCredentials(

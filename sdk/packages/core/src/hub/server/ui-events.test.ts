@@ -1,4 +1,4 @@
-import type { HubUINotifyPayload } from "@cline/shared";
+import type { ClineDeepLinkAction, HubUINotifyPayload } from "@cline/shared";
 import { afterEach, describe, expect, it } from "vitest";
 import { SessionSource } from "../../types/common";
 import { HubUIClient } from "../client/ui-client";
@@ -105,6 +105,74 @@ describe("hub UI events", () => {
 		await expect(received).resolves.toEqual({ focus: true });
 		sender.close();
 		receiver.close();
+	}, 10_000);
+
+	it("validates and broadcasts normalized deep links", async () => {
+		const server = await startHubServer({
+			port: 0,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.push(server);
+		const sender = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-sender",
+		});
+		const receiver = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-receiver",
+		});
+		await sender.connect();
+		await receiver.connect();
+		const received = waitForEvent<ClineDeepLinkAction>((resolve) =>
+			receiver.subscribeUI({ onDeepLink: resolve }),
+		);
+		await expect(
+			sender.openDeepLink("cline://new-session?prompt=fix%20it"),
+		).resolves.toEqual({
+			type: "new_session",
+			path: undefined,
+			prompt: "fix it",
+		});
+		await expect(received).resolves.toEqual({
+			type: "new_session",
+			path: undefined,
+			prompt: "fix it",
+		});
+		await expect(sender.openDeepLink("https://example.com")).rejects.toThrow(
+			"Expected a supported cline:// deep link",
+		);
+		sender.close();
+		receiver.close();
+	}, 10_000);
+
+	it("requires a pending transaction for OAuth deep links", async () => {
+		const server = await startHubServer({
+			port: 0,
+			runtimeHandlers: createLocalHubScheduleRuntimeHandlers(),
+		});
+		servers.push(server);
+		const sender = new HubUIClient({
+			address: server.url,
+			authToken: server.authToken,
+			clientType: "test-sender",
+		});
+		await sender.connect();
+
+		await expect(
+			sender.openDeepLink("cline://auth?code=untrusted&state=unknown"),
+		).rejects.toThrow("does not match a pending login");
+
+		const flow = await sender.beginDeepLinkOAuth("cline");
+		const authorizationUrl = new URL(flow.authorizationUrl);
+		const redirectUri = authorizationUrl.searchParams.get("redirect_uri");
+		expect(flow.providerId).toBe("cline");
+		expect(authorizationUrl.searchParams.get("callback_url")).toBe(redirectUri);
+		expect(authorizationUrl.searchParams.get("state")).toBeTruthy();
+		expect(redirectUri).toMatch(/^cline:\/\/auth\?state=.+/);
+
+		sender.close();
 	}, 10_000);
 
 	it("receives hub.client.registered events when clients connect", async () => {

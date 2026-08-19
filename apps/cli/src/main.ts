@@ -172,6 +172,15 @@ export async function runCli(): Promise<void> {
 		startupTarget?: TuiStartupTarget;
 	} = {};
 	const io = { writeln, writeErr };
+	const launchedDeepLink = cliArgs.find((arg) => arg.startsWith("cline://"));
+	if (launchedDeepLink) {
+		const { handleDeepLink } = await import("./commands/deep-link");
+		process.exitCode = await handleDeepLink({
+			url: launchedDeepLink,
+			io,
+		});
+		return;
+	}
 	const program = createProgram();
 	// Re-enable built-in help/version output for the routing program
 	program.configureOutput({
@@ -604,6 +613,20 @@ export async function runCli(): Promise<void> {
 		.action(async (_opts: unknown, cmd: Command) => {
 			const hubCmd = await createHubRuntimeCommand();
 			await hubCmd.parseAsync(cmd.args, { from: "user" });
+		});
+
+	const deepLinkCmd = program
+		.command("deeplink")
+		.description("Forward a cline:// URL to the local Hub")
+		.argument("<url>", "Cline deep link URL")
+		.option("-c, --cwd <path>", "Workspace used to discover or start Hub")
+		.action(async (url: string) => {
+			const { handleDeepLink } = await import("./commands/deep-link");
+			ctx.exitCode = await handleDeepLink({
+				url,
+				cwd: deepLinkCmd.opts<{ cwd?: string }>().cwd,
+				io,
+			});
 		});
 
 	const dashboardCmd = program

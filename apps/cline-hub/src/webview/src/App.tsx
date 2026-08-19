@@ -1125,6 +1125,11 @@ function App() {
 	const [recentSessions, setRecentSessions] = useState<WebviewSessionSummary[]>(
 		[],
 	);
+	const [deepLinkDraft, setDeepLinkDraft] = useState<{
+		prompt?: string;
+		workspacePath?: string;
+		version: number;
+	}>({ version: 0 });
 
 	useEffect(() => {
 		syncHubTheme();
@@ -1160,6 +1165,35 @@ function App() {
 			}
 			if (message.type === "sessions") {
 				setRecentSessions(message.sessions);
+				return;
+			}
+			if (message.type === "deep_link") {
+				const { action } = message;
+				if (action.type === "open_session") {
+					setDeepLinkDraft((current) => ({
+						prompt: action.prompt,
+						version: current.version + 1,
+					}));
+					setSelectedSessionId(action.sessionId);
+					window.history.pushState(null, "", chatPath(action.sessionId));
+					setView("chat");
+				} else if (
+					action.type === "new_session" ||
+					action.type === "open_project"
+				) {
+					setDeepLinkDraft((current) => ({
+						prompt: action.prompt,
+						workspacePath: action.path,
+						version: current.version + 1,
+					}));
+					setSelectedSessionId(undefined);
+					window.history.pushState(null, "", chatPath());
+					setView("chat");
+				} else if (action.type === "auth") {
+					window.history.pushState(null, "", VIEW_PATHS.account);
+					setSettingsSection("Account");
+					setView("account");
+				}
 			}
 		};
 		window.addEventListener("message", handleMessage);
@@ -1230,7 +1264,10 @@ function App() {
 		if (view === "chat") {
 			return (
 				<Chat
+					initialPrompt={deepLinkDraft.prompt}
 					initialSessionId={selectedSessionId}
+					initialWorkspacePath={deepLinkDraft.workspacePath}
+					key={`chat-${deepLinkDraft.version}`}
 					onSessionSelected={updateChatSessionRoute}
 				/>
 			);
@@ -1337,6 +1374,7 @@ function App() {
 			/>
 		);
 	}, [
+		deepLinkDraft,
 		hubState,
 		deleteSession,
 		navigate,

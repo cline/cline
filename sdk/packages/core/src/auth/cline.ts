@@ -514,6 +514,23 @@ async function exchangeAuthorizationCode(
 	);
 }
 
+/** Complete a code flow whose redirect was delivered by an embedding host. */
+export async function completeClineAuthorizationCode(options: {
+	code: string;
+	redirectUri: string;
+	apiBaseUrl: string;
+	provider?: string;
+	headers?: HeaderInput;
+	requestTimeoutMs?: number;
+}): Promise<ClineOAuthCredentials> {
+	return exchangeAuthorizationCode(
+		options.code,
+		options.redirectUri,
+		options,
+		options.provider,
+	);
+}
+
 export async function loginClineOAuth(
 	options: ClineOAuthProviderOptions & {
 		callbacks: OAuthLoginCallbacks;
