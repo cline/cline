@@ -886,8 +886,11 @@ button:disabled {
 }
 .conversation {
 	min-width: 0;
+	min-height: 0;
+	height: 100vh;
 	display: grid;
-	grid-template-rows: auto 1fr auto auto;
+	grid-template-rows: auto minmax(0, 1fr) auto auto;
+	overflow: hidden;
 	background: #0d0f14;
 }
 .conversation-header {
@@ -957,7 +960,11 @@ button:disabled {
 	}
 }
 .timeline {
+	min-width: 0;
+	min-height: 0;
 	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
 	padding: 38px max(28px, calc((100% - 760px) / 2));
 }
 .empty {
@@ -987,6 +994,7 @@ button:disabled {
 	margin: 0 0 20px;
 	line-height: 1.65;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	color: #dadbe1;
 }
 .message.user {
@@ -1036,10 +1044,12 @@ button:disabled {
 	color: #c58f95;
 	line-height: 1.5;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 .event-card pre,
 .approval code {
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	overflow: auto;
 	color: #858995;
 	font-size: 10px;
@@ -1068,6 +1078,7 @@ button:disabled {
 }
 .composer {
 	position: relative;
+	min-width: 0;
 	margin: 12px max(28px, calc((100% - 760px) / 2)) 22px;
 	border: 1px solid #343842;
 	background: #161920;
