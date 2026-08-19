@@ -229,43 +229,6 @@ describe("translateSessionEvent — pending prompts", () => {
 		])
 	})
 
-	it("renders monitor-origin prompts as monitor_update cards instead of fenced user bubbles", () => {
-		const state = new MessageTranslatorState()
-		const event: CoreSessionEvent = {
-			type: "pending_prompt_submitted",
-			payload: {
-				sessionId: "session-1",
-				id: "pending-1",
-				prompt: "<monitor-output>ERROR: disk full</monitor-output>",
-				delivery: "steer",
-				attachmentCount: 0,
-				origin: {
-					kind: "monitor",
-					updates: [
-						{
-							monitorId: "mon_1",
-							name: "applog",
-							description: "watching the app log",
-							lines: ["ERROR: disk full"],
-							exit: { status: "stopped", stoppedBy: "user" },
-						},
-					],
-				},
-			},
-		}
-
-		const result = translateSessionEvent(event, state)
-
-		expect(result.messages).toHaveLength(1)
-		expect(result.messages[0]).toEqual(expect.objectContaining({ type: "say", say: "monitor_update", partial: false }))
-		expect(JSON.parse(result.messages[0]?.text ?? "{}")).toEqual({
-			name: "applog",
-			description: "watching the app log",
-			lines: ["ERROR: disk full"],
-			exit: { status: "stopped", stoppedBy: "user" },
-		})
-	})
-
 	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
 		// A bare Resume that races the abort settling is auto-queued by the
 		// runtime; when it drains, the submitted-prompt echo must not leak the

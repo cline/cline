@@ -41,7 +41,6 @@ import type {
 	ClineSaySubagentStatus,
 	ClineSayTool,
 	ClineSubagentUsageInfo,
-	MonitorUpdatePayload,
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
@@ -2109,36 +2108,7 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "pending_prompt_submitted": {
-			const { prompt, userImages, userFiles, origin } = event.payload
-			// Monitor reports carry structured provenance; render them as
-			// compact cards instead of echoing the model-facing fenced text
-			// (untrusted-content guidance and all) as a user bubble.
-			if (origin?.kind === "monitor") {
-				for (const update of origin.updates) {
-					const payload: MonitorUpdatePayload = {
-						name: update.name,
-						description: update.description,
-						lines: update.lines,
-						droppedLines: update.droppedLines,
-						exit: update.exit
-							? {
-									status: update.exit.status,
-									stoppedBy: update.exit.stoppedBy,
-									code: update.exit.code,
-									error: update.exit.error,
-								}
-							: undefined,
-					}
-					result.messages.push({
-						ts: state.nextTs(),
-						type: "say",
-						say: "monitor_update",
-						text: JSON.stringify(payload),
-						partial: false,
-					})
-				}
-				break
-			}
+			const { prompt, userImages, userFiles } = event.payload
 			// Synthetic prompts (task resumption, plan -> act auto-continue) are
 			// hidden from every other transcript surface, and this echo must
 			// hide them too: a send that races a settling abort is auto-queued

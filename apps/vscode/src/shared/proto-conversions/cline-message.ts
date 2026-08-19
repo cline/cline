@@ -108,7 +108,6 @@ function convertClineSayToProtoEnum(say: AppClineSay | undefined): ClineSay | un
 		use_subagents: ClineSay.USE_SUBAGENTS_SAY,
 		subagent_usage: ClineSay.SUBAGENT_USAGE,
 		compaction: ClineSay.COMPACTION,
-		monitor_update: ClineSay.MONITOR_UPDATE,
 	}
 
 	const result = mapping[say]
@@ -159,7 +158,6 @@ function convertProtoEnumToClineSay(say: ClineSay): AppClineSay | undefined {
 		[ClineSay.USE_SUBAGENTS_SAY]: "use_subagents",
 		[ClineSay.SUBAGENT_USAGE]: "subagent_usage",
 		[ClineSay.COMPACTION]: "compaction",
-		[ClineSay.MONITOR_UPDATE]: "monitor_update",
 	}
 
 	return mapping[say]

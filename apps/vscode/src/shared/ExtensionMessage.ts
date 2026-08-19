@@ -178,20 +178,6 @@ export interface QueuedPrompt {
 	prompt: string
 	delivery: "queue" | "steer"
 	attachmentCount: number
-	/**
-	 * Structured provenance for runtime-generated prompts (mirrors the SDK's
-	 * PendingPromptOrigin). Monitor entries render as a compact label instead
-	 * of their fenced model-facing text.
-	 */
-	origin?: {
-		kind: "monitor"
-		updates: Array<{
-			monitorId: string
-			name: string
-			description: string
-			lines: string[]
-		}>
-	}
 }
 
 /** One background monitor shown in the webview roster. */
@@ -203,24 +189,6 @@ export interface ActiveMonitor {
 	startedAt: number
 	status: "running" | "exited" | "stopped" | "failed"
 	linesEmitted: number
-}
-
-/**
- * JSON payload carried in a `say: "monitor_update"` message's text. Built from
- * the structured origin metadata on monitor steer prompts so the webview
- * renders a clean card; the fenced model-facing text is never shown.
- */
-export interface MonitorUpdatePayload {
-	name: string
-	description: string
-	lines: string[]
-	droppedLines?: number
-	exit?: {
-		status: "exited" | "stopped" | "failed"
-		stoppedBy?: "user"
-		code?: number | null
-		error?: string
-	}
 }
 
 export interface ClineMessage {
@@ -297,7 +265,6 @@ export type ClineSay =
 	| "mcp_server_request_started"
 	| "mcp_server_response"
 	| "mcp_notification"
-	| "monitor_update" // background monitor report card; text is a JSON MonitorUpdatePayload
 	| "use_mcp_server"
 	| "diff_error"
 	| "deleted_api_reqs"
