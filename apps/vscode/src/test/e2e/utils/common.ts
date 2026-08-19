@@ -18,10 +18,9 @@ export const addSelectedCodeToClineWebview = async (_page: Page) => {
 	// The first item can vary by platform or diagnostics.
 	const addToCline = _page.getByText(/Add to Cline/i)
 	await addToCline.waitFor({ state: "visible" })
-	// For whatever reason, we need to move the mouse to make the context menu item clickable
-	await _page.mouse.move(10, 10)
-	await _page.mouse.move(20, 10)
-	await addToCline.click()
+	// VS Code briefly overlays a pointer blocker while positioning this widget.
+	// The action is already visible and stable, so bypass that transient overlay.
+	await addToCline.click({ force: true })
 }
 
 export const toggleNotifications = async (_page: Page) => {
