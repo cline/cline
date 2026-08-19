@@ -257,17 +257,65 @@ repeated failures apply exponential backoff.
 **Connectors are bot-scoped**: config, credential reference, and
 conversation routes live in the bot namespace and every connector
 targets exactly one bot. `@cline/bot` owns the connector-to-session
-semantics (`ConnectorInbox` maps `(connectorId, externalAccountId,
-externalConversationId)` to the bot's canonical session, shared with
-desktop/CLI prompts); the Gateway supplies transport, persistence, auth
-boundaries, and worker supervision — one worker per connector instance
-(enforced in-process and through the durable instance registry), a
-crash-safe dedupe cursor committed in the same transaction as the
-admission it caused, and restart-from-cursor with no duplicate instance.
-Bots see normalized source metadata and an authorized reply capability,
-never adapter credentials. V0 adapters: **Telegram Bot API** (long-poll
-`getUpdates`, `update_id` cursor) and **Slack** (Socket Mode,
-`event_id` dedupe).
+semantics (`ConnectorInbox`); the Gateway supplies transport,
+persistence, auth boundaries, and worker supervision — one worker per
+connector instance (enforced in-process and through the durable
+instance registry), a crash-safe dedupe cursor committed in the same
+transaction as the admission it caused, and restart-from-cursor with no
+duplicate instance. Bots see normalized source metadata and an
+authorized reply capability, never adapter credentials. V0 adapters:
+**Telegram Bot API** (long-poll `getUpdates`, `update_id` cursor) and
+**Slack** (Socket Mode, `event_id` dedupe).
+
+**Conversation isolation.** Every external conversation gets its own
+DEDICATED Gateway session: `(connectorId, externalAccountId,
+externalConversationId) -> dedicated sessionId`, durable in the route
+table and reused for later messages. Unrelated Telegram chats, Slack
+channels, and Slack threads never share context, and external users can
+never inherit the bot's canonical (desktop/CLI) context — connector runs
+never touch the canonical session. Desktop participates in an external
+conversation only intentionally, by passing the dedicated `sessionId` to
+`run.start`. **Slack decision:** a channel and each of its threads are
+SEPARATE conversations (separate sessions); conversation ids encode this
+as `<channel>` vs `<channel>#<thread_ts>`, and replies to a thread
+conversation post into the thread.
+
+**Outbound delivery.** When a connector-originated run COMPLETES, its
+final response is enqueued (same transaction as the settlement, keyed by
+`run-reply:<runId>`) and delivered to the originating conversation by a
+supervision worker independent of model execution: transient platform
+failures retry with exponential backoff — without ever rerunning the
+model — while permanent failures (revoked/malformed credentials, missing
+permissions) settle immediately; content is split per platform limits
+(Telegram 4096, Slack 40000). Failed, aborted, and interrupted runs
+never produce a reply. Outbound messages are durable rows
+(`connector_outbound`: state pending/sending/delivered/failed, attempts,
+idempotency key, claims, platform message ids), so pending deliveries
+resume after a restart, concurrent workers can never double-send, and
+crash replays never duplicate.
+
+**Proactive messaging.** Agents get one constrained tool,
+`send_connector_message`: the destination defaults to the run's
+originating conversation; explicit destinations must belong to the
+current bot; anything other than the originating conversation requires
+an operator approval (server request `connector.sendApproval`);
+per-conversation rate limits apply; the message is persisted before
+delivery with an idempotency key; and the returned delivery status never
+exposes credentials. Schedules can also target a connector route
+(`notify`), turning firing outcomes — scheduled summaries, failure
+notices — into ordinary outbound messages, and any Gateway event can do
+the same through `ConnectorMessenger.notify`.
+
+**Management RPCs** (same wire protocol, additive):
+`connector.register`, `connector.list`, `connector.inspect` (record +
+live health), `connector.setEnabled`, `connector.updateConfig`
+(non-secret only — secret-like keys are refused), `connector.setCredential`
+(reference to a 0600 secret file, never a token), `connector.remove`,
+`connector.routes` (conversations + their sessions),
+`connector.testCredentials` (Telegram `getMe` / Slack `auth.test`),
+`connector.sendTest`, and `connector.outbound` (delivery states). A
+desktop onboarding UI for these APIs belongs to `apps/gateway-desktop`,
+which lives on its own branch — the full API surface ships here.
 
 **Schedules.** The Gateway owns triggers (recurring interval or one-shot
 `at`), durable claims, retries, and reports. A firing materializes a
