@@ -8,6 +8,7 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 	ConversationViewport,
+	formatWorkActivityLabel,
 	Message,
 	MessageContent,
 	Reasoning,
@@ -16,6 +17,9 @@ import {
 	ToolActivity,
 	ToolActivityContent,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "../components/agent-chat";
 import { getInertAttributeValue } from "../components/agent-chat/disclosure";
 
@@ -193,6 +197,60 @@ describe("@cline/ui agent chat primitives", () => {
 			document.getElementById(trigger?.getAttribute("aria-controls") ?? "")
 				?.textContent,
 		).toContain("theme.css");
+	});
+
+	it("formats work summary labels", () => {
+		expect(
+			formatWorkActivityLabel({
+				durationMilliseconds: 252_000,
+				toolCallCount: 14,
+			}),
+		).toBe("Worked for 4m 12s and made 14 tool calls");
+		expect(
+			formatWorkActivityLabel({ durationMilliseconds: 800, toolCallCount: 1 }),
+		).toBe("Worked for 1s and made 1 tool call");
+		expect(formatWorkActivityLabel({ durationMilliseconds: 3_720_000 })).toBe(
+			"Worked for 1h 2m",
+		);
+		expect(formatWorkActivityLabel({ toolCallCount: 3 })).toBe(
+			"Made 3 tool calls",
+		);
+		expect(formatWorkActivityLabel({})).toBe("Worked");
+	});
+
+	it("toggles the collapsed work summary open and closed", async () => {
+		await render(
+			<WorkActivity>
+				<WorkActivityTrigger durationMilliseconds={65_000} toolCallCount={2} />
+				<WorkActivityContent>Ran tests, edited theme.css</WorkActivityContent>
+			</WorkActivity>,
+		);
+
+		const trigger = container.querySelector(
+			"button.cline-chat-work-trigger",
+		) as HTMLButtonElement;
+		expect(trigger.textContent).toContain(
+			"Worked for 1m 5s and made 2 tool calls",
+		);
+		expect(trigger.getAttribute("aria-expanded")).toBe("false");
+		const panel = document.getElementById(
+			trigger.getAttribute("aria-controls") ?? "",
+		);
+		expect(panel?.getAttribute("data-state")).toBe("closed");
+		// Collapsed content stays lazy until first opened.
+		expect(panel?.textContent).not.toContain("Ran tests");
+
+		await act(async () => trigger.click());
+		expect(trigger.getAttribute("aria-expanded")).toBe("true");
+		expect(panel?.getAttribute("data-state")).toBe("open");
+		expect(panel?.textContent).toContain("Ran tests, edited theme.css");
+		// Expanded rows sit at transcript level — no rail or extra indent.
+		const content = panel?.querySelector(".cline-chat-work-content");
+		expect(content).not.toBeNull();
+		expect(content?.classList.contains("cline-chat-panel-rail")).toBe(false);
+
+		await act(async () => trigger.click());
+		expect(panel?.getAttribute("data-state")).toBe("closed");
 	});
 
 	it("offers a scroll-to-latest action after the reader moves away", async () => {

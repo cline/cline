@@ -194,13 +194,17 @@ import {
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "@cline/ui/components/agent-chat";
 ```
 
 `Conversation` owns sticky scrolling, `Message` owns role presentation,
-`Reasoning` and `ToolActivity` provide accessible disclosures, and the smaller
-action, empty-state, detail, and code primitives fill out common transcript
-states. Give each conversation a bounded height through an explicit height or
+`Reasoning` and `ToolActivity` provide accessible disclosures, `WorkActivity`
+folds a finished run's working rows behind a "Worked for 4m 12s and made
+14 tool calls" summary, and the smaller action, empty-state, detail, and code
+primitives fill out common transcript states. Give each conversation a bounded height through an explicit height or
 a complete flex/min-height chain so its viewport can scroll.
 
 These are presentation primitives, not an agent SDK. Consumers map their own

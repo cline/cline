@@ -17,6 +17,9 @@ import {
 	ToolActivityContent,
 	ToolActivityDetails,
 	ToolActivityTrigger,
+	WorkActivity,
+	WorkActivityContent,
+	WorkActivityTrigger,
 } from "../components/agent-chat";
 import { ToolFileDiff } from "../components/agent-chat/tool-diff";
 import {
@@ -350,6 +353,73 @@ export const ToolStates = () => (
 				</ToolActivityContent>
 			</ToolActivity>
 		))}
+	</ChatFrame>
+);
+
+/**
+ * A finished run folds its working rows — tool calls, thinking traces,
+ * intermediate narration — into one "Worked for …" summary that expands back
+ * into the normal rows. The run's final answer stays visible below it.
+ */
+export const CollapsedWork = () => (
+	<ChatFrame>
+		<Message from="user">
+			<MessageContent>Track down and fix the flaky theme test.</MessageContent>
+		</Message>
+
+		<WorkActivity>
+			<WorkActivityTrigger durationMilliseconds={252_000} toolCallCount={3} />
+			<WorkActivityContent>
+				<Reasoning>
+					<ReasoningTrigger completeLabel="Thought for 12s" />
+					<ReasoningContent presentation="rail">
+						The failure only reproduces when the dark theme snapshot runs first,
+						so the token cache must leak between cases.
+					</ReasoningContent>
+				</Reasoning>
+				<ToolActivity expandable>
+					<ToolActivityTrigger
+						icon={<SearchIcon />}
+						label="Explored 2 files"
+						status="success"
+					/>
+					<ToolActivityContent presentation="rail">
+						<ToolActivityDetails>
+							<div>theme.test.ts</div>
+							<div>token-cache.ts</div>
+						</ToolActivityDetails>
+					</ToolActivityContent>
+				</ToolActivity>
+				<ToolActivity expandable>
+					<ToolActivityTrigger
+						additions={6}
+						deletions={1}
+						icon={<EditIcon />}
+						label="Edited token-cache.ts"
+						status="success"
+					/>
+					<ToolActivityContent presentation="rail">
+						<ToolActivityCode>
+							{"+ cache.clear();\n- // cache persists across suites"}
+						</ToolActivityCode>
+					</ToolActivityContent>
+				</ToolActivity>
+				<ToolActivity expandable={false}>
+					<ToolActivityTrigger
+						icon={<TerminalIcon />}
+						label="Ran bun -F @cline/ui test"
+						status="success"
+					/>
+				</ToolActivity>
+			</WorkActivityContent>
+		</WorkActivity>
+
+		<Message from="assistant">
+			<MessageContent>
+				Fixed: the token cache leaked between suites; it now resets per case and
+				the full suite passes.
+			</MessageContent>
+		</Message>
 	</ChatFrame>
 );
 
