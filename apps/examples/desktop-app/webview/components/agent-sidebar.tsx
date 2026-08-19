@@ -64,6 +64,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
 	ContextMenu,
 	ContextMenuContent,
@@ -1203,10 +1204,12 @@ function AgendaSection({
 	const [createOpen, setCreateOpen] = useState(false);
 	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
 	const [creating, setCreating] = useState(false);
+	const [confirmAutomationOpen, setConfirmAutomationOpen] = useState(false);
 	const [title, setTitle] = useState("");
 	const [instructions, setInstructions] = useState("");
 	const [type, setType] = useState<AgendaTaskType>("todo");
 	const [priority, setPriority] = useState<AgendaTaskPriority>(3);
+	const [automationEligible, setAutomationEligible] = useState(true);
 	const [scope, setScope] = useState<"workspace" | "global">(
 		workspaceRoot ? "workspace" : "global",
 	);
@@ -1218,6 +1221,7 @@ function AgendaSection({
 		setInstructions("");
 		setType("todo");
 		setPriority(3);
+		setAutomationEligible(true);
 		setScope(workspaceRoot ? "workspace" : "global");
 		setExpiresAt(
 			new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
@@ -1248,7 +1252,7 @@ function AgendaSection({
 					? { providerId, ...(modelId ? { modelId } : {}) }
 					: undefined,
 				expiresAt: expiration.toISOString(),
-				automationEligible: true,
+				automationEligible,
 			});
 			setCreateOpen(false);
 			resetCreateForm();
@@ -1276,7 +1280,15 @@ function AgendaSection({
 							automatic && "text-emerald-500",
 						)}
 						disabled={automationDisabled}
-						onClick={onToggleAutomation}
+						onClick={() => {
+							// Switching back to manual is safe; enabling automation
+							// starts unattended agent runs and must be confirmed.
+							if (automatic) {
+								onToggleAutomation();
+							} else {
+								setConfirmAutomationOpen(true);
+							}
+						}}
 						title={
 							automatic
 								? "Auto mode: click to switch to manual"
@@ -1291,6 +1303,33 @@ function AgendaSection({
 							<Zap className={cn("size-3.5", automatic && "fill-current")} />
 						)}
 					</Button>
+					<AlertDialog
+						onOpenChange={setConfirmAutomationOpen}
+						open={confirmAutomationOpen}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>Turn on Agenda automation?</AlertDialogTitle>
+								<AlertDialogDescription>
+									Automation-eligible tasks, including tasks created by agents,
+									will start unattended agent runs without further approval.
+									Those runs can edit files and execute commands while nobody is
+									watching. You can switch back to manual at any time.
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => {
+										setConfirmAutomationOpen(false);
+										onToggleAutomation();
+									}}
+								>
+									Turn on automation
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 					<Dialog
 						onOpenChange={(open) => {
 							setCreateOpen(open);
@@ -1409,6 +1448,21 @@ function AgendaSection({
 										type="datetime-local"
 										value={expiresAt}
 									/>
+								</label>
+								<label
+									className="flex items-center gap-2 text-xs"
+									htmlFor="agenda-task-automation-eligible"
+								>
+									<Checkbox
+										checked={automationEligible}
+										id="agenda-task-automation-eligible"
+										onCheckedChange={(checked) =>
+											setAutomationEligible(checked === true)
+										}
+									/>
+									<span className="text-muted-foreground">
+										Allow automation to run this task when Auto mode is on
+									</span>
 								</label>
 							</div>
 							<DialogFooter>

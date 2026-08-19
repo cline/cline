@@ -1,9 +1,12 @@
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readdirSync,
+	readFileSync,
 	rmSync,
 	symlinkSync,
+	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
@@ -250,6 +253,81 @@ describe("AgendaTaskSpecFileStore", () => {
 			ok: true,
 			spec: { title: "Second" },
 		});
+	});
+
+	it("keeps distinct taskIds on distinct spec files after sanitizing", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+		roots.push(root);
+		const store = new AgendaTaskSpecFileStore({
+			scope: "global",
+			taskSpecsDir: join(root, "tasks"),
+		});
+
+		const sanitized = store.resolveWritePath("foo/bar");
+		const literal = store.resolveWritePath("foo-bar");
+		expect(sanitized).not.toBe(literal);
+		expect(literal).toBe(join(store.specsDir, "foo-bar.task.md"));
+		expect(store.resolveWritePath("foo/bar")).toBe(sanitized);
+		expect(store.resolveWritePath("foo\\bar")).not.toBe(sanitized);
+	});
+
+	it("writes workspace cwd relative and reads it back absolute", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+		roots.push(root);
+		const store = new AgendaTaskSpecFileStore({
+			scope: "workspace",
+			workspaceRoot: root,
+		});
+
+		const written = store.writeSpec({
+			taskId: "task_relative_cwd",
+			type: "todo",
+			title: "Stay portable",
+			instructions: "Run inside the packages directory.",
+			cwd: join(root, "packages", "core"),
+			expiresAt: "2035-01-04T00:00:00.000Z",
+		});
+		expect(written.cwd).toBe(join(root, "packages", "core"));
+
+		const raw = readFileSync(written.specPath, "utf8");
+		expect(raw).toContain("cwd: packages/core");
+		expect(raw).not.toContain(root);
+
+		const atRoot = store.writeSpec({
+			taskId: "task_root_cwd",
+			type: "todo",
+			title: "Run at the root",
+			instructions: "Run at the workspace root.",
+			cwd: root,
+			expiresAt: "2035-01-04T00:00:00.000Z",
+		});
+		expect(readFileSync(atRoot.specPath, "utf8")).toContain("cwd: .");
+		expect(readFileSync(atRoot.specPath, "utf8")).not.toContain(root);
+	});
+
+	it("gitignores workspace spec directories without clobbering user rules", () => {
+		const root = mkdtempSync(join(tmpdir(), "cline-task-specs-"));
+		roots.push(root);
+		const store = new AgendaTaskSpecFileStore({
+			scope: "workspace",
+			workspaceRoot: root,
+		});
+		store.ensureSpecsDir();
+		const gitignorePath = join(store.specsDir, ".gitignore");
+		expect(readFileSync(gitignorePath, "utf8")).toBe("*\n");
+
+		writeFileSync(gitignorePath, "# keep specs committed\n", "utf8");
+		store.ensureSpecsDir();
+		expect(readFileSync(gitignorePath, "utf8")).toBe(
+			"# keep specs committed\n",
+		);
+
+		const globalStore = new AgendaTaskSpecFileStore({
+			scope: "global",
+			taskSpecsDir: join(root, "global-tasks"),
+		});
+		globalStore.ensureSpecsDir();
+		expect(existsSync(join(globalStore.specsDir, ".gitignore"))).toBe(false);
 	});
 
 	it("rejects a workspace task directory that escapes through a symlink", () => {

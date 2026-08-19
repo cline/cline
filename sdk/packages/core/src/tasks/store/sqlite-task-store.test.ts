@@ -2,7 +2,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import type { AgendaTaskActor, AgendaTaskCreateInput } from "@cline/shared";
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
 	AgendaTaskRevisionConflictError,
 	SqliteAgendaTaskStore,
@@ -234,6 +234,39 @@ describe("SqliteAgendaTaskStore", () => {
 		});
 		expect(second.attempt).toBe(2);
 		expect(store.listRuns({ taskId: task.taskId })).toHaveLength(2);
+	});
+
+	it("raises a revision conflict when the guarded UPDATE loses the race", () => {
+		const created = store.createTask(createInput("task_race"));
+		// Simulate two hubs on one tasks.db: the winner commits first, then the
+		// loser runs its guarded UPDATE against the row it read before the race.
+		const winner = store.updateTask({
+			taskId: created.taskId,
+			expectedRevision: 1,
+			title: "Winner",
+			updatedBy: USER,
+		});
+		expect(winner?.revision).toBe(2);
+
+		vi.spyOn(store, "getTask").mockReturnValueOnce(created);
+		expect(() =>
+			store.updateTask({
+				taskId: created.taskId,
+				expectedRevision: 1,
+				title: "Silent loser",
+				updatedBy: USER,
+			}),
+		).toThrow(AgendaTaskRevisionConflictError);
+		expect(store.getTask(created.taskId)?.title).toBe("Winner");
+
+		vi.spyOn(store, "getTask").mockReturnValueOnce(created);
+		expect(() =>
+			store.updateTaskState(created.taskId, {
+				status: "cancelled",
+				updatedBy: USER,
+			}),
+		).toThrow(AgendaTaskRevisionConflictError);
+		expect(store.getTask(created.taskId)?.status).toBe("pending_approval");
 	});
 
 	it("provides and updates the global automation policy", () => {

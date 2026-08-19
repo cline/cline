@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
 	existsSync,
 	linkSync,
@@ -47,11 +48,19 @@ export interface WriteAgendaTaskSpecOptions {
 export type WrittenAgendaTaskSpec = AgendaTaskSpec & { taskId: string };
 
 function safeTaskFilename(taskId: string): string {
-	const normalized = taskId.trim().replace(/[^a-zA-Z0-9._-]+/g, "-");
+	const trimmed = taskId.trim();
+	const normalized = trimmed.replace(/[^a-zA-Z0-9._-]+/g, "-");
 	if (!normalized) {
 		throw new Error("taskId must contain at least one filename-safe character");
 	}
-	return `${normalized}.task.md`;
+	if (normalized === trimmed) {
+		return `${normalized}.task.md`;
+	}
+	// Sanitizing is lossy ("foo/bar" and "foo-bar" both map to "foo-bar"), so
+	// altered ids carry a digest of the raw id to keep distinct ids on
+	// distinct spec files.
+	const digest = createHash("sha256").update(trimmed).digest("hex").slice(0, 8);
+	return `${normalized}-${digest}.task.md`;
 }
 
 function isContained(root: string, candidate: string): boolean {
@@ -130,7 +139,10 @@ export class AgendaTaskSpecFileStore {
 		if (existsSync(target) && lstatSync(target).isSymbolicLink()) {
 			throw new Error("task spec files cannot be symbolic links");
 		}
-		const raw = serializeAgendaTaskSpec(input);
+		const raw = serializeAgendaTaskSpec({
+			...input,
+			cwd: this.portableSpecCwd(input.cwd),
+		});
 		const validated = parseAgendaTaskSpec({
 			specPath: target,
 			raw,
@@ -173,6 +185,41 @@ export class AgendaTaskSpecFileStore {
 		this.assertSpecsDirSafe();
 		mkdirSync(this.specsDir, { recursive: true });
 		this.assertSpecsDirSafe();
+		this.ensureWorkspaceGitignore();
+	}
+
+	/**
+	 * Spec files carry machine-local task ids and expiry state, so keep
+	 * `<workspace>/.cline/tasks/` out of version control by default. Teams
+	 * that want to commit and share specs can edit or empty this file; an
+	 * existing file is never overwritten.
+	 */
+	private ensureWorkspaceGitignore(): void {
+		if (this.scope !== "workspace") return;
+		const gitignorePath = join(this.specsDir, ".gitignore");
+		if (existsSync(gitignorePath)) return;
+		try {
+			writeFileSync(gitignorePath, "*\n", { encoding: "utf8", flag: "wx" });
+		} catch {
+			// A concurrent writer already created the file; either copy wins.
+		}
+	}
+
+	/**
+	 * Serialize `cwd` workspace-relative (POSIX separators) so a committed
+	 * spec stays valid on machines that check the workspace out elsewhere.
+	 * Paths that escape the workspace pass through unchanged so validation
+	 * reports them with the caller's original value.
+	 */
+	private portableSpecCwd(cwd: string | undefined): string | undefined {
+		const trimmed = cwd?.trim();
+		if (!trimmed) return undefined;
+		if (this.scope !== "workspace" || !this.workspaceRoot) return trimmed;
+		const workspaceRoot = resolve(this.workspaceRoot);
+		const candidate = resolve(workspaceRoot, trimmed);
+		if (!isContained(workspaceRoot, candidate)) return trimmed;
+		const relativeCwd = relative(workspaceRoot, candidate);
+		return relativeCwd === "" ? "." : relativeCwd.split(sep).join("/");
 	}
 
 	public deleteSpec(

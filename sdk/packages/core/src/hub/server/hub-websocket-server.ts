@@ -599,6 +599,14 @@ export async function startHubWebSocketServer(
 						tracked.isAlive = true;
 					});
 					sockets.add(tracked);
+					// The Hub auth token is a per-user daemon credential: it is
+					// published only through the owner discovery file (0600 under
+					// the user's Cline data dir), so presenting it proves the
+					// caller already runs as this OS user. The shared daemon
+					// serves every workspace of that one user, so token-bearing
+					// clients (e.g. a CLI in another checkout) may bind the
+					// workspace they registered. Local browser origins connect
+					// without the token and stay pinned to the daemon workspace.
 					const detach = adapter.attach(wrapWsSocket(websocket), {
 						allowRegisteredWorkspace: isTokenAuthorized,
 					});

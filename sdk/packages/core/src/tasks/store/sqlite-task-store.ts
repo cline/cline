@@ -451,7 +451,7 @@ export class SqliteAgendaTaskStore {
 				: current.status;
 		const revision = current.revision + 1;
 		const now = nowIso();
-		this.db
+		const changes = this.db
 			.prepare(
 				`UPDATE agenda_tasks SET
 					type = ?, status = ?, title = ?, description = ?, instructions = ?,
@@ -509,7 +509,8 @@ export class SqliteAgendaTaskStore {
 				now,
 				input.taskId,
 				current.revision,
-			);
+			).changes;
+		this.assertRevisionGuardApplied(input.taskId, changes);
 		return this.getTask(input.taskId);
 	}
 
@@ -538,7 +539,7 @@ export class SqliteAgendaTaskStore {
 			);
 		}
 		const now = nowIso();
-		this.db
+		const changes = this.db
 			.prepare(
 				`UPDATE agenda_tasks SET
 					status = ?, approved_revision = ?, current_run_id = ?, last_run_id = ?,
@@ -572,8 +573,25 @@ export class SqliteAgendaTaskStore {
 				now,
 				taskId,
 				current.revision,
-			);
+			).changes;
+		this.assertRevisionGuardApplied(taskId, changes);
 		return this.getTask(taskId);
+	}
+
+	/**
+	 * With multiple hubs sharing one tasks.db, a writer can lose the race
+	 * between reading the current row and its revision-guarded UPDATE. The
+	 * losing UPDATE matches zero rows; surface that as a revision conflict
+	 * instead of silently reporting the winner's row as this write's result.
+	 */
+	private assertRevisionGuardApplied(
+		taskId: string,
+		changes: number | undefined,
+	): void {
+		if ((changes ?? 0) === 1) return;
+		const latest = this.getTask(taskId);
+		if (latest) throw new AgendaTaskRevisionConflictError(latest);
+		throw new Error(`task ${taskId} was deleted by a concurrent writer`);
 	}
 
 	public deleteTask(taskId: string): boolean {

@@ -56,6 +56,18 @@ function commandErrorReply(
 	};
 }
 
+/**
+ * Derive the connection authority captured by a successful `client.register`.
+ *
+ * `allowRegisteredWorkspace` is set only for connections that presented the
+ * Hub auth token, which is readable solely by the daemon's own OS user. Those
+ * clients act with that user's full local authority, so honoring the
+ * workspace root they registered grants nothing they could not already reach
+ * directly; it is what lets one shared daemon serve every workspace of the
+ * user. Unauthenticated local-origin connections (browser webviews) must not
+ * choose: they stay pinned to the server workspace, and a mismatched
+ * registration is rejected.
+ */
 function registrationAuthority(
 	frame: HubCommandFrame,
 	serverWorkspaceRoot?: string,
