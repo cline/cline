@@ -225,6 +225,73 @@ describe("ai-sdk adapter malformed tool calls", () => {
 	});
 });
 
+function sseTextContent(content: string, finish: string | null = "stop"): string {
+	const chunk = (delta: unknown, finishReason: string | null = null) =>
+		`data: ${JSON.stringify({
+			id: "cmpl-1",
+			object: "chat.completion.chunk",
+			created: 1,
+			model: "test-model",
+			choices: [{ index: 0, delta, finish_reason: finishReason }],
+		})}\n\n`;
+	return (
+		chunk({ role: "assistant", content }) +
+		chunk({}, finish) +
+		"data: [DONE]\n\n"
+	);
+}
+
+describe("ai-sdk adapter Kimi tool markers", () => {
+	it("translates Kimi content markers into tool-call-delta and hides them from text", async () => {
+		const markers =
+			"I'll read that.\n" +
+			"<|tool_calls_section_begin|>" +
+			"<|tool_call_begin|>functions.read_files:0" +
+			"<|tool_call_argument_begin|>" +
+			'{"files":[{"path":"/tmp/a.txt"}]}' +
+			"<|tool_call_end|>" +
+			"<|tool_calls_section_end|>";
+
+		const events = await streamToolCallEvents(sseTextContent(markers), [
+			READ_FILES_TOOL,
+		]);
+
+		const text = events
+			.filter((e) => e.type === "text-delta")
+			.map((e) => (e.type === "text-delta" ? e.text : ""))
+			.join("");
+		expect(text).toBe("I'll read that.\n");
+		expect(text).not.toContain("<|tool_");
+
+		expect(findToolInput(events)).toEqual({
+			files: [{ path: "/tmp/a.txt" }],
+		});
+		const toolEvent = events.find((e) => e.type === "tool-call-delta");
+		expect(toolEvent).toMatchObject({
+			type: "tool-call-delta",
+			toolCallId: "functions.read_files:0",
+			toolName: "read_files",
+		});
+
+		const finish = events.find((e) => e.type === "finish");
+		expect(finish).toMatchObject({ type: "finish", reason: "tool-calls" });
+	});
+
+	it("still passes native OpenAI tool_calls through when markers are absent", async () => {
+		const events = await streamToolCallEvents(
+			sseToolCall("run_commands", '{"commands": ["pwd"]}'),
+			[RUN_COMMANDS_TOOL],
+		);
+		expect(findToolInput(events)).toEqual({ commands: ["pwd"] });
+		expect(
+			events
+				.filter((e) => e.type === "text-delta")
+				.map((e) => (e.type === "text-delta" ? e.text : ""))
+				.join(""),
+		).toBe("");
+	});
+});
+
 describe("repairMalformedToolCall", () => {
 	const toolCall = (input: string) => ({
 		toolCallId: "call_1",
