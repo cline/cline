@@ -165,6 +165,8 @@ Supported commands:
 | `get_process_context` | In-memory context |
 | `poll_tool_approvals` | In-memory pending map |
 | `respond_tool_approval` | In-memory promise resolution |
+| `poll_ask_questions` | In-memory pending map |
+| `respond_ask_question` | In-memory promise resolution |
 | `list_routine_schedules` | shared Hub schedule commands |
 | `list_user_instruction_configs` | Direct core API |
 | `pick_workspace_directory` | OS native dialog |

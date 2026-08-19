@@ -1127,6 +1127,78 @@ describe("useChatSession", () => {
 		expect(current.summary.totalCostUsd).toBeCloseTo(0.03);
 	});
 
+	it("restores a pending question when switching to its session", async () => {
+		const hydratedSessionId = "session-with-question";
+		const pendingQuestion = {
+			requestId: "question-1",
+			sessionId: hydratedSessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		const askQuestionHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "ask_question_requested",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(askQuestionHandler).toBeTypeOf("function");
+
+		await act(async () => {
+			askQuestionHandler?.(pendingQuestion);
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "poll_ask_questions") {
+					return args?.sessionId === hydratedSessionId ? [pendingQuestion] : [];
+				}
+				if (
+					command === "poll_tool_approvals" ||
+					command === "read_session_messages" ||
+					command === "read_session_hooks"
+				) {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-11T00:00:00.000Z",
+			});
+		});
+
+		await vi.waitFor(() =>
+			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			sessionId: hydratedSessionId,
+		});
+	});
+
 	it("resets to the remembered provider/model after viewing a historical session", async () => {
 		window.localStorage.setItem(
 			MODEL_SELECTION_STORAGE_KEY,
