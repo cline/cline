@@ -88,6 +88,29 @@ export const ModelModalitiesSchema = z.object({
 
 export type ModelModalities = z.infer<typeof ModelModalitiesSchema>;
 
+export type ChatModelModalities = {
+	readonly input?: readonly ModelModality[];
+	readonly output?: readonly ModelModality[];
+};
+
+/**
+ * Returns whether a model can participate in a text chat turn.
+ *
+ * Missing modality metadata is treated as chat-compatible for backwards
+ * compatibility. When a catalog does provide modalities, the model must both
+ * accept text and produce text; dedicated transcription and media-generation
+ * endpoints therefore stay available in the shared catalog without leaking
+ * into chat model pickers.
+ */
+export function supportsChatModalities(
+	modalities: ChatModelModalities | undefined,
+): boolean {
+	return (
+		(modalities?.input === undefined || modalities.input.includes("text")) &&
+		(modalities?.output === undefined || modalities.output.includes("text"))
+	);
+}
+
 /**
  * Provider operation used to execute a model request.
  *
@@ -105,6 +128,26 @@ export const ModelOperationSchema = z.enum([
 ]);
 
 export type ModelOperation = z.infer<typeof ModelOperationSchema>;
+
+export type ChatCompatibleModelDescriptor = {
+	readonly operation?: ModelOperation;
+	readonly modalities?: ChatModelModalities;
+};
+
+/**
+ * Returns whether a model uses the language operation and supports a text chat
+ * turn. Missing operation and modality metadata remain chat-compatible for
+ * backwards compatibility, while any explicitly non-language operation is
+ * excluded even when its modalities are absent.
+ */
+export function isChatCompatibleModel(
+	model: ChatCompatibleModelDescriptor,
+): boolean {
+	return (
+		(model.operation === undefined || model.operation === "language") &&
+		supportsChatModalities(model.modalities)
+	);
+}
 
 /**
  * Execution modes supported by a non-language model operation.
@@ -176,6 +219,7 @@ export function modelSupportsToolCalling(model: {
 }): boolean {
 	return modelHasCapability(model, "tools", { assumeWhenUnspecified: true });
 }
+
 export const ModelInfoSchema = z.object({
 	id: z.string(),
 	name: z.string().optional(),

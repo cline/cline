@@ -309,7 +309,7 @@ export const MessageBubble = memo(function MessageBubble({
 						{onCopyMessage ? (
 							<MessageAction
 								label={wasCopied ? "Copied user message" : "Copy user message"}
-								onClick={() => void onCopyMessage(message.id, message.content)}
+								onClick={() => void onCopyMessage(message.id, displayContent)}
 								title={wasCopied ? "Copied" : "Copy message"}
 							>
 								{wasCopied ? (
