@@ -4,6 +4,7 @@ import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
+import { MAX_LIVE_COMMAND_OUTPUT_CHARS } from "@/lib/command-output";
 import { ChatMessages } from "./chat-messages";
 
 // @pierre/diffs' custom element adopts constructable stylesheets, which jsdom
@@ -917,6 +918,109 @@ describe("ChatMessages tool disclosures", () => {
 
 		expect(content?.classList.contains("overflow-x-hidden")).toBe(false);
 		expect(messageList?.classList.contains("overflow-x-hidden")).toBe(false);
+	});
+
+	it("renders live ANSI command output and offers proceed while running", async () => {
+		const onProceedWhileRunning = vi.fn(async () => undefined);
+		await renderMessages(
+			[
+				{
+					id: "tool-live-output",
+					sessionId: "session-1",
+					role: "tool",
+					content: JSON.stringify({
+						toolName: "run_commands",
+						input: { commands: ["bun test"] },
+						result: null,
+					}),
+					createdAt: 1,
+					meta: {
+						toolName: "run_commands",
+						toolCallId: "call-live",
+						toolOutput: "\u001b[31mfailed\u001b[0m\n",
+						toolDetachable: true,
+						hookEventName: "tool_call_start",
+					},
+				},
+			],
+			{ status: "running", onProceedWhileRunning },
+		);
+
+		const output = container.querySelector('[aria-label="Command output"]');
+		expect(output?.textContent).toContain("failed");
+		expect(output?.textContent).not.toContain("\u001b[31m");
+		expect(output?.querySelector("span")?.getAttribute("style")).toContain(
+			"color",
+		);
+		const proceedButton = [...container.querySelectorAll("button")].find(
+			(button) => button.textContent?.includes("Proceed while running"),
+		);
+		expect(proceedButton).toBeDefined();
+		await act(async () => proceedButton?.click());
+		expect(onProceedWhileRunning).toHaveBeenCalledWith(
+			"session-1",
+			"call-live",
+		);
+	});
+
+	it("renders persisted run command output after completion", async () => {
+		await renderMessages([
+			{
+				id: "tool-final-output",
+				sessionId: "session-1",
+				role: "tool",
+				content: JSON.stringify({
+					toolName: "run_commands",
+					input: { commands: ["bun test"] },
+					result: [
+						{ query: "bun test", result: "3 tests passed", success: true },
+					],
+				}),
+				createdAt: 1,
+				meta: {
+					toolName: "run_commands",
+					toolCallId: "call-final",
+					hookEventName: "tool_call_end",
+				},
+			},
+		]);
+
+		const trigger = container.querySelector<HTMLButtonElement>(
+			".cline-chat-tool-trigger",
+		);
+		await act(async () => trigger?.click());
+		expect(
+			container.querySelector('[aria-label="Command output"]')?.textContent,
+		).toContain("3 tests passed");
+	});
+
+	it("caps command output without dropping the newest tail", async () => {
+		const makeCommand = (id: string, output: string, createdAt: number) => ({
+			id,
+			sessionId: "session-1",
+			role: "tool" as const,
+			content: JSON.stringify({
+				toolName: "run_commands",
+				input: { commands: [`echo ${id}`] },
+				result: [{ query: `echo ${id}`, result: output, success: true }],
+			}),
+			createdAt,
+			meta: { toolName: "run_commands", hookEventName: "tool_call_end" },
+		});
+		await renderMessages([
+			makeCommand("command", `${"a".repeat(60_000)}newest-tail`, 1),
+		]);
+
+		const trigger = container.querySelector<HTMLButtonElement>(
+			".cline-chat-tool-trigger",
+		);
+		await act(async () => trigger?.click());
+		const output = container.querySelector('[aria-label="Command output"]');
+		expect(output?.textContent?.length).toBeLessThanOrEqual(
+			MAX_LIVE_COMMAND_OUTPUT_CHARS,
+		);
+		expect(output?.textContent).toContain("newest-tail");
+		expect(output?.textContent).toContain("Earlier command output truncated");
 	});
 });
 

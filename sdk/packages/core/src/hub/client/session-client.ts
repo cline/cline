@@ -232,6 +232,12 @@ function mapHubEvent(event: HubEventEnvelope): HubStreamEvent | undefined {
 				eventType: "runtime.chat.tool_call_start",
 				payload,
 			};
+		case "tool.updated":
+			return {
+				sessionId,
+				eventType: "runtime.chat.tool_call_update",
+				payload,
+			};
 		case "tool.finished":
 			return {
 				sessionId,

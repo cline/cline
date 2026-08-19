@@ -451,6 +451,7 @@ export {
 } from "./runtime/host/host";
 export { LocalRuntimeHost } from "./runtime/host/local-runtime-host";
 export type {
+	CommandExecutionRuntimeService,
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
@@ -492,6 +493,13 @@ export type {
 	RuntimeBuilderInput,
 	SessionRuntime,
 } from "./runtime/orchestration/session-runtime";
+export {
+	getProcessStartToken,
+	getProcessStartTokenAsync,
+	type ProcessStartTokenProbeResult,
+	probeProcessStartToken,
+	probeProcessStartTokenAsync,
+} from "./runtime/process-start-token";
 export {
 	formatRulesForSystemPrompt,
 	isRuleEnabled,
