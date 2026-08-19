@@ -33,6 +33,7 @@ interface Approval extends GatewayServerRequest {
 
 type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
 const RUN_PROVIDER_ID = "cline";
+const DEFAULT_MODEL_ID = "grok-5.4";
 
 const connectionStages: Array<{
 	id: Exclude<ConnectionStage, "idle">;
@@ -43,7 +44,7 @@ const connectionStages: Array<{
 	{ id: "syncing", label: "Loading bots" },
 ];
 
-const environmentToken = import.meta.env.VITE_CLINE_GATEWAY_TOKEN?.trim() ?? "";
+const environmentToken = "";
 export function App({ defaultUrl }: { defaultUrl?: string }) {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
 	const [url, setUrl] = useState(() =>
@@ -58,6 +59,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 	const [status, setStatus] = useState<
 		"disconnected" | "connecting" | "connected"
 	>("disconnected");
+	const [hasConnected, setHasConnected] = useState(false);
 	const [connectionStage, setConnectionStage] =
 		useState<ConnectionStage>("idle");
 	const [error, setError] = useState("");
@@ -96,8 +98,8 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 
 	useEffect(() => () => clientRef.current?.close(), []);
 
-	async function connect(event: FormEvent) {
-		event.preventDefault();
+	async function connect(event?: FormEvent) {
+		event?.preventDefault();
 		setStatus("connecting");
 		setConnectionStage("opening");
 		setError("");
@@ -125,16 +127,18 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 						: [...current, request],
 				),
 			);
-			client.onClose((reason) => {
+			client.onClose(() => {
 				if (clientRef.current === client) {
+					clientRef.current = undefined;
 					setStatus("disconnected");
-					setError(reason);
+					setError("");
 				}
 			});
 			await client.request("run.subscribe", { cursor: initialEventCursor() });
 			setConnectionStage("syncing");
 			await refresh(client);
 			setStatus("connected");
+			setHasConnected(true);
 			setConnectionStage("idle");
 		} catch (cause) {
 			setStatus("disconnected");
@@ -174,7 +178,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 			return;
 		}
 		const savedModel = localStorage.getItem(modelStorageKey(selectedBotId));
-		setModelId(savedModel ?? selectedBot?.config.modelId ?? "");
+		setModelId(savedModel?.trim() || DEFAULT_MODEL_ID);
 	}, [selectedBotId, selectedBot?.config.modelId]);
 
 	async function submit(event: FormEvent) {
@@ -241,7 +245,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 		);
 	}
 
-	if (status !== "connected") {
+	if (!hasConnected) {
 		return (
 			<main className="connect-shell">
 				<div className="connect-aurora" aria-hidden="true" />
@@ -339,17 +343,30 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 	}
 
 	return (
-		<div className="app-shell">
+		<div className={`app-shell ${status}`}>
 			<aside className="sidebar">
 				<header>
-					<div className="brand-mark small">C</div>
-					<div>
-						<strong>Cline</strong>
-						<span>Remote Gateway</span>
-					</div>
+					<img src="/favicon.png" alt="" />
+					<strong>Gateway</strong>
 				</header>
-				<div className="gateway-pill">
-					<i /> Connected <span>{shortId(gatewayName)}</span>
+				<div className={`gateway-pill ${status}`}>
+					<i />{" "}
+					{status === "connected"
+						? "Connected"
+						: status === "connecting"
+							? "Connecting"
+							: "Disconnected"}
+					{status === "connected" ? (
+						<span>{shortId(gatewayName)}</span>
+					) : (
+						<button
+							type="button"
+							onClick={() => void connect()}
+							disabled={status === "connecting"}
+						>
+							{status === "connecting" ? "Connecting…" : "Reconnect"}
+						</button>
+					)}
 				</div>
 				<div className="section-label">
 					Bots{" "}
@@ -365,15 +382,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 							className={selectedBotId === bot.identity.botId ? "selected" : ""}
 							onClick={() => setSelectedBotId(bot.identity.botId)}
 						>
-							<span className={`avatar ${bot.identity.role}`}>
-								{bot.identity.name.slice(0, 1).toUpperCase()}
-							</span>
-							<span>
-								<strong>{bot.identity.name}</strong>
-								<small>
-									{bot.identity.role} · {bot.config.modelId ?? "default model"}
-								</small>
-							</span>
+							<strong>{bot.identity.name}</strong>
 							<i />
 						</button>
 					))}
@@ -413,8 +422,7 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 
 			<main className="conversation">
 				<header className="conversation-header">
-					<div>
-						<h2>{selectedBot?.identity.name ?? "Select a bot"}</h2>
+					<div className="conversation-identity">
 						<label className="model-selector">
 							<span>{RUN_PROVIDER_ID} /</span>
 							<input
@@ -458,9 +466,8 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 				<div className="timeline">
 					{visibleEvents.length === 0 ? (
 						<div className="empty">
-							<div className="orb">C</div>
 							<h3>Start a conversation</h3>
-							<p>This bot’s work will stream here as durable Gateway events.</p>
+							<p>Send a message to begin.</p>
 						</div>
 					) : (
 						<EventTimeline events={visibleEvents} />
@@ -516,8 +523,10 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 								e.currentTarget.form?.requestSubmit();
 							}
 						}}
-						placeholder={
-							steerMode
+					placeholder={
+							status !== "connected"
+								? "Reconnect to continue…"
+								: steerMode
 								? "Add direction to the current run…"
 								: "Ask Cline to do something…"
 						}
@@ -527,7 +536,10 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 						type="submit"
 						className="send"
 						disabled={
-							sending || !prompt.trim() || (!steerMode && !modelId.trim())
+							status !== "connected" ||
+							sending ||
+							!prompt.trim() ||
+							(!steerMode && !modelId.trim())
 						}
 					>
 						{sending ? "…" : "↑"}
@@ -547,58 +559,101 @@ export function App({ defaultUrl }: { defaultUrl?: string }) {
 }
 
 function EventTimeline({ events }: { events: GatewayEvent[] }) {
+	const items = projectTimeline(events);
 	return (
 		<>
-			{events.map((event) => {
-				const message = event.payload?.message as
-					| { role?: string; content?: unknown }
-					| undefined;
-				if (event.event === "run.messageAppended" && message)
+			{items.map((item) => {
+				if (item.kind === "message")
 					return (
 						<article
-							className={`message ${message.role ?? "assistant"}`}
-							key={event.sequence}
+							className={`message ${item.role}`}
+							key={item.key}
 						>
-							<div className="message-role">{message.role ?? "assistant"}</div>
-							<div>{messageText(message.content)}</div>
+							<div className="message-role">{item.role}</div>
+							<div>{item.text}</div>
 						</article>
 					);
-				if (event.event === "engine.textDelta")
+				if (item.kind === "stream")
 					return (
-						<article className="message assistant delta" key={event.sequence}>
+						<article className="message assistant delta" key={item.key}>
 							<div className="message-role">assistant</div>
-							<div>{String(event.payload?.text ?? "")}</div>
+							<div>{item.text}</div>
 						</article>
 					);
-				if (
-					event.event.startsWith("engine.tool") ||
-					event.event.includes("Tool")
-				)
+				if (item.kind === "tool")
 					return (
-						<details className="event-card" key={event.sequence}>
-							<summary>{event.event}</summary>
-							<pre>{JSON.stringify(event.payload, null, 2)}</pre>
+						<details className="event-card" key={item.key}>
+							<summary>{item.label}</summary>
+							<pre>{JSON.stringify(item.payload, null, 2)}</pre>
 						</details>
 					);
-				if (event.event.startsWith("run.")) {
-					const runError = event.payload?.error as
-						| { message?: string }
-						| undefined;
+				if (item.kind === "failure")
 					return (
-						<div className={`run-event ${event.event}`} key={event.sequence}>
-							<span>{event.event.replace("run.", "")}</span>
-							<code>{shortId(event.scope.runId ?? "")}</code>
-							{event.payload?.outputText ? (
-								<p>{String(event.payload.outputText)}</p>
-							) : null}
-							{runError?.message ? <p>{runError.message}</p> : null}
-						</div>
+						<details className="failure-card" key={item.key}>
+							<summary>Run failed</summary>
+							<p>{item.message}</p>
+						</details>
 					);
-				}
-				return null;
 			})}
 		</>
 	);
+}
+
+type TimelineItem =
+	| { kind: "message"; key: string; role: string; text: string }
+	| { kind: "stream"; key: string; runId: string; text: string }
+	| { kind: "tool"; key: string; label: string; payload: unknown }
+	| { kind: "failure"; key: string; message: string };
+
+function projectTimeline(events: GatewayEvent[]): TimelineItem[] {
+	const items: TimelineItem[] = [];
+	for (const event of events) {
+		const key = String(event.sequence);
+		const runId = event.scope.runId ?? "";
+		const message = event.payload?.message as
+			| { role?: string; content?: unknown }
+			| undefined;
+		if (event.event === "run.messageAppended" && message) {
+			const role = message.role ?? "assistant";
+			if (role === "assistant") {
+				const trailing = items.at(-1);
+				if (trailing?.kind === "stream" && trailing.runId === runId) items.pop();
+			}
+			items.push({
+				kind: "message",
+				key,
+				role,
+				text: messageText(message.content),
+			});
+			continue;
+		}
+		if (event.event === "engine.textDelta") {
+			const text = String(event.payload?.text ?? "");
+			const trailing = items.at(-1);
+			if (trailing?.kind === "stream" && trailing.runId === runId)
+				trailing.text += text;
+			else items.push({ kind: "stream", key, runId, text });
+			continue;
+		}
+		if (event.event.startsWith("engine.tool") || event.event.includes("Tool")) {
+			items.push({
+				kind: "tool",
+				key,
+				label: event.event.replace(/^engine\./, ""),
+				payload: event.payload,
+			});
+			continue;
+		}
+		if (event.event === "run.failed") {
+			const error = event.payload?.error as { message?: string } | undefined;
+			items.push({
+				kind: "failure",
+				key,
+				message: error?.message ?? "The run did not complete.",
+			});
+		}
+	}
+	return items;
 }
 
 function messageText(content: unknown): string {
