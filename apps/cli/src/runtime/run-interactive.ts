@@ -621,7 +621,9 @@ export async function runInteractive(
 					prompt: userInput,
 					userImages,
 					userFiles,
-				} = await buildUserInputMessage(input, userInstructionService);
+				} = await buildUserInputMessage(input, userInstructionService, {
+					mode,
+				});
 				const mergedUserImages = [
 					...(attachments?.userImages ?? []),
 					...userImages,

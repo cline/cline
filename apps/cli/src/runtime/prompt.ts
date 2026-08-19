@@ -3,7 +3,9 @@ import { homedir } from "node:os";
 import { basename, resolve } from "node:path";
 import {
 	buildWorkspaceMetadata,
+	isSkillsToolAvailable,
 	mergeRulesForSystemPrompt,
+	readGlobalSettings,
 	type UserInstructionConfigService,
 } from "@cline/core";
 import { type AgentMode, buildClineSystemPrompt } from "@cline/shared";
@@ -79,9 +81,30 @@ function resolveMentionPath(filePath: string): string {
 	return resolve(filePath);
 }
 
+/**
+ * Whether a typed `/skill` command must be textually expanded into the
+ * prompt. When the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * the typed command passes through and the instructions arrive as a tool
+ * result — keeping the persisted transcript as what the user typed. When the
+ * tool is unavailable (yolo preset, user toggle), expansion is the only
+ * delivery path.
+ */
+export function shouldExpandSkillSlashCommands(mode?: string): boolean {
+	try {
+		return !isSkillsToolAvailable({
+			mode: mode === "plan" || mode === "yolo" ? mode : "act",
+			disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+		});
+	} catch {
+		return true;
+	}
+}
+
 export async function buildUserInputMessage(
 	rawPrompt: string,
 	userInstructionService?: UserInstructionConfigService,
+	options?: { mode?: string },
 ): Promise<{
 	prompt: string;
 	userImages: string[];
@@ -90,7 +113,9 @@ export async function buildUserInputMessage(
 	// First, resolve slash commands if the core config service is available.
 	let prompt = rawPrompt;
 	if (userInstructionService) {
-		prompt = userInstructionService.resolveRuntimeSlashCommand(rawPrompt);
+		prompt = userInstructionService.resolveRuntimeSlashCommand(rawPrompt, {
+			expandSkillCommands: shouldExpandSkillSlashCommands(options?.mode),
+		});
 	}
 
 	if (!hasFileMentions(prompt)) {
