@@ -77,6 +77,20 @@ describe("onboarding model helpers", () => {
 		});
 	});
 
+	it("marks the Claude Code provider as local auth", () => {
+		expect(
+			toProviderEntry({
+				id: "claude-code",
+				name: "Claude Code",
+				models: null,
+			}),
+		).toMatchObject({
+			id: "claude-code",
+			isOAuth: false,
+			isLocalAuth: true,
+		});
+	});
+
 	it("maps model names and reasoning support strictly", () => {
 		expect(
 			toModelEntry({

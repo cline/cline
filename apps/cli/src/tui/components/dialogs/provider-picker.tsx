@@ -15,11 +15,11 @@ import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-	CODEX_CLI_INSTALL_URL,
-	type CodexCliStatus,
-	checkCodexCliInstalled,
-	isOpenAICodexCliProvider,
-} from "../../../utils/codex-cli";
+	checkLocalCliInstalled,
+	isLocalCliProvider,
+	type LocalCliProvider,
+	type LocalCliStatus,
+} from "../../../utils/local-cli-providers";
 import open from "../../../utils/open";
 import { listLocalProviders } from "../../../utils/provider-catalog";
 import { useDialogPalette } from "../../hooks/use-theme";
@@ -82,7 +82,7 @@ export function ProviderPickerContent(
 					// just a model id and base URL) still render as configured.
 					isConfigured: p.enabled === true,
 					isOAuth: isOAuthProvider(p.id),
-					isLocalAuth: isOpenAICodexCliProvider(p.id),
+					isLocalAuth: isLocalCliProvider(p.id),
 					capabilities: p.capabilities,
 				}));
 				setProviders(providerItems);
@@ -654,20 +654,21 @@ export function ProviderConfigInputContent(
 	);
 }
 
-export function CodexCliStatusContent(
+export function LocalCliStatusContent(
 	props: ChoiceContext<boolean> & {
+		cli: LocalCliProvider;
 		providerName: string;
 	},
 ) {
-	const { resolve, dismiss, dialogId, providerName } = props;
+	const { resolve, dismiss, dialogId, cli, providerName } = props;
 	const palette = useDialogPalette();
-	const [status, setStatus] = useState<CodexCliStatus | undefined>();
+	const [status, setStatus] = useState<LocalCliStatus | undefined>();
 	const [checking, setChecking] = useState(false);
 
 	const refresh = useCallback(() => {
 		setStatus(undefined);
 		setChecking(true);
-		checkCodexCliInstalled()
+		checkLocalCliInstalled(cli)
 			.then(setStatus)
 			.catch((error: unknown) => {
 				setStatus({
@@ -676,7 +677,7 @@ export function CodexCliStatusContent(
 				});
 			})
 			.finally(() => setChecking(false));
-	}, []);
+	}, [cli]);
 
 	useEffect(() => {
 		refresh();
@@ -702,22 +703,24 @@ export function CodexCliStatusContent(
 				<strong>{providerName}</strong>
 			</text>
 
-			{checking && <text fg="gray">Checking for Codex CLI...</text>}
+			{checking && <text fg="gray">Checking for {cli.cliName}...</text>}
 
 			{status?.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg={palette.success}>{"\u25cf"} Codex CLI installed</text>
+					<text fg={palette.success}>
+						{"\u25cf"} {cli.cliName} installed
+					</text>
 					<text fg="gray">{status.version}</text>
 				</box>
 			)}
 
 			{status && !status.installed && (
 				<box flexDirection="column" gap={1}>
-					<text fg="yellow">Codex CLI was not found</text>
+					<text fg="yellow">{cli.cliName} was not found</text>
 					<text fg="gray">{status.reason}</text>
-					<text fg="gray">Install Codex CLI from:</text>
+					<text fg="gray">Install {cli.cliName} from:</text>
 					<text fg={palette.act} selectable>
-						{CODEX_CLI_INSTALL_URL}
+						{cli.installUrl}
 					</text>
 				</box>
 			)}

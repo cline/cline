@@ -1135,7 +1135,11 @@ const BUILTIN_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		// gateway sends Cline's tool definitions (which the provider drops)
 		// while the CLI's own tools stay enabled with no approval plumbing —
 		// every write is refused and no prompt can appear (#13146).
-		capabilities: ["reasoning", "provider-tools"],
+		// local-auth: the spawned CLI authenticates from its own credential
+		// store (the Claude Pro/Max subscription login), so no API key is
+		// read from provider settings. Without this capability configure UIs
+		// ask for a key and readiness checks refuse a keyless entry.
+		capabilities: ["reasoning", "provider-tools", "local-auth"],
 		defaultModelId: "sonnet",
 		modelsFactory: buildClaudeCodeModels,
 		defaults: { baseUrl: "" },
