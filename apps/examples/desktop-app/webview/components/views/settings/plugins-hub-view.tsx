@@ -1,8 +1,15 @@
 "use client";
 
-import { ArrowLeft, Store } from "lucide-react";
+import { Store } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
 import { desktopClient } from "@/lib/desktop-client";
 import type { MarketplacePrimitiveType } from "@/lib/marketplace";
 import { cn } from "@/lib/utils";
@@ -18,12 +25,12 @@ import { McpServersContent } from "./mcp-view";
 /**
  * Unified Plugins hub: one page for everything installable/connectable
  * (plugins, apps/channels, MCP servers, skills) with sub-tabs showing what is
- * installed, plus a "Browse directory" mode that swaps the same page to the
- * full marketplace directory. Keeps installed vs. marketplace in one place.
+ * installed. "Browse directory" opens the marketplace directory as a modal on
+ * top of the page, so installed items and the marketplace live in one place
+ * without swapping the page out from under the user.
  */
 
 type PluginsHubTab = "plugins" | "apps" | "mcp" | "skills";
-type PluginsHubMode = "installed" | "directory";
 
 const HUB_TABS: { id: PluginsHubTab; label: string }[] = [
 	{ id: "plugins", label: "Plugins" },
@@ -61,8 +68,12 @@ function asCount(value: unknown): number {
 
 export function PluginsHubView() {
 	const [tab, setTab] = useState<PluginsHubTab>("plugins");
-	const [mode, setMode] = useState<PluginsHubMode>("installed");
+	const [directoryOpen, setDirectoryOpen] = useState(false);
 	const [counts, setCounts] = useState<HubCounts>({});
+	// Bumped when the directory modal installed/uninstalled something so the
+	// active tab remounts and refetches its inventory after the modal closes.
+	const [inventoryVersion, setInventoryVersion] = useState(0);
+	const [directoryMutated, setDirectoryMutated] = useState(false);
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, channels] = await Promise.all([
@@ -106,12 +117,23 @@ export function PluginsHubView() {
 	}, [refreshCounts]);
 
 	// Directory installs/uninstalls happen outside the per-tab views, so the
-	// shared inventory cache must be dropped for the installed tabs to refetch
-	// when the user switches back.
+	// shared inventory cache must be dropped for the installed tabs to refetch.
 	const handleDirectoryChanged = useCallback(() => {
 		invalidateExtensionInventoryCache();
+		setDirectoryMutated(true);
 		void refreshCounts();
 	}, [refreshCounts]);
+
+	const handleDirectoryOpenChange = useCallback(
+		(open: boolean) => {
+			setDirectoryOpen(open);
+			if (!open && directoryMutated) {
+				setDirectoryMutated(false);
+				setInventoryVersion((version) => version + 1);
+			}
+		},
+		[directoryMutated],
+	);
 
 	return (
 		<PageFrame>
@@ -119,105 +141,105 @@ export function PluginsHubView() {
 				description="Manage plugins, apps, MCP servers, and skills. Browse the directory to install more."
 				title="Plugins"
 				actions={
-					mode === "installed" ? (
-						<Button
-							onClick={() => setMode("directory")}
-							type="button"
-							variant="outline"
-						>
-							<Store className="size-4" />
-							Browse directory
-						</Button>
-					) : (
-						<Button
-							onClick={() => setMode("installed")}
-							type="button"
-							variant="outline"
-						>
-							<ArrowLeft className="size-4" />
-							Back to installed
-						</Button>
-					)
+					<Button
+						onClick={() => setDirectoryOpen(true)}
+						type="button"
+						variant="outline"
+					>
+						<Store className="size-4" />
+						Browse directory
+					</Button>
 				}
 			/>
 
-			{mode === "installed" ? (
-				<>
-					<div className="mb-6 flex items-center gap-0 border-b border-border">
-						{HUB_TABS.map((hubTab) => {
-							const count = counts[hubTab.id];
-							const active = tab === hubTab.id;
-							return (
-								<Button
-									aria-current={active ? "page" : undefined}
+			<div className="mb-6 flex items-center gap-0 border-b border-border">
+				{HUB_TABS.map((hubTab) => {
+					const count = counts[hubTab.id];
+					const active = tab === hubTab.id;
+					return (
+						<Button
+							aria-current={active ? "page" : undefined}
+							className={cn(
+								"relative rounded-none px-4 py-2.5 text-sm font-medium transition-colors",
+								active
+									? "text-foreground"
+									: "text-muted-foreground hover:text-foreground",
+							)}
+							key={hubTab.id}
+							onClick={() => setTab(hubTab.id)}
+							type="button"
+							variant="ghost"
+						>
+							{hubTab.label}
+							{typeof count === "number" ? (
+								<span
 									className={cn(
-										"relative rounded-none px-4 py-2.5 text-sm font-medium transition-colors",
+										"text-xs tabular-nums",
 										active
-											? "text-foreground"
-											: "text-muted-foreground hover:text-foreground",
+											? "text-muted-foreground"
+											: "text-muted-foreground/70",
 									)}
-									key={hubTab.id}
-									onClick={() => setTab(hubTab.id)}
-									type="button"
-									variant="ghost"
 								>
-									{hubTab.label}
-									{typeof count === "number" ? (
-										<span
-											className={cn(
-												"text-xs tabular-nums",
-												active
-													? "text-muted-foreground"
-													: "text-muted-foreground/70",
-											)}
-										>
-											{count}
-										</span>
-									) : null}
-									{active ? (
-										<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
-									) : null}
-								</Button>
-							);
-						})}
-					</div>
+									{count}
+								</span>
+							) : null}
+							{active ? (
+								<span className="absolute inset-x-0 -bottom-px h-0.5 bg-foreground" />
+							) : null}
+						</Button>
+					);
+				})}
+			</div>
 
-					{tab === "plugins" ? (
-						<CustomizationSectionView
-							catalogPrimitive="plugin"
+			<div key={inventoryVersion}>
+				{tab === "plugins" ? (
+					<CustomizationSectionView
+						catalogPrimitive="plugin"
+						chrome="embedded"
+						marketplaceVariant="installed"
+						onInventoryChanged={handleInventoryChanged}
+						section="Plugins"
+					/>
+				) : tab === "apps" ? (
+					<ChannelsContent
+						chrome="embedded"
+						onInventoryChanged={handleInventoryChanged}
+					/>
+				) : tab === "mcp" ? (
+					<McpServersContent
+						chrome="embedded"
+						onInventoryChanged={handleInventoryChanged}
+					/>
+				) : (
+					<CustomizationSectionView
+						catalogPrimitive="skill"
+						chrome="embedded"
+						marketplaceVariant="installed"
+						onInventoryChanged={handleInventoryChanged}
+						section="Skills"
+					/>
+				)}
+			</div>
+
+			<Dialog onOpenChange={handleDirectoryOpenChange} open={directoryOpen}>
+				<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl">
+					<DialogHeader>
+						<DialogTitle>Browse directory</DialogTitle>
+						<DialogDescription>
+							Install plugins, MCP servers, and skills from the Cline
+							marketplace.
+						</DialogDescription>
+					</DialogHeader>
+					<div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2 pb-1">
+						<MarketplaceView
 							chrome="embedded"
-							marketplaceVariant="installed"
-							onInventoryChanged={handleInventoryChanged}
-							section="Plugins"
+							defaultTypeFilter={TAB_TO_PRIMITIVE[tab]}
+							onInstalledItemsChanged={handleDirectoryChanged}
+							variant="directory"
 						/>
-					) : tab === "apps" ? (
-						<ChannelsContent
-							chrome="embedded"
-							onInventoryChanged={handleInventoryChanged}
-						/>
-					) : tab === "mcp" ? (
-						<McpServersContent
-							chrome="embedded"
-							onInventoryChanged={handleInventoryChanged}
-						/>
-					) : (
-						<CustomizationSectionView
-							catalogPrimitive="skill"
-							chrome="embedded"
-							marketplaceVariant="installed"
-							onInventoryChanged={handleInventoryChanged}
-							section="Skills"
-						/>
-					)}
-				</>
-			) : (
-				<MarketplaceView
-					chrome="embedded"
-					defaultTypeFilter={TAB_TO_PRIMITIVE[tab]}
-					onInstalledItemsChanged={handleDirectoryChanged}
-					variant="directory"
-				/>
-			)}
+					</div>
+				</DialogContent>
+			</Dialog>
 		</PageFrame>
 	);
 }
