@@ -41,7 +41,7 @@ function MessageBubble({
 	return (
 		<Message
 			className={cn(
-				"relative flex flex-col gap-2",
+				"relative mb-7 flex flex-col gap-2 last:mb-0",
 				isUser && "mt-4 first:mt-0",
 			)}
 			from={isUser ? "user" : "assistant"}

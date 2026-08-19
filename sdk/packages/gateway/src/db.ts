@@ -307,7 +307,7 @@ export const GATEWAY_MIGRATIONS: readonly GatewayMigration[] = [
 		],
 	},
 	{
-		version: 2,
+		version: 3,
 		name: "snapshot-run-config",
 		statements: ["ALTER TABLE runs ADD COLUMN config_json TEXT;"],
 	},
