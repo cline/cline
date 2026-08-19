@@ -1,11 +1,11 @@
 "use client";
 
-import { AgentAurora, AgentHeroHeading } from "@cline/ui";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { useWorkspace } from "@/contexts/workspace-context";
 import { cn } from "@/lib/utils";
 import { SessionContent } from "./session-content";
+import { WelcomeHero } from "./welcome-hero";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Prompt suggestions (including "Review changes") are temporarily disabled
@@ -164,7 +164,6 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active
@@ -181,7 +180,8 @@ export function WelcomeScreen({
 				>
 					{active ? (
 						<div className="cline-view-enter">
-							<AgentHeroHeading />
+							<h1 className="sr-only">What would you like to build?</h1>
+							<WelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center">
 								<WelcomeWorkspaceControls
