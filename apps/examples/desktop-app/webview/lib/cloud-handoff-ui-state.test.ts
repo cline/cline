@@ -84,6 +84,18 @@ describe("cloudHandoffUiReducer", () => {
 				phase: "complete",
 			}),
 		).toBe(failed);
+		const restored = cloudHandoffUiReducer(failed, {
+			type: "retry_restored",
+			sourceSessionId: "local-1",
+		});
+		expect(restored["local-1"]).toEqual({ status: "retry_restored" });
+		expect(
+			cloudHandoffUiReducer(restored, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+			}),
+		).toBe(restored);
 	});
 
 	it("lets an explicit retry replace recovery while ignoring late old progress", () => {

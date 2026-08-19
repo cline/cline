@@ -1,4 +1,8 @@
-import { cloudHandoffTranscriptsEqual, HubTransportError } from "@cline/core";
+import {
+	cloudHandoffTranscriptsEqual,
+	HubCommandError,
+	HubTransportError,
+} from "@cline/core";
 import type { HubEventEnvelope } from "@cline/shared";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { handleChatSessionCommand } from "./chat-session";
@@ -2741,6 +2745,45 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
+	it("confirms a queued prompt after an ambiguous command timeout", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.commandHook = (command) => {
+			if (command !== "session.send_input") return;
+			hub.commandHook = undefined;
+			hub.prompts.push({
+				id: "q-timeout",
+				prompt: "Queued before the timeout",
+				delivery: "queue",
+				attachmentCount: 0,
+			});
+			throw new HubCommandError(
+				"session.send_input",
+				"hub_command_timeout",
+				"timed out",
+			);
+		};
+
+		await expect(
+			manager.send("ses-outer", "Queued before the timeout", "queue"),
+		).resolves.toMatchObject({
+			ok: true,
+			queued: true,
+			recoveredAfterDisconnect: true,
+		});
+		expect(
+			hub.commands.filter((entry) => entry.command === "session.send_input"),
+		).toHaveLength(1);
+	});
+
 	it("disposes the Hub connection before deleting the outer session", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -3465,7 +3508,7 @@ describe("CloudSessionManager", () => {
 		await new Promise((resolve) => setTimeout(resolve, 0));
 	});
 
-	it("opens a known cloud session without re-fetching account scope", async () => {
+	it("falls back to a cached cloud session when fresh discovery fails", async () => {
 		const { ctx } = createContext();
 		let listCalls = 0;
 		let failListing = false;
@@ -3494,7 +3537,26 @@ describe("CloudSessionManager", () => {
 				origin: "cloud",
 			}),
 		);
-		expect(listCalls).toBe(1);
+		expect(listCalls).toBe(2);
+	});
+
+	it("does not reopen a cached cloud session removed on another device", async () => {
+		const { ctx } = createContext();
+		let sessions = [REMOTE_SESSION];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => sessions } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.list();
+		ctx.cloudSessionManager = manager;
+		sessions = [];
+
+		await expect(
+			handleCommand(ctx, "get_discovered_session", {
+				session_id: "ses-outer",
+			}),
+		).resolves.toBeNull();
 	});
 
 	it("uses only the active organization for billing and session listing", async () => {
@@ -3549,6 +3611,32 @@ describe("CloudSessionManager", () => {
 			repoUrl: "https://github.com/cline/test",
 		});
 		expect(createInput).toMatchObject({ organizationId: "org-cline-bot" });
+	});
+
+	it("keeps an explicitly personal handoff out of the active organization", async () => {
+		const { ctx } = createContext();
+		let createInput: Record<string, unknown> | undefined;
+		const scopeLookup = vi.fn(async () => "org-cline-bot");
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				create: async (input: Record<string, unknown>) => {
+					createInput = input;
+					return { sessionId: "ses-personal", sandboxUrl: "pod" };
+				},
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			getActiveOrganizationId: scopeLookup,
+		});
+
+		await manager.create({
+			modelId: "anthropic/claude-sonnet-5",
+			repoUrl: "https://github.com/cline/test",
+			organizationId: null,
+		});
+
+		expect(scopeLookup).not.toHaveBeenCalled();
+		expect(createInput?.organizationId).toBeUndefined();
 	});
 
 	it("refreshes the active organization before creating a session", async () => {

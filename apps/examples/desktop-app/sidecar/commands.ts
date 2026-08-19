@@ -1289,13 +1289,17 @@ export async function handleCommand(
 		if (!sessionId) throw new Error("session id is required");
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
-			return (
-				cloud.getCachedDiscoveryRecord(sessionId) ??
-				(await cloud.listForDiscovery()).find(
-					(session) => session.sessionId === sessionId,
-				) ??
-				null
-			);
+			try {
+				return (
+					(await cloud.listForDiscovery()).find(
+						(session) => session.sessionId === sessionId,
+					) ?? null
+				);
+			} catch {
+				// Preserve offline access, but never let a successful fresh list be
+				// shadowed forever by a session deleted on another device.
+				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
+			}
 		}
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}

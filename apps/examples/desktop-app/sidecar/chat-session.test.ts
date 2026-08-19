@@ -8,11 +8,13 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { selectCloudHandoffModel } from "@cline/core";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	assertSessionDeleteAllowedDuringHandoff,
 	buildSessionConnectionUpdate,
+	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
 	handleChatSessionCommand,
 	hasProviderChanged,
@@ -30,6 +32,30 @@ import {
 	CloudSessionError,
 } from "./cloud-sessions";
 import type { SidecarContext } from "./types";
+
+describe("cloud handoff model catalog", () => {
+	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
+		const models = combineCloudHandoffModels({
+			catalog: [{ id: "shared/model", name: "Shared", catalogId: "cline" }],
+			clinePass: [
+				{ id: "shared/model", name: "Shared Pass", catalogId: "cline-pass" },
+			],
+			clineCloud: [],
+		});
+
+		expect(
+			selectCloudHandoffModel({
+				localModelId: "shared/model",
+				models,
+				isOrganizationSession: true,
+			}),
+		).toMatchObject({
+			modelId: "shared/model",
+			catalogId: "cline",
+			usedFallback: false,
+		});
+	});
+});
 
 describe("rewriteDesktopTeamPrompt", () => {
 	it("rewrites /team for the core runtime", () => {

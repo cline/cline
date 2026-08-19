@@ -814,17 +814,6 @@ function ChatThreadPane({
 		readHandoffReceipt(historySession?.metadata);
 	const handoffExternalPresentation =
 		handoffUi?.status === "complete" && handoffUi.externalPresentation;
-	useEffect(() => {
-		if (!sourceSessionId || !handoffRetry) return;
-		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
-		if (handoffRetry.attachments?.length) {
-			setPendingAttachments([...handoffRetry.attachments]);
-		}
-		onHandoffUiAction({
-			type: "retry_restored",
-			sourceSessionId,
-		});
-	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
 	const { user: accountUser } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	useEffect(() => {
@@ -1362,6 +1351,21 @@ function ChatThreadPane({
 		setPromptInput,
 		threadId,
 	]);
+
+	// Hydrate first, then restore a failed handoff's draft and attachments. If
+	// this ran above the hydration effect, hydration would immediately wipe the
+	// only retained retry payload after navigation back to the source session.
+	useEffect(() => {
+		if (!sourceSessionId || !handoffRetry) return;
+		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
+		if (handoffRetry.attachments?.length) {
+			setPendingAttachments([...handoffRetry.attachments]);
+		}
+		onHandoffUiAction({
+			type: "retry_restored",
+			sourceSessionId,
+		});
+	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
 
 	const runHandoff = useCallback(
 		async (

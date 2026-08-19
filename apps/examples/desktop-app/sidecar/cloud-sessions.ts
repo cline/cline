@@ -6,6 +6,7 @@ import {
 	ClineAccountService,
 	CloudHandoffTranscriptMismatchError,
 	cloudHandoffTranscriptsEqual,
+	isHubCommandTimeoutError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
 	ProviderSettingsManager,
@@ -81,8 +82,8 @@ export type CreateCloudSessionInput = {
 	autoApproveTools?: boolean;
 	thinking?: boolean;
 	reasoningEffort?: "low" | "medium" | "high" | "xhigh";
-	/** Omit for a personal session; otherwise scopes billing to this org. */
-	organizationId?: string;
+	/** Null selects personal scope; omit to use the currently active scope. */
+	organizationId?: string | null;
 	/** Desktop handoff-only hooks; never serialized into the provisioning API body. */
 	handoff?: {
 		sourceSessionId: string;
@@ -572,9 +573,10 @@ export class CloudSessionApi {
 					(await this.options.getAuthToken().catch(() => undefined))?.trim() ||
 					creationAuthToken;
 				const candidates = (
-					await this.listWithToken(input.organizationId, recoveryToken).catch(
-						() => [],
-					)
+					await this.listWithToken(
+						input.organizationId ?? undefined,
+						recoveryToken,
+					).catch(() => [])
 				)
 					.filter(
 						(session) =>
@@ -1492,7 +1494,9 @@ export class CloudSessionManager {
 
 	async create(input: CreateCloudSessionInput): Promise<JsonRecord> {
 		const key = [
-			input.organizationId?.trim() ?? "",
+			input.organizationId === null
+				? "personal"
+				: (input.organizationId?.trim() ?? "active"),
 			input.repoUrl,
 			input.branch?.trim() ?? "",
 			input.modelId,
@@ -1639,8 +1643,9 @@ export class CloudSessionManager {
 		input: CreateCloudSessionInput,
 	): Promise<JsonRecord> {
 		const organizationId =
-			input.organizationId ??
-			(await this.resolveActiveOrganizationId({ fresh: true }));
+			input.organizationId === undefined
+				? await this.resolveActiveOrganizationId({ fresh: true })
+				: (input.organizationId ?? undefined);
 		const created = await this.options.api.create({
 			...input,
 			organizationId,
@@ -1874,7 +1879,10 @@ export class CloudSessionManager {
 				result: reply.payload?.result,
 			};
 		} catch (error) {
-			if (isHubReconnectableTransportError(error)) {
+			if (
+				isHubReconnectableTransportError(error) ||
+				isHubCommandTimeoutError(error, "session.send_input")
+			) {
 				let snapshot: CloudRehydrationSnapshot;
 				try {
 					snapshot = await this.rehydrateAfterTransportDrop(
