@@ -7,7 +7,7 @@ import {
 	APP_FONT_SIZE_STORAGE_KEY,
 	applyAppZoomAction,
 } from "@/lib/app-font-size";
-import { SettingsView } from "./settings-view";
+import { isProviderCatalogFresh, SettingsView } from "./settings-view";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 vi.mock("@/lib/desktop-client", () => ({
@@ -104,6 +104,12 @@ describe("SettingsView font size", () => {
 });
 
 describe("SettingsView generate media configuration", () => {
+	it("treats expired cached provider catalogs as loading", () => {
+		expect(isProviderCatalogFresh(1_000, 60_999)).toBe(true);
+		expect(isProviderCatalogFresh(1_000, 61_000)).toBe(false);
+		expect(isProviderCatalogFresh(undefined, 61_000)).toBe(false);
+	});
+
 	it("loads Tools provider data, expands from the card, and saves before enabling", async () => {
 		const disabledTool = {
 			id: "generate_media",

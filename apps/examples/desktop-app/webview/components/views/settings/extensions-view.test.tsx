@@ -303,6 +303,54 @@ describe("CustomizationSectionView Generate media tool", () => {
 		).toBeNull();
 	});
 
+	it("blocks enablement while the provider catalog is refreshing", async () => {
+		const disabledTool = {
+			id: "generate_media",
+			name: "generate_media",
+			description: "Generate media from a prompt.",
+			enabled: false,
+			source: "builtin",
+			headlessToolNames: ["generate_media"],
+		};
+		invoke.mockImplementation(async (command: string) => {
+			if (command === "list_user_instruction_configs") {
+				return { ...emptyInstructionLists, tools: [disabledTool] };
+			}
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		await act(async () => {
+			root.render(
+				<CustomizationSectionView
+					generateMediaConfig={generateMediaConfig({
+						loading: true,
+						mediaTypes: [
+							imageMediaConfiguration({
+								providerId: "vercel-ai-gateway",
+								modelId: "imagen",
+							}),
+						],
+					})}
+					section="Tools"
+				/>,
+			);
+		});
+		await act(async () => {
+			await new Promise((resolve) => setTimeout(resolve, 10));
+		});
+
+		const toggle = container.querySelector<HTMLButtonElement>(
+			'button[aria-label="Toggle generate_media"]',
+		);
+		expect(toggle?.disabled).toBe(true);
+		expect(container.textContent).toContain("Checking setup");
+		act(() => toggle?.click());
+		expect(invoke).not.toHaveBeenCalledWith(
+			"set_tool_disabled",
+			expect.anything(),
+		);
+	});
+
 	it.each([
 		[
 			"disabled provider",

@@ -1922,13 +1922,17 @@ export function CustomizationSectionView({
 									const isToggling = togglingToolIds.has(tool.id);
 									const isGenerateMedia = tool.id === "generate_media";
 									const isExpanded = expandedToolIds.has(tool.id);
+									const mediaConfigurationLoading =
+										isGenerateMedia && generateMediaConfig?.loading === true;
 									const hasMediaConfiguration = Boolean(
 										generateMediaConfig?.mediaTypes.some((media) =>
 											isValidMediaSelection(generateMediaConfig, media),
 										),
 									);
 									const setupRequired =
-										isGenerateMedia && !hasMediaConfiguration;
+										isGenerateMedia &&
+										!mediaConfigurationLoading &&
+										!hasMediaConfiguration;
 									const effectivelyEnabled = tool.enabled && !setupRequired;
 									const summary = (
 										<>
@@ -1984,18 +1988,24 @@ export function CustomizationSectionView({
 															: "text-muted-foreground",
 													)}
 												>
-													{setupRequired
-														? "Setup required"
-														: effectivelyEnabled
-															? "Enabled"
-															: "Disabled"}
+													{mediaConfigurationLoading
+														? "Checking setup"
+														: setupRequired
+															? "Setup required"
+															: effectivelyEnabled
+																? "Enabled"
+																: "Disabled"}
 												</span>
 												<Switch
 													checked={effectivelyEnabled}
 													onCheckedChange={(checked) => {
 														void setToolEnabled(tool, checked);
 													}}
-													disabled={isToggling || setupRequired}
+													disabled={
+														isToggling ||
+														setupRequired ||
+														mediaConfigurationLoading
+													}
 													aria-label={`Toggle ${tool.name}`}
 												/>
 											</div>
