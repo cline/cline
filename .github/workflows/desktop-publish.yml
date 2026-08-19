@@ -11,6 +11,14 @@ on:
         description: 'Type "publish" to confirm the desktop release.'
         required: true
         type: string
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        options:
+          - stable
+          - beta
+        default: stable
 
 permissions:
   contents: read
@@ -30,6 +38,9 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
+      channel: ${{ steps.version.outputs.channel }}
+      feed: ${{ steps.version.outputs.feed }}
+      product: ${{ steps.version.outputs.product }}
     steps:
       # Companion to the presence check in `build`, and the half that actually
       # establishes scope. This job declares no environment, so a signing secret
@@ -81,11 +92,41 @@ jobs:
         id: version
         env:
           TAG: ${{ github.event.inputs.git_tag }}
+          # inputs.* (not github.event.inputs.*) so the declared default
+          # applies when an API dispatch omits the channel input entirely.
+          CHANNEL: ${{ inputs.channel }}
         run: |
-          if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$'; then
-            echo "git_tag must look like desktop-vX.Y.Z, got: ${TAG}"
-            exit 1
-          fi
+          # Fail-closed channel mapping: every channel defines its tag shape,
+          # its ancestry source, its feed, and its product name, and an unknown
+          # channel dies here. The feed assignment is the load-bearing one —
+          # the updater comparator is a plain semver "newer than", so a beta
+          # manifest landing on desktop-latest would auto-update every stable
+          # install onto the beta. The stable regex rejects prerelease
+          # suffixes for the same reason.
+          case "$CHANNEL" in
+            stable)
+              if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "stable git_tag must look like desktop-vX.Y.Z with no suffix, got: ${TAG}"
+                exit 1
+              fi
+              ANCESTOR_REF=main
+              FEED=desktop-latest
+              PRODUCT="Cline Code"
+              ;;
+            beta)
+              if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'; then
+                echo "beta git_tag must look like desktop-vX.Y.Z-beta.N, got: ${TAG}"
+                exit 1
+              fi
+              ANCESTOR_REF=desktop-experimental
+              FEED=desktop-beta
+              PRODUCT="Cline Code Beta"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
 
           VERSION="${TAG#desktop-v}"
           PACKAGE_VERSION=$(node -p "require('./apps/examples/desktop-app/package.json').version")
@@ -108,14 +149,17 @@ jobs:
             exit 1
           fi
 
-          git fetch origin +main:refs/remotes/origin/main
-          if ! git merge-base --is-ancestor "$HEAD_COMMIT" origin/main; then
-            echo "${TAG} is not reachable from origin/main"
+          git fetch origin "+${ANCESTOR_REF}:refs/remotes/origin/${ANCESTOR_REF}"
+          if ! git merge-base --is-ancestor "$HEAD_COMMIT" "origin/${ANCESTOR_REF}"; then
+            echo "${TAG} is not reachable from origin/${ANCESTOR_REF}"
             exit 1
           fi
 
           echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
           echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "feed=${FEED}" >> "$GITHUB_OUTPUT"
+          echo "product=${PRODUCT}" >> "$GITHUB_OUTPUT"
 
   build:
     name: Build macOS (universal)
@@ -126,6 +170,25 @@ jobs:
     # run. Defense in depth: this `if` is advisory because a dispatched branch
     # runs its own copy of this file; the enforced gate is the PublishDesktop
     # environment's deployment-branch policy, which must also allow only main.
+    #
+    # Beta releases do not weaken this: a beta publish is ALSO dispatched from
+    # main (so this gate, the branch policy, and the workflow file executed all
+    # stay main's) — only the checked-out tag points into desktop-experimental,
+    # which validate pins via the ancestry check. A workflow copy edited on
+    # desktop-experimental can therefore never reach the signing secrets.
+    #
+    # What dispatch-from-main does NOT protect: the checked-out tag's own
+    # build scripts (bun install hooks, build:sdk, Tauri's beforeBuildCommand,
+    # build.rs) run inside this job with the signing secrets in scope, for
+    # stable and beta alike. The control for that is this environment's
+    # required-reviewer approval — the approver is vouching for the code the
+    # tag points at, not just for "a release happening". Two consequences:
+    # desktop-experimental must keep main-grade merge controls (branch
+    # protection, maintainer-only pushes), and an approval should only follow
+    # a look at what the tag actually contains. Building betas without these
+    # secrets is not an option: unsigned bundles fail Gatekeeper and updater
+    # artifacts must be signed with the same key or beta installs cannot
+    # verify their updates.
     if: github.ref == 'refs/heads/main'
     environment: PublishDesktop
     runs-on: macos-latest
@@ -223,8 +286,13 @@ jobs:
 
       - name: Build, sign, and notarize desktop bundle
         working-directory: apps/examples/desktop-app
-        run: bunx tauri build --target universal-apple-darwin --config src-tauri/tauri.release.conf.json
+        # Tauri merges repeated --config flags in order, so the beta overlay
+        # (product name, bundle identifier, beta update feed) layers on top of
+        # the release overlay without duplicating it. $CONFIG_ARGS is
+        # deliberately unquoted: it must word-split into separate flags.
+        run: bunx tauri build --target universal-apple-darwin $CONFIG_ARGS
         env:
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
           # Telemetry config for the sidecar binary. Tauri's beforeBuildCommand
           # (`bun run build` -> build:sidecar:bin) compiles the sidecar during
           # this step and inlines these values into the binary via `--define`
@@ -258,8 +326,10 @@ jobs:
       # sidecar would otherwise ship fine and only crash on the other arch.
       - name: Verify bundle is a universal binary
         working-directory: apps/examples/desktop-app
+        env:
+          PRODUCT: ${{ needs.validate.outputs.product }}
         run: |
-          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/Cline Code.app"
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/${PRODUCT}.app"
           if [ ! -d "$APP" ]; then
             echo "app bundle not found at $APP"
             exit 1
@@ -275,6 +345,57 @@ jobs:
                 ;;
             esac
           done
+
+      # Guardrail: the updater endpoint is compiled into the main binary as a
+      # string literal (tauri-build embeds the merged config via codegen), so
+      # assert the bundle carries this channel's feed URL and not the other
+      # channel's, before anything gets signed into a release. This catches a
+      # --config overlay that silently failed to apply: a beta bundle polling
+      # desktop-latest would pull its users onto stable builds, and a stable
+      # bundle polling desktop-beta would push betas to every stable install.
+      - name: Verify updater feed endpoint
+        working-directory: apps/examples/desktop-app
+        env:
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/${PRODUCT}.app"
+          case "$CHANNEL" in
+            stable)
+              WANT="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-beta/latest.json"
+              ;;
+            beta)
+              WANT="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-latest/latest.json"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+
+          # Plain grep >/dev/null rather than grep -q: -q exits at the first
+          # match, SIGPIPEs strings, and would read as a failed pipeline under
+          # pipefail.
+          found=0
+          for bin in "$APP/Contents/MacOS/"*; do
+            if strings -a "$bin" | grep "$FORBID" >/dev/null; then
+              echo "$bin embeds the other channel's feed URL (${FORBID})"
+              exit 1
+            fi
+            if strings -a "$bin" | grep "$WANT" >/dev/null; then
+              found=1
+            fi
+          done
+
+          if [ "$found" -ne 1 ]; then
+            echo "No binary in ${APP}/Contents/MacOS embeds ${WANT}."
+            echo "The updater endpoint overlay did not apply; check the"
+            echo "--config flags on the build step and tauri.beta.conf.json."
+            exit 1
+          fi
+          echo "Updater endpoint verified: ${WANT}"
 
       # Guardrail: assert the telemetry config actually made it into the
       # compiled sidecar. Missing env on the build step (or a regression in
@@ -308,25 +429,29 @@ jobs:
         working-directory: apps/examples/desktop-app
         env:
           VERSION: ${{ needs.validate.outputs.version }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
         run: |
           BUNDLE_DIR="src-tauri/target/universal-apple-darwin/release/bundle"
           OUT="dist/publish"
           mkdir -p "$OUT"
+
+          # "Cline Code" -> Cline-Code, "Cline Code Beta" -> Cline-Code-Beta
+          PREFIX="${PRODUCT// /-}"
 
           DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -print -quit)
           if [ -z "$DMG" ]; then
             echo "no DMG produced under $BUNDLE_DIR/dmg"
             exit 1
           fi
-          cp "$DMG" "$OUT/Cline-Code_${VERSION}_universal.dmg"
+          cp "$DMG" "$OUT/${PREFIX}_${VERSION}_universal.dmg"
 
           TARBALL=$(find "$BUNDLE_DIR/macos" -name '*.app.tar.gz' -print -quit)
           if [ -z "$TARBALL" ] || [ ! -f "${TARBALL}.sig" ]; then
             echo "updater artifact or signature missing under $BUNDLE_DIR/macos"
             exit 1
           fi
-          cp "$TARBALL" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz"
-          cp "${TARBALL}.sig" "$OUT/Cline-Code_${VERSION}_universal.app.tar.gz.sig"
+          cp "$TARBALL" "$OUT/${PREFIX}_${VERSION}_universal.app.tar.gz"
+          cp "${TARBALL}.sig" "$OUT/${PREFIX}_${VERSION}_universal.app.tar.gz.sig"
 
           ls -lh "$OUT"
 
@@ -364,9 +489,18 @@ jobs:
 
       - name: Get Changelog Entry
         id: changelog
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          # Grab content between the first "## " header and the next one
-          CONTENT=$(awk '/^## [0-9]/{if(found) exit; found=1; next} found{print}' apps/examples/desktop-app/CHANGELOG.md)
+          # Grab content between this release's "## <version>" header and the
+          # next one. Exact match, not "first section": once main and
+          # desktop-experimental cross-merge, stable and beta sections
+          # interleave and the top section may belong to the other channel.
+          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
+          if [ -z "$CONTENT" ]; then
+            echo "No '## ${VERSION}' section found in apps/examples/desktop-app/CHANGELOG.md"
+            exit 1
+          fi
           echo "content<<EOF" >> $GITHUB_OUTPUT
           echo "$CONTENT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT
@@ -390,8 +524,15 @@ jobs:
         id: prev_tag
         env:
           CURRENT_TAG: ${{ needs.validate.outputs.tag }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
         run: |
-          PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          # Stable compare links skip beta tags so they read stable -> stable;
+          # beta compares against whatever shipped last on either channel.
+          if [ "$CHANNEL" = "stable" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --exclude 'desktop-v*-beta*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          else
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          fi
           echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
 
       - name: Create GitHub Release
@@ -402,6 +543,7 @@ jobs:
           # The repo-wide "latest" release stays owned by CLI releases; the
           # desktop auto-update feed is the rolling desktop-latest release.
           make_latest: "false"
+          prerelease: ${{ needs.validate.outputs.channel == 'beta' }}
           files: dist/desktop/*
           body: |
             ${{ steps.changelog.outputs.content }}
@@ -410,27 +552,58 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update auto-update feed (desktop-latest)
+      - name: Update auto-update feed
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+          FEED: ${{ needs.validate.outputs.feed }}
         run: |
-          if ! gh release view desktop-latest >/dev/null 2>&1; then
-            gh release create desktop-latest \
-              --title "Cline Code desktop (auto-update feed)" \
-              --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
-              --latest=false \
-              --target "$(git rev-parse HEAD)"
+          # Belt and braces: recompute the feed from the channel and require it
+          # to agree with validate's output, so no single threading bug can
+          # point a publish at the other channel's feed. Stable installs poll
+          # desktop-latest and beta installs poll desktop-beta; crossing the
+          # streams either pushes betas to every stable user or strands beta
+          # users on stale builds.
+          case "$CHANNEL" in
+            stable) EXPECTED_FEED=desktop-latest ;;
+            beta) EXPECTED_FEED=desktop-beta ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+          if [ "$FEED" != "$EXPECTED_FEED" ]; then
+            echo "feed mismatch: validate says '${FEED}' but channel '${CHANNEL}' expects '${EXPECTED_FEED}'"
+            exit 1
           fi
-          gh release upload desktop-latest dist/desktop/latest.json --clobber
+
+          if ! gh release view "$FEED" >/dev/null 2>&1; then
+            if [ "$CHANNEL" = "beta" ]; then
+              gh release create "$FEED" \
+                --title "Cline Code desktop beta (auto-update feed)" \
+                --notes "Rolling release backing the beta desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z-beta.N release. Only beta installs poll this feed; stable installs use desktop-latest. Do not delete." \
+                --latest=false \
+                --prerelease \
+                --target "$(git rev-parse HEAD)"
+            else
+              gh release create "$FEED" \
+                --title "Cline Code desktop (auto-update feed)" \
+                --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
+                --latest=false \
+                --target "$(git rev-parse HEAD)"
+            fi
+          fi
+          gh release upload "$FEED" dist/desktop/latest.json --clobber
 
       - name: Summary
         env:
           VERSION: ${{ needs.validate.outputs.version }}
           TAG: ${{ needs.validate.outputs.tag }}
+          FEED: ${{ needs.validate.outputs.feed }}
         run: |
           echo "Published Cline Code desktop v${VERSION}"
           echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
-          echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/desktop-latest/latest.json"
+          echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
 
       - name: Post release to Slack
         uses: slackapi/slack-github-action@v3.0.1
@@ -439,12 +612,12 @@ jobs:
           token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
           payload: |
             channel: "C0APVKGGZFC"
-            text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+            text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
             blocks:
               - type: "section"
                 text:
                   type: "mrkdwn"
-                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}"
+                  text: "Cline Code desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
               - type: "section"
                 text:
                   type: "mrkdwn"
@@ -452,4 +625,4 @@ jobs:
               - type: "context"
                 elements:
                   - type: "mrkdwn"
-                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — installed apps auto-update on next launch${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"

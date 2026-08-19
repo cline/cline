@@ -24,6 +24,7 @@ import type {
 	ChatMessageImage,
 	ChatMessageMedia,
 } from "@/lib/chat-schema";
+import { cn } from "@/lib/utils";
 import { MemoizedMarkdown } from "../../../ui/markdown";
 import { formatChatMessageContent } from "../message-content";
 import { ReasoningBlock } from "./reasoning-block";
@@ -174,6 +175,7 @@ export const MessageBubble = memo(function MessageBubble({
 	forkPending = false,
 	forkError,
 	isLastAssistantMessage = false,
+	followsWorkingRows = false,
 	reasoningContent,
 	reasoningRedacted,
 	thoughtDurationMilliseconds,
@@ -205,6 +207,9 @@ export const MessageBubble = memo(function MessageBubble({
 	forkPending?: boolean;
 	forkError?: string;
 	isLastAssistantMessage?: boolean;
+	/** Pulls the bubble closer to the working rows (tool calls/run summary)
+	 * directly above it, which it answers. */
+	followsWorkingRows?: boolean;
 	reasoningContent: string;
 	reasoningRedacted: boolean;
 	thoughtDurationMilliseconds?: number;
@@ -255,10 +260,19 @@ export const MessageBubble = memo(function MessageBubble({
 		</time>
 	) : null;
 
-	// Spacing between blocks comes solely from the conversation list's `gap-8`
-	// and this content column's `gap-2`; blocks must not add their own margins.
+	// Spacing between blocks comes from the conversation list's `gap-4` and
+	// this content column's `gap-2`, with two exceptions: a user message opens
+	// a new turn so it adds top margin, and an answer under its run's working
+	// rows pulls itself closer to them.
 	return (
-		<AgentMessage className="relative flex flex-col gap-2" from={agentRole}>
+		<AgentMessage
+			className={cn(
+				"relative flex flex-col gap-2",
+				isUser && "mt-4 first:mt-0",
+				followsWorkingRows && "-mt-2",
+			)}
+			from={agentRole}
+		>
 			<MessageContent className="flex min-w-0 flex-col gap-2 wrap-break-word">
 				{reasoningContent || reasoningRedacted ? (
 					<ReasoningBlock

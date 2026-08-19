@@ -581,6 +581,12 @@ export function requestSidecarAskQuestion(
 	options: string[],
 	context: AgentToolContext,
 ): Promise<string> {
+	const sessionId = context.sessionId?.trim();
+	if (!sessionId) {
+		return Promise.reject(
+			new Error("ask_question requires an active session ID"),
+		);
+	}
 	const choices = options
 		.map((option) => option.trim())
 		.filter((option) => option.length > 0)
@@ -606,6 +612,7 @@ export function requestSidecarAskQuestion(
 		const pending: PendingAskQuestion = {
 			item: {
 				requestId,
+				sessionId,
 				createdAt: new Date().toISOString(),
 				question,
 				options: choices,

@@ -1241,6 +1241,12 @@ export async function handleCommand(
 		});
 		return true;
 	}
+	if (command === "poll_ask_questions") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		return Array.from(ctx.pendingQuestions.values())
+			.filter((question) => question.item.sessionId === sessionId)
+			.map((question) => question.item);
+	}
 	if (command === "respond_ask_question") {
 		const requestId = String(args?.requestId ?? "").trim();
 		if (!requestId) {

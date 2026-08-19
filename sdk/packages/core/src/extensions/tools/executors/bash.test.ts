@@ -33,6 +33,40 @@ describe("createShellExecutor", () => {
 		expect(output.trim()).toBe("hello");
 	});
 
+	it("runs an object-form command with no args as a shell command line", async () => {
+		// Models emit e.g. { command: "echo hello" } — a full command line in
+		// the object form. Spawning it verbatim fails with ENOENT; it must be
+		// routed through the shell like the string form.
+		const shell = createShellExecutor();
+		const output = await shell({ command: "echo hello" }, process.cwd(), ctx);
+		expect(output.trim()).toBe("hello");
+	});
+
+	it("keeps an object-form command with an explicit empty args array as direct exec", async () => {
+		const shell = createShellExecutor();
+		// An args key, even empty, marks structured input: the command is
+		// spawned verbatim rather than reinterpreted as a shell line, so a
+		// spaced command string fails instead of being split by the shell.
+		await expect(
+			shell({ command: "echo hello", args: [] }, process.cwd(), ctx),
+		).rejects.toThrow("Failed to execute command");
+	});
+
+	it("execs an object-form command with args directly without shell parsing", async () => {
+		const shell = createShellExecutor();
+		// The shell-metachar argument arrives verbatim, proving the argv is
+		// passed straight to the executable rather than re-parsed by a shell.
+		const output = await shell(
+			{
+				command: process.execPath,
+				args: ["-e", "process.stdout.write(process.argv[1])", "argv $HOME ok"],
+			},
+			process.cwd(),
+			ctx,
+		);
+		expect(output).toBe("argv $HOME ok");
+	});
+
 	it("rejects on non-zero exit code", async () => {
 		const shell = createShellExecutor();
 		await expect(shell("exit 1", process.cwd(), ctx)).rejects.toThrow();
