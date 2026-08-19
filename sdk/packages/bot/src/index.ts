@@ -13,7 +13,7 @@
  * See `src/boundaries.test.ts` for the machine-checked rules.
  */
 
-export type { SubmitPromptOptions } from "./bot";
+export type { SubmitPromptOptions, SubmitToSessionOptions } from "./bot";
 export { Bot } from "./bot";
 export type {
 	ConnectorDescriptor,
@@ -85,6 +85,7 @@ export type {
 	MemorySource,
 	RunRecord,
 	RunRepository,
+	SessionKind,
 	SessionRecord,
 	SessionRepository,
 	WorkspaceRef,
