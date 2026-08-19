@@ -198,10 +198,10 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
-// The sidecar caps provisioning at 610s and all subsequent Hub commands have
-// finite deadlines. Keep the UI above that bound without waiting forever for
-// a lost transport response.
-const HANDOFF_INVOKE_TIMEOUT_MS = 15 * 60_000;
+// create() can spend one 610s window on the original POST and another on
+// timeout recovery. Leave room for auth, Hub attach, seeding, and verification
+// without waiting forever for a lost transport response.
+const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
@@ -2202,13 +2202,16 @@ function ChatThreadPane({
 	const activeSessionToDelete = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
+	const handoffDeleteLocked = Boolean(
+		handoffProgress || pendingHandoffRecovery,
+	);
 
 	const requestDeleteSession = useCallback(() => {
-		if (!activeSessionToDelete || deletingSession) {
+		if (!activeSessionToDelete || deletingSession || handoffDeleteLocked) {
 			return;
 		}
 		setDeleteConfirmOpen(true);
-	}, [activeSessionToDelete, deletingSession]);
+	}, [activeSessionToDelete, deletingSession, handoffDeleteLocked]);
 
 	const handleDeleteSession = useCallback(async () => {
 		if (!activeSessionToDelete || deletingSession) {
@@ -2807,7 +2810,9 @@ function ChatThreadPane({
 							canEditTitle={
 								Boolean(activeSessionForTitle) && !isProvisioningCloudSession
 							}
-							canDeleteSession={Boolean(activeSessionToDelete)}
+							canDeleteSession={
+								Boolean(activeSessionToDelete) && !handoffDeleteLocked
+							}
 							deletingSession={deletingSession}
 							diff={isCloudSession ? undefined : headerDiff}
 							onDeleteSession={requestDeleteSession}

@@ -61,6 +61,16 @@ describe("parseCloudSessionError", () => {
 		).toBe("Switch to Personal and try again.");
 	});
 
+	it("replaces malformed environment mismatch details with actionable copy", () => {
+		expect(
+			humanizeCloudSessionError(
+				"The session belongs to environment undefined, not [object Object].",
+			),
+		).toBe(
+			"Cline Code couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
+		);
+	});
+
 	it("reassures handoff users when Cline Cloud is unreachable", () => {
 		for (const message of [
 			"fetch failed",

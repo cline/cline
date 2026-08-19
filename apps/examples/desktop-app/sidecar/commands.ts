@@ -1999,11 +1999,19 @@ export async function handleCommand(
 			await cloud.delete(sessionId);
 			return true;
 		}
+		const { assertSessionDeleteAllowedDuringHandoff } = await import(
+			"./chat-session"
+		);
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			sessionId,
+			binding?.sessionManager,
+		);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {
