@@ -62,9 +62,18 @@ export async function getProviderCollection(
 export async function getModelsForProvider(
 	providerId: string,
 ): Promise<Record<string, ModelInfo>> {
+	return getModelsForProviderSync(providerId) ?? {};
+}
+
+export function getModelsForProviderSync(
+	providerId: string,
+): Record<string, ModelInfo> | undefined {
 	const collection = getProviderFromCache(providerId);
-	const builtInModels = collection?.models ?? {};
 	const customModels = CUSTOM_MODELS.get(providerId);
+	if (!collection && !customModels) {
+		return undefined;
+	}
+	const builtInModels = collection?.models ?? {};
 	if (customModels) {
 		return { ...builtInModels, ...Object.fromEntries(customModels) };
 	}
