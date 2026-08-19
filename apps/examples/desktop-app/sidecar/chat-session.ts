@@ -9,6 +9,7 @@ import {
 	createSessionCompactionState,
 	createUserInstructionConfigService,
 	getCoreBuiltinToolCatalog,
+	isSkillsToolAvailable,
 	projectSessionCompactionState,
 	readGlobalSettings,
 	type SessionCompactionState,
@@ -101,15 +102,21 @@ const BUILTIN_SLASH_COMMAND_NAMES = new Set(["fork", "team"]);
 
 /**
  * Expand a leading `/skill` or `/workflow` token into its configured
- * instructions before dispatching the prompt, mirroring the CLI's
- * `buildUserInputMessage`. Returns the prompt unchanged when it is not a
- * slash command, the token is a built-in, no command matches, or command
- * discovery fails.
+ * instructions before dispatching the prompt. Skill commands pass through as
+ * typed whenever the session registers the runtime's `skills` tool (its
+ * description requires the model to invoke it on slash-command references),
+ * so the instructions reach the model as a tool result instead of being
+ * pasted into the user message — where the transcript would render them as
+ * if the user had typed the whole skill body. Workflows, and skills in
+ * configurations without the tool (e.g. yolo mode), keep textual expansion.
+ * Returns the prompt unchanged when it is not a slash command, the token is
+ * a built-in, no command matches, or command discovery fails.
  */
 async function expandRuntimeSlashCommand(
 	ctx: SidecarContext,
 	workspacePath: string | undefined,
 	prompt: string,
+	mode?: unknown,
 ): Promise<string> {
 	if (!prompt.startsWith("/") || prompt.length < 2) {
 		return prompt;
@@ -125,7 +132,12 @@ async function expandRuntimeSlashCommand(
 	});
 	try {
 		await service.start();
-		return service.resolveRuntimeSlashCommand(prompt);
+		return service.resolveRuntimeSlashCommand(prompt, {
+			expandSkillCommands: !isSkillsToolAvailable({
+				mode: mode === "plan" || mode === "yolo" ? mode : "act",
+				disabledToolIds: new Set(readGlobalSettings().disabledTools ?? []),
+			}),
+		});
 	} catch (error) {
 		ctx.logger?.debug("Slash command expansion failed, sending raw prompt", {
 			error,
@@ -188,7 +200,7 @@ async function resolveDesktopRuntimePrompt(
 	mode?: unknown,
 ): Promise<string> {
 	return rewriteDesktopTeamPrompt(
-		await expandRuntimeSlashCommand(ctx, workspacePath, prompt),
+		await expandRuntimeSlashCommand(ctx, workspacePath, prompt, mode),
 		{ mode },
 	);
 }

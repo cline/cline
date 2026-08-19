@@ -75,6 +75,7 @@ export {
 	getCoreBuiltinToolCatalog,
 	getCoreDefaultEnabledToolIds,
 	getCoreHeadlessToolNames,
+	isSkillsToolAvailable,
 	resolveCoreSelectedToolIds,
 	type ToolCatalogEntry,
 } from "./runtime";

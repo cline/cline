@@ -367,7 +367,7 @@ function createUserInstructionServiceProxy(
 			type: UserInstructionConfigType,
 		) => [...snapshot.records[type]] as UserInstructionConfigRecord<TConfig>[],
 		listRuntimeCommands: () => [...snapshot.runtimeCommands],
-		resolveRuntimeSlashCommand: (input) => {
+		resolveRuntimeSlashCommand: (input, options) => {
 			if (!input.startsWith("/") || input.length < 2) return input;
 			const match = input.match(/^\/(\S+)/);
 			const rawName = match?.[1];
@@ -379,9 +379,11 @@ function createUserInstructionServiceProxy(
 			const command = snapshot.runtimeCommands.find(
 				(item) => normalizeRuntimeCommandName(item.name) === name,
 			);
-			return command
-				? `${command.instructions}${input.slice(rawName.length + 1)}`
-				: input;
+			if (!command) return input;
+			if (command.kind === "skill" && options?.expandSkillCommands === false) {
+				return input;
+			}
+			return `${command.instructions}${input.slice(rawName.length + 1)}`;
 		},
 		hasConfiguredSkills: (allowedSkillNames) =>
 			configuredSkills(snapshot, allowedSkillNames).some(
