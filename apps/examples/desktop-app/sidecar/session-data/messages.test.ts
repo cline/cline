@@ -79,15 +79,11 @@ describe("readSessionMessages", () => {
 			}),
 			expect.objectContaining({
 				id: "assistant-message_tool_use_2",
-<<<<<<< HEAD
-				createdAt: assistantTimestamp,
+				createdAt: assistantTimestamp + 1,
 				meta: expect.objectContaining({
 					toolCallId: "tool-use",
 					hookEventName: "history_tool_use",
 				}),
-=======
-				createdAt: assistantTimestamp + 1,
->>>>>>> origin/main
 			}),
 		]);
 	});
