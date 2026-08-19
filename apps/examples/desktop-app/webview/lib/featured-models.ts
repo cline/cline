@@ -54,10 +54,6 @@ export function loadClineFeaturedModels(): Promise<FeaturedModelsData> {
 	return request;
 }
 
-export function resetClineFeaturedModelsCacheForTests(): void {
-	featuredModelsCache = null;
-}
-
 export type ModelPickerData = {
 	options: SearchComboboxOption[];
 	sections?: SearchComboboxSection[];
