@@ -16,13 +16,29 @@ import type { BridgeClient, BridgeStatus } from "@/lib/bridge-client";
 import { cn } from "@/lib/utils";
 import type { DesktopProjection } from "@shared/projection";
 
-const CONNECTION_LABELS: Record<string, { label: string; className: string }> = {
-	connecting: { label: "Connecting", className: "bg-muted text-muted-foreground" },
-	connected: { label: "Connected", className: "bg-emerald-600/20 text-emerald-400" },
-	reconnecting: { label: "Reconnecting", className: "bg-amber-600/20 text-amber-400" },
-	incompatible: { label: "Incompatible", className: "bg-destructive/20 text-destructive" },
-	unavailable: { label: "Gateway unavailable", className: "bg-destructive/20 text-destructive" },
-};
+const CONNECTION_LABELS: Record<string, { label: string; className: string }> =
+	{
+		connecting: {
+			label: "Connecting",
+			className: "bg-muted text-muted-foreground",
+		},
+		connected: {
+			label: "Connected",
+			className: "bg-emerald-600/20 text-emerald-400",
+		},
+		reconnecting: {
+			label: "Reconnecting",
+			className: "bg-amber-600/20 text-amber-400",
+		},
+		incompatible: {
+			label: "Incompatible",
+			className: "bg-destructive/20 text-destructive",
+		},
+		unavailable: {
+			label: "Gateway unavailable",
+			className: "bg-destructive/20 text-destructive",
+		},
+	};
 
 export function Header({
 	client,
@@ -34,7 +50,8 @@ export function Header({
 	bridgeStatus: BridgeStatus;
 }) {
 	const connection = projection.connection;
-	const status = CONNECTION_LABELS[connection.state] ?? CONNECTION_LABELS.connecting;
+	const status =
+		CONNECTION_LABELS[connection.state] ?? CONNECTION_LABELS.connecting;
 
 	const onBotChange = useCallback(
 		(botId: string) => {
@@ -62,21 +79,20 @@ export function Header({
 			<Badge className={cn("border-transparent", status.className)}>
 				{bridgeStatus === "fixtures" ? "Fixtures" : status.label}
 			</Badge>
-			{connection.state === "connected" &&
-				connection.sandboxed !== true && (
-					<Badge
-						className="gap-1 border-transparent bg-amber-500/15 text-amber-400"
-						title="The Gateway reports development execution: engine runs are NOT sandboxed. Phase 4 adds real sandbox execution."
-					>
-						<ShieldAlert aria-hidden className="size-3" />
-						{connection.executionMode ?? "development"} mode — unsandboxed
-					</Badge>
-				)}
+			{connection.state === "connected" && connection.sandboxed !== true && (
+				<Badge
+					className="gap-1 border-transparent bg-amber-500/15 text-amber-400"
+					title="The Gateway reports development execution: engine runs are NOT sandboxed. Phase 4 adds real sandbox execution."
+				>
+					<ShieldAlert aria-hidden className="size-3" />
+					{connection.executionMode ?? "development"} mode — unsandboxed
+				</Badge>
+			)}
 			<div className="flex-1" />
 			{projection.bots.length > 0 && (
 				<Select
 					onValueChange={onBotChange}
-					value={projection.selectedBotId ?? undefined}
+					value={projection.selectedBotId ?? ""}
 				>
 					<SelectTrigger className="h-8 w-44" size="sm">
 						<SelectValue placeholder="Select a bot" />
@@ -94,7 +110,7 @@ export function Header({
 			{projection.workspaces.length > 0 && (
 				<Select
 					onValueChange={onWorkspaceChange}
-					value={projection.selectedWorkspaceId ?? undefined}
+					value={projection.selectedWorkspaceId ?? ""}
 				>
 					<SelectTrigger className="h-8 w-56" size="sm">
 						<SelectValue placeholder="Workspace for new sessions" />

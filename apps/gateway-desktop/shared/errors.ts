@@ -67,7 +67,11 @@ function actionForGatewayCode(
 		case "protocol_version_unsupported":
 			return "update_client";
 		case "run_admission_rejected":
-			return /workspace/i.test(message) ? "choose_workspace" : retryable ? "retry" : "none";
+			return /workspace/i.test(message)
+				? "choose_workspace"
+				: retryable
+					? "retry"
+					: "none";
 		default:
 			return retryable ? "retry" : "none";
 	}
@@ -81,7 +85,8 @@ export function toPublicDesktopError(error: unknown): PublicDesktopError {
 		typeof error === "object" &&
 		error !== null &&
 		isGatewayWireError((error as { gatewayError?: unknown }).gatewayError)
-			? ((error as { gatewayError: GatewayWireError }).gatewayError as GatewayWireError)
+			? ((error as { gatewayError: GatewayWireError })
+					.gatewayError as GatewayWireError)
 			: isGatewayWireError(error)
 				? error
 				: undefined;

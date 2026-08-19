@@ -37,7 +37,11 @@ export function AppShell() {
 
 	return (
 		<div className="flex h-screen flex-col bg-background text-foreground">
-			<Header client={client} projection={projection} bridgeStatus={state.status} />
+			<Header
+				client={client}
+				projection={projection}
+				bridgeStatus={state.status}
+			/>
 			{gatewayReady ? (
 				<div className="flex min-h-0 flex-1">
 					<aside className="flex w-64 shrink-0 flex-col border-r">
@@ -50,7 +54,11 @@ export function AppShell() {
 					</main>
 				</div>
 			) : (
-				<GatewayGate client={client} projection={projection} bridgeStatus={state.status} />
+				<GatewayGate
+					client={client}
+					projection={projection}
+					bridgeStatus={state.status}
+				/>
 			)}
 		</div>
 	);

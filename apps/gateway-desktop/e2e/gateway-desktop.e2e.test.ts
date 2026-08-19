@@ -154,9 +154,7 @@ describe("first session and runs", () => {
 		await waitFor(() => world.engine.handles.length === 1);
 		// Live deltas render once the session view is open (deltas emitted
 		// earlier are covered by the canonical message history instead).
-		await waitFor(() =>
-			Boolean(world.broker.projectionSnapshot.activeSession),
-		);
+		await waitFor(() => Boolean(world.broker.projectionSnapshot.activeSession));
 		const handle = world.engine.handles[0];
 		handle.emit({ type: "text-delta", text: "Hello " });
 		handle.emit({ type: "text-delta", text: "world" });
@@ -350,18 +348,14 @@ describe("approvals across clients", () => {
 		);
 		// The desktop projection surfaced the same request; then let the
 		// second client win the race.
-		await waitFor(
-			() => world.broker.projectionSnapshot.approvals.length === 1,
-		);
+		await waitFor(() => world.broker.projectionSnapshot.approvals.length === 1);
 		releaseSecondAnswer();
 		const result = (await answer) as { approved: boolean };
 		expect(result.approved).toBe(false);
 
 		// The desktop dismisses via the approval.resolved broadcast and a
 		// late desktop answer is rejected locally.
-		await waitFor(
-			() => world.broker.projectionSnapshot.approvals.length === 0,
-		);
+		await waitFor(() => world.broker.projectionSnapshot.approvals.length === 0);
 		const late = world.broker.execute({
 			command: "approval.resolve",
 			clientRequestId: requestId(),
@@ -376,12 +370,12 @@ describe("approvals across clients", () => {
 
 	it("lets the desktop answer first and re-issues pending approvals on reconnect", async () => {
 		const world = await startWorld();
-		const accepted = (await world.broker.execute({
+		await world.broker.execute({
 			command: "run.start",
 			clientRequestId: requestId(),
 			botId: world.botId,
 			prompt: "approval please",
-		})) as { runId: string };
+		});
 		await waitFor(() => world.engine.handles.length === 1);
 		const invocation = world.engine.handles[0].invocation;
 		const answer = world.server.runtime.approvals.request(
@@ -393,9 +387,7 @@ describe("approvals across clients", () => {
 			},
 			{ toolName: "execute_command", toolCallId: "call_e2e_2" },
 		);
-		await waitFor(
-			() => world.broker.projectionSnapshot.approvals.length === 1,
-		);
+		await waitFor(() => world.broker.projectionSnapshot.approvals.length === 1);
 		const pendingId = world.broker.projectionSnapshot.approvals[0].requestId;
 		const resolved = (await world.broker.execute({
 			command: "approval.resolve",
@@ -485,9 +477,7 @@ describe("restart resilience", () => {
 			prompt: "survive a gateway crash",
 		})) as { runId: string };
 		await waitFor(() => world.engine.handles.length === 1);
-		await waitFor(() =>
-			Boolean(world.broker.projectionSnapshot.activeSession),
-		);
+		await waitFor(() => Boolean(world.broker.projectionSnapshot.activeSession));
 
 		// The Gateway crashes hard (SIGKILL semantics: no cleanup).
 		await world.server.stop("crash");
@@ -500,9 +490,9 @@ describe("restart resilience", () => {
 		const engine2 = new ScriptedEnginePort();
 		const server2 = await startGateway(world.dataRoot, engine2);
 		expect(engine2.handles).toHaveLength(0);
-		expect(
-			server2.stores.runs.get(accepted.runId as never)?.state,
-		).toBe("interrupted");
+		expect(server2.stores.runs.get(accepted.runId as never)?.state).toBe(
+			"interrupted",
+		);
 
 		// The broker reconnects to the SAME gateway identity (new
 		// instance) and shows the interrupted run as retryable. Nothing is
@@ -535,8 +525,7 @@ describe("restart resilience", () => {
 		engine2.handles[0].settle({ outputText: "recovered manually" });
 		await waitFor(
 			() =>
-				server2.stores.runs.get(accepted.runId as never)?.state ===
-				"completed",
+				server2.stores.runs.get(accepted.runId as never)?.state === "completed",
 		);
 		expect(
 			server2.stores.attempts.listByRun(accepted.runId as never).length,

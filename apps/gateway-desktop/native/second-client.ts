@@ -15,11 +15,12 @@
  *   bun run second-client -- deny-all         # answer approvals with no
  */
 
+import { createEventCursor, encodeEventCursor } from "@cline/shared/gateway";
 import {
-	createEventCursor,
-	encodeEventCursor,
-} from "@cline/shared/gateway";
-import { GatewayClient, readDiscoveryRecord, resolveGatewayPaths } from "@cline/gateway/client";
+	GatewayClient,
+	readDiscoveryRecord,
+	resolveGatewayPaths,
+} from "@cline/gateway/client";
 
 async function connect(): Promise<GatewayClient> {
 	const paths = resolveGatewayPaths({});
@@ -99,7 +100,13 @@ async function main(): Promise<void> {
 		case "approve-all":
 		case "deny-all": {
 			const approved = command === "approve-all";
-			client.onServerRequest((request) => {
+			// Optional delay (ms) before answering, to make the race with
+			// other clients observable.
+			const delayMs = rest[0] ? Number(rest[0]) : 0;
+			client.onServerRequest(async (request) => {
+				if (delayMs > 0) {
+					await new Promise((resolve) => setTimeout(resolve, delayMs));
+				}
 				process.stdout.write(
 					`answering ${request.id} (${request.method}): approved=${approved}\n`,
 				);

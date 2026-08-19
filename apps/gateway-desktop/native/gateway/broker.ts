@@ -178,10 +178,7 @@ export class DesktopBroker {
 
 			// Same gatewayId resumes; a different Gateway identity means the
 			// event log and every ID space changed: rebuild from scratch.
-			if (
-				persisted.gatewayId &&
-				persisted.gatewayId !== port.hello.gatewayId
-			) {
+			if (persisted.gatewayId && persisted.gatewayId !== port.hello.gatewayId) {
 				this.options.logger.warn("gateway.identityChanged", {
 					previous: persisted.gatewayId,
 					current: port.hello.gatewayId,
@@ -339,8 +336,7 @@ export class DesktopBroker {
 					? status.defaultBotId
 					: undefined);
 			selectedSessionId = sessions.sessions.find(
-				(session) =>
-					session.botId === focusBotId && session.state === "active",
+				(session) => session.botId === focusBotId && session.state === "active",
 			)?.sessionId;
 		}
 		if (selectedSessionId) {
@@ -349,8 +345,7 @@ export class DesktopBroker {
 
 		const persistedSelections = this.options.stateStore.current;
 		if (persistedSelections.selectedBotId) {
-			this.context.projection.selectedBotId =
-				persistedSelections.selectedBotId;
+			this.context.projection.selectedBotId = persistedSelections.selectedBotId;
 		}
 		if (persistedSelections.selectedWorkspaceId) {
 			this.context.projection.selectedWorkspaceId =
@@ -529,7 +524,10 @@ export class DesktopBroker {
 				// The schema already rejects unknown commands; this is the
 				// compile-time exhaustiveness backstop.
 				const never: never = command;
-				throw desktopError("invalid_command", `Unhandled command ${String(never)}`);
+				throw desktopError(
+					"invalid_command",
+					`Unhandled command ${String(never)}`,
+				);
 			}
 		}
 	}
@@ -569,7 +567,8 @@ export class DesktopBroker {
 		const port = this.requirePort();
 		const projection = this.context.projection;
 		const activeSessionOfBot = projection.sessions.find(
-			(session) => session.botId === command.botId && session.state === "active",
+			(session) =>
+				session.botId === command.botId && session.state === "active",
 		);
 		if (command.sessionId) {
 			if (
@@ -716,9 +715,7 @@ export class DesktopBroker {
 		return this.port;
 	}
 
-	private commitSelections(
-		...keys: (keyof DesktopProjection)[]
-	): void {
+	private commitSelections(...keys: (keyof DesktopProjection)[]): void {
 		this.context.projection.revision += 1;
 		this.context.projection.generatedAt = (this.options.clock ?? Date.now)();
 		for (const key of keys) {

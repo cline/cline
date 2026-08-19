@@ -1202,7 +1202,10 @@ export class GatewayRuntime {
 					`Session queue is full (${pendingAhead} pending runs); retry later`,
 					{
 						retryable: true,
-						details: { pending: pendingAhead, limit: this.maxPendingRunsPerSession },
+						details: {
+							pending: pendingAhead,
+							limit: this.maxPendingRunsPerSession,
+						},
 					},
 				),
 			);
@@ -1213,7 +1216,11 @@ export class GatewayRuntime {
 			this.stores.events.append(
 				"run.retried",
 				{ botId: record.botId, sessionId: record.sessionId, runId },
-				{ previousState: record.state, nextAttempt, ...(reason ? { reason } : {}) },
+				{
+					previousState: record.state,
+					nextAttempt,
+					...(reason ? { reason } : {}),
+				},
 				acceptedAt,
 			);
 			const requeued: RunRecord = {

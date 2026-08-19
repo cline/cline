@@ -35,9 +35,7 @@ describe("composer plan", () => {
 
 describe("retryable run detection", () => {
 	it("only offers retry when the Gateway marked the run retryable", () => {
-		expect(retryableRun(fixtureFailedRun())?.runId).toBe(
-			"run_fixture00000001",
-		);
+		expect(retryableRun(fixtureFailedRun())?.runId).toBe("run_fixture00000001");
 		expect(retryableRun(fixtureStreamingRun())).toBeUndefined();
 	});
 });

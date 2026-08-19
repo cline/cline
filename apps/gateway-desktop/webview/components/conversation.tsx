@@ -8,10 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import type { BridgeClient } from "@/lib/bridge-client";
 import { createClientRequestId } from "@/lib/composer";
 import { cn } from "@/lib/utils";
-import type {
-	DesktopProjection,
-	MessageProjection,
-} from "@shared/projection";
+import type { DesktopProjection, MessageProjection } from "@shared/projection";
 
 function MessageBubble({ message }: { message: MessageProjection }) {
 	const isUser = message.role === "user";
@@ -56,6 +53,7 @@ export function Conversation({
 	const messageCount = active?.messages.length ?? 0;
 	const streamingLength = active?.streaming?.text.length ?? 0;
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: scroll on new content, not on ref identity
 	useEffect(() => {
 		bottomRef.current?.scrollIntoView({ behavior: "smooth" });
 	}, [messageCount, streamingLength]);
@@ -64,9 +62,8 @@ export function Conversation({
 		return (
 			<div className="flex min-h-0 flex-1 items-center justify-center p-6">
 				<p className="max-w-sm text-center text-sm text-muted-foreground">
-					No session selected. Type a prompt below — the first accepted
-					prompt creates the session lazily with the workspace chosen in
-					the header.
+					No session selected. Type a prompt below — the first accepted prompt
+					creates the session lazily with the workspace chosen in the header.
 				</p>
 			</div>
 		);
@@ -120,7 +117,7 @@ export function Conversation({
 								})
 								.catch(() => {})
 						}
-						size="xs"
+						size="sm"
 						variant="destructive"
 					>
 						<Square aria-hidden className="size-3" />
@@ -139,7 +136,7 @@ export function Conversation({
 								})
 								.catch(() => {})
 						}
-						size="xs"
+						size="sm"
 						variant="outline"
 					>
 						<RotateCcw aria-hidden className="size-3" />
@@ -185,7 +182,10 @@ export function Conversation({
 					)}
 					{currentRun?.error && (
 						<div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-xs">
-							<CircleAlert aria-hidden className="mt-0.5 size-3.5 text-destructive" />
+							<CircleAlert
+								aria-hidden
+								className="mt-0.5 size-3.5 text-destructive"
+							/>
 							<div className="gwd-selectable">
 								<p className="font-medium text-destructive">
 									{currentRun.error.name}
@@ -206,9 +206,7 @@ export function Conversation({
 									<span className="truncate font-mono text-[10px] text-muted-foreground">
 										{turn.runId}
 									</span>
-									<span className="truncate text-xs">
-										{turn.promptPreview}
-									</span>
+									<span className="truncate text-xs">{turn.promptPreview}</span>
 								</div>
 							))}
 						</div>

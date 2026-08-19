@@ -52,8 +52,7 @@ export function Composer({
 							projection.activeSession.botId === botId
 								? { sessionId: projection.activeSession.sessionId }
 								: {}),
-							...(projection.selectedWorkspaceId &&
-							!projection.activeSession
+							...(projection.selectedWorkspaceId && !projection.activeSession
 								? { workspaceId: projection.selectedWorkspaceId }
 								: {}),
 							prompt: trimmed,

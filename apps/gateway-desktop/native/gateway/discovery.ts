@@ -43,7 +43,10 @@ export function resolveDiscovery(
 	}
 	// Windows has no POSIX modes; this validation targets macOS/Linux.
 	if (process.platform !== "win32") {
-		if (typeof process.getuid === "function" && stats.uid !== process.getuid()) {
+		if (
+			typeof process.getuid === "function" &&
+			stats.uid !== process.getuid()
+		) {
 			return { ok: false, reason: "not_owner", discoveryFile };
 		}
 		if ((stats.mode & 0o077) !== 0) {

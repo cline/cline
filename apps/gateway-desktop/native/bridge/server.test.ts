@@ -67,7 +67,9 @@ interface TestClient {
 	socket: WebSocket;
 	frames: Record<string, unknown>[];
 	send(frame: unknown): void;
-	waitFor<T>(predicate: (frame: Record<string, unknown>) => T | undefined): Promise<T>;
+	waitFor<T>(
+		predicate: (frame: Record<string, unknown>) => T | undefined,
+	): Promise<T>;
 	closed: Promise<{ code: number }>;
 }
 
@@ -158,9 +160,9 @@ describe("bridge authentication", () => {
 				? (frame.projection as Record<string, unknown>)
 				: undefined,
 		);
-		expect(
-			(projection.connection as Record<string, unknown>).state,
-		).toBe("connected");
+		expect((projection.connection as Record<string, unknown>).state).toBe(
+			"connected",
+		);
 	});
 });
 
@@ -224,13 +226,9 @@ describe("bridge commands", () => {
 			payload: { command: "shell.exec", argv: ["rm", "-rf"] },
 		});
 		const result = await client.waitFor((frame) =>
-			frame.type === "command.result" && frame.ok === false
-				? frame
-				: undefined,
+			frame.type === "command.result" && frame.ok === false ? frame : undefined,
 		);
-		expect(
-			(result.error as { code: string }).code,
-		).toBe("invalid_command");
+		expect((result.error as { code: string }).code).toBe("invalid_command");
 	});
 
 	it("returns command errors as PublicDesktopError", async () => {

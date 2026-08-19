@@ -167,9 +167,7 @@ describe("connection lifecycle", () => {
 		const session = projection.sessions[0];
 		expect(session.lastRunState ?? session.activity).toBeDefined();
 		// The missed terminal state arrived through replay, not remutation.
-		expect(
-			harness.authority.runs.get(accepted.runId)?.state,
-		).toBe("completed");
+		expect(harness.authority.runs.get(accepted.runId)?.state).toBe("completed");
 	});
 
 	it("resets everything when the Gateway identity changes", async () => {
@@ -188,9 +186,7 @@ describe("connection lifecycle", () => {
 			stateStore: harness.stateStore,
 		});
 		await second.broker.start();
-		expect(second.stateStore.current.gatewayId).toBe(
-			otherAuthority.gatewayId,
-		);
+		expect(second.stateStore.current.gatewayId).toBe(otherAuthority.gatewayId);
 		expect(second.broker.projectionSnapshot.connection.gatewayId).toBe(
 			otherAuthority.gatewayId,
 		);
@@ -447,9 +443,9 @@ describe("approvals", () => {
 		await settle();
 
 		// A second client wins the race directly against the authority.
-		expect(
-			harness.authority.respondToApproval(id, { approved: false }),
-		).toBe(true);
+		expect(harness.authority.respondToApproval(id, { approved: false })).toBe(
+			true,
+		);
 		await settle();
 
 		// The desktop's late answer is rejected locally with a typed error

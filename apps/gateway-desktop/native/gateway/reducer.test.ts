@@ -148,9 +148,7 @@ describe("contiguous event application", () => {
 				.outcome,
 		).toBe("applied");
 		expect(context.cursorSequence).toBe(2);
-		expect(context.projection.activeSession?.currentRun?.state).toBe(
-			"running",
-		);
+		expect(context.projection.activeSession?.currentRun?.state).toBe("running");
 	});
 
 	it("skips duplicates without changing state", () => {
@@ -217,7 +215,10 @@ describe("run lifecycle projection", () => {
 		expect(
 			context.projection.activeSession?.queuedTurns.map((turn) => turn.runId),
 		).toEqual(["run_test0002"]);
-		applyGatewayEvent(context, event(4, "run.completed", { state: "completed" }));
+		applyGatewayEvent(
+			context,
+			event(4, "run.completed", { state: "completed" }),
+		);
 		applyGatewayEvent(
 			context,
 			event(
@@ -269,10 +270,7 @@ describe("run lifecycle projection", () => {
 		const context = hydratedContext();
 		applyGatewayEvent(context, event(1, "run.queued", { state: "queued" }));
 		applyGatewayEvent(context, event(2, "run.started", { state: "running" }));
-		applyGatewayEvent(
-			context,
-			event(3, "run.attemptStarted", { attempt: 2 }),
-		);
+		applyGatewayEvent(context, event(3, "run.attemptStarted", { attempt: 2 }));
 		expect(context.projection.activeSession?.currentRun?.attempt).toBe(2);
 	});
 });
@@ -282,9 +280,12 @@ describe("untrusted payload handling", () => {
 		const context = hydratedContext();
 		applyGatewayEvent(context, event(1, "run.queued", { state: "queued" }));
 		expect(
-			applyGatewayEvent(context, event(2, "run.messageAppended", {
-				message: { nonsense: true },
-			})).outcome,
+			applyGatewayEvent(
+				context,
+				event(2, "run.messageAppended", {
+					message: { nonsense: true },
+				}),
+			).outcome,
 		).toBe("applied");
 		expect(context.projection.activeSession?.messages).toHaveLength(0);
 	});
@@ -304,9 +305,12 @@ describe("untrusted payload handling", () => {
 	it("tolerates unknown additive event names", () => {
 		const context = hydratedContext();
 		expect(
-			applyGatewayEvent(context, event(1, "gateway.futureFeature", {
-				anything: true,
-			})).outcome,
+			applyGatewayEvent(
+				context,
+				event(1, "gateway.futureFeature", {
+					anything: true,
+				}),
+			).outcome,
 		).toBe("applied");
 	});
 });
@@ -318,19 +322,23 @@ describe("approvals", () => {
 			version: 1,
 			id: "srq_1",
 			method: "client.requestToolApproval",
-			scope: { botId: BOT as never, sessionId: SESSION as never, runId: RUN as never },
+			scope: {
+				botId: BOT as never,
+				sessionId: SESSION as never,
+				runId: RUN as never,
+			},
 			params: { toolName: "write_file", toolCallId: "call_1", input: { a: 1 } },
 		});
 		expect(context.projection.approvals).toHaveLength(1);
 		expect(context.projection.approvals[0].toolName).toBe("write_file");
-		expect(
-			context.projection.activeSession?.outstandingApprovalIds,
-		).toContain("srq_1");
+		expect(context.projection.activeSession?.outstandingApprovalIds).toContain(
+			"srq_1",
+		);
 		removeApproval(context, "srq_1");
 		expect(context.projection.approvals).toHaveLength(0);
-		expect(
-			context.projection.activeSession?.outstandingApprovalIds,
-		).toEqual([]);
+		expect(context.projection.activeSession?.outstandingApprovalIds).toEqual(
+			[],
+		);
 	});
 
 	it("dismisses approvals on the approval.resolved broadcast", () => {

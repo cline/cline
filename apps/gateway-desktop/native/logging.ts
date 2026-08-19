@@ -26,7 +26,9 @@ export function redactForLogging(value: unknown, depth = 0): unknown {
 		return value;
 	}
 	if (Array.isArray(value)) {
-		return value.slice(0, 50).map((entry) => redactForLogging(entry, depth + 1));
+		return value
+			.slice(0, 50)
+			.map((entry) => redactForLogging(entry, depth + 1));
 	}
 	const out: Record<string, unknown> = {};
 	for (const [key, entry] of Object.entries(value)) {

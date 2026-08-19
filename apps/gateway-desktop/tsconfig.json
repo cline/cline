@@ -12,6 +12,11 @@
 		"isolatedModules": true,
 		"types": ["bun", "node"]
 	},
-	"include": ["shared/**/*.ts", "native/**/*.ts", "e2e/**/*.ts", "scripts/**/*.ts"],
+	"include": [
+		"shared/**/*.ts",
+		"native/**/*.ts",
+		"e2e/**/*.ts",
+		"scripts/**/*.ts"
+	],
 	"exclude": ["node_modules", "dist", "webview"]
 }

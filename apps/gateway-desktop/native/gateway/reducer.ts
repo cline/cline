@@ -15,10 +15,7 @@ import type {
 	SessionRecord,
 	SessionSnapshot,
 } from "@cline/gateway/client";
-import type {
-	GatewayEvent,
-	GatewayServerRequest,
-} from "@cline/shared/gateway";
+import type { GatewayEvent, GatewayServerRequest } from "@cline/shared/gateway";
 import type {
 	ActiveSessionProjection,
 	ApprovalProjection,
@@ -182,7 +179,10 @@ function rebuildWorkspaces(
 // Snapshot hydration
 // -----------------------------------------------------------------------------
 
-function toBotProjection(record: BotRecord, defaultBotId?: string): BotProjection {
+function toBotProjection(
+	record: BotRecord,
+	defaultBotId?: string,
+): BotProjection {
 	return {
 		botId: record.identity.botId,
 		name: record.identity.name,
@@ -192,10 +192,7 @@ function toBotProjection(record: BotRecord, defaultBotId?: string): BotProjectio
 	};
 }
 
-function runProjectionFrom(
-	record: RunRecord,
-	attempt: number,
-): RunProjection {
+function runProjectionFrom(record: RunRecord, attempt: number): RunProjection {
 	const retryable = record.state === "failed" || record.state === "interrupted";
 	const output = record.outputText
 		? truncateForProjection(record.outputText, MAX_PREVIEW_CHARS)
@@ -243,7 +240,11 @@ export function flattenMessageText(message: unknown): {
 		if (typeof part !== "object" || part === null) {
 			continue;
 		}
-		const typed = part as { type?: unknown; text?: unknown; toolName?: unknown };
+		const typed = part as {
+			type?: unknown;
+			text?: unknown;
+			toolName?: unknown;
+		};
 		if (typed.type === "text" && typeof typed.text === "string") {
 			parts.push(typed.text);
 		} else if (typed.type === "reasoning" && typeof typed.text === "string") {
@@ -442,7 +443,10 @@ export function applySnapshot(
 					state: "running",
 				});
 			}
-			if (typed.type === "tool-result" && typeof typed.toolCallId === "string") {
+			if (
+				typed.type === "tool-result" &&
+				typeof typed.toolCallId === "string"
+			) {
 				const tool = tools.find(
 					(entry) => entry.toolCallId === typed.toolCallId,
 				);
@@ -472,9 +476,7 @@ export function applySnapshot(
 		runs,
 		tools,
 		outstandingApprovalIds: projection.approvals
-			.filter(
-				(approval) => approval.sessionId === snapshot.session.sessionId,
-			)
+			.filter((approval) => approval.sessionId === snapshot.session.sessionId)
 			.map((approval) => approval.requestId),
 	};
 	projection.selectedSessionId = snapshot.session.sessionId;
@@ -565,11 +567,7 @@ function applyRunStateEvent(
 	const payload = payloadOf(event);
 	upsertSessionSummary(context, sessionId, event.scope.botId, {
 		activity:
-			state === "running"
-				? "running"
-				: state === "queued"
-					? "queued"
-					: "idle",
+			state === "running" ? "running" : state === "queued" ? "queued" : "idle",
 		lastRunState: state,
 	});
 	const active = activeSessionFor(context, event);
@@ -622,8 +620,7 @@ function applyRunStateEvent(
 		if (!active.queuedTurns.some((turn) => turn.runId === runId)) {
 			active.queuedTurns.push({
 				runId,
-				promptPreview:
-					context.promptPreviews.get(runId) ?? "(queued turn)",
+				promptPreview: context.promptPreviews.get(runId) ?? "(queued turn)",
 				acceptedAt:
 					typeof payload.acceptedAt === "number"
 						? payload.acceptedAt
@@ -750,7 +747,10 @@ function applyEventBody(context: ReducerContext, event: GatewayEvent): void {
 			);
 			return;
 		case "run.steered":
-			addNotice(context, `Steering merged into run ${event.scope.runId ?? "?"}`);
+			addNotice(
+				context,
+				`Steering merged into run ${event.scope.runId ?? "?"}`,
+			);
 			return;
 		case "run.messageAppended": {
 			if (!active) {

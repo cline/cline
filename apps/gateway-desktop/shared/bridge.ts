@@ -49,9 +49,7 @@ const boundedText = (maxBytes: number) =>
  * of the same command reuses the same ID and can never duplicate a
  * mutation (8–128 URL-safe chars, same contract as the Gateway).
  */
-export const ClientRequestIdSchema = z
-	.string()
-	.regex(/^[A-Za-z0-9_-]{8,128}$/);
+export const ClientRequestIdSchema = z.string().regex(/^[A-Za-z0-9_-]{8,128}$/);
 
 const shortText = boundedText(4 * 1024);
 

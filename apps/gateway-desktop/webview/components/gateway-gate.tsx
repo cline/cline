@@ -45,8 +45,8 @@ export function GatewayGate({
 					<CardHeader>
 						<CardTitle>Native bridge disconnected</CardTitle>
 						<CardDescription>
-							The window lost its broker process. It reconnects
-							automatically; running Gateway work is unaffected.
+							The window lost its broker process. It reconnects automatically;
+							running Gateway work is unaffected.
 						</CardDescription>
 					</CardHeader>
 				</Card>
@@ -84,7 +84,7 @@ export function GatewayGate({
 							<Button
 								className="absolute top-2 right-2"
 								onClick={copy}
-								size="xs"
+								size="sm"
 								variant="outline"
 							>
 								<Copy aria-hidden className="size-3" />

@@ -40,7 +40,12 @@ export class FakeGatewayAuthority {
 	readonly attemptsByRun = new Map<string, number>();
 	readonly messagesBySession = new Map<
 		string,
-		{ messageSeq: number; sessionId: string; runId?: string; message: unknown }[]
+		{
+			messageSeq: number;
+			sessionId: string;
+			runId?: string;
+			message: unknown;
+		}[]
 	>();
 	readonly events: GatewayEvent[] = [];
 	private sequence = 0;

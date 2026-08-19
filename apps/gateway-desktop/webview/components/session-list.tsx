@@ -36,7 +36,7 @@ export function SessionList({
 					onClick={() =>
 						void client.send({ command: "session.select" }).catch(() => {})
 					}
-					size="xs"
+					size="sm"
 					title="Compose a prompt to create a new session lazily"
 					variant="ghost"
 				>
