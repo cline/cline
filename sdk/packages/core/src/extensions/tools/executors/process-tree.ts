@@ -6,8 +6,32 @@ export interface ProcessInfo {
 	pid: number;
 	parentPid: number;
 	processGroupId: number;
-	/** Full process start time from `ps`; distinguishes reused numeric PIDs. */
+	/** Full process start time from `ps`. Only whole-second granularity. */
 	startedAt: string;
+}
+
+/**
+ * Identity used to tell one generation of a numeric pid from the next.
+ *
+ * `ps lstart` resolves only to the second, so start time alone is not enough:
+ * a pid reused inside the same wall-clock second would present an identical
+ * string and be accepted as the process we recorded — and then signaled, along
+ * with its process group. Pairing it with the group id adds a discriminator
+ * that a replacement is very unlikely to share, since a foreign process would
+ * have to land in the same group as well as the same pid and second.
+ *
+ * The group id is chosen because it is stable for a process's lifetime, unlike
+ * the parent pid, which changes on reparenting — precisely the case ownership
+ * tracking exists to follow. A process that does move groups is disowned rather
+ * than misidentified, which is the safe direction.
+ *
+ * Residual: a same-second, same-pid, same-group collision is still possible in
+ * principle. Closing it properly needs a higher-resolution clock than portable
+ * `ps` exposes (Linux `/proc/<pid>/stat` starttime), or kernel-maintained
+ * ownership such as cgroups or job objects.
+ */
+export function processIdentity(info: ProcessInfo): string {
+	return `${info.startedAt}|${info.processGroupId}`;
 }
 
 export interface ProcessTable {
@@ -95,10 +119,10 @@ export interface OwnedProcessGroup {
 	/** Group id, which is the pid of the leader that created it. */
 	processGroupId: number;
 	/**
-	 * Leader's start time, recorded while the leader was verifiably ours. Absent
-	 * when the leader was never observed alive.
+	 * Leader's {@link processIdentity}, recorded while it was verifiably ours.
+	 * Absent when the leader was never observed alive.
 	 */
-	leaderStartedAt?: string;
+	leaderIdentity?: string;
 }
 
 /**
@@ -130,8 +154,8 @@ function isGroupStillOwned(
 	const leader = table.byPid.get(group.processGroupId);
 	return (
 		leader !== undefined &&
-		group.leaderStartedAt !== undefined &&
-		leader.startedAt === group.leaderStartedAt
+		group.leaderIdentity !== undefined &&
+		processIdentity(leader) === group.leaderIdentity
 	);
 }
 
@@ -145,9 +169,9 @@ export function observeOwnedProcessTree(
 	for (const rootPid of rootPids) {
 		if (table.byPid.has(rootPid)) roots.push(rootPid);
 	}
-	for (const [pid, startedAt] of ownedProcesses) {
+	for (const [pid, identity] of ownedProcesses) {
 		const current = table.byPid.get(pid);
-		if (current?.startedAt === startedAt) roots.push(pid);
+		if (current && processIdentity(current) === identity) roots.push(pid);
 	}
 	// Process-group membership is the one ownership marker that outlives the
 	// wrapper: a monitor spawns detached, so the wrapper leads a group its
@@ -184,7 +208,7 @@ export function observeOwnedProcessTree(
 
 	for (const pid of processTree) {
 		const owned = table.byPid.get(pid);
-		if (owned) ownedProcesses.set(pid, owned.startedAt);
+		if (owned) ownedProcesses.set(pid, processIdentity(owned));
 	}
 }
 
@@ -194,9 +218,9 @@ export function getLiveOwnedProcesses(
 	table: ProcessTable,
 ): ProcessInfo[] {
 	const live: ProcessInfo[] = [];
-	for (const [pid, startedAt] of ownedProcesses) {
+	for (const [pid, identity] of ownedProcesses) {
 		const current = table.byPid.get(pid);
-		if (current?.startedAt === startedAt) live.push(current);
+		if (current && processIdentity(current) === identity) live.push(current);
 	}
 	return live;
 }

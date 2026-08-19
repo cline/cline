@@ -16,6 +16,7 @@ import {
 	observeOwnedProcessTree,
 	type ProcessInfo,
 	type ProcessTable,
+	processIdentity,
 	readProcessTable,
 } from "./process-tree";
 
@@ -148,11 +149,11 @@ interface MonitorEntry extends MonitorRecord {
 	 */
 	ownedProcessGroupId?: number;
 	/**
-	 * The group leader's start time, recorded on the first snapshot taken while
+	 * The group leader's identity, recorded on the first snapshot taken while
 	 * the child was still running. Distinguishes our group from one whose id
 	 * was reused after the leader exited.
 	 */
-	ownedProcessGroupStartedAt?: string;
+	ownedProcessGroupIdentity?: string;
 	/** Set once teardown gives up, so the exit poll stops looping. */
 	terminationAbandoned?: boolean;
 	/** Windows only: guards against issuing the tree kill twice. */
@@ -564,8 +565,8 @@ export class MonitorRegistry {
 			// than by a bare numeric pid, which the OS is free to reuse.
 			if (child?.pid && this.isChildRunning(child)) {
 				const leader = table.byPid.get(child.pid);
-				if (leader && entry.ownedProcessGroupStartedAt === undefined) {
-					entry.ownedProcessGroupStartedAt = leader.startedAt;
+				if (leader && entry.ownedProcessGroupIdentity === undefined) {
+					entry.ownedProcessGroupIdentity = processIdentity(leader);
 				}
 			}
 			// Gated on the child still running: an exited pid may already name
@@ -581,7 +582,7 @@ export class MonitorRegistry {
 					? [
 							{
 								processGroupId: entry.ownedProcessGroupId,
-								leaderStartedAt: entry.ownedProcessGroupStartedAt,
+								leaderIdentity: entry.ownedProcessGroupIdentity,
 							},
 						]
 					: [],

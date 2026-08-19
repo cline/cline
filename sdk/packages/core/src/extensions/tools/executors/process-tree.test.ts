@@ -33,6 +33,43 @@ describe("process tree ownership", () => {
 	});
 });
 
+describe("same-second pid reuse", () => {
+	it("does not accept a replacement that reuses the pid within the second", () => {
+		// `ps lstart` resolves only to the second, so a pid reused inside the
+		// same second presents an identical start time. Start time alone would
+		// accept it and teardown would signal an unrelated process.
+		const original = parseProcessTable(
+			"  400   300   400 Mon Aug 18 10:00:00 2026",
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [400], original);
+		expect(owned.size).toBe(1);
+
+		// Same pid, same second, different process group: a different process.
+		const replacement = parseProcessTable(
+			"  400   999   777 Mon Aug 18 10:00:00 2026",
+		);
+		expect(getLiveOwnedProcesses(owned, replacement)).toEqual([]);
+	});
+
+	it("still recognizes the original process across snapshots", () => {
+		const table = parseProcessTable(
+			"  400   300   400 Mon Aug 18 10:00:00 2026",
+		);
+		const owned = new Map<number, string>();
+		observeOwnedProcessTree(owned, [400], table);
+
+		// Reparenting to init changes the parent pid but not the identity, which
+		// is the case ownership tracking exists to follow.
+		const reparented = parseProcessTable(
+			"  400     1   400 Mon Aug 18 10:00:00 2026",
+		);
+		expect(getLiveOwnedProcesses(owned, reparented).map((p) => p.pid)).toEqual([
+			400,
+		]);
+	});
+});
+
 describe("observeOwnedProcessTree process-group roots", () => {
 	// pid ppid pgid lstart
 	const table = parseProcessTable(
@@ -56,7 +93,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 			].join("\n"),
 		);
 		observeOwnedProcessTree(owned, [100], orphaned, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
 		]);
 
 		expect(owned.size).toBe(0);
@@ -66,7 +103,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		const owned = new Map<number, string>();
 		// Observed once while the leader was alive and provable...
 		observeOwnedProcessTree(owned, [100], table, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
 		]);
 		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
 
@@ -80,7 +117,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 			].join("\n"),
 		);
 		observeOwnedProcessTree(owned, [], afterLeaderDeath, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
 		]);
 		expect(owned.has(101)).toBe(true);
 		expect(owned.has(102)).toBe(true);
@@ -97,7 +134,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 			"  301     1   100 Tue Aug 19 04:00:00 2026",
 		);
 		observeOwnedProcessTree(owned, [100], reusedThenOrphaned, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
 		]);
 		expect(owned.size).toBe(0);
 	});
@@ -105,7 +142,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 	it("claims by group while the leader still matches its recorded generation", () => {
 		const owned = new Map<number, string>();
 		observeOwnedProcessTree(owned, [100], table, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 10:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 10:00:00 2026|100" },
 		]);
 		expect([...owned.keys()].sort((a, b) => a - b)).toEqual([100, 101, 102]);
 	});
@@ -115,7 +152,7 @@ describe("observeOwnedProcessTree process-group roots", () => {
 		// pid 100 is live again but started at a different time, so the group is
 		// a different generation: signaling it would hit unrelated work.
 		observeOwnedProcessTree(owned, [], table, [
-			{ processGroupId: 100, leaderStartedAt: "Mon Aug 18 09:00:00 2026" },
+			{ processGroupId: 100, leaderIdentity: "Mon Aug 18 09:00:00 2026|100" },
 		]);
 		expect(owned.size).toBe(0);
 	});
