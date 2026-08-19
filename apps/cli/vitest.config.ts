@@ -57,7 +57,11 @@ export default defineConfig({
 		// (large graph). Cold transforms occasionally exceed 5s on shared runners.
 		testTimeout: 15_000,
 		pool: "forks",
-		maxWorkers: 1,
-		fileParallelism: false,
+		// Windows CI runners struggle under full fork fan-out (process spawn cost
+		// plus CPU contention), so cap the pool there; everywhere else the suite
+		// is parallel-safe and runs ~4x faster than the old serial configuration.
+		...(process.env.CI && process.platform === "win32"
+			? { maxWorkers: 2 }
+			: {}),
 	},
 });
