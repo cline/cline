@@ -788,6 +788,7 @@
       "dependencies": {
         "aws4fetch": "^1.0.20",
         "jsonrepair": "^3.13.2",
+        "nanoid": "^5.1.7",
         "zod": "^4.3.6",
         "zod-to-json-schema": "^3.25.1",
       },

@@ -4,11 +4,19 @@ FROM oven/bun:1.3.13 AS builder
 
 WORKDIR /src
 
-COPY package.json bun.lock tsconfig.json ./
+COPY sdk/packages/gateway/docker/build-package.json ./package.json
+COPY sdk/packages/gateway/docker/build-bun.lock ./bun.lock
 COPY sdk ./sdk
 
-RUN bun install --frozen-lockfile
-RUN bun run build:sdk
+RUN bun install --frozen-lockfile --ignore-scripts
+RUN test -e sdk/packages/llms/node_modules/@cline/shared \
+	&& test -x node_modules/.bin/tsc
+RUN bun -F @cline/shared build \
+	&& bun -F @cline/llms build \
+	&& bun -F @cline/agents build \
+	&& bun -F @cline/engine build \
+	&& bun -F @cline/bot build \
+	&& bun -F @cline/gateway build
 RUN mkdir -p /out \
 	&& bun build sdk/packages/gateway/bin/cline-gateway.mjs --target=node --outfile /out/cline-gateway \
 	&& bun build sdk/packages/gateway/bin/cline-gateway-worker.mjs --target=node --outfile /out/cline-gateway-worker
@@ -40,7 +48,9 @@ ENV CLINE_GATEWAY_DATA_ROOT=/data \
 	CLINE_GATEWAY_NAMESPACE=default \
 	CLINE_GATEWAY_REMOTE_HOST=0.0.0.0 \
 	CLINE_GATEWAY_REMOTE_PORT=8080 \
-	CLINE_GATEWAY_REMOTE_TOKEN_NAME=remote-access
+	CLINE_GATEWAY_REMOTE_TOKEN_NAME=remote-access \
+	LANG=C.UTF-8 \
+	LC_ALL=C.UTF-8
 
 USER cline:cline
 WORKDIR /home/cline
@@ -49,6 +59,6 @@ VOLUME ["/data"]
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
-	CMD-SHELL cline-gateway status --data-root "$CLINE_GATEWAY_DATA_ROOT" --namespace "$CLINE_GATEWAY_NAMESPACE"
+	CMD cline-gateway status --data-root "$CLINE_GATEWAY_DATA_ROOT" --namespace "$CLINE_GATEWAY_NAMESPACE"
 
 ENTRYPOINT ["cline-gateway-container"]
