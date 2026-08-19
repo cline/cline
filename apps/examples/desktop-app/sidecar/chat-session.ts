@@ -29,6 +29,10 @@ import {
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
+import {
+	collectPersistedActiveMonitors,
+	createMonitorResumeNotice,
+} from "./session-data/monitors";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -646,13 +650,23 @@ async function handleStart(
 	const requestedSessionId = String(
 		request.config.sessionId ?? request.config.session_id ?? "",
 	).trim();
-	const initialMessages =
+	const persistedInitialMessages =
 		Array.isArray(request.config.initialMessages) &&
 		request.config.initialMessages.length > 0
 			? request.config.initialMessages
 			: requestedSessionId
 				? (readPersistedChatMessages(requestedSessionId) ?? undefined)
 				: undefined;
+	const resumeNotice =
+		requestedSessionId && persistedInitialMessages
+			? createMonitorResumeNotice(
+					collectPersistedActiveMonitors(persistedInitialMessages),
+				)
+			: undefined;
+	const initialMessages =
+		resumeNotice && persistedInitialMessages
+			? [...persistedInitialMessages, resumeNotice]
+			: persistedInitialMessages;
 	const coreConfig: JsonRecord = {
 		...buildCoreSessionConfig(request.config),
 		systemPrompt,
