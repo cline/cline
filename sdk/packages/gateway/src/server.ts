@@ -744,6 +744,12 @@ export class GatewayServer {
 					p.runId as RunId,
 					p.reason as string | undefined,
 				);
+			case "run.retry":
+				return this.runtime.retryRun(
+					actor,
+					p.runId as RunId,
+					p.reason as string | undefined,
+				);
 			case "run.subscribe":
 				return this.handleSubscribe(connection, p);
 			case "run.list":
@@ -766,6 +772,8 @@ export class GatewayServer {
 				return {
 					sessions: this.runtime.listSessions(p.botId as BotId | undefined),
 				};
+			case "session.get":
+				return this.runtime.getSessionSnapshot(p.sessionId as SessionId);
 			// Statistics: bounded reads over the maintained aggregates only —
 			// never a rescan of runs, events, or session message history.
 			case "statistics.summary":

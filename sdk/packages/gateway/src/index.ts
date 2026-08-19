@@ -18,9 +18,12 @@
 export type { GatewayCliCommand, GatewayCliIo } from "./cli";
 export { GATEWAY_CLI_COMMANDS, runGatewayCli } from "./cli";
 export type {
+	ApprovalResolution,
 	GatewayClientOptions,
 	GatewayEventListener,
 	GatewayServerRequestHandler,
+	GatewayStatusSummary,
+	StartRunInput,
 } from "./client";
 export { GatewayClient, GatewayRequestError } from "./client";
 export type {
@@ -194,10 +197,12 @@ export type {
 	GatewayRecoveryReport,
 	GatewayRuntimeOptions,
 	RunStartParams,
+	SessionSnapshot,
 } from "./runtime";
 export {
 	ApprovalBroker,
 	AttemptingEnginePort,
+	GATEWAY_EXECUTION_MODE,
 	GatewayCallError,
 	GatewayRuntime,
 	MANAGED_WORKSPACE_ROOT,

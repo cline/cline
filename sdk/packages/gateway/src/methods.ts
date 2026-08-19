@@ -101,6 +101,14 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		}).strict(),
 	),
 	define(
+		"run.retry",
+		true,
+		IdempotentParamsBase.extend({
+			runId: RunIdSchema,
+			reason: z.string().optional(),
+		}).strict(),
+	),
+	define(
 		"run.abort",
 		true,
 		IdempotentParamsBase.extend({
@@ -135,6 +143,11 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		"session.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),
+	),
+	define(
+		"session.get",
+		false,
+		z.object({ sessionId: SessionIdSchema }).strict(),
 	),
 	define(
 		"run.list",

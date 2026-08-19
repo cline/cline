@@ -1,6 +1,8 @@
 /**
- * Test doubles and helpers for Phase 3 tests. Not exported from the
- * package; imported only by `*.test.ts` files.
+ * Test doubles and helpers for Phase 3 tests. Exported as
+ * `@cline/gateway/test-support` so application test harnesses (e.g. the
+ * Gateway Desktop validation app) can run a REAL Gateway against a
+ * scripted engine. Never imported by production code.
  */
 
 import { mkdtempSync } from "node:fs";

@@ -41,9 +41,13 @@ export const RUN_STATE_TRANSITIONS: Readonly<
 	queued: ["running", "aborted"],
 	running: ["completed", "failed", "aborted", "interrupted"],
 	completed: [],
-	failed: [],
+	// `failed -> queued` and `interrupted -> queued` are exclusively the
+	// manual retry re-admission: an explicit `run.retry` command re-queues
+	// the SAME runId for a new attempt. The Gateway never takes these
+	// transitions on its own (no auto-retry after reconnect or restart).
+	failed: ["queued"],
 	aborted: [],
-	interrupted: [],
+	interrupted: ["queued"],
 };
 
 export const TERMINAL_RUN_STATES = [
@@ -53,8 +57,23 @@ export const TERMINAL_RUN_STATES = [
 	"interrupted",
 ] as const satisfies readonly RunState[];
 
+/** States a client may manually retry from (same runId, new attempt). */
+export const RETRYABLE_RUN_STATES = [
+	"failed",
+	"interrupted",
+] as const satisfies readonly RunState[];
+
+/**
+ * Terminal means "the Gateway will not move this run anywhere on its
+ * own". Failed and interrupted runs stay terminal in that sense even
+ * though an explicit client `run.retry` may re-admit them.
+ */
 export function isTerminalRunState(state: RunState): boolean {
-	return RUN_STATE_TRANSITIONS[state].length === 0;
+	return (TERMINAL_RUN_STATES as readonly RunState[]).includes(state);
+}
+
+export function canRetryRunState(state: RunState): boolean {
+	return (RETRYABLE_RUN_STATES as readonly RunState[]).includes(state);
 }
 
 export function canTransitionRunState(from: RunState, to: RunState): boolean {

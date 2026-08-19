@@ -36,6 +36,7 @@ describe("method registry", () => {
 				"gateway.stop",
 				"run.abort",
 				"run.interrupt",
+				"run.retry",
 				"run.start",
 				"run.steer",
 				"schedule.create",
@@ -47,6 +48,7 @@ describe("method registry", () => {
 		expect(getMethodDefinition("connector.list")?.mutating).toBe(false);
 		expect(getMethodDefinition("schedule.list")?.mutating).toBe(false);
 		expect(getMethodDefinition("schedule.report")?.mutating).toBe(false);
+		expect(getMethodDefinition("session.get")?.mutating).toBe(false);
 	});
 });
 

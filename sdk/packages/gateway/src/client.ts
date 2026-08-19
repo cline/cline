@@ -13,12 +13,22 @@
 
 import { connect, type Socket } from "node:net";
 import type {
+	BotRecord,
+	RunRecord,
+	SessionRecord,
+	TurnOverrides,
+} from "@cline/bot";
+import type {
+	BotId,
 	GatewayError,
 	GatewayEvent,
 	GatewayHelloResult,
 	GatewayRequest,
 	GatewayResponse,
 	GatewayServerRequest,
+	RunAccepted,
+	RunId,
+	SessionId,
 } from "@cline/shared/gateway";
 import {
 	createGatewayError,
@@ -28,8 +38,10 @@ import {
 	GatewayEventSchema,
 	GatewayServerRequestSchema,
 	IDEMPOTENCY_KEY_PARAM,
+	RunAcceptedSchema,
 } from "@cline/shared/gateway";
 import type { DiscoveryRecord } from "./discovery";
+import type { SessionSnapshot } from "./runtime";
 
 export class GatewayRequestError extends Error {
 	readonly gatewayError: GatewayError;
@@ -57,6 +69,54 @@ export type GatewayEventListener = (event: GatewayEvent) => void;
 export type GatewayServerRequestHandler = (
 	request: GatewayServerRequest,
 ) => Promise<unknown> | unknown;
+
+// Re-exported so `@cline/gateway/client` consumers never reach into the
+// Gateway's internals for the types the typed surface returns.
+export type { SessionSnapshot } from "./runtime";
+export type { RunAttemptRecord, StoredMessage } from "./stores";
+export type { BotRecord, RunRecord, SessionRecord, TurnOverrides };
+
+/** `gateway.status` result (additive fields must not break clients). */
+export interface GatewayStatusSummary {
+	state: "serving" | "draining";
+	executionMode: string;
+	sandboxed: boolean;
+	gatewayId: string;
+	instanceId: string;
+	pid: number;
+	startedAt: number;
+	protocolVersion: number;
+	defaultBotId?: BotId;
+	catalogGeneration: number;
+	namespace: string;
+	dataDir: string;
+	counts: {
+		bots: number;
+		sessions: number;
+		queuedRuns: number;
+		runningRuns: number;
+		clients: number;
+		pendingOutbox: number;
+		lastEventSequence: number;
+		pendingServerRequests: number;
+	};
+	port: number;
+	connections: number;
+	[extra: string]: unknown;
+}
+
+export interface StartRunInput {
+	botId: BotId;
+	prompt: string;
+	workspaceRoot?: string;
+	overrides?: TurnOverrides;
+	idempotencyKey?: string;
+}
+
+export interface ApprovalResolution {
+	approved: boolean;
+	reason?: string;
+}
 
 interface PendingRequest {
 	resolve(value: unknown): void;
@@ -160,6 +220,111 @@ export class GatewayClient {
 		cursor?: string;
 	}): Promise<unknown> {
 		return this.request("run.subscribe", { ...params });
+	}
+
+	// ---------------------------------------------------------------------
+	// Typed command surface (the supported application entrypoint)
+	// ---------------------------------------------------------------------
+
+	getStatus(): Promise<GatewayStatusSummary> {
+		return this.request("gateway.status", {}) as Promise<GatewayStatusSummary>;
+	}
+
+	listBots(): Promise<{ bots: readonly BotRecord[] }> {
+		return this.request("bot.list", {}) as Promise<{
+			bots: readonly BotRecord[];
+		}>;
+	}
+
+	listSessions(
+		input: { botId?: BotId } = {},
+	): Promise<{ sessions: readonly SessionRecord[] }> {
+		return this.request("session.list", { ...input }) as Promise<{
+			sessions: readonly SessionRecord[];
+		}>;
+	}
+
+	listRuns(
+		input: { sessionId?: SessionId; runId?: RunId } = {},
+	): Promise<{ runs: readonly RunRecord[] }> {
+		return this.request("run.list", { ...input }) as Promise<{
+			runs: readonly RunRecord[];
+		}>;
+	}
+
+	getSession(input: { sessionId: SessionId }): Promise<SessionSnapshot> {
+		return this.request("session.get", {
+			sessionId: input.sessionId,
+		}) as Promise<SessionSnapshot>;
+	}
+
+	/** Admit a prompt; acks immediately without waiting for execution. */
+	async startRun(input: StartRunInput): Promise<RunAccepted> {
+		const result = await this.mutate("run.start", {
+			botId: input.botId,
+			prompt: input.prompt,
+			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
+			...(input.overrides ? { overrides: input.overrides } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		});
+		return RunAcceptedSchema.parse(result);
+	}
+
+	steerRun(input: {
+		runId: RunId;
+		text: string;
+		idempotencyKey?: string;
+	}): Promise<{ merged: boolean }> {
+		return this.mutate("run.steer", {
+			runId: input.runId,
+			text: input.text,
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<{ merged: boolean }>;
+	}
+
+	interruptRun(input: {
+		runId: RunId;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<{ state: string }> {
+		return this.mutate("run.interrupt", {
+			runId: input.runId,
+			...(input.reason ? { reason: input.reason } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<{ state: string }>;
+	}
+
+	/** Re-admit a failed/interrupted run: same runId, new attempt. */
+	async retryRun(input: {
+		runId: RunId;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<RunAccepted> {
+		const result = await this.mutate("run.retry", {
+			runId: input.runId,
+			...(input.reason ? { reason: input.reason } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		});
+		return RunAcceptedSchema.parse(result);
+	}
+
+	/**
+	 * Answer a server-initiated approval request. First answer wins across
+	 * all attached clients; the Gateway broadcasts `approval.resolved`.
+	 */
+	resolveApproval(requestId: string, resolution: ApprovalResolution): void {
+		this.respondToServerRequest(requestId, {
+			approved: resolution.approved,
+			...(resolution.reason ? { reason: resolution.reason } : {}),
+		});
 	}
 
 	onEvent(listener: GatewayEventListener): () => void {

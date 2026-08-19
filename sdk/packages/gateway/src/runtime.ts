@@ -55,6 +55,8 @@ import type {
 	SessionId,
 } from "@cline/shared/gateway";
 import {
+	assertRunStateTransition,
+	canRetryRunState,
 	createBotId,
 	createConnectorId,
 	createGatewayError,
@@ -72,7 +74,7 @@ import { OUTBOX_KIND_SESSION_PROJECTION } from "./outbox";
 import type { GatewayPaths } from "./paths";
 import type { CatalogPin, PluginCatalog } from "./plugins/catalog";
 import type { ScheduleRecord } from "./schedules/store";
-import type { GatewayStores } from "./stores";
+import type { GatewayStores, RunAttemptRecord, StoredMessage } from "./stores";
 import { UsageQueryError } from "./usage";
 
 /**
@@ -620,6 +622,14 @@ export class ApprovalBroker {
 	private nextId = 0;
 	/** Set by the server: deliver a request to matching live clients. */
 	deliver: ((request: GatewayServerRequest) => void) | undefined;
+	/**
+	 * First answer wins. Once a request settles this fires exactly once so
+	 * the runtime can broadcast `approval.resolved` — every other attached
+	 * client dismisses its copy instead of double-answering.
+	 */
+	onResolved:
+		| ((request: GatewayServerRequest, approved: boolean) => void)
+		| undefined;
 
 	request(
 		method: string,
@@ -655,6 +665,12 @@ export class ApprovalBroker {
 		} else {
 			entry.resolve(result);
 		}
+		const approved =
+			!error &&
+			typeof result === "object" &&
+			result !== null &&
+			(result as { approved?: unknown }).approved === true;
+		this.onResolved?.(entry.request, approved);
 		return true;
 	}
 
@@ -719,6 +735,27 @@ export interface GatewayRecoveryReport {
 	readonly interruptedRuns: readonly RunId[];
 	readonly requeuedRuns: readonly RunId[];
 	readonly orphanedQueuedRuns: readonly RunId[];
+}
+
+/**
+ * Execution mode the Gateway reports to clients. Phase 3 runs engines
+ * directly in the Gateway process with no OS sandbox; Phase 4 introduces
+ * real sandboxed execution. Clients must surface this honestly.
+ */
+export const GATEWAY_EXECUTION_MODE = "development" as const;
+
+/** Consistent read model of one session (hydration/recovery snapshot). */
+export interface SessionSnapshot {
+	readonly session: SessionRecord;
+	readonly runs: readonly (RunRecord & {
+		readonly attempts: readonly RunAttemptRecord[];
+	})[];
+	readonly messages: readonly StoredMessage[];
+	/**
+	 * Event-log high-water mark observed in the same transaction as the
+	 * rest of the snapshot: the cursor basis for resuming subscriptions.
+	 */
+	readonly lastEventSequence: number;
 }
 
 export class GatewayRuntime {
@@ -792,6 +829,19 @@ export class GatewayRuntime {
 			ids: this.ids,
 			clock: this.clock,
 		});
+		// Broadcast approval settlement: late answers from other clients are
+		// dropped by the broker (first answer wins); the durable event lets
+		// every attached client dismiss its pending copy.
+		this.approvals.onResolved = (request, approved) => {
+			this.database.transaction(() => {
+				this.stores.events.append(
+					"approval.resolved",
+					request.scope,
+					{ requestId: request.id, method: request.method, approved },
+					this.clock.now(),
+				);
+			});
+		};
 	}
 
 	/** Ensure the default lead bot `cline` exists. */
@@ -1105,6 +1155,111 @@ export class GatewayRuntime {
 		return this.stopRun(actor, runId, "abort", reason);
 	}
 
+	/**
+	 * Manual retry: re-admit a failed or interrupted run under the SAME
+	 * runId. The next execution is a new attempt in the run's durable
+	 * attempt history. Only an explicit client command lands here — the
+	 * Gateway never auto-retries after a reconnect or restart.
+	 */
+	retryRun(actor: string, runId: RunId, reason?: string): RunAccepted {
+		if (this.draining) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"gateway_draining",
+					"Gateway is draining and refuses new mutating work",
+					{ retryable: true },
+				),
+			);
+		}
+		const { bot, record } = this.requireRun(runId);
+		if (!canRetryRunState(record.state)) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"invalid_state_transition",
+					`Run ${runId} is ${record.state}; only failed or interrupted runs can be retried`,
+					{ retryable: false },
+				),
+			);
+		}
+		assertRunStateTransition(record.state, "queued");
+		const session = this.stores.sessions.get(record.sessionId);
+		if (!session || session.state !== "active") {
+			throw new GatewayCallError(
+				createGatewayError(
+					"run_admission_rejected",
+					`Run ${runId} belongs to a closed or missing session and cannot be retried`,
+					{ retryable: false },
+				),
+			);
+		}
+		const pendingAhead = this.stores.runs.countPendingBySession(
+			record.sessionId,
+		);
+		if (pendingAhead >= this.maxPendingRunsPerSession) {
+			throw new GatewayCallError(
+				createGatewayError(
+					"run_admission_rejected",
+					`Session queue is full (${pendingAhead} pending runs); retry later`,
+					{
+						retryable: true,
+						details: { pending: pendingAhead, limit: this.maxPendingRunsPerSession },
+					},
+				),
+			);
+		}
+		return this.database.transaction(() => {
+			const acceptedAt = this.clock.now();
+			const nextAttempt = this.stores.attempts.listByRun(runId).length + 1;
+			this.stores.events.append(
+				"run.retried",
+				{ botId: record.botId, sessionId: record.sessionId, runId },
+				{ previousState: record.state, nextAttempt, ...(reason ? { reason } : {}) },
+				acceptedAt,
+			);
+			const requeued: RunRecord = {
+				...record,
+				state: "queued",
+				acceptedAt,
+				startedAt: undefined,
+				endedAt: undefined,
+				outputText: undefined,
+				error: undefined,
+			};
+			// Emits the durable `run.queued` event via the instrumented repo.
+			this.runsPort.save(requeued);
+			bot.recoverQueuedRun(requeued);
+			this.stores.audit.record(
+				actor,
+				"run.retry",
+				runId,
+				{ previousState: record.state, nextAttempt, reason },
+				acceptedAt,
+			);
+			return { runId, acceptedAt, queuePosition: pendingAhead };
+		});
+	}
+
+	/** Consistent hydration snapshot of one session (single transaction). */
+	getSessionSnapshot(sessionId: SessionId): SessionSnapshot {
+		return this.database.transaction(() => {
+			const session = this.stores.sessions.get(sessionId);
+			if (!session) {
+				throw new GatewayCallError(
+					createGatewayError("not_found", `Unknown session: ${sessionId}`),
+				);
+			}
+			return {
+				session,
+				runs: this.stores.runs.listBySession(sessionId).map((run) => ({
+					...run,
+					attempts: this.stores.attempts.listByRun(run.runId),
+				})),
+				messages: this.stores.messages.listBySession(sessionId),
+				lastEventSequence: this.stores.events.lastSequence(),
+			};
+		});
+	}
+
 	delegateBot(
 		actor: string,
 		params: {
@@ -1374,6 +1529,10 @@ export class GatewayRuntime {
 	status(): Record<string, unknown> {
 		return {
 			state: this.draining ? "draining" : "serving",
+			// Reported honestly until Phase 4 lands real sandboxed execution:
+			// engines run unsandboxed inside the Gateway process.
+			executionMode: GATEWAY_EXECUTION_MODE,
+			sandboxed: false,
 			gatewayId: this.stores.meta.ensureGatewayId(),
 			instanceId: this.instanceId,
 			pid: process.pid,
