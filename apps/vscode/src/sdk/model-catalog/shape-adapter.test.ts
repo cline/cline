@@ -53,6 +53,17 @@ describe("adaptSdkModelInfo", () => {
 			expect(() => adaptSdkModelInfo({ id: "m", pricing: { input: Number.POSITIVE_INFINITY } })).toThrow(CatalogShapeError)
 		})
 
+		it("throws CatalogShapeError when modalities are malformed", () => {
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: "audio" })).toThrow(CatalogShapeError)
+			expect(() => adaptSdkModelInfo({ id: "m", modalities: { input: ["audio"] } })).toThrow(CatalogShapeError)
+			expect(() =>
+				adaptSdkModelInfo({
+					id: "m",
+					modalities: { input: ["audio"], output: ["unknown"] },
+				}),
+			).toThrow(CatalogShapeError)
+		})
+
 		it("CatalogShapeError exposes useful message and details", () => {
 			try {
 				adaptSdkModelInfo({ id: 5 })
@@ -156,6 +167,21 @@ describe("adaptSdkModelInfo", () => {
 			expect(model.outputPrice).toBe(0)
 			expect(model.cacheReadsPrice).toBeUndefined()
 			expect(model.cacheWritesPrice).toBeUndefined()
+		})
+	})
+
+	describe("modalities", () => {
+		it("preserves validated SDK modality metadata", () => {
+			expect(
+				adaptSdkModelInfo({
+					id: "whisper-large-v3",
+					modalities: { input: ["audio"], output: ["text"] },
+				}).modalities,
+			).toEqual({ input: ["audio"], output: ["text"] })
+		})
+
+		it("leaves absent modality metadata undefined", () => {
+			expect(adaptSdkModelInfo({ id: "legacy-chat-model" }).modalities).toBeUndefined()
 		})
 	})
 
