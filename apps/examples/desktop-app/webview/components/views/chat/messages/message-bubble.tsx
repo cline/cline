@@ -220,6 +220,7 @@ export const MessageBubble = memo(function MessageBubble({
 	const displayContent = formatChatMessageContent(
 		message.role,
 		message.content,
+		message.meta?.messageKind,
 	);
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
