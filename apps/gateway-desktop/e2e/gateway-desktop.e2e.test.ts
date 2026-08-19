@@ -635,6 +635,21 @@ describe("phase 4-6 surface", () => {
 		});
 		expect(report.jobs.length).toBeGreaterThan(0);
 	});
+
+	it("answers statistics queries and hydrates the usage readout", async () => {
+		const world = await startWorld();
+		// The scripted engine emits no model calls, so aggregates are zero —
+		// what matters is that the pipeline is queryable over the wire and
+		// lands in the projection.
+		const second = await connectSecondClient(world);
+		const summary = await second.statisticsSummary();
+		expect(summary.from).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+		expect(typeof summary.totals.tokens).toBe("number");
+		expect(typeof summary.totals.estimatedCost).toBe("number");
+		const usage = world.broker.projectionSnapshot.diagnostics.usage;
+		expect(usage).toBeDefined();
+		expect(usage?.tokens).toBe(summary.totals.tokens);
+	});
 });
 
 describe("protocol and bridge limits", () => {

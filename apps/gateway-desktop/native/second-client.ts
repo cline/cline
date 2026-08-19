@@ -16,6 +16,7 @@
  *   bun run second-client -- connectors       # list bot-scoped connectors
  *   bun run second-client -- schedules        # list schedules + last jobs
  *   bun run second-client -- schedule <name> <intervalMs> <prompt…>
+ *   bun run second-client -- stats            # usage aggregates summary
  */
 
 import { createEventCursor, encodeEventCursor } from "@cline/shared/gateway";
@@ -151,9 +152,14 @@ async function main(): Promise<void> {
 			process.stdout.write(`${JSON.stringify(created)}\n`);
 			break;
 		}
+		case "stats": {
+			const summary = await client.statisticsSummary();
+			process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
+			break;
+		}
 		default:
 			process.stderr.write(
-				"usage: second-client <status|prompt|steer|interrupt|retry|watch|approve-all|deny-all|connectors|schedules|schedule>\n",
+				"usage: second-client <status|prompt|steer|interrupt|retry|watch|approve-all|deny-all|connectors|schedules|schedule|stats>\n",
 			);
 			process.exit(2);
 	}

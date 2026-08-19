@@ -16,6 +16,7 @@ import type {
 	ScheduleRecord,
 	SessionRecord,
 	SessionSnapshot,
+	StatisticsSummary,
 } from "@cline/gateway/client";
 import type {
 	GatewayEvent,
@@ -524,6 +525,27 @@ export class FakeGatewayPort implements GatewayPort {
 	}): Promise<{ jobs: readonly ScheduleJobRecord[] }> {
 		this.assertOpen();
 		return { jobs: this.authority.scheduleJobs.get(input.scheduleId) ?? [] };
+	}
+
+	async statisticsSummary(): Promise<StatisticsSummary> {
+		this.assertOpen();
+		return {
+			from: "2026-08-01",
+			to: "2026-08-19",
+			totals: {
+				tokens: 4200,
+				inputTokens: 3000,
+				outputTokens: 1200,
+				messages: 12,
+				modelCalls: 6,
+				estimatedCost: 0.042,
+			},
+			agents: 1,
+			topics: 2,
+			activeModels: [{ modelId: "fake-model", providerId: "fake" }],
+			peakDailyTokens: 2100,
+			longestTaskMs: 60_000,
+		};
 	}
 
 	async listBots(): Promise<{ bots: readonly BotRecord[] }> {

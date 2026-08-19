@@ -38,6 +38,12 @@ early with minimal product code.
 - Schedules with trigger, next due, and last job state; schedule-admitted
   runs are labeled with `automation` provenance (Gateway-recorded run
   provenance via `session.get`)
+- Thin usage readout from the Phase 3 statistics pipeline
+  (`statistics.summary` over the Gateway-maintained daily aggregates:
+  tokens, model calls, messages, estimated cost, active models). The
+  full Statistics page is Phase 7 product work; `statistics.activity`,
+  `statistics.rankings`, and `statistics.usage` are exposed on the typed
+  client (`second-client -- stats`) but not rendered.
 - No MCP pool health: the Gateway does not expose it over the wire yet
 
 ## Architecture (three processes)

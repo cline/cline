@@ -16,6 +16,7 @@ import type {
 	ScheduleRecord,
 	SessionRecord,
 	SessionSnapshot,
+	StatisticsSummary,
 } from "@cline/gateway/client";
 import type {
 	GatewayEvent,
@@ -52,6 +53,10 @@ export interface GatewayPort {
 	scheduleReport(input: {
 		scheduleId: string;
 	}): Promise<{ jobs: readonly ScheduleJobRecord[] }>;
+	statisticsSummary(range?: {
+		from?: string;
+		to?: string;
+	}): Promise<StatisticsSummary>;
 	startRun(input: {
 		botId: string;
 		prompt: string;

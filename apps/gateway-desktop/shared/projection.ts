@@ -194,6 +194,19 @@ export interface ScheduleProjection {
 	lastRunId?: string;
 }
 
+/** Thin usage readout from `statistics.summary` (no Statistics page). */
+export interface UsageSummaryProjection {
+	from: string;
+	to: string;
+	tokens: number;
+	inputTokens: number;
+	outputTokens: number;
+	messages: number;
+	modelCalls: number;
+	estimatedCost: number;
+	activeModels: number;
+}
+
 export interface DiagnosticsProjection {
 	/** Bounded, redacted, user-presentable notices (newest last). */
 	notices: string[];
@@ -205,6 +218,8 @@ export interface DiagnosticsProjection {
 	plugins?: PluginCatalogProjection;
 	/** Durable catalog generation from gateway.status/hello. */
 	catalogGeneration?: number;
+	/** Phase 3 usage pipeline readout (aggregates only). */
+	usage?: UsageSummaryProjection;
 }
 
 export interface DesktopProjection {

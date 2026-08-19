@@ -69,6 +69,17 @@ export function fixtureConnectedIdle(): DesktopProjection {
 		lastReloadOk: true,
 	};
 	projection.diagnostics.catalogGeneration = 3;
+	projection.diagnostics.usage = {
+		from: "2026-08-01",
+		to: "2026-08-19",
+		tokens: 48_200,
+		inputTokens: 36_000,
+		outputTokens: 12_200,
+		messages: 84,
+		modelCalls: 40,
+		estimatedCost: 0.62,
+		activeModels: 2,
+	};
 	projection.connectors = [
 		{
 			connectorId: "con_fixture0000001",

@@ -98,30 +98,31 @@ export function Conversation({
 						<span className="truncate font-mono text-[10px] text-muted-foreground">
 							{currentRun.runId}
 						</span>
-						{currentRun.provenance && currentRun.provenance.mode !== "interactive" && (
-							<Badge
-								className={cn(
-									"border-transparent text-[10px]",
-									currentRun.provenance.mode === "automation"
-										? "bg-sky-600/20 text-sky-400"
-										: "bg-violet-600/20 text-violet-400",
-								)}
-								data-testid="run-provenance"
-								title={
-									currentRun.provenance.scheduleId ??
-									currentRun.provenance.connectorId ??
-									currentRun.provenance.submittedBy ??
-									""
-								}
-							>
-								{currentRun.provenance.mode}
-								{currentRun.provenance.scheduleId
-									? ` · ${currentRun.provenance.scheduleId.slice(0, 12)}…`
-									: currentRun.provenance.connectorId
-										? ` · ${currentRun.provenance.connectorId.slice(0, 12)}…`
-										: ""}
-							</Badge>
-						)}
+						{currentRun.provenance &&
+							currentRun.provenance.mode !== "interactive" && (
+								<Badge
+									className={cn(
+										"border-transparent text-[10px]",
+										currentRun.provenance.mode === "automation"
+											? "bg-sky-600/20 text-sky-400"
+											: "bg-violet-600/20 text-violet-400",
+									)}
+									data-testid="run-provenance"
+									title={
+										currentRun.provenance.scheduleId ??
+										currentRun.provenance.connectorId ??
+										currentRun.provenance.submittedBy ??
+										""
+									}
+								>
+									{currentRun.provenance.mode}
+									{currentRun.provenance.scheduleId
+										? ` · ${currentRun.provenance.scheduleId.slice(0, 12)}…`
+										: currentRun.provenance.connectorId
+											? ` · ${currentRun.provenance.connectorId.slice(0, 12)}…`
+											: ""}
+								</Badge>
+							)}
 					</>
 				)}
 				{active.usage && (

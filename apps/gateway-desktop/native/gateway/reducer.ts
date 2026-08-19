@@ -359,6 +359,8 @@ export interface HydrationInput {
 	pendingRuns: readonly RunRecord[];
 	/** Bot-scoped connectors (Phase 6 diagnostics). */
 	connectors?: readonly ConnectorRecord[];
+	/** Usage aggregates readout (Phase 3 statistics pipeline). */
+	usageSummary?: unknown;
 	/** Schedules plus their most recent job reports (Phase 6). */
 	schedules?: readonly ScheduleRecord[];
 	scheduleJobs?: ReadonlyMap<string, readonly ScheduleJobRecord[]>;
@@ -446,6 +448,45 @@ function connectorWorkerStates(
 		}
 	}
 	return byId;
+}
+
+/** Structural read of a `statistics.summary` result (untrusted). */
+function usageSummaryFrom(
+	value: unknown,
+): DesktopProjection["diagnostics"]["usage"] {
+	if (typeof value !== "object" || value === null) {
+		return undefined;
+	}
+	const typed = value as {
+		from?: unknown;
+		to?: unknown;
+		totals?: unknown;
+		activeModels?: unknown;
+	};
+	if (
+		typeof typed.from !== "string" ||
+		typeof typed.to !== "string" ||
+		typeof typed.totals !== "object" ||
+		typed.totals === null
+	) {
+		return undefined;
+	}
+	const totals = typed.totals as Record<string, unknown>;
+	const numberOf = (key: string) =>
+		typeof totals[key] === "number" ? (totals[key] as number) : 0;
+	return {
+		from: typed.from,
+		to: typed.to,
+		tokens: numberOf("tokens"),
+		inputTokens: numberOf("inputTokens"),
+		outputTokens: numberOf("outputTokens"),
+		messages: numberOf("messages"),
+		modelCalls: numberOf("modelCalls"),
+		estimatedCost: numberOf("estimatedCost"),
+		activeModels: Array.isArray(typed.activeModels)
+			? typed.activeModels.length
+			: 0,
+	};
 }
 
 function scheduleTrigger(record: ScheduleRecord): string {
@@ -570,6 +611,10 @@ export function hydrate(context: ReducerContext, input: HydrationInput): void {
 	projection.diagnostics.plugins = pluginSummaryFrom(input.status.plugins);
 	if (typeof input.status.catalogGeneration === "number") {
 		projection.diagnostics.catalogGeneration = input.status.catalogGeneration;
+	}
+	const usage = usageSummaryFrom(input.usageSummary);
+	if (usage) {
+		projection.diagnostics.usage = usage;
 	}
 	context.cursorSequence = input.cursorBasis;
 	commit(
@@ -1077,10 +1122,7 @@ function applyEventBody(context: ReducerContext, event: GatewayEvent): void {
 			return;
 		}
 		case "connector.messageAdmitted": {
-			if (
-				typeof payload.connectorId === "string" &&
-				event.scope.runId
-			) {
+			if (typeof payload.connectorId === "string" && event.scope.runId) {
 				// Provenance for the run this admission created: the run's
 				// lifecycle events carry no provenance, so remember the hint.
 				context.provenanceHints.set(event.scope.runId, {

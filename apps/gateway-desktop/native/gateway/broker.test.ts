@@ -495,14 +495,26 @@ describe("phase 4-6 diagnostics", () => {
 		const connectorRun = active?.runs.find(
 			(run) => run.provenance?.mode === "connector",
 		);
-		expect(connectorRun?.provenance?.connectorId).toBe(
-			connector.connectorId,
-		);
+		expect(connectorRun?.provenance?.connectorId).toBe(connector.connectorId);
 		// The snapshot refresh recovered the real prompt preview too.
 		expect(
 			active?.queuedTurns.find((turn) => turn.runId === connectorRun?.runId)
 				?.promptPreview,
 		).toBe("hello from slack");
+	});
+
+	it("hydrates the thin usage readout from statistics.summary", async () => {
+		const harness = createHarness();
+		await harness.broker.start();
+		const usage = harness.broker.projectionSnapshot.diagnostics.usage;
+		expect(usage).toMatchObject({
+			from: "2026-08-01",
+			to: "2026-08-19",
+			tokens: 4200,
+			modelCalls: 6,
+			estimatedCost: 0.042,
+			activeModels: 1,
+		});
 	});
 
 	it("appends connector and schedule entries from live events", async () => {
@@ -521,9 +533,9 @@ describe("phase 4-6 diagnostics", () => {
 		});
 		await settle();
 		const projection = harness.broker.projectionSnapshot;
-		expect(
-			projection.connectors.map((connector) => connector.name),
-		).toContain("late-connector");
+		expect(projection.connectors.map((connector) => connector.name)).toContain(
+			"late-connector",
+		);
 		expect(projection.schedules.map((schedule) => schedule.name)).toContain(
 			"late-schedule",
 		);

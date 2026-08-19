@@ -313,13 +313,15 @@ export class DesktopBroker {
 				? persistedCursor
 				: lastEventSequence;
 
-		const [bots, sessions, pendingRuns, connectors, schedules] =
+		const [bots, sessions, pendingRuns, connectors, schedules, usageSummary] =
 			await Promise.all([
 				port.listBots(),
 				port.listSessions(),
 				port.listRuns(),
 				port.listConnectors(),
 				port.listSchedules(),
+				// Diagnostics only: a failing stats read never blocks hydration.
+				port.statisticsSummary().catch(() => undefined),
 			]);
 		const scheduleJobs = await this.collectScheduleJobs(
 			port,
@@ -377,6 +379,7 @@ export class DesktopBroker {
 			connectors: connectors.connectors,
 			schedules: schedules.schedules,
 			scheduleJobs,
+			usageSummary,
 			snapshot,
 			cursorBasis,
 		});
@@ -391,7 +394,9 @@ export class DesktopBroker {
 	private async collectScheduleJobs(
 		port: GatewayPort,
 		schedules: readonly { scheduleId: string }[],
-	): Promise<Map<string, Awaited<ReturnType<GatewayPort["scheduleReport"]>>["jobs"]>> {
+	): Promise<
+		Map<string, Awaited<ReturnType<GatewayPort["scheduleReport"]>>["jobs"]>
+	> {
 		const jobs = new Map<
 			string,
 			Awaited<ReturnType<GatewayPort["scheduleReport"]>>["jobs"]
@@ -744,10 +749,7 @@ export class DesktopBroker {
 				pendingRuns: pending.runs,
 				connectors: connectors.connectors,
 				schedules: schedules.schedules,
-				scheduleJobs: await this.collectScheduleJobs(
-					port,
-					schedules.schedules,
-				),
+				scheduleJobs: await this.collectScheduleJobs(port, schedules.schedules),
 				snapshot,
 				cursorBasis: this.context.cursorSequence,
 			});

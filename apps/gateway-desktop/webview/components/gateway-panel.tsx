@@ -1,6 +1,12 @@
 "use client";
 
-import { Blocks, CalendarClock, Plug, ShieldAlert } from "lucide-react";
+import {
+	BarChart3,
+	Blocks,
+	CalendarClock,
+	Plug,
+	ShieldAlert,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
@@ -64,6 +70,22 @@ export function GatewayPanel({
 						generation {plugins.generation} · {plugins.pluginCount} plugins ·{" "}
 						{plugins.pinnedByRuns} pinned ·{" "}
 						{plugins.lastReloadOk ? "reload ok" : "reload FAILED"}
+					</span>
+				</div>
+			)}
+			{projection.diagnostics.usage && (
+				<div className="flex flex-col gap-1" data-testid="usage-readout">
+					<span className="flex items-center gap-1.5 text-muted-foreground">
+						<BarChart3 aria-hidden className="size-3" />
+						usage ({projection.diagnostics.usage.from} →{" "}
+						{projection.diagnostics.usage.to})
+					</span>
+					<span className="gwd-selectable font-mono text-[10px] text-muted-foreground">
+						{projection.diagnostics.usage.tokens.toLocaleString()} tokens ·{" "}
+						{projection.diagnostics.usage.modelCalls} calls ·{" "}
+						{projection.diagnostics.usage.messages} messages · $
+						{projection.diagnostics.usage.estimatedCost.toFixed(4)} ·{" "}
+						{projection.diagnostics.usage.activeModels} models
 					</span>
 				</div>
 			)}

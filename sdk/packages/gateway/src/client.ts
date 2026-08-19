@@ -162,6 +162,26 @@ export interface ApprovalResolution {
 	reason?: string;
 }
 
+/** `statistics.summary` result (bounded reads over daily aggregates). */
+export interface StatisticsSummary {
+	from: string;
+	to: string;
+	totals: {
+		tokens: number;
+		inputTokens: number;
+		outputTokens: number;
+		messages: number;
+		modelCalls: number;
+		estimatedCost: number;
+	};
+	agents: number;
+	topics: number;
+	activeModels: readonly { modelId: string; providerId: string }[];
+	peakDailyTokens: number;
+	longestTaskMs: number;
+	[extra: string]: unknown;
+}
+
 interface PendingRequest {
 	resolve(value: unknown): void;
 	reject(error: Error): void;
@@ -432,6 +452,41 @@ export class GatewayClient {
 		return this.request("schedule.report", {
 			scheduleId: input.scheduleId,
 		}) as Promise<{ jobs: readonly ScheduleJobRecord[] }>;
+	}
+
+	// Statistics: bounded reads over the Gateway-maintained aggregates.
+
+	statisticsSummary(
+		range: { from?: string; to?: string } = {},
+	): Promise<StatisticsSummary> {
+		return this.request("statistics.summary", {
+			...range,
+		}) as Promise<StatisticsSummary>;
+	}
+
+	statisticsActivity(
+		range: { from?: string; to?: string } = {},
+	): Promise<Record<string, unknown>> {
+		return this.request("statistics.activity", { ...range }) as Promise<
+			Record<string, unknown>
+		>;
+	}
+
+	statisticsRankings(input: {
+		dimension: "model" | "agent" | "topic";
+		from?: string;
+		to?: string;
+		limit?: number;
+	}): Promise<Record<string, unknown>> {
+		return this.request("statistics.rankings", { ...input }) as Promise<
+			Record<string, unknown>
+		>;
+	}
+
+	statisticsUsage(input: { month: string }): Promise<Record<string, unknown>> {
+		return this.request("statistics.usage", { ...input }) as Promise<
+			Record<string, unknown>
+		>;
 	}
 
 	/**
