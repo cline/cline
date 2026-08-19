@@ -1,6 +1,6 @@
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { palette } from "../../palette";
 import type { MonitorItem } from "../../types";
 
@@ -39,33 +39,51 @@ export function getMonitorRowColor(
 }
 
 /**
- * Marks one monitor stopped in a local roster copy. The authoritative state
- * arrives through the next monitor-state event; this keeps the open dialog
- * honest in the meantime.
+ * Overlays optimistic local stops onto an authoritative roster snapshot.
+ * A stop that resolved true flips its row immediately; the registry's next
+ * monitor_state snapshot then carries the real terminal status and wins.
  */
-export function markMonitorStopped(
-	monitors: MonitorItem[],
-	monitorId: string,
+export function applyLocalStops(
+	monitors: readonly MonitorItem[],
+	stoppedIds: ReadonlySet<string>,
 ): MonitorItem[] {
 	return monitors.map((monitor) =>
-		monitor.id === monitorId && monitor.status === "running"
+		stoppedIds.has(monitor.id) && monitor.status === "running"
 			? { ...monitor, status: "stopped" }
 			: monitor,
 	);
 }
 
+/** Keeps the selection on a valid row while the live roster grows or shrinks. */
+export function clampSelection(selected: number, itemCount: number): number {
+	if (itemCount === 0) {
+		return 0;
+	}
+	return Math.min(Math.max(selected, 0), itemCount - 1);
+}
+
 export function MonitorsContent(
 	props: ChoiceContext<boolean> & {
-		monitors: MonitorItem[];
+		/** Subscribes to roster changes; the dialog stays live while open. */
+		subscribeMonitors: (listener: () => void) => () => void;
+		getMonitors: () => MonitorItem[];
 		onStopMonitor: (monitorId: string) => Promise<boolean>;
 	},
 ) {
+	const liveMonitors = useSyncExternalStore(
+		props.subscribeMonitors,
+		props.getMonitors,
+	);
 	const [selected, setSelected] = useState(0);
-	const [monitors, setMonitors] = useState(props.monitors);
+	const [stoppedIds, setStoppedIds] = useState<ReadonlySet<string>>(
+		() => new Set(),
+	);
 	const [stopping, setStopping] = useState<string | null>(null);
 	const [error, setError] = useState<string | null>(null);
 
+	const monitors = applyLocalStops(liveMonitors, stoppedIds);
 	const itemCount = monitors.length;
+	const selectedIndex = clampSelection(selected, itemCount);
 	const hasRunning = monitors.some((monitor) => monitor.status === "running");
 
 	useDialogKeyboard((key) => {
@@ -78,16 +96,16 @@ export function MonitorsContent(
 		}
 		if (key.name === "up") {
 			setError(null);
-			setSelected((s) => (s > 0 ? s - 1 : itemCount - 1));
+			setSelected(selectedIndex > 0 ? selectedIndex - 1 : itemCount - 1);
 			return;
 		}
 		if (key.name === "down") {
 			setError(null);
-			setSelected((s) => (s < itemCount - 1 ? s + 1 : 0));
+			setSelected(selectedIndex < itemCount - 1 ? selectedIndex + 1 : 0);
 			return;
 		}
 		if (key.name === "space") {
-			const target = monitors[selected];
+			const target = monitors[selectedIndex];
 			if (!target || target.status !== "running" || stopping) {
 				return;
 			}
@@ -97,7 +115,7 @@ export function MonitorsContent(
 				.onStopMonitor(target.id)
 				.then((stopped) => {
 					if (stopped) {
-						setMonitors((current) => markMonitorStopped(current, target.id));
+						setStoppedIds((current) => new Set(current).add(target.id));
 					} else {
 						setError(`Monitor "${target.name}" is no longer running.`);
 					}
@@ -109,6 +127,8 @@ export function MonitorsContent(
 			return;
 		}
 	}, props.dialogId);
+
+	const selectedMonitor = monitors[selectedIndex];
 
 	return (
 		<box flexDirection="column" paddingX={1}>
@@ -122,7 +142,7 @@ export function MonitorsContent(
 			{itemCount > 0 && (
 				<box flexDirection="column" marginTop={1}>
 					{monitors.map((monitor, index) => {
-						const isSelected = index === selected;
+						const isSelected = index === selectedIndex;
 						const statusLabel =
 							stopping === monitor.id
 								? "stopping…"
@@ -153,14 +173,12 @@ export function MonitorsContent(
 				</text>
 			)}
 
-			{monitors[selected] && (
+			{selectedMonitor && (
 				<box flexDirection="column" marginTop={1}>
-					<text fg="gray">command: {monitors[selected].command}</text>
-					<text fg="gray">
-						lines delivered: {monitors[selected].linesEmitted}
-					</text>
-					{monitors[selected].error && (
-						<text fg={palette.error}>{monitors[selected].error}</text>
+					<text fg="gray">command: {selectedMonitor.command}</text>
+					<text fg="gray">lines delivered: {selectedMonitor.linesEmitted}</text>
+					{selectedMonitor.error && (
+						<text fg={palette.error}>{selectedMonitor.error}</text>
 					)}
 				</box>
 			)}

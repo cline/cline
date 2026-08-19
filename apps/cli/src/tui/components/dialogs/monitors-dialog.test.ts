@@ -6,10 +6,11 @@ vi.mock("@opentui-ui/dialog/react", () => ({
 }));
 
 import {
+	applyLocalStops,
+	clampSelection,
 	getMonitorRowColor,
 	getMonitorStatusLabel,
 	getMonitorsFooterText,
-	markMonitorStopped,
 } from "./monitors-dialog";
 
 function makeMonitor(overrides: Partial<MonitorItem> = {}): MonitorItem {
@@ -69,19 +70,37 @@ describe("getMonitorRowColor", () => {
 	});
 });
 
-describe("markMonitorStopped", () => {
-	it("stops only the matching running monitor", () => {
+describe("applyLocalStops", () => {
+	it("overlays a local stop only onto matching running monitors", () => {
 		const monitors = [
 			makeMonitor(),
 			makeMonitor({ id: "mon_2", status: "exited" }),
 		];
-		const next = markMonitorStopped(monitors, "mon_1");
+		const next = applyLocalStops(monitors, new Set(["mon_1", "mon_2"]));
 		expect(next[0]?.status).toBe("stopped");
 		expect(next[1]?.status).toBe("exited");
 	});
 
-	it("leaves already-terminal monitors untouched", () => {
+	it("lets an authoritative snapshot win over the local overlay", () => {
+		// After the registry settles the stop, the live snapshot already says
+		// stopped/exited; the overlay must not alter it further.
 		const monitors = [makeMonitor({ status: "exited", exitCode: 0 })];
-		expect(markMonitorStopped(monitors, "mon_1")).toEqual(monitors);
+		expect(applyLocalStops(monitors, new Set(["mon_1"]))).toEqual(monitors);
+	});
+
+	it("keeps a live snapshot with no local stops untouched", () => {
+		const monitors = [makeMonitor(), makeMonitor({ id: "mon_2" })];
+		expect(applyLocalStops(monitors, new Set())).toEqual(monitors);
+	});
+});
+
+describe("clampSelection", () => {
+	it("keeps the selection on a valid row while the roster changes", () => {
+		expect(clampSelection(0, 3)).toBe(0);
+		expect(clampSelection(2, 3)).toBe(2);
+		// Roster shrank under the cursor (monitor exited while dialog open).
+		expect(clampSelection(2, 1)).toBe(0);
+		expect(clampSelection(-1, 2)).toBe(0);
+		expect(clampSelection(5, 0)).toBe(0);
 	});
 });
