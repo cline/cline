@@ -818,6 +818,12 @@ export class DefaultRuntimeBuilder implements RuntimeBuilder {
 					);
 				}
 			},
+			stopMonitor: monitorRegistry
+				? async (monitorId) =>
+						Boolean(
+							await monitorRegistry.stop(monitorId, { stoppedBy: "user" }),
+						)
+				: undefined,
 			shutdown: async (reason: string) => {
 				shutdownTeamRuntime(teamRuntime, reason);
 				this.teamRuntimeEntries.delete(registryKey);

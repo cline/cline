@@ -81,6 +81,7 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import { buildActiveSessionMonitors } from "@/lib/session-monitors";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -1418,6 +1419,50 @@ function ChatThreadPane({
 			}),
 		[agents, derivedAgentActivity, isSessionActive],
 	);
+	const activeMonitors = useMemo(
+		() => buildActiveSessionMonitors(displayedMessages),
+		[displayedMessages],
+	);
+	const [manuallyStoppedMonitors, setManuallyStoppedMonitors] = useState<
+		Set<string>
+	>(() => new Set());
+	const visibleActiveMonitors = useMemo(
+		() =>
+			activeMonitors.filter(
+				(monitor) =>
+					!manuallyStoppedMonitors.has(
+						`${displayedSessionId ?? ""}:${monitor.id}`,
+					),
+			),
+		[activeMonitors, displayedSessionId, manuallyStoppedMonitors],
+	);
+	const handleStopMonitor = useCallback(
+		async (monitorId: string) => {
+			if (!displayedSessionId) {
+				throw new Error("No active session.");
+			}
+			try {
+				const response = await desktopClient.invoke<{ stopped?: boolean }>(
+					"stop_monitor",
+					{ sessionId: displayedSessionId, monitorId },
+				);
+				if (!response.stopped) {
+					throw new Error("The monitor is no longer running.");
+				}
+				setManuallyStoppedMonitors((current) =>
+					new Set(current).add(`${displayedSessionId}:${monitorId}`),
+				);
+			} catch (error) {
+				toast({
+					title: "Unable to stop monitor",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				throw error;
+			}
+		},
+		[displayedSessionId],
+	);
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
@@ -1576,6 +1621,7 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
+							activeMonitors={visibleActiveMonitors}
 							agentActivity={agentActivity}
 							agents={agents}
 							agentsError={agentsError}
@@ -1583,6 +1629,7 @@ function ChatThreadPane({
 							onAgentsOpenChange={setAgentPanelOpen}
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenParentSession={onOpenSessionById}
+							onStopMonitor={handleStopMonitor}
 							parentSession={hideDeletedSessionUi ? undefined : parentSession}
 							canEditTitle={Boolean(activeSessionForTitle)}
 							canDeleteSession={Boolean(activeSessionToDelete)}

@@ -191,6 +191,72 @@ describe("AgentHeader agent activity", () => {
 	});
 });
 
+describe("AgentHeader monitor activity", () => {
+	it("shows active monitors immediately after agent activity", async () => {
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					activeMonitors={[{ id: "mon_1", name: "ci" }]}
+					agentActivity={{
+						total: 1,
+						running: 1,
+						completed: 0,
+						failed: 0,
+						cancelled: 0,
+						unresolved: 0,
+					}}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+
+		const activity = container.querySelector("#monitor-activity");
+		expect(activity?.getAttribute("aria-label")).toBe("1 monitor running: ci");
+		expect(activity?.textContent).toBe("1");
+		expect(container.querySelector("#agent-activity")?.nextElementSibling).toBe(
+			activity,
+		);
+	});
+
+	it("stays hidden when no monitor is running", async () => {
+		await act(async () => {
+			root.render(
+				<AgentHeader activeMonitors={[]} status="completed" title="S" />,
+			);
+		});
+		expect(container.querySelector("#monitor-activity")).toBeNull();
+	});
+
+	it("lets the user stop a running monitor", async () => {
+		const onStopMonitor = vi.fn().mockResolvedValue(undefined);
+		await act(async () => {
+			root.render(
+				<AgentHeader
+					activeMonitors={[{ id: "mon_7", name: "build" }]}
+					onStopMonitor={onStopMonitor}
+					status="running"
+					title="S"
+				/>,
+			);
+		});
+
+		await act(async () => {
+			(
+				container.querySelector("#monitor-activity") as HTMLButtonElement
+			).click();
+		});
+		const stop = document.querySelector<HTMLButtonElement>(
+			'button[aria-label="Stop monitor build"]',
+		);
+		expect(stop).not.toBeNull();
+		await act(async () => {
+			stop?.click();
+		});
+		expect(onStopMonitor).toHaveBeenCalledWith("mon_7");
+	});
+});
+
 describe("AgentHeader agent roster popover", () => {
 	const ACTIVITY = {
 		total: 2,

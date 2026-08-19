@@ -43,6 +43,8 @@ export interface MonitorNotification {
 	/** Present only on the final notification, once the process has ended. */
 	exit?: {
 		status: Exclude<MonitorStatus, "running">;
+		/** Identifies an explicit stop initiated outside the agent tool call. */
+		stoppedBy?: "user";
 		code?: number | null;
 		signal?: NodeJS.Signals | null;
 		/** Populated when the process could not be spawned at all. */
@@ -377,7 +379,10 @@ export class MonitorRegistry {
 	 * Stops one monitor by id or name. Returns the final record, or undefined
 	 * when nothing matched.
 	 */
-	async stop(idOrName: string): Promise<MonitorRecord | undefined> {
+	async stop(
+		idOrName: string,
+		options?: { stoppedBy?: "user" },
+	): Promise<MonitorRecord | undefined> {
 		const key = idOrName.trim();
 		const entry =
 			this.monitors.get(key) ??
@@ -389,7 +394,10 @@ export class MonitorRegistry {
 			// Report anything already buffered rather than discarding it, then close
 			// the monitor out. The later `close` event finds it settled and is a
 			// no-op.
-			this.settle(entry, { status: "stopped" });
+			this.settle(entry, {
+				status: "stopped",
+				stoppedBy: options?.stoppedBy,
+			});
 		}
 		await this.terminateEntry(entry);
 		return snapshot(entry);
@@ -824,6 +832,7 @@ export class MonitorRegistry {
 		entry: MonitorEntry,
 		outcome: {
 			status: Exclude<MonitorStatus, "running">;
+			stoppedBy?: "user";
 			code?: number | null;
 			signal?: NodeJS.Signals | null;
 			error?: string;
@@ -851,6 +860,7 @@ export class MonitorRegistry {
 
 		this.flush(entry, {
 			status: outcome.status,
+			stoppedBy: outcome.stoppedBy,
 			code: outcome.code,
 			signal: outcome.signal,
 			error: outcome.error,
@@ -942,7 +952,9 @@ function formatExit(notification: MonitorNotification): string {
 	const id = notification.monitorId;
 	switch (exit.status) {
 		case "stopped":
-			return `[monitor ${id} stopped]`;
+			return exit.stoppedBy === "user"
+				? `[monitor ${id} stopped by the user]`
+				: `[monitor ${id} stopped]`;
 		case "failed":
 			return `[monitor ${id} failed to run: ${sanitizeUntrusted(
 				exit.error ?? "unknown error",

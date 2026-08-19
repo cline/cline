@@ -2,6 +2,7 @@
 
 import { SessionStatus } from "@cline/ui";
 import {
+	Activity,
 	AlertCircle,
 	Bot,
 	Check,
@@ -22,6 +23,7 @@ import {
 	type SessionAgentEntry,
 	type SessionAgentRunState,
 } from "@/lib/session-agents";
+import type { SessionMonitor } from "@/lib/session-monitors";
 import { sessionStatusColor, sessionStatusTone } from "@/lib/session-status";
 import { cn } from "@/lib/utils";
 import { Button } from "./ui/button";
@@ -52,11 +54,13 @@ type AgentHeaderProps = {
 		deletions: number;
 	};
 	agentActivity?: SessionAgentActivity;
+	activeMonitors?: SessionMonitor[];
 	agents?: SessionAgentEntry[];
 	agentsLoading?: boolean;
 	agentsError?: string | null;
 	onAgentsOpenChange?: (open: boolean) => void;
 	onOpenAgentSession?: (agentSessionId: string) => void | Promise<void>;
+	onStopMonitor?: (monitorId: string) => Promise<void> | void;
 	/** Set when the open session is itself a child agent run. */
 	parentSession?: { sessionId: string; title?: string };
 	onOpenParentSession?: (parentSessionId: string) => void | Promise<void>;
@@ -76,11 +80,13 @@ function AgentHeaderImpl({
 	status,
 	diff,
 	agentActivity,
+	activeMonitors,
 	agents,
 	agentsLoading = false,
 	agentsError = null,
 	onAgentsOpenChange,
 	onOpenAgentSession,
+	onStopMonitor,
 	parentSession,
 	onOpenParentSession,
 }: AgentHeaderProps) {
@@ -234,6 +240,10 @@ function AgentHeaderImpl({
 						onOpenAgentSession={onOpenAgentSession}
 						onOpenChange={onAgentsOpenChange}
 					/>
+					<MonitorActivityStatus
+						monitors={activeMonitors}
+						onStopMonitor={onStopMonitor}
+					/>
 					{additions !== 0 && (
 						<Button
 							aria-label={`Open diff: ${additions} additions, ${deletions} deletions`}
@@ -283,6 +293,95 @@ function AgentHeaderImpl({
 // otherwise re-render on every stream flush; its props are kept
 // referentially stable by the chat pane.
 export const AgentHeader = memo(AgentHeaderImpl);
+
+function MonitorActivityStatus({
+	monitors,
+	onStopMonitor,
+}: {
+	monitors?: SessionMonitor[];
+	onStopMonitor?: (monitorId: string) => Promise<void> | void;
+}) {
+	const [stopping, setStopping] = useState<Set<string>>(() => new Set());
+	if (!monitors?.length) {
+		return null;
+	}
+	const count = monitors.length;
+	const names = monitors.map((monitor) => monitor.name).join(", ");
+	const label = `${count} ${count === 1 ? "monitor" : "monitors"} running: ${names}`;
+
+	const stopMonitor = async (monitorId: string) => {
+		setStopping((current) => new Set(current).add(monitorId));
+		try {
+			await onStopMonitor?.(monitorId);
+		} catch {
+			// The owning view reports the failure; keep this control retryable.
+		} finally {
+			setStopping((current) => {
+				const next = new Set(current);
+				next.delete(monitorId);
+				return next;
+			});
+		}
+	};
+
+	return (
+		<Popover>
+			<PopoverTrigger asChild>
+				<Button
+					aria-label={label}
+					className="flex items-center gap-1.5 rounded-md bg-secondary px-2 py-1 text-xs font-mono text-muted-foreground transition-colors hover:bg-secondary/80"
+					id="monitor-activity"
+					size="sm"
+					title={label}
+					type="button"
+					variant="secondary"
+				>
+					<Activity aria-hidden="true" className="size-3 animate-pulse" />
+					<span className="text-foreground">{count}</span>
+				</Button>
+			</PopoverTrigger>
+			<PopoverContent align="end" className="w-80 overflow-hidden p-0">
+				<div className="border-b border-border/70 px-3 py-2">
+					<div className="text-sm font-medium text-foreground">
+						Running monitors
+					</div>
+				</div>
+				<ul className="divide-y divide-border/60">
+					{monitors.map((monitor) => {
+						const isStopping = stopping.has(monitor.id);
+						return (
+							<li
+								className="flex min-w-0 items-center gap-2 px-3 py-2"
+								key={monitor.id}
+							>
+								<Activity
+									aria-hidden="true"
+									className="size-3.5 shrink-0 animate-pulse text-foreground"
+								/>
+								<span className="min-w-0 flex-1 truncate text-xs text-foreground">
+									{monitor.name}
+								</span>
+								<Button
+									aria-label={`Stop monitor ${monitor.name}`}
+									disabled={!onStopMonitor || isStopping}
+									onClick={() => void stopMonitor(monitor.id)}
+									size="sm"
+									type="button"
+									variant="outline"
+								>
+									{isStopping ? (
+										<Loader2 className="size-3 animate-spin" />
+									) : null}
+									{isStopping ? "Stopping" : "Stop"}
+								</Button>
+							</li>
+						);
+					})}
+				</ul>
+			</PopoverContent>
+		</Popover>
+	);
+}
 
 /**
  * Route from a child agent run back to the session that spawned it, in the

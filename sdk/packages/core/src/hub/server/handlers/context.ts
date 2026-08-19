@@ -11,6 +11,7 @@ import type {
 import { createSessionId } from "@cline/shared";
 import type {
 	CommandExecutionRuntimeService,
+	MonitorRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -66,6 +67,7 @@ export interface HubTransportContext {
 	readonly sessionHost: RuntimeHost &
 		Partial<
 			CommandExecutionRuntimeService &
+				MonitorRuntimeService &
 				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService

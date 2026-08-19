@@ -6,6 +6,7 @@ import type {
 } from "../../cron/service/schedule-service";
 import type {
 	CommandExecutionRuntimeService,
+	MonitorRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
@@ -18,7 +19,11 @@ export interface HubWebSocketServerOptions {
 	pathname?: string;
 	owner?: HubOwnerContext;
 	sessionHost?: RuntimeHost &
-		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
+		Partial<
+			PendingPromptsRuntimeService &
+				CommandExecutionRuntimeService &
+				MonitorRuntimeService
+		>;
 	settingsService?: CoreSettingsService;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;

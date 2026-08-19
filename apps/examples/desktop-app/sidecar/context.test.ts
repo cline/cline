@@ -274,6 +274,31 @@ describe("Code sidecar runtime capabilities", () => {
 		);
 	});
 
+	it("forwards monitor stop requests to the hub", async () => {
+		const { createSidecarContext, initializeSessionManager } = await import(
+			"./context"
+		);
+		const { handleCommand } = await import("./commands");
+		hubCommandMock.mockResolvedValue({
+			ok: true,
+			payload: { stopped: true },
+		});
+		const ctx = createSidecarContext("/workspace/project");
+		await initializeSessionManager(ctx);
+
+		await expect(
+			handleCommand(ctx, "stop_monitor", {
+				sessionId: "session-1",
+				monitorId: "mon_1",
+			}),
+		).resolves.toEqual({ stopped: true });
+		expect(hubCommandMock).toHaveBeenCalledWith(
+			"run.stop_monitor",
+			{ sessionId: "session-1", monitorId: "mon_1" },
+			"session-1",
+		);
+	});
+
 	it("serializes queued image data when a queued prompt starts", async () => {
 		const { serializeQueuedPromptStart } = await import("./context");
 

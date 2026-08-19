@@ -332,6 +332,10 @@ export interface CommandExecutionRuntimeService {
 	proceedWhileRunning(sessionId: string, toolCallId?: string): Promise<number>;
 }
 
+export interface MonitorRuntimeService {
+	stopMonitor(sessionId: string, monitorId: string): Promise<boolean>;
+}
+
 export interface RuntimeHostSubscribeOptions {
 	sessionId?: string;
 }

@@ -1264,6 +1264,15 @@ export class HubRuntimeHost implements RuntimeHost {
 			: 0;
 	}
 
+	async stopMonitor(sessionId: string, monitorId: string): Promise<boolean> {
+		const reply = await this.client.command(
+			"run.stop_monitor",
+			{ sessionId, monitorId },
+			sessionId,
+		);
+		return reply.payload?.stopped === true;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);

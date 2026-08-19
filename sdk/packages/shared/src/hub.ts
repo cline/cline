@@ -433,6 +433,7 @@ export type HubCommandName =
 	| "session.send_input"
 	| "run.abort"
 	| "run.proceed_while_running"
+	| "run.stop_monitor"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
