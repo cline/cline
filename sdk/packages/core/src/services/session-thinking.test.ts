@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+	applySessionThinkingConnectionUpdate,
 	hasCurrentSessionThinkingMetadata,
 	readSessionThinkingMetadata,
 	resolveSessionThinkingMetadata,
@@ -58,6 +59,77 @@ describe("resolveSessionThinkingMetadata", () => {
 				thinkingBudgetTokens: 0,
 			}),
 		).toEqual({ enabled: false });
+	});
+});
+
+describe("applySessionThinkingConnectionUpdate", () => {
+	it("keeps inherited reasoning on a partial budget update", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, level: "high" },
+				{ thinkingBudgetTokens: 2048 },
+			),
+		).toEqual({ enabled: true, level: "high", budgetTokens: 2048 });
+	});
+
+	it("keeps an existing budget on a level-only update", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, budgetTokens: 4096 },
+				{ reasoningEffort: "low" },
+			),
+		).toEqual({ enabled: true, level: "low", budgetTokens: 4096 });
+	});
+
+	it("keeps the current level when only the boolean is toggled on", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, level: "medium" },
+				{ thinking: true },
+			),
+		).toEqual({ enabled: true, level: "medium" });
+	});
+
+	it("clears level and budget when thinking is disabled", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, level: "high", budgetTokens: 8192 },
+				{ thinking: false },
+			),
+		).toEqual({ enabled: false });
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, level: "high" },
+				{ thinking: null, reasoningEffort: null, thinkingBudgetTokens: null },
+			),
+		).toEqual({ enabled: false });
+	});
+
+	it("disables the level-only state when its effort is cleared", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true, level: "high" },
+				{ reasoningEffort: "none" },
+			),
+		).toEqual({ enabled: false });
+	});
+
+	it("stays enabled without a level when the boolean was explicit", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: true },
+				{ thinkingBudgetTokens: null },
+			),
+		).toEqual({ enabled: true });
+	});
+
+	it("enables thinking from a disabled state via an effort", () => {
+		expect(
+			applySessionThinkingConnectionUpdate(
+				{ enabled: false },
+				{ reasoningEffort: "medium" },
+			),
+		).toEqual({ enabled: true, level: "medium" });
 	});
 });
 

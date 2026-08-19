@@ -792,6 +792,88 @@ describe("LocalRuntimeHost", () => {
 		});
 	});
 
+	it("keeps provider-inherited reasoning on partial thinking updates", async () => {
+		const sessionId = "sess-thinking-inherited";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-thinking-inherited.json",
+				messagesPath: "/tmp/messages-thinking-inherited.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			updateSession: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			updateConnection: vi.fn(),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+			// The session config makes no reasoning choice; the effective level
+			// comes from persisted provider settings.
+			providerSettingsManager: {
+				getProviderSettings: vi.fn().mockReturnValue({
+					reasoning: { effort: "high" },
+				}),
+			} as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				prompt: "hello",
+				interactive: true,
+			}),
+		);
+
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({
+				sessionId,
+				metadata: expect.objectContaining({
+					thinking: { enabled: true, level: "high" },
+				}),
+			}),
+		);
+
+		// A partial update must merge into the tracked state like the live
+		// agent's `updateConnection` does; re-deriving from `session.config`
+		// (which never carried the inherited level) would drop it.
+		await manager.updateSessionConnection(sessionId, {
+			thinkingBudgetTokens: 2048,
+		});
+
+		expect(agent.updateConnection).toHaveBeenLastCalledWith({
+			thinking: true,
+			thinkingBudgetTokens: 2048,
+		});
+		expect(sessionService.updateSession).toHaveBeenLastCalledWith({
+			sessionId,
+			metadata: expect.objectContaining({
+				thinking: { enabled: true, level: "high", budgetTokens: 2048 },
+			}),
+		});
+	});
+
 	it("serializes thinking and turn-usage metadata updates", async () => {
 		const sessionId = "sess-thinking-metadata-race";
 		let storedManifest: SessionManifest = {
@@ -4655,6 +4737,114 @@ describe("LocalRuntimeHost", () => {
 			cacheWriteTokens: 3,
 			totalCost: 0.47,
 		});
+	});
+
+	it("persists newly trimmed checkpoint metadata on a same-id restore resume", async () => {
+		const sessionId = "sess-resume-checkpoint-trim";
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const sessionDir = join(sessionsDir, sessionId);
+		const messagesPath = join(sessionDir, `${sessionId}.messages.json`);
+		mkdirSync(sessionDir, { recursive: true });
+		const staleCheckpoint = {
+			latest: { ref: "checkpoint-2", createdAt: 2, runCount: 2 },
+			history: [
+				{ ref: "checkpoint-1", createdAt: 1, runCount: 1 },
+				{ ref: "checkpoint-2", createdAt: 2, runCount: 2 },
+			],
+		};
+		const trimmedCheckpoint = {
+			latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
+			history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
+		};
+		const manifest = {
+			...createManifest(sessionId),
+			status: "completed" as const,
+			ended_at: "2026-01-01T00:03:00.000Z",
+			metadata: {
+				title: "saved title",
+				checkpoint: staleCheckpoint,
+			},
+			messages_path: messagesPath,
+		};
+		const initialMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "first prompt" },
+			{ role: "assistant", content: "first answer" },
+		];
+		const persistSessionMessages = vi.fn();
+		const updateSession = vi.fn().mockResolvedValue({ updated: true });
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue(sessionsDir),
+			readSessionManifest: vi.fn().mockReturnValue(manifest),
+			createRootSessionWithArtifacts: vi.fn(),
+			persistSessionMessages,
+			updateSessionStatus: vi
+				.fn()
+				.mockResolvedValue({ updated: true, endedAt: null }),
+			updateSession,
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					registerLeadAgent: vi.fn(),
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: () =>
+				({
+					run: vi.fn(),
+					continue: vi.fn().mockResolvedValue(createResult()),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(initialMessages),
+					messages: initialMessages,
+				}) as never,
+		});
+
+		// A same-id checkpoint restore looks like a read-only resume (requested
+		// session id, seeded messages, no prompt) but supplies the trimmed
+		// checkpoint record in its start metadata.
+		await manager.startSession({
+			config: { ...createConfig({ sessionId }), cwd: undefined },
+			interactive: true,
+			initialMessages,
+			sessionMetadata: {
+				restoredFromSessionId: sessionId,
+				restoredCheckpointRunCount: 1,
+				checkpoint: trimmedCheckpoint,
+			},
+		});
+
+		// The trimmed record replaces the stale one on disk without rewriting
+		// the rest of the saved metadata, and the seeded messages stay
+		// memory-only like any other resume.
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(persistSessionMessages).not.toHaveBeenCalled();
+		expect(updateSession).toHaveBeenCalledTimes(1);
+		expect(updateSession).toHaveBeenCalledWith({
+			sessionId,
+			metadata: {
+				title: "saved title",
+				checkpoint: trimmedCheckpoint,
+			},
+		});
+		expect((await manager.getSession(sessionId))?.metadata).toEqual(
+			expect.objectContaining({
+				restoredFromSessionId: sessionId,
+				checkpoint: trimmedCheckpoint,
+			}),
+		);
 	});
 
 	it("restores full persisted aggregate usage when child message artifacts are missing", async () => {
