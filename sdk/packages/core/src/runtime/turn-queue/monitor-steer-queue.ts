@@ -20,6 +20,11 @@
  *   watched process writes.
  */
 
+import {
+	MONITOR_OUTPUT_CLOSE_TAG,
+	MONITOR_OUTPUT_OPEN_TAG,
+	MONITOR_UNTRUSTED_GUIDANCE,
+} from "../../extensions/tools/executors/monitor";
 import type { SessionPendingPrompt } from "../../types/events";
 
 export interface MonitorSteerQueueDeps {
@@ -178,6 +183,23 @@ export class MonitorSteerQueue {
 		// Keep the newest output; the agent cares about current state, and the
 		// drop is stated so it never looks like a complete record.
 		const kept = combined.slice(combined.length - this.maxMergedChars);
-		return `${DROPPED_PREFIX}\n${kept}`;
+		// The cut can land inside a fenced untrusted region, which would leave
+		// watched-process output unfenced at the top of the prompt — able to
+		// pose as trusted framing. The fences are reliable structure markers:
+		// formatMonitorNotification neutralizes anything tag-shaped inside the
+		// output itself, so a close tag appearing before any open tag proves
+		// the head of the kept text is mid-fence. Re-fence it, restating the
+		// untrusted label the dropped framing used to carry.
+		const openIndex = kept.indexOf(MONITOR_OUTPUT_OPEN_TAG);
+		const closeIndex = kept.indexOf(MONITOR_OUTPUT_CLOSE_TAG);
+		const startsInsideFence =
+			closeIndex !== -1 && (openIndex === -1 || closeIndex < openIndex);
+		if (!startsInsideFence) return `${DROPPED_PREFIX}\n${kept}`;
+		return [
+			DROPPED_PREFIX,
+			MONITOR_UNTRUSTED_GUIDANCE,
+			MONITOR_OUTPUT_OPEN_TAG,
+			kept,
+		].join("\n");
 	}
 }

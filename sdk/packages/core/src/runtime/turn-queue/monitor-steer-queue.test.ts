@@ -1,4 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+	formatMonitorNotification,
+	MONITOR_OUTPUT_CLOSE_TAG,
+	MONITOR_OUTPUT_OPEN_TAG,
+	MONITOR_UNTRUSTED_GUIDANCE,
+} from "../../extensions/tools/executors/monitor";
 import type { SessionPendingPrompt } from "../../types/events";
 import { MonitorSteerQueue } from "./monitor-steer-queue";
 
@@ -114,6 +120,42 @@ describe("MonitorSteerQueue", () => {
 		expect(merged.length).toBeLessThanOrEqual(260);
 		expect(merged).toContain("NEWEST-MARKER");
 		expect(merged).toContain("older monitor output dropped");
+	});
+
+	it("re-fences untrusted output when truncation cuts inside a fence", () => {
+		// The merge cap slices the combined prompt mid-string. When the cut
+		// lands inside a <monitor-output> region, the opener is gone and
+		// watched-process output would sit unfenced at the top of the prompt,
+		// able to pose as trusted framing. The kept tail must be re-fenced.
+		const harness = createQueue({ maxMergedChars: 1_000 });
+		const big = formatMonitorNotification({
+			monitorId: "mon_1",
+			name: "flood",
+			description: "prints a lot",
+			lines: Array.from({ length: 60 }, (_, i) => `line-${i}-yyyyyyyyyyyyyy`),
+		});
+		const small = formatMonitorNotification({
+			monitorId: "mon_1",
+			name: "flood",
+			description: "prints a lot",
+			lines: ["NEWEST-MARKER"],
+		});
+		harness.queue.deliver("s1", big);
+		harness.queue.deliver("s1", small);
+
+		const merged = harness.prompts[0]?.prompt ?? "";
+		expect(merged).toContain("NEWEST-MARKER");
+		// The head of the kept text was mid-fence, so the prompt must open a
+		// fence (with its untrusted label restated) before any untrusted line.
+		expect(merged).toContain(MONITOR_UNTRUSTED_GUIDANCE);
+		const firstOpen = merged.indexOf(MONITOR_OUTPUT_OPEN_TAG);
+		const firstClose = merged.indexOf(MONITOR_OUTPUT_CLOSE_TAG);
+		expect(firstOpen).toBeGreaterThanOrEqual(0);
+		expect(firstOpen).toBeLessThan(firstClose);
+		// No untrusted output precedes the first fence: everything before it is
+		// the drop notice and the restated guidance.
+		const head = merged.slice(0, firstOpen);
+		expect(head).not.toContain("yyyyyyyyyyyyyy");
 	});
 
 	it("keeps sessions independent", () => {
