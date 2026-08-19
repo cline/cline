@@ -86,11 +86,12 @@ describe("restore_checkpoint", () => {
 						kind: "local",
 						workspaceRoot: "/tmp/project",
 						sessionManager,
-						hubClient: {},
+						hubClient: { command: vi.fn(async () => undefined) },
 						unsubscribeSessionEvents: () => {},
 					},
 				],
 			]),
+			remoteEnvironments: null,
 		} as unknown as SidecarContext;
 
 		await handleChatSessionCommand(ctx, {

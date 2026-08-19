@@ -8,6 +8,7 @@ export type CloudSessionError = {
 		| "authentication_required"
 		| "session_not_found"
 		| "session_expired"
+		| "session_failed"
 		| "request_failed";
 	message: string;
 	connectUrl?: string;
@@ -53,6 +54,7 @@ export function parseCloudSessionError(
 			parsed.code !== "authentication_required" &&
 			parsed.code !== "session_not_found" &&
 			parsed.code !== "session_expired" &&
+			parsed.code !== "session_failed" &&
 			parsed.code !== "request_failed"
 		) {
 			return null;
@@ -69,5 +71,27 @@ export function parseCloudSessionError(
 
 /** Strips the machine-readable cloud error envelope for display. */
 export function humanizeCloudSessionError(value: string): string {
-	return parseCloudSessionError(value)?.message ?? value;
+	const message = parseCloudSessionError(value)?.message ?? value;
+	if (
+		/session belongs to environment/i.test(message) &&
+		(/\bundefined\b/i.test(message) || message.includes("[object Object]"))
+	) {
+		return "Cline Code couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.";
+	}
+	return message;
+}
+
+/** Adds handoff-specific reassurance for transport failures. */
+export function humanizeCloudHandoffError(value: string): string {
+	const message = humanizeCloudSessionError(value).trim();
+	const normalized = message.toLowerCase();
+	if (
+		normalized === "fetch failed" ||
+		normalized === "failed to fetch" ||
+		normalized === "network request failed" ||
+		normalized === "load failed"
+	) {
+		return "Couldn’t reach Cline Cloud. Your local conversation is still available.";
+	}
+	return message;
 }

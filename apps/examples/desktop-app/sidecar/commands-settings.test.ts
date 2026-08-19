@@ -82,7 +82,10 @@ describe("desktop settings commands", () => {
 		// Open webviews re-evaluate without waiting for a restart or account
 		// change.
 		expect(events).toEqual([
-			{ name: "feature_flags_changed", payload: { cloudAgents: true } },
+			{
+				name: "feature_flags_changed",
+				payload: { cloudAgents: true },
+			},
 		]);
 		await expect(handleCommand(ctx, "get_feature_flags", {})).resolves.toEqual({
 			cloudAgents: true,

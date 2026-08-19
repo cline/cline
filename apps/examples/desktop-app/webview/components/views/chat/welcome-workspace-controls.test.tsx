@@ -59,7 +59,6 @@ function renderControls(
 		onCloudBranchChange: vi.fn(),
 		signedIn: true,
 		signingIn: false,
-		onExecutionTargetChange: vi.fn(),
 		onRepoUrlChange: vi.fn(),
 		onListCloudRepositories: vi.fn(async () => ({
 			connected: true,
@@ -99,22 +98,6 @@ function renderControls(
 }
 
 describe("WelcomeWorkspaceControls cloud mode", () => {
-	it("selects Cloud from the same workspace control row", async () => {
-		const props = renderControls();
-		await click(button("Cloud"));
-		expect(props.onExecutionTargetChange).toHaveBeenCalledWith("cloud");
-	});
-
-	it("hides the Local/Cloud selector when the feature flag is off", () => {
-		renderControls({ cloudEnabled: false });
-		const buttons = [...container.querySelectorAll("button")].map(
-			(candidate) => candidate.textContent ?? "",
-		);
-		expect(buttons.some((text) => text.includes("Cloud"))).toBe(false);
-		// Local workspace controls still render.
-		expect(buttons.some((text) => text.includes("cline"))).toBe(true);
-	});
-
 	it("requires sign in before choosing a cloud repository", async () => {
 		const props = renderControls({
 			executionTarget: "cloud",

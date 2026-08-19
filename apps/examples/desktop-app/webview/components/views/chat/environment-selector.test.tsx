@@ -176,6 +176,53 @@ describe("EnvironmentSelector", () => {
 		expect(onAddSshHost).toHaveBeenCalledTimes(1);
 	});
 
+	it("selects Cloud when enabled and returns through the same menu", async () => {
+		const onSelectEnvironment = vi.fn(async () => undefined);
+		const onSelectExecutionTarget = vi.fn(async () => undefined);
+		await act(async () => {
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					cloudEnabled
+					onAddSshHost={vi.fn()}
+					onSelectEnvironment={onSelectEnvironment}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					profiles={profiles}
+				/>,
+			);
+		});
+
+		await pointerDown(trigger());
+		const cloudItem = menuItemContaining("Cloud");
+		expect(cloudItem.textContent).not.toContain("Coming soon");
+		expect(cloudItem.getAttribute("data-disabled")).toBeNull();
+		await click(cloudItem);
+		expect(onSelectExecutionTarget).toHaveBeenCalledWith("cloud");
+
+		await act(async () => {
+			root.render(
+				<EnvironmentSelector
+					activeEnvironmentId="local"
+					cloudEnabled
+					executionTarget="cloud"
+					onAddSshHost={vi.fn()}
+					onSelectEnvironment={onSelectEnvironment}
+					onSelectExecutionTarget={onSelectExecutionTarget}
+					profiles={profiles}
+				/>,
+			);
+		});
+
+		expect(trigger().getAttribute("aria-label")).toBe("Environment: Cloud");
+		await pointerDown(trigger());
+		expect(menuItemContaining("Cloud").getAttribute("aria-current")).toBe(
+			"true",
+		);
+		await click(menuItemContaining("Local"));
+		expect(onSelectExecutionTarget).toHaveBeenLastCalledWith("local");
+		expect(onSelectEnvironment).not.toHaveBeenCalled();
+	});
+
 	it("reopens the menu after a rejected environment switch", async () => {
 		const onSelectEnvironment = vi
 			.fn()

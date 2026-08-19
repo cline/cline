@@ -1946,11 +1946,20 @@ export async function handleCommand(
 		if (!sessionId) throw new Error("session id is required");
 		const cloud = getCloudSessionManager(ctx);
 		if (!requestedEnvironmentId(args) && cloud.isCloudSession(sessionId)) {
-			return (
-				(await cloud.listForDiscovery()).find(
+			try {
+				const listed = (await cloud.listForDiscovery()).find(
 					(session) => session.sessionId === sessionId,
-				) ?? null
-			);
+				);
+				return (
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
+				);
+			} catch {
+				// Preserve offline access, but never let a successful fresh list be
+				// shadowed forever by a session deleted on another device.
+				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
+			}
 		}
 		return (
 			(await getSessionFromSidecarManager(
@@ -2032,11 +2041,19 @@ export async function handleCommand(
 			await cloud.delete(sessionId);
 			return true;
 		}
+		const { assertSessionDeleteAllowedDuringHandoff } = await import(
+			"./chat-session"
+		);
+		const binding = await getCommandSessionBinding(ctx, sessionId, args);
+		await assertSessionDeleteAllowedDuringHandoff(
+			ctx,
+			sessionId,
+			binding?.sessionManager,
+		);
 		ctx.logger?.log("Deleting desktop chat session", { command, sessionId });
 		const store = new SqliteSessionStore();
 		const row = store.get(sessionId);
 		const manifest = readSessionManifest(sessionId);
-		const binding = await getCommandSessionBinding(ctx, sessionId, args);
 		let deleted = false;
 		let deleteError: Error | null = null;
 		try {

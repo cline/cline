@@ -54,7 +54,6 @@ export function WelcomeScreen({
 	executionTarget = "local",
 	repoUrl = "",
 	cloudBranch = "",
-	onExecutionTargetChange = () => undefined,
 	onRepoUrlChange = () => undefined,
 	onCloudBranchChange = () => undefined,
 	cloudAgentsEnabled = false,
@@ -72,7 +71,6 @@ export function WelcomeScreen({
 	executionTarget?: "local" | "cloud";
 	repoUrl?: string;
 	cloudBranch?: string;
-	onExecutionTargetChange?: (target: "local" | "cloud") => void;
 	onRepoUrlChange?: (repoUrl: string) => void;
 	onCloudBranchChange?: (branch: string) => void;
 	cloudAgentsEnabled?: boolean;
@@ -314,7 +312,6 @@ export function WelcomeScreen({
 									onOpenExternalUrl={openExternalUrl}
 									onPickWorkspaceDirectory={pickWorkspaceDirectory}
 									onRefreshWorkspaces={refreshWorkspaces}
-									onExecutionTargetChange={onExecutionTargetChange}
 									onRepoUrlChange={onRepoUrlChange}
 									onSignIn={signIn}
 									onSelectChat={selectChat}
