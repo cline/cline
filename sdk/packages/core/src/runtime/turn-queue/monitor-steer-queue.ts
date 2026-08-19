@@ -18,6 +18,10 @@
  *   during the cooldown accumulates and is delivered as a single prompt when it
  *   expires, so turn starts are paced by wall-clock rather than by how fast the
  *   watched process writes.
+ *
+ * Alongside the model-facing text (which stays fully fenced for injection
+ * defense), each prompt carries a structured {@link MonitorPromptOrigin} so
+ * UIs can render a clean update card instead of the fence.
  */
 
 import {
@@ -25,18 +29,27 @@ import {
 	MONITOR_OUTPUT_OPEN_TAG,
 	MONITOR_UNTRUSTED_GUIDANCE,
 } from "../../extensions/tools/executors/monitor";
-import type { SessionPendingPrompt } from "../../types/events";
+import type {
+	MonitorPromptOrigin,
+	MonitorPromptUpdate,
+	SessionPendingPrompt,
+} from "../../types/events";
 
 export interface MonitorSteerQueueDeps {
 	list(sessionId: string): SessionPendingPrompt[];
 	enqueue(
 		sessionId: string,
-		entry: { prompt: string; delivery: "steer" },
+		entry: {
+			prompt: string;
+			delivery: "steer";
+			origin?: MonitorPromptOrigin;
+		},
 	): void;
 	update(input: {
 		sessionId: string;
 		promptId: string;
 		prompt: string;
+		origin?: MonitorPromptOrigin;
 	}): unknown;
 	/** Injectable for tests. */
 	now?: () => number;
@@ -54,17 +67,25 @@ export interface MonitorSteerQueueOptions {
 	 * @default 16000
 	 */
 	maxMergedChars?: number;
+	/**
+	 * Cap on structured updates carried per prompt for UI rendering. Older
+	 * updates are dropped first, mirroring the text cap.
+	 * @default 20
+	 */
+	maxMergedUpdates?: number;
 }
 
 interface SessionState {
 	outstandingId?: string;
 	lastEnqueuedAt: number;
 	buffered?: string;
+	bufferedUpdates: MonitorPromptUpdate[];
 	timer?: NodeJS.Timeout;
 }
 
 const DEFAULT_COOLDOWN_MS = 5_000;
 const DEFAULT_MAX_MERGED_CHARS = 16_000;
+const DEFAULT_MAX_MERGED_UPDATES = 20;
 const DROPPED_PREFIX = "[older monitor output dropped to bound this update]";
 
 export class MonitorSteerQueue {
@@ -83,16 +104,22 @@ export class MonitorSteerQueue {
 		return this.options.maxMergedChars ?? DEFAULT_MAX_MERGED_CHARS;
 	}
 
+	private get maxMergedUpdates(): number {
+		return this.options.maxMergedUpdates ?? DEFAULT_MAX_MERGED_UPDATES;
+	}
+
 	private now(): number {
 		return this.deps.now?.() ?? Date.now();
 	}
 
 	/** Delivers one formatted monitor notification, merging or pacing as needed. */
-	deliver(sessionId: string, text: string): void {
+	deliver(sessionId: string, text: string, update?: MonitorPromptUpdate): void {
 		const state = this.sessions.get(sessionId) ?? {
 			lastEnqueuedAt: Number.NEGATIVE_INFINITY,
+			bufferedUpdates: [],
 		};
 		this.sessions.set(sessionId, state);
+		const updates = update ? [update] : [];
 
 		// An unconsumed monitor prompt is still sitting in the queue: fold this
 		// report into it rather than adding a second one.
@@ -102,6 +129,7 @@ export class MonitorSteerQueue {
 				sessionId,
 				promptId: outstanding.id,
 				prompt: this.merge(outstanding.prompt, text),
+				origin: this.mergeOrigin(originUpdates(outstanding.origin), updates),
 			});
 			return;
 		}
@@ -109,6 +137,10 @@ export class MonitorSteerQueue {
 		const elapsed = this.now() - state.lastEnqueuedAt;
 		if (elapsed < this.cooldownMs) {
 			state.buffered = state.buffered ? this.merge(state.buffered, text) : text;
+			state.bufferedUpdates = this.cappedUpdates([
+				...state.bufferedUpdates,
+				...updates,
+			]);
 			if (!state.timer) {
 				state.timer = setTimeout(() => {
 					state.timer = undefined;
@@ -119,7 +151,7 @@ export class MonitorSteerQueue {
 			return;
 		}
 
-		this.enqueue(sessionId, state, text);
+		this.enqueue(sessionId, state, text, this.mergeOrigin([], updates));
 	}
 
 	/** Drops all state for a session. Call on teardown so timers cannot leak. */
@@ -138,7 +170,9 @@ export class MonitorSteerQueue {
 		const state = this.sessions.get(sessionId);
 		if (!state?.buffered) return;
 		const text = state.buffered;
+		const updates = state.bufferedUpdates;
 		state.buffered = undefined;
+		state.bufferedUpdates = [];
 
 		// The agent may have gone quiet and left an earlier prompt queued while
 		// this was buffering; merge rather than stacking a second one.
@@ -148,14 +182,20 @@ export class MonitorSteerQueue {
 				sessionId,
 				promptId: outstanding.id,
 				prompt: this.merge(outstanding.prompt, text),
+				origin: this.mergeOrigin(originUpdates(outstanding.origin), updates),
 			});
 			return;
 		}
-		this.enqueue(sessionId, state, text);
+		this.enqueue(sessionId, state, text, this.mergeOrigin([], updates));
 	}
 
-	private enqueue(sessionId: string, state: SessionState, text: string): void {
-		this.deps.enqueue(sessionId, { prompt: text, delivery: "steer" });
+	private enqueue(
+		sessionId: string,
+		state: SessionState,
+		text: string,
+		origin: MonitorPromptOrigin | undefined,
+	): void {
+		this.deps.enqueue(sessionId, { prompt: text, delivery: "steer", origin });
 		state.lastEnqueuedAt = this.now();
 		// enqueue() does not hand back an id, so recover it by matching the text
 		// we just submitted. A miss simply means the prompt was consumed before
@@ -175,6 +215,23 @@ export class MonitorSteerQueue {
 			.find((prompt) => prompt.id === state.outstandingId);
 		if (!found) state.outstandingId = undefined;
 		return found;
+	}
+
+	private mergeOrigin(
+		existing: readonly MonitorPromptUpdate[],
+		additions: readonly MonitorPromptUpdate[],
+	): MonitorPromptOrigin | undefined {
+		const updates = this.cappedUpdates([...existing, ...additions]);
+		if (updates.length === 0) return undefined;
+		return { kind: "monitor", updates };
+	}
+
+	private cappedUpdates(
+		updates: readonly MonitorPromptUpdate[],
+	): MonitorPromptUpdate[] {
+		// Keep the newest updates, mirroring the text cap: the agent and the
+		// user both care about current state over history.
+		return updates.slice(Math.max(0, updates.length - this.maxMergedUpdates));
 	}
 
 	private merge(existing: string, addition: string): string {
@@ -202,4 +259,10 @@ export class MonitorSteerQueue {
 			kept,
 		].join("\n");
 	}
+}
+
+function originUpdates(
+	origin: SessionPendingPrompt["origin"],
+): readonly MonitorPromptUpdate[] {
+	return origin?.kind === "monitor" ? origin.updates : [];
 }

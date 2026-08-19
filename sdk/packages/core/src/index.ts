@@ -1059,6 +1059,9 @@ export type {
 } from "./types/config";
 export type {
 	CoreSessionEvent,
+	MonitorPromptOrigin,
+	MonitorPromptUpdate,
+	PendingPromptOrigin,
 	SessionChunkEvent,
 	SessionEndedEvent,
 	SessionMonitorStateEvent,
