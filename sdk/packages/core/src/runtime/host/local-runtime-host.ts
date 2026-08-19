@@ -8,6 +8,7 @@ import {
 	type AgentResult,
 	captureSdkError,
 	createSessionId,
+	estimateRequestInputTokens,
 	type ITelemetryService,
 	isContextWindowExceededError,
 	isLikelyAuthError,
@@ -139,6 +140,8 @@ import {
 } from "./runtime-host-support";
 
 const MAX_SCAN_LIMIT = 5000;
+
+const OVERFLOW_RETRY_REQUEST_BUDGET_RATIO = 0.8;
 
 function asFiniteUsageNumber(value: unknown): number | undefined {
 	return typeof value === "number" && Number.isFinite(value)
@@ -2092,9 +2095,18 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (messages.length === 0) {
 			return undefined;
 		}
+		const tools = [
+			...(session.runtime?.tools ?? []),
+			...(session.config.extraTools ?? []),
+		];
 		const compact = createContextCompactionPrepareTurn(session.config, {
 			mode: "manual",
-			manualTargetRatio: this.resolveOverflowCompactionRatio(error, messages),
+			manualTargetRatio: this.resolveOverflowCompactionRatio(
+				session,
+				error,
+				messages,
+				tools,
+			),
 		});
 		if (!compact) {
 			// Compaction disabled for this session — nothing we can force.
@@ -2111,7 +2123,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				apiMessages: messages,
 				abortSignal: new AbortController().signal,
 				systemPrompt: session.config.systemPrompt,
-				tools: [],
+				tools,
 				model: {
 					id: session.config.modelId,
 					provider: session.config.providerId,
@@ -2126,15 +2138,26 @@ export class LocalRuntimeHost implements RuntimeHost {
 	}
 
 	/**
-	 * Derive a manual compaction target ratio from the provider's real token
-	 * limit parsed out of the overflow error (e.g. "> 200000 maximum"). Leaving
-	 * a 30% safety margin under the real limit lets the single retry succeed
-	 * even though the configured context window is too high. Returns `undefined`
-	 * (letting compaction use its default ratio) when no limit can be read.
+	 * Derive a manual compaction target ratio from the provider's real token limit
+	 * parsed out of the overflow error (e.g. "> 200000 maximum").
+	 *
+	 * The parsed limit bounds the whole request, not the transcript alone, so the
+	 * system prompt and tool schemas are subtracted before it becomes a
+	 * message-level target; otherwise the retry re-adds them on top of a budget
+	 * that already spent the limit and overflows again. The remaining margin
+	 * covers what cannot be measured here (the pending user turn and its
+	 * attachments, plus tokenizer drift), and over-compacting only costs history
+	 * whereas under-compacting leaves the conversation stuck. Extreme ratios are
+	 * clamped by `resolveManualMessageTargetTokens`.
+	 *
+	 * Returns `undefined` (letting compaction use its default ratio) when no limit
+	 * can be read.
 	 */
 	private resolveOverflowCompactionRatio(
+		session: ActiveSession,
 		error: unknown,
 		messages: LlmsProviders.MessageWithMetadata[],
+		tools: readonly unknown[],
 	): number | undefined {
 		const realLimit = parseContextWindowLimitFromError(error);
 		if (realLimit === undefined) {
@@ -2148,8 +2171,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (currentTokens <= 0) {
 			return undefined;
 		}
-		const safeTargetTokens = realLimit * 0.7;
-		return safeTargetTokens / currentTokens;
+		const requestOverheadTokens = Math.max(
+			0,
+			estimateRequestInputTokens({
+				systemPrompt: session.config.systemPrompt,
+				messages,
+				tools,
+			}) - currentTokens,
+		);
+		const availableForMessages =
+			realLimit * OVERFLOW_RETRY_REQUEST_BUDGET_RATIO - requestOverheadTokens;
+		return availableForMessages / currentTokens;
 	}
 
 	// ── OAuth & auth ────────────────────────────────────────────────────

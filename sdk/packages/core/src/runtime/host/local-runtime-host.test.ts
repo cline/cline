@@ -16,6 +16,7 @@ import type {
 	AgentRuntimeEvent,
 	BasicLogger,
 } from "@cline/shared";
+import { estimateRequestInputTokens } from "@cline/shared";
 import { setClineDir, setHomeDir } from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -5516,7 +5517,123 @@ describe("LocalRuntimeHost", () => {
 		// The manual target must be driven UNDER the real 200000 limit, well below
 		// the misconfigured 1M window — proving the parsed-limit ratio took effect.
 		expect(capturedMessageTargetTokens).toBeGreaterThan(0);
-		expect(capturedMessageTargetTokens).toBeLessThanOrEqual(200000 * 0.7);
+		expect(capturedMessageTargetTokens).toBeLessThanOrEqual(200000);
+	});
+
+	it("leaves room for system prompt and tool overhead in the retry budget", async () => {
+		const sessionId = "sess-overflow-overhead";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-overflow-overhead.json",
+				messagesPath: "/tmp/messages-overflow-overhead.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				delegatedAgentConfigProvider: {
+					getRuntimeConfig: vi.fn(),
+					getConnectionConfig: vi.fn(),
+					updateConnectionDefaults: vi.fn(),
+				},
+				shutdown: vi.fn(),
+			}),
+		};
+		// The provider counts the system prompt against the same budget as the
+		// transcript, so a prompt this large must shrink the message target.
+		const realLimit = 100_000;
+		const systemPrompt = "S".repeat(160_000);
+		const heavyHistory: MessageWithMetadata[] = [
+			{ role: "user", content: [{ type: "text", text: "a".repeat(100_000) }] },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "b".repeat(100_000) }],
+			},
+			{ role: "user", content: [{ type: "text", text: "c".repeat(100_000) }] },
+			{
+				role: "assistant",
+				content: [{ type: "text", text: "d".repeat(100_000) }],
+			},
+		];
+		const run = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new Error(`prompt is too long: 250000 tokens > ${realLimit} maximum`),
+			)
+			.mockResolvedValueOnce(createResult({ text: "recovered" }));
+		let capturedMessageTargetTokens = -1;
+		let capturedMessageInputTokens = -1;
+		const compact = vi.fn().mockImplementation((context) => {
+			capturedMessageTargetTokens = context.budget.messages.targetTokens;
+			capturedMessageInputTokens = context.budget.messages.inputTokens;
+			return { messages: context.messages.slice(-1) };
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: run,
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					restore: vi.fn(),
+					updateConnection: vi.fn(),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue(heavyHistory),
+					messages: [],
+				}) as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					systemPrompt,
+					providerConfig: {
+						providerId: "mock-provider",
+						modelId: "mock-model",
+						modelInfo: {
+							id: "mock-model",
+							contextWindow: 1_000_000,
+							maxInputTokens: 1_000_000,
+						},
+					} as never,
+					compaction: { enabled: true, strategy: "basic", compact },
+				}),
+				interactive: true,
+				initialMessages: heavyHistory,
+			}),
+		);
+		await manager.runTurn({ sessionId, prompt: "hello" });
+
+		expect(compact).toHaveBeenCalledTimes(1);
+		// Measure the non-message overhead independently of the production ratio.
+		const overheadTokens =
+			estimateRequestInputTokens({
+				systemPrompt,
+				messages: heavyHistory,
+				tools: [],
+			}) - capturedMessageInputTokens;
+		expect(overheadTokens).toBeGreaterThan(realLimit * 0.3);
+		// The whole retried request (compacted transcript + overhead) has to fit
+		// under the provider's real limit, or the retry just overflows again.
+		expect(capturedMessageTargetTokens).toBeGreaterThan(0);
+		expect(capturedMessageTargetTokens + overheadTokens).toBeLessThanOrEqual(
+			realLimit,
+		);
 	});
 
 	it("auto-continues when async teammate runs complete after lead turn", async () => {
