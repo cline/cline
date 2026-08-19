@@ -798,9 +798,13 @@ function ChatThreadPane({
 	const pendingHandoffRecovery = readPendingHandoffRecovery(
 		historySession?.metadata,
 	);
+	const dismissedHandoffRecoveryUrl =
+		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
 	const handoffRecoveryUrl =
 		(handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null) ??
-		pendingHandoffRecovery?.dashboardUrl ??
+		(pendingHandoffRecovery?.dashboardUrl !== dismissedHandoffRecoveryUrl
+			? pendingHandoffRecovery?.dashboardUrl
+			: null) ??
 		null;
 	const handoffRetry =
 		(handoffUi?.status === "recovery" || handoffUi?.status === "failed") &&
@@ -2068,6 +2072,14 @@ function ChatThreadPane({
 			);
 		}
 	}, [handoffProgress?.dashboardUrl, handoffRecoveryUrl]);
+	const handleDismissHandoffRecovery = useCallback(() => {
+		if (!sourceSessionId || !handoffRecoveryUrl) return;
+		onHandoffUiAction({
+			type: "dismiss_recovery",
+			sourceSessionId,
+			dashboardUrl: handoffRecoveryUrl,
+		});
+	}, [handoffRecoveryUrl, onHandoffUiAction, sourceSessionId]);
 
 	const firstUserMessage = messages.find(
 		(message) => message.role === "user",
@@ -2305,6 +2317,7 @@ function ChatThreadPane({
 		<div className="w-full">
 			<CloudHandoffRecoveryNotice
 				dashboardUrl={handoffRecoveryUrl}
+				onDismiss={handleDismissHandoffRecovery}
 				onOpenCloud={handleOpenHandoffProgressLink}
 			/>
 			{chatComposer}

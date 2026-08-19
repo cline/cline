@@ -94,17 +94,33 @@ describe("CloudHandoffReceipt", () => {
 describe("CloudHandoffRecoveryNotice", () => {
 	it("retains a non-spinning link after handoff progress stops", () => {
 		const onOpenCloud = vi.fn();
+		const onDismiss = vi.fn();
 		const view = render(
 			<CloudHandoffRecoveryNotice
 				dashboardUrl="https://app.cline.bot/agents?sessionId=orphan-1"
+				onDismiss={onDismiss}
 				onOpenCloud={onOpenCloud}
 			/>,
 		);
-		expect(view.textContent).toContain("Cloud handoff was interrupted");
-		expect(view.textContent).toContain("retry /handoff");
+		expect(view.textContent).toContain("Handoff interrupted");
+		expect(view.textContent).toContain(
+			"A cloud session was created and may still be available",
+		);
 		expect(view.textContent).toContain("sessionId=orphan-1");
 		expect(view.querySelector(".animate-spin")).toBeNull();
-		act(() => view.querySelector("button")?.click());
+		act(() =>
+			Array.from(view.querySelectorAll("button"))
+				.find((button) => button.textContent?.includes("Open Cloud"))
+				?.click(),
+		);
 		expect(onOpenCloud).toHaveBeenCalledOnce();
+		act(() =>
+			view
+				.querySelector<HTMLButtonElement>(
+					'[aria-label="Dismiss handoff recovery"]',
+				)
+				?.click(),
+		);
+		expect(onDismiss).toHaveBeenCalledOnce();
 	});
 });

@@ -1,6 +1,7 @@
 "use client";
 
-import { Cloud, Copy, ExternalLink, GitFork, Loader2 } from "lucide-react";
+import { Cloud, Copy, ExternalLink, GitFork, Loader2, X } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import type {
 	HandoffProgressPhase,
@@ -60,32 +61,41 @@ export function CloudHandoffProgress({
 export function CloudHandoffRecoveryNotice({
 	dashboardUrl,
 	onOpenCloud,
+	onDismiss,
 }: {
 	dashboardUrl: string;
 	onOpenCloud: () => void;
+	onDismiss: () => void;
 }) {
 	return (
-		<div
-			aria-live="polite"
-			className="mx-auto mb-2 flex w-full max-w-xl items-start justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs"
-		>
-			<div className="min-w-0">
-				<p className="font-medium">Cloud handoff was interrupted.</p>
-				<p className="mt-1 text-muted-foreground">
-					Open the cloud session or retry /handoff.
-				</p>
-				<p className="mt-1 break-all text-muted-foreground">{dashboardUrl}</p>
-			</div>
+		<Alert className="mx-auto mb-2 w-full max-w-xl pr-10">
+			<Cloud />
+			<AlertTitle>Handoff interrupted</AlertTitle>
+			<AlertDescription>
+				<p>A cloud session was created and may still be available.</p>
+				<div className="mt-2 flex w-full items-start justify-between gap-3">
+					<p className="min-w-0 break-all text-xs">{dashboardUrl}</p>
+					<Button
+						className="h-7 shrink-0 gap-1.5 px-2 text-xs"
+						onClick={onOpenCloud}
+						size="sm"
+						variant="outline"
+					>
+						<ExternalLink className="size-3.5" />
+						Open Cloud
+					</Button>
+				</div>
+			</AlertDescription>
 			<Button
-				className="h-7 shrink-0 gap-1.5 px-2 text-xs"
-				onClick={onOpenCloud}
-				size="sm"
-				variant="outline"
+				aria-label="Dismiss handoff recovery"
+				className="absolute right-2 top-2 size-7 text-muted-foreground"
+				onClick={onDismiss}
+				size="icon"
+				variant="ghost"
 			>
-				<ExternalLink className="size-3.5" />
-				Open
+				<X className="size-4" />
 			</Button>
-		</div>
+		</Alert>
 	);
 }
 

@@ -110,4 +110,35 @@ describe("cloudHandoffUiReducer", () => {
 			phase: "checking",
 		});
 	});
+
+	it("dismisses recovery for this app run without accepting late progress", () => {
+		const recovery = {
+			"local-1": {
+				status: "recovery" as const,
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+		};
+		const dismissed = cloudHandoffUiReducer(recovery, {
+			type: "dismiss_recovery",
+			sourceSessionId: "local-1",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+		});
+		expect(dismissed["local-1"]).toEqual({
+			status: "recovery_dismissed",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+		});
+		expect(
+			cloudHandoffUiReducer(dismissed, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+			}),
+		).toBe(dismissed);
+		expect(
+			cloudHandoffUiReducer(dismissed, {
+				type: "start",
+				sourceSessionId: "local-1",
+			})["local-1"],
+		).toEqual({ status: "progress", phase: "checking" });
+	});
 });

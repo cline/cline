@@ -13,6 +13,7 @@ export type CloudHandoffUiEntry =
 			retryDraft?: string;
 			retryAttachments?: File[];
 	  }
+	| { status: "recovery_dismissed"; dashboardUrl: string }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
 	| {
 			status: "complete";
@@ -48,6 +49,11 @@ export type CloudHandoffUiAction =
 			externalPresentation: boolean;
 	  }
 	| { type: "external"; sourceSessionId: string }
+	| {
+			type: "dismiss_recovery";
+			sourceSessionId: string;
+			dashboardUrl: string;
+	  }
 	| { type: "retry_restored"; sourceSessionId: string };
 
 export function cloudHandoffUiReducer(
@@ -68,7 +74,8 @@ export function cloudHandoffUiReducer(
 			if (
 				current?.status === "complete" ||
 				current?.status === "failed" ||
-				current?.status === "recovery"
+				current?.status === "recovery" ||
+				current?.status === "recovery_dismissed"
 			) {
 				return state;
 			}
@@ -125,6 +132,14 @@ export function cloudHandoffUiReducer(
 						},
 					}
 				: state;
+		case "dismiss_recovery":
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					status: "recovery_dismissed",
+					dashboardUrl: action.dashboardUrl,
+				},
+			};
 		case "retry_restored":
 			if (current?.status === "failed") {
 				const { [action.sourceSessionId]: _removed, ...rest } = state;
