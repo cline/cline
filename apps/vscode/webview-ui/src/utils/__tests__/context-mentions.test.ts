@@ -36,28 +36,6 @@ describe("context-mentions", () => {
 			expect(result.mentionIndex).toBe(6)
 		})
 
-		it("should add quotes to the path part of workspace-prefixed mentions with spaces", () => {
-			const text = "Check @"
-			const position = 7
-			const value = "frontend:/path with spaces/file.txt"
-
-			const result = insertMention(text, position, value)
-
-			expect(result.newValue).toBe('Check @frontend:"/path with spaces/file.txt" ')
-			expect(result.mentionIndex).toBe(6)
-		})
-
-		it("should not add quotes to workspace-prefixed mentions without spaces", () => {
-			const text = "Check @"
-			const position = 7
-			const value = "frontend:/path/file.txt"
-
-			const result = insertMention(text, position, value)
-
-			expect(result.newValue).toBe("Check @frontend:/path/file.txt ")
-			expect(result.mentionIndex).toBe(6)
-		})
-
 		it("should replace existing partial mention", () => {
 			const text = "Check @/pa and more"
 			const position = 10
@@ -101,17 +79,6 @@ describe("context-mentions", () => {
 			const result = insertMentionDirectly(text, position, value)
 
 			expect(result.newValue).toBe("Some text @/folder/without/spaces/ ")
-			expect(result.mentionIndex).toBe(10)
-		})
-
-		it("should add quotes to the path part of workspace-prefixed mentions with spaces", () => {
-			const text = "Some text "
-			const position = 10
-			const value = "backend:/folder with spaces/"
-
-			const result = insertMentionDirectly(text, position, value)
-
-			expect(result.newValue).toBe('Some text @backend:"/folder with spaces/" ')
 			expect(result.mentionIndex).toBe(10)
 		})
 

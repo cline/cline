@@ -9,26 +9,6 @@ export interface SearchResult {
 	workspaceName?: string
 }
 
-/**
- * Quote file/folder paths that contain spaces so the mention regex matches the
- * full path instead of cutting it off at the first space. Handles both plain
- * paths (`/path with spaces` -> `"/path with spaces"`) and workspace-prefixed
- * paths (`workspace:/path with spaces` -> `workspace:"/path with spaces"`).
- */
-function quoteMentionValueIfNeeded(value: string): string {
-	if (!value.includes(" ")) {
-		return value
-	}
-	if (value.startsWith("/")) {
-		return `"${value}"`
-	}
-	const workspacePrefixMatch = value.match(/^([\w-]+):(\/.*)$/)
-	if (workspacePrefixMatch) {
-		return `${workspacePrefixMatch[1]}:"${workspacePrefixMatch[2]}"`
-	}
-	return value
-}
-
 export function insertMention(
 	text: string,
 	position: number,
@@ -41,7 +21,11 @@ export function insertMention(
 	// Find the position of the last '@' symbol before the cursor
 	const lastAtIndex = beforeCursor.lastIndexOf("@")
 
-	const formattedValue = quoteMentionValueIfNeeded(value)
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
 	let newValue: string
 	let mentionIndex: number
 
@@ -66,7 +50,11 @@ export function insertMentionDirectly(text: string, position: number, value: str
 	const beforeCursor = text.slice(0, position)
 	const afterCursor = text.slice(position)
 
-	const formattedValue = quoteMentionValueIfNeeded(value)
+	// For file/folder paths that contain spaces, wrap them in quotes
+	let formattedValue = value
+	if (value.startsWith("/") && value.includes(" ")) {
+		formattedValue = `"${value}"`
+	}
 
 	const newValue = beforeCursor + "@" + formattedValue + " " + afterCursor
 	const mentionIndex = position

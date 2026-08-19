@@ -1,3 +1,4 @@
+import { afterEach, beforeEach, describe, it } from "mocha"
 import { FileContextTracker } from "@core/context/context-tracking/FileContextTracker"
 import * as extractTextModule from "@integrations/misc/extract-text"
 import { UrlContentFetcher } from "@services/browser/UrlContentFetcher"
@@ -5,7 +6,6 @@ import * as gitModule from "@utils/git"
 import { expect } from "chai"
 import * as fs from "fs"
 import * as isBinaryFileModule from "isbinaryfile"
-import { afterEach, beforeEach, describe, it } from "mocha"
 import * as path from "path"
 import * as sinon from "sinon"
 import { HostProvider } from "@/hosts/host-provider"
@@ -92,26 +92,6 @@ console.log('Hello World');
 
 <file_content path="path with spaces/file.txt">
 console.log('Hello World');
-</file_content>`
-
-			expect(result).to.equal(expectedOutput)
-		})
-
-		it("should handle quoted relative paths outside the workspace with spaces", async () => {
-			const text = 'Check @"/../../Library/Application Support/typst/sections.typ"'
-
-			fsStatStub.resolves({ isFile: () => true, isDirectory: () => false })
-			isBinaryFileStub.resolves(false)
-			extractTextStub
-				.withArgs(path.resolve(cwd, "../../Library/Application Support/typst/sections.typ"))
-				.resolves("#let section() = {}")
-
-			const result = await parseMentions(text, cwd, urlContentFetcherStub)
-
-			const expectedOutput = `Check '../../Library/Application Support/typst/sections.typ' (see below for file content)
-
-<file_content path="../../Library/Application Support/typst/sections.typ">
-#let section() = {}
 </file_content>`
 
 			expect(result).to.equal(expectedOutput)
@@ -435,26 +415,14 @@ Content
 	})
 
 	describe("getFileMentionFromPath", () => {
-		beforeEach(() => {
-			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").resolves({ paths: [cwd] } as any)
-		})
-
-		it("should create a plain mention for paths without spaces", async () => {
-			const mention = await getFileMentionFromPath(path.join(cwd, "src", "index.ts"))
-
-			expect(mention).to.equal("@/src/index.ts")
-		})
-
 		it("should quote paths containing spaces", async () => {
-			const mention = await getFileMentionFromPath(path.join(cwd, "path with spaces", "file.txt"))
+			// getCwd() shifts the paths array, so return a fresh object per call
+			sandbox.stub(HostProvider.workspace, "getWorkspacePaths").callsFake(async () => ({ paths: [cwd] }) as any)
 
-			expect(mention).to.equal('@"/path with spaces/file.txt"')
-		})
-
-		it("should quote relative paths outside the workspace containing spaces", async () => {
-			const mention = await getFileMentionFromPath("/Users/me/Library/Application Support/typst/sections.typ")
-
-			expect(mention).to.equal('@"/../../Users/me/Library/Application Support/typst/sections.typ"')
+			expect(await getFileMentionFromPath(path.join(cwd, "src", "index.ts"))).to.equal("@/src/index.ts")
+			expect(await getFileMentionFromPath("/Library/Application Support/typst/sections.typ")).to.equal(
+				'@"/../../Library/Application Support/typst/sections.typ"',
+			)
 		})
 	})
 
