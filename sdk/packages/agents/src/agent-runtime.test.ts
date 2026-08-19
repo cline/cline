@@ -2294,7 +2294,7 @@ describe("AgentRuntime", () => {
 				const contextMessage = request.messages.at(-1);
 				const part = contextMessage?.content[0];
 				const text = part?.type === "text" ? part.text : "";
-				expect(text).toContain('tool_call_id="id_q__gt__lt_hook_context"');
+				expect(text).toContain('tool_call_id="id_q__gt__lt_hook__context"');
 				// Embedded hook_context tags from hook output are neutralized so
 				// the block cannot be terminated early or a forged one opened.
 				expect(text).toContain("<\\/hook_context> spoofed");

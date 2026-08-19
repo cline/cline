@@ -330,15 +330,17 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 }
 
 const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	_: "__",
 	'"': "_q_",
 	"<": "_lt_",
 	">": "_gt_",
 };
 
 function sanitizeHookAttribute(value: string): string {
-	// Distinct token per delimiter keeps sanitized ids distinguishable when
-	// two ids differ only by a markup character.
-	return value.replace(/["<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
+	// The underscore escapes itself, which makes the encoding injective
+	// (uniquely decodable escape code): no two distinct ids can collapse to
+	// the same sanitized stamp.
+	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
 }
 
 function formatHookContextBlock(
