@@ -229,6 +229,7 @@
 		font-size: var(--text-sm);
 		font-weight: var(--font-weight-medium);
 		text-align: left;
+		transition: color 120ms ease;
 	}
 
 	button.cline-chat-reasoning-trigger,
@@ -292,6 +293,59 @@
 	.cline-chat-disclosure-content-motion-inner {
 		min-height: 0;
 		overflow: hidden;
+	}
+
+	/* Running reasoning/tool titles use their inherited text color as the bright
+	 * band, so the same shimmer fits muted thinking text and primary tool text. */
+	.cline-chat-streaming-title {
+		display: inline-block;
+		background-image: linear-gradient(
+			90deg,
+			color-mix(in oklab, currentcolor 55%, transparent) 0%,
+			currentcolor 50%,
+			color-mix(in oklab, currentcolor 55%, transparent) 100%
+		);
+		background-position: 200% 0;
+		background-size: 200% 100%;
+		-webkit-background-clip: text;
+		background-clip: text;
+		-webkit-text-fill-color: transparent;
+		animation: cline-chat-title-shimmer 2.25s linear infinite;
+	}
+
+	.cline-chat-thinking-icon {
+		flex: 0 0 auto;
+	}
+
+	/* Thinking prose stays capped and scrollable so a long trace never pushes
+	 * the transcript around. The X axis is pinned shut: `overflow-y: auto`
+	 * alone would compute overflow-x to `auto` and let a long unbreakable
+	 * token add a horizontal scrollbar. */
+	.cline-chat-thinking-content {
+		max-height: 12rem;
+		overflow-x: hidden;
+		overflow-y: auto;
+		/* Legible first, de-emphasized second: plain muted-foreground reads
+		 * too faint for multi-line prose, so lean most of the way back toward
+		 * the body text color. */
+		color: color-mix(
+			in oklab,
+			var(--foreground) 75%,
+			var(--muted-foreground)
+		);
+	}
+
+	/* The reveal rule below is `.cline-chat-message:hover`, so hovering anywhere
+	 * in the message pops the action row — including the reasoning disclosure
+	 * nested in the message content. The actions act on the message body, so
+	 * suppress the reveal while the pointer is inside the thinking panel.
+	 * `[data-visible]` still wins, keeping pending/error states pinned open. */
+	.cline-chat-message:has(
+		> .cline-chat-message-content .cline-chat-reasoning:hover
+	)
+	> .cline-chat-message-actions:not([data-visible="true"]) {
+		pointer-events: none;
+		opacity: 0;
 	}
 
 	.cline-chat-reasoning-content {
@@ -471,6 +525,12 @@
 			transition: none;
 		}
 
+		.cline-chat-streaming-title {
+			background: none;
+			-webkit-text-fill-color: currentcolor;
+			animation: none;
+		}
+
 		.cline-chat-disclosure-content-motion {
 			transition: none;
 		}
@@ -490,6 +550,12 @@
 	@keyframes cline-chat-spin {
 		to {
 			transform: rotate(360deg);
+		}
+	}
+
+	@keyframes cline-chat-title-shimmer {
+		to {
+			background-position: -200% 0;
 		}
 	}
 }

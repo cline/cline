@@ -12,6 +12,7 @@ import {
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
+	ThinkingBlock,
 	ToolActivity,
 	ToolActivityCode,
 	ToolActivityContent,
@@ -268,6 +269,37 @@ export const Streaming = () => (
 				/>
 			</ToolActivity>
 			<MessageContent>All package tests are passing so far…</MessageContent>
+		</Message>
+	</ChatFrame>
+);
+
+/**
+ * The standard thinking-trace row shared by every product: shimmering
+ * "Thinking" while streaming, "Thought for Ns" once done, and a redaction
+ * fallback when the provider withholds the trace.
+ */
+export const ThinkingStates = () => (
+	<ChatFrame>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock isStreaming>
+					Weighing the trade-offs between the two migration paths before
+					committing to either.
+				</ThinkingBlock>
+			</MessageContent>
+		</Message>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock defaultOpen durationMilliseconds={12_000}>
+					The failure only reproduces when the dark theme snapshot runs first,
+					so the token cache must leak between cases.
+				</ThinkingBlock>
+			</MessageContent>
+		</Message>
+		<Message from="assistant">
+			<MessageContent>
+				<ThinkingBlock durationMilliseconds={4_000} redacted />
+			</MessageContent>
 		</Message>
 	</ChatFrame>
 );

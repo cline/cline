@@ -8,12 +8,14 @@ import {
 	ConversationContent,
 	ConversationScrollButton,
 	ConversationViewport,
+	formatThoughtLabel,
 	formatWorkActivityLabel,
 	Message,
 	MessageContent,
 	Reasoning,
 	ReasoningContent,
 	ReasoningTrigger,
+	ThinkingBlock,
 	ToolActivity,
 	ToolActivityContent,
 	ToolActivityTrigger,
@@ -197,6 +199,52 @@ describe("@cline/ui agent chat primitives", () => {
 			document.getElementById(trigger?.getAttribute("aria-controls") ?? "")
 				?.textContent,
 		).toContain("theme.css");
+	});
+
+	it("labels the thinking row by streaming state and duration", async () => {
+		expect(formatThoughtLabel(undefined)).toBe("Thinking");
+		expect(formatThoughtLabel(0)).toBe("Thought for 0s");
+		expect(formatThoughtLabel(120)).toBe("Thought for 1s");
+		expect(formatThoughtLabel(2_600)).toBe("Thought for 3s");
+
+		await render(
+			<ThinkingBlock isStreaming>
+				<p>Considering the options.</p>
+			</ThinkingBlock>,
+		);
+		let trigger = container.querySelector("button") as HTMLButtonElement;
+		expect(trigger.textContent).toContain("Thinking");
+		expect(trigger.querySelector(".cline-chat-streaming-title")).not.toBeNull();
+
+		await render(
+			<ThinkingBlock durationMilliseconds={4_000}>
+				<p>Considering the options.</p>
+			</ThinkingBlock>,
+		);
+		trigger = container.querySelector("button") as HTMLButtonElement;
+		expect(trigger.textContent).toContain("Thought for 4s");
+		expect(trigger.querySelector(".cline-chat-streaming-title")).toBeNull();
+
+		await act(async () => trigger.click());
+		const panel = document.getElementById(
+			trigger.getAttribute("aria-controls") ?? "",
+		);
+		expect(panel?.textContent).toContain("Considering the options.");
+		expect(
+			panel?.querySelector(
+				".cline-chat-thinking-content.cline-chat-panel-rail",
+			),
+		).not.toBeNull();
+	});
+
+	it("falls back to a redaction notice without reasoning content", async () => {
+		await render(<ThinkingBlock durationMilliseconds={1_000} redacted />);
+		const trigger = container.querySelector("button") as HTMLButtonElement;
+		await act(async () => trigger.click());
+		expect(
+			document.getElementById(trigger.getAttribute("aria-controls") ?? "")
+				?.textContent,
+		).toContain("[redacted]");
 	});
 
 	it("formats work summary labels", () => {

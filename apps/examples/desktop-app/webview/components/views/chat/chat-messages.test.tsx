@@ -1167,10 +1167,8 @@ describe("ChatMessages reasoning disclosure", () => {
 			element.textContent?.includes("Thought for 7s"),
 		);
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-		expect(trigger?.querySelector(".lucide-brain")).not.toBeNull();
+		expect(trigger?.querySelector(".cline-chat-thinking-icon")).not.toBeNull();
 		expect(trigger?.querySelector(".cline-chat-disclosure-icon")).toBeNull();
-		expect(trigger?.classList.contains("text-sm")).toBe(true);
-		expect(trigger?.classList.contains("text-xs")).toBe(false);
 
 		await act(async () => trigger?.click());
 
@@ -1228,24 +1226,15 @@ describe("ChatMessages reasoning disclosure", () => {
 		);
 		expect(toolContent?.classList.contains("cline-chat-panel-rail")).toBe(true);
 
-		// Reasoning remains capped; tool output grows into the conversation scroller.
+		// Reasoning remains capped and scrolls internally (the shared
+		// cline-chat-thinking-content styling); tool output grows into the
+		// conversation scroller.
 		expect(
-			[...(reasoningContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
+			reasoningContent?.classList.contains("cline-chat-thinking-content"),
 		).toBe(true);
-		expect(
-			[...(toolContent?.classList ?? [])].some((name) =>
-				name.startsWith("max-h-"),
-			),
-		).toBe(false);
-
-		// Reasoning scrolls internally; tool output leaves scrolling to the conversation.
-		expect(reasoningContent?.classList.contains("overflow-y-auto")).toBe(true);
-		expect(reasoningContent?.classList.contains("overflow-x-hidden")).toBe(
-			true,
+		expect(toolContent?.classList.contains("cline-chat-thinking-content")).toBe(
+			false,
 		);
-		expect(reasoningContent?.classList.contains("overflow-auto")).toBe(false);
 		expect(toolContent?.classList.contains("overflow-auto")).toBe(false);
 
 		// Detail rows use the shared wrapping behavior instead of horizontal scrolling.

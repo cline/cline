@@ -101,18 +101,7 @@ export function getThoughtDurationMilliseconds(
 	return thinkingTimestamp - previousTimestamp;
 }
 
-export function formatThoughtLabel(durationMilliseconds?: number): string {
-	if (durationMilliseconds === undefined) {
-		return "Thinking";
-	}
-
-	const seconds =
-		durationMilliseconds === 0
-			? 0
-			: Math.max(1, Math.round(durationMilliseconds / 1000));
-
-	return `Thought for ${seconds}s`;
-}
+export { formatThoughtLabel } from "@cline/ui/components/agent-chat";
 
 export type CollapseWorkOptions = {
 	/**
