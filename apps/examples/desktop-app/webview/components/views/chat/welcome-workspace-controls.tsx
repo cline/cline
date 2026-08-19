@@ -13,6 +13,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
+import { scrollCurrentOptionIntoView } from "@/lib/scroll-current-option";
 import {
 	looksLikeFolderPath,
 	normalizeWorkspacePath,
@@ -59,7 +60,7 @@ function SearchInput({
 			{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
 			<Input
 				autoFocus
-				className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0"
+				className="h-8 flex-1 border-0 bg-transparent px-0 py-0 text-xs shadow-none focus-visible:ring-0 dark:bg-transparent"
 				onChange={(event) => onChange(event.target.value)}
 				placeholder={placeholder}
 				value={value}
@@ -92,6 +93,7 @@ function WorkspacePicker({
 	const [search, setSearch] = useState("");
 	const [switching, setSwitching] = useState(false);
 	const [picking, setPicking] = useState(false);
+	const workspaceListRef = useRef<HTMLDivElement>(null);
 	const [selectingChat, setSelectingChat] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 	const isChatWorkspace =
@@ -116,6 +118,11 @@ function WorkspacePicker({
 		setSearch("");
 		setError(null);
 		void refreshWorkspacesRef.current();
+	}, [open]);
+
+	// Start the freshly opened list at the active workspace, not the top.
+	useEffect(() => {
+		if (open) scrollCurrentOptionIntoView(workspaceListRef.current);
 	}, [open]);
 
 	// The active workspace can be an excluded path (restored session, process
@@ -228,7 +235,10 @@ function WorkspacePicker({
 								</span>
 							</Button>
 						)}
-						<div className="flex max-h-48 flex-col gap-0.5 overflow-y-auto">
+						<div
+							className="flex max-h-48 flex-col gap-0.5 overflow-y-auto"
+							ref={workspaceListRef}
+						>
 							{filteredWorkspaces.length === 0 ? (
 								<div className="px-2 py-2 text-xs text-muted-foreground">
 									{looksLikeFolderPath(search)
@@ -244,9 +254,10 @@ function WorkspacePicker({
 											className={cn(
 												"flex h-auto w-full items-center justify-between rounded-md p-2 text-left",
 												isActive
-													? "bg-surface-hover"
-													: "hover:bg-surface-hover-lighter",
+													? "bg-accent hover:bg-accent"
+													: "hover:bg-surface-hover",
 											)}
+											data-current={isActive || undefined}
 											disabled={switching}
 											key={path}
 											onClick={() => void handleSelect(path)}
@@ -318,6 +329,12 @@ function BranchPicker({
 	const [branches, setBranches] = useState<string[]>([]);
 	const [loading, setLoading] = useState(false);
 	const [switching, setSwitching] = useState(false);
+	const branchListRef = useRef<HTMLDivElement>(null);
+
+	// Start the freshly opened list at the current branch, not the top.
+	useEffect(() => {
+		if (open && !loading) scrollCurrentOptionIntoView(branchListRef.current);
+	}, [open, loading]);
 
 	// Load branches fresh each time the menu opens.
 	useEffect(() => {
@@ -382,7 +399,10 @@ function BranchPicker({
 								Loading...
 							</div>
 						) : (
-							<div className="flex max-h-56 flex-col gap-0.5 overflow-y-auto">
+							<div
+							className="flex max-h-56 flex-col gap-0.5 overflow-y-auto"
+							ref={branchListRef}
+						>
 								{filteredBranches.length === 0 ? (
 									<div className="px-2 py-2 text-xs text-muted-foreground">
 										No branches found
@@ -393,9 +413,10 @@ function BranchPicker({
 											className={cn(
 												"flex h-auto items-center gap-2 rounded-md px-2 py-2 text-left",
 												currentBranch === branch
-													? "bg-surface-hover"
-													: "hover:bg-surface-hover-lighter",
+													? "bg-accent hover:bg-accent"
+													: "hover:bg-surface-hover",
 											)}
+											data-current={currentBranch === branch || undefined}
 											disabled={switching}
 											key={branch}
 											onClick={() => void handleSelect(branch)}
