@@ -37,8 +37,22 @@ function syntheticBeforeToolContext(
 			iteration: 0,
 			messages: [],
 		} as unknown as AgentBeforeToolContext["snapshot"],
-		// Provider-executed tools have no local AgentTool registration.
-		tool: undefined as unknown as AgentTool,
+		// Provider-executed tools have no local AgentTool registration, but the
+		// runtime contract guarantees `tool` is defined whenever beforeTool
+		// runs — hooks legitimately read `ctx.tool.name`. Supply an honest
+		// stub so such hooks keep gating instead of throwing into the
+		// per-layer fail-open.
+		tool: {
+			name: request.toolName,
+			description:
+				"Provider-executed tool (runs inside the provider's own session)",
+			inputSchema: {},
+			execute: () => {
+				throw new Error(
+					`Tool "${request.toolName}" is executed by the model provider and cannot be run locally`,
+				);
+			},
+		} satisfies AgentTool,
 		toolCall: {
 			type: "tool-call",
 			toolCallId,

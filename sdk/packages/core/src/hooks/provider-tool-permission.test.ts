@@ -173,6 +173,27 @@ describe("createProviderToolPermission", () => {
 		await expect(gate?.(REQUEST)).resolves.toEqual({ behavior: "allow" });
 	});
 
+	it("supplies a tool descriptor so contract-conformant hooks keep gating", async () => {
+		// The runtime contract guarantees ctx.tool is defined in beforeTool;
+		// a hook reading ctx.tool.name must gate, not throw into fail-open.
+		const gate = createProviderToolPermission({
+			hooks: [
+				{
+					beforeTool: async (ctx: AgentBeforeToolContext) =>
+						ctx.tool.name === "Bash"
+							? { skip: true, reason: `no ${ctx.tool.name}` }
+							: undefined,
+				},
+			],
+			sessionId: "s1",
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "deny",
+			message: "no Bash",
+			interrupt: false,
+		});
+	});
+
 	it("fails open when a hook throws", async () => {
 		const log = vi.fn();
 		const gate = createProviderToolPermission({
