@@ -29,7 +29,7 @@ import {
 import { emitChunk, nowMs, sendEvent } from "./context";
 import { readSessionManifest, sharedSessionDataDir } from "./paths";
 import { persistSessionMessages } from "./session-data/messages";
-import { persistMonitorResumeNotice } from "./session-data/monitors";
+import { prepareMonitorResumeNotice } from "./session-data/monitors";
 import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
@@ -656,11 +656,7 @@ async function handleStart(
 				: undefined;
 	const monitorResume =
 		requestedSessionId && persistedInitialMessages
-			? persistMonitorResumeNotice(
-					requestedSessionId,
-					persistedInitialMessages,
-					persistSessionMessages,
-				)
+			? prepareMonitorResumeNotice(persistedInitialMessages)
 			: undefined;
 	const initialMessages = monitorResume?.messages ?? persistedInitialMessages;
 	const monitorResumeNotice =
@@ -693,6 +689,20 @@ async function handleStart(
 	const workspaceRoot = startResult.manifest.workspace_root;
 	const cwd = startResult.manifest.cwd;
 	ctx.logger?.log("Desktop chat session started", { sessionId });
+	// Persist the resume notice only now that the replacement session has
+	// started (which released the old runtime and ended its monitors). Resumed
+	// sessions do not seed-persist their initial messages, so this write is
+	// what makes the terminal markers durable across a no-turn shutdown.
+	if (monitorResume?.notice) {
+		try {
+			persistSessionMessages(sessionId, monitorResume.messages);
+		} catch (error) {
+			ctx.logger?.log("Failed to persist monitor resume notice", {
+				sessionId,
+				error,
+			});
+		}
+	}
 	const session = createLiveSession(
 		{ ...request.config, cwd, workspaceRoot },
 		{

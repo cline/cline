@@ -676,10 +676,24 @@ export function persistSessionMessages(
 ) {
 	const writePath = sharedSessionMessagesWritePath(sessionId);
 	mkdirSync(dirname(writePath), { recursive: true });
+	// Core owns this artifact and stores more than messages (version, origin,
+	// system prompt, timestamps). This sidecar write replaces only the message
+	// list; dropping the other fields would downgrade the canonical envelope
+	// for any session that never runs another turn.
+	let envelope: Record<string, unknown> = {};
+	try {
+		const existing = JSON.parse(readFileSync(writePath, "utf8"));
+		if (existing && typeof existing === "object" && !Array.isArray(existing)) {
+			envelope = existing as Record<string, unknown>;
+		}
+	} catch {
+		// Missing or unreadable file: fall back to a fresh envelope.
+	}
 	writeFileSync(
 		writePath,
 		JSON.stringify(
 			{
+				...envelope,
 				messages: persistedMessages,
 				ts: nowMs(),
 			},
