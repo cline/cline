@@ -95,6 +95,17 @@ function messageEnvelope(
 	};
 }
 
+function mentionEnvelope(
+	eventId: string,
+	text: string,
+	overrides: Record<string, unknown> = {},
+): Record<string, unknown> {
+	return messageEnvelope(eventId, text, {
+		type: "app_mention",
+		...overrides,
+	});
+}
+
 function createHarness(options: {
 	onDeliver?: (message: NormalizedConnectorMessage, next: string) => void;
 	failDeliver?: boolean;
@@ -155,7 +166,7 @@ describe("slack adapter", () => {
 		const harness = createHarness({});
 		await settle();
 		harness.socket.emit({ type: "hello" });
-		harness.socket.emit(messageEnvelope("Ev001", "hello there"));
+		harness.socket.emit(mentionEnvelope("Ev001", "<@Ubot> hello there"));
 		await settle();
 		expect(harness.delivered).toHaveLength(1);
 		expect(harness.delivered[0]).toMatchObject({
@@ -163,7 +174,7 @@ describe("slack adapter", () => {
 			externalAccountId: "U42",
 			externalConversationId: "C7",
 			externalMessageId: "Ev001",
-			text: "hello there",
+			text: "<@Ubot> hello there",
 			sentAt: 1_700_000_000_000,
 		});
 		expect(harness.delivered[0].metadata).toMatchObject({
@@ -180,7 +191,7 @@ describe("slack adapter", () => {
 	it("shows rotating Slack Assistant loading messages after admitting work", async () => {
 		const harness = createHarness({});
 		await settle();
-		harness.socket.emit(messageEnvelope("EvLoading", "do some work"));
+		harness.socket.emit(mentionEnvelope("EvLoading", "<@Ubot> do some work"));
 		await settle();
 		const request = harness.requests.find((entry) =>
 			entry.url.endsWith("/assistant.threads.setStatus"),
@@ -200,11 +211,11 @@ describe("slack adapter", () => {
 	it("dedupes redelivered events by event_id (crash-safe cursor)", async () => {
 		const harness = createHarness({});
 		await settle();
-		harness.socket.emit(messageEnvelope("Ev001", "first"));
+		harness.socket.emit(mentionEnvelope("Ev001", "first"));
 		await settle();
 		// Slack redelivers the same event (missed-ack retry semantics).
-		harness.socket.emit(messageEnvelope("Ev001", "first"));
-		harness.socket.emit(messageEnvelope("Ev002", "second"));
+		harness.socket.emit(mentionEnvelope("Ev001", "first"));
+		harness.socket.emit(mentionEnvelope("Ev002", "second"));
 		await settle();
 		expect(harness.delivered.map((m) => m.externalMessageId)).toEqual([
 			"Ev001",
@@ -219,6 +230,26 @@ describe("slack adapter", () => {
 		).toHaveLength(2);
 		const seen = JSON.parse(harness.cursor() ?? "[]") as string[];
 		expect(seen).toEqual(["Ev001", "Ev002"]);
+		harness.controller.abort();
+		harness.socket.close();
+		await harness.done;
+	});
+
+	it("ignores plain channel messages and accepts direct messages", async () => {
+		const harness = createHarness({});
+		await settle();
+		harness.socket.emit(messageEnvelope("EvChannel", "ambient channel message"));
+		harness.socket.emit(
+			messageEnvelope("EvDm", "direct message", {
+				channel: "D7",
+				channel_type: "im",
+			}),
+		);
+		await settle();
+		expect(harness.delivered.map((message) => message.externalMessageId)).toEqual([
+			"EvDm",
+		]);
+		expect(harness.socket.sent).toContainEqual({ envelope_id: "env-EvChannel" });
 		harness.controller.abort();
 		harness.socket.close();
 		await harness.done;
@@ -245,7 +276,7 @@ describe("slack adapter", () => {
 	it("does not ack (or advance the cursor) when admission fails", async () => {
 		const harness = createHarness({ failDeliver: true });
 		await settle();
-		harness.socket.emit(messageEnvelope("Ev020", "will fail"));
+		harness.socket.emit(mentionEnvelope("Ev020", "will fail"));
 		await settle();
 		expect(harness.cursor()).toBeUndefined();
 		expect(harness.socket.sent).not.toContainEqual({
@@ -260,17 +291,17 @@ describe("slack adapter", () => {
 		const harness = createHarness({});
 		await settle();
 		// Top-level channel message.
-		harness.socket.emit(messageEnvelope("Ev100", "in the channel"));
+		harness.socket.emit(mentionEnvelope("Ev100", "in the channel"));
 		// Two different threads in the SAME channel.
 		harness.socket.emit(
-			messageEnvelope("Ev101", "thread one", { thread_ts: "111.000" }),
+			mentionEnvelope("Ev101", "thread one", { thread_ts: "111.000" }),
 		);
 		harness.socket.emit(
-			messageEnvelope("Ev102", "thread two", { thread_ts: "222.000" }),
+			mentionEnvelope("Ev102", "thread two", { thread_ts: "222.000" }),
 		);
 		// A later reply in thread one reuses ITS conversation id.
 		harness.socket.emit(
-			messageEnvelope("Ev103", "thread one again", { thread_ts: "111.000" }),
+			mentionEnvelope("Ev103", "thread one again", { thread_ts: "111.000" }),
 		);
 		await settle();
 		expect(

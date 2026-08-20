@@ -39,6 +39,7 @@ export const KNOWN_GATEWAY_CAPABILITIES = [
 	"sessions.create",
 	"connectors.authorization",
 	"connectors.slackLoadingStatus",
+	"connectors.slackMentionGate",
 ] as const;
 
 export type KnownGatewayCapability =

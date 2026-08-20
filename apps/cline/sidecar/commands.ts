@@ -183,6 +183,7 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 						"sessions.create",
 						"connectors.authorization",
 						"connectors.slackLoadingStatus",
+						"connectors.slackMentionGate",
 					]
 				: [],
 		};

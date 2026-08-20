@@ -19,6 +19,7 @@ describe("gatewaySpawnCwd", () => {
 			"sessions.create",
 			"connectors.authorization",
 			"connectors.slackLoadingStatus",
+			"connectors.slackMentionGate",
 		]);
 	});
 	it("uses the real executable directory for a compiled sidecar", () => {

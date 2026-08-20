@@ -377,13 +377,22 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 		if (
 			!eventId ||
 			!event ||
-			event.type !== "message" ||
+			(event.type !== "app_mention" && event.type !== "message") ||
 			event.subtype !== undefined ||
 			event.bot_id ||
 			!event.user ||
 			!event.text ||
 			!event.channel
 		) {
+			ack();
+			return;
+		}
+		// Slack emits `app_mention` for explicit mentions in channels. Plain
+		// channel messages are intentionally ignored so a connected bot cannot
+		// eavesdrop on or respond to ambient conversation. Direct messages keep
+		// their normal `message` event because Slack does not emit app mentions
+		// for DMs.
+		if (event.type === "message" && event.channel_type !== "im") {
 			ack();
 			return;
 		}
