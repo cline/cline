@@ -13,8 +13,7 @@ const TERMINAL_MONITOR =
  * whole spans (or an unterminated tail) reliably removes exactly the
  * untrusted text.
  */
-const MONITOR_OUTPUT_SPAN =
-	/<monitor-output>[\s\S]*?(?:<\/monitor-output>|$)/g;
+const MONITOR_OUTPUT_SPAN = /<monitor-output>[\s\S]*?(?:<\/monitor-output>|$)/g;
 
 type PersistedToolResultBlock = {
 	type?: string;
