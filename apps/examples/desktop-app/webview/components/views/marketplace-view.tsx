@@ -5,6 +5,7 @@ import {
 	Search,
 	Server,
 	Star,
+	Store,
 	Trash2,
 	Zap,
 } from "lucide-react";
@@ -105,10 +106,11 @@ const primitivePageDetails = {
 
 const directoryPageDetails: MarketplacePageDetails = {
 	title: "Marketplace",
-	description: "Browse and install plugins, MCP servers, and skills.",
+	description:
+		"Browse and install plugins, MCP servers, and skills from the Cline marketplace.",
 	emptyInstalled: "Nothing installed yet.",
 	emptyCatalog: "No marketplace entries match the current filters.",
-	icon: Puzzle,
+	icon: Store,
 };
 
 const TYPE_FILTER_LABELS: Record<MarketplacePrimitiveType, string> = {

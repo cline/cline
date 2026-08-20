@@ -49,10 +49,15 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { MarketplaceView } from "../marketplace-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
-import { CustomizationSectionView } from "./extensions-view";
+import { ChannelsContent } from "./channels-view";
+import {
+	CustomizationSectionView,
+	invalidateExtensionInventoryCache,
+} from "./extensions-view";
 import { NotificationSettings } from "./notification-settings";
 import { PluginsHubView } from "./plugins-hub-view";
 import {
@@ -509,7 +514,14 @@ export function SettingsView({
 		activeNav === "Models" ? (
 			providerContent
 		) : activeNav === "Plugins" ? (
-			<PluginsHubView />
+			<PluginsHubView
+				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+			/>
+		) : activeNav === "Marketplace" ? (
+			<MarketplaceView
+				onInstalledItemsChanged={invalidateExtensionInventoryCache}
+				variant="directory"
+			/>
 		) : activeNav === "Hooks" ? (
 			<CustomizationSectionView section="Hooks" />
 		) : activeNav === "Rules" ? (
@@ -518,6 +530,8 @@ export function SettingsView({
 			<CustomizationSectionView section="Agents" />
 		) : activeNav === "Tools" ? (
 			<CustomizationSectionView section="Tools" />
+		) : activeNav === "Channels" ? (
+			<ChannelsContent />
 		) : activeNav === "Schedules" ? (
 			<RoutineSchedulesContent onOpenSession={onOpenSession} />
 		) : activeNav === "Account" ? (
