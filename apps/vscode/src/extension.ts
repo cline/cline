@@ -40,6 +40,7 @@ import { workspaceResolver } from "./core/workspace"
 import { findMatchingNotebookCell, getContextForCommand, showWebview } from "./hosts/vscode/commandUtils"
 import { abortCommitGeneration, generateCommitMsg } from "./hosts/vscode/commit-message-generator"
 import { registerClineOutputChannel } from "./hosts/vscode/hostbridge/env/debugLog"
+import { revealClineSidebar } from "./hosts/vscode/revealClineSidebar"
 import {
 	disposeVscodeCommentReviewController,
 	getVscodeCommentReviewController,
@@ -349,17 +350,10 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
-			// Show the webview
-			const webviewView = webview.getWebview()
-			if (webviewView) {
-				if (preserveEditorFocus) {
-					// Only make webview visible without forcing focus
-					webviewView.show(false)
-				} else {
-					// Show and force focus (default behavior for explicit focus actions)
-					webviewView.show(true)
-				}
-			}
+			// Reveal the sidebar. This also handles the case where the view has never
+			// been resolved (e.g. the user hid Cline from the Activity Bar and is
+			// running this command to get it back), where there is no WebviewView yet.
+			await revealClineSidebar(webview.getWebview(), ExtensionRegistryInfo.views.Sidebar, preserveEditorFocus)
 
 			// Send show webview event with preserveEditorFocus flag
 			sendShowWebviewEvent(preserveEditorFocus)
