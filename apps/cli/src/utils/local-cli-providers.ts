@@ -3,8 +3,8 @@ import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
 
-export const OPENAI_CODEX_CLI_PROVIDER_ID = "openai-codex-cli";
-export const CLAUDE_CODE_PROVIDER_ID = "claude-code";
+const OPENAI_CODEX_CLI_PROVIDER_ID = "openai-codex-cli";
+const CLAUDE_CODE_PROVIDER_ID = "claude-code";
 
 /**
  * A provider that runs a locally installed CLI and authenticates from that
