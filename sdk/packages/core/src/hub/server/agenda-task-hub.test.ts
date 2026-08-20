@@ -209,7 +209,11 @@ describe("Hub agenda task vertical slice", () => {
 					(extension) => extension.name === "hub-task-guidance",
 				),
 			).toBe(true);
-			expect(capturedStart?.config.workspaceRoot).toBe(canonicalChatWorkspace);
+			// The hub honors the requested global scope, so the run session is
+			// created without an explicit root; the session layer's shared
+			// chat-workspace fallback supplies it (mirrored by the mock above and
+			// asserted through the schedule's workspaceRoot below).
+			expect(capturedStart?.config.workspaceRoot).toBeUndefined();
 			expect(capturedStart?.toolPolicies).toMatchObject({
 				"*": { autoApprove: true, enabled: true },
 			});

@@ -158,6 +158,139 @@ describe("HubAgendaTaskCommandService", () => {
 		);
 	});
 
+	it("lists tasks for an explicitly selected workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.list", { workspaceRoot: "/selected-repo" }),
+			AUTHORITY,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(manager.listTasks).toHaveBeenCalledWith(
+			expect.objectContaining({
+				scope: "workspace",
+				workspaceRoot: resolve("/selected-repo"),
+			}),
+		);
+	});
+
+	it("honors explicit scope filters on task.list", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+
+		await service.handleCommand(
+			envelope("task.list", { scope: "workspace" }),
+			AUTHORITY,
+		);
+		expect(manager.listTasks).toHaveBeenCalledTimes(1);
+		expect(manager.listTasks).toHaveBeenLastCalledWith(
+			expect.objectContaining({
+				scope: "workspace",
+				workspaceRoot: resolve("/repo"),
+			}),
+		);
+
+		await service.handleCommand(
+			envelope("task.list", { scope: "global" }),
+			AUTHORITY,
+		);
+		expect(manager.listTasks).toHaveBeenCalledTimes(2);
+		expect(manager.listTasks).toHaveBeenLastCalledWith(
+			expect.objectContaining({ scope: "global", workspaceRoot: undefined }),
+		);
+	});
+
+	it("creates a task in an explicitly selected workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.create", {
+				type: "todo",
+				title: "Review the README",
+				instructions: "Review it",
+				scope: "workspace",
+				workspaceRoot: "/selected-repo",
+				expiresAt: "2026-08-20T00:00:00.000Z",
+			}),
+			AUTHORITY,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(manager.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				scope: "workspace",
+				workspaceRoot: resolve("/selected-repo"),
+				cwd: resolve("/selected-repo"),
+			}),
+		);
+	});
+
+	it("creates a global task without pinning it to the connection workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.create", {
+				type: "todo",
+				title: "Review the README",
+				instructions: "Review it",
+				scope: "global",
+				expiresAt: "2026-08-20T00:00:00.000Z",
+			}),
+			AUTHORITY,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(manager.createTask).toHaveBeenCalledWith(
+			expect.objectContaining({
+				scope: "global",
+				workspaceRoot: undefined,
+				cwd: undefined,
+			}),
+		);
+	});
+
+	it("permits mutating a task when the payload names its workspace", async () => {
+		const manager = managerMock();
+		vi.mocked(manager.getTask).mockResolvedValue(
+			task({ workspaceRoot: "/selected-repo" }),
+		);
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.approve", {
+				taskId: "task_1",
+				expectedRevision: 1,
+				workspaceRoot: "/selected-repo",
+			}),
+			AUTHORITY,
+		);
+
+		expect(reply.ok).toBe(true);
+		expect(manager.approveTask).toHaveBeenCalledWith(
+			"task_1",
+			expect.objectContaining({ kind: "user", clientId: "desktop" }),
+			1,
+		);
+	});
+
+	it("still requires a Hub-authorized workspace with an explicit payload workspace", async () => {
+		const manager = managerMock();
+		const service = new HubAgendaTaskCommandService(manager);
+		const reply = await service.handleCommand(
+			envelope("task.list", { workspaceRoot: "/selected-repo" }),
+			{ clientId: "desktop" },
+		);
+
+		expect(reply).toMatchObject({
+			ok: false,
+			error: {
+				code: "task_command_failed",
+				message: "task commands require a Hub-authorized workspace",
+			},
+		});
+		expect(manager.listTasks).not.toHaveBeenCalled();
+	});
+
 	it("rejects task access outside the Hub-authorized workspace", async () => {
 		const manager = managerMock();
 		const service = new HubAgendaTaskCommandService(manager);

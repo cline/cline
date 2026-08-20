@@ -302,6 +302,7 @@ export function useAgendaTasks(
 				desktopClient.approveAgendaTask({
 					taskId: current.taskId,
 					expectedRevision: current.revision,
+					workspaceRoot: current.workspaceRoot,
 				}),
 			),
 		[mutateTask],
@@ -312,6 +313,7 @@ export function useAgendaTasks(
 				desktopClient.cancelAgendaTask({
 					taskId: current.taskId,
 					expectedRevision: current.revision,
+					workspaceRoot: current.workspaceRoot,
 				}),
 			),
 		[mutateTask],
@@ -322,6 +324,7 @@ export function useAgendaTasks(
 				const result = await desktopClient.runAgendaTask({
 					taskId: current.taskId,
 					expectedRevision: current.revision,
+					workspaceRoot: current.workspaceRoot,
 				});
 				return result.run?.sessionId && !result.task.lastSessionId
 					? { ...result.task, lastSessionId: result.run.sessionId }

@@ -436,6 +436,13 @@ export interface HubScheduleUpdateInput {
 
 export interface HubTaskIdInput {
 	taskId: string;
+	/**
+	 * Workspace the task belongs to. Defaults to the connection's registered
+	 * workspace; multi-workspace clients (e.g. the desktop app, whose composer
+	 * switches workspaces without re-registering the Hub connection) pass the
+	 * task's own workspace so scope checks target the right root.
+	 */
+	workspaceRoot?: string;
 }
 
 export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy">;

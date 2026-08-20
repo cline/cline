@@ -112,6 +112,13 @@ export type DesktopInvokeOptions = {
 
 export type AgendaTaskIdInput = {
 	taskId: string;
+	/**
+	 * Workspace the task belongs to. The hub scopes task commands to the
+	 * connection's registered workspace by default, which is the sidecar's
+	 * launch root — not the composer-selected workspace — so mutations must
+	 * name the task's own workspace explicitly.
+	 */
+	workspaceRoot?: string;
 };
 
 export type AgendaTaskRevisionInput = AgendaTaskIdInput & {

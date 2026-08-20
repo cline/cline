@@ -300,9 +300,12 @@ describe("AgentSidebar session organization", () => {
 		);
 		expect(buttonWithText("Reject", document)).toBeDefined();
 		await click(buttonWithText("Approve", document));
+		// Mutations name the task's own workspace so the hub can scope-check
+		// tasks outside the connection's registered workspace.
 		expect(desktopMocks.approveAgendaTask).toHaveBeenCalledWith({
 			taskId: "task-1",
 			expectedRevision: 1,
+			workspaceRoot: "/projects/cline",
 		});
 	});
 
@@ -353,6 +356,7 @@ describe("AgentSidebar session organization", () => {
 		expect(desktopMocks.runAgendaTask).toHaveBeenCalledWith({
 			taskId: "task-run",
 			expectedRevision: 4,
+			workspaceRoot: "/projects/cline",
 		});
 
 		await click(
@@ -361,6 +365,7 @@ describe("AgentSidebar session organization", () => {
 		expect(desktopMocks.cancelAgendaTask).toHaveBeenCalledWith({
 			taskId: "task-cancel",
 			expectedRevision: 9,
+			workspaceRoot: "/projects/cline",
 		});
 	});
 
