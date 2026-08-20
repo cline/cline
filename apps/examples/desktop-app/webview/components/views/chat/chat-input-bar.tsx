@@ -32,12 +32,7 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
-import {
-	buildModelPickerData,
-	EMPTY_FEATURED_MODELS,
-	type FeaturedModelsData,
-	loadClineFeaturedModels,
-} from "@/lib/featured-models";
+import { buildModelPickerData } from "@/lib/featured-models";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -1544,9 +1539,6 @@ const ModelSelector = memo(function ModelSelector({
 	const [modelDetails, setModelDetails] = useState<
 		Record<string, ProviderModel[]>
 	>({});
-	const [featuredModels, setFeaturedModels] = useState<FeaturedModelsData>(
-		EMPTY_FEATURED_MODELS,
-	);
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
@@ -1703,16 +1695,6 @@ const ModelSelector = memo(function ModelSelector({
 		});
 	}, []);
 
-	useEffect(() => {
-		let cancelled = false;
-		void loadClineFeaturedModels().then((data) => {
-			if (!cancelled) setFeaturedModels(data);
-		});
-		return () => {
-			cancelled = true;
-		};
-	}, []);
-
 	// The remembered selection (what new sessions default to) is only written
 	// from the explicit picker handlers below. Mirroring every provider/model
 	// prop change here would also capture passive changes — most notably
@@ -1838,8 +1820,8 @@ const ModelSelector = memo(function ModelSelector({
 			})),
 		[providerNames, providers],
 	);
-	// Sectioned picker data: display names from the catalog, plus the
-	// Recommended/Free tiers from the Cline model feed for cline/cline-pass.
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
 	const modelPicker = useMemo(() => {
 		const detailsById = new Map(
 			(modelDetails[resolvedProvider] ?? []).map(
@@ -1849,8 +1831,8 @@ const ModelSelector = memo(function ModelSelector({
 		const models = modelsForProvider.map(
 			(id) => detailsById.get(id) ?? { id, name: id },
 		);
-		return buildModelPickerData(resolvedProvider, models, featuredModels);
-	}, [featuredModels, modelDetails, modelsForProvider, resolvedProvider]);
+		return buildModelPickerData(resolvedProvider, models);
+	}, [modelDetails, modelsForProvider, resolvedProvider]);
 	const selectedModelLabel =
 		modelPicker.options.find((option) => option.value === resolvedModel)
 			?.label ?? resolvedModel;

@@ -4,6 +4,7 @@ import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { resetClineRecommendedModelsCacheForTests } from "../llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
@@ -57,6 +58,7 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -359,7 +361,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -412,7 +417,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);

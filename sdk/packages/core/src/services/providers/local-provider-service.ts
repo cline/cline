@@ -17,6 +17,10 @@ import {
 	type ProviderOAuthCredentials,
 	saveProviderOAuthCredentials,
 } from "../../auth/provider-auth-registry";
+import {
+	applyClineFeaturedModels,
+	getCachedClineRecommendedModels,
+} from "../../services/llms/cline-recommended-models";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
 	ModelInfo,
@@ -41,6 +45,7 @@ import {
 
 export { ensureCustomProvidersLoaded } from "./local-provider-registry";
 
+const CLINE_PROVIDER_ID = "cline";
 const CLINE_PASS_PROVIDER_ID = "cline-pass";
 
 export interface ListLocalProvidersOptions {
@@ -817,7 +822,18 @@ export async function getLocalProviderModels(
 ): Promise<{ providerId: string; models: ProviderModel[] }> {
 	const id = providerId.trim();
 	const modelMap = await resolveProviderModelMap(id, config);
-	const models = toSortedProviderModels(modelMap);
+	let models = toSortedProviderModels(modelMap);
+	if (id === CLINE_PROVIDER_ID || id === CLINE_PASS_PROVIDER_ID) {
+		// Stamp the recommended-feed tiers onto the list so every client's
+		// picker gets Recommended/Free/Subscribed data without fetching and
+		// joining the feed itself. Cached; falls back to a bundled list, so
+		// a failure only means models without tier decoration.
+		models = applyClineFeaturedModels(
+			id,
+			models,
+			await getCachedClineRecommendedModels(),
+		);
+	}
 	return { providerId: id, models };
 }
 

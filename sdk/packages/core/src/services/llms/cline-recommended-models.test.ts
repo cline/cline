@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
+	applyClineFeaturedModels,
 	type ClineRecommendedModelsData,
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	fetchClineRecommendedModels,
+	getCachedClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
 } from "./cline-recommended-models";
 import type { ModelInfo } from "./provider-settings";
 
@@ -198,5 +201,150 @@ describe("fetchClineRecommendedModels", () => {
 		// Exact equality lets callers detect a transient failure (the VS Code
 		// controller compares against the fallback to skip caching it).
 		expect(data).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
+	});
+});
+
+describe("applyClineFeaturedModels", () => {
+	const data: ClineRecommendedModelsData = {
+		recommended: [
+			{
+				id: "anthropic/claude-opus-5",
+				name: "Claude Opus 5",
+				description: "Most intelligent model",
+				tags: ["NEW"],
+			},
+			// Vercel-style spelling; the catalog keys it as "z-ai/glm-5.2".
+			{ id: "zai/glm-5.2", name: "GLM 5.2", description: "", tags: [] },
+		],
+		free: [
+			{
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek V4 Flash",
+				description: "Fast and efficient",
+				tags: [],
+			},
+		],
+		clinePass: [
+			{
+				id: "cline-pass/kimi-k3",
+				name: "Kimi K3",
+				description: "Leading open weights model",
+				tags: [],
+			},
+		],
+	};
+
+	it("stamps recommended and free tiers onto the cline model list", () => {
+		const models = applyClineFeaturedModels(
+			"cline",
+			[
+				{ id: "anthropic/claude-opus-5", name: "Claude Opus 5" },
+				{ id: "z-ai/glm-5.2", name: "GLM 5.2" },
+				{ id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+				{ id: "vendor/unrelated", name: "Unrelated" },
+			],
+			data,
+		);
+
+		expect(models[0]?.featured).toEqual({
+			tier: "recommended",
+			rank: 0,
+			tags: ["NEW"],
+		});
+		expect(models[0]?.description).toBe("Most intelligent model");
+		// Alias spellings resolve through the Vercel/OpenRouter rules.
+		expect(models[1]?.featured).toEqual({
+			tier: "recommended",
+			rank: 1,
+			tags: [],
+		});
+		expect(models[2]?.featured).toEqual({ tier: "free", rank: 0, tags: [] });
+		expect(models[3]?.featured).toBeUndefined();
+	});
+
+	it("stamps subscribed and free tiers for cline-pass and skips other providers", () => {
+		const models = applyClineFeaturedModels(
+			"cline-pass",
+			[
+				{ id: "cline-pass/kimi-k3", name: "Kimi K3" },
+				{ id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+			],
+			data,
+		);
+		expect(models[0]?.featured?.tier).toBe("subscribed");
+		expect(models[1]?.featured?.tier).toBe("free");
+
+		const untouched = [{ id: "claude-sonnet-4-6", name: "Claude Sonnet" }];
+		expect(applyClineFeaturedModels("anthropic", untouched, data)).toBe(
+			untouched,
+		);
+	});
+
+	it("keeps the model's own description when the feed entry has none", () => {
+		const models = applyClineFeaturedModels(
+			"cline",
+			[
+				{
+					id: "z-ai/glm-5.2",
+					name: "GLM 5.2",
+					description: "Catalog description",
+				},
+			],
+			data,
+		);
+		expect(models[0]?.description).toBe("Catalog description");
+	});
+});
+
+describe("getCachedClineRecommendedModels", () => {
+	it("serves one fetch to concurrent and subsequent callers", async () => {
+		resetClineRecommendedModelsCacheForTests();
+		let calls = 0;
+		const fetchImpl: typeof fetch = async () => {
+			calls += 1;
+			return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		};
+		const options = {
+			baseUrl: BASE_URL,
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		};
+
+		const [first, second] = await Promise.all([
+			getCachedClineRecommendedModels(options),
+			getCachedClineRecommendedModels(options),
+		]);
+		const third = await getCachedClineRecommendedModels(options);
+
+		expect(calls).toBe(1);
+		expect(first.recommended.length).toBeGreaterThan(0);
+		expect(second.recommended.length).toBe(first.recommended.length);
+		expect(third.recommended.length).toBe(first.recommended.length);
+		resetClineRecommendedModelsCacheForTests();
+	});
+
+	it("caches the bundled fallback so offline callers do not re-pay the timeout", async () => {
+		resetClineRecommendedModelsCacheForTests();
+		let calls = 0;
+		const fetchImpl: typeof fetch = async () => {
+			calls += 1;
+			return new Response("nope", { status: 500 });
+		};
+		const options = {
+			baseUrl: BASE_URL,
+			fetchImpl,
+			catalogLoader: async () => CATALOG,
+		};
+
+		const first = await getCachedClineRecommendedModels(options);
+		const second = await getCachedClineRecommendedModels(options);
+
+		expect(calls).toBe(1);
+		expect(first).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
+		expect(second).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
+		resetClineRecommendedModelsCacheForTests();
 	});
 });

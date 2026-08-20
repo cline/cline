@@ -1,5 +1,9 @@
 import { VERCEL_OPENROUTER_MODEL_ID_ALIAS_RULES } from "@cline/llms";
-import { getClineEnvironmentConfig } from "@cline/shared";
+import {
+	getClineEnvironmentConfig,
+	type ProviderModel,
+	type ProviderModelFeaturedTier,
+} from "@cline/shared";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import { getLiveModelsCatalog } from "./provider-defaults";
 import type { ModelInfo } from "./provider-settings";
@@ -304,4 +308,119 @@ export async function fetchClineRecommendedModels(
 	// FALLBACK_CLINE_RECOMMENDED_MODELS (e.g. to avoid caching a transient
 	// failure).
 	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+}
+
+const FEED_CACHE_TTL_MS = 5 * 60_000;
+
+let feedCache: {
+	data: ClineRecommendedModelsData;
+	expiresAt: number;
+} | null = null;
+let feedInFlight: Promise<ClineRecommendedModelsData> | null = null;
+
+/**
+ * `fetchClineRecommendedModels` with a shared in-memory cache, for callers on
+ * the model-list path (every picker open) where a per-call network round-trip
+ * — or its 5s offline timeout — is unacceptable. The bundled offline fallback
+ * is cached too: paying the timeout once per TTL beats paying it on every
+ * model list while offline, and a recovered network is picked up within the
+ * TTL.
+ */
+export async function getCachedClineRecommendedModels(
+	options: FetchClineRecommendedModelsOptions = {},
+): Promise<ClineRecommendedModelsData> {
+	if (feedCache && feedCache.expiresAt > Date.now()) {
+		return cloneRecommendedModels(feedCache.data);
+	}
+	if (feedInFlight) {
+		return feedInFlight;
+	}
+	const request = fetchClineRecommendedModels(options)
+		.then((data) => {
+			feedCache = { data, expiresAt: Date.now() + FEED_CACHE_TTL_MS };
+			return data;
+		})
+		.finally(() => {
+			feedInFlight = null;
+		});
+	feedInFlight = request;
+	return request;
+}
+
+export function resetClineRecommendedModelsCacheForTests(): void {
+	feedCache = null;
+	feedInFlight = null;
+}
+
+const FEATURED_TIER_BUCKETS: Record<
+	string,
+	Array<{
+		tier: ProviderModelFeaturedTier;
+		select: (data: ClineRecommendedModelsData) => ClineRecommendedModel[];
+	}>
+> = {
+	cline: [
+		{ tier: "recommended", select: (data) => data.recommended },
+		{ tier: "free", select: (data) => data.free },
+	],
+	// ClinePass surfaces its subscription models plus the free models (both
+	// ride the same Cline API; free models bill $0 outside the quota).
+	"cline-pass": [
+		{ tier: "subscribed", select: (data) => data.clinePass },
+		{ tier: "free", select: (data) => data.free },
+	],
+};
+
+/**
+ * Stamps recommended-feed tiers onto a provider's model list so clients can
+ * render Recommended/Free/Subscribed sections straight off `ProviderModel`
+ * instead of fetching and joining the feed themselves. Feed ids are matched
+ * through the Vercel/OpenRouter alias rules (the feed can spell a model
+ * differently from the catalog). Models the feed does not mention are
+ * returned unchanged; unknown providers pass through untouched.
+ */
+export function applyClineFeaturedModels(
+	providerId: string,
+	models: ProviderModel[],
+	data: ClineRecommendedModelsData,
+): ProviderModel[] {
+	const buckets = FEATURED_TIER_BUCKETS[providerId];
+	if (!buckets) {
+		return models;
+	}
+	const featuredById = new Map<
+		string,
+		{
+			entry: ClineRecommendedModel;
+			tier: ProviderModelFeaturedTier;
+			rank: number;
+		}
+	>();
+	for (const bucket of buckets) {
+		bucket.select(data).forEach((entry, rank) => {
+			for (const lookupId of catalogLookupIds(entry.id)) {
+				if (!featuredById.has(lookupId)) {
+					featuredById.set(lookupId, { entry, tier: bucket.tier, rank });
+				}
+			}
+		});
+	}
+	if (featuredById.size === 0) {
+		return models;
+	}
+	return models.map((model) => {
+		const match = featuredById.get(model.id);
+		if (!match) {
+			return model;
+		}
+		return {
+			...model,
+			description: match.entry.description.trim() || model.description,
+			featured: {
+				tier: match.tier,
+				rank: match.rank,
+				tags: [...match.entry.tags],
+			},
+		};
+	});
 }

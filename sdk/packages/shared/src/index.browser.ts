@@ -382,6 +382,8 @@ export type {
 	ProviderConfigFieldType,
 	ProviderListItem,
 	ProviderModel,
+	ProviderModelFeatured,
+	ProviderModelFeaturedTier,
 	ProviderModelsResponse,
 	ProviderOAuthLoginResponse,
 	ProviderProtocol,
