@@ -7,6 +7,7 @@ const external = [
 	"@cline/shared",
 	"@cline/shared/gateway",
 	"@cline/tools",
+	"ws",
 	"zod",
 ];
 const sourcemap = Bun.env.CLINE_SOURCEMAPS === "1" ? "linked" : "none";

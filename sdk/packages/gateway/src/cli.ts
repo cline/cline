@@ -16,6 +16,7 @@
  */
 
 import { spawn } from "node:child_process";
+import { readFileSync, statSync } from "node:fs";
 import { setTimeout as sleep } from "node:timers/promises";
 import { GatewayClient, GatewayRequestError } from "./client";
 import { type DiscoveryRecord, readDiscoveryRecord } from "./discovery";
@@ -23,12 +24,8 @@ import { createConfiguredEnginePort } from "./engine-binding";
 import { loadBundledLeadProfile } from "./lead-profiles";
 import { GatewayLockHeldError } from "./lock";
 import { resolveGatewayPaths } from "./paths";
-import { writeSecretFile } from "./secrets";
+import { readSecretFile, writeSecretFile } from "./secrets";
 import { GatewayServer } from "./server";
-import {
-	DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
-	startGatewayWebSocketBridge,
-} from "./websocket-bridge";
 
 export const GATEWAY_CLI_COMMANDS = [
 	"serve",
@@ -38,7 +35,6 @@ export const GATEWAY_CLI_COMMANDS = [
 	"upgrade",
 	"stop",
 	"secret-put",
-	"websocket-bridge",
 ] as const;
 
 export type GatewayCliCommand = (typeof GATEWAY_CLI_COMMANDS)[number];
@@ -62,7 +58,12 @@ interface ParsedArgs {
 	port?: number;
 	reason?: string;
 	leadProfile?: string;
-	allowedOrigins?: string[];
+	remoteHost?: string;
+	remotePort?: number;
+	remoteTokenName?: string;
+	tlsCert?: string;
+	tlsKey?: string;
+	allowInsecureRemote?: boolean;
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -72,8 +73,9 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
 				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
 				"       cline-gateway serve [--lead-profile <cline|cline-dad>]\n" +
-				"       cline-gateway websocket-bridge --port <n> --allowed-origin <origin>\n" +
-				"       cline-gateway secret-put <providerId>   (reads the secret from stdin)",
+				"       cline-gateway secret-put <name>   (reads the secret from stdin)\n" +
+				"       Remote: --remote-port <n> [--remote-host <host>] [--remote-token <secret-name>]\n" +
+				"               [--tls-cert <file> --tls-key <file> | --allow-insecure-remote]",
 		);
 	}
 	const parsed: ParsedArgs = { command: command as GatewayCliCommand };
@@ -108,10 +110,28 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 				parsed.leadProfile = value;
 				index += 1;
 				break;
-			case "--allowed-origin":
-				parsed.allowedOrigins ??= [];
-				parsed.allowedOrigins.push(value);
+			case "--remote-host":
+				parsed.remoteHost = value;
 				index += 1;
+				break;
+			case "--remote-port":
+				parsed.remotePort = Number(value);
+				index += 1;
+				break;
+			case "--remote-token":
+				parsed.remoteTokenName = value;
+				index += 1;
+				break;
+			case "--tls-cert":
+				parsed.tlsCert = value;
+				index += 1;
+				break;
+			case "--tls-key":
+				parsed.tlsKey = value;
+				index += 1;
+				break;
+			case "--allow-insecure-remote":
+				parsed.allowInsecureRemote = true;
 				break;
 			default:
 				throw new Error(`Unknown flag: ${flag}`);
@@ -162,6 +182,8 @@ async function commandServe(
 ): Promise<number> {
 	let server: GatewayServer;
 	let serverRef: GatewayServer | undefined;
+	const paths = resolveGatewayPaths(args);
+	const remote = remoteOptions(args, paths);
 	const profileId =
 		args.leadProfile ??
 		process.env.CLINE_GATEWAY_LEAD_PROFILE?.trim() ??
@@ -177,6 +199,7 @@ async function commandServe(
 			dataRoot: args.dataRoot,
 			namespace: args.namespace,
 			port: args.port,
+			remote,
 			leadProfile,
 			// The approvals broker lives on the runtime, which exists only
 			// after start; the getter closes over the server reference.
@@ -184,7 +207,7 @@ async function commandServe(
 			// secret files; env vars remain a local/dev override.
 			engine: createConfiguredEnginePort({
 				approvals: () => serverRef?.runtime.approvals,
-				paths: resolveGatewayPaths(args),
+				paths,
 				// Gateway-owned tools, including constrained proactive connector
 				// messaging, are late-bound after the server is constructed.
 				tools: (invocation) => serverRef?.connectorTools(invocation),
@@ -219,6 +242,7 @@ async function commandServe(
 			instanceId: server.instanceId,
 			host: server.discovery?.host,
 			port: server.discovery?.port,
+			remote: server.remoteAddress(),
 			pid: process.pid,
 			dataDir: server.paths.dataDir,
 			namespace: server.paths.namespace,
@@ -262,6 +286,15 @@ async function commandStart(
 	if (args.leadProfile) {
 		serveArgs.push("--lead-profile", args.leadProfile);
 	}
+	if (args.remotePort !== undefined) {
+		serveArgs.push("--remote-port", String(args.remotePort));
+		if (args.remoteHost) serveArgs.push("--remote-host", args.remoteHost);
+		if (args.remoteTokenName)
+			serveArgs.push("--remote-token", args.remoteTokenName);
+		if (args.tlsCert) serveArgs.push("--tls-cert", args.tlsCert);
+		if (args.tlsKey) serveArgs.push("--tls-key", args.tlsKey);
+		if (args.allowInsecureRemote) serveArgs.push("--allow-insecure-remote");
+	}
 	// Re-invoke the same entrypoint (works from source under Bun and from
 	// the packaged bin under Node).
 	const child = spawn(process.execPath, [process.argv[1], ...serveArgs], {
@@ -282,6 +315,54 @@ async function commandStart(
 	}
 	io.err(JSON.stringify({ status: "start_timeout" }));
 	return 1;
+}
+
+function remoteOptions(
+	args: ParsedArgs,
+	paths: ReturnType<typeof resolveGatewayPaths>,
+) {
+	if (args.remotePort === undefined) return undefined;
+	if (
+		!Number.isInteger(args.remotePort) ||
+		args.remotePort < 0 ||
+		args.remotePort > 65_535
+	) {
+		throw new Error("--remote-port must be an integer from 0 to 65535");
+	}
+	if (Boolean(args.tlsCert) !== Boolean(args.tlsKey)) {
+		throw new Error("--tls-cert and --tls-key must be provided together");
+	}
+	const tokenName = args.remoteTokenName ?? "remote-access";
+	const accessToken = readSecretFile(paths, tokenName)?.trim();
+	if (!accessToken) {
+		throw new Error(
+			`Missing remote access token; pipe one to: cline-gateway secret-put ${tokenName}`,
+		);
+	}
+	return {
+		host: args.remoteHost ?? "127.0.0.1",
+		port: args.remotePort,
+		accessToken,
+		allowInsecure: args.allowInsecureRemote,
+		...(args.tlsCert && args.tlsKey
+			? {
+					tls: {
+						cert: readFileSync(args.tlsCert),
+						key: readOwnerOnlyFile(args.tlsKey),
+					},
+				}
+			: {}),
+	};
+}
+
+function readOwnerOnlyFile(file: string): Buffer {
+	const stat = statSync(file);
+	if (process.platform !== "win32" && (stat.mode & 0o077) !== 0) {
+		throw new Error(
+			`TLS key ${file} is not owner-only (mode ${(stat.mode & 0o777).toString(8)}); refusing to read it`,
+		);
+	}
+	return readFileSync(file);
 }
 
 function statusSummary(status: unknown): Record<string, unknown> {
@@ -447,46 +528,6 @@ async function commandSecretPut(
 	return 0;
 }
 
-async function commandWebSocketBridge(
-	args: ParsedArgs,
-	io: GatewayCliIo,
-): Promise<number> {
-	const envOrigins = process.env.CLINE_GATEWAY_BRIDGE_ALLOWED_ORIGINS
-		?.split(",")
-		.map((origin) => origin.trim())
-		.filter(Boolean);
-	const allowedOrigins = args.allowedOrigins ?? envOrigins ?? [];
-	if (allowedOrigins.length === 0) {
-		io.err(
-			"websocket-bridge requires --allowed-origin or CLINE_GATEWAY_BRIDGE_ALLOWED_ORIGINS",
-		);
-		return 64;
-	}
-	const bridge = await startGatewayWebSocketBridge({
-		dataRoot: args.dataRoot,
-		namespace: args.namespace,
-		port: args.port ?? DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
-		allowedOrigins,
-	});
-	io.out(
-		JSON.stringify({
-			status: "serving",
-			transport: "websocket",
-			host: bridge.host,
-			port: bridge.port,
-			allowedOrigins,
-		}),
-	);
-	await new Promise<void>((resolve) => {
-		const stop = () => {
-			void bridge.stop().finally(resolve);
-		};
-		process.once("SIGINT", stop);
-		process.once("SIGTERM", stop);
-	});
-	return 0;
-}
-
 /** Entry point. Returns the process exit code. */
 export async function runGatewayCli(
 	argv: readonly string[],
@@ -514,8 +555,6 @@ export async function runGatewayCli(
 			return commandUpgrade(args, io);
 		case "secret-put":
 			return commandSecretPut(args, io);
-		case "websocket-bridge":
-			return commandWebSocketBridge(args, io);
 	}
 }
 

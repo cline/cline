@@ -16,7 +16,8 @@
  */
 
 import { timingSafeEqual } from "node:crypto";
-import { createServer, type Server, type Socket } from "node:net";
+import { createServer, type Server } from "node:net";
+import type { Duplex } from "node:stream";
 import { dirname } from "node:path";
 import type { EnginePort } from "@cline/bot";
 import type {
@@ -77,6 +78,11 @@ import {
 } from "./paths";
 import { PluginCatalog, type PluginSource } from "./plugins/catalog";
 import {
+	type GatewayRemoteAddress,
+	GatewayRemoteListener,
+	type GatewayRemoteOptions,
+} from "./remote";
+import {
 	GatewayCallError,
 	GatewayRuntime,
 	type GatewayRuntimeOptions,
@@ -123,6 +129,8 @@ export interface GatewayServerOptions extends GatewayPathsOptions {
 	schedulerTickMs?: number;
 	/** Phase 6: outbound delivery tick cadence (0 disables the timer). */
 	deliveryTickMs?: number;
+	/** Phase 7: optional remote WebSocket listener with separate credentials. */
+	remote?: GatewayRemoteOptions;
 }
 
 interface Subscription {
@@ -131,16 +139,41 @@ interface Subscription {
 }
 
 class Connection {
-	readonly socket: Socket;
+	readonly socket: Duplex;
+	readonly expectedAuth: string;
+	readonly transport: "local" | "remote";
 	clientId: ClientId | undefined;
 	authenticated = false;
 	readonly subscriptions: Subscription[] = [];
 	private buffer = "";
 	private pumpChain: Promise<void> = Promise.resolve();
 	private pumpRequested = false;
+	private authTimeout: ReturnType<typeof setTimeout> | undefined;
 
-	constructor(socket: Socket) {
+	constructor(
+		socket: Duplex,
+		expectedAuth: string,
+		transport: "local" | "remote",
+	) {
 		this.socket = socket;
+		this.expectedAuth = expectedAuth;
+		this.transport = transport;
+	}
+
+	armAuthTimeout(timeoutMs: number): void {
+		this.authTimeout = setTimeout(() => this.socket.destroy(), timeoutMs);
+		this.authTimeout.unref?.();
+	}
+
+	markAuthenticated(): void {
+		if (this.authTimeout) clearTimeout(this.authTimeout);
+		this.authTimeout = undefined;
+		this.authenticated = true;
+	}
+
+	dispose(): void {
+		if (this.authTimeout) clearTimeout(this.authTimeout);
+		this.authTimeout = undefined;
 	}
 
 	feed(chunk: string, onLine: (line: string) => void): void {
@@ -243,6 +276,7 @@ export class GatewayServer {
 	private readonly lock: GatewayLock;
 	private readonly server: Server;
 	private readonly authToken: string;
+	private remoteListener: GatewayRemoteListener | undefined;
 	private readonly connections = new Set<Connection>();
 	private readonly stopTimeoutMs: number;
 	private stopping = false;
@@ -285,7 +319,9 @@ export class GatewayServer {
 		this.instanceId = options.instanceId;
 		this.authToken = options.authToken;
 		this.stopTimeoutMs = options.stopTimeoutMs;
-		this.server = createServer((socket) => this.handleConnection(socket));
+		this.server = createServer((socket) =>
+			this.handleConnection(socket, this.authToken, "local"),
+		);
 		this.whenStopped = new Promise((resolve) => {
 			this.resolveStopped = resolve;
 		});
@@ -499,7 +535,36 @@ export class GatewayServer {
 				throw new Error("Gateway server bound to a non-TCP address");
 			}
 
-			// 5. Live event fan-out to subscribed connections.
+			// 5. Optional public transport. It has an independent credential;
+			// the mode-0600 discovery secret is never valid remotely.
+			if (options.remote) {
+				try {
+					const remoteOptions = options.remote;
+					server.remoteListener = await GatewayRemoteListener.start(
+						remoteOptions,
+						(stream) => {
+							const remoteCount = [...server.connections].filter(
+								(connection) => connection.transport === "remote",
+							).length;
+							if (remoteCount >= (remoteOptions.maxConnections ?? 128)) {
+								stream.destroy();
+								return;
+							}
+							server.handleConnection(
+								stream,
+								remoteOptions.accessToken,
+								"remote",
+								remoteOptions.handshakeTimeoutMs ?? 10_000,
+							);
+						},
+					);
+				} catch (error) {
+					await closeServer(server.server);
+					throw error;
+				}
+			}
+
+			// 6. Live event fan-out to subscribed connections.
 			server.unsubscribeEvents = stores.events.subscribe(() => {
 				for (const connection of server.connections) {
 					if (connection.subscriptions.length > 0) {
@@ -524,6 +589,7 @@ export class GatewayServer {
 			writeDiscoveryRecord(paths.discoveryFile, server.discovery);
 			stores.audit.record("gateway", "gateway.started", instanceId, {
 				port: address.port,
+				remote: server.remoteListener?.address(),
 			});
 
 			// Route pending server requests to subscribed clients.
@@ -563,6 +629,10 @@ export class GatewayServer {
 		return { host: address.address, port: address.port };
 	}
 
+	remoteAddress(): GatewayRemoteAddress | undefined {
+		return this.remoteListener?.address();
+	}
+
 	/**
 	 * Stop the server. `graceful` interrupts active runs cooperatively,
 	 * waits (bounded) for them to settle and the outbox to drain, and
@@ -600,6 +670,7 @@ export class GatewayServer {
 			connection.socket.destroy();
 		}
 		this.connections.clear();
+		await this.remoteListener?.close();
 		await new Promise<void>((resolve) => {
 			if (!this.server.listening) {
 				resolve();
@@ -616,18 +687,27 @@ export class GatewayServer {
 	// Connection handling
 	// ---------------------------------------------------------------------
 
-	private handleConnection(socket: Socket): void {
+	private handleConnection(
+		socket: Duplex,
+		expectedAuth: string,
+		transport: "local" | "remote",
+		handshakeTimeoutMs?: number,
+	): void {
 		if (this.stopping) {
 			socket.destroy();
 			return;
 		}
-		const connection = new Connection(socket);
+		const connection = new Connection(socket, expectedAuth, transport);
+		if (handshakeTimeoutMs !== undefined) {
+			connection.armAuthTimeout(handshakeTimeoutMs);
+		}
 		this.connections.add(connection);
 		socket.setEncoding("utf8");
 		socket.on("data", (chunk: string) => {
 			connection.feed(chunk, (line) => this.handleLine(connection, line));
 		});
 		const cleanup = () => {
+			connection.dispose();
 			this.connections.delete(connection);
 			// Disconnect never implies abort: runs and pending server
 			// requests are untouched; only the connection registry shrinks.
@@ -725,13 +805,15 @@ export class GatewayServer {
 		params: unknown,
 	): void {
 		const auth = (params as { auth?: string }).auth;
-		if (!this.checkAuth(auth)) {
+		if (!checkAuth(connection.expectedAuth, auth)) {
 			connection.send(
 				errorResponse(
 					request.id,
 					createGatewayError(
 						"unauthorized",
-						"gateway.hello requires the per-instance secret from the discovery record",
+						connection.transport === "local"
+							? "gateway.hello requires the per-instance secret from the discovery record"
+							: "gateway.hello requires a valid remote access token",
 						{ retryable: false },
 					),
 				),
@@ -749,7 +831,7 @@ export class GatewayServer {
 			connection.socket.end();
 			return;
 		}
-		connection.authenticated = true;
+		connection.markAuthenticated();
 		connection.clientId = negotiation.result.clientId;
 		const client = (
 			params as {
@@ -767,7 +849,11 @@ export class GatewayServer {
 				negotiation.result.clientId,
 				"client.connected",
 				undefined,
-				{ name: client.name, version: client.version },
+				{
+					name: client.name,
+					version: client.version,
+					transport: connection.transport,
+				},
 			);
 		});
 		connection.send(okResponse(request.id, negotiation.result));
@@ -847,6 +933,7 @@ export class GatewayServer {
 					// Live connector worker health (read-only diagnostics).
 					connectorHealth: this.connectors.status(),
 					port: this.address().port,
+					remote: this.remoteAddress(),
 					connections: this.connections.size,
 				};
 			case "gateway.drain":
@@ -1163,17 +1250,23 @@ export class GatewayServer {
 		}
 	}
 
-	private checkAuth(offered: string | undefined): boolean {
-		if (!offered) {
-			return false;
-		}
-		const expected = Buffer.from(this.authToken, "utf8");
-		const actual = Buffer.from(offered, "utf8");
-		if (expected.length !== actual.length) {
-			return false;
-		}
-		return timingSafeEqual(expected, actual);
-	}
+}
+
+function checkAuth(
+	expectedValue: string,
+	offered: string | undefined,
+): boolean {
+	if (!offered) return false;
+	const expected = Buffer.from(expectedValue, "utf8");
+	const actual = Buffer.from(offered, "utf8");
+	return expected.length === actual.length && timingSafeEqual(expected, actual);
+}
+
+function closeServer(server: Server): Promise<void> {
+	return new Promise((resolve) => {
+		if (!server.listening) return resolve();
+		server.close(() => resolve());
+	});
 }
 
 function scopeMatches(

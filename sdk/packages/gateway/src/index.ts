@@ -17,16 +17,11 @@
 
 export type { GatewayCliCommand, GatewayCliIo } from "./cli";
 export { GATEWAY_CLI_COMMANDS, runGatewayCli } from "./cli";
-export type { GatewayWebSocketBridgeOptions } from "./websocket-bridge";
-export {
-	DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
-	MAX_GATEWAY_WEBSOCKET_FRAME_BYTES,
-	startGatewayWebSocketBridge,
-} from "./websocket-bridge";
 export type {
 	ApprovalResolution,
 	GatewayClientOptions,
 	GatewayEventListener,
+	GatewayRemoteClientOptions,
 	GatewayServerRequestHandler,
 	GatewayStatusSummary,
 	StartRunInput,
@@ -255,6 +250,12 @@ export type {
 } from "./plugins/state-store";
 export { PluginStateStore } from "./plugins/state-store";
 export { RunProvenanceStore } from "./provenance-store";
+export type {
+	GatewayRemoteAddress,
+	GatewayRemoteOptions,
+	GatewayTlsOptions,
+} from "./remote";
+export { isLoopbackHost, validateRemoteOptions } from "./remote";
 export {
 	gatewayProviderSettingsPath,
 	listSavedProviderSummaries,

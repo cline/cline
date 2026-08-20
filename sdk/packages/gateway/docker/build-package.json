@@ -1,0 +1,27 @@
+{
+	"name": "@cline/gateway-container-build",
+	"private": true,
+	"workspaces": ["sdk/packages/*"],
+	"scripts": {
+		"build:sdk": "bun --production -F './sdk/packages/*' build"
+	},
+	"engines": {
+		"bun": "1.3.13",
+		"node": ">=22"
+	},
+	"devDependencies": {
+		"@types/bun": "^1.3.13",
+		"@types/node": "^25.3.5",
+		"typescript": "^5.9.3"
+	},
+	"overrides": {
+		"axios": "1.18.0",
+		"fast-uri": ">=3.1.4",
+		"undici@>=6.0.0 <7.0.0": "6.28.0",
+		"tar-fs": ">=3.1.1",
+		"tar": "^7.5.2",
+		"js-yaml": "^4.1.1",
+		"serialize-javascript": ">=7.0.3",
+		"protobufjs": "7.6.5"
+	}
+}

@@ -99,17 +99,22 @@ cline-gateway drain                    # refuse new mutating work while runs fin
 cline-gateway upgrade                  # drain, wait idle, stop, start a fresh process
 cline-gateway stop                     # graceful stop
 cline-gateway secret-put <providerId>  # store a provider credential (reads stdin)
-cline-gateway websocket-bridge --port 18080 --allowed-origin https://app.example.com
+cline-gateway secret-put remote-access # store a distinct remote access token
+cline-gateway serve --remote-port 18080 --remote-host 127.0.0.1
 ```
 
-`websocket-bridge` is the browser-facing boundary for remote clients. It binds
-to loopback, accepts only configured origins, requires the normal authenticated
-`gateway.hello` as the first WebSocket frame, and forwards text frames to the
-currently discovered Gateway's native NDJSON transport. Put TLS termination
-(for example Caddy) in front of this bridge; never expose the Gateway TCP port.
+The optional remote listener is the browser-facing WebSocket transport. It uses
+the `remote-access` secret by default, independently of local discovery auth,
+and requires an authenticated `gateway.hello` before accepting requests. Keep
+the listener on loopback behind TLS termination (for example Caddy), or provide
+`--tls-cert` and an owner-only `--tls-key` for native `wss://`. Plain `ws://`
+outside loopback requires the explicit development-only
+`--allow-insecure-remote` flag.
 
 Flags: `--data-root <dir>`, `--namespace <name>`, `--port <n>`,
-`--reason <text>`, `--lead-profile <cline|cline-dad>`. The standard `cline`
+`--reason <text>`, `--lead-profile <cline|cline-dad>`, `--remote-port <n>`,
+`--remote-host <host>`, `--remote-token <secret-name>`, `--tls-cert <file>`,
+and `--tls-key <file>`. The standard `cline`
 profile remains the default. `CLINE_GATEWAY_LEAD_PROFILE` is the equivalent
 environment setting. The singleton scope is the **canonical data directory
 plus environment namespace** (`CLINE_GATEWAY_DATA_ROOT`,

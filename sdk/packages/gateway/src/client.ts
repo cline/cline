@@ -11,7 +11,8 @@
  * up a private runtime.
  */
 
-import { connect, type Socket } from "node:net";
+import { connect } from "node:net";
+import type { Duplex } from "node:stream";
 import type {
 	BotRecord,
 	RunRecord,
@@ -44,7 +45,9 @@ import {
 	IDEMPOTENCY_KEY_PARAM,
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
+import { createWebSocketStream, WebSocket } from "ws";
 import type { ConnectorRecord } from "./connectors/store";
+import { isLoopbackHost } from "./remote";
 
 export { listSavedProviderSummaries } from "./provider-settings";
 
@@ -76,6 +79,19 @@ export interface GatewayClientOptions {
 	/** Resume a previously assigned client identity. */
 	clientId?: string;
 	connectTimeoutMs?: number;
+}
+
+export interface GatewayRemoteClientOptions {
+	/** ws:// is accepted only for loopback unless this development escape hatch is true. */
+	url: string;
+	auth: string;
+	clientName?: string;
+	clientVersion?: string;
+	clientId?: string;
+	connectTimeoutMs?: number;
+	allowInsecure?: boolean;
+	/** Node TLS validation remains enabled unless explicitly disabled for development. */
+	rejectUnauthorized?: boolean;
 }
 
 export type GatewayEventListener = (event: GatewayEvent) => void;
@@ -213,7 +229,7 @@ interface PendingRequest {
 export class GatewayClient {
 	readonly hello: GatewayHelloResult;
 
-	private readonly socket: Socket;
+	private readonly socket: Duplex;
 	private readonly pending = new Map<string, PendingRequest>();
 	private readonly eventListeners = new Set<GatewayEventListener>();
 	private readonly closeListeners = new Set<() => void>();
@@ -223,7 +239,7 @@ export class GatewayClient {
 	private closed = false;
 	private closeNotified = false;
 
-	private constructor(socket: Socket, hello: GatewayHelloResult) {
+	private constructor(socket: Duplex, hello: GatewayHelloResult) {
 		this.socket = socket;
 		this.hello = hello;
 	}
@@ -265,6 +281,35 @@ export class GatewayClient {
 			auth: record.auth,
 			...options,
 		});
+	}
+
+	/** Connect to an explicitly configured remote ws(s):// Gateway endpoint. */
+	static async connectRemote(
+		options: GatewayRemoteClientOptions,
+	): Promise<GatewayClient> {
+		const url = validateRemoteUrl(options.url, options.allowInsecure ?? false);
+		const socket = await connectWebSocket(url, options);
+		const transport = new TransportShim(socket);
+		try {
+			const helloResult = await transport.request(GATEWAY_HELLO_METHOD, {
+				protocolVersions: [GATEWAY_PROTOCOL_VERSION],
+				client: {
+					name: options.clientName ?? "gateway-remote-client",
+					version: options.clientVersion ?? "0.0.0",
+					...(options.clientId ? { clientId: options.clientId } : {}),
+				},
+				auth: options.auth,
+			});
+			const client = new GatewayClient(
+				socket,
+				helloResult as GatewayHelloResult,
+			);
+			transport.handover(client);
+			return client;
+		} catch (error) {
+			socket.destroy();
+			throw error;
+		}
 	}
 
 	/** Issue a request; mutating methods should go through `mutate`. */
@@ -756,13 +801,13 @@ export class GatewayClient {
  * `GatewayClient` exists; then hands the socket stream over to it.
  */
 class TransportShim {
-	private readonly socket: Socket;
+	private readonly socket: Duplex;
 	private buffer = "";
 	private pendingResolve: ((value: unknown) => void) | undefined;
 	private pendingReject: ((error: Error) => void) | undefined;
 	private client: GatewayClient | undefined;
 
-	constructor(socket: Socket) {
+	constructor(socket: Duplex) {
 		this.socket = socket;
 		socket.setEncoding("utf8");
 		socket.on("data", (chunk: string) => this.onData(chunk));
@@ -832,7 +877,7 @@ class TransportShim {
 	}
 }
 
-function connectSocket(options: GatewayClientOptions): Promise<Socket> {
+function connectSocket(options: GatewayClientOptions): Promise<Duplex> {
 	return new Promise((resolve, reject) => {
 		const socket = connect({ host: options.host, port: options.port });
 		const timeout = setTimeout(() => {
@@ -864,5 +909,73 @@ function connectSocket(options: GatewayClientOptions): Promise<Socket> {
 				),
 			);
 		});
+	});
+}
+
+function validateRemoteUrl(value: string, allowInsecure: boolean): URL {
+	let url: URL;
+	try {
+		url = new URL(value);
+	} catch {
+		throw new Error(`Invalid remote Gateway URL: ${value}`);
+	}
+	if (url.protocol !== "ws:" && url.protocol !== "wss:") {
+		throw new Error("Remote Gateway URLs must use ws:// or wss://");
+	}
+	if (
+		url.protocol === "ws:" &&
+		!isLoopbackHost(url.hostname) &&
+		!allowInsecure
+	) {
+		throw new Error(
+			"Refusing insecure remote Gateway URL; use wss:// or explicitly allow insecure development",
+		);
+	}
+	if (url.username || url.password || url.search) {
+		throw new Error("Remote Gateway credentials must not be placed in URLs");
+	}
+	return url;
+}
+
+function connectWebSocket(
+	url: URL,
+	options: GatewayRemoteClientOptions,
+): Promise<Duplex> {
+	return new Promise((resolve, reject) => {
+		const webSocket = new WebSocket(url, {
+			rejectUnauthorized: options.rejectUnauthorized ?? true,
+		});
+		const onError = (error: Error) => {
+			clearTimeout(timeout);
+			webSocket.terminate();
+			reject(
+				new GatewayRequestError(
+					createGatewayError(
+						"gateway_unreachable",
+						`Cannot reach the remote Gateway at ${url.origin}: ${error.message}`,
+						{ retryable: true },
+					),
+				),
+			);
+		};
+		const timeout = setTimeout(() => {
+			webSocket.off("error", onError);
+			webSocket.terminate();
+			reject(
+				new GatewayRequestError(
+					createGatewayError(
+						"gateway_unreachable",
+						`Timed out connecting to ${url.origin}`,
+						{ retryable: true },
+					),
+				),
+			);
+		}, options.connectTimeoutMs ?? 5_000);
+		webSocket.once("open", () => {
+			clearTimeout(timeout);
+			webSocket.off("error", onError);
+			resolve(createWebSocketStream(webSocket, { encoding: "utf8" }));
+		});
+		webSocket.once("error", onError);
 	});
 }

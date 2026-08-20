@@ -1,0 +1,8 @@
+.git
+.worktrees
+**/node_modules
+**/dist
+**/.next
+**/target
+**/coverage
+**/.DS_Store

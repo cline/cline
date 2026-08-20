@@ -1,0 +1,24 @@
+{
+	"name": "@cline/gateway-web",
+	"version": "0.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "vite --host 0.0.0.0",
+		"build": "tsc -b && vite build",
+		"preview": "vite preview --host 0.0.0.0",
+		"test": "vitest run",
+		"typecheck": "tsc -b --pretty false"
+	},
+	"dependencies": {
+		"react": "19.2.4",
+		"react-dom": "19.2.4"
+	},
+	"devDependencies": {
+		"@types/react": "^19.2.14",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react-swc": "^4.3.0",
+		"typescript": "^5.9.3",
+		"vite": "^8.0.0"
+	}
+}
