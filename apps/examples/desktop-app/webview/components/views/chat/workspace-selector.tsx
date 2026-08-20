@@ -321,7 +321,6 @@ export function WorkspaceSelector({
 						{/* Search row, styled to match the composer's model picker */}
 						<div className="flex items-center gap-2 border-b border-border px-3">
 							<Search className="size-3 text-muted-foreground shrink-0" />
-							{/* eslint-disable-next-line jsx-a11y/no-autofocus */}
 							<Input
 								autoFocus
 								value={search}
