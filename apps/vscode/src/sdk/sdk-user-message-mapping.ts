@@ -92,6 +92,40 @@ function hasAttachmentBlocks(message: SdkUserMessage): boolean {
  * attachment-only continuation carries the synthetic text alongside the
  * user's image/file blocks AND a visible bubble, so it must still be counted.
  */
+export interface PersistedHookContextChip {
+	hookName: string
+	toolName?: string
+	status: "completed"
+}
+
+/**
+ * Parses hook-context blocks out of a runtime-injected user message so replay
+ * can reconstruct the hook status rows shown live. Returns [] for anything
+ * that is not a hook-context injection. Forged tags inside hook output are
+ * escaped by the runtime (`<\hook_context`), so only real blocks match.
+ */
+export function extractPersistedHookContextChips(message: SdkUserMessage): PersistedHookContextChip[] {
+	if (message.role !== "user") {
+		return []
+	}
+	const text = extractSdkUserText(message)
+	if (!text.startsWith("<hook_context")) {
+		return []
+	}
+	const chips: PersistedHookContextChip[] = []
+	const blockPattern = /<hook_context source="([^"]+)"(?:\s+tool_name="([^"]*)")?[^>]*>/g
+	let match: RegExpExecArray | null = blockPattern.exec(text)
+	while (match !== null) {
+		chips.push({
+			hookName: match[1],
+			...(match[2] ? { toolName: match[2] } : {}),
+			status: "completed",
+		})
+		match = blockPattern.exec(text)
+	}
+	return chips
+}
+
 export function isSyntheticSdkUserMessage(message: SdkUserMessage): boolean {
 	// Runtime-generated messages (hook context, compaction summaries) carry a
 	// display role that marks them model-facing only.
