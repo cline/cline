@@ -907,7 +907,10 @@ export class HookFactory {
 		if (containingDir && workspaceRoots) {
 			const workspaceRoot = workspaceRoots.find((root) => containingDir.startsWith(root.path))
 			if (workspaceRoot) {
-				return HookFactory.firstExistingDir(workspaceRoot.path, primaryCwd)
+				// Deliberately no primaryCwd fallback here: a workspace hook must
+				// not run from a different workspace's root, where its relative
+				// paths would resolve against files it was never meant to touch.
+				return HookFactory.firstExistingDir(workspaceRoot.path)
 			}
 		}
 
