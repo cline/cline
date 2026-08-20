@@ -78,6 +78,14 @@ export type LiveSession = {
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
 	lastQueuedPromptStartId?: string;
+	/** Last submitted queue prompt, retained until cloud history catches up. */
+	lastQueuedPromptStart?: {
+		promptId: string;
+		prompt: string;
+		attachmentCount: number;
+		userImages?: string[];
+		occurrence: number;
+	};
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;
 };

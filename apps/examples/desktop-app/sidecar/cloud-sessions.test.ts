@@ -1947,6 +1947,72 @@ describe("CloudSessionManager", () => {
 		]);
 	});
 
+	it("replays a submitted queue prompt when cloud history has not caught up", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		hub.events?.({
+			version: "v1",
+			event: "session.pending_prompt_submitted",
+			eventId: "evt-submitted",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: {
+				prompt: {
+					id: "q-handoff",
+					prompt: "what cloud machine spec do you use",
+					attachmentCount: 0,
+				},
+			},
+		});
+		events.length = 0;
+
+		await manager.readMessages("ses-outer");
+
+		const hydrationIndex = events.findIndex(
+			(event) => event.name === "cloud_session_rehydrated",
+		);
+		const replayIndex = events.findIndex(
+			(event) =>
+				event.name === "chat_event" &&
+				event.payload.stream === "chat_queued_prompt_start",
+		);
+		expect(hydrationIndex).toBeGreaterThanOrEqual(0);
+		expect(replayIndex).toBeGreaterThan(hydrationIndex);
+		expect(
+			events.find(
+				(event) =>
+					event.name === "chat_event" &&
+					event.payload.stream === "chat_queued_prompt_start",
+			)?.payload.chunk,
+		).toContain("what cloud machine spec do you use");
+
+		// Once the authoritative transcript contains the prompt, hydration must
+		// not replay it and create a duplicate user bubble.
+		hub.messages.push({
+			role: "user",
+			content:
+				'<user_input mode="act">what cloud machine spec do you use</user_input>',
+		});
+		events.length = 0;
+		await manager.readMessages("ses-outer");
+		expect(
+			events.some(
+				(event) =>
+					event.name === "chat_event" &&
+					event.payload.stream === "chat_queued_prompt_start",
+			),
+		).toBe(false);
+	});
+
 	it("rejects malformed queue command replies instead of clearing the queue", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();

@@ -416,7 +416,34 @@ function handleAgentEvent(
 // and a pending_prompt_submitted event for the same prompt back-to-back, and
 // both are translated here into chat_queued_prompt_start — dedupe by prompt
 // id or the UI renders the user message twice.
-function emitQueuedPromptStart(
+function queuedPromptText(message: LiveSession["messages"][number]): string {
+	const content = message.content;
+	if (typeof content === "string") return content.trim();
+	return content
+		.map((part) => (part.type === "text" ? part.text : ""))
+		.join("")
+		.trim();
+}
+
+function normalizeQueuedPromptText(text: string): string {
+	const trimmed = text.trim();
+	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
+	return (match ? match[1] : trimmed).trim();
+}
+
+function countQueuedPromptOccurrences(
+	messages: LiveSession["messages"],
+	prompt: string,
+): number {
+	const expected = normalizeQueuedPromptText(prompt);
+	return messages.filter(
+		(message) =>
+			message.role === "user" &&
+			normalizeQueuedPromptText(queuedPromptText(message)) === expected,
+	).length;
+}
+
+export function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
 	session: LiveSession | undefined,
@@ -432,6 +459,11 @@ function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
+		session.lastQueuedPromptStart = {
+			...input,
+			occurrence:
+				countQueuedPromptOccurrences(session.messages, input.prompt) + 1,
+		};
 	}
 	emitChunk(
 		ctx,

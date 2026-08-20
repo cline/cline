@@ -27,6 +27,7 @@ import {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
+	emitQueuedPromptStart,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -2196,6 +2197,22 @@ export class CloudSessionManager {
 					messages,
 				),
 			});
+			const queuedPromptStart = live?.lastQueuedPromptStart;
+			if (
+				queuedPromptStart &&
+				countPromptOccurrences(messages, [], queuedPromptStart.prompt) <
+					queuedPromptStart.occurrence
+			) {
+				// The queue-start event can beat handoff navigation while the pod's
+				// transcript snapshot is still stale. Replay the missed turn boundary
+				// after hydration so live assistant deltas cannot join the prior reply.
+				emitQueuedPromptStart(
+					this.ctx,
+					outerSessionId,
+					undefined,
+					queuedPromptStart,
+				);
+			}
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,
