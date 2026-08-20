@@ -223,6 +223,20 @@ describe("SearchCombobox", () => {
 		});
 		expect(scrollIntoView.mock.calls.length).toBeGreaterThan(centeredCalls);
 		expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+
+		// Mouse hover moves the active row but must never scroll the list:
+		// scrolling under the cursor re-triggers hover and makes it jump.
+		const keyboardCalls = scrollIntoView.mock.calls.length;
+		const lastOption = [
+			...container.querySelectorAll<HTMLButtonElement>('[role="option"]'),
+		].at(-1);
+		await act(async () => {
+			lastOption?.dispatchEvent(
+				new MouseEvent("mousemove", { bubbles: true }),
+			);
+		});
+		expect(lastOption?.dataset.active).toBe("true");
+		expect(scrollIntoView.mock.calls.length).toBe(keyboardCalls);
 	});
 
 	it("renders loading and disabled states", async () => {

@@ -98,15 +98,16 @@ export function SearchCombobox({
 	const [activeIndex, setActiveIndex] = useState(0);
 	const containerRef = useRef<HTMLDivElement>(null);
 	const triggerRef = useRef<HTMLButtonElement>(null);
-	// Center the selected option when the panel opens; once the user starts
-	// navigating (keys, hover, typing), fall back to minimal scrolling.
-	const centerOnScrollRef = useRef(true);
+	// How to follow the active row: center it when the panel opens, keep it
+	// just in view for keyboard navigation, and never scroll for mouse hover —
+	// scrolling under the cursor re-triggers hover and makes the list jump.
+	const scrollModeRef = useRef<"center" | "nearest" | "none">("center");
 	const listboxId = useId();
 
 	useEffect(() => {
 		if (!open) {
 			setSearch("");
-			centerOnScrollRef.current = true;
+			scrollModeRef.current = "center";
 			return;
 		}
 		const handlePointerDown = (event: PointerEvent) => {
@@ -155,12 +156,10 @@ export function SearchCombobox({
 	}, [filtered, open, query, value]);
 
 	useEffect(() => {
-		if (!open) return;
+		if (!open || scrollModeRef.current === "none") return;
 		const activeElement = document.getElementById(optionId(activeIndex));
 		if (typeof activeElement?.scrollIntoView === "function") {
-			activeElement.scrollIntoView({
-				block: centerOnScrollRef.current ? "center" : "nearest",
-			});
+			activeElement.scrollIntoView({ block: scrollModeRef.current });
 		}
 	}, [activeIndex, open, optionId]);
 
@@ -188,7 +187,7 @@ export function SearchCombobox({
 			return;
 		}
 		if (filtered.length === 0) return;
-		centerOnScrollRef.current = false;
+		scrollModeRef.current = "nearest";
 		if (event.key === "ArrowDown") {
 			event.preventDefault();
 			setActiveIndex((current) => Math.min(current + 1, filtered.length - 1));
@@ -215,15 +214,13 @@ export function SearchCombobox({
 			<button
 				aria-selected={isSelected}
 				className={[
-					"cline-ui-search-combobox__option flex w-full cursor-pointer items-center gap-2 rounded-cline-ui-md border-0 bg-transparent px-2 py-1.5 text-left text-cline-ui-foreground",
+					"cline-ui-search-combobox__option flex w-full cursor-pointer items-center gap-2 rounded-cline-ui-md border-0 px-2 py-1.5 text-left text-cline-ui-foreground",
 					isSelected
 						? "bg-cline-ui-accent"
 						: isActive
 							? "bg-cline-ui-surface-hover"
-							: "",
-				]
-					.filter(Boolean)
-					.join(" ")}
+							: "bg-transparent",
+				].join(" ")}
 				data-active={isActive || undefined}
 				disabled={disabled}
 				id={optionId(index)}
@@ -231,7 +228,7 @@ export function SearchCombobox({
 				onClick={() => handleSelect(option)}
 				onMouseMove={() => {
 					if (!isActive) {
-						centerOnScrollRef.current = false;
+						scrollModeRef.current = "none";
 						setActiveIndex(index);
 					}
 				}}
@@ -387,7 +384,7 @@ export function SearchCombobox({
 							autoFocus
 							className="cline-ui-search-combobox__search h-8 w-full border-0 bg-transparent p-0 text-cline-ui-sm text-cline-ui-foreground outline-0 placeholder:text-cline-ui-muted-foreground"
 							onChange={(event) => {
-								centerOnScrollRef.current = false;
+								scrollModeRef.current = "nearest";
 								setSearch(event.target.value);
 							}}
 							onKeyDown={handleSearchKeyDown}
