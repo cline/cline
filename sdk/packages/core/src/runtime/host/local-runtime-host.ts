@@ -1967,18 +1967,19 @@ export class LocalRuntimeHost implements RuntimeHost {
 			// so resumed transcripts can render cards instead of the fence.
 			// The options argument is only supplied when present, keeping the
 			// call shape unchanged for ordinary turns.
-			const turnArgs =
+			const turnOptions =
 				origin?.kind === "monitor"
-					? ([
-							prompt,
-							userImages,
-							userFiles,
-							{ userMetadata: { monitorOrigin: origin } },
-						] as const)
-					: ([prompt, userImages, userFiles] as const);
+					? { userMetadata: { monitorOrigin: origin } }
+					: undefined;
 			const runFn = shouldContinue
-				? () => session.agent.continue(...turnArgs)
-				: () => session.agent.run(...turnArgs);
+				? () =>
+						turnOptions
+							? session.agent.continue(prompt, userImages, userFiles, turnOptions)
+							: session.agent.continue(prompt, userImages, userFiles)
+				: () =>
+						turnOptions
+							? session.agent.run(prompt, userImages, userFiles, turnOptions)
+							: session.agent.run(prompt, userImages, userFiles);
 			const result = await this.runWithAuthRetry(
 				session,
 				runFn,

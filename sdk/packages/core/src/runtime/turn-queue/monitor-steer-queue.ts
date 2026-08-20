@@ -45,12 +45,18 @@ export interface MonitorSteerQueueDeps {
 			origin?: MonitorPromptOrigin;
 		},
 	): void;
+	/**
+	 * Returns the mutation result so the queue can record the prompt text the
+	 * service actually stored; the service normalizes on write (e.g. stripping
+	 * user_input/user_command tags), so the submitted text is not reliable for
+	 * the later user-edit comparison.
+	 */
 	update(input: {
 		sessionId: string;
 		promptId: string;
 		prompt: string;
 		origin?: MonitorPromptOrigin;
-	}): unknown;
+	}): { prompt?: { prompt: string } } | undefined | void;
 	/** Injectable for tests. */
 	now?: () => number;
 }
@@ -135,13 +141,18 @@ export class MonitorSteerQueue {
 		const outstanding = this.findOutstanding(sessionId, state);
 		if (outstanding) {
 			const merged = this.merge(outstanding.prompt, text);
-			this.deps.update({
+			const result = this.deps.update({
 				sessionId,
 				promptId: outstanding.id,
 				prompt: merged,
 				origin: this.mergeOrigin(monitorOrigin(outstanding.origin), updates),
 			});
-			state.outstandingText = merged;
+			// Record what was stored, not what was submitted: monitor output can
+			// legitimately contain text the service's normalization strips, and
+			// tracking the pre-normalization copy would misread that difference
+			// as a user edit on the next report, permanently disowning the entry
+			// and stacking a fresh prompt per cooldown.
+			state.outstandingText = result?.prompt?.prompt ?? merged;
 			return;
 		}
 
@@ -191,7 +202,7 @@ export class MonitorSteerQueue {
 		const outstanding = this.findOutstanding(sessionId, state);
 		if (outstanding) {
 			const merged = this.merge(outstanding.prompt, text);
-			this.deps.update({
+			const result = this.deps.update({
 				sessionId,
 				promptId: outstanding.id,
 				prompt: merged,
@@ -201,7 +212,8 @@ export class MonitorSteerQueue {
 					dropped,
 				),
 			});
-			state.outstandingText = merged;
+			// See deliver(): track the stored text, not the submitted text.
+			state.outstandingText = result?.prompt?.prompt ?? merged;
 			return;
 		}
 		this.enqueue(

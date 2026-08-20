@@ -49,12 +49,14 @@ describe("monitor tool", () => {
 		expect(tools.map((tool) => tool.name)).not.toContain("monitor");
 	});
 
-	it("stays available to a host that replaces the shell executor", () => {
+	it("stays available when the shell executor is replaced, not refused", () => {
 		const registry = new MonitorRegistry({ notifier: () => {} });
+		// The VS Code host suppresses the built-in bash executor
+		// (`toolExecutors.bash = undefined`) to register its own terminal-backed
+		// run_commands tool. Shell is fully enabled there, so gating monitor on
+		// executor presence read a replacement as a refusal and silently
+		// dropped the tool. Only the enableBash flag expresses intent.
 		const tools = createDefaultTools({
-			// Hosts that swap in their own run_commands tool suppress the
-			// built-in bash executor without declining shell (the VS Code
-			// extension does exactly this); monitors must survive that.
 			executors: { bash: undefined },
 			monitorRegistry: registry,
 		});
