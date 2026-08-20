@@ -127,7 +127,11 @@ export class MonitorSteerQueue {
 	}
 
 	/** Delivers one formatted monitor notification, merging or pacing as needed. */
-	deliver(sessionId: string, text: string, update?: MonitorPromptUpdate): void {
+	deliver(
+		sessionId: string,
+		rawText: string,
+		update?: MonitorPromptUpdate,
+	): void {
 		const state = this.sessions.get(sessionId) ?? {
 			lastEnqueuedAt: Number.NEGATIVE_INFINITY,
 			bufferedUpdates: [],
@@ -135,6 +139,11 @@ export class MonitorSteerQueue {
 		};
 		this.sessions.set(sessionId, state);
 		const updates = update ? [update] : [];
+		// Bound every report at the door. merge() caps combined text, but the
+		// first enqueued report and the first cooldown-buffered report used to
+		// skip it entirely, so one oversized notification could blow past the
+		// advertised prompt bound before any merge happened.
+		const text = this.bound(rawText);
 
 		// An unconsumed monitor prompt is still sitting in the queue: fold this
 		// report into it rather than adding a second one.
@@ -291,12 +300,38 @@ export class MonitorSteerQueue {
 	): MonitorPromptUpdate[] {
 		// Keep the newest updates, mirroring the text cap: the agent and the
 		// user both care about current state over history.
-		return updates.slice(Math.max(0, updates.length - this.maxMergedUpdates));
+		const byCount = updates.slice(
+			Math.max(0, updates.length - this.maxMergedUpdates),
+		);
+		// Also bound by content size, in lockstep with the model-facing text
+		// cap. Updates are what UIs render; without a byte bound, maximal
+		// notifications could persist and display far more output than the
+		// bounded prompt ever carried.
+		let budget = this.maxMergedChars;
+		const kept: MonitorPromptUpdate[] = [];
+		for (let index = byCount.length - 1; index >= 0; index -= 1) {
+			const entry = byCount[index];
+			const cost = entry.lines.reduce((sum, line) => sum + line.length + 1, 0);
+			if (kept.length > 0 && cost > budget) break;
+			budget -= cost;
+			kept.unshift(entry);
+		}
+		return kept;
+	}
+
+	/** Truncates one report to the merged-prompt bound, re-fencing if cut. */
+	private bound(text: string): string {
+		if (text.length <= this.maxMergedChars) return text;
+		return this.truncateToCap(text);
 	}
 
 	private merge(existing: string, addition: string): string {
 		const combined = `${existing}\n\n${addition}`;
 		if (combined.length <= this.maxMergedChars) return combined;
+		return this.truncateToCap(combined);
+	}
+
+	private truncateToCap(combined: string): string {
 		// Keep the newest output; the agent cares about current state, and the
 		// drop is stated so it never looks like a complete record.
 		const kept = combined.slice(combined.length - this.maxMergedChars);

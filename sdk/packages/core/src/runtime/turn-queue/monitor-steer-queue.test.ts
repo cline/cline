@@ -284,6 +284,65 @@ describe("MonitorSteerQueue", () => {
 		expect(origin?.updates[0]?.lines).toEqual(["line 5"]);
 	});
 
+	it("bounds the very first report before it is enqueued", () => {
+		// merge() caps combined text, but the first report used to skip it: a
+		// single maximal notification could enter the queue far above the
+		// advertised prompt bound.
+		const harness = createQueue({ maxMergedChars: 200 });
+		harness.queue.deliver("s1", "x".repeat(5_000));
+
+		expect(harness.prompts).toHaveLength(1);
+		const stored = harness.prompts[0]?.prompt ?? "";
+		expect(stored.length).toBeLessThanOrEqual(
+			200 + "[older monitor output dropped to bound this update]\n".length,
+		);
+	});
+
+	it("bounds the first cooldown-buffered report too", async () => {
+		vi.useFakeTimers();
+		try {
+			const harness = createQueue({ cooldownMs: 100, maxMergedChars: 200 });
+			harness.queue.deliver("s1", "first");
+			harness.consumeAll();
+			harness.queue.deliver("s1", "y".repeat(5_000));
+			harness.advance(100);
+			await vi.advanceTimersByTimeAsync(100);
+
+			const stored = harness.prompts[0]?.prompt ?? "";
+			expect(stored.length).toBeLessThanOrEqual(
+				200 + "[older monitor output dropped to bound this update]\n".length,
+			);
+		} finally {
+			vi.useRealTimers();
+		}
+	});
+
+	it("bounds origin updates by content size, not just count", () => {
+		// Cards render from origin updates; without a byte bound they could
+		// display far more output than the bounded model prompt ever carried.
+		const harness = createQueue({ maxMergedChars: 1_000 });
+		for (let index = 0; index < 5; index += 1) {
+			harness.queue.deliver("s1", `report ${index}`, {
+				monitorId: "mon_1",
+				name: "big",
+				description: "large lines",
+				lines: ["z".repeat(400)],
+			});
+		}
+
+		const origin = harness.prompts[0]?.origin;
+		expect(origin?.kind).toBe("monitor");
+		const totalChars = (origin?.updates ?? []).reduce(
+			(sum, update) =>
+				sum + update.lines.reduce((s, line) => s + line.length, 0),
+			0,
+		);
+		expect(totalChars).toBeLessThanOrEqual(1_000);
+		expect(origin?.droppedUpdates).toBeGreaterThan(0);
+		// The newest update always survives, even if oversized on its own.
+		expect(origin?.updates.at(-1)?.lines[0]).toContain("z");
+	});
+
 	it("counts updates dropped while buffering through the cooldown", async () => {
 		vi.useFakeTimers();
 		try {
