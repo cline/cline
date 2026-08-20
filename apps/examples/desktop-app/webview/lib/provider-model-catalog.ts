@@ -18,6 +18,10 @@ export type ProviderModelCatalog = {
 	providers: Provider[];
 	enabledProviderIds: string[];
 	providerModels: Record<string, string[]>;
+	/** Full chat-model entries per provider (display names, capabilities). */
+	providerModelDetails: Record<string, ProviderModel[]>;
+	/** Display name per provider id, for pickers that show providers. */
+	providerNames: Record<string, string>;
 	providerReasoningModels: Record<string, string[]>;
 	voiceInput: TranscriptionModelTarget | null;
 	modes: {
@@ -229,6 +233,15 @@ export function buildProviderModelCatalog(
 				provider.id,
 				toModelIds(provider.modelList),
 			]),
+		),
+		providerModelDetails: Object.fromEntries(
+			providers.map((provider) => [
+				provider.id,
+				filterChatModels(provider.modelList),
+			]),
+		),
+		providerNames: Object.fromEntries(
+			providers.map((provider) => [provider.id, provider.name]),
 		),
 		providerReasoningModels: Object.fromEntries(
 			providers.map((provider) => [

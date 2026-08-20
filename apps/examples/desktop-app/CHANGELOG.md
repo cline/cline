@@ -1,13 +1,11 @@
-# Cline Code Desktop Changelog
+# Cline Desktop Changelog
 
-## 0.0.14-beta.1
+## 0.0.15-beta.1
 
-- First beta release. Cline Code Beta installs side by side with the stable app so you can compare the two, and updates automatically from its own beta channel — stable installs are unaffected.
-- Cloud sessions (preview): run sessions in Cline's cloud straight from the desktop app. Connect GitHub during onboarding, pick a repository and branch, and hand sessions off between devices — transcripts, approvals, and queued prompts stay in sync, and you can rename cloud sessions and switch models mid-session. Turn it on with the Cloud sessions toggle in Settings.
-- Avatar overlay (preview): a floating desktop companion that reacts to what your sessions are doing.
-- Onboarding now includes a GitHub integration step.
-- Early proof of concept for running sessions in SSH remote environments.
-- Includes everything from the upcoming stable release: microphone voice input in the composer, model-driven image generation, redesigned question prompts, animated reasoning and tool disclosures, and session list polish.
+- Beta: hand off a local session to Cline Cloud with `/handoff` — the conversation, attached images, and an optional follow-up command move to a cloud workspace that keeps working after you close the app. A preflight confirms the repository, branch, and commit are pushed; the composer shows handoff progress and finishes with a receipt linking to the cloud session.
+- Beta: Cloud now lives in the existing Local / Remote environment menu. It is selectable when the Cloud sessions feature flag is on and shows as "Coming soon" otherwise. The separate Local / Cloud toggle is gone; repository and branch controls are unchanged.
+- If a handoff is interrupted — the app restarts, the network drops, or the branch moves mid-transfer — reopening the session recovers or cleanly retries it, and your typed draft and attachments are restored.
+- Includes the 0.0.14 stable release and everything on main since: the unified Plugins hub with a Marketplace page, recommended and free model tiers in the model picker, scheduled tasks for agents, and the app rename to "Cline" (this beta is now "Cline Beta").
 
 ## 0.0.14
 
@@ -32,6 +30,15 @@
 - LiteLLM input token limits reported by the server are preserved instead of being replaced with a 128K default.
 - Fixed misaligned columns in the Usage table, and added a See More link to the full usage dashboard.
 - Fixed routine dialog dropdowns not responding to mouse clicks.
+
+## 0.0.14-beta.1
+
+- First beta release. Cline Code Beta installs side by side with the stable app so you can compare the two, and updates automatically from its own beta channel — stable installs are unaffected.
+- Cloud sessions (preview): run sessions in Cline's cloud straight from the desktop app. Connect GitHub during onboarding, pick a repository and branch, and hand sessions off between devices — transcripts, approvals, and queued prompts stay in sync, and you can rename cloud sessions and switch models mid-session. Turn it on with the Cloud sessions toggle in Settings.
+- Avatar overlay (preview): a floating desktop companion that reacts to what your sessions are doing.
+- Onboarding now includes a GitHub integration step.
+- Early proof of concept for running sessions in SSH remote environments.
+- Includes everything from the upcoming stable release: microphone voice input in the composer, model-driven image generation, redesigned question prompts, animated reasoning and tool disclosures, and session list polish.
 
 ## 0.0.13
 

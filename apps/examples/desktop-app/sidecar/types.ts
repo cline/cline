@@ -106,6 +106,11 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
+	// Approvals created for a trusted desktop connection carry that owner and
+	// may only be listed/answered by it. Cloud-session approvals are relayed
+	// from a pod without a local owner and stay answerable from any trusted
+	// surface (and survive local disconnects).
+	owner?: SidecarWebSocketClient;
 	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
@@ -129,6 +134,7 @@ export type PendingAskQuestion = {
 };
 
 export type SidecarWebSocketClient = {
+	data?: { canApproveTools?: boolean };
 	send: (message: string) => void;
 	close?: () => void;
 };

@@ -15,7 +15,11 @@ import {
 	type ToolApprovalRequest,
 	type ToolApprovalResult,
 } from "@cline/core";
-import { type AgentEvent, isGeneratedMedia } from "@cline/shared";
+import {
+	type AgentEvent,
+	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+	isGeneratedMedia,
+} from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
 	flushConsumedAttachments,
@@ -30,6 +34,7 @@ import type {
 	PromptInQueue,
 	SessionRuntimeBinding,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
 
@@ -38,6 +43,7 @@ const hubClientInitialization = new WeakMap<
 	SidecarContext,
 	Promise<NodeHubClient>
 >();
+const approvalReadinessUpdates = new WeakMap<SidecarContext, Promise<void>>();
 
 // ---------------------------------------------------------------------------
 // Helpers — WebSocket broadcast
@@ -61,8 +67,79 @@ function sendEvent(ctx: SidecarContext, name: string, payload: unknown): void {
 			client.send(encoded);
 		} catch {
 			ctx.wsClients.delete(client);
+			cancelSidecarToolApprovalsForOwner(ctx, client);
+			void syncSidecarApprovalReadiness(ctx).catch((error) =>
+				ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+			);
 		}
 	}
+}
+
+export function sendEventToClient(
+	ctx: SidecarContext,
+	client: SidecarWebSocketClient,
+	name: string,
+	payload: unknown,
+): boolean {
+	try {
+		client.send(encodeSidecarEvent(name, payload));
+		return true;
+	} catch {
+		ctx.wsClients.delete(client);
+		cancelSidecarToolApprovalsForOwner(ctx, client);
+		void syncSidecarApprovalReadiness(ctx).catch((error) =>
+			ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+		);
+		return false;
+	}
+}
+
+export function cancelSidecarToolApprovalsForOwner(
+	ctx: SidecarContext,
+	owner: SidecarWebSocketClient,
+): void {
+	for (const [requestId, pending] of ctx.pendingApprovals) {
+		if (pending.owner !== owner) continue;
+		ctx.pendingApprovals.delete(requestId);
+		pending.resolve({
+			approved: false,
+			reason: "Desktop approval surface disconnected",
+		});
+	}
+}
+
+export function syncSidecarApprovalReadiness(
+	ctx: SidecarContext,
+): Promise<void> {
+	const previous = approvalReadinessUpdates.get(ctx) ?? Promise.resolve();
+	const update = previous
+		.catch(() => undefined)
+		.then(async () => {
+			// The approval capability rides on the shared local hub observer; the
+			// multi-environment refactor keeps that client on the local binding.
+			const hubClient =
+				ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+			if (!hubClient) return;
+			await hubClient.updateCapabilities(
+				[...ctx.wsClients].some(
+					(client) => client.data?.canApproveTools === true,
+				)
+					? [
+							{
+								name: HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
+								description:
+									"Cline Code has a live user surface for tool review.",
+							},
+						]
+					: [],
+			);
+		});
+	approvalReadinessUpdates.set(ctx, update);
+	return update.finally(() => {
+		if (approvalReadinessUpdates.get(ctx) === update) {
+			approvalReadinessUpdates.delete(ctx);
+		}
+	});
 }
 
 // Session log appends are chained per session so writes stay ordered, but
@@ -683,6 +760,15 @@ function requestSidecarToolApproval(
 	ctx: SidecarContext,
 	request: ToolApprovalRequest,
 ): Promise<ToolApprovalResult> {
+	const owner = [...ctx.wsClients].find(
+		(client) => client.data?.canApproveTools === true,
+	);
+	if (!owner) {
+		return Promise.resolve({
+			approved: false,
+			reason: "No trusted desktop approval surface is connected",
+		});
+	}
 	return new Promise<ToolApprovalResult>((resolve) => {
 		const requestId = randomUUID();
 		const pending: PendingToolApproval = {
@@ -697,16 +783,25 @@ function requestSidecarToolApproval(
 				agentId: request.agentId,
 				conversationId: request.conversationId,
 			},
+			owner,
 			resolve,
 		};
 		ctx.pendingApprovals.set(requestId, pending);
 		const sessionApprovals = Array.from(ctx.pendingApprovals.values())
-			.filter((approval) => approval.item.sessionId === request.sessionId)
+			.filter(
+				(approval) =>
+					approval.owner === owner &&
+					approval.item.sessionId === request.sessionId,
+			)
 			.map((approval) => approval.item);
-		sendEvent(ctx, "tool_approval_state", {
-			sessionId: request.sessionId,
-			items: sessionApprovals,
-		});
+		if (
+			!sendEventToClient(ctx, owner, "tool_approval_state", {
+				sessionId: request.sessionId,
+				items: sessionApprovals,
+			})
+		) {
+			cancelSidecarToolApprovalsForOwner(ctx, owner);
+		}
 	});
 }
 
@@ -719,6 +814,25 @@ export function handleHubLiveEvent(
 	},
 	options: { relayRawAssistantText?: boolean } = {},
 ): void {
+	if (event.event === "approval.requested") {
+		if (typeof event.payload?.agendaTaskId !== "string") return;
+		void handleHubApprovalRequest(ctx, event).catch((error) => {
+			ctx.logger?.error?.("Hub task approval forwarding failed", { error });
+		});
+		return;
+	}
+	// Task lifecycle events are Hub-wide invalidations and usually do not have a
+	// session yet (pending and approved tasks explicitly predate their session).
+	// Forward them before the session-only live-chat projection below so Agenda
+	// surfaces stay current without polling.
+	if (event.event.startsWith("task.")) {
+		sendEvent(ctx, event.event, {
+			...(event.payload ?? {}),
+			...(event.sessionId ? { sessionId: event.sessionId } : {}),
+		});
+		return;
+	}
+
 	const sessionId = typeof event.sessionId === "string" ? event.sessionId : "";
 	if (!sessionId) {
 		return;
@@ -918,6 +1032,72 @@ export function handleHubLiveEvent(
 	}
 }
 
+async function handleHubApprovalRequest(
+	ctx: SidecarContext,
+	event: {
+		sessionId?: string;
+		payload?: Record<string, unknown>;
+	},
+): Promise<void> {
+	const sessionId = event.sessionId?.trim() || "";
+	const approvalId =
+		typeof event.payload?.approvalId === "string"
+			? event.payload.approvalId.trim()
+			: "";
+	const toolCallId =
+		typeof event.payload?.toolCallId === "string"
+			? event.payload.toolCallId.trim()
+			: "";
+	const toolName =
+		typeof event.payload?.toolName === "string"
+			? event.payload.toolName.trim()
+			: "";
+	if (!sessionId || !approvalId || !toolCallId || !toolName) return;
+	let input: unknown;
+	try {
+		input =
+			typeof event.payload?.inputJson === "string"
+				? JSON.parse(event.payload.inputJson)
+				: undefined;
+	} catch {
+		input = undefined;
+	}
+	const result = await requestSidecarToolApproval(ctx, {
+		sessionId,
+		agentId:
+			typeof event.payload?.agentId === "string" ? event.payload.agentId : "",
+		conversationId:
+			typeof event.payload?.conversationId === "string"
+				? event.payload.conversationId
+				: sessionId,
+		iteration:
+			typeof event.payload?.iteration === "number"
+				? event.payload.iteration
+				: 0,
+		toolCallId,
+		toolName,
+		input,
+		policy:
+			event.payload?.policy &&
+			typeof event.payload.policy === "object" &&
+			!Array.isArray(event.payload.policy)
+				? (event.payload.policy as ToolApprovalRequest["policy"])
+				: { autoApprove: false },
+	});
+	const client = ctx.runtimeBindings.get(LOCAL_ENVIRONMENT_ID)?.hubClient;
+	if (!client)
+		throw new Error("Hub client disconnected before approval response");
+	await client.command(
+		"approval.respond",
+		{
+			approvalId,
+			approved: result.approved,
+			reason: result.reason,
+		},
+		sessionId,
+	);
+}
+
 export async function initializeSessionManager(
 	ctx: SidecarContext,
 ): Promise<void> {
@@ -933,7 +1113,7 @@ export async function initializeSessionManager(
 			workspaceRoot: ctx.localWorkspaceRoot,
 			cwd: ctx.localWorkspaceRoot,
 			clientType: "code-sidecar",
-			displayName: "Code App sidecar",
+			displayName: "Cline Desktop sidecar",
 		},
 	});
 
@@ -959,6 +1139,11 @@ export async function initializeSessionManager(
 		hubClient,
 		unsubscribeSessionEvents: unsubscribe,
 	});
+	// Advertise the tool-approval surface once the local hub binding exists;
+	// clients that connected before the hub came up are picked up here.
+	await syncSidecarApprovalReadiness(ctx).catch((error) =>
+		ctx.logger?.error?.("Hub approval readiness update failed", { error }),
+	);
 }
 
 export function getRuntimeBinding(
@@ -1143,7 +1328,7 @@ export async function ensureSharedHubClient(
 		const client = new NodeHubClient({
 			url,
 			clientType: "code-sidecar-observer",
-			displayName: "Code App observer",
+			displayName: "Cline Desktop observer",
 			workspaceRoot: ctx.localWorkspaceRoot,
 			cwd: ctx.localWorkspaceRoot,
 		});

@@ -2597,7 +2597,7 @@ export class CloudSessionManager {
 				url: toWebSocketUrl(this.options.apiBaseUrl, outerSessionId),
 				clientId: `code-cloud-${outerSessionId}`,
 				clientType: "code-cloud-sidecar",
-				displayName: "Cline Code cloud session",
+				displayName: "Cline cloud session",
 				workspaceRoot: CLOUD_WORKSPACE_ROOT,
 				cwd: CLOUD_WORKSPACE_ROOT,
 				resolveConnectionHeaders: async () => {

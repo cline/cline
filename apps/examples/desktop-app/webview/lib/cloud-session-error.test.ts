@@ -75,7 +75,7 @@ describe("parseCloudSessionError", () => {
 				"The session belongs to environment undefined, not [object Object].",
 			),
 		).toBe(
-			"Cline Code couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
+			"Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
 		);
 	});
 

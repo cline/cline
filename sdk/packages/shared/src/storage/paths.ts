@@ -250,6 +250,52 @@ export function resolveCronDbPath(): string {
 	return join(resolveDbDataDir(), "cron.db");
 }
 
+/** Path to the dedicated agenda task queue database. */
+export function resolveTasksDbPath(): string {
+	const explicitPath = process.env.CLINE_TASKS_DB_PATH?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	return join(resolveDbDataDir(), "tasks.db");
+}
+
+export type TaskSpecsScope = "global" | "workspace";
+
+export interface ResolveTaskSpecsDirOptions {
+	/** Explicit directory, primarily for tests and embedded hosts. */
+	taskSpecsDir?: string;
+	scope: TaskSpecsScope;
+	/** Required for workspace-scoped task specs. */
+	workspaceRoot?: string;
+}
+
+/** Global file-backed agenda tasks: `~/.cline/tasks/`. */
+export function resolveGlobalTaskSpecsDir(): string {
+	return join(resolveClineDir(), "tasks");
+}
+
+/** Workspace file-backed agenda tasks: `<workspace>/.cline/tasks/`. */
+export function resolveWorkspaceTaskSpecsDir(workspaceRoot: string): string {
+	const normalized = workspaceRoot.trim();
+	if (!normalized) {
+		throw new Error("workspaceRoot is required for workspace task scope");
+	}
+	return join(normalized, ".cline", "tasks");
+}
+
+export function resolveTaskSpecsDir(
+	options: ResolveTaskSpecsDirOptions,
+): string {
+	const explicit = options.taskSpecsDir?.trim();
+	if (explicit) {
+		return explicit;
+	}
+	if (options.scope === "workspace") {
+		return resolveWorkspaceTaskSpecsDir(options.workspaceRoot ?? "");
+	}
+	return resolveGlobalTaskSpecsDir();
+}
+
 export type CronSpecsScope = "global" | "workspace";
 
 export interface ResolveCronSpecsDirOptions {
