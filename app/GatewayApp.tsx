@@ -56,6 +56,7 @@ export function App({
 	userDisplayName?: string;
 } = {}) {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
+	const connectAbortRef = useRef<AbortController | undefined>(undefined);
 	const configuredToken = defaultToken?.trim() || environmentToken;
 	const [url, setUrl] = useState(() =>
 		defaultUrl?.trim() ||
@@ -112,21 +113,36 @@ export function App({
 		.reverse()
 		.find((run) => run.state === "running");
 
-	useEffect(() => () => clientRef.current?.close(), []);
+	useEffect(
+		() => () => {
+			connectAbortRef.current?.abort();
+			clientRef.current?.close();
+		},
+		[],
+	);
 
 	async function connect(event?: FormEvent) {
 		event?.preventDefault();
+		connectAbortRef.current?.abort();
+		clientRef.current?.close();
+		clientRef.current = undefined;
+		const controller = new AbortController();
+		connectAbortRef.current = controller;
 		setStatus("connecting");
 		setConnectionStage("opening");
 		setError("");
-		clientRef.current?.close();
 		try {
 			const client = await BrowserGatewayClient.connect({
 				url,
 				auth: token.trim() || configuredToken,
 				clientId: localStorage.getItem("cline.gateway.clientId") ?? undefined,
 				allowInsecure,
+				signal: controller.signal,
 			});
+			if (controller.signal.aborted) {
+				client.close();
+				return;
+			}
 			clientRef.current = client;
 			setConnectionStage("authenticated");
 			localStorage.setItem("cline.gateway.url", url);
@@ -151,16 +167,33 @@ export function App({
 				}
 			});
 			await client.request("run.subscribe", { cursor: initialEventCursor() });
+			controller.signal.throwIfAborted();
 			setConnectionStage("syncing");
 			await refresh(client);
+			controller.signal.throwIfAborted();
 			setStatus("connected");
 			setHasConnected(true);
 			setConnectionStage("idle");
 		} catch (cause) {
+			if (controller.signal.aborted) return;
 			setStatus("disconnected");
 			setConnectionStage("idle");
 			setError(messageOf(cause));
+		} finally {
+			if (connectAbortRef.current === controller) {
+				connectAbortRef.current = undefined;
+			}
 		}
+	}
+
+	function cancelConnection() {
+		connectAbortRef.current?.abort();
+		connectAbortRef.current = undefined;
+		clientRef.current?.close();
+		clientRef.current = undefined;
+		setStatus("disconnected");
+		setConnectionStage("idle");
+		setError("");
 	}
 
 	async function refresh(client = clientRef.current) {
@@ -365,6 +398,15 @@ export function App({
 								→
 							</span>
 						</button>
+						{status === "connecting" && (
+							<button
+								type="button"
+								className="cancel-connection"
+								onClick={cancelConnection}
+							>
+								Cancel
+							</button>
+						)}
 					</form>
 					<footer className="connect-footer">
 						<span>REMOTE PROTOCOL / 01</span>
