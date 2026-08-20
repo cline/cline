@@ -712,6 +712,56 @@ describe("AgentRuntime", () => {
 		);
 	});
 
+	it("counts a retry with only model-tool activity as a recovered turn", async () => {
+		const longPrompt = `Please review this: ${"lots of context ".repeat(50)}`;
+		const model = new ScriptedModel([
+			() => [
+				{ type: "text-delta", text: "truncated..." },
+				{ type: "finish", reason: "max-tokens" },
+			],
+			// Empty assistant content, but provider-executed tool activity in
+			// metadata — the run loop accepts this turn, so the recovery must
+			// count as succeeded, not empty_response.
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					input: { query: "current weather" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "search_1",
+					toolName: "web_search",
+					execution: "client",
+					output: { results: [] },
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const compactedMessages: AgentMessage[] = [
+			{ role: "user", content: [{ type: "text", text: "compacted" }] },
+		];
+		const prepareTurn = vi.fn(
+			async (context: { overflowRecovery?: boolean }) =>
+				context.overflowRecovery ? { messages: compactedMessages } : undefined,
+		);
+		const { capture, telemetry } = createTelemetryMock();
+		const runtime = new AgentRuntime({ model, prepareTurn, telemetry });
+
+		const result = await runtime.run(longPrompt);
+
+		expect(result.status).toBe("completed");
+		const recoveryEvents = capture.mock.calls
+			.map(([input]) => input)
+			.filter((input) => input.event === TASK_MAX_TOKENS_RECOVERY_EVENT);
+		expect(recoveryEvents.map((input) => input.properties?.phase)).toEqual([
+			"started",
+			"succeeded",
+		]);
+	});
+
 	it("does not persist an empty assistant message when the model stream fails", async () => {
 		const model = new ScriptedModel([
 			() => [{ type: "finish", reason: "error", error: "upstream failed" }],
