@@ -2,6 +2,22 @@ import { useCallback, useState } from "react";
 import type { PendingPromptSnapshot } from "../../runtime/session-events";
 import type { QueuedPromptItem } from "../types";
 
+export function monitorPromptLabel(
+	origin: NonNullable<PendingPromptSnapshot["prompts"][number]["origin"]>,
+): string {
+	if (origin.kind !== "monitor" || origin.updates.length === 0) {
+		return "Monitor update";
+	}
+	const names = [...new Set(origin.updates.map((update) => update.name))];
+	const lineCount = origin.updates.reduce(
+		(total, update) => total + update.lines.length,
+		0,
+	);
+	return `Monitor update from ${names.join(", ")} (${lineCount} line${
+		lineCount === 1 ? "" : "s"
+	})`;
+}
+
 export function toQueuedPromptItems(
 	event: PendingPromptSnapshot,
 ): QueuedPromptItem[] {
@@ -10,6 +26,7 @@ export function toQueuedPromptItems(
 		prompt: entry.prompt,
 		steer: entry.delivery === "steer",
 		attachmentCount: entry.attachmentCount,
+		displayLabel: entry.origin ? monitorPromptLabel(entry.origin) : undefined,
 	}));
 }
 

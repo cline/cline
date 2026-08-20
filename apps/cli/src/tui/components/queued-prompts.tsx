@@ -121,7 +121,7 @@ function QueuedPromptRow(props: {
 					fg={selected ? theme.textOnSelection : theme.defaultForeground}
 					flexGrow={1}
 				>
-					{truncatePrompt(item.prompt)}
+					{truncatePrompt(item.displayLabel ?? item.prompt)}
 				</text>
 			)}
 			{!editing && item.attachmentCount > 0 && (

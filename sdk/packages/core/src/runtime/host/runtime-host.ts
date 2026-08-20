@@ -16,6 +16,7 @@ import type {
 } from "../../types/config";
 import type {
 	CoreSessionEvent,
+	PendingPromptOrigin,
 	SessionPendingPrompt,
 } from "../../types/events";
 import type { SessionRecord } from "../../types/sessions";
@@ -255,6 +256,12 @@ export interface SendSessionInput {
 	userFiles?: string[];
 	delivery?: "queue" | "steer";
 	timeoutMs?: number;
+	/**
+	 * Structured provenance for runtime-generated prompts (monitor reports).
+	 * Persisted as display metadata on the resulting user message so UIs can
+	 * render cards after a resume; never sent to the model.
+	 */
+	origin?: PendingPromptOrigin;
 }
 
 export interface SessionAccumulatedUsage {
@@ -288,6 +295,12 @@ export interface PendingPromptsUpdateInput {
 	prompt?: string;
 	mode?: AgentMode;
 	delivery?: "queue" | "steer";
+	/**
+	 * Structured provenance for runtime-generated prompts. Only runtime
+	 * updaters (the monitor steer queue) supply this; a user edit that
+	 * rewrites the prompt text clears the stale origin instead.
+	 */
+	origin?: import("../../types/events").PendingPromptOrigin;
 }
 
 export interface PendingPromptsDeleteInput {

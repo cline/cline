@@ -96,6 +96,7 @@ export async function projectSessionEvent(
 				attachmentCount: event.payload.attachmentCount,
 				userImages: event.payload.userImages,
 				userFiles: event.payload.userFiles,
+				origin: event.payload.origin,
 			};
 			ctx.publish(
 				ctx.buildEvent(

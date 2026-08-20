@@ -41,6 +41,7 @@ import type {
 	ClineSaySubagentStatus,
 	ClineSayTool,
 	ClineSubagentUsageInfo,
+	MonitorUpdatePayload,
 	SubagentStatusItem,
 } from "@shared/ExtensionMessage"
 import { Logger } from "@shared/services/Logger"
@@ -2108,7 +2109,41 @@ export function translateSessionEvent(event: CoreSessionEvent, state: MessageTra
 		}
 
 		case "pending_prompt_submitted": {
-			const { prompt, userImages, userFiles } = event.payload
+			const { prompt, userImages, userFiles, origin } = event.payload
+			// Monitor reports carry structured provenance; render them as
+			// compact cards instead of echoing the model-facing fenced text
+			// (untrusted-content guidance and all) as a user bubble.
+			if (origin?.kind === "monitor") {
+				origin.updates.forEach((update, index) => {
+					const payload: MonitorUpdatePayload = {
+						name: update.name,
+						description: update.description,
+						lines: update.lines,
+						droppedLines: update.droppedLines,
+						// Earlier whole updates were dropped to bound the card
+						// set; announce them on the first card so the user is
+						// never shown less than the model received.
+						omittedEarlierUpdates: index === 0 ? origin.droppedUpdates : undefined,
+						exit: update.exit
+							? {
+									status: update.exit.status,
+									stoppedBy: update.exit.stoppedBy,
+									code: update.exit.code,
+									signal: update.exit.signal,
+									error: update.exit.error,
+								}
+							: undefined,
+					}
+					result.messages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "monitor_update",
+						text: JSON.stringify(payload),
+						partial: false,
+					})
+				})
+				break
+			}
 			// Synthetic prompts (task resumption, plan -> act auto-continue) are
 			// hidden from every other transcript surface, and this echo must
 			// hide them too: a send that races a settling abort is auto-queued
@@ -2294,6 +2329,51 @@ export interface SdkMessagesToClineMessagesOptions {
 }
 
 /**
+ * Rebuilds monitor card payloads from the display metadata persisted with a
+ * monitor-originated steer message. The metadata round-trips through JSON, so
+ * every field is validated before use.
+ */
+function readPersistedMonitorUpdates(metadata: Record<string, unknown> | undefined): MonitorUpdatePayload[] | undefined {
+	const origin = metadata?.monitorOrigin as { kind?: unknown; updates?: unknown; droppedUpdates?: unknown } | undefined
+	if (!origin || origin.kind !== "monitor" || !Array.isArray(origin.updates)) {
+		return undefined
+	}
+	const payloads: MonitorUpdatePayload[] = []
+	for (const update of origin.updates) {
+		if (!update || typeof update !== "object") {
+			continue
+		}
+		const fields = update as Record<string, unknown>
+		if (typeof fields.name !== "string" || !Array.isArray(fields.lines)) {
+			continue
+		}
+		const exit = fields.exit as Record<string, unknown> | undefined
+		const exitStatus =
+			exit?.status === "exited" || exit?.status === "stopped" || exit?.status === "failed" ? exit.status : undefined
+		payloads.push({
+			name: fields.name,
+			description: typeof fields.description === "string" ? fields.description : "",
+			lines: fields.lines.filter((line): line is string => typeof line === "string"),
+			droppedLines: typeof fields.droppedLines === "number" && fields.droppedLines > 0 ? fields.droppedLines : undefined,
+			omittedEarlierUpdates:
+				payloads.length === 0 && typeof origin.droppedUpdates === "number" && origin.droppedUpdates > 0
+					? origin.droppedUpdates
+					: undefined,
+			exit: exitStatus
+				? {
+						status: exitStatus,
+						stoppedBy: exit?.stoppedBy === "user" ? "user" : undefined,
+						code: typeof exit?.code === "number" ? exit.code : null,
+						signal: typeof exit?.signal === "string" ? exit.signal : undefined,
+						error: typeof exit?.error === "string" ? exit.error : undefined,
+					}
+				: undefined,
+		})
+	}
+	return payloads.length > 0 ? payloads : undefined
+}
+
+/**
  * Convert SDK-persisted LLM messages back into the ClineMessage format used by
  * the webview. Keep this in the live message translator so history rendering
  * and streaming rendering share the same SDK tool → Cline UI mapping.
@@ -2354,6 +2434,28 @@ export function sdkMessagesToClineMessages(
 
 	for (const { message, sourceIndex } of projectSessionMessagesForDisplay(messages)) {
 		const sourceMessage = messages[sourceIndex]
+
+		// Monitor-originated steer prompts persist their structured origin as
+		// display metadata; rehydrate the same compact cards they had live
+		// instead of echoing the fenced model-facing text as a user bubble.
+		if (message.role === "user") {
+			const monitorUpdates = readPersistedMonitorUpdates(sourceMessage?.metadata ?? message.metadata)
+			if (monitorUpdates) {
+				state.clearTurnOutcome()
+				currentMode = sourceMessage?.uiMode ?? currentMode
+				for (const payload of monitorUpdates) {
+					clineMessages.push({
+						ts: state.nextTs(),
+						type: "say",
+						say: "monitor_update",
+						text: JSON.stringify(payload),
+						partial: false,
+					})
+				}
+				continue
+			}
+		}
+
 		if (message.role === "assistant") {
 			flushUnmatchedToolUses()
 

@@ -35,6 +35,7 @@ import {
 import { MouseEvent, memo, useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useSize } from "react-use"
 import { canRestoreWorkspaceFromMessage } from "@/components/chat/chat-view/utils/messageUtils"
+import { formatMonitorUpdateExit, parseMonitorUpdate } from "@/components/chat/monitor-update"
 import { OptionsButtons } from "@/components/chat/OptionsButtons"
 import { WithCopyButton } from "@/components/common/CopyButton"
 import Thumbnails from "@/components/common/Thumbnails"
@@ -842,6 +843,45 @@ export const ChatRowContent = memo(
 								</div>
 							</div>
 						)
+					case "monitor_update": {
+						const update = parseMonitorUpdate(message.text)
+						if (!update) {
+							return null
+						}
+						return (
+							<div className="flex items-start gap-2 py-2.5 px-3 bg-quote rounded-sm text-base text-foreground opacity-90 mb-2">
+								<span
+									aria-hidden="true"
+									className="codicon codicon-pulse mt-0.5 text-[13px] text-notification-foreground shrink-0"
+								/>
+								<div className="break-words flex-1 min-w-0">
+									<div>
+										<span className="font-medium">{update.name}</span>
+										<span className="text-description"> {update.description}</span>
+									</div>
+									{update.omittedEarlierUpdates ? (
+										<div className="text-description text-sm">
+											[{update.omittedEarlierUpdates} earlier update
+											{update.omittedEarlierUpdates === 1 ? "" : "s"} not shown]
+										</div>
+									) : null}
+									{update.lines.length > 0 && (
+										<pre className="ph-no-capture mt-1 mb-0 max-h-40 overflow-y-auto whitespace-pre-wrap break-words font-code text-sm text-foreground/90">
+											{update.lines.join("\n")}
+										</pre>
+									)}
+									{update.droppedLines ? (
+										<div className="text-description text-sm">
+											[{update.droppedLines} more line{update.droppedLines === 1 ? "" : "s"} not shown]
+										</div>
+									) : null}
+									{update.exit && (
+										<div className="text-description text-sm">{formatMonitorUpdateExit(update.exit)}</div>
+									)}
+								</div>
+							</div>
+						)
+					}
 					case "text": {
 						const hasText = !!message.text?.trim()
 						return (

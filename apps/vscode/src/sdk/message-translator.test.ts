@@ -229,6 +229,105 @@ describe("translateSessionEvent — pending prompts", () => {
 		])
 	})
 
+	it("renders monitor-origin prompts as monitor_update cards instead of fenced user bubbles", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "pending_prompt_submitted",
+			payload: {
+				sessionId: "session-1",
+				id: "pending-1",
+				prompt: "<monitor-output>ERROR: disk full</monitor-output>",
+				delivery: "steer",
+				attachmentCount: 0,
+				origin: {
+					kind: "monitor",
+					updates: [
+						{
+							monitorId: "mon_1",
+							name: "applog",
+							description: "watching the app log",
+							lines: ["ERROR: disk full"],
+							exit: { status: "stopped", stoppedBy: "user" },
+						},
+					],
+				},
+			},
+		}
+
+		const result = translateSessionEvent(event, state)
+
+		expect(result.messages).toHaveLength(1)
+		expect(result.messages[0]).toEqual(expect.objectContaining({ type: "say", say: "monitor_update", partial: false }))
+		expect(JSON.parse(result.messages[0]?.text ?? "{}")).toEqual({
+			name: "applog",
+			description: "watching the app log",
+			lines: ["ERROR: disk full"],
+			exit: { status: "stopped", stoppedBy: "user" },
+		})
+	})
+
+	it("rehydrates persisted monitor-origin messages as monitor_update cards", () => {
+		// The structured origin persists as display metadata on the steer
+		// message; a resumed transcript must render the same cards it had
+		// live instead of echoing the fenced model-facing text.
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [
+					{
+						type: "text",
+						text: '<user_input mode="act"><monitor-output>ERROR: disk full</monitor-output></user_input>',
+					},
+				],
+				metadata: {
+					userRunSpan: 0,
+					monitorOrigin: {
+						kind: "monitor",
+						droppedUpdates: 2,
+						updates: [
+							{
+								monitorId: "mon_1",
+								name: "applog",
+								description: "watching the app log",
+								lines: ["ERROR: disk full"],
+								exit: { status: "exited", signal: "SIGTERM" },
+							},
+						],
+					},
+				},
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		const cards = clineMessages.filter((message) => message.say === "monitor_update")
+		expect(cards).toHaveLength(1)
+		expect(JSON.parse(cards[0]?.text ?? "{}")).toEqual({
+			name: "applog",
+			description: "watching the app log",
+			lines: ["ERROR: disk full"],
+			omittedEarlierUpdates: 2,
+			exit: { status: "exited", code: null, signal: "SIGTERM" },
+		})
+		// The fenced text must not also render as a user bubble.
+		expect(clineMessages.some((message) => (message.say === "task" || message.say === "user_feedback") && message.text)).toBe(
+			false,
+		)
+	})
+
+	it("falls back to the user bubble when persisted monitor metadata is malformed", () => {
+		const messages: MessageWithMetadata[] = [
+			{
+				role: "user",
+				content: [{ type: "text", text: "plain user words" }],
+				metadata: { monitorOrigin: { kind: "monitor", updates: [{ bogus: true }] } },
+			},
+		]
+
+		const clineMessages = sdkMessagesToClineMessages(messages)
+		expect(clineMessages.some((message) => message.say === "monitor_update")).toBe(false)
+		expect(clineMessages.some((message) => message.text === "plain user words")).toBe(true)
+	})
+
 	it("does not echo a synthetic resumption prompt that was auto-queued behind a settling abort", () => {
 		// A bare Resume that races the abort settling is auto-queued by the
 		// runtime; when it drains, the submitted-prompt echo must not leak the
