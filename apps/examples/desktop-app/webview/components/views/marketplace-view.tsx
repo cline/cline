@@ -83,31 +83,31 @@ const primitivePageDetails = {
 		description:
 			"Install Model Context Protocol servers into this CLI environment.",
 		emptyInstalled:
-			"No MCP servers installed. Browse the directory or add a server manually.",
+			"No MCP servers installed. Browse the marketplace or add a server manually.",
 		emptyCatalog: "No MCP servers match the current filters.",
 		icon: Server,
 	},
 	skill: {
 		title: "Skills",
 		description: "Install skills globally for Cline.",
-		emptyInstalled: "No skills installed. Browse the directory to add one.",
+		emptyInstalled: "No skills installed. Browse the marketplace to add one.",
 		emptyCatalog: "No skills match the current filters.",
 		icon: Zap,
 	},
 	plugin: {
 		title: "Plugins",
 		description: "Install plugins into this CLI environment.",
-		emptyInstalled: "No plugins installed. Browse the directory to add one.",
+		emptyInstalled: "No plugins installed. Browse the marketplace to add one.",
 		emptyCatalog: "No plugins match the current filters.",
 		icon: Puzzle,
 	},
 } satisfies Record<MarketplacePrimitiveType, MarketplacePageDetails>;
 
 const directoryPageDetails: MarketplacePageDetails = {
-	title: "Directory",
+	title: "Marketplace",
 	description: "Browse and install plugins, MCP servers, and skills.",
 	emptyInstalled: "Nothing installed yet.",
-	emptyCatalog: "No directory entries match the current filters.",
+	emptyCatalog: "No marketplace entries match the current filters.",
 	icon: Puzzle,
 };
 

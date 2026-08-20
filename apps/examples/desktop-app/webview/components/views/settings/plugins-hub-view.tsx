@@ -138,7 +138,7 @@ export function PluginsHubView() {
 	return (
 		<PageFrame>
 			<PageHeader
-				description="Manage plugins, apps, MCP servers, and skills. Browse the directory to install more."
+				description="Manage plugins, apps, MCP servers, and skills. Browse the marketplace to install more."
 				title="Plugins"
 				actions={
 					<Button
@@ -147,7 +147,7 @@ export function PluginsHubView() {
 						variant="outline"
 					>
 						<Store className="size-4" />
-						Browse directory
+						Browse Marketplace
 					</Button>
 				}
 			/>
@@ -224,7 +224,10 @@ export function PluginsHubView() {
 			<Dialog onOpenChange={handleDirectoryOpenChange} open={directoryOpen}>
 				<DialogContent className="flex max-h-[85vh] flex-col overflow-hidden sm:max-w-4xl">
 					<DialogHeader>
-						<DialogTitle>Browse directory</DialogTitle>
+						<DialogTitle className="flex items-center gap-2">
+							<Store className="size-5 text-primary" />
+							Marketplace
+						</DialogTitle>
 						<DialogDescription>
 							Install plugins, MCP servers, and skills from the Cline
 							marketplace.
