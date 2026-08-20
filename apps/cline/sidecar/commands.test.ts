@@ -40,6 +40,42 @@ describe("Gateway desktop commands", () => {
 		expect(updateGateway).toHaveBeenCalledOnce();
 	});
 
+	it("resolves the UI bot key before reading and writing its Gateway system prompt", async () => {
+		const botId = createBotId();
+		const getBotSystemPrompt = vi.fn(async () => ({
+			botId,
+			content: "current prompt",
+			revision: 3,
+		}));
+		const putBotSystemPrompt = vi.fn(async () => ({
+			botId,
+			content: "updated prompt",
+			revision: 4,
+		}));
+		const ctx = context({
+			listBots: async () => ({
+				bots: [{ identity: { botId, name: "Cline Dad" } }],
+			}),
+			getBotSystemPrompt,
+			putBotSystemPrompt,
+		});
+
+		expect(
+			await handleCommand(ctx, "read_bot_system_prompt", { botId: "cline" }),
+		).toBe("current prompt");
+		await handleCommand(ctx, "write_bot_system_prompt", {
+			botId: "cline",
+			content: "updated prompt",
+		});
+
+		expect(getBotSystemPrompt).toHaveBeenCalledWith({ botId });
+		expect(putBotSystemPrompt).toHaveBeenCalledWith({
+			botId,
+			content: "updated prompt",
+			expectedRevision: 3,
+		});
+	});
+
 	it("creates a session without requiring a prompt", async () => {
 		const botId = createBotId();
 		const sessionId = createSessionId();

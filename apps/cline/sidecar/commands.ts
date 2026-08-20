@@ -32,6 +32,26 @@ async function marketplaceCatalog(): Promise<unknown> {
 	return response.json();
 }
 
+async function resolveBotId(
+	ctx: SidecarContext,
+	requestedBotId: string,
+): Promise<BotId> {
+	const { bots } = await ctx.client.listBots();
+	const normalized = requestedBotId
+		.toLowerCase()
+		.replaceAll(/[^a-z0-9]+/g, "-");
+	const botId =
+		bots.find((bot) => bot.identity.botId === requestedBotId)?.identity.botId ??
+		bots.find(
+			(bot) =>
+				bot.identity.name.toLowerCase().replaceAll(/[^a-z0-9]+/g, "-") ===
+				normalized,
+		)?.identity.botId ??
+		(bots.length === 1 ? bots[0]?.identity.botId : undefined);
+	if (!botId) throw new Error(`Gateway bot not found: ${requestedBotId}`);
+	return botId;
+}
+
 async function uploadChatAttachments(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -331,13 +351,16 @@ export async function handleCommand(
 		return gatewayCustomizationLists(ctx);
 	if (command === "get_marketplace_catalog") return marketplaceCatalog();
 	if (command === "read_bot_system_prompt") {
+		const requestedBotId = String(args.botId ?? "");
+		const botId = await resolveBotId(ctx, requestedBotId);
 		const result = await ctx.client.getBotSystemPrompt({
-			botId: String(args.botId ?? "") as BotId,
+			botId,
 		});
 		return result.content;
 	}
 	if (command === "write_bot_system_prompt") {
-		const botId = String(args.botId ?? "") as BotId;
+		const requestedBotId = String(args.botId ?? "");
+		const botId = await resolveBotId(ctx, requestedBotId);
 		const current = await ctx.client.getBotSystemPrompt({ botId });
 		await ctx.client.putBotSystemPrompt({
 			botId,
