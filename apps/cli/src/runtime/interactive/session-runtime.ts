@@ -28,11 +28,13 @@ import { loadInteractiveResumeMessages } from "../../utils/resume";
 import type { Config } from "../../utils/types";
 import { markAbortInProgress } from "../active-runtime";
 import type {
+	MonitorStateSnapshot,
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../session-events";
 import {
 	subscribeToAgentEvents,
+	subscribeToMonitorStateEvents,
 	subscribeToPendingPromptEvents,
 } from "../session-events";
 import { compactInteractiveMessages } from "./compaction";
@@ -106,10 +108,12 @@ export function createInteractiveSessionRuntime(input: {
 	onTeamEvent: (event: TeamEvent) => void;
 	onPendingPrompts: (event: PendingPromptSnapshot) => void;
 	onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+	onMonitorState: (event: MonitorStateSnapshot) => void;
 }) {
 	let sessionManager: CliCore | undefined;
 	let runtimeHooks: RuntimeHooks | undefined;
 	let unsubscribeAgent = () => {};
+	let unsubscribeMonitorState = () => {};
 	let unsubscribePendingPrompts = () => {};
 	let startupPromise: Promise<void> | undefined;
 	let startupError: unknown;
@@ -126,12 +130,37 @@ export function createInteractiveSessionRuntime(input: {
 
 	let pendingResumeSessionId = input.resumeSessionId?.trim() || undefined;
 
+	// Monitor rosters are per-session UI state. On the hub backend a session
+	// switch (/new, fork) detaches the old session without disposing its
+	// runtime, so no clearing snapshot ever arrives for it — without the
+	// filter a late snapshot would repopulate the roster with another
+	// session's monitors, and Space-to-stop would then target the wrong
+	// session and fail misleadingly.
+	const forwardMonitorState = (event: MonitorStateSnapshot): void => {
+		if (event.sessionId !== activeSessionId) {
+			return;
+		}
+		input.onMonitorState(event);
+	};
+
+	const clearMonitorRoster = (): void => {
+		input.onMonitorState({ sessionId: activeSessionId, monitors: [] });
+	};
+
 	const clearActiveSession = (): void => {
+		if (activeSessionId) {
+			clearMonitorRoster();
+		}
 		activeSessionId = "";
 		setActiveCliSession(undefined);
 	};
 
 	const applyStartedSession = (started: StartedSession): void => {
+		// Covers switches that bypass clearActiveSession (fork goes straight
+		// from the old session to startFreshSession).
+		if (started.sessionId !== activeSessionId) {
+			clearMonitorRoster();
+		}
 		setActiveCliSession({
 			manifest: started.manifest,
 		});
@@ -189,6 +218,10 @@ export function createInteractiveSessionRuntime(input: {
 			onPendingPrompts: input.onPendingPrompts,
 			onPendingPromptSubmitted: input.onPendingPromptSubmitted,
 		});
+		unsubscribeMonitorState = subscribeToMonitorStateEvents(
+			manager,
+			forwardMonitorState,
+		);
 		return manager;
 	};
 
@@ -864,6 +897,7 @@ export function createInteractiveSessionRuntime(input: {
 			} finally {
 				unsubscribeAgent();
 				unsubscribePendingPrompts();
+				unsubscribeMonitorState();
 			}
 			try {
 				exitSummary = await getExitSummary();
@@ -881,10 +915,26 @@ export function createInteractiveSessionRuntime(input: {
 		return await cleanupPromise;
 	};
 
+	const stopMonitor = async (monitorId: string): Promise<boolean> => {
+		if (!sessionManager || !activeSessionId) {
+			return false;
+		}
+		return await sessionManager.stopMonitor(activeSessionId, monitorId);
+	};
+
+	const listMonitors = async () => {
+		if (!sessionManager || !activeSessionId) {
+			return [];
+		}
+		return await sessionManager.listMonitors(activeSessionId);
+	};
+
 	return {
 		ensureReady,
 		sendCurrentTurn,
 		updatePendingPrompt,
+		stopMonitor,
+		listMonitors,
 		getAccumulatedUsage,
 		readCurrentMessages,
 		restartEmpty,

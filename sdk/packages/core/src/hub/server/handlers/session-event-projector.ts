@@ -76,6 +76,18 @@ export async function projectSessionEvent(
 				),
 			);
 			return;
+		case "monitor_state":
+			ctx.publish(
+				ctx.buildEvent(
+					"session.monitor_state",
+					{
+						sessionId: event.payload.sessionId,
+						monitors: event.payload.monitors,
+					},
+					event.payload.sessionId,
+				),
+			);
+			return;
 		case "pending_prompt_submitted": {
 			const prompt: SessionPendingPrompt = {
 				id: event.payload.id,

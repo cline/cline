@@ -6,6 +6,7 @@ export type CommandPaletteAction =
 	| "account"
 	| "mcp"
 	| "plugins"
+	| "monitors"
 	| "compact"
 	| "skills"
 	| "fork"
@@ -78,6 +79,13 @@ const ACTION_ITEMS: Array<{
 		shortcut: "Opt+G",
 		description: "Open plugin settings",
 		keywords: ["plugins", "extensions", "settings"],
+	},
+	{
+		action: "monitors",
+		label: "Manage Monitors",
+		shortcut: "Opt+O",
+		description: "View and stop background monitors",
+		keywords: ["monitors", "watch", "background", "tail", "stop"],
 	},
 	{
 		action: "account",

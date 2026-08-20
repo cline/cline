@@ -334,6 +334,10 @@ export interface CommandExecutionRuntimeService {
 
 export interface MonitorRuntimeService {
 	stopMonitor(sessionId: string, monitorId: string): Promise<boolean>;
+	/** Current snapshot of the session's monitors, for UI hydration. */
+	listMonitors(
+		sessionId: string,
+	): Promise<import("../../extensions/tools").MonitorRecord[]>;
 }
 
 export interface RuntimeHostSubscribeOptions {

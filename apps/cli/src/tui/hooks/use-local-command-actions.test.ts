@@ -14,6 +14,7 @@ function makeActions(
 		openConfig: vi.fn(),
 		openMcpManager: vi.fn(async () => false),
 		openModelSelector: vi.fn(),
+		openMonitors: vi.fn(async () => {}),
 		openSkills: vi.fn(),
 		openThemePicker: vi.fn(),
 		runCompact: vi.fn(),
@@ -58,6 +59,19 @@ describe("runLocalSlashCommandAction", () => {
 
 		expect(handled).toBe(true);
 		expect(openConfig).toHaveBeenCalledWith({ initialTab: "plugins" });
+	});
+
+	it("opens the monitors panel with monitors", async () => {
+		const openMonitors = vi.fn(async () => {});
+		const actions = makeActions({ openMonitors });
+
+		const handled = await runLocalSlashCommandAction({
+			name: "monitors",
+			...actions,
+		});
+
+		expect(handled).toBe(true);
+		expect(openMonitors).toHaveBeenCalledOnce();
 	});
 
 	it("does not start compaction while a turn is running", () => {

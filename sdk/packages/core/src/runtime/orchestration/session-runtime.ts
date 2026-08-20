@@ -14,6 +14,7 @@ import type {
 import type { UserInstructionConfigService } from "../../extensions/config";
 import type {
 	MonitorNotifier,
+	MonitorRecord,
 	RunCommandExecutionController,
 	ToolExecutors,
 } from "../../extensions/tools";
@@ -53,6 +54,7 @@ export interface BuiltRuntime {
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
 	stopMonitor?: (monitorId: string) => Promise<boolean>;
+	listMonitors?: () => MonitorRecord[];
 	shutdown: (reason: string) => Promise<void> | void;
 }
 
@@ -84,6 +86,13 @@ export interface RuntimeBuilderInput {
 	 * to interject has nowhere to put the output and gets no monitor tool.
 	 */
 	monitorNotifier?: MonitorNotifier;
+	/**
+	 * Receives a full monitor snapshot whenever any monitor's lifecycle state
+	 * changes, including the empty snapshot emitted when the registry is
+	 * disposed. Host-facing state for UIs; output for the agent travels
+	 * through {@link monitorNotifier} instead.
+	 */
+	onMonitorStateChange?: (monitors: MonitorRecord[]) => void;
 }
 
 export interface RuntimeBuilder {

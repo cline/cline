@@ -1,8 +1,19 @@
 diff --git a/dist/dialog-container-Btgzkwy7.mjs b/dist/dialog-container-Btgzkwy7.mjs
-index fa1f29023479d5df2daf399c42f1d492365365aa..9a576b394c551269e6944bbb08fb43f7a7d3a8ca 100644
+index fa1f29023479d5df2daf399c42f1d492365365aa..2dd3d6addc6e6d0c3af89c841af0db2864c73246 100644
 --- a/dist/dialog-container-Btgzkwy7.mjs
 +++ b/dist/dialog-container-Btgzkwy7.mjs
-@@ -677,7 +677,7 @@ var DialogContainerRenderable = class extends BoxRenderable {
+@@ -40,7 +40,9 @@ var DialogManager = class {
+ 	restoreFocus() {
+ 		this.cancelPendingFocusRestore();
+ 		if (this.savedFocus && !this.savedFocus.isDestroyed) this.focusRestoreTimeout = setTimeout(() => {
+-			if (!this.destroyed && this.savedFocus && !this.savedFocus.isDestroyed) this.savedFocus.focus();
++			const current = this.ctx.currentFocusedRenderable;
++			const focusStolen = current && current !== this.savedFocus;
++			if (!this.destroyed && this.savedFocus && !this.savedFocus.isDestroyed && !focusStolen) this.savedFocus.focus();
+ 			this.savedFocus = null;
+ 			this.focusRestoreTimeout = void 0;
+ 		}, 1);
+@@ -677,7 +679,7 @@ var DialogContainerRenderable = class extends BoxRenderable {
  		const renderable = this._dialogRenderables.get(id);
  		if (renderable) {
  			this._dialogRenderables.delete(id);

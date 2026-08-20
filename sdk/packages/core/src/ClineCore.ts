@@ -31,11 +31,13 @@ import type {
 } from "./cline-core/types";
 
 import { CronService } from "./cron/service/cron-service";
+import type { MonitorRecord } from "./extensions/tools";
 import type { RuntimeCapabilities } from "./runtime/capabilities";
 import { normalizeRuntimeCapabilities } from "./runtime/capabilities";
 import { listSessionHistory } from "./runtime/host/history";
 import { createRuntimeHost } from "./runtime/host/host";
 import type {
+	MonitorRuntimeService,
 	PendingPromptsServiceApi,
 	RuntimeHost,
 	RuntimeHostSubscribeOptions,
@@ -374,6 +376,26 @@ export class ClineCore {
 	 * ```
 	 */
 	abort: RuntimeHost["abort"] = (...args) => this.host.abort(...args);
+	/**
+	 * Current snapshot of the session's background monitors, for UI rosters.
+	 * Empty when the runtime does not run monitors.
+	 */
+	listMonitors = async (sessionId: string): Promise<MonitorRecord[]> => {
+		const host = this.host as Partial<MonitorRuntimeService>;
+		return (await host.listMonitors?.(sessionId)) ?? [];
+	};
+	/**
+	 * Stops one background monitor on the user's behalf, without a model turn.
+	 * The agent learns about it through the monitor's terminal notification,
+	 * attributed to the user.
+	 */
+	stopMonitor = async (
+		sessionId: string,
+		monitorId: string,
+	): Promise<boolean> => {
+		const host = this.host as Partial<MonitorRuntimeService>;
+		return (await host.stopMonitor?.(sessionId, monitorId)) ?? false;
+	};
 	/**
 	 * Stops an active session gracefully.
 	 *

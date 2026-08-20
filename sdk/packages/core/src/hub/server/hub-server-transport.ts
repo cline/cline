@@ -53,6 +53,7 @@ import {
 } from "./handlers/context";
 import {
 	handleRunAbort,
+	handleRunListMonitors,
 	handleRunProceedWhileRunning,
 	handleRunStopMonitor,
 	handleSessionHook,
@@ -405,6 +406,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleRunProceedWhileRunning(this.ctx, envelope);
 			case "run.stop_monitor":
 				return await handleRunStopMonitor(this.ctx, envelope);
+			case "run.list_monitors":
+				return await handleRunListMonitors(this.ctx, envelope);
 			case "capability.request":
 				return await handleCapabilityRequest(this.ctx, envelope);
 			case "approval.respond":

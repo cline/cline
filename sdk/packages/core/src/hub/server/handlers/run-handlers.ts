@@ -421,6 +421,25 @@ export async function handleRunStopMonitor(
 	return okReply(envelope, { stopped });
 }
 
+export async function handleRunListMonitors(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_monitor_request",
+			"run.list_monitors requires a sessionId",
+		);
+	}
+	if (typeof ctx.sessionHost.listMonitors !== "function") {
+		return okReply(envelope, { monitors: [] });
+	}
+	const monitors = await ctx.sessionHost.listMonitors(sessionId);
+	return okReply(envelope, { monitors });
+}
+
 export async function handleSessionHook(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,

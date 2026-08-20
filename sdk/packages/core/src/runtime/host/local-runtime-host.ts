@@ -19,7 +19,7 @@ import {
 	createCompactionStateAwarePrepareTurn,
 	createContextCompactionPrepareTurn,
 } from "../../extensions/context/compaction";
-import type { ToolExecutors } from "../../extensions/tools";
+import type { MonitorRecord, ToolExecutors } from "../../extensions/tools";
 import {
 	DefaultToolNames,
 	formatMonitorNotification,
@@ -436,6 +436,27 @@ export class LocalRuntimeHost implements RuntimeHost {
 		wasSessionIdRequested: boolean,
 		existingResumeManifest?: SessionManifest,
 	): Promise<StartSessionResult> {
+		// A same-id start replaces the live session (config-only restarts and
+		// resumes reuse the id on purpose). Release the old runtime before
+		// building the new one: otherwise it is silently dropped from the map
+		// while its monitor registry keeps running background processes that no
+		// UI can list or stop, each delivery still starting a paid turn.
+		// Releasing disposes the registry, which emits the empty monitor_state
+		// snapshot that clears host rosters.
+		const replaced = this.sessions.get(sessionId);
+		if (replaced) {
+			try {
+				await this.releaseSessionRuntime(replaced, "session_replaced");
+			} catch (error) {
+				// Each cleanup stage is already logged individually; a partial
+				// release must not block the replacement start.
+				replaced.config.logger?.log("Replaced session released with errors", {
+					severity: "warn",
+					sessionId,
+					error,
+				});
+			}
+		}
 		const source = input.source ?? SessionSource.CLI;
 		const startedAt = nowIso();
 		const startInput: ResolvedStartSessionInput =
@@ -598,6 +619,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 					sessionId,
 					formatMonitorNotification(notification),
 				);
+			},
+			// Host-facing roster state for UIs, separate from the agent-facing
+			// output above. Emitted as a full snapshot on every lifecycle change
+			// — including the empty snapshot from registry disposal, so clients
+			// see monitors end on session shutdown or a runtime restart instead
+			// of keeping a stale roster.
+			onMonitorStateChange: (monitors) => {
+				this.emit({
+					type: "monitor_state",
+					payload: { sessionId, monitors },
+				});
 			},
 			createSubAgentLifecycleCallbacks: (config) =>
 				createSessionSubAgentLifecycleCallbacks(
@@ -1167,6 +1199,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 			throw new SessionNotFoundError(sessionId);
 		}
 		return (await session.runtime.stopMonitor?.(monitorId)) ?? false;
+	}
+
+	async listMonitors(sessionId: string): Promise<MonitorRecord[]> {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			throw new SessionNotFoundError(sessionId);
+		}
+		return session.runtime.listMonitors?.() ?? [];
 	}
 
 	async stopSession(sessionId: string): Promise<void> {

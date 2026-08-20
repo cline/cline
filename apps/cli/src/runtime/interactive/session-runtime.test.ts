@@ -11,6 +11,7 @@ import type { AgentTool, Message } from "@cline/shared";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ChatCommandState } from "../../utils/chat-commands";
 import type { Config } from "../../utils/types";
+import type { MonitorStateSnapshot } from "../session-events";
 
 const createCliCoreMock = vi.hoisted(() => vi.fn());
 const compactInteractiveMessagesMock = vi.hoisted(() => vi.fn());
@@ -19,6 +20,9 @@ const setActiveCliSessionMock = vi.hoisted(() => vi.fn());
 const loadInteractiveResumeMessagesMock = vi.hoisted(() => vi.fn());
 const subscribeToAgentEventsMock = vi.hoisted(() => vi.fn());
 const subscribeToPendingPromptEventsMock = vi.hoisted(() => vi.fn());
+const subscribeToMonitorStateEventsMock = vi.hoisted(() =>
+	vi.fn(() => () => {}),
+);
 const markAbortInProgressMock = vi.hoisted(() => vi.fn());
 const submitAndExitInTerminalMock = vi.hoisted(() => vi.fn());
 const createInteractiveExitSummaryMock = vi.hoisted(() => vi.fn());
@@ -50,6 +54,7 @@ vi.mock("../active-runtime", () => ({
 vi.mock("../session-events", () => ({
 	subscribeToAgentEvents: subscribeToAgentEventsMock,
 	subscribeToPendingPromptEvents: subscribeToPendingPromptEventsMock,
+	subscribeToMonitorStateEvents: subscribeToMonitorStateEventsMock,
 }));
 
 vi.mock("./compaction", () => ({
@@ -196,6 +201,7 @@ async function makeRuntime(
 		config?: Config;
 		resumeSessionId?: string;
 		resolveToolPolicy?: (toolName: string) => Config["toolPolicies"][string];
+		onMonitorState?: (event: MonitorStateSnapshot) => void;
 	} = {},
 ) {
 	createCliCoreMock.mockResolvedValue(manager);
@@ -218,6 +224,7 @@ async function makeRuntime(
 		onTeamEvent: vi.fn(),
 		onPendingPrompts: vi.fn(),
 		onPendingPromptSubmitted: vi.fn(),
+		onMonitorState: options.onMonitorState ?? vi.fn(),
 	});
 }
 
@@ -230,6 +237,8 @@ describe("createInteractiveSessionRuntime", () => {
 		loadInteractiveResumeMessagesMock.mockReset();
 		subscribeToAgentEventsMock.mockReset();
 		subscribeToPendingPromptEventsMock.mockReset();
+		subscribeToMonitorStateEventsMock.mockReset();
+		subscribeToMonitorStateEventsMock.mockReturnValue(() => {});
 		markAbortInProgressMock.mockReset();
 		submitAndExitInTerminalMock.mockReset();
 		createInteractiveExitSummaryMock.mockReset();
@@ -295,6 +304,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -369,6 +379,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -466,6 +477,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -532,6 +544,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -690,6 +703,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -765,6 +779,7 @@ describe("createInteractiveSessionRuntime", () => {
 			onTeamEvent: vi.fn(),
 			onPendingPrompts: vi.fn(),
 			onPendingPromptSubmitted: vi.fn(),
+			onMonitorState: vi.fn(),
 		});
 
 		await runtime.ensureReady();
@@ -876,6 +891,61 @@ describe("createInteractiveSessionRuntime", () => {
 		});
 		expect(manager.start).toHaveBeenCalledTimes(1);
 		expect(runtime.getActiveSessionId()).toBe("session-1");
+	});
+
+	it("filters monitor snapshots to the active session and clears on switch", async () => {
+		const manager = makeManager();
+		const onMonitorState = vi.fn();
+		const runtime = await makeRuntime(manager, { onMonitorState });
+		await runtime.ensureReady();
+
+		// Deliver snapshots through the handler the runtime registered with the
+		// (mocked) monitor-state subscription.
+		const handler = (
+			subscribeToMonitorStateEventsMock.mock.calls[0] as unknown as
+				| [unknown, (event: unknown) => void]
+				| undefined
+		)?.[1];
+		expect(handler).toBeTypeOf("function");
+		const emit = (payload: unknown) => handler?.(payload);
+		const monitor = {
+			id: "mon_1",
+			name: "ci",
+			description: "watch",
+			command: "sleep 1000",
+			startedAt: 1,
+			status: "running",
+			linesEmitted: 0,
+		};
+		emit({ sessionId: "session-1", monitors: [monitor] });
+		expect(onMonitorState).toHaveBeenLastCalledWith({
+			sessionId: "session-1",
+			monitors: [monitor],
+		});
+
+		// A hub-backed session switch detaches the old session without disposing
+		// its runtime, so no empty snapshot ever arrives for it: the switch
+		// itself must clear the roster.
+		onMonitorState.mockClear();
+		await runtime.restartEmpty();
+		expect(
+			onMonitorState.mock.calls.some(
+				(call) => (call[0] as { monitors: unknown[] }).monitors.length === 0,
+			),
+		).toBe(true);
+
+		// A late snapshot from the detached session must not repopulate the
+		// roster — Space-to-stop would target the wrong session.
+		onMonitorState.mockClear();
+		emit({ sessionId: "session-1", monitors: [monitor] });
+		expect(onMonitorState).not.toHaveBeenCalled();
+
+		// The now-active session's snapshots still flow.
+		emit({ sessionId: "session-2", monitors: [monitor] });
+		expect(onMonitorState).toHaveBeenLastCalledWith({
+			sessionId: "session-2",
+			monitors: [monitor],
+		});
 	});
 
 	it("does not reuse the session id when restarting empty", async () => {

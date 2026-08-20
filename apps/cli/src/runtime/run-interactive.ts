@@ -301,6 +301,9 @@ export async function runInteractive(
 		onPendingPromptSubmitted: (event) => {
 			uiEvents.emit("pending-prompt-submitted", event);
 		},
+		onMonitorState: (event) => {
+			uiEvents.emit("monitor-state", event);
+		},
 	});
 	let modeChangePromise: Promise<void> | undefined;
 	let modeChangeTarget: "plan" | "act" | undefined;
@@ -554,17 +557,24 @@ export async function runInteractive(
 			onTeamEvent: onTeam,
 			onPendingPrompts,
 			onPendingPromptSubmitted,
+			onMonitorState,
 		}) => {
 			uiEvents.on("agent", onAgent);
 			uiEvents.on("team", onTeam);
 			uiEvents.on("pending-prompts", onPendingPrompts);
 			uiEvents.on("pending-prompt-submitted", onPendingPromptSubmitted);
+			uiEvents.on("monitor-state", onMonitorState);
 			return () => {
 				uiEvents.off("agent", onAgent);
 				uiEvents.off("team", onTeam);
 				uiEvents.off("pending-prompts", onPendingPrompts);
 				uiEvents.off("pending-prompt-submitted", onPendingPromptSubmitted);
+				uiEvents.off("monitor-state", onMonitorState);
 			};
+		},
+		onStopMonitor: async (monitorId) => {
+			await sessionRuntime.ensureReady();
+			return await sessionRuntime.stopMonitor(monitorId);
 		},
 		onSubmit: async (input, mode, delivery, attachments, onCommandOutput) => {
 			let commandOutput: string | undefined;

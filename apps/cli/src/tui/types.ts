@@ -12,6 +12,7 @@ import type {
 } from "@cline/shared";
 import type { CliMigrationNotice } from "../kanban-migration/notice";
 import type {
+	MonitorStateSnapshot,
 	PendingPromptSnapshot,
 	PendingPromptSubmittedEvent,
 } from "../runtime/session-events";
@@ -122,6 +123,19 @@ export interface QueuedPromptItem {
 	attachmentCount: number;
 }
 
+/** One background monitor as shown in the roster UI. */
+export interface MonitorItem {
+	id: string;
+	name: string;
+	description: string;
+	command: string;
+	startedAt: number;
+	status: "running" | "exited" | "stopped" | "failed";
+	exitCode?: number | null;
+	error?: string;
+	linesEmitted: number;
+}
+
 export interface PendingPromptMutationResult {
 	sessionId: string;
 	prompts: QueuedPromptItem[];
@@ -177,7 +191,13 @@ export interface TuiProps {
 		onTeamEvent: (event: TeamEvent) => void;
 		onPendingPrompts: (event: PendingPromptSnapshot) => void;
 		onPendingPromptSubmitted: (event: PendingPromptSubmittedEvent) => void;
+		onMonitorState: (event: MonitorStateSnapshot) => void;
 	}) => () => void;
+	/**
+	 * Stops one background monitor on the user's behalf. Resolves true when a
+	 * monitor matched; the roster refreshes through the monitor-state event.
+	 */
+	onStopMonitor: (monitorId: string) => Promise<boolean>;
 	onSubmit: (
 		input: string,
 		mode: AgentMode,

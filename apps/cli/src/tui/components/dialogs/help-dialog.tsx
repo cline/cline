@@ -147,6 +147,12 @@ const HELP_ROWS: HelpRow[] = [
 	},
 	{
 		kind: "entry",
+		id: "c-monitors",
+		key: "/monitors",
+		desc: "View and stop background monitors",
+	},
+	{
+		kind: "entry",
 		id: "c-account",
 		key: "/account",
 		desc: "View Cline account and switch account",
