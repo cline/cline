@@ -12,6 +12,8 @@ import { MonitorSteerQueue } from "./monitor-steer-queue";
 function createQueue(options?: {
 	cooldownMs?: number;
 	maxMergedChars?: number;
+	/** Mimics PendingPromptService.update normalizing prompts on write. */
+	normalize?: (prompt: string) => string;
 }) {
 	let prompts: SessionPendingPrompt[] = [];
 	let nextId = 1;
@@ -38,9 +40,13 @@ function createQueue(options?: {
 		}) => {
 			const found = prompts.find((prompt) => prompt.id === input.promptId);
 			if (found) {
-				found.prompt = input.prompt;
+				found.prompt = options?.normalize
+					? options.normalize(input.prompt)
+					: input.prompt;
 				found.origin = input.origin;
 			}
+			// Mirrors PendingPromptMutationResult: the stored snapshot.
+			return { prompt: found };
 		},
 	);
 	const queue = new MonitorSteerQueue(
@@ -306,6 +312,29 @@ describe("MonitorSteerQueue", () => {
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("keeps merging when the service normalizes stored prompts", () => {
+		// PendingPromptService.update stores normalizeUserInput(prompt), so
+		// tag-shaped monitor output (a watched process printing a literal
+		// "<user_input …>", e.g. when tailing an LLM app's own logs) is
+		// stripped on write. The queue must track the text the service stored:
+		// tracking its own pre-normalization copy would misread the difference
+		// as a user edit, permanently disown the entry, and stack one fresh
+		// steer prompt per cooldown — each able to start a paid turn.
+		const harness = createQueue({
+			normalize: (prompt) => prompt.replace(/<user_input[^>]*>/g, ""),
+		});
+		harness.queue.deliver("s1", "first report");
+		harness.queue.deliver("s1", 'log line: <user_input mode="act"> seen');
+		harness.queue.deliver("s1", "third report");
+
+		// All three reports live in the same outstanding prompt; the
+		// normalization was not mistaken for a user edit.
+		expect(harness.enqueue).toHaveBeenCalledTimes(1);
+		expect(harness.prompts).toHaveLength(1);
+		expect(harness.prompts[0]?.prompt).toContain("third report");
+		expect(harness.prompts[0]?.prompt).not.toContain("<user_input");
 	});
 
 	it("does not merge into a prompt the user has edited", async () => {
