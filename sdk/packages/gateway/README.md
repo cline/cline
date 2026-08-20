@@ -99,7 +99,14 @@ cline-gateway drain                    # refuse new mutating work while runs fin
 cline-gateway upgrade                  # drain, wait idle, stop, start a fresh process
 cline-gateway stop                     # graceful stop
 cline-gateway secret-put <providerId>  # store a provider credential (reads stdin)
+cline-gateway websocket-bridge --port 18080 --allowed-origin https://app.example.com
 ```
+
+`websocket-bridge` is the browser-facing boundary for remote clients. It binds
+to loopback, accepts only configured origins, requires the normal authenticated
+`gateway.hello` as the first WebSocket frame, and forwards text frames to the
+currently discovered Gateway's native NDJSON transport. Put TLS termination
+(for example Caddy) in front of this bridge; never expose the Gateway TCP port.
 
 Flags: `--data-root <dir>`, `--namespace <name>`, `--port <n>`,
 `--reason <text>`, `--lead-profile <cline|cline-dad>`. The standard `cline`

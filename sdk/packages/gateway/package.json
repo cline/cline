@@ -51,6 +51,10 @@
 		"@cline/engine": "workspace:*",
 		"@cline/shared": "workspace:*",
 		"@cline/tools": "workspace:*",
+		"ws": "^8.18.3",
 		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/ws": "^8.18.1"
 	}
 }

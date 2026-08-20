@@ -25,6 +25,10 @@ import { GatewayLockHeldError } from "./lock";
 import { resolveGatewayPaths } from "./paths";
 import { writeSecretFile } from "./secrets";
 import { GatewayServer } from "./server";
+import {
+	DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
+	startGatewayWebSocketBridge,
+} from "./websocket-bridge";
 
 export const GATEWAY_CLI_COMMANDS = [
 	"serve",
@@ -34,6 +38,7 @@ export const GATEWAY_CLI_COMMANDS = [
 	"upgrade",
 	"stop",
 	"secret-put",
+	"websocket-bridge",
 ] as const;
 
 export type GatewayCliCommand = (typeof GATEWAY_CLI_COMMANDS)[number];
@@ -57,6 +62,7 @@ interface ParsedArgs {
 	port?: number;
 	reason?: string;
 	leadProfile?: string;
+	allowedOrigins?: string[];
 }
 
 function parseArgs(argv: readonly string[]): ParsedArgs {
@@ -66,6 +72,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
 				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
 				"       cline-gateway serve [--lead-profile <cline|cline-dad>]\n" +
+				"       cline-gateway websocket-bridge --port <n> --allowed-origin <origin>\n" +
 				"       cline-gateway secret-put <providerId>   (reads the secret from stdin)",
 		);
 	}
@@ -99,6 +106,11 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 				break;
 			case "--lead-profile":
 				parsed.leadProfile = value;
+				index += 1;
+				break;
+			case "--allowed-origin":
+				parsed.allowedOrigins ??= [];
+				parsed.allowedOrigins.push(value);
 				index += 1;
 				break;
 			default:
@@ -435,6 +447,46 @@ async function commandSecretPut(
 	return 0;
 }
 
+async function commandWebSocketBridge(
+	args: ParsedArgs,
+	io: GatewayCliIo,
+): Promise<number> {
+	const envOrigins = process.env.CLINE_GATEWAY_BRIDGE_ALLOWED_ORIGINS
+		?.split(",")
+		.map((origin) => origin.trim())
+		.filter(Boolean);
+	const allowedOrigins = args.allowedOrigins ?? envOrigins ?? [];
+	if (allowedOrigins.length === 0) {
+		io.err(
+			"websocket-bridge requires --allowed-origin or CLINE_GATEWAY_BRIDGE_ALLOWED_ORIGINS",
+		);
+		return 64;
+	}
+	const bridge = await startGatewayWebSocketBridge({
+		dataRoot: args.dataRoot,
+		namespace: args.namespace,
+		port: args.port ?? DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
+		allowedOrigins,
+	});
+	io.out(
+		JSON.stringify({
+			status: "serving",
+			transport: "websocket",
+			host: bridge.host,
+			port: bridge.port,
+			allowedOrigins,
+		}),
+	);
+	await new Promise<void>((resolve) => {
+		const stop = () => {
+			void bridge.stop().finally(resolve);
+		};
+		process.once("SIGINT", stop);
+		process.once("SIGTERM", stop);
+	});
+	return 0;
+}
+
 /** Entry point. Returns the process exit code. */
 export async function runGatewayCli(
 	argv: readonly string[],
@@ -462,6 +514,8 @@ export async function runGatewayCli(
 			return commandUpgrade(args, io);
 		case "secret-put":
 			return commandSecretPut(args, io);
+		case "websocket-bridge":
+			return commandWebSocketBridge(args, io);
 	}
 }
 

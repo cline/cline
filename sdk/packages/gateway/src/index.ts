@@ -17,6 +17,12 @@
 
 export type { GatewayCliCommand, GatewayCliIo } from "./cli";
 export { GATEWAY_CLI_COMMANDS, runGatewayCli } from "./cli";
+export type { GatewayWebSocketBridgeOptions } from "./websocket-bridge";
+export {
+	DEFAULT_GATEWAY_WEBSOCKET_BRIDGE_PORT,
+	MAX_GATEWAY_WEBSOCKET_FRAME_BYTES,
+	startGatewayWebSocketBridge,
+} from "./websocket-bridge";
 export type {
 	ApprovalResolution,
 	GatewayClientOptions,
