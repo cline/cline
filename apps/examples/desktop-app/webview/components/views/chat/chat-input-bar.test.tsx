@@ -978,6 +978,7 @@ describe("ChatInputBar", () => {
 			expect(content?.getAttribute("data-state")).toBe("closed");
 			return content as HTMLElement;
 		});
+		expect(modelSettingsContent.hidden).toBe(true);
 		expect(modelSettingsContent.getAttribute("inert")).toBe("");
 
 		const modelSettingsTrigger = container.querySelector<HTMLButtonElement>(
@@ -986,6 +987,7 @@ describe("ChatInputBar", () => {
 		await act(async () => modelSettingsTrigger?.click());
 
 		expect(modelSettingsContent.getAttribute("data-state")).toBe("open");
+		expect(modelSettingsContent.hidden).toBe(false);
 		expect(modelSettingsContent.hasAttribute("inert")).toBe(false);
 	});
 
