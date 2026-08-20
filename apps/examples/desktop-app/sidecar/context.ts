@@ -19,7 +19,6 @@ import {
 	type AgentEvent,
 	HUB_CLIENT_TOOL_APPROVAL_CAPABILITY,
 	isGeneratedMedia,
-	normalizeUserInput,
 } from "@cline/shared";
 import {
 	discardAllTrackedAttachments,
@@ -413,36 +412,11 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
-function queuedPromptText(message: LiveSession["messages"][number]): string {
-	const content = message.content;
-	if (typeof content === "string") return content.trim();
-	return content
-		.map((part) => (part.type === "text" ? part.text : ""))
-		.join("")
-		.trim();
-}
-
-function normalizeQueuedPromptText(text: string): string {
-	return normalizeUserInput(text).trim();
-}
-
-function countQueuedPromptOccurrences(
-	messages: LiveSession["messages"],
-	prompt: string,
-): number {
-	const expected = normalizeQueuedPromptText(prompt);
-	return messages.filter(
-		(message) =>
-			message.role === "user" &&
-			normalizeQueuedPromptText(queuedPromptText(message)) === expected,
-	).length;
-}
-
 // The runtime's queue drain emits a pending_prompts snapshot (head removed)
 // and a pending_prompt_submitted event for the same prompt back-to-back, and
 // both are translated here into chat_queued_prompt_start — dedupe by prompt
 // id or the UI renders the user message twice.
-export function emitQueuedPromptStart(
+function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
 	session: LiveSession | undefined,
@@ -451,7 +425,6 @@ export function emitQueuedPromptStart(
 		prompt: string;
 		attachmentCount: number;
 		userImages?: string[];
-		submittedAt?: number;
 	},
 ): void {
 	if (session) {
@@ -459,21 +432,6 @@ export function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
-	}
-	if (session?.config.executionTarget === "cloud") {
-		const normalizedPrompt = normalizeQueuedPromptText(input.prompt);
-		const occurrences =
-			session.queuedPromptOccurrenceByText ?? new Map<string, number>();
-		session.queuedPromptOccurrenceByText = occurrences;
-		session.lastQueuedPromptStart = {
-			...input,
-			submittedAt: input.submittedAt ?? Date.now(),
-			occurrence: Math.max(
-				countQueuedPromptOccurrences(session.messages, input.prompt) + 1,
-				(occurrences.get(normalizedPrompt) ?? 0) + 1,
-			),
-		};
-		occurrences.set(normalizedPrompt, session.lastQueuedPromptStart.occurrence);
 	}
 	emitChunk(
 		ctx,
@@ -852,7 +810,6 @@ export function handleHubLiveEvent(
 	event: {
 		event: string;
 		sessionId?: string;
-		timestamp?: number;
 		payload?: Record<string, unknown>;
 	},
 	options: { relayRawAssistantText?: boolean } = {},
@@ -989,7 +946,6 @@ export function handleHubLiveEvent(
 				userImages: Array.isArray(item?.userImages)
 					? (item.userImages as string[])
 					: undefined,
-				submittedAt: event.timestamp,
 			});
 			return;
 		}

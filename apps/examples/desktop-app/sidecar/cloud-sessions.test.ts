@@ -18,7 +18,7 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
-import { disposeSidecarContext, emitQueuedPromptStart } from "./context";
+import { disposeSidecarContext } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
@@ -1634,6 +1634,9 @@ describe("reconcileBufferedCloudEvents", () => {
 		const submitted = event("session.pending_prompt_submitted", "q-2", {
 			prompt: { id: "prompt-2", prompt: "repeat", attachmentCount: 0 },
 		});
+		const nextSubmitted = event("session.pending_prompt_submitted", "q-3", {
+			prompt: { id: "prompt-3", prompt: "repeat", attachmentCount: 0 },
+		});
 		const baseline = [{ role: "user", content: "repeat" }];
 
 		expect(
@@ -1654,6 +1657,19 @@ describe("reconcileBufferedCloudEvents", () => {
 				{ baselineMessages: baseline },
 			),
 		).toEqual([]);
+		expect(
+			reconcileBufferedCloudEvents(
+				[submitted, nextSubmitted],
+				[
+					...baseline,
+					{
+						role: "user",
+						content: '<user_input mode="act">repeat</user_input>',
+					},
+				],
+				{ baselineMessages: baseline },
+			),
+		).toEqual([nextSubmitted]);
 	});
 
 	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
@@ -1676,29 +1692,20 @@ describe("reconcileBufferedCloudEvents", () => {
 });
 
 describe("CloudSessionManager", () => {
-	it("does not retain cloud replay state for local queue submissions", () => {
-		const { ctx } = createContext();
-		const session = {
-			busy: true,
-			messages: [],
-			promptsInQueue: [],
-			status: "running",
-			config: { executionTarget: "local" },
-			startedAt: Date.now(),
-		};
-		ctx.liveSessions.set("ses-local", session);
-
-		emitQueuedPromptStart(ctx, "ses-local", session, {
-			promptId: "q-local",
-			prompt: "local prompt",
-			attachmentCount: 0,
-			userImages: ["data:image/png;base64,AQID"],
+	async function attachManager(
+		ctx: SidecarContext,
+		hub: FakeHubClient,
+	): Promise<CloudSessionManager> {
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
 		});
-
-		expect(session).toMatchObject({ lastQueuedPromptStartId: "q-local" });
-		expect(session).not.toHaveProperty("lastQueuedPromptStart");
-		expect(session).not.toHaveProperty("queuedPromptOccurrenceByText");
-	});
+		await manager.list();
+		await manager.attach("ses-outer");
+		return manager;
+	}
 
 	it("projects the outer remote-session id as the desktop session id", () => {
 		expect(
@@ -2008,14 +2015,7 @@ describe("CloudSessionManager", () => {
 			createdAt: submittedAt - 1_000,
 		};
 		hub.messages = [seededMessage];
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-		await manager.attach("ses-outer");
+		const manager = await attachManager(ctx, hub);
 		await manager.verifyHandoffTranscript("ses-outer", [seededMessage]);
 
 		hub.events?.({
@@ -2032,12 +2032,6 @@ describe("CloudSessionManager", () => {
 					userImages: ["data:image/png;base64,AQID"],
 				},
 			},
-		});
-		expect(
-			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
-		).toMatchObject({
-			promptId: "q-handoff",
-			occurrence: 2,
 		});
 		events.length = 0;
 
@@ -2072,7 +2066,11 @@ describe("CloudSessionManager", () => {
 		)?.payload.messages as Array<Record<string, unknown>>;
 		expect(secondSnapshot).toEqual(
 			expect.arrayContaining([
-				expect.objectContaining({ content: prompt, role: "user" }),
+				expect.objectContaining({
+					content: prompt,
+					role: "user",
+					createdAt: submittedAt,
+				}),
 			]),
 		);
 		expect(
@@ -2088,6 +2086,14 @@ describe("CloudSessionManager", () => {
 		hub.messages.push(seededMessage);
 		events.length = 0;
 		await manager.readMessages("ses-outer");
+		const caughtUpSnapshot = events.find(
+			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
+		expect(
+			caughtUpSnapshot.some((message) =>
+				String(message.id ?? "").startsWith("queued_user_q-handoff"),
+			),
+		).toBe(false);
 		expect(
 			events.some(
 				(event) =>
@@ -2095,9 +2101,6 @@ describe("CloudSessionManager", () => {
 					event.payload.stream === "chat_queued_prompt_start",
 			),
 		).toBe(false);
-		expect(
-			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
-		).toBeUndefined();
 	});
 
 	it("matches submitted user commands to canonical cloud history", async () => {
@@ -2105,14 +2108,7 @@ describe("CloudSessionManager", () => {
 		const hub = new FakeHubClient();
 		const seededMessage = { role: "user" as const, content: "seed" };
 		hub.messages = [seededMessage];
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-		await manager.attach("ses-outer");
+		const manager = await attachManager(ctx, hub);
 		await manager.verifyHandoffTranscript("ses-outer", [seededMessage]);
 
 		hub.events?.({
@@ -2137,9 +2133,6 @@ describe("CloudSessionManager", () => {
 
 		await manager.readMessages("ses-outer");
 
-		const live = ctx.liveSessions.get("ses-outer");
-		expect(live?.lastQueuedPromptStart).toBeUndefined();
-		expect(live?.queuedPromptOccurrenceByText).toBeUndefined();
 		const snapshot = events.find(
 			(event) => event.name === "cloud_session_rehydrated",
 		)?.payload.messages as Array<Record<string, unknown>>;
@@ -2155,17 +2148,10 @@ describe("CloudSessionManager", () => {
 		).toBe(false);
 	});
 
-	it("numbers repeated submitted prompts across intervening text", async () => {
-		const { ctx } = createContext();
+	it("retains multiple submitted prompts until cloud history catches up", async () => {
+		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
-		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
-			apiBaseUrl: "https://api.example",
-			getAuthToken: async () => "workos:fresh",
-			createHubClient: () => hub as never,
-		});
-		await manager.list();
-		await manager.attach("ses-outer");
+		const manager = await attachManager(ctx, hub);
 
 		for (const [id, submittedPrompt] of [
 			["q-repeat-1", "repeat"],
@@ -2184,25 +2170,36 @@ describe("CloudSessionManager", () => {
 			});
 		}
 
+		events.length = 0;
+		await manager.readMessages("ses-outer");
+		const staleSnapshot = events.find(
+			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
 		expect(
-			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
-		).toMatchObject({
-			promptId: "q-repeat-2",
-			occurrence: 2,
-		});
+			staleSnapshot
+				.map((message) => String(message.id ?? ""))
+				.filter((id) => id.startsWith("queued_user_")),
+		).toEqual([
+			"queued_user_q-repeat-1_text_0",
+			"queued_user_q-between_text_0",
+			"queued_user_q-repeat-2_text_0",
+		]);
 
 		hub.messages = [
 			{ role: "user", content: "repeat" },
 			{ role: "user", content: "different" },
 			{ role: "user", content: "repeat" },
 		];
+		events.length = 0;
 		await manager.readMessages("ses-outer");
+		const caughtUpSnapshot = events.find(
+			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
 		expect(
-			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
-		).toBeUndefined();
-		expect(
-			ctx.liveSessions.get("ses-outer")?.queuedPromptOccurrenceByText,
-		).toBeUndefined();
+			caughtUpSnapshot.some((message) =>
+				String(message.id ?? "").startsWith("queued_user_"),
+			),
+		).toBe(false);
 	});
 
 	it("rejects malformed queue command replies instead of clearing the queue", async () => {

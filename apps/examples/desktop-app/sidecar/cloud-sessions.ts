@@ -51,6 +51,7 @@ const REQUEST_TIMEOUT_MS = 15_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
+const MAX_RETAINED_QUEUED_PROMPTS = 32;
 type FetchLike = (
 	input: string | URL | Request,
 	init?: RequestInit,
@@ -880,6 +881,15 @@ type CloudRehydrationSnapshot = {
 	prompts?: PromptInQueue[];
 };
 
+type RetainedQueuedPromptStart = {
+	promptId: string;
+	prompt: string;
+	attachmentCount: number;
+	userImages?: string[];
+	occurrence: number;
+	submittedAt: number;
+};
+
 type CloudConnection = {
 	remote: CloudSessionRecord;
 	client: CloudHubClient;
@@ -892,6 +902,8 @@ type CloudConnection = {
 	transcriptKnown: boolean;
 	seenEventIds: Set<string>;
 	seenEventIdOrder: string[];
+	/** Submitted user boundaries awaiting the canonical cloud transcript. */
+	retainedQueuedPromptStarts?: RetainedQueuedPromptStart[];
 	/** Prevents concurrent sends from creating competing inner sessions. */
 	innerSessionCreation?: Promise<void>;
 	/** Set by disposeConnection; late timers and approval callbacks must not
@@ -1142,7 +1154,7 @@ function countPromptOccurrences(
 }
 
 function queuedPromptMessage(
-	input: NonNullable<LiveSession["lastQueuedPromptStart"]>,
+	input: RetainedQueuedPromptStart,
 ): MessageWithMetadata & { createdAt: number } {
 	const content: MessageWithMetadata["content"] = [];
 	if (input.prompt) {
@@ -2248,29 +2260,18 @@ export class CloudSessionManager {
 			await this.refreshPendingApprovals(outerSessionId, connection);
 			connection.transcriptKnown = true;
 
-			const queuedPromptStart = live?.lastQueuedPromptStart;
+			const queuedPromptStarts = connection.retainedQueuedPromptStarts ?? [];
 			const persistedPromptCounts = userPromptOccurrenceCounts(messages);
-			if (live?.queuedPromptOccurrenceByText) {
-				for (const [prompt, occurrence] of live.queuedPromptOccurrenceByText) {
-					if ((persistedPromptCounts.get(prompt) ?? 0) >= occurrence) {
-						live.queuedPromptOccurrenceByText.delete(prompt);
-					}
-				}
-				if (live.queuedPromptOccurrenceByText.size === 0) {
-					live.queuedPromptOccurrenceByText = undefined;
-				}
-			}
-			const historyCaughtUp =
-				queuedPromptStart !== undefined &&
-				(persistedPromptCounts.get(
-					normalizeUserPrompt(queuedPromptStart.prompt),
-				) ?? 0) >= queuedPromptStart.occurrence;
-			if (live && historyCaughtUp) {
-				live.lastQueuedPromptStart = undefined;
-			}
+			const pendingPromptStarts = queuedPromptStarts.filter(
+				(item) =>
+					(persistedPromptCounts.get(normalizeUserPrompt(item.prompt)) ?? 0) <
+					item.occurrence,
+			);
+			connection.retainedQueuedPromptStarts =
+				pendingPromptStarts.length > 0 ? pendingPromptStarts : undefined;
 			const displayMessages =
-				queuedPromptStart && !historyCaughtUp
-					? [...messages, queuedPromptMessage(queuedPromptStart)]
+				pendingPromptStarts.length > 0
+					? [...messages, ...pendingPromptStarts.map(queuedPromptMessage)]
 					: messages;
 
 			// Publish the snapshot before releasing the reconciled tail. Keep a
@@ -2969,11 +2970,60 @@ export class CloudSessionManager {
 			}
 			return;
 		}
+		if (event.event === "session.pending_prompt_submitted") {
+			this.retainQueuedPromptStart(outerSessionId, connection, event);
+		}
 		handleHubLiveEvent(
 			this.ctx,
 			{ ...event, sessionId: outerSessionId },
 			{ relayRawAssistantText: true },
 		);
+	}
+
+	private retainQueuedPromptStart(
+		outerSessionId: string,
+		connection: CloudConnection,
+		event: HubEventEnvelope,
+	): void {
+		const item = event.payload?.prompt;
+		if (!item || typeof item !== "object" || Array.isArray(item)) return;
+		const promptRecord = item as JsonRecord;
+		const promptId = String(promptRecord.id ?? "").trim();
+		if (!promptId) return;
+
+		const retained = connection.retainedQueuedPromptStarts ?? [];
+		if (retained.some((entry) => entry.promptId === promptId)) return;
+		const prompt = String(promptRecord.prompt ?? "");
+		const normalizedPrompt = normalizeUserPrompt(prompt);
+		const priorOccurrence = retained.reduce(
+			(highest, entry) =>
+				normalizeUserPrompt(entry.prompt) === normalizedPrompt
+					? Math.max(highest, entry.occurrence)
+					: highest,
+			0,
+		);
+		const liveMessages =
+			this.ctx.liveSessions.get(outerSessionId)?.messages ?? [];
+		retained.push({
+			promptId,
+			prompt,
+			attachmentCount:
+				typeof promptRecord.attachmentCount === "number"
+					? promptRecord.attachmentCount
+					: 0,
+			userImages: Array.isArray(promptRecord.userImages)
+				? (promptRecord.userImages as string[])
+				: undefined,
+			occurrence: Math.max(
+				countPromptOccurrences(liveMessages, [], prompt) + 1,
+				priorOccurrence + 1,
+			),
+			submittedAt: event.timestamp ?? Date.now(),
+		});
+		if (retained.length > MAX_RETAINED_QUEUED_PROMPTS) {
+			retained.splice(0, retained.length - MAX_RETAINED_QUEUED_PROMPTS);
+		}
+		connection.retainedQueuedPromptStarts = retained;
 	}
 
 	private handleApprovalRequested(
