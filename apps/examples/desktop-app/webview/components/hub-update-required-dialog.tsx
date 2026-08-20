@@ -104,8 +104,8 @@ export function HubUpdateRequiredDialog() {
 						{mismatch?.hubCoreVersion
 							? ` (core ${mismatch.hubCoreVersion})`
 							: ""}
-						, and it no longer matches this app. Update and restart Cline Code
-						to stay in sync with the running Hub.
+						, and it no longer matches this app. Update and restart Cline to
+						stay in sync with the running Hub.
 					</AlertDialogDescription>
 					{updateHint ? (
 						<AlertDialogDescription>{updateHint}</AlertDialogDescription>

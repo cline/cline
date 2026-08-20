@@ -1,4 +1,6 @@
 import type {
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
@@ -63,6 +65,10 @@ export interface HubTransportContext {
 	 */
 	readonly activeRpcTurnCountBySession: Map<string, number>;
 	readonly telemetry?: ITelemetryService;
+	/** Hub-owned tools injected into every local session runtime. */
+	readonly sessionTools?: readonly AgentTool[];
+	/** Hub-owned extensions injected into every local session runtime. */
+	readonly sessionExtensions?: readonly AgentExtension[];
 	readonly sessionHost: RuntimeHost &
 		Partial<
 			CommandExecutionRuntimeService &

@@ -1,7 +1,15 @@
 "use client";
 
 import type {
+	AgendaAutomationPolicy,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
 	DesktopDebugLogPayload,
+	HubTaskCreateInput,
+	HubTaskUpdateInput,
+} from "@cline/shared";
+import type {
 	DesktopTransportEvent,
 	DesktopTransportMessage,
 	DesktopTransportRequest,
@@ -100,6 +108,22 @@ export type DesktopInvokeOptions = {
 	 * response represents completion of a legitimately long-running operation.
 	 */
 	timeoutMs?: number | null;
+};
+
+export type AgendaTaskIdInput = {
+	taskId: string;
+};
+
+export type AgendaTaskRevisionInput = AgendaTaskIdInput & {
+	expectedRevision: number;
+};
+
+export type AgendaTaskCancelInput = AgendaTaskRevisionInput & {
+	reason?: string;
+};
+
+export type AgendaAutomationSetInput = {
+	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
 };
 
 export type DesktopErrorReport = {
@@ -590,6 +614,89 @@ class DesktopClient {
 
 	getTransportError(): string | null {
 		return this.transportError;
+	}
+
+	async createAgendaTask(input: HubTaskCreateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.create",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async listAgendaTasks(
+		input: AgendaTaskListInput = {},
+	): Promise<AgendaTaskRecord[]> {
+		const response = await this.invoke<{ tasks: AgendaTaskRecord[] }>(
+			"task.list",
+			{ ...input },
+		);
+		return response.tasks ?? [];
+	}
+
+	async getAgendaTask(taskId: string): Promise<AgendaTaskRecord | undefined> {
+		const response = await this.invoke<{ task?: AgendaTaskRecord }>(
+			"task.get",
+			{
+				taskId,
+			},
+		);
+		return response.task;
+	}
+
+	async updateAgendaTask(input: HubTaskUpdateInput): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.update",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async approveAgendaTask(
+		input: AgendaTaskRevisionInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.approve",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async cancelAgendaTask(
+		input: AgendaTaskCancelInput,
+	): Promise<AgendaTaskRecord> {
+		const response = await this.invoke<{ task: AgendaTaskRecord }>(
+			"task.cancel",
+			{ ...input },
+		);
+		return response.task;
+	}
+
+	async runAgendaTask(input: AgendaTaskRevisionInput): Promise<{
+		task: AgendaTaskRecord;
+		run?: AgendaTaskRunRecord;
+	}> {
+		return await this.invoke<{
+			task: AgendaTaskRecord;
+			run?: AgendaTaskRunRecord;
+		}>("task.run", { ...input });
+	}
+
+	async getAgendaAutomationPolicy(): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.get",
+		);
+		return response.policy;
+	}
+
+	async setAgendaAutomationPolicy(
+		input: AgendaAutomationSetInput,
+	): Promise<AgendaAutomationPolicy> {
+		const response = await this.invoke<{ policy: AgendaAutomationPolicy }>(
+			"task.automation.set",
+			{ ...input },
+		);
+		return response.policy;
 	}
 }
 
