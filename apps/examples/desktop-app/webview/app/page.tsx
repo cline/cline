@@ -393,6 +393,10 @@ export default function Home() {
 		() => workspacePathsFromSessions(sessionHistory.sessions),
 		[sessionHistory.sessions],
 	);
+	// Live workspace selection reported by the chat pane's composer, so
+	// sidebar surfaces (the Todo panel) can follow workspace switches made on
+	// the welcome view before any session exists. Empty until the pane reports.
+	const [composerWorkspaceRoot, setComposerWorkspaceRoot] = useState("");
 	// A child agent session names its parent, but only the history list knows the
 	// parent's title — resolve it here so the chat header can point back to it.
 	const activeParentSession = useMemo(() => {
@@ -438,7 +442,12 @@ export default function Home() {
 							setView={handleViewChange}
 							settingsSection={settingsSection}
 							view={view}
+							// The composer's live workspace selection leads so the Todo
+							// panel follows the chip even before a session starts; the
+							// active session's workspace and recent history are
+							// fallbacks until the pane reports a selection.
 							workspaceRoot={
+								composerWorkspaceRoot ||
 								activeThread?.historySession?.workspaceRoot ||
 								activeThread?.historySession?.cwd ||
 								historyWorkspacePaths[0]
@@ -466,6 +475,7 @@ export default function Home() {
 									historySession={activeThread.historySession}
 									initialPromptDraft={activeThread.initialPromptDraft}
 									knownWorkspacePaths={historyWorkspacePaths}
+									onWorkspaceRootChange={setComposerWorkspaceRoot}
 									onInitialPromptDraftConsumed={
 										handleInitialPromptDraftConsumed
 									}
@@ -535,6 +545,7 @@ function ChatThreadPane({
 	parentSession,
 	onOpenVoiceInputSettings,
 	onThreadStarted,
+	onWorkspaceRootChange,
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
@@ -557,6 +568,7 @@ function ChatThreadPane({
 	parentSession?: { sessionId: string; title?: string };
 	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
+	onWorkspaceRootChange?: (workspaceRoot: string) => void;
 }) {
 	const {
 		sessionId,
@@ -676,6 +688,10 @@ function ChatThreadPane({
 			workspaces: mergeWorkspacePaths(workspaces, [lastWorkspace]),
 		});
 	}, [config.cwd, config.workspaceRoot, workspaces]);
+
+	useEffect(() => {
+		onWorkspaceRootChange?.((config.workspaceRoot || config.cwd || "").trim());
+	}, [config.cwd, config.workspaceRoot, onWorkspaceRootChange]);
 
 	const providerCredentialsRequestRef = useRef(0);
 	const loadProviderCredentials = useCallback(async () => {
