@@ -1630,6 +1630,7 @@ function ChatInputBarImpl({
 										align="end"
 										className="w-72 space-y-1 p-2"
 										forceMount
+										inert={!modelSettingsOpen ? true : undefined}
 										onOpenAutoFocus={(event) => {
 											event.preventDefault();
 											requestAnimationFrame(() =>
