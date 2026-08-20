@@ -1,3 +1,4 @@
+import { existsSync } from "fs"
 import fs from "fs/promises"
 import path from "path"
 import { Logger } from "@/shared/services/Logger"
@@ -897,7 +898,7 @@ export class HookFactory {
 
 		// If global hook, use primary workspace root
 		if (containingDir && HookFactory.isGlobalHooksDir(containingDir)) {
-			return primaryCwd
+			return HookFactory.firstExistingDir(primaryCwd)
 		}
 
 		// If workspace hook, find which workspace root it belongs to
@@ -906,12 +907,25 @@ export class HookFactory {
 		if (containingDir && workspaceRoots) {
 			const workspaceRoot = workspaceRoots.find((root) => containingDir.startsWith(root.path))
 			if (workspaceRoot) {
-				return workspaceRoot.path
+				return HookFactory.firstExistingDir(workspaceRoot.path, primaryCwd)
 			}
 		}
 
 		// Fallback to primary cwd
-		return primaryCwd
+		return HookFactory.firstExistingDir(primaryCwd)
+	}
+
+	/**
+	 * Returns the first candidate directory that exists on disk, or undefined.
+	 *
+	 * Workspace roots can be stale (deleted, renamed, or unmounted since the
+	 * state was persisted). Passing such a path as a spawn cwd makes the hook
+	 * fail with a misleading ENOENT on the launcher binary, so drop candidates
+	 * that no longer exist and let the hook run without an explicit cwd if none
+	 * remain.
+	 */
+	private static firstExistingDir(...candidates: Array<string | undefined>): string | undefined {
+		return candidates.find((candidate) => candidate && existsSync(candidate))
 	}
 
 	/**
