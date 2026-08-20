@@ -155,6 +155,18 @@ function createBuiltinToolsList(
 		mode,
 		toolRoutingRules ?? DEFAULT_MODEL_TOOL_ROUTING_RULES,
 	);
+	// Monitor runs shell commands under another name, so a host that turned
+	// run_commands off — by policy or by the global disabled-tools list — must
+	// not get shell execution back through monitor. Policy filtering below
+	// matches exact tool names only, and the executor is not consulted for
+	// monitor, so this is the one place the run_commands decision can carry
+	// over. An explicit `monitor: { enabled: true }` policy still wins, the
+	// same field-wise override the runtime applies at execution time.
+	const runCommandsAllowed =
+		isToolEnabledByPolicies("run_commands", toolPolicies) &&
+		!resolveDisabledToolNames().has("run_commands");
+	const monitorAllowed =
+		runCommandsAllowed || toolPolicies?.monitor?.enabled === true;
 
 	return filterAvailableTools(
 		createBuiltinTools({
@@ -172,7 +184,8 @@ function createBuiltinToolsList(
 			enableMonitor:
 				preset.enableMonitor &&
 				!!monitorRegistry &&
-				toolRoutingConfig.enableMonitor !== false,
+				toolRoutingConfig.enableMonitor !== false &&
+				monitorAllowed,
 			executors: {
 				...(skillsExecutor
 					? {

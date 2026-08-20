@@ -434,6 +434,39 @@ Use the review guidance.`,
 		await runtime.shutdown("test");
 	});
 
+	it("withholds monitor when run_commands is disabled by policy", async () => {
+		// Monitor runs shell commands under another name; turning off
+		// run_commands must not leave shell execution reachable through it.
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				toolPolicies: {
+					run_commands: { enabled: false },
+				},
+			}),
+			monitorNotifier: () => {},
+		});
+
+		const names = runtime.tools.map((tool) => tool.name);
+		expect(names).not.toContain("run_commands");
+		expect(names).not.toContain("monitor");
+		await runtime.shutdown("test");
+	});
+
+	it("lets an explicit monitor policy override the run_commands carryover", async () => {
+		const runtime = await new DefaultRuntimeBuilder().build({
+			config: makeBaseConfig({
+				toolPolicies: {
+					run_commands: { enabled: false },
+					monitor: { enabled: true },
+				},
+			}),
+			monitorNotifier: () => {},
+		});
+
+		expect(runtime.tools.map((tool) => tool.name)).toContain("monitor");
+		await runtime.shutdown("test");
+	});
+
 	it("omits builtin tools when disabled", async () => {
 		const runtime = await new DefaultRuntimeBuilder().build({
 			config: makeBaseConfig({
