@@ -452,13 +452,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const manifestPath = join(sessionDir, `${sessionId}.json`);
 		const workspacePath = resolveWorkspacePath(input.config);
 
+		// An interactive session started without a prompt has no turn in
+		// flight — the host dispatches prompts through separate send calls.
+		// Reporting it as "running" wedged clients that gate workspace
+		// operations on active turns (a created-but-never-prompted session
+		// stayed "running" forever). One-shot starts still run their prompt
+		// inside start(), so they begin "running".
+		const startsWithoutTurn =
+			input.interactive === true && !startInput.prompt?.trim();
 		let manifest = SessionManifestSchema.parse({
 			version: 1,
 			session_id: sessionId,
 			source,
 			pid: process.pid,
 			started_at: startedAt,
-			status: "running",
+			status: startsWithoutTurn ? "idle" : "running",
 			interactive: input.interactive === true,
 			provider: startInput.config.providerId,
 			model: startInput.config.modelId,
@@ -863,7 +871,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			runtime,
 			agent,
 			started: false,
-			status: resumedArtifacts?.manifest.status ?? "running",
+			status:
+				resumedArtifacts?.manifest.status ??
+				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
@@ -934,7 +944,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				});
 			}
 		}
-		this.emitStatus(sessionId, "running");
+		this.emitStatus(sessionId, active.status);
 
 		let result: AgentResult | undefined;
 		try {
@@ -2336,7 +2346,17 @@ export class LocalRuntimeHost implements RuntimeHost {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) return;
+		if (!session.artifacts) {
+			// Lazily-persisted sessions have nothing on disk to update yet,
+			// but their in-memory status must still track turn transitions
+			// (idle-started interactive sessions reach their first
+			// markTurnRunning before any persistence exists) and observers
+			// still need the status event.
+			session.status = status;
+			session.updatedAt = nowIso();
+			this.emitStatus(session.sessionId, status);
+			return;
+		}
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
