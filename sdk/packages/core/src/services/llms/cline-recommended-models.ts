@@ -317,6 +317,7 @@ let feedCache: {
 	expiresAt: number;
 } | null = null;
 let feedInFlight: Promise<ClineRecommendedModelsData> | null = null;
+let feedGeneration = 0;
 
 /**
  * `fetchClineRecommendedModels` with a shared in-memory cache, for callers on
@@ -335,13 +336,21 @@ export async function getCachedClineRecommendedModels(
 	if (feedInFlight) {
 		return feedInFlight;
 	}
+	// A cache reset must orphan requests already in flight: without the
+	// generation check their completion would repopulate the cache the reset
+	// just cleared (test pollution; stale data after an intentional reset).
+	const generation = feedGeneration;
 	const request = fetchClineRecommendedModels(options)
 		.then((data) => {
-			feedCache = { data, expiresAt: Date.now() + FEED_CACHE_TTL_MS };
+			if (generation === feedGeneration) {
+				feedCache = { data, expiresAt: Date.now() + FEED_CACHE_TTL_MS };
+			}
 			return data;
 		})
 		.finally(() => {
-			feedInFlight = null;
+			if (generation === feedGeneration) {
+				feedInFlight = null;
+			}
 		});
 	feedInFlight = request;
 	return request;
@@ -363,6 +372,7 @@ export function peekClineRecommendedModels(): ClineRecommendedModelsData {
 }
 
 export function resetClineRecommendedModelsCacheForTests(): void {
+	feedGeneration += 1;
 	feedCache = null;
 	feedInFlight = null;
 }
@@ -386,13 +396,21 @@ const FEATURED_TIER_BUCKETS: Record<
 	],
 };
 
+function idSlug(modelId: string): string {
+	return modelId.split("/").at(-1) ?? modelId;
+}
+
 /**
  * Stamps recommended-feed tiers onto a provider's model list so clients can
  * render Recommended/Free/Subscribed sections straight off `ProviderModel`
  * instead of fetching and joining the feed themselves. Feed ids are matched
  * through the Vercel/OpenRouter alias rules (the feed can spell a model
- * differently from the catalog). Models the feed does not mention are
- * returned unchanged; unknown providers pass through untouched.
+ * differently from the catalog), with a fallback on the id's slug after "/"
+ * when that slug is unambiguous — the feed and the catalog can carry
+ * different vendor prefixes for the same model (`kwaipilot/kat-coder-pro`
+ * vs `cline-free/kat-coder-pro`), most visibly when the bundled fallback
+ * feed is stamped against a live-fetched catalog. Models the feed does not
+ * mention are returned unchanged; unknown providers pass through untouched.
  */
 export function applyClineFeaturedModels(
 	providerId: string,
@@ -403,28 +421,67 @@ export function applyClineFeaturedModels(
 	if (!buckets) {
 		return models;
 	}
-	const featuredById = new Map<
-		string,
-		{
-			entry: ClineRecommendedModel;
-			tier: ProviderModelFeaturedTier;
-			rank: number;
-		}
-	>();
+	type FeaturedMatch = {
+		entry: ClineRecommendedModel;
+		tier: ProviderModelFeaturedTier;
+		rank: number;
+	};
+	const featuredById = new Map<string, FeaturedMatch>();
+	// Slug keys are advisory: a slug shared by two different feed entries is
+	// ambiguous and must not stamp anything.
+	const featuredBySlug = new Map<string, FeaturedMatch | null>();
 	for (const bucket of buckets) {
 		bucket.select(data).forEach((entry, rank) => {
+			const match: FeaturedMatch = { entry, tier: bucket.tier, rank };
 			for (const lookupId of catalogLookupIds(entry.id)) {
 				if (!featuredById.has(lookupId)) {
-					featuredById.set(lookupId, { entry, tier: bucket.tier, rank });
+					featuredById.set(lookupId, match);
 				}
+			}
+			const slug = idSlug(entry.id);
+			const existing = featuredBySlug.get(slug);
+			if (existing === undefined) {
+				featuredBySlug.set(slug, match);
+			} else if (existing !== null && existing.entry.id !== entry.id) {
+				featuredBySlug.set(slug, null);
 			}
 		});
 	}
 	if (featuredById.size === 0) {
 		return models;
 	}
+	// Two passes so the slug fallback cannot duplicate a tier: a feed entry
+	// that matched a catalog model exactly (or via alias) is consumed, and a
+	// remaining entry stamps at most one slug-matched model — otherwise a
+	// catalog carrying both spellings (`kwaipilot/x` from OpenRouter plus
+	// `cline-free/x` from the free overlay) would render the model twice
+	// inside its tier.
+	const matchedEntryIds = new Set<string>();
+	for (const model of models) {
+		const exact = featuredById.get(model.id);
+		if (exact) {
+			matchedEntryIds.add(exact.entry.id);
+		}
+	}
+	const slugConsumed = new Set<string>();
+	const resolveMatch = (model: ProviderModel): FeaturedMatch | undefined => {
+		const exact = featuredById.get(model.id);
+		if (exact) {
+			return exact;
+		}
+		const bySlug = featuredBySlug.get(idSlug(model.id));
+		if (
+			!bySlug ||
+			matchedEntryIds.has(bySlug.entry.id) ||
+			slugConsumed.has(bySlug.entry.id)
+		) {
+			return undefined;
+		}
+		slugConsumed.add(bySlug.entry.id);
+		return bySlug;
+	};
 	return models.map((model) => {
-		const match = featuredById.get(model.id);
+		const match = resolveMatch(model);
 		if (!match) {
 			return model;
 		}

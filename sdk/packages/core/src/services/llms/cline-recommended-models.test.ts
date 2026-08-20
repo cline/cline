@@ -281,6 +281,58 @@ describe("applyClineFeaturedModels", () => {
 		);
 	});
 
+	it("matches vendor-prefix mismatches by unambiguous slug without duplicating tiers", () => {
+		const fallbackVintage: ClineRecommendedModelsData = {
+			recommended: [],
+			free: [
+				{
+					id: "kwaipilot/kat-coder-pro",
+					name: "KwaiKAT Kat Coder Pro",
+					description: "Advanced agentic coding model",
+					tags: ["FREE"],
+				},
+			],
+			clinePass: [],
+		};
+
+		// Catalog knows the model only under the cline-free prefix: the slug
+		// fallback stamps it even though no alias rule covers the prefix.
+		const slugOnly = applyClineFeaturedModels(
+			"cline",
+			[{ id: "cline-free/kat-coder-pro", name: "Kat Coder Pro" }],
+			fallbackVintage,
+		);
+		expect(slugOnly[0]?.featured?.tier).toBe("free");
+
+		// Catalog carries BOTH spellings: the exact id wins and the slug match
+		// must not stamp the second row, or the tier would render twice.
+		const bothSpellings = applyClineFeaturedModels(
+			"cline",
+			[
+				{ id: "kwaipilot/kat-coder-pro", name: "Kat Coder Pro" },
+				{ id: "cline-free/kat-coder-pro", name: "Kat Coder Pro (free)" },
+			],
+			fallbackVintage,
+		);
+		expect(bothSpellings[0]?.featured?.tier).toBe("free");
+		expect(bothSpellings[1]?.featured).toBeUndefined();
+
+		// An ambiguous slug (two different feed entries) stamps nothing.
+		const ambiguous = applyClineFeaturedModels(
+			"cline",
+			[{ id: "cline-free/shared-slug", name: "Shared" }],
+			{
+				recommended: [
+					{ id: "vendor-a/shared-slug", name: "A", description: "", tags: [] },
+					{ id: "vendor-b/shared-slug", name: "B", description: "", tags: [] },
+				],
+				free: [],
+				clinePass: [],
+			},
+		);
+		expect(ambiguous[0]?.featured).toBeUndefined();
+	});
+
 	it("keeps the model's own description when the feed entry has none", () => {
 		const models = applyClineFeaturedModels(
 			"cline",
@@ -346,6 +398,48 @@ describe("getCachedClineRecommendedModels", () => {
 		expect(calls).toBe(1);
 		expect(first).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
 		expect(second).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
+		resetClineRecommendedModelsCacheForTests();
+	});
+
+	it("does not let an in-flight request repopulate the cache after a reset", async () => {
+		resetClineRecommendedModelsCacheForTests();
+		let release: (() => void) | undefined;
+		const gate = new Promise<void>((resolve) => {
+			release = resolve;
+		});
+		const staleFetch: typeof fetch = async () => {
+			await gate;
+			return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		};
+		const stale = getCachedClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: staleFetch,
+			catalogLoader: async () => CATALOG,
+		});
+
+		// Reset while the first request is still in flight, then resolve it:
+		// its result must not land in the cleared cache.
+		resetClineRecommendedModelsCacheForTests();
+		release?.();
+		await stale;
+
+		let calls = 0;
+		const freshFetch: typeof fetch = async () => {
+			calls += 1;
+			return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+				status: 200,
+				headers: { "Content-Type": "application/json" },
+			});
+		};
+		await getCachedClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: freshFetch,
+			catalogLoader: async () => CATALOG,
+		});
+		expect(calls).toBe(1);
 		resetClineRecommendedModelsCacheForTests();
 	});
 });
