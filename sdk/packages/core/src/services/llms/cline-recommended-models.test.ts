@@ -5,6 +5,7 @@ import {
 	FALLBACK_CLINE_RECOMMENDED_MODELS,
 	fetchClineRecommendedModels,
 	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./cline-recommended-models";
 import type { ModelInfo } from "./provider-settings";
@@ -345,6 +346,39 @@ describe("getCachedClineRecommendedModels", () => {
 		expect(calls).toBe(1);
 		expect(first).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
 		expect(second).toEqual(FALLBACK_CLINE_RECOMMENDED_MODELS);
+		resetClineRecommendedModelsCacheForTests();
+	});
+});
+
+describe("peekClineRecommendedModels", () => {
+	it("returns the bundled fallback when the cache is cold", () => {
+		resetClineRecommendedModelsCacheForTests();
+		expect(peekClineRecommendedModels()).toEqual(
+			FALLBACK_CLINE_RECOMMENDED_MODELS,
+		);
+	});
+
+	it("returns the cached live feed once warmed, without another fetch", async () => {
+		resetClineRecommendedModelsCacheForTests();
+		let calls = 0;
+		await getCachedClineRecommendedModels({
+			baseUrl: BASE_URL,
+			fetchImpl: async () => {
+				calls += 1;
+				return new Response(JSON.stringify(ENDPOINT_PAYLOAD), {
+					status: 200,
+					headers: { "Content-Type": "application/json" },
+				});
+			},
+			catalogLoader: async () => CATALOG,
+		});
+
+		const peeked = peekClineRecommendedModels();
+
+		expect(calls).toBe(1);
+		expect(peeked.recommended.map((m) => m.id)).toEqual(
+			ENDPOINT_PAYLOAD.recommended.map((m) => m.id),
+		);
 		resetClineRecommendedModelsCacheForTests();
 	});
 });
