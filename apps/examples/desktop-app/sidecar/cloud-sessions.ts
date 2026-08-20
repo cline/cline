@@ -17,6 +17,7 @@ import {
 	getClineEnvironmentConfig,
 	type HubEventEnvelope,
 	type MessageWithMetadata,
+	normalizeUserInput,
 } from "@cline/shared";
 import {
 	CLOUD_PROVISIONING_SESSION_ID_PREFIX,
@@ -1107,9 +1108,24 @@ function messageText(message: unknown): string {
 
 /** Normalizes pod-wrapped prompts and raw local/queue prompts. */
 function normalizeUserPrompt(text: string): string {
-	const trimmed = text.trim();
-	const match = trimmed.match(/^<user_input\b[^>]*>([\s\S]*)<\/user_input>$/);
-	return (match ? match[1] : trimmed).trim();
+	return normalizeUserInput(text).trim();
+}
+
+function userPromptOccurrenceCounts(messages: unknown[]): Map<string, number> {
+	const counts = new Map<string, number>();
+	for (const message of messages) {
+		if (
+			!message ||
+			typeof message !== "object" ||
+			Array.isArray(message) ||
+			String((message as JsonRecord).role ?? "").toLowerCase() !== "user"
+		) {
+			continue;
+		}
+		const prompt = normalizeUserPrompt(messageText(message));
+		counts.set(prompt, (counts.get(prompt) ?? 0) + 1);
+	}
+	return counts;
 }
 
 function countPromptOccurrences(
@@ -1119,14 +1135,7 @@ function countPromptOccurrences(
 ): number {
 	const expected = normalizeUserPrompt(prompt);
 	return (
-		messages.filter(
-			(message) =>
-				Boolean(message) &&
-				typeof message === "object" &&
-				!Array.isArray(message) &&
-				String((message as JsonRecord).role ?? "").toLowerCase() === "user" &&
-				normalizeUserPrompt(messageText(message)) === expected,
-		).length +
+		(userPromptOccurrenceCounts(messages).get(expected) ?? 0) +
 		prompts.filter((item) => normalizeUserPrompt(item.prompt) === expected)
 			.length
 	);
@@ -1134,7 +1143,7 @@ function countPromptOccurrences(
 
 function queuedPromptMessage(
 	input: NonNullable<LiveSession["lastQueuedPromptStart"]>,
-): MessageWithMetadata {
+): MessageWithMetadata & { createdAt: number } {
 	const content: MessageWithMetadata["content"] = [];
 	if (input.prompt) {
 		content.push({ type: "text", text: input.prompt });
@@ -1149,6 +1158,7 @@ function queuedPromptMessage(
 		id: `queued_user_${input.promptId}`,
 		role: "user",
 		content,
+		createdAt: input.submittedAt,
 	};
 }
 
@@ -1193,6 +1203,20 @@ function newlyPersistedAssistantTexts(
 		else baselineCounts.set(text, count - 1);
 		return false;
 	});
+}
+
+function newlyPersistedUserPromptCounts(
+	snapshotMessages: unknown[],
+	baselineMessages: unknown[],
+): Map<string, number> {
+	const snapshotCounts = userPromptOccurrenceCounts(snapshotMessages);
+	const baselineCounts = userPromptOccurrenceCounts(baselineMessages);
+	for (const [prompt, baselineCount] of baselineCounts) {
+		const remaining = (snapshotCounts.get(prompt) ?? 0) - baselineCount;
+		if (remaining > 0) snapshotCounts.set(prompt, remaining);
+		else snapshotCounts.delete(prompt);
+	}
+	return snapshotCounts;
 }
 
 function collectToolCallIds(
@@ -1259,6 +1283,10 @@ export function reconcileBufferedCloudEvents(
 		snapshotMessages,
 		options.baselineMessages ?? [],
 	);
+	const unclaimedUserPrompts = newlyPersistedUserPromptCounts(
+		snapshotMessages,
+		options.baselineMessages ?? [],
+	);
 	const snapshotToolCallIds = collectToolCallIds(snapshotMessages);
 	// Queue events are full snapshots, so only the newest one matters.
 	const lastQueueEvent = queueSnapshotApplied
@@ -1276,6 +1304,19 @@ export function reconcileBufferedCloudEvents(
 		const contentPersisted = persistedIndex >= 0;
 		if (contentPersisted) unclaimedAssistantTexts.splice(persistedIndex, 1);
 		for (const event of segment) {
+			if (event.event === "session.pending_prompt_submitted") {
+				const item = event.payload?.prompt;
+				const prompt =
+					item && typeof item === "object" && !Array.isArray(item)
+						? normalizeUserPrompt(String((item as JsonRecord).prompt ?? ""))
+						: "";
+				const persistedCount = unclaimedUserPrompts.get(prompt) ?? 0;
+				if (persistedCount > 0) {
+					if (persistedCount === 1) unclaimedUserPrompts.delete(prompt);
+					else unclaimedUserPrompts.set(prompt, persistedCount - 1);
+					continue;
+				}
+			}
 			if (contentPersisted && SUPERSEDABLE_CONTENT_EVENTS.has(event.event)) {
 				continue;
 			}
@@ -2208,18 +2249,24 @@ export class CloudSessionManager {
 			connection.transcriptKnown = true;
 
 			const queuedPromptStart = live?.lastQueuedPromptStart;
-			const historyCaughtUp =
-				queuedPromptStart !== undefined &&
-				countPromptOccurrences(messages, [], queuedPromptStart.prompt) >=
-					queuedPromptStart.occurrence;
-			if (live && historyCaughtUp) {
-				live.lastQueuedPromptStart = undefined;
-				live.queuedPromptOccurrenceByText?.delete(
-					normalizeUserPrompt(queuedPromptStart.prompt),
-				);
-				if (live.queuedPromptOccurrenceByText?.size === 0) {
+			const persistedPromptCounts = userPromptOccurrenceCounts(messages);
+			if (live?.queuedPromptOccurrenceByText) {
+				for (const [prompt, occurrence] of live.queuedPromptOccurrenceByText) {
+					if ((persistedPromptCounts.get(prompt) ?? 0) >= occurrence) {
+						live.queuedPromptOccurrenceByText.delete(prompt);
+					}
+				}
+				if (live.queuedPromptOccurrenceByText.size === 0) {
 					live.queuedPromptOccurrenceByText = undefined;
 				}
+			}
+			const historyCaughtUp =
+				queuedPromptStart !== undefined &&
+				(persistedPromptCounts.get(
+					normalizeUserPrompt(queuedPromptStart.prompt),
+				) ?? 0) >= queuedPromptStart.occurrence;
+			if (live && historyCaughtUp) {
+				live.lastQueuedPromptStart = undefined;
 			}
 			const displayMessages =
 				queuedPromptStart && !historyCaughtUp

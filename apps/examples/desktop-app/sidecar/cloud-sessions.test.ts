@@ -18,7 +18,7 @@ import {
 	resetCloudSessionManager,
 } from "./cloud-sessions";
 import { handleCommand } from "./commands";
-import { disposeSidecarContext } from "./context";
+import { disposeSidecarContext, emitQueuedPromptStart } from "./context";
 import { discoverChatSessions } from "./session-data/discovery";
 import type { SidecarContext } from "./types";
 
@@ -1630,6 +1630,32 @@ describe("reconcileBufferedCloudEvents", () => {
 		).toEqual(["run.completed"]);
 	});
 
+	it("drops only submitted prompts newly persisted during rehydration", () => {
+		const submitted = event("session.pending_prompt_submitted", "q-2", {
+			prompt: { id: "prompt-2", prompt: "repeat", attachmentCount: 0 },
+		});
+		const baseline = [{ role: "user", content: "repeat" }];
+
+		expect(
+			reconcileBufferedCloudEvents([submitted], baseline, {
+				baselineMessages: baseline,
+			}),
+		).toEqual([submitted]);
+		expect(
+			reconcileBufferedCloudEvents(
+				[submitted],
+				[
+					...baseline,
+					{
+						role: "user",
+						content: '<user_input mode="act">repeat</user_input>',
+					},
+				],
+				{ baselineMessages: baseline },
+			),
+		).toEqual([]);
+	});
+
 	it("keeps run.failed while suppressing reflected content and dedupes tools by id", () => {
 		const buffered = [
 			event("assistant.delta", "a-1", { text: "partial failure" }),
@@ -1650,6 +1676,30 @@ describe("reconcileBufferedCloudEvents", () => {
 });
 
 describe("CloudSessionManager", () => {
+	it("does not retain cloud replay state for local queue submissions", () => {
+		const { ctx } = createContext();
+		const session = {
+			busy: true,
+			messages: [],
+			promptsInQueue: [],
+			status: "running",
+			config: { executionTarget: "local" },
+			startedAt: Date.now(),
+		};
+		ctx.liveSessions.set("ses-local", session);
+
+		emitQueuedPromptStart(ctx, "ses-local", session, {
+			promptId: "q-local",
+			prompt: "local prompt",
+			attachmentCount: 0,
+			userImages: ["data:image/png;base64,AQID"],
+		});
+
+		expect(session).toMatchObject({ lastQueuedPromptStartId: "q-local" });
+		expect(session).not.toHaveProperty("lastQueuedPromptStart");
+		expect(session).not.toHaveProperty("queuedPromptOccurrenceByText");
+	});
+
 	it("projects the outer remote-session id as the desktop session id", () => {
 		expect(
 			cloudSessionToDiscoveryRecord({
@@ -1951,9 +2001,11 @@ describe("CloudSessionManager", () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
 		const prompt = "what cloud machine spec do you use";
+		const submittedAt = Date.now();
 		const seededMessage = {
 			role: "user" as const,
 			content: `<user_input mode="act">${prompt}</user_input>`,
+			createdAt: submittedAt - 1_000,
 		};
 		hub.messages = [seededMessage];
 		const manager = new CloudSessionManager(ctx, {
@@ -1970,7 +2022,7 @@ describe("CloudSessionManager", () => {
 			version: "v1",
 			event: "session.pending_prompt_submitted",
 			eventId: "evt-submitted",
-			timestamp: Date.now(),
+			timestamp: submittedAt,
 			sessionId: "inner-1",
 			payload: {
 				prompt: {
@@ -1999,6 +2051,7 @@ describe("CloudSessionManager", () => {
 					id: "queued_user_q-handoff_text_0",
 					role: "user",
 					content: prompt,
+					createdAt: submittedAt,
 					images: [
 						{
 							id: "queued_user_q-handoff_image_1",
@@ -2047,6 +2100,61 @@ describe("CloudSessionManager", () => {
 		).toBeUndefined();
 	});
 
+	it("matches submitted user commands to canonical cloud history", async () => {
+		const { ctx, events } = createContext();
+		const hub = new FakeHubClient();
+		const seededMessage = { role: "user" as const, content: "seed" };
+		hub.messages = [seededMessage];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		await manager.verifyHandoffTranscript("ses-outer", [seededMessage]);
+
+		hub.events?.({
+			version: "v1",
+			event: "session.pending_prompt_submitted",
+			eventId: "evt-command",
+			timestamp: Date.now(),
+			sessionId: "inner-1",
+			payload: {
+				prompt: {
+					id: "q-command",
+					prompt: '<user_command slash="team">spawn the worker</user_command>',
+					attachmentCount: 0,
+				},
+			},
+		});
+		hub.messages.push({
+			role: "user",
+			content: '<user_input mode="act">spawn the worker</user_input>',
+		});
+		events.length = 0;
+
+		await manager.readMessages("ses-outer");
+
+		const live = ctx.liveSessions.get("ses-outer");
+		expect(live?.lastQueuedPromptStart).toBeUndefined();
+		expect(live?.queuedPromptOccurrenceByText).toBeUndefined();
+		const snapshot = events.find(
+			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
+		expect(
+			snapshot.filter((message) =>
+				String(message.content ?? "").includes("spawn the worker"),
+			),
+		).toHaveLength(1);
+		expect(
+			snapshot.some((message) =>
+				String(message.id ?? "").startsWith("queued_user_q-command"),
+			),
+		).toBe(false);
+	});
+
 	it("numbers repeated submitted prompts across intervening text", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
@@ -2082,6 +2190,19 @@ describe("CloudSessionManager", () => {
 			promptId: "q-repeat-2",
 			occurrence: 2,
 		});
+
+		hub.messages = [
+			{ role: "user", content: "repeat" },
+			{ role: "user", content: "different" },
+			{ role: "user", content: "repeat" },
+		];
+		await manager.readMessages("ses-outer");
+		expect(
+			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
+		).toBeUndefined();
+		expect(
+			ctx.liveSessions.get("ses-outer")?.queuedPromptOccurrenceByText,
+		).toBeUndefined();
 	});
 
 	it("rejects malformed queue command replies instead of clearing the queue", async () => {
