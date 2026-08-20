@@ -412,10 +412,6 @@ function handleAgentEvent(
 // CoreSessionEvent routing
 // ---------------------------------------------------------------------------
 
-// The runtime's queue drain emits a pending_prompts snapshot (head removed)
-// and a pending_prompt_submitted event for the same prompt back-to-back, and
-// both are translated here into chat_queued_prompt_start — dedupe by prompt
-// id or the UI renders the user message twice.
 function queuedPromptText(message: LiveSession["messages"][number]): string {
 	const content = message.content;
 	if (typeof content === "string") return content.trim();
@@ -443,6 +439,10 @@ function countQueuedPromptOccurrences(
 	).length;
 }
 
+// The runtime's queue drain emits a pending_prompts snapshot (head removed)
+// and a pending_prompt_submitted event for the same prompt back-to-back, and
+// both are translated here into chat_queued_prompt_start — dedupe by prompt
+// id or the UI renders the user message twice.
 export function emitQueuedPromptStart(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -459,10 +459,20 @@ export function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
+		const previous = session.lastQueuedPromptStart;
+		const previousOccurrence =
+			previous &&
+			normalizeQueuedPromptText(previous.prompt) ===
+				normalizeQueuedPromptText(input.prompt)
+				? previous.occurrence
+				: 0;
 		session.lastQueuedPromptStart = {
 			...input,
-			occurrence:
+			occurrence: Math.max(
 				countQueuedPromptOccurrences(session.messages, input.prompt) + 1,
+				previousOccurrence + 1,
+			),
+			replayedAfterHydration: false,
 		};
 	}
 	emitChunk(

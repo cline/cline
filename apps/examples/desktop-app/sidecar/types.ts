@@ -85,6 +85,7 @@ export type LiveSession = {
 		attachmentCount: number;
 		userImages?: string[];
 		occurrence: number;
+		replayedAfterHydration: boolean;
 	};
 	/** Materialized attachment files whose prompt was submitted; deleted when the turn ends. */
 	consumedAttachmentFiles?: Map<string, string[]>;

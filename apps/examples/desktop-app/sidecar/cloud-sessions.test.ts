@@ -1950,6 +1950,12 @@ describe("CloudSessionManager", () => {
 	it("replays a submitted queue prompt when cloud history has not caught up", async () => {
 		const { ctx, events } = createContext();
 		const hub = new FakeHubClient();
+		const prompt = "what cloud machine spec do you use";
+		const seededMessage = {
+			role: "user" as const,
+			content: `<user_input mode="act">${prompt}</user_input>`,
+		};
+		hub.messages = [seededMessage];
 		const manager = new CloudSessionManager(ctx, {
 			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
@@ -1958,6 +1964,7 @@ describe("CloudSessionManager", () => {
 		});
 		await manager.list();
 		await manager.attach("ses-outer");
+		await manager.verifyHandoffTranscript("ses-outer", [seededMessage]);
 
 		hub.events?.({
 			version: "v1",
@@ -1968,10 +1975,18 @@ describe("CloudSessionManager", () => {
 			payload: {
 				prompt: {
 					id: "q-handoff",
-					prompt: "what cloud machine spec do you use",
+					prompt,
 					attachmentCount: 0,
+					userImages: ["data:image/png;base64,AQID"],
 				},
 			},
+		});
+		expect(
+			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
+		).toMatchObject({
+			promptId: "q-handoff",
+			occurrence: 2,
+			replayedAfterHydration: false,
 		});
 		events.length = 0;
 
@@ -1993,15 +2008,13 @@ describe("CloudSessionManager", () => {
 					event.name === "chat_event" &&
 					event.payload.stream === "chat_queued_prompt_start",
 			)?.payload.chunk,
-		).toContain("what cloud machine spec do you use");
+		).toContain(prompt);
+		expect(
+			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
+		).toMatchObject({ replayedAfterHydration: true });
 
-		// Once the authoritative transcript contains the prompt, hydration must
-		// not replay it and create a duplicate user bubble.
-		hub.messages.push({
-			role: "user",
-			content:
-				'<user_input mode="act">what cloud machine spec do you use</user_input>',
-		});
+		// A second hydration of the same stale snapshot must not reset the active
+		// assistant turn again.
 		events.length = 0;
 		await manager.readMessages("ses-outer");
 		expect(
@@ -2011,6 +2024,55 @@ describe("CloudSessionManager", () => {
 					event.payload.stream === "chat_queued_prompt_start",
 			),
 		).toBe(false);
+
+		// Once the authoritative transcript contains the prompt, hydration must
+		// not replay it and must release the retained payload.
+		hub.messages.push(seededMessage);
+		events.length = 0;
+		await manager.readMessages("ses-outer");
+		expect(
+			events.some(
+				(event) =>
+					event.name === "chat_event" &&
+					event.payload.stream === "chat_queued_prompt_start",
+			),
+		).toBe(false);
+		expect(
+			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
+		).toBeUndefined();
+	});
+
+	it("numbers consecutive identical submitted prompts separately", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+
+		for (const id of ["q-repeat-1", "q-repeat-2"]) {
+			hub.events?.({
+				version: "v1",
+				event: "session.pending_prompt_submitted",
+				eventId: `evt-${id}`,
+				timestamp: Date.now(),
+				sessionId: "inner-1",
+				payload: {
+					prompt: { id, prompt: "repeat", attachmentCount: 0 },
+				},
+			});
+		}
+
+		expect(
+			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
+		).toMatchObject({
+			promptId: "q-repeat-2",
+			occurrence: 2,
+		});
 	});
 
 	it("rejects malformed queue command replies instead of clearing the queue", async () => {

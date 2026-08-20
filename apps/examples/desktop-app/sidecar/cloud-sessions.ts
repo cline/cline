@@ -1654,6 +1654,10 @@ export class CloudSessionManager {
 				actual.length,
 			);
 		}
+		const live = this.ctx.liveSessions.get(outerSessionId);
+		if (live) {
+			live.messages = actual as MessageWithMetadata[];
+		}
 		connection.transcriptKnown = true;
 	}
 
@@ -2198,20 +2202,24 @@ export class CloudSessionManager {
 				),
 			});
 			const queuedPromptStart = live?.lastQueuedPromptStart;
-			if (
-				queuedPromptStart &&
-				countPromptOccurrences(messages, [], queuedPromptStart.prompt) <
-					queuedPromptStart.occurrence
-			) {
-				// The queue-start event can beat handoff navigation while the pod's
-				// transcript snapshot is still stale. Replay the missed turn boundary
-				// after hydration so live assistant deltas cannot join the prior reply.
-				emitQueuedPromptStart(
-					this.ctx,
-					outerSessionId,
-					undefined,
-					queuedPromptStart,
-				);
+			if (live && queuedPromptStart) {
+				const historyCaughtUp =
+					countPromptOccurrences(messages, [], queuedPromptStart.prompt) >=
+					queuedPromptStart.occurrence;
+				if (historyCaughtUp) {
+					live.lastQueuedPromptStart = undefined;
+				} else if (!queuedPromptStart.replayedAfterHydration) {
+					// The queue-start event can beat handoff navigation while the pod's
+					// transcript snapshot is still stale. Replay the missed turn boundary
+					// once after hydration so live assistant deltas cannot join the prior reply.
+					queuedPromptStart.replayedAfterHydration = true;
+					emitQueuedPromptStart(
+						this.ctx,
+						outerSessionId,
+						undefined,
+						queuedPromptStart,
+					);
+				}
 			}
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
