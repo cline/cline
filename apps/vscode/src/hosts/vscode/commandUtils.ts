@@ -101,16 +101,19 @@ export async function getContextForCommand(
 	}
 	// Use provided range if available, otherwise use current selection
 	// (vscode command passes an argument in the first param by default, so we need to ensure it's a Range object)
+	const intentRange = range instanceof vscode.Range ? range : editor.selection
 	const textRange = range instanceof vscode.Range ? range : getSelectionOrExpandedCursorRange(editor)
 	const selectedText = editor.document.getText(textRange)
 
 	const filePath = editor.document.uri.fsPath
 	const language = editor.document.languageId
 	// When diagnostics aren't passed explicitly (e.g. code actions, which must not carry
-	// command arguments), gather the document's diagnostics that intersect the range.
+	// command arguments), gather the document's diagnostics at the selection/cursor. This
+	// matches CodeActionContext.diagnostics, which only covers the range the code action
+	// was requested for, not the surrounding lines the text is expanded to.
 	const effectiveDiagnostics =
 		vscodeDiagnostics ??
-		vscode.languages.getDiagnostics(editor.document.uri).filter((d) => d.range.intersection(textRange) !== undefined)
+		vscode.languages.getDiagnostics(editor.document.uri).filter((d) => d.range.intersection(intentRange) !== undefined)
 	const diagnostics = convertVscodeDiagnostics(effectiveDiagnostics)
 	const commandContext: CommandContext = {
 		selectedText,
