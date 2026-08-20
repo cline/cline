@@ -250,13 +250,29 @@ let extensionHookStatsCache: {
 	fetchedAt: number;
 } | null = null;
 
+const extensionInventoryInvalidationListeners = new Set<() => void>();
+
 /**
- * Drops the module-level inventory cache so the next mounted customization
- * view refetches. Used by the Plugins hub after directory installs/uninstalls
- * that happen outside these views.
+ * Drops the module-level inventory cache and notifies mounted inventory views
+ * so they refetch immediately. Used by the Marketplace page after
+ * installs/uninstalls that happen outside these views — including ones that
+ * complete after the user has already navigated back to the Plugins hub.
  */
 export function invalidateExtensionInventoryCache() {
 	extensionListsCache = null;
+	for (const listener of extensionInventoryInvalidationListeners) {
+		listener();
+	}
+}
+
+/** Subscribe to inventory invalidations; returns an unsubscribe function. */
+export function subscribeToExtensionInventoryInvalidation(
+	listener: () => void,
+): () => void {
+	extensionInventoryInvalidationListeners.add(listener);
+	return () => {
+		extensionInventoryInvalidationListeners.delete(listener);
+	};
 }
 
 function hasFreshExtensionsListsCache(
@@ -709,6 +725,17 @@ export function CustomizationSectionView({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refresh]);
+
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refresh(true);
+			}),
+		[refresh],
+	);
 
 	useEffect(() => {
 		if (activeTab !== "Hooks") {

@@ -55,6 +55,7 @@ import {
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -285,6 +286,17 @@ export function McpServersContent({
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshServers]);
+
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refreshServers();
+			}),
+		[refreshServers],
+	);
 
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
 		setBusyServerName(server.name);
