@@ -447,19 +447,31 @@ export function ProviderDetailContent({
 	const providerKeyUrl = getProviderApiKeyUrl(provider);
 	// The catalog's modelList is fetched without the recommended-feed overlay
 	// (the catalog must not block on the feed); featured providers refresh
-	// their list here so tier badges and live entries can render.
-	const [featuredModelList, setFeaturedModelList] = useState<
-		ProviderModel[] | null
-	>(null);
+	// their list here so tier badges and live entries can render. The result
+	// is scoped to the provider AND the modelList revision it was fetched
+	// for: an unscoped copy kept shadowing the next provider's models after
+	// a switch (even when its own request failed) and masked membership
+	// updates — adding a model would then submit the stale list as the
+	// complete configuration and drop earlier additions.
+	const [featuredModelList, setFeaturedModelList] = useState<{
+		providerId: string;
+		baseModelList: Provider["modelList"];
+		models: ProviderModel[];
+	} | null>(null);
 	useEffect(() => {
 		if (!FEATURED_PROVIDER_IDS.has(provider.id)) {
-			setFeaturedModelList(null);
 			return;
 		}
 		let cancelled = false;
 		loadProviderModels(provider.id)
 			.then((models) => {
-				if (!cancelled && models.length > 0) setFeaturedModelList(models);
+				if (!cancelled && models.length > 0) {
+					setFeaturedModelList({
+						providerId: provider.id,
+						baseModelList: provider.modelList,
+						models,
+					});
+				}
 			})
 			.catch(() => {
 				// Keep the catalog snapshot when the refresh fails.
@@ -467,8 +479,13 @@ export function ProviderDetailContent({
 		return () => {
 			cancelled = true;
 		};
-	}, [provider.id]);
-	const modelList = featuredModelList ?? provider.modelList ?? [];
+	}, [provider.id, provider.modelList]);
+	const modelList =
+		featuredModelList &&
+		featuredModelList.providerId === provider.id &&
+		featuredModelList.baseModelList === provider.modelList
+			? featuredModelList.models
+			: (provider.modelList ?? []);
 	const modelSearch =
 		modelSearchState?.providerId === provider.id ? modelSearchState.value : "";
 	const copiedModelId =
@@ -542,10 +559,20 @@ export function ProviderDetailContent({
 
 	const addModel = () => {
 		const modelId = newModelId.trim();
-		if (!modelId || modelList.some((model) => model.id === modelId)) {
+		// Submit the union of the displayed and configured lists: the update
+		// replaces the provider's complete model configuration, so basing it
+		// on the displayed list alone could silently drop configured entries
+		// whenever the two diverge.
+		const baseIds = [
+			...new Set([
+				...modelList.map((model) => model.id),
+				...(provider.modelList ?? []).map((model) => model.id),
+			]),
+		];
+		if (!modelId || baseIds.includes(modelId)) {
 			return;
 		}
-		onUpdateModels?.([...modelList.map((model) => model.id), modelId]);
+		onUpdateModels?.([...baseIds, modelId]);
 		setAddModelState(null);
 	};
 
