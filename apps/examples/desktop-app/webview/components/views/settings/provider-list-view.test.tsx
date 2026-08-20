@@ -9,6 +9,16 @@ import {
 	ProviderListContent,
 } from "./provider-list-view";
 
+const { loadProviderModelsMock } = vi.hoisted(() => ({
+	loadProviderModelsMock: vi.fn(),
+}));
+
+vi.mock("@/lib/provider-model-catalog", async (importOriginal) => {
+	const actual =
+		await importOriginal<typeof import("@/lib/provider-model-catalog")>();
+	return { ...actual, loadProviderModels: loadProviderModelsMock };
+});
+
 const provider: Provider = {
 	id: "ollama",
 	name: "Ollama",
@@ -290,5 +300,54 @@ describe("ProviderDetailContent audio capabilities", () => {
 				'[role="img"][aria-label="Audio support"] .lucide-mic',
 			),
 		).toHaveLength(1);
+	});
+
+	it("refreshes featured providers and renders tier badges and descriptions", async () => {
+		loadProviderModelsMock.mockReset().mockResolvedValue([
+			{
+				id: "anthropic/claude-opus-5",
+				name: "Claude Opus 5",
+				description: "Most intelligent model",
+				featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+			},
+			{
+				id: "deepseek/deepseek-v4-flash",
+				name: "DeepSeek V4 Flash",
+				featured: { tier: "free", rank: 0, tags: [] },
+			},
+			{ id: "vendor/plain-model", name: "Plain Model" },
+		]);
+		const clineProvider: Provider = {
+			id: "cline",
+			name: "Cline",
+			models: 1,
+			color: "#000",
+			letter: "CL",
+			enabled: true,
+			// Stale catalog snapshot; the refreshed list must replace it.
+			modelList: [{ id: "old/stale-model", name: "Stale Model" }],
+		};
+
+		await act(async () => {
+			root.render(
+				<ProviderDetailContent
+					onBack={vi.fn()}
+					onUpdate={vi.fn()}
+					provider={clineProvider}
+				/>,
+			);
+		});
+		await act(async () => {
+			await Promise.resolve();
+		});
+
+		expect(loadProviderModelsMock).toHaveBeenCalledWith("cline");
+		expect(container.textContent).not.toContain("Stale Model");
+		expect(container.textContent).toContain("Claude Opus 5");
+		expect(container.textContent).toContain("Most intelligent model");
+		const badgeTexts = Array.from(
+			container.querySelectorAll(".uppercase.tracking-wide"),
+		).map((badge) => badge.textContent);
+		expect(badgeTexts).toEqual(["Recommended", "NEW", "Free"]);
 	});
 });
