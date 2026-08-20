@@ -52,6 +52,18 @@ describe("buildActiveSessionMonitors", () => {
 		).toEqual([]);
 	});
 
+	it("removes monitors named by a system resume notice", () => {
+		expect(
+			buildActiveSessionMonitors([
+				monitorResult('Started monitor mon_1 ("ci"): Watches CI'),
+				message(
+					"system",
+					"<system-reminder>\nResuming this session rebuilt its runtime and stopped an active monitor: ci (mon_1).\n[monitor mon_1 stopped because session resumed]\n</system-reminder>",
+				),
+			]),
+		).toEqual([]);
+	});
+
 	it("removes monitors after a natural exit notification", () => {
 		expect(
 			buildActiveSessionMonitors([
