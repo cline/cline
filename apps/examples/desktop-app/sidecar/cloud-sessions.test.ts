@@ -2047,7 +2047,7 @@ describe("CloudSessionManager", () => {
 		).toBeUndefined();
 	});
 
-	it("numbers consecutive identical submitted prompts separately", async () => {
+	it("numbers repeated submitted prompts across intervening text", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient();
 		const manager = new CloudSessionManager(ctx, {
@@ -2059,7 +2059,11 @@ describe("CloudSessionManager", () => {
 		await manager.list();
 		await manager.attach("ses-outer");
 
-		for (const id of ["q-repeat-1", "q-repeat-2"]) {
+		for (const [id, submittedPrompt] of [
+			["q-repeat-1", "repeat"],
+			["q-between", "different"],
+			["q-repeat-2", "repeat"],
+		] as const) {
 			hub.events?.({
 				version: "v1",
 				event: "session.pending_prompt_submitted",
@@ -2067,7 +2071,7 @@ describe("CloudSessionManager", () => {
 				timestamp: Date.now(),
 				sessionId: "inner-1",
 				payload: {
-					prompt: { id, prompt: "repeat", attachmentCount: 0 },
+					prompt: { id, prompt: submittedPrompt, attachmentCount: 0 },
 				},
 			});
 		}

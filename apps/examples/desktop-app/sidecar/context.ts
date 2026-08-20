@@ -459,20 +459,18 @@ export function emitQueuedPromptStart(
 			return;
 		}
 		session.lastQueuedPromptStartId = input.promptId;
-		const previous = session.lastQueuedPromptStart;
-		const previousOccurrence =
-			previous &&
-			normalizeQueuedPromptText(previous.prompt) ===
-				normalizeQueuedPromptText(input.prompt)
-				? previous.occurrence
-				: 0;
+		const normalizedPrompt = normalizeQueuedPromptText(input.prompt);
+		const occurrences =
+			session.queuedPromptOccurrenceByText ?? new Map<string, number>();
+		session.queuedPromptOccurrenceByText = occurrences;
 		session.lastQueuedPromptStart = {
 			...input,
 			occurrence: Math.max(
 				countQueuedPromptOccurrences(session.messages, input.prompt) + 1,
-				previousOccurrence + 1,
+				(occurrences.get(normalizedPrompt) ?? 0) + 1,
 			),
 		};
+		occurrences.set(normalizedPrompt, session.lastQueuedPromptStart.occurrence);
 	}
 	emitChunk(
 		ctx,

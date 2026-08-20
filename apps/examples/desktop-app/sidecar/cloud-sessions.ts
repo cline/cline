@@ -2214,6 +2214,12 @@ export class CloudSessionManager {
 					queuedPromptStart.occurrence;
 			if (live && historyCaughtUp) {
 				live.lastQueuedPromptStart = undefined;
+				live.queuedPromptOccurrenceByText?.delete(
+					normalizeUserPrompt(queuedPromptStart.prompt),
+				);
+				if (live.queuedPromptOccurrenceByText?.size === 0) {
+					live.queuedPromptOccurrenceByText = undefined;
+				}
 			}
 			const displayMessages =
 				queuedPromptStart && !historyCaughtUp

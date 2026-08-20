@@ -78,6 +78,8 @@ export type LiveSession = {
 	queuedAttachmentFiles?: Map<string, string[]>;
 	/** Last prompt id announced via chat_queued_prompt_start, to dedupe emits. */
 	lastQueuedPromptStartId?: string;
+	/** Highest submitted occurrence seen for each normalized queue prompt. */
+	queuedPromptOccurrenceByText?: Map<string, number>;
 	/** Last submitted queue prompt, retained until cloud history catches up. */
 	lastQueuedPromptStart?: {
 		promptId: string;
