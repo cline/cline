@@ -293,7 +293,11 @@ export type AgentModelEvent =
 	| {
 			type: "tool-result";
 			toolCallId: string;
-			toolName: import("./llms/model-tools").ModelToolName;
+			/**
+			 * Declared model tools carry a ModelToolName; provider-executed tools
+			 * (e.g. the Claude Code CLI's own tools) carry arbitrary names.
+			 */
+			toolName: string;
 			input?: unknown;
 			output: unknown;
 			isError?: boolean;

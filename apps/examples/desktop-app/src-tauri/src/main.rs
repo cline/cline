@@ -162,7 +162,7 @@ fn running_sessions_text(running_sessions: u32) -> String {
 }
 
 // app_name is package_info().name (the configured productName), so beta
-// builds ("Cline Code Beta") identify themselves in the tooltip too.
+// builds ("Cline Beta") identify themselves in the tooltip too.
 fn tray_tooltip_text(app_name: &str, running_sessions: u32) -> String {
     if running_sessions == 0 {
         app_name.to_string()
@@ -1036,7 +1036,7 @@ fn setup_tray_icon(app: &tauri::App) -> tauri::Result<()> {
         .text(
             TRAY_OPEN_MENU_ID,
             // package_info().name is the configured productName, so beta
-            // builds ("Cline Code Beta") identify themselves in the tray too.
+            // builds ("Cline Beta") identify themselves in the tray too.
             format!(
                 "{} v{}",
                 app.package_info().name,
@@ -1326,14 +1326,11 @@ mod tests {
         assert_eq!(running_sessions_text(0), "0 sessions running");
         assert_eq!(running_sessions_text(1), "1 session running");
         assert_eq!(running_sessions_text(3), "3 sessions running");
-        assert_eq!(tray_tooltip_text("Cline Code", 0), "Cline Code");
+        assert_eq!(tray_tooltip_text("Cline", 0), "Cline");
+        assert_eq!(tray_tooltip_text("Cline", 3), "Cline — 3 sessions running");
         assert_eq!(
-            tray_tooltip_text("Cline Code", 3),
-            "Cline Code — 3 sessions running"
-        );
-        assert_eq!(
-            tray_tooltip_text("Cline Code Beta", 2),
-            "Cline Code Beta — 2 sessions running"
+            tray_tooltip_text("Cline Beta", 2),
+            "Cline Beta — 2 sessions running"
         );
         assert_eq!(tray_badge_text(0), None);
         assert_eq!(tray_badge_text(3), Some("3".to_string()));
