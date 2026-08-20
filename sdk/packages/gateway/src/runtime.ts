@@ -1012,7 +1012,9 @@ export class GatewayRuntime {
 		this.defaultBot = this.database.transaction(() => {
 			const before = this.stores.bots.list().length;
 			const record = this.registry.bootstrap({
-				config: this.leadConfig,
+				// The bundled profile seeds a new Gateway. Once the bot exists its
+				// persisted configuration is user-owned and must survive restarts.
+				config: before === 0 ? this.leadConfig : undefined,
 				name: this.leadName,
 			});
 			if (this.stores.bots.list().length !== before) {
@@ -1597,6 +1599,47 @@ export class GatewayRuntime {
 
 	listBots(): readonly BotRecord[] {
 		return this.stores.bots.list();
+	}
+
+	getBotSystemPrompt(botId: BotId): {
+		content: string | null;
+		revision: number;
+	} {
+		const bot = this.stores.bots.get(botId);
+		if (!bot) throw new Error(`Unknown bot: ${botId}`);
+		return { content: bot.config.systemPrompt ?? null, revision: bot.revision };
+	}
+
+	putBotSystemPrompt(
+		actor: string,
+		input: { botId: BotId; content: string; expectedRevision?: number },
+	): { content: string | null; revision: number } {
+		return this.database.transaction(() => {
+			const bot = this.stores.bots.get(input.botId);
+			if (!bot) throw new Error(`Unknown bot: ${input.botId}`);
+			if (
+				input.expectedRevision !== undefined &&
+				input.expectedRevision !== bot.revision
+			) {
+				throw new Error(
+					`Bot revision conflict: expected ${input.expectedRevision}, got ${bot.revision}`,
+				);
+			}
+			const content = input.content.trim() ? input.content : undefined;
+			const updated: BotRecord = {
+				...bot,
+				config: Object.freeze({ ...bot.config, systemPrompt: content }),
+				revision: bot.revision + 1,
+			};
+			this.stores.bots.save(updated);
+			this.stores.audit.record(actor, "bot.systemPrompt.put", input.botId, {
+				revision: updated.revision,
+			});
+			return {
+				content: updated.config.systemPrompt ?? null,
+				revision: updated.revision,
+			};
+		});
 	}
 
 	/**

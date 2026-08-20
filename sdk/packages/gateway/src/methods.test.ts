@@ -31,6 +31,7 @@ describe("method registry", () => {
 		expect(mutating.sort()).toEqual(
 			[
 				"bot.delegate",
+				"bot.systemPrompt.put",
 				"connector.register",
 				"connector.remove",
 				"connector.sendTest",

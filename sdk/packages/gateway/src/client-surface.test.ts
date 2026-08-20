@@ -100,6 +100,22 @@ describe("typed client surface", () => {
 		engine.lastHandle?.settle({});
 	});
 
+	it("persists a bot system prompt through the typed surface", async () => {
+		const { connect, defaultBotId } = await startServer();
+		const client = await connect();
+		const initial = await client.getBotSystemPrompt({ botId: defaultBotId() });
+		const updated = await client.putBotSystemPrompt({
+			botId: defaultBotId(),
+			content: "You are the infrastructure bot.",
+			expectedRevision: initial.revision,
+		});
+		expect(updated.content).toBe("You are the infrastructure bot.");
+		expect(updated.revision).toBe(initial.revision + 1);
+		expect(
+			await client.getBotSystemPrompt({ botId: defaultBotId() }),
+		).toEqual(updated);
+	});
+
 	it("starts a run in an explicitly created session without leaking session fields", async () => {
 		const { engine, connect, defaultBotId } = await startServer();
 		const client = await connect();

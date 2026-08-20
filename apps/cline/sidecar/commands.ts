@@ -330,6 +330,22 @@ export async function handleCommand(
 	if (command === "list_user_instruction_configs")
 		return gatewayCustomizationLists(ctx);
 	if (command === "get_marketplace_catalog") return marketplaceCatalog();
+	if (command === "read_bot_system_prompt") {
+		const result = await ctx.client.getBotSystemPrompt({
+			botId: String(args.botId ?? "") as BotId,
+		});
+		return result.content;
+	}
+	if (command === "write_bot_system_prompt") {
+		const botId = String(args.botId ?? "") as BotId;
+		const current = await ctx.client.getBotSystemPrompt({ botId });
+		await ctx.client.putBotSystemPrompt({
+			botId,
+			content: String(args.content ?? ""),
+			expectedRevision: current.revision,
+		});
+		return null;
+	}
 	if (command === "set_tool_disabled") {
 		const names = Array.isArray(args.names)
 			? args.names.filter((name): name is string => typeof name === "string")

@@ -1086,6 +1086,14 @@ export class GatewayServer {
 				});
 			case "bot.list":
 				return { bots: this.runtime.listBots() };
+			case "bot.systemPrompt.get":
+				return this.runtime.getBotSystemPrompt(p.botId as BotId);
+			case "bot.systemPrompt.put":
+				return this.runtime.putBotSystemPrompt(actor, {
+					botId: p.botId as BotId,
+					content: p.content as string,
+					expectedRevision: p.expectedRevision as number | undefined,
+				});
 			case "session.list":
 				return {
 					sessions: this.runtime.listSessions(p.botId as BotId | undefined),

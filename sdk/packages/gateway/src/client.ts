@@ -376,6 +376,21 @@ export class GatewayClient {
 		}>;
 	}
 
+	getBotSystemPrompt(input: { botId: BotId }): Promise<{
+		content: string | null;
+		revision: number;
+	}> {
+		return this.request("bot.systemPrompt.get", input) as never;
+	}
+
+	putBotSystemPrompt(input: {
+		botId: BotId;
+		content: string;
+		expectedRevision?: number;
+	}): Promise<{ content: string | null; revision: number }> {
+		return this.mutate("bot.systemPrompt.put", input) as never;
+	}
+
 	listSessions(
 		input: { botId?: BotId } = {},
 	): Promise<{ sessions: readonly SessionRecord[] }> {

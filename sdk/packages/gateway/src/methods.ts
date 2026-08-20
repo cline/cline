@@ -65,6 +65,20 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	define(GATEWAY_HELLO_METHOD, false, GatewayHelloParamsSchema),
 	define("gateway.status", false, z.object({}).strict().optional()),
 	define(
+		"bot.systemPrompt.get",
+		false,
+		z.object({ botId: BotIdSchema }).strict(),
+	),
+	define(
+		"bot.systemPrompt.put",
+		true,
+		IdempotentParamsBase.extend({
+			botId: BotIdSchema,
+			content: z.string(),
+			expectedRevision: z.number().int().nonnegative().optional(),
+		}).strict(),
+	),
+	define(
 		"gateway.drain",
 		true,
 		IdempotentParamsBase.extend({
