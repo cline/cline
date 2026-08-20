@@ -8,7 +8,10 @@ import {
 } from "@cline/gateway/client";
 
 const NAMESPACE = process.env.CLINE_GATEWAY_NAMESPACE?.trim() || "desktop";
-const REQUIRED_GATEWAY_CAPABILITIES = ["sessions.create"] as const;
+const REQUIRED_GATEWAY_CAPABILITIES = [
+	"sessions.create",
+	"connectors.authorization",
+] as const;
 
 export function gatewaySpawnCwd(
 	compiledSidecar: boolean,

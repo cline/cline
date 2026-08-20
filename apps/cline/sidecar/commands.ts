@@ -178,7 +178,9 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 	if (command === "get_gateway_update_status") {
 		return {
 			updateRequired: ctx.gatewayUpdateRequired,
-			missingCapabilities: ctx.gatewayUpdateRequired ? ["sessions.create"] : [],
+			missingCapabilities: ctx.gatewayUpdateRequired
+				? ["sessions.create", "connectors.authorization"]
+				: [],
 		};
 	}
 	if (command === "update_gateway_server") {

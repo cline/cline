@@ -15,7 +15,7 @@ describe("gatewaySpawnCwd", () => {
 			missingDesktopGatewayCapabilities({
 				hello: { capabilities: ["runs.async"] },
 			} as never),
-		).toEqual(["sessions.create"]);
+		).toEqual(["sessions.create", "connectors.authorization"]);
 	});
 	it("uses the real executable directory for a compiled sidecar", () => {
 		expect(

@@ -37,6 +37,7 @@ export const KNOWN_GATEWAY_CAPABILITIES = [
 	"bots.delegation",
 	"sessions.lazy",
 	"sessions.create",
+	"connectors.authorization",
 ] as const;
 
 export type KnownGatewayCapability =
