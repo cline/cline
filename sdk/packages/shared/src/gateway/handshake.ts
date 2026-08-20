@@ -36,6 +36,7 @@ export const KNOWN_GATEWAY_CAPABILITIES = [
 	"serverRequests",
 	"bots.delegation",
 	"sessions.lazy",
+	"sessions.create",
 ] as const;
 
 export type KnownGatewayCapability =

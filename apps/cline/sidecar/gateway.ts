@@ -8,6 +8,7 @@ import {
 } from "@cline/gateway/client";
 
 const NAMESPACE = process.env.CLINE_GATEWAY_NAMESPACE?.trim() || "desktop";
+const REQUIRED_GATEWAY_CAPABILITIES = ["sessions.create"] as const;
 
 export function gatewaySpawnCwd(
 	compiledSidecar: boolean,
@@ -15,6 +16,12 @@ export function gatewaySpawnCwd(
 	moduleDir = import.meta.dir,
 ): string {
 	return compiledSidecar ? dirname(execPath) : resolve(moduleDir, "..");
+}
+
+function supportsDesktopGateway(client: GatewayClient): boolean {
+	return REQUIRED_GATEWAY_CAPABILITIES.every((capability) =>
+		client.hello.capabilities.includes(capability),
+	);
 }
 
 async function connect(): Promise<GatewayClient | undefined> {
@@ -30,12 +37,29 @@ async function connect(): Promise<GatewayClient | undefined> {
 	}
 }
 
+async function stopIncompatibleGateway(client: GatewayClient): Promise<void> {
+	try {
+		await client.mutate("gateway.stop", {
+			reason: "desktop app upgrade requires sessions.create",
+		});
+	} finally {
+		client.close();
+	}
+	const paths = resolveGatewayPaths({ namespace: NAMESPACE });
+	for (let attempt = 0; attempt < 300; attempt += 1) {
+		if (!readDiscoveryRecord(paths.discoveryFile)) return;
+		await Bun.sleep(50);
+	}
+	throw new Error("Incompatible desktop Gateway did not stop during upgrade");
+}
+
 export async function ensureGateway(): Promise<{
 	client: GatewayClient;
 	ownedProcess?: ChildProcess;
 }> {
 	const existing = await connect();
-	if (existing) return { client: existing };
+	if (existing && supportsDesktopGateway(existing)) return { client: existing };
+	if (existing) await stopIncompatibleGateway(existing);
 
 	const packaged = join(dirname(process.execPath), process.platform === "win32" ? "cline-gateway.exe" : "cline-gateway");
 	const entry = resolve(import.meta.dir, "../../../sdk/packages/gateway/bin/cline-gateway.mjs");
