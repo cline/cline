@@ -37,13 +37,20 @@ function toStringRecord(input: unknown): Record<string, string> {
 	return result
 }
 
-function mapStopControl(hookOutput: { cancel?: boolean; errorMessage?: string }): AgentStopControl | undefined {
+function mapStopControl(hookOutput: {
+	cancel?: boolean
+	errorMessage?: string
+	contextModification?: string
+}): AgentStopControl | undefined {
 	if (!hookOutput.cancel) {
 		return undefined
 	}
+	// A cancelling hook's contextModification is never injected as context;
+	// it serves as the fallback explanation when no errorMessage was given.
+	const reason = hookOutput.errorMessage?.trim() || hookOutput.contextModification?.trim() || undefined
 	return {
 		stop: true,
-		reason: hookOutput.errorMessage || undefined,
+		reason,
 	}
 }
 
@@ -166,7 +173,9 @@ export function buildAgentHooks(
 			}
 		},
 
-		async afterTool(ctx: AgentAfterToolContext): Promise<undefined> {
+		async afterTool(
+			ctx: AgentAfterToolContext,
+		): Promise<{ stop?: boolean; reason?: string; appendContext?: string } | undefined> {
 			let runningTs: number | undefined
 			try {
 				if (!hooksEnabled()) {
@@ -203,7 +212,15 @@ export function buildAgentHooks(
 						ts: runningTs,
 					}),
 				)
-				return undefined
+				const stopControl = mapStopControl(result)
+				if (stopControl) {
+					return stopControl
+				}
+				// The runtime injects appendContext into the conversation as a
+				// <hook_context> block, restoring the documented contextModification
+				// behavior. HookFactory already truncates it at 50KB.
+				const contextModification = result.contextModification?.trim()
+				return contextModification ? { appendContext: contextModification } : undefined
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
