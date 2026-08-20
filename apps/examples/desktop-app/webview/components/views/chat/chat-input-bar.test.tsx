@@ -965,6 +965,32 @@ describe("ChatInputBar", () => {
 		expect(textarea?.value).toBe("draft one");
 	});
 
+	it("keeps the force-mounted model settings inert while closed", async () => {
+		await renderVoiceComposer();
+
+		const modelSettingsContent = await vi.waitFor(() => {
+			const effortSlider = document.querySelector<HTMLInputElement>(
+				'[aria-label="Effort"]',
+			);
+			const content = effortSlider?.closest<HTMLElement>(
+				'[data-slot="popover-content"]',
+			);
+			expect(content?.getAttribute("data-state")).toBe("closed");
+			return content as HTMLElement;
+		});
+		expect(modelSettingsContent.hidden).toBe(true);
+		expect(modelSettingsContent.getAttribute("inert")).toBe("");
+
+		const modelSettingsTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label="Model settings"]',
+		);
+		await act(async () => modelSettingsTrigger?.click());
+
+		expect(modelSettingsContent.getAttribute("data-state")).toBe("open");
+		expect(modelSettingsContent.hidden).toBe(false);
+		expect(modelSettingsContent.hasAttribute("inert")).toBe(false);
+	});
+
 	it("preserves an explicit High selection across capability and status updates", async () => {
 		const onReasoningChange = vi.fn();
 		const onOpenVoiceInputSettings = vi.fn();
