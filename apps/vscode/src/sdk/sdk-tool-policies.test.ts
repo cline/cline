@@ -19,4 +19,17 @@ describe("isToolAutoApproved", () => {
 
 		expect(isToolAutoApproved("run_commands", settings)).toBe(false)
 	})
+
+	it("treats monitor as a command tool for auto-approval", () => {
+		expect(isToolAutoApproved("monitor", DEFAULT_AUTO_APPROVAL_SETTINGS)).toBe(false)
+
+		const settings = {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS,
+			actions: {
+				...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+				executeSafeCommands: true,
+			},
+		}
+		expect(isToolAutoApproved("monitor", settings)).toBe(true)
+	})
 })

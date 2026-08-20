@@ -24,7 +24,10 @@ export function buildToolPolicies(
 
 	set(["read_files", "read_file", "list_files", "list_code_definition_names", "search_codebase", "search_files"])
 	set(["editor", "replace_in_file", "write_to_file", "apply_patch", "delete_file"])
-	set(["run_commands", "execute_command"])
+	// monitor runs a shell command in the background, so it rides the same
+	// approval settings as run_commands: auto-approved only when the user has
+	// command auto-approval on, otherwise it shows the approval card.
+	set(["run_commands", "execute_command", "monitor"])
 	set(["fetch_web_content", "web_fetch", "web_search"])
 
 	if (mcpHub) {
@@ -83,7 +86,8 @@ export function isEditTool(toolName: string): boolean {
 }
 
 function isCommandTool(toolName: string): boolean {
-	return toolName === "run_commands" || toolName === "execute_command"
+	// monitor is a background shell command; it follows command auto-approval.
+	return toolName === "run_commands" || toolName === "execute_command" || toolName === "monitor"
 }
 
 function isBrowserTool(toolName: string): boolean {
