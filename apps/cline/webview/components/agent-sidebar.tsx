@@ -110,29 +110,18 @@ type SidebarSortMode = "time" | "project";
 
 type DesktopProcessContext = {
 	appVersion?: unknown;
-	hub?: {
+	gateway?: {
 		error?: unknown;
 		status?: unknown;
-		url?: unknown;
+		namespace?: unknown;
 	};
 };
 
-type HubStatus = {
+type GatewayStatus = {
 	connected: boolean;
 	error: string | null;
-	url: string | null;
+	namespace: string | null;
 };
-
-function hubPort(url: string | null): string | null {
-	if (!url) {
-		return null;
-	}
-	try {
-		return new URL(url).port || null;
-	} catch {
-		return null;
-	}
-}
 
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
@@ -293,7 +282,7 @@ export function AgentSidebar({
 		Record<string, number>
 	>({});
 	const [appVersion, setAppVersion] = useState<string | null>(null);
-	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const [gatewayStatus, setGatewayStatus] = useState<GatewayStatus | null>(null);
 
 	const loadProcessContext = useCallback(async () => {
 		try {
@@ -305,26 +294,26 @@ export function AgentSidebar({
 					? context.appVersion.trim()
 					: "";
 			setAppVersion(version || null);
-			const hubUrl =
-				typeof context?.hub?.url === "string"
-					? context.hub.url.trim() || null
+			const namespace =
+				typeof context?.gateway?.namespace === "string"
+					? context.gateway.namespace.trim() || null
 					: null;
-			setHubStatus({
-				connected: context?.hub?.status === "connected",
+			setGatewayStatus({
+				connected: context?.gateway?.status === "connected",
 				error:
-					typeof context?.hub?.error === "string"
-						? context.hub.error.trim() || null
+					typeof context?.gateway?.error === "string"
+						? context.gateway.error.trim() || null
 						: null,
-				url: hubUrl,
+				namespace,
 			});
 		} catch (error) {
-			setHubStatus({
+			setGatewayStatus({
 				connected: false,
 				error:
 					error instanceof Error
 						? error.message
-						: "Unable to read Cline Hub status.",
-				url: null,
+						: "Unable to read Gateway status.",
+				namespace: null,
 			});
 		}
 	}, []);
@@ -881,16 +870,16 @@ export function AgentSidebar({
 							<div
 								className="flex min-w-0 px-3 items-center gap-1.5 text-xs text-muted-foreground"
 								title={
-									hubStatus?.connected
-										? `Cline Hub @${hubPort(hubStatus.url) ?? "unknown"}`
-										: (hubStatus?.error ?? "Cline Hub is not connected.")
+									gatewayStatus?.connected
+										? `Gateway (${gatewayStatus.namespace ?? "desktop"}) connected`
+										: (gatewayStatus?.error ?? "Gateway is not connected.")
 								}
 							>
 								<span
 									aria-hidden="true"
 									className={cn(
 										"size-1.5 shrink-0 rounded-full",
-										hubStatus?.connected
+										gatewayStatus?.connected
 											? "bg-emerald-500"
 											: "bg-muted-foreground",
 									)}

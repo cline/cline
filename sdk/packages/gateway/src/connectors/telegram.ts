@@ -233,6 +233,14 @@ export class TelegramConnectorAdapter implements ConnectorAdapter {
 		if (!message?.text || message.from?.is_bot) {
 			return undefined;
 		}
+		const allowedUserId = context.config.allowedUserId;
+		if (
+			typeof allowedUserId === "string" &&
+			allowedUserId.length > 0 &&
+			String(message.from?.id ?? "") !== allowedUserId
+		) {
+			return undefined;
+		}
 		return {
 			connectorId: context.descriptor.connectorId,
 			externalAccountId: String(message.from?.id ?? "unknown"),

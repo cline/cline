@@ -67,6 +67,57 @@ describe("Gateway desktop commands", () => {
 		expect(result).toMatchObject({ sessionId });
 	});
 
+	it("returns Gateway sessions with the provider and model fields required by history", async () => {
+		const botId = createBotId();
+		const sessionId = createSessionId();
+		const result = await handleCommand(
+			context({
+				listBots: async () => ({ bots: [] }),
+				listSessions: async () => ({
+					sessions: [{
+						sessionId,
+						botId,
+						workspace: { rootPath: "/workspace/project" },
+						state: "active",
+						createdAt: 10,
+					}],
+				}),
+				getSession: async () => ({
+					runs: [{ state: "completed" }],
+					messages: [
+						{ message: { role: "user", content: [{ type: "text", text: "hello" }], createdAt: 11 } },
+						{ message: { role: "assistant", content: [{ type: "text", text: "hi" }], createdAt: 12, modelInfo: { provider: "anthropic", id: "claude" } } },
+					],
+				}),
+			}),
+			"list_discovered_sessions",
+			{ limit: 50 },
+		);
+		expect(result).toEqual([
+			expect.objectContaining({
+				sessionId,
+				provider: "anthropic",
+				model: "claude",
+				prompt: "hello",
+				status: "completed",
+			}),
+		]);
+	});
+
+	it("returns the native Gateway connector catalog and active records", async () => {
+		const result = await handleCommand(
+			context({
+				listConnectors: async () => ({ connectors: [] }),
+				getStatus: async () => ({ instanceId: "gwi_test", pid: 42, namespace: "desktop" }),
+			}),
+			"list_connector_channels",
+		);
+		expect((result as { available: Array<{ id: string }> }).available.map((channel) => channel.id)).toEqual([
+			"telegram",
+			"slack",
+		]);
+	});
+
 	it("returns the SDK provider catalog through the UI command name", async () => {
 		const result = await handleCommand(
 			context({}),

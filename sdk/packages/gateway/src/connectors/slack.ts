@@ -372,6 +372,19 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 			ack();
 			return;
 		}
+		const allowedTeamId = context.config.allowedTeamId;
+		const allowedUserId = context.config.allowedUserId;
+		if (
+			(typeof allowedTeamId === "string" &&
+				allowedTeamId.length > 0 &&
+				envelope.payload?.team_id !== allowedTeamId) ||
+			(typeof allowedUserId === "string" &&
+				allowedUserId.length > 0 &&
+				event.user !== allowedUserId)
+		) {
+			ack();
+			return;
+		}
 		const seen = decodeCursor(context.cursor());
 		if (seen.includes(eventId)) {
 			// Redelivery of an already-committed event: acknowledge only.

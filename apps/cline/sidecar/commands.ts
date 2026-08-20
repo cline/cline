@@ -7,6 +7,7 @@ import type {
 	SessionId,
 } from "@cline/shared/gateway";
 import type { SidecarContext } from "./types";
+import { connectorChannels, startConnectorChannel, stopConnectorChannel } from "./connectors";
 import { listProviderCatalog, listProviderModels } from "./provider-catalog";
 
 type RecordValue = Record<string, unknown>;
@@ -195,11 +196,30 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 	if (command === "chat_session_command") return chatCommand(ctx, (args.request as RecordValue) ?? args);
 	if (command === "read_session_messages") return sessionMessages(ctx, String(args.sessionId ?? ""));
 	if (["list_chat_sessions", "list_cli_sessions", "list_discovered_sessions"].includes(command)) {
-		const { sessions } = await ctx.client.listSessions();
-		return sessions.map((session) => ({
-			sessionId: session.sessionId, id: session.sessionId, botId: session.botId,
-			workspaceRoot: session.workspace.rootPath, cwd: session.workspace.rootPath,
-			status: session.state, createdAt: session.createdAt, updatedAt: session.createdAt,
+		const [{ sessions }, { bots }] = await Promise.all([
+			ctx.client.listSessions(),
+			ctx.client.listBots(),
+		]);
+		const botsById = new Map(bots.map((bot) => [bot.identity.botId, bot]));
+		const limit = Math.max(1, Number(args.limit) || sessions.length);
+		return Promise.all(sessions.slice(0, limit).map(async (session) => {
+			const snapshot = await ctx.client.getSession({ sessionId: session.sessionId });
+			const messages = snapshot.messages.map(({ message }) => message);
+			const modelMessage = [...messages].reverse().find((message) => message.modelInfo);
+			const firstUserMessage = messages.find((message) => message.role === "user");
+			const latestRun = snapshot.runs.at(-1);
+			const latestMessageAt = messages.at(-1)?.createdAt ?? session.createdAt;
+			const bot = botsById.get(session.botId);
+			return {
+				sessionId: session.sessionId, id: session.sessionId, botId: session.botId,
+				workspaceRoot: session.workspace.rootPath, cwd: session.workspace.rootPath,
+				status: latestRun?.state ?? session.state,
+				startedAt: String(session.createdAt), endedAt: String(latestMessageAt),
+				createdAt: session.createdAt, updatedAt: latestMessageAt,
+				provider: modelMessage?.modelInfo?.provider ?? bot?.config.providerId ?? "",
+				model: modelMessage?.modelInfo?.id ?? bot?.config.modelId ?? "",
+				prompt: firstUserMessage ? text(firstUserMessage.content) : "",
+			};
 		}));
 	}
 	if (command === "get_discovered_session") {
@@ -222,6 +242,9 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 		return true;
 	}
 	if (command === "list_connectors") return ctx.client.listConnectors();
+	if (command === "list_connector_channels") return connectorChannels(ctx);
+	if (command === "start_connector_channel") return startConnectorChannel(ctx, args);
+	if (command === "stop_connector_channel") return stopConnectorChannel(ctx, args);
 	if (command === "list_routine_schedules") return ctx.client.listSchedules();
 	if (command === "list_mcp_servers") return { servers: [] };
 	if (command === "read_session_hooks" || command === "list_session_agents") return [];
