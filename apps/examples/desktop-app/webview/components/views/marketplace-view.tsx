@@ -906,10 +906,15 @@ export function MarketplaceView({
 		return counts;
 	}, [queryFilteredEntries]);
 
+	// Keep the selected tag's chip visible even when the current type/query has
+	// no matches for it, so an active filter can never silently empty the list
+	// while its chip is hidden.
 	const primitiveTags = useMemo(
 		() =>
-			(catalog?.tags ?? []).filter((tag) => (tagCounts.get(tag.id) ?? 0) > 0),
-		[catalog?.tags, tagCounts],
+			(catalog?.tags ?? []).filter(
+				(tag) => (tagCounts.get(tag.id) ?? 0) > 0 || tag.id === selectedTag,
+			),
+		[catalog?.tags, selectedTag, tagCounts],
 	);
 
 	const catalogEntries = useMemo(

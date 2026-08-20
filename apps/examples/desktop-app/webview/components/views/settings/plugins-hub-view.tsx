@@ -1,7 +1,7 @@
 "use client";
 
 import { Store } from "lucide-react";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -70,10 +70,14 @@ export function PluginsHubView() {
 	const [tab, setTab] = useState<PluginsHubTab>("plugins");
 	const [directoryOpen, setDirectoryOpen] = useState(false);
 	const [counts, setCounts] = useState<HubCounts>({});
-	// Bumped when the directory modal installed/uninstalled something so the
+	// Bumped when the marketplace modal installed/uninstalled something so the
 	// active tab remounts and refetches its inventory after the modal closes.
 	const [inventoryVersion, setInventoryVersion] = useState(0);
 	const [directoryMutated, setDirectoryMutated] = useState(false);
+	// Ref mirror of directoryOpen: install/uninstall completions can arrive
+	// after the modal content unmounted with a stale closure, so the handler
+	// must read the current open state, not the one captured at render time.
+	const directoryOpenRef = useRef(false);
 
 	const refreshCounts = useCallback(async () => {
 		const [inventory, channels] = await Promise.all([
@@ -116,16 +120,24 @@ export function PluginsHubView() {
 		void refreshCounts();
 	}, [refreshCounts]);
 
-	// Directory installs/uninstalls happen outside the per-tab views, so the
+	// Marketplace installs/uninstalls happen outside the per-tab views, so the
 	// shared inventory cache must be dropped for the installed tabs to refetch.
+	// When the completion lands after the modal was already closed (install
+	// still in flight while closing), remount the active tab right away
+	// instead of waiting for another open/close cycle.
 	const handleDirectoryChanged = useCallback(() => {
 		invalidateExtensionInventoryCache();
-		setDirectoryMutated(true);
 		void refreshCounts();
+		if (directoryOpenRef.current) {
+			setDirectoryMutated(true);
+		} else {
+			setInventoryVersion((version) => version + 1);
+		}
 	}, [refreshCounts]);
 
 	const handleDirectoryOpenChange = useCallback(
 		(open: boolean) => {
+			directoryOpenRef.current = open;
 			setDirectoryOpen(open);
 			if (!open && directoryMutated) {
 				setDirectoryMutated(false);
@@ -142,7 +154,7 @@ export function PluginsHubView() {
 				title="Plugins"
 				actions={
 					<Button
-						onClick={() => setDirectoryOpen(true)}
+						onClick={() => handleDirectoryOpenChange(true)}
 						type="button"
 						variant="outline"
 					>
