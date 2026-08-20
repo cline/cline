@@ -1,3 +1,4 @@
 .next/
 out/
+public/
 tsconfig.tsbuildinfo

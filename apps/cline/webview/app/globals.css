@@ -6,6 +6,10 @@
 @import "@cline/ui/components.css";
 @import "@cline/ui/components/agent-chat.css";
 
+/* This stylesheet is also compiled by apps/gateway-ui. Explicitly include
+ * the shared desktop webview so Tailwind does not limit discovery to the
+ * thin hosting wrapper's project root. */
+@source "../";
 @source "../../node_modules/streamdown/dist";
 
 @layer base {

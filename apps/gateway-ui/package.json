@@ -4,7 +4,10 @@
 	"private": true,
 	"type": "module",
 	"scripts": {
+		"sync:public": "bun run scripts/sync-public.ts",
+		"predev": "bun run sync:public",
 		"dev": "next dev -p 3135 --turbo",
+		"prebuild": "bun run sync:public",
 		"build": "next build",
 		"start": "next start -p 3135",
 		"typecheck": "bun -F @cline/cline-app typecheck"
