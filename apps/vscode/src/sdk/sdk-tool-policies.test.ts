@@ -19,4 +19,21 @@ describe("isToolAutoApproved", () => {
 
 		expect(isToolAutoApproved("run_commands", settings)).toBe(false)
 	})
+
+	it("governs monitor with the same command approval flag as run_commands", () => {
+		// monitor spawns its own background shell; the "execute commands"
+		// toggle must not silently approve run_commands while monitor still
+		// prompts (or vice versa).
+		expect(isToolAutoApproved("monitor", DEFAULT_AUTO_APPROVAL_SETTINGS)).toBe(false)
+
+		const settings = {
+			...DEFAULT_AUTO_APPROVAL_SETTINGS,
+			actions: {
+				...DEFAULT_AUTO_APPROVAL_SETTINGS.actions,
+				executeSafeCommands: true,
+			},
+		}
+		expect(isToolAutoApproved("monitor", settings)).toBe(isToolAutoApproved("run_commands", settings))
+		expect(isToolAutoApproved("monitor", settings)).toBe(true)
+	})
 })

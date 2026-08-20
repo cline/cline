@@ -1091,6 +1091,67 @@ describe("HubServerTransport boundaries", () => {
 		expect(readSessionCompactionState).not.toHaveBeenCalled();
 	});
 
+	it("stops the session runtime when the last participant issues session.stop", async () => {
+		const stopSession = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({ sessionHost: { stopSession } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+
+		const stopReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop",
+			command: "session.stop",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		expect(stopReply).toMatchObject({ ok: true, payload: { stopped: true } });
+		expect(stopSession).toHaveBeenCalledWith("session-1");
+		expect(ctx.sessionState.has("session-1")).toBe(false);
+	});
+
+	it("degrades session.stop to a detach while other clients remain attached", async () => {
+		const stopSession = vi.fn().mockResolvedValue(undefined);
+		const transport = createTransport({ sessionHost: { stopSession } });
+		const ctx = getContext(transport);
+		ensureSessionState(ctx, "session-1", "owner-client", "creator");
+		ensureSessionParticipant(ctx, "session-1", "viewer-client", "participant");
+
+		const ownerReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop-owner",
+			command: "session.stop",
+			clientId: "owner-client",
+			sessionId: "session-1",
+		});
+
+		// One client quitting must not kill a session another client is using.
+		expect(ownerReply).toMatchObject({
+			ok: true,
+			payload: { stopped: false },
+		});
+		expect(stopSession).not.toHaveBeenCalled();
+		expect(
+			ctx.sessionState.get("session-1")?.participants.has("viewer-client"),
+		).toBe(true);
+
+		const viewerReply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop-viewer",
+			command: "session.stop",
+			clientId: "viewer-client",
+			sessionId: "session-1",
+		});
+
+		// The last participant leaving stops the runtime for real.
+		expect(viewerReply).toMatchObject({
+			ok: true,
+			payload: { stopped: true },
+		});
+		expect(stopSession).toHaveBeenCalledWith("session-1");
+		expect(ctx.sessionState.has("session-1")).toBe(false);
+	});
+
 	it("clears compaction sidecar ownership when the owner unregisters", async () => {
 		const readSessionCompactionState = vi.fn();
 		const transport = createTransport({

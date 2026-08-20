@@ -881,6 +881,56 @@ describe("HubRuntimeHost", () => {
 		await host.stopSession("sess-1");
 
 		expect(unsubscribe).toHaveBeenCalledTimes(1);
+		// Stop must reach the hub as a real stop, not a detach: a detached
+		// session keeps its runtime (and any background monitors) running
+		// headless on the hub.
+		expect(commandMock).toHaveBeenLastCalledWith(
+			"session.stop",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
+	});
+
+	it("falls back to session.detach when the hub predates session.stop", async () => {
+		const unsubscribe = vi.fn();
+		subscribeMock.mockReturnValue(unsubscribe);
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		commandMock.mockImplementation(async (command: string) =>
+			command === "session.stop"
+				? {
+						ok: false,
+						error: { code: "unknown_command", message: "unsupported" },
+					}
+				: { ok: true, payload: {} },
+		);
+		await host.stopSession("sess-1");
+
+		expect(commandMock).toHaveBeenCalledWith(
+			"session.stop",
+			{ sessionId: "sess-1" },
+			"sess-1",
+		);
 		expect(commandMock).toHaveBeenLastCalledWith(
 			"session.detach",
 			{ sessionId: "sess-1" },
@@ -1731,7 +1781,7 @@ describe("HubRuntimeHost", () => {
 		});
 	});
 
-	it("detaches active sessions when disposed", async () => {
+	it("stops active sessions when disposed", async () => {
 		commandMock.mockResolvedValueOnce({
 			payload: {
 				session: {
@@ -1753,10 +1803,14 @@ describe("HubRuntimeHost", () => {
 			source: SessionSource.CLI,
 			prompt: "Hey",
 		});
+		commandMock.mockResolvedValue({ ok: true, payload: {} });
 		await host.dispose();
 
+		// Dispose means the client is quitting: sessions it leaves behind must
+		// be stopped, not detached, or their runtimes (and background
+		// monitors) keep running billed turns on the hub with no client.
 		expect(commandMock).toHaveBeenLastCalledWith(
-			"session.detach",
+			"session.stop",
 			{ sessionId: "sess-1" },
 			"sess-1",
 		);

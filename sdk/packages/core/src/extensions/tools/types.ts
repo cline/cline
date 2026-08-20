@@ -300,8 +300,12 @@ export interface DefaultToolsConfig {
 	 * Required for the monitor tool to be created at all, and deliberately not
 	 * built here from a notifier: the registry owns live background processes,
 	 * so whoever constructs it must keep the handle needed to `dispose()` them
-	 * at teardown. The tool is also withheld unless a `bash` executor is
-	 * present, since a monitor spawns its own shell.
+	 * at teardown. The tool is also withheld when shell execution is disabled
+	 * (`enableBash: false`), since a monitor spawns its own shell. Whether an
+	 * `executors.bash` implementation is supplied is deliberately not
+	 * consulted: monitor never invokes that executor, and hosts that replace
+	 * run_commands with their own tool leave it undefined while shell access
+	 * is fully enabled.
 	 */
 	monitorRegistry?: MonitorRegistry;
 

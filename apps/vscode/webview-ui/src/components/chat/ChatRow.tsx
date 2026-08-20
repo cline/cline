@@ -697,6 +697,48 @@ export const ChatRowContent = memo(
 							</div>
 						</div>
 					)
+				case "monitor": {
+					const isAsk = message.type === "ask"
+					const monitorTitle =
+						tool.monitorAction === "stop"
+							? isAsk
+								? "Cline wants to stop a background monitor:"
+								: "Cline stopped a background monitor:"
+							: tool.monitorAction === "list"
+								? isAsk
+									? "Cline wants to list background monitors"
+									: "Cline listed background monitors"
+								: isAsk
+									? "Cline wants to start a background monitor:"
+									: "Cline started a background monitor:"
+					return (
+						<div>
+							<div className={HEADER_CLASSNAMES}>
+								<TerminalIcon className="size-2" />
+								<span className="font-bold">{monitorTitle}</span>
+							</div>
+							{(tool.path || tool.monitorDescription) && (
+								<div className="bg-code border border-editor-group-border overflow-hidden rounded-xs py-[9px] px-2.5 mb-1">
+									<span className="ph-no-capture font-medium">{tool.path}</span>
+									{tool.monitorDescription && (
+										<span className="ph-no-capture text-description">
+											{tool.path ? " — " : ""}
+											{tool.monitorDescription}
+										</span>
+									)}
+								</div>
+							)}
+							{tool.content && (
+								<CodeAccordian
+									code={tool.content}
+									isExpanded={isExpanded}
+									language="shellscript"
+									onToggleExpand={handleToggle}
+								/>
+							)}
+						</div>
+					)
+				}
 				default:
 					return <InvisibleSpacer />
 			}

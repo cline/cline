@@ -70,6 +70,7 @@ import {
 	handleSessionPendingPrompts,
 	handleSessionRemovePendingPrompt,
 	handleSessionRestore,
+	handleSessionStop,
 	handleSessionUpdate,
 	handleSessionUpdateConnection,
 	handleSessionUpdatePendingPrompt,
@@ -366,6 +367,8 @@ export class HubServerTransport implements NativeHubTransport {
 				return await handleSessionAttach(this.ctx, envelope);
 			case "session.detach":
 				return await handleSessionDetach(this.ctx, envelope);
+			case "session.stop":
+				return await handleSessionStop(this.ctx, envelope);
 			case "session.get":
 				return await handleSessionGet(this.ctx, envelope);
 			case "session.messages":

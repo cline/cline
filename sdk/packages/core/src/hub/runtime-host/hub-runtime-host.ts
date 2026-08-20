@@ -1267,16 +1267,42 @@ export class HubRuntimeHost implements RuntimeHost {
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
 		this.disposeSessionSubscription(sessionId);
-		await this.client.command("session.detach", { sessionId }, sessionId);
+		await this.stopHubSession(sessionId);
+	}
+
+	/**
+	 * Asks the hub to stop the session runtime, not merely detach from it.
+	 *
+	 * A bare `session.detach` leaves the hub-side runtime running headless:
+	 * background monitors keep their processes alive under the hub daemon and
+	 * every report they emit starts another billed model turn, with no client
+	 * left to see or stop any of it. `session.stop` removes this client's
+	 * participation and stops the runtime unless another client is still
+	 * attached (the hub degrades it to a detach in that case). Against an
+	 * older daemon that predates `session.stop`, fall back to detach — the
+	 * previous behavior — rather than failing shutdown.
+	 */
+	private async stopHubSession(sessionId: string): Promise<void> {
+		const reply = await this.client.command(
+			"session.stop",
+			{ sessionId },
+			sessionId,
+		);
+		if (!reply.ok) {
+			await this.client.command("session.detach", { sessionId }, sessionId);
+		}
 	}
 
 	async dispose(): Promise<void> {
 		for (const [sessionId, unsubscribe] of this.sessionSubscriptions) {
 			unsubscribe();
 			try {
-				await this.client.command("session.detach", { sessionId }, sessionId);
+				// Stop, not detach: dispose means this client is going away, and
+				// a session left running with no participants would keep burning
+				// monitor-triggered turns invisibly (see stopHubSession).
+				await this.stopHubSession(sessionId);
 			} catch {
-				// Best-effort detach during shutdown.
+				// Best-effort stop during shutdown.
 			}
 		}
 		this.sessionSubscriptions.clear();

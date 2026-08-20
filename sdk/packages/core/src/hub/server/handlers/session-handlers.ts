@@ -757,6 +757,76 @@ export async function handleSessionDetach(
 	return okReply(envelope);
 }
 
+/**
+ * Stops the hub-side session runtime on behalf of a departing client.
+ *
+ * `session.detach` deliberately leaves the runtime alive so other clients can
+ * keep sharing it — but a client that quits, or discards its session with
+ * /new or /fork, means "stop my work", not "keep running it headless".
+ * Without a real stop, the runtime survives with no client able to see or
+ * stop it: background monitors keep their processes alive under the hub
+ * daemon, and each report they emit starts another billed model turn.
+ *
+ * The requesting client's participation is removed first. If other clients
+ * are still attached, the stop degrades to a plain detach so one client
+ * quitting cannot kill a session someone else is actively using; the runtime
+ * is stopped only when the last participant leaves.
+ */
+export async function handleSessionStop(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	if (!sessionId) {
+		return errorReply(
+			envelope,
+			"invalid_session_stop",
+			"session.stop requires a session id",
+		);
+	}
+	const clientId = envelope.clientId?.trim() || "hub-client";
+	const state = ctx.sessionState.get(sessionId);
+	if (state) {
+		state.participants.delete(clientId);
+		if (state.createdByClientId === clientId) {
+			state.createdByClientId = undefined;
+		}
+	}
+	const othersAttached = (state?.participants.size ?? 0) > 0;
+	cancelPendingCapabilityRequests(
+		ctx,
+		(request) =>
+			request.sessionId === sessionId &&
+			(!othersAttached || request.targetClientId === clientId),
+		othersAttached
+			? `Capability owner client ${clientId} detached before request was resolved.`
+			: `Session ${sessionId} was stopped before the capability request was resolved.`,
+	);
+	if (!othersAttached) {
+		ctx.sessionState.delete(sessionId);
+		await ctx.sessionHost.stopSession(sessionId);
+	}
+	const [session, snapshot] = await Promise.all([
+		readHubSessionRecord(ctx, sessionId),
+		readCoreSessionSnapshot(ctx, sessionId),
+	]);
+	ctx.publish(
+		ctx.buildEvent(
+			"session.detached",
+			session
+				? {
+						session,
+						...(snapshot ? { snapshot } : {}),
+						clientId,
+						stopped: !othersAttached,
+					}
+				: { clientId, stopped: !othersAttached },
+			sessionId,
+		),
+	);
+	return okReply(envelope, { stopped: !othersAttached });
+}
+
 export async function handleSessionGet(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,
