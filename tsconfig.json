@@ -1,29 +1,45 @@
 {
-  "compilerOptions": {
-    "target": "ES2017",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "allowJs": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "noEmit": true,
-    "esModuleInterop": true,
-    "module": "esnext",
-    "moduleResolution": "bundler",
-    "resolveJsonModule": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "incremental": true,
-    "paths": {
-      "@/*": ["./*"]
-    }
-  },
-  "include": [
-    "next-env.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
-    "**/*.mts"
-  ],
-  "exclude": ["node_modules"]
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"allowJs": false,
+		"skipLibCheck": true,
+		"strict": true,
+		"noEmit": true,
+		"esModuleInterop": true,
+		"module": "esnext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"incremental": true,
+		"plugins": [
+			{
+				"name": "next"
+			}
+		],
+		"paths": {
+			"@/*": ["../cline/webview/*"],
+			"@cline/agents": ["../../sdk/packages/agents/src/index.ts"],
+			"@cline/gateway": ["../../sdk/packages/gateway/src/index.ts"],
+			"@cline/gateway/*": ["../../sdk/packages/gateway/src/*"],
+			"@cline/llms": ["../../sdk/packages/llms/src/index.ts"],
+			"@cline/shared": ["../../sdk/packages/shared/src/index.browser.ts"],
+			"@cline/shared/browser": [
+				"../../sdk/packages/shared/src/index.browser.ts"
+			],
+			"@cline/shared/*": [
+				"../../sdk/packages/shared/src/*",
+				"../../sdk/packages/shared/src/*/index.ts"
+			]
+		}
+	},
+	"include": [
+		"next-env.d.ts",
+		"app/**/*.ts",
+		"app/**/*.tsx",
+		".next/types/**/*.ts",
+		".next/dev/types/**/*.ts"
+	],
+	"exclude": ["node_modules"]
 }

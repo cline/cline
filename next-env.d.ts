@@ -1,4 +1,6 @@
-import "vinext/types";
+/// <reference types="next" />
+/// <reference types="next/image-types/global" />
+import "vinext/types/augmentations";
 import "./.next/types/routes.d.ts";
 
 // NOTE: This file should not be edited
