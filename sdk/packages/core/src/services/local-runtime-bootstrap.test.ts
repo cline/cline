@@ -80,6 +80,49 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		});
 	});
 
+	it("consults extension-contributed beforeTool hooks in the provider tool gate", async () => {
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			localRuntime: {
+				extensions: [
+					{
+						name: "test.policy_extension",
+						manifest: { capabilities: ["hooks"] },
+						hooks: {
+							beforeTool: async () => ({
+								skip: true,
+								reason: "extension policy says no",
+							}),
+						},
+					},
+				],
+			},
+			sessionId: "sess-ext-gate",
+			providerSettingsManager: createProviderSettingsManager() as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+
+		const gate = bootstrap.providerConfig.onProviderToolPermission;
+		expect(gate).toBeTypeOf("function");
+		await expect(
+			gate?.({ toolName: "Bash", toolCallId: "t1", input: { command: "ls" } }),
+		).resolves.toEqual({
+			behavior: "deny",
+			message: "extension policy says no",
+			interrupt: false,
+		});
+	});
+
 	it("lets stored provider model catalog settings override hub defaults", async () => {
 		const { prepareLocalRuntimeBootstrap } = await import(
 			"./local-runtime-bootstrap"

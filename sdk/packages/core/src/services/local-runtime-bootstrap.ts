@@ -414,18 +414,21 @@ export async function prepareLocalRuntimeBootstrap(
 	const hooks = mergeAgentHooks([baseConfig.hooks, checkpointHooks]);
 	// Provider-executed tools (claude-code and friends) never reach the
 	// runtime tool pipeline, so gate them at the provider boundary with the
-	// same hook layers: host adapter hooks, audit hooks, checkpoint hooks,
-	// and the workspace's file-based hooks. Passed unmerged so a denial from
-	// one layer survives a later layer failing (the gate runs them with the
-	// runtime pipeline's first-deny-wins semantics). Attached unconditionally;
-	// the handler factory forwards it only to providers that execute their
-	// own tools.
+	// same hook layers the runtime would consult: host adapter hooks, audit
+	// hooks, checkpoint hooks, and every extension's hooks — the file-based
+	// workspace hooks plus host- and plugin-contributed extensions (the
+	// runtime merges config hooks with all registered extension hooks; see
+	// createRuntimeHooks in session-runtime-orchestrator.ts). Passed unmerged
+	// so a denial from one layer survives a later layer failing (the gate
+	// runs them with the runtime pipeline's first-deny-wins semantics).
+	// Attached unconditionally; the handler factory forwards it only to
+	// providers that execute their own tools.
 	providerConfig.onProviderToolPermission = createProviderToolPermission({
 		hooks: [
 			localConfig?.hooks,
 			auditHooks,
 			checkpointHooks,
-			fileHookExtension?.hooks,
+			...(extensions ?? []).map((extension) => extension.hooks),
 		],
 		sessionId,
 		logger: baseConfig.logger,

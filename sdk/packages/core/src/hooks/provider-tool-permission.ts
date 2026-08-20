@@ -70,6 +70,23 @@ function toUpdatedInput(value: unknown): Record<string, unknown> | undefined {
 		: undefined;
 }
 
+// A throwing host logger must never escape the gate's control flow (a logging
+// failure inside the fail-open catch would otherwise reject the whole gate).
+function safeWarn(
+	logger: BasicLogger | undefined,
+	message: string,
+	error?: unknown,
+): void {
+	try {
+		logger?.log?.(message, {
+			severity: "warn",
+			...(error !== undefined ? { error } : {}),
+		});
+	} catch {
+		// Logging failures must not affect gating.
+	}
+}
+
 export function createProviderToolPermission(options: {
 	hooks: ReadonlyArray<AgentHooks | undefined>;
 	sessionId: string;
@@ -105,9 +122,10 @@ export function createProviderToolPermission(options: {
 			} catch (error) {
 				// Fail open per layer: a broken hook must not brick the provider
 				// session, but the remaining layers still get their say.
-				options.logger?.log?.(
+				safeWarn(
+					options.logger,
 					`provider tool permission hook failed for "${request.toolName}"; skipping that hook layer`,
-					{ severity: "warn", ...(error !== undefined ? { error } : {}) },
+					error,
 				);
 				continue;
 			}
@@ -129,9 +147,9 @@ export function createProviderToolPermission(options: {
 					input = rewrite;
 					inputUpdated = true;
 				} else {
-					options.logger?.log?.(
+					safeWarn(
+						options.logger,
 						`provider tool permission hook returned a non-object input rewrite for "${request.toolName}"; ignoring it`,
-						{ severity: "warn" },
 					);
 				}
 			}
