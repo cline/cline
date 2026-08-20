@@ -30,18 +30,58 @@ async function verifyConnection(
 			"cline-desktop-v1",
 			`cline-auth.${token}`,
 		]);
-		const timeout = window.setTimeout(() => {
+		const requestId = `verify-${crypto.randomUUID()}`;
+		let settled = false;
+		const finish = (error?: Error) => {
+			if (settled) return;
+			settled = true;
+			window.clearTimeout(timeout);
 			socket.close();
-			reject(new Error("Connection timed out"));
+			if (error) reject(error);
+			else resolve();
+		};
+		const timeout = window.setTimeout(() => {
+			finish(
+				new Error(
+					"This socket opened, but it is not responding as a Cline desktop bridge.",
+				),
+			);
 		}, 10_000);
 		socket.onopen = () => {
-			window.clearTimeout(timeout);
-			socket.close();
-			resolve();
+			socket.send(
+				JSON.stringify({
+					type: "command",
+					id: requestId,
+					command: "get_process_context",
+					args: {},
+				}),
+			);
+		};
+		socket.onmessage = (event) => {
+			try {
+				const message = JSON.parse(String(event.data)) as {
+					id?: string;
+					ok?: boolean;
+					error?: string;
+					result?: { gateway?: { status?: string } };
+				};
+				if (message.id !== requestId) return;
+				if (message.ok && message.result?.gateway?.status === "connected") {
+					finish();
+					return;
+				}
+				finish(
+					new Error(
+						message.error ||
+							"The server is not exposing a compatible Cline desktop bridge.",
+					),
+				);
+			} catch {
+				// Ignore unrelated protocol frames and wait for the verified response.
+			}
 		};
 		socket.onerror = () => {
-			window.clearTimeout(timeout);
-			reject(new Error("Cannot connect to this Cline server"));
+			finish(new Error("Cannot connect to this Cline server"));
 		};
 	});
 }
