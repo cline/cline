@@ -1755,9 +1755,35 @@ export function useChatSession() {
 				workspaceRoot,
 			});
 			setHydratedHistorySessionId(null);
+			const monitorResumeNotice =
+				typeof payload.monitorResumeNotice?.content === "string"
+					? payload.monitorResumeNotice.content.trim()
+					: "";
+			if (monitorResumeNotice) {
+				// Resuming a parked session stops its monitors; the sidecar only
+				// persists the notice into the transcript, so append it to the
+				// live list too — its terminal markers clear the header monitor
+				// badge without a reload.
+				addMessage({
+					id: makeId("system"),
+					sessionId: id,
+					role: "system",
+					content: monitorResumeNotice,
+					createdAt:
+						typeof payload.monitorResumeNotice?.ts === "number"
+							? payload.monitorResumeNotice.ts
+							: Date.now(),
+					meta: {
+						messageKind: "monitor_resume_notice",
+						displayRole: "system",
+						hookEventName: "history_notice",
+						userRunSpan: 0,
+					},
+				});
+			}
 			return id;
 		},
-		[postSession],
+		[addMessage, postSession],
 	);
 
 	// ---- Actions ----

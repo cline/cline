@@ -27,4 +27,30 @@ describe("formatChatMessageContent", () => {
 			"Request failed",
 		);
 	});
+
+	test("projects a clean monitor resume notice for display", () => {
+		const content =
+			"<system-reminder>\n" +
+			"Resuming this session rebuilt its runtime and stopped an active monitor: ci (mon_1). " +
+			"They are no longer running. Tell the user if that affects the current task, and start replacements only if they are still needed and approved.\n" +
+			"[monitor mon_1 stopped because session resumed]\n" +
+			"[monitor mon_2 stopped because session resumed]\n" +
+			"</system-reminder>";
+		const display = formatChatMessageContent(
+			"system",
+			content,
+			"monitor_resume_notice",
+		);
+		expect(display).toBe(
+			"Resuming this session rebuilt its runtime and stopped an active monitor: ci (mon_1). " +
+				"They are no longer running. Tell the user if that affects the current task, and start replacements only if they are still needed and approved.",
+		);
+	});
+
+	test("keeps envelopes for system messages of other kinds", () => {
+		const content = "<system-reminder>\nRecovered\n</system-reminder>";
+		expect(formatChatMessageContent("system", content, "recovery_notice")).toBe(
+			content,
+		);
+	});
 });

@@ -109,6 +109,7 @@ export type ChatSessionCommandResponse = {
 	sessionId?: string;
 	cwd?: string;
 	workspaceRoot?: string;
+	monitorResumeNotice?: { content?: string; ts?: number };
 	result?: ChatApiResult;
 	ok?: boolean;
 	queued?: boolean;

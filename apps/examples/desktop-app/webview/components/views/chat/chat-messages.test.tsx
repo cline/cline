@@ -843,6 +843,33 @@ describe("ChatMessages tool disclosures", () => {
 		);
 	});
 
+	it("renders the monitor resume notice without its envelope or markers", async () => {
+		await renderMessages([
+			{
+				id: "monitor-resume-notice",
+				sessionId: "session-1",
+				role: "system",
+				content:
+					"<system-reminder>\n" +
+					"Resuming this session rebuilt its runtime and stopped an active monitor: ci (mon_1). They are no longer running.\n" +
+					"[monitor mon_1 stopped because session resumed]\n" +
+					"</system-reminder>",
+				createdAt: 1,
+				meta: {
+					messageKind: "monitor_resume_notice",
+					displayRole: "system",
+					hookEventName: "history_notice",
+					userRunSpan: 0,
+				},
+			},
+		]);
+
+		const text = container.textContent ?? "";
+		expect(text).toContain("Resuming this session rebuilt its runtime");
+		expect(text).not.toContain("system-reminder");
+		expect(text).not.toContain("[monitor mon_1");
+	});
+
 	it("continues from a non-user run anchor in a truncated history", async () => {
 		const onEditMessage = vi.fn(async () => undefined);
 		await renderMessages(

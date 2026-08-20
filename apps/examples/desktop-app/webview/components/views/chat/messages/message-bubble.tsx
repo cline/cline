@@ -216,10 +216,17 @@ export const MessageBubble = memo(function MessageBubble({
 }) {
 	const isUser = message.role === "user";
 	const isError = message.role === "error";
+	// Assistant action rows are absolutely positioned below their bubble
+	// (top: 100%), so this notice — which often directly follows the parked
+	// turn's last answer — needs top clearance or its first words render
+	// underneath that row.
+	const isMonitorResumeNotice =
+		message.meta?.messageKind === "monitor_resume_notice";
 	const checkpoint = message.meta?.checkpoint;
 	const displayContent = formatChatMessageContent(
 		message.role,
 		message.content,
+		message.meta?.messageKind,
 	);
 	const shouldRenderAssistantActions =
 		message.role === "assistant" &&
@@ -269,6 +276,7 @@ export const MessageBubble = memo(function MessageBubble({
 			className={cn(
 				"relative flex flex-col gap-2",
 				isUser && "mt-4 first:mt-0",
+				isMonitorResumeNotice && "mt-6 first:mt-0",
 				followsWorkingRows && "-mt-2",
 			)}
 			from={agentRole}
