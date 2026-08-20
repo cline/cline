@@ -279,11 +279,16 @@ export interface ClineSayTool {
 		| "webSearch"
 		| "summarizeTask"
 		| "useSkill"
+		| "monitor"
 	path?: string
 	diff?: string
 	content?: string
 	regex?: string
 	filePattern?: string
+	/** monitor tool: which lifecycle action is requested. */
+	monitorAction?: "start" | "list" | "stop"
+	/** monitor tool: what is being watched, from the tool input. */
+	monitorDescription?: string
 	operationIsLocatedInWorkspace?: boolean
 	/** Starting line numbers in the original file where each SEARCH block matched */
 	startLineNumbers?: number[]

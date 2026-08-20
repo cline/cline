@@ -4149,3 +4149,87 @@ describe("tool display paths are relativized to the cwd", () => {
 		)
 	})
 })
+
+describe("monitor tool rendering and approval", () => {
+	const CWD = "/home/user/project"
+	const parseTool = (text: string | undefined) => JSON.parse(text ?? "{}") as ClineSayTool
+
+	it("builds a renderable approval card with the monitor name, description, and command", () => {
+		// Regression: monitor previously fell through to the generic say-tool
+		// mapping, whose output ChatRow cannot render — the approval card
+		// showed an empty region above the Approve/Reject buttons.
+		const message = buildToolApprovalAskMessage(
+			"monitor",
+			{ action: "start", name: "ci-log", command: "tail -f ci.log", description: "watches the CI log" },
+			1,
+			CWD,
+		)
+		expect(message.ask).toBe("tool")
+		expect(parseTool(message.text)).toMatchObject({
+			tool: "monitor",
+			monitorAction: "start",
+			path: "ci-log",
+			monitorDescription: "watches the CI log",
+			content: "tail -f ci.log",
+		})
+	})
+
+	it("defaults a missing action to start", () => {
+		const message = buildToolApprovalAskMessage(
+			"monitor",
+			{ name: "dev-server", command: "npm run dev", description: "watches the dev server" },
+			1,
+			CWD,
+		)
+		expect(parseTool(message.text)).toMatchObject({
+			tool: "monitor",
+			monitorAction: "start",
+			content: "npm run dev",
+		})
+	})
+
+	it("carries the stop target for a monitor stop approval", () => {
+		const message = buildToolApprovalAskMessage("monitor", { action: "stop", monitor_id: "mon_1" }, 1, CWD)
+		expect(parseTool(message.text)).toMatchObject({
+			tool: "monitor",
+			monitorAction: "stop",
+			path: "mon_1",
+		})
+	})
+
+	it("does not relativize the monitor name against the cwd", () => {
+		// The name is an identifier, not a filesystem path; the display-path
+		// pass must leave it alone.
+		const message = buildToolApprovalAskMessage(
+			"monitor",
+			{ action: "start", name: `${CWD}/weird-name`, command: "tail -f x", description: "d" },
+			1,
+			CWD,
+		)
+		expect(parseTool(message.text).path).toBe(`${CWD}/weird-name`)
+	})
+
+	it("renders a monitor tool_call event as a monitor say row", () => {
+		const state = new MessageTranslatorState()
+		const event: CoreSessionEvent = {
+			type: "agent_event",
+			payload: {
+				sessionId: "s1",
+				event: {
+					type: "content_start",
+					contentType: "tool",
+					toolName: "monitor",
+					toolCallId: "c1",
+					input: { action: "start", name: "ci-log", command: "tail -f ci.log", description: "watches the CI log" },
+				} as AgentEvent,
+			},
+		}
+		const result = translateSessionEvent(event, state)
+		expect(result.messages[0].say).toBe("tool")
+		expect(parseTool(result.messages[0].text)).toMatchObject({
+			tool: "monitor",
+			path: "ci-log",
+			content: "tail -f ci.log",
+		})
+	})
+})

@@ -647,6 +647,7 @@ function relativizePatchPaths(patch: string | undefined, cwd: string): string | 
  *   fetch_web_content/web_fetch        → webFetch
  *   web_search                         → webSearch
  *   skills/use_skill                   → useSkill
+ *   monitor                            → monitor
  *   ask_question/ask_followup_question → (not a visual tool — handled by askQuestion executor in SdkController)
  *   MCP tools (serverName__toolName)   → (handled before reaching sdkToolToClineSayTool — emitted as say="use_mcp_server")
  */
@@ -810,6 +811,21 @@ function sdkToolToClineSayTool(toolName: string, input?: unknown): ClineSayTool 
 			return {
 				tool: "useSkill",
 				path: skillName,
+			}
+		}
+
+		case "monitor": {
+			// Background monitor lifecycle: { action, name, command, description,
+			// monitor_id }. `path` carries the monitor name and `content` the
+			// watched shell command, so the approval card can show what would
+			// actually run — a monitor spawns its own shell, like run_commands.
+			const action = getStringField(parsedInput, "action")
+			return {
+				tool: "monitor",
+				monitorAction: action === "list" || action === "stop" ? action : "start",
+				path: getStringField(parsedInput, "name") ?? getStringField(parsedInput, "monitor_id") ?? "",
+				monitorDescription: getStringField(parsedInput, "description"),
+				content: getStringField(parsedInput, "command"),
 			}
 		}
 
