@@ -602,6 +602,18 @@ describe("formatMonitorNotification", () => {
 		expect(formatted.split("</monitor-output>").length - 1).toBe(1);
 	});
 
+	it("tells the model it may stay silent", () => {
+		// Every consumed report is a billed turn; without an explicit license
+		// to do nothing, a chatty monitor turns into an unbounded sequence of
+		// full working turns.
+		const formatted = formatMonitorNotification({
+			...base,
+			lines: ["nothing interesting"],
+		});
+		expect(formatted).toContain("may need no response");
+		expect(formatted).toContain("end your turn");
+	});
+
 	it("keeps watched output from escaping the untrusted region", () => {
 		// A watched log is attacker-influenced: anything that could close the
 		// fence and resume as trusted framing has to be neutralized.

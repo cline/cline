@@ -34,6 +34,7 @@ import { type ProcessTable, readProcessTable } from "./process-tree";
 
 export {
 	formatMonitorNotification,
+	MONITOR_NO_ACTION_GUIDANCE,
 	MONITOR_OUTPUT_CLOSE_TAG,
 	MONITOR_OUTPUT_OPEN_TAG,
 	MONITOR_UNTRUSTED_GUIDANCE,
