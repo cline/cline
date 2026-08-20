@@ -508,6 +508,27 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+		// A snapshot-only session.updated reports the snapshot's status; it
+		// must not fabricate "running" for a session whose turn has finished.
+		const statusEvents = events.filter(
+			(event): event is { type: "status"; payload: { status: string } } =>
+				(event as { type?: unknown }).type === "status",
+		);
+		expect(statusEvents.at(-1)?.payload).toMatchObject({
+			status: "completed",
+		});
+
+		// A session.updated with neither session nor snapshot reports nothing.
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {},
+		});
+		expect(
+			events.filter((event) => (event as { type?: unknown }).type === "status")
+				.length,
+		).toBe(statusEvents.length);
 
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({
@@ -1198,181 +1219,6 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
-	});
-
-	it("emits done for queue-drained turns and ignores stale run completions", async () => {
-		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
-		subscribeMock.mockImplementation((listener) => {
-			onEvent = listener;
-			return () => {};
-		});
-		commandMock.mockResolvedValue({
-			payload: {
-				session: {
-					sessionId: "sess-1",
-					status: "running",
-					createdAt: Date.now(),
-					updatedAt: Date.now(),
-					workspaceRoot: "/tmp/project",
-					cwd: "/tmp/project",
-				},
-			},
-		});
-		const events: unknown[] = [];
-
-		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
-		host.subscribe((event) => events.push(event));
-
-		await host.startSession({
-			config: createConfig(),
-			source: SessionSource.CLI,
-			prompt: "Hey",
-		});
-
-		// RPC-driven turn 1 completes while a second prompt is queued.
-		onEvent?.({
-			version: "v1",
-			event: "run.started",
-			sessionId: "sess-1",
-			payload: {},
-		});
-		onEvent?.({
-			version: "v1",
-			event: "agent.done",
-			sessionId: "sess-1",
-			payload: { reason: "completed", text: "turn one", iterations: 1 },
-		});
-		// The daemon drain submits the queued prompt (turn 2) before the RPC
-		// handler for turn 1 finishes publishing its terminal run event.
-		onEvent?.({
-			version: "v1",
-			event: "session.pending_prompt_submitted",
-			sessionId: "sess-1",
-			payload: {
-				prompt: { id: "pending-1", prompt: "queued turn", delivery: "queue" },
-			},
-		});
-		// Stale completion of turn 1 lands mid-turn 2; it must not produce a
-		// phantom done nor consume turn 2's dedup slot.
-		onEvent?.({
-			version: "v1",
-			event: "run.completed",
-			sessionId: "sess-1",
-			payload: {
-				reason: "completed",
-				result: { finishReason: "completed", text: "turn one", iterations: 1 },
-			},
-		});
-		// The drained turn finishes; there is no run.* lifecycle event for it.
-		onEvent?.({
-			version: "v1",
-			event: "agent.done",
-			sessionId: "sess-1",
-			payload: { reason: "completed", text: "turn two", iterations: 1 },
-		});
-
-		const doneEvents = agentDoneEvents(events);
-		expect(doneEvents).toHaveLength(2);
-		expect(doneEvents[0]?.payload.event).toMatchObject({
-			type: "done",
-			reason: "completed",
-			text: "turn one",
-		});
-		expect(doneEvents[1]?.payload.event).toMatchObject({
-			type: "done",
-			reason: "completed",
-			text: "turn two",
-		});
-	});
-
-	it("derives status from snapshot-only session.updated events instead of fabricating running", async () => {
-		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
-		subscribeMock.mockImplementation((listener) => {
-			onEvent = listener;
-			return () => {};
-		});
-		const snapshot = {
-			version: 1,
-			sessionId: "sess-1",
-			source: SessionSource.CLI,
-			status: "idle",
-			createdAt: "2026-01-01T00:00:00.000Z",
-			updatedAt: "2026-01-01T00:00:00.000Z",
-			endedAt: null,
-			exitCode: null,
-			interactive: true,
-			workspace: { cwd: "/tmp/project", root: "/tmp/project" },
-			model: { providerId: "cline", modelId: "anthropic/claude-haiku-4.5" },
-			capabilities: {
-				enableTools: true,
-				enableSpawn: true,
-				enableTeams: true,
-			},
-			lineage: {
-				agentId: "agent-1",
-				conversationId: "conversation-1",
-				isSubagent: false,
-			},
-			prompt: "Hey",
-			messages: [],
-		};
-		commandMock.mockResolvedValue({
-			payload: {
-				session: {
-					sessionId: "sess-1",
-					status: "running",
-					createdAt: Date.now(),
-					updatedAt: Date.now(),
-					workspaceRoot: "/tmp/project",
-					cwd: "/tmp/project",
-				},
-			},
-		});
-		const events: unknown[] = [];
-
-		const { HubRuntimeHost } = await import("./hub-runtime-host");
-		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
-		host.subscribe((event) => events.push(event));
-
-		await host.startSession({
-			config: createConfig(),
-			source: SessionSource.CLI,
-			prompt: "Hey",
-		});
-
-		const statusEvents = () =>
-			events.filter(
-				(event): event is { type: "status"; payload: { status: string } } =>
-					!!event &&
-					typeof event === "object" &&
-					(event as { type?: unknown }).type === "status",
-			);
-		const statusCountBefore = statusEvents().length;
-
-		// Snapshot-only persistence update after a turn finished: the status
-		// must reflect the snapshot, not default to "running" (which wedged
-		// busy tracking in clients when it trailed the final idle update).
-		onEvent?.({
-			version: "v1",
-			event: "session.updated",
-			sessionId: "sess-1",
-			payload: { snapshot },
-		});
-		const afterSnapshotOnly = statusEvents();
-		expect(afterSnapshotOnly.length).toBe(statusCountBefore + 1);
-		expect(afterSnapshotOnly.at(-1)?.payload).toMatchObject({
-			status: "idle",
-		});
-
-		// A session.updated with neither session nor snapshot reports nothing.
-		onEvent?.({
-			version: "v1",
-			event: "session.updated",
-			sessionId: "sess-1",
-			payload: {},
-		});
-		expect(statusEvents().length).toBe(statusCountBefore + 1);
 	});
 
 	it("maps hub iteration lifecycle events back to agent events", async () => {

@@ -772,13 +772,6 @@ export class HubRuntimeHost implements RuntimeHost {
 	private readonly sessionSubscriptions = new Map<string, () => void>();
 	private readonly pendingApprovalToolCallIds = new Set<string>();
 	private readonly agentDoneEmittedForCurrentRunBySession = new Set<string>();
-	/**
-	 * Sessions whose current turn was started by the daemon-side pending
-	 * prompt drain (signalled by `session.pending_prompt_submitted`) and has
-	 * not finished yet. Drained turns publish no `run.*` lifecycle events on
-	 * success, so this distinguishes their in-flight window from RPC turns.
-	 */
-	private readonly drainedTurnInFlightBySession = new Set<string>();
 	private readonly activeCapabilityAbortControllers = new Map<
 		string,
 		AbortController
@@ -1289,7 +1282,6 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.clear();
 		this.sessionCapabilities.clear();
 		this.agentDoneEmittedForCurrentRunBySession.clear();
-		this.drainedTurnInFlightBySession.clear();
 		for (const controller of this.activeCapabilityAbortControllers.values()) {
 			controller.abort("Hub runtime host disposed.");
 		}
@@ -1530,7 +1522,6 @@ export class HubRuntimeHost implements RuntimeHost {
 		this.sessionSubscriptions.get(target)?.();
 		this.sessionSubscriptions.delete(target);
 		this.agentDoneEmittedForCurrentRunBySession.delete(target);
-		this.drainedTurnInFlightBySession.delete(target);
 	}
 
 	private resolveCapabilities(input: StartSessionInput): RuntimeCapabilities {
@@ -1566,7 +1557,6 @@ export class HubRuntimeHost implements RuntimeHost {
 	private emitAgentDoneIfNeeded(input: {
 		sessionId: string;
 		payload: Record<string, unknown> | undefined;
-		source: "agent.done" | "run.completed" | "run.failed" | "run.aborted";
 	}): void {
 		const alreadyEmitted = this.agentDoneEmittedForCurrentRunBySession.has(
 			input.sessionId,
@@ -1574,23 +1564,7 @@ export class HubRuntimeHost implements RuntimeHost {
 		if (alreadyEmitted) {
 			return;
 		}
-		// `run.completed` for an RPC-driven turn is published only after the
-		// handler's post-turn snapshot read, so it can land after the queue
-		// drain has already submitted the next turn. A successful drained turn
-		// never publishes `run.completed` itself, so while one is in flight
-		// such an event can only be a stale completion of the previous turn —
-		// consuming it here would both emit a phantom done mid-turn and
-		// suppress the drained turn's real `agent.done`. `run.failed` and
-		// `run.aborted` stay eligible: they are how drained-turn errors and
-		// aborts reach clients at all.
-		if (
-			input.source === "run.completed" &&
-			this.drainedTurnInFlightBySession.has(input.sessionId)
-		) {
-			return;
-		}
 		this.agentDoneEmittedForCurrentRunBySession.add(input.sessionId);
-		this.drainedTurnInFlightBySession.delete(input.sessionId);
 		this.events.emit({
 			type: "agent_event",
 			payload: {
@@ -1633,7 +1607,6 @@ export class HubRuntimeHost implements RuntimeHost {
 		switch (event.event) {
 			case "run.started": {
 				this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
-				this.drainedTurnInFlightBySession.delete(sessionId);
 				const snapshot = parseCoreSessionSnapshot(event.payload?.snapshot);
 				const session = event.payload?.session as HubSessionRecord | undefined;
 				if (snapshot) {
@@ -1845,7 +1818,6 @@ export class HubRuntimeHost implements RuntimeHost {
 				this.emitAgentDoneIfNeeded({
 					sessionId,
 					payload: event.payload,
-					source: "agent.done",
 				});
 				return;
 			}
@@ -1945,14 +1917,13 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, snapshot },
 					});
 				}
-				// Snapshot-only session.updated events (projected from
-				// session_snapshot persistence updates) carry no session record.
-				// Defaulting those to "running" fabricated busy turns after a
-				// turn had already finished — for queue-drained turns nothing
-				// owns the busy flag, so a trailing fabricated "running" wedged
-				// clients (e.g. the desktop sidecar's workspace-restore gate)
-				// until restart. Use the snapshot's real status instead, and
-				// emit nothing when neither source reports one.
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
 				const status = session?.status ?? snapshot?.status;
 				if (status) {
 					this.events.emit({
@@ -1980,18 +1951,6 @@ export class HubRuntimeHost implements RuntimeHost {
 					| undefined;
 				if (!prompt) {
 					return;
-				}
-				// A submitted pending prompt starts a new drained turn, but the
-				// queue drain runs inside the daemon and never publishes
-				// `run.started` (only RPC-driven turns do). Reset the per-run
-				// done dedup here too, or the drained turn's `agent.done` is
-				// swallowed as a duplicate of the previous turn's and clients
-				// never learn the queued turn finished.
-				this.agentDoneEmittedForCurrentRunBySession.delete(sessionId);
-				if (prompt.delivery !== "steer") {
-					// Steered prompts join the already-running turn; only a
-					// queue-drained prompt opens a drained-turn window.
-					this.drainedTurnInFlightBySession.add(sessionId);
 				}
 				this.events.emit({
 					type: "pending_prompt_submitted",
@@ -2025,7 +1984,6 @@ export class HubRuntimeHost implements RuntimeHost {
 						...event.payload,
 						reason,
 					},
-					source: event.event,
 				});
 				if (
 					snapshot?.interactive === true &&

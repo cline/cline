@@ -693,19 +693,11 @@ describe("session forks", () => {
 			expect(restore).not.toHaveBeenCalled();
 
 			// The queued turn settles through the event stream: the runtime
-			// host delivers its done event (there is no send() RPC response to
-			// clear the busy flag for event-settled turns).
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
 			handleCoreSessionEvent(ctx, {
-				type: "agent_event",
-				payload: {
-					sessionId,
-					event: {
-						type: "done",
-						reason: "completed",
-						text: "done",
-						iterations: 1,
-					},
-				},
+				type: "status",
+				payload: { sessionId, status: "idle" },
 			});
 			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
 				busy: false,

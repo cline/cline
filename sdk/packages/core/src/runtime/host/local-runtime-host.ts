@@ -453,11 +453,11 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const workspacePath = resolveWorkspacePath(input.config);
 
 		// An interactive session started without a prompt has no turn in
-		// flight — the host dispatches prompts through separate send calls.
-		// Reporting it as "running" wedged clients that gate workspace
-		// operations on active turns (a created-but-never-prompted session
-		// stayed "running" forever). One-shot starts still run their prompt
-		// inside start(), so they begin "running".
+		// flight (turns arrive through separate send calls), so it must not
+		// report "running" — a created-but-never-prompted session otherwise
+		// stayed "running" forever, wedging clients that gate workspace
+		// operations (e.g. checkpoint restore) on active turns. One-shot
+		// starts still run their prompt inside start() and begin "running".
 		const startsWithoutTurn =
 			input.interactive === true && !startInput.prompt?.trim();
 		let manifest = SessionManifestSchema.parse({
@@ -2346,17 +2346,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		status: SessionStatus,
 		exitCode?: number | null,
 	): Promise<void> {
-		if (!session.artifacts) {
-			// Lazily-persisted sessions have nothing on disk to update yet,
-			// but their in-memory status must still track turn transitions
-			// (idle-started interactive sessions reach their first
-			// markTurnRunning before any persistence exists) and observers
-			// still need the status event.
-			session.status = status;
-			session.updatedAt = nowIso();
-			this.emitStatus(session.sessionId, status);
-			return;
-		}
+		if (!session.artifacts) return;
 		const result = await this.invoke<{ updated: boolean; endedAt?: string }>(
 			"updateSessionStatus",
 			session.sessionId,
