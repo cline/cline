@@ -48,6 +48,7 @@ describe("method registry", () => {
 				"session.create",
 				"tools.configuration.put",
 				"tools.profiles.put",
+				"workspace.file.upload",
 			].sort(),
 		);
 		expect(getMethodDefinition("gateway.hello")?.mutating).toBe(false);

@@ -99,6 +99,27 @@ describe("typed client surface", () => {
 		expect(runs.runs.map((run) => run.runId)).toContain(accepted.runId);
 		engine.lastHandle?.settle({});
 	});
+
+	it("starts a run in an explicitly created session without leaking session fields", async () => {
+		const { engine, connect, defaultBotId } = await startServer();
+		const client = await connect();
+		const session = await client.createSession({
+			botId: defaultBotId(),
+			workspaceRoot: "/tmp/gateway-explicit-session",
+		});
+		const accepted = await client.startRun({
+			botId: defaultBotId(),
+			sessionId: session.sessionId,
+			workspaceRoot: session.workspace.rootPath,
+			prompt: "explicit session",
+		});
+		expect(Object.keys(accepted).sort()).toEqual([
+			"acceptedAt",
+			"queuePosition",
+			"runId",
+		]);
+		engine.lastHandle?.settle({});
+	});
 });
 
 describe("session.get hydration snapshot", () => {

@@ -1185,7 +1185,7 @@ export class GatewayRuntime {
 				bot.record.config,
 				params.overrides,
 			);
-			const accepted = params.sessionId
+			const admitted = params.sessionId
 				? bot.submitPromptToSession(params.prompt, {
 						sessionId: params.sessionId,
 						workspace: params.workspaceRoot
@@ -1206,6 +1206,14 @@ export class GatewayRuntime {
 						overrides: params.overrides,
 						source: provenance.mode,
 					});
+			// Dedicated-session admission also identifies the selected session for
+			// connector callers. `run.start` has a deliberately smaller wire
+			// response, so do not leak that domain-only field through the Gateway.
+			const accepted: RunAccepted = {
+				runId: admitted.runId,
+				acceptedAt: admitted.acceptedAt,
+				queuePosition: admitted.queuePosition,
+			};
 			this.finishAdmission(actor, params.botId, accepted, provenance);
 			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
 			return accepted;

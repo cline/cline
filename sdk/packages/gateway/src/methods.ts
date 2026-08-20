@@ -96,6 +96,16 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 		}).strict(),
 	),
 	define(
+		"workspace.file.upload",
+		true,
+		IdempotentParamsBase.extend({
+			sessionId: SessionIdSchema,
+			name: z.string().min(1).max(255),
+			mediaType: z.string().min(1).max(255).optional(),
+			base64: z.string().min(1).max(7_000_000),
+		}).strict(),
+	),
+	define(
 		"run.steer",
 		true,
 		IdempotentParamsBase.extend({

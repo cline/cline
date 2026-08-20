@@ -16,9 +16,10 @@
  */
 
 import { timingSafeEqual } from "node:crypto";
+import { mkdirSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:net";
+import { basename, dirname, join } from "node:path";
 import type { Duplex } from "node:stream";
-import { dirname } from "node:path";
 import type { EnginePort } from "@cline/bot";
 import type {
 	BotId,
@@ -97,6 +98,7 @@ import { GatewayToolSystem } from "./tools/system";
 import type { PriceResolver } from "./usage";
 
 const MAX_LINE_BYTES = 8 * 1024 * 1024;
+const MAX_WORKSPACE_UPLOAD_BYTES = 5 * 1024 * 1024;
 const EVENT_PAGE_SIZE = 100;
 
 export interface GatewayServerOptions extends GatewayPathsOptions {
@@ -955,6 +957,54 @@ export class GatewayServer {
 					newSession: p.newSession as boolean | undefined,
 					overrides: p.overrides as never,
 				});
+			case "workspace.file.upload": {
+				const sessionId = p.sessionId as SessionId;
+				const session = this.runtime
+					.listSessions()
+					.find((candidate) => candidate.sessionId === sessionId);
+				if (!session) {
+					throw new GatewayCallError(
+						createGatewayError("not_found", `Unknown session: ${sessionId}`),
+					);
+				}
+				const data = Buffer.from(p.base64 as string, "base64");
+				if (
+					data.byteLength === 0 ||
+					data.byteLength > MAX_WORKSPACE_UPLOAD_BYTES
+				) {
+					throw new GatewayCallError(
+						createGatewayError(
+							"invalid_request",
+							`Uploads must contain between 1 byte and ${MAX_WORKSPACE_UPLOAD_BYTES} bytes`,
+						),
+					);
+				}
+				const requestedName = basename(p.name as string).replace(
+					/[^A-Za-z0-9._-]/g,
+					"_",
+				);
+				if (!requestedName || requestedName === "." || requestedName === "..") {
+					throw new GatewayCallError(
+						createGatewayError("invalid_request", "Upload filename is invalid"),
+					);
+				}
+				const uploadDir = join(
+					session.workspace.rootPath,
+					".cline",
+					"uploads",
+					sessionId,
+				);
+				mkdirSync(uploadDir, { recursive: true, mode: 0o700 });
+				const path = join(uploadDir, `${Date.now()}-${requestedName}`);
+				writeFileSync(path, data, { mode: 0o600, flag: "wx" });
+				this.stores.audit.record(actor, "workspace.file.upload", path, {
+					sessionId,
+					name: requestedName,
+					mediaType: p.mediaType,
+					size: data.byteLength,
+				});
+				return { path, name: requestedName, size: data.byteLength };
+			}
 			case "session.create":
 				return this.runtime.createSession(actor, {
 					botId: p.botId as BotId,
@@ -1254,7 +1304,6 @@ export class GatewayServer {
 			}
 		}
 	}
-
 }
 
 function checkAuth(

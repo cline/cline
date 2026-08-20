@@ -482,6 +482,24 @@
         "vitest": "^4.0.18",
       },
     },
+    "apps/gateway-ui": {
+      "name": "@cline/gateway-ui",
+      "version": "0.0.1",
+      "dependencies": {
+        "@cline/cline-app": "workspace:*",
+        "next": "16.2.11",
+        "react": "19.2.4",
+        "react-dom": "19.2.4",
+      },
+      "devDependencies": {
+        "@tailwindcss/postcss": "^4.2.0",
+        "@types/react": "19.2.14",
+        "@types/react-dom": "19.2.3",
+        "postcss": "^8.5",
+        "tailwindcss": "^4.2.0",
+        "typescript": "5.7.3",
+      },
+    },
     "apps/gateway-web": {
       "name": "@cline/gateway-web",
       "version": "0.0.0",
@@ -1287,6 +1305,8 @@
     "@cline/gateway": ["@cline/gateway@workspace:sdk/packages/gateway"],
 
     "@cline/gateway-desktop": ["@cline/gateway-desktop@workspace:apps/gateway-desktop"],
+
+    "@cline/gateway-ui": ["@cline/gateway-ui@workspace:apps/gateway-ui"],
 
     "@cline/gateway-web": ["@cline/gateway-web@workspace:apps/gateway-web"],
 
@@ -5363,6 +5383,8 @@
     "@cline/code/zod": ["zod@3.25.76", "", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
     "@cline/gateway-desktop/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
+
+    "@cline/gateway-ui/typescript": ["typescript@5.7.3", "", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-84MVSjMEHP+FQRPy3pX9sTVV/INIex71s9TL2Gm5FG/WG1SqXeKyZ0k7/blY/4FdOzI12CBy1vGc4og/eus0fw=="],
 
     "@cline/gateway-web/@types/react-dom": ["@types/react-dom@19.2.4", "", { "peerDependencies": { "@types/react": "^19.2.0" } }, "sha512-Bsc+QHgp+P/F02XDzNCY9jnZNCUuLki36KT7VKrTXXLdHf+vHMNZnW1rVu5DNW/rCK+fya3DATySbLM4yhtKUw=="],
 

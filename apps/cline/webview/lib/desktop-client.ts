@@ -76,6 +76,15 @@ export async function resolveDesktopBackendWsEndpoint(
 	projectPath?: string,
 ): Promise<string> {
 	const requestedKey = projectCacheKey(botId, projectPath);
+	const browserEndpoint =
+		typeof window !== "undefined"
+			? window.localStorage.getItem("cline.gatewayUi.endpoint")?.trim()
+			: undefined;
+	if (browserEndpoint) {
+		resolvedEndpointCache = browserEndpoint;
+		resolvedEndpointCacheKey = requestedKey;
+		return browserEndpoint;
+	}
 	if (
 		resolvedEndpointCache &&
 		(!requestedKey || requestedKey === resolvedEndpointCacheKey)
@@ -584,7 +593,16 @@ class DesktopClient {
 					this.pendingConnectReject = null;
 				}
 			};
-			const socket = new WebSocket(endpoint);
+			const remoteToken =
+				typeof window !== "undefined"
+					? window.localStorage.getItem("cline.gatewayUi.token")?.trim()
+					: undefined;
+			const socket = new WebSocket(
+				endpoint,
+				remoteToken
+					? ["cline-desktop-v1", `cline-auth.${remoteToken}`]
+					: ["cline-desktop-v1"],
+			);
 			this.socket = socket;
 			let opened = false;
 			socket.onopen = () => {

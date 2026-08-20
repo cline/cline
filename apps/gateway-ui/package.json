@@ -1,0 +1,26 @@
+{
+	"name": "@cline/gateway-ui",
+	"version": "0.0.1",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "next dev -p 3135 --turbo",
+		"build": "next build",
+		"start": "next start -p 3135",
+		"typecheck": "bun -F @cline/cline-app typecheck"
+	},
+	"dependencies": {
+		"@cline/cline-app": "workspace:*",
+		"next": "16.2.11",
+		"react": "19.2.4",
+		"react-dom": "19.2.4"
+	},
+	"devDependencies": {
+		"@tailwindcss/postcss": "^4.2.0",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"postcss": "^8.5",
+		"tailwindcss": "^4.2.0",
+		"typescript": "5.7.3"
+	}
+}
