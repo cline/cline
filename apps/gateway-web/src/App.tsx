@@ -32,6 +32,7 @@ interface Approval extends GatewayServerRequest {
 type ConnectionStage = "idle" | "opening" | "authenticated" | "syncing";
 const RUN_PROVIDER_ID = "cline";
 const DEFAULT_MODEL_ID = "grok-5.4";
+const PROMPT_DRAFT_KEY = "cline.gateway.promptDraft";
 
 const connectionStages: Array<{
 	id: Exclude<ConnectionStage, "idle">;
@@ -45,8 +46,16 @@ const connectionStages: Array<{
 const savedUrl =
 	localStorage.getItem("cline.gateway.url") ?? "ws://127.0.0.1:8080";
 const environmentToken = import.meta.env.VITE_CLINE_GATEWAY_TOKEN?.trim() ?? "";
-export function App() {
+export function App({
+	defaultToken,
+	userDisplayName,
+}: {
+	defaultToken?: string;
+	userDisplayName?: string;
+} = {}) {
 	const clientRef = useRef<BrowserGatewayClient | undefined>(undefined);
+	const connectAbortRef = useRef<AbortController | undefined>(undefined);
+	const configuredToken = defaultToken?.trim() || environmentToken;
 	const [url, setUrl] = useState(savedUrl);
 	const [token, setToken] = useState("");
 	const [allowInsecure, setAllowInsecure] = useState(false);
@@ -64,10 +73,16 @@ export function App() {
 	const [selectedSessionId, setSelectedSessionId] = useState("");
 	const [events, setEvents] = useState<GatewayEvent[]>([]);
 	const [approvals, setApprovals] = useState<Approval[]>([]);
-	const [prompt, setPrompt] = useState("");
+	const [prompt, setPrompt] = useState(
+		() =>
+			(typeof window === "undefined"
+				? ""
+				: (localStorage.getItem(PROMPT_DRAFT_KEY) ?? "")),
+	);
 	const [modelId, setModelId] = useState("");
 	const [sending, setSending] = useState(false);
 	const [steerMode, setSteerMode] = useState(false);
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
 	const selectedBot = bots.find((bot) => bot.identity.botId === selectedBotId);
 	const visibleSessions = sessions.filter(
@@ -90,21 +105,36 @@ export function App() {
 		.reverse()
 		.find((run) => run.state === "running");
 
-	useEffect(() => () => clientRef.current?.close(), []);
+	useEffect(
+		() => () => {
+			connectAbortRef.current?.abort();
+			clientRef.current?.close();
+		},
+		[],
+	);
 
 	async function connect(event?: FormEvent) {
 		event?.preventDefault();
+		connectAbortRef.current?.abort();
+		clientRef.current?.close();
+		clientRef.current = undefined;
+		const controller = new AbortController();
+		connectAbortRef.current = controller;
 		setStatus("connecting");
 		setConnectionStage("opening");
 		setError("");
-		clientRef.current?.close();
 		try {
 			const client = await BrowserGatewayClient.connect({
 				url,
-				auth: token.trim() || environmentToken,
+				auth: token.trim() || configuredToken,
 				clientId: localStorage.getItem("cline.gateway.clientId") ?? undefined,
 				allowInsecure,
+				signal: controller.signal,
 			});
+			if (controller.signal.aborted) {
+				client.close();
+				return;
+			}
 			clientRef.current = client;
 			setConnectionStage("authenticated");
 			localStorage.setItem("cline.gateway.url", url);
@@ -129,16 +159,33 @@ export function App() {
 				}
 			});
 			await client.request("run.subscribe", { cursor: initialEventCursor() });
+			controller.signal.throwIfAborted();
 			setConnectionStage("syncing");
 			await refresh(client);
+			controller.signal.throwIfAborted();
 			setStatus("connected");
 			setHasConnected(true);
 			setConnectionStage("idle");
 		} catch (cause) {
+			if (controller.signal.aborted) return;
 			setStatus("disconnected");
 			setConnectionStage("idle");
 			setError(messageOf(cause));
+		} finally {
+			if (connectAbortRef.current === controller) {
+				connectAbortRef.current = undefined;
+			}
 		}
+	}
+
+	function cancelConnection() {
+		connectAbortRef.current?.abort();
+		connectAbortRef.current = undefined;
+		clientRef.current?.close();
+		clientRef.current = undefined;
+		setStatus("disconnected");
+		setConnectionStage("idle");
+		setError("");
 	}
 
 	async function refresh(client = clientRef.current) {
@@ -179,6 +226,7 @@ export function App() {
 		event.preventDefault();
 		const client = clientRef.current;
 		const text = prompt.trim();
+		const attributedText = withGatewayUserContext(text, userDisplayName);
 		const selectedModelId = modelId.trim();
 		if (!client || !text || !selectedBotId) return;
 		if (!steerMode && !selectedModelId) {
@@ -189,19 +237,35 @@ export function App() {
 		setError("");
 		try {
 			if (steerMode && activeRun) {
-				await client.mutate("run.steer", { runId: activeRun.runId, text });
+				await client.mutate("run.steer", {
+					runId: activeRun.runId,
+					text: attributedText,
+				});
+				if (userDisplayName) {
+					console.info("[Cline Gateway] run steered", {
+						runId: activeRun.runId,
+						submittedBy: userDisplayName,
+					});
+				}
 			} else {
 				const accepted = (await client.mutate("run.start", {
 					botId: selectedBotId,
-					prompt: text,
+					prompt: attributedText,
 					overrides: {
 						providerId: RUN_PROVIDER_ID,
 						modelId: selectedModelId,
 					},
 				})) as { runId: string };
+				if (userDisplayName) {
+					console.info("[Cline Gateway] run submitted", {
+						runId: accepted.runId,
+						submittedBy: userDisplayName,
+					});
+				}
 				await client.request("run.subscribe", { runId: accepted.runId });
 			}
 			setPrompt("");
+			localStorage.removeItem(PROMPT_DRAFT_KEY);
 			setSteerMode(false);
 			window.setTimeout(() => void refresh(client), 150);
 		} catch (cause) {
@@ -269,7 +333,7 @@ export function App() {
 								type="password"
 								autoComplete="off"
 								placeholder={
-									environmentToken
+									configuredToken
 										? "Using VITE_CLINE_GATEWAY_TOKEN"
 										: "Paste token or configure environment"
 								}
@@ -326,6 +390,15 @@ export function App() {
 								→
 							</span>
 						</button>
+						{status === "connecting" && (
+							<button
+								type="button"
+								className="cancel-connection"
+								onClick={cancelConnection}
+							>
+								Cancel
+							</button>
+						)}
 					</form>
 					<footer className="connect-footer">
 						<span>REMOTE PROTOCOL / 01</span>
@@ -337,21 +410,34 @@ export function App() {
 	}
 
 	return (
-		<div className={`app-shell ${status}`}>
+		<div
+			className={`app-shell ${status}${sidebarCollapsed ? " sidebar-collapsed" : ""}`}
+		>
 			<aside className="sidebar">
 				<header>
 					<img src="/favicon.png" alt="" />
 					<strong>Gateway</strong>
+					<button
+						type="button"
+						className="sidebar-toggle"
+						onClick={() => setSidebarCollapsed((current) => !current)}
+						aria-label={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+						title={sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"}
+					>
+						{sidebarCollapsed ? "›" : "‹"}
+					</button>
 				</header>
 				<div className={`gateway-pill ${status}`}>
-					<i />{" "}
-					{status === "connected"
-						? "Connected"
-						: status === "connecting"
-							? "Connecting"
-							: "Disconnected"}
+					<i />
+					<span className="status-label">
+						{status === "connected"
+							? "Connected"
+							: status === "connecting"
+								? "Connecting"
+								: "Disconnected"}
+					</span>
 					{status === "connected" ? (
-						<span>{shortId(gatewayName)}</span>
+						<span className="gateway-id">{shortId(gatewayName)}</span>
 					) : (
 						<button
 							type="button"
@@ -395,8 +481,12 @@ export function App() {
 							}
 							onClick={() => setSelectedSessionId(session.sessionId)}
 						>
-							<strong>{shortId(session.sessionId)}</strong>
-							<small>{new Date(session.createdAt).toLocaleString()}</small>
+							<time dateTime={new Date(session.createdAt).toISOString()}>
+								{new Date(session.createdAt).toLocaleString([], {
+									dateStyle: "medium",
+									timeStyle: "short",
+								})}
+							</time>
 						</button>
 					))}
 				</nav>
@@ -510,7 +600,11 @@ export function App() {
 					</div>
 					<textarea
 						value={prompt}
-						onChange={(e) => setPrompt(e.target.value)}
+						onChange={(e) => {
+							const value = e.target.value;
+							setPrompt(value);
+							localStorage.setItem(PROMPT_DRAFT_KEY, value);
+						}}
 						onKeyDown={(e) => {
 							if (e.key === "Enter" && !e.shiftKey) {
 								e.preventDefault();
@@ -649,9 +743,10 @@ function projectTimeline(events: GatewayEvent[]): TimelineItem[] {
 }
 
 function messageText(content: unknown): string {
-	if (typeof content === "string") return content;
+	if (typeof content === "string") return withoutGatewayUserContext(content);
 	if (Array.isArray(content))
-		return content
+		return withoutGatewayUserContext(
+			content
 			.map((part) =>
 				typeof part === "string"
 					? part
@@ -659,8 +754,19 @@ function messageText(content: unknown): string {
 						? String(part.text)
 						: "",
 			)
-			.join("\n");
+			.join("\n"),
+		);
 	return content ? JSON.stringify(content, null, 2) : "";
+}
+
+function withGatewayUserContext(text: string, userDisplayName?: string): string {
+	const submittedBy = userDisplayName?.trim();
+	if (!submittedBy) return text;
+	return `<gateway_context>${JSON.stringify({ submittedBy })}</gateway_context>\n\n${text}`;
+}
+
+function withoutGatewayUserContext(text: string): string {
+	return text.replace(/^<gateway_context>[^\n]*<\/gateway_context>\s*/u, "");
 }
 
 function projectRunStates(events: GatewayEvent[]) {

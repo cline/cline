@@ -61,6 +61,7 @@ export interface BrowserGatewayClientOptions {
 	clientId?: string;
 	allowInsecure?: boolean;
 	connectTimeoutMs?: number;
+	signal?: AbortSignal;
 }
 
 type SocketFactory = (url: string) => WebSocket;
@@ -95,10 +96,20 @@ export class BrowserGatewayClient {
 		socketFactory: SocketFactory = (url) => new WebSocket(url),
 	): Promise<BrowserGatewayClient> {
 		const url = validateRemoteUrl(options.url, options.allowInsecure ?? false);
+		options.signal?.throwIfAborted();
 		const socket = socketFactory(url.toString());
-		await waitForOpen(socket, options.connectTimeoutMs ?? 5_000);
-		const hello = await handshake(socket, options);
-		return new BrowserGatewayClient(socket, hello);
+		try {
+			await waitForOpen(
+				socket,
+				options.connectTimeoutMs ?? 5_000,
+				options.signal,
+			);
+			const hello = await handshake(socket, options);
+			return new BrowserGatewayClient(socket, hello);
+		} catch (error) {
+			socket.close();
+			throw error;
+		}
 	}
 
 	request(method: string, params?: Record<string, unknown>): Promise<unknown> {
@@ -235,29 +246,43 @@ export function validateRemoteUrl(value: string, allowInsecure: boolean): URL {
 	return url;
 }
 
-function waitForOpen(socket: WebSocket, timeoutMs: number): Promise<void> {
+function waitForOpen(
+	socket: WebSocket,
+	timeoutMs: number,
+	signal?: AbortSignal,
+): Promise<void> {
 	return new Promise((resolve, reject) => {
-		const timeout = window.setTimeout(() => {
-			socket.close();
-			reject(new Error("Timed out connecting to the Gateway"));
-		}, timeoutMs);
-		const cleanup = () => window.clearTimeout(timeout);
-		socket.addEventListener(
-			"open",
-			() => {
-				cleanup();
-				resolve();
-			},
-			{ once: true },
+		let settled = false;
+		const finish = (callback: () => void) => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			callback();
+		};
+		const onOpen = () => finish(resolve);
+		const onError = () =>
+			finish(() => reject(new Error("Cannot reach the Gateway")));
+		const onClose = () =>
+			finish(() => reject(new Error("Gateway connection closed")));
+		const onAbort = () =>
+			finish(() => reject(new DOMException("Connection canceled", "AbortError")));
+		const timeout = globalThis.setTimeout(
+			() =>
+				finish(() => reject(new Error("Timed out connecting to the Gateway"))),
+			timeoutMs,
 		);
-		socket.addEventListener(
-			"error",
-			() => {
-				cleanup();
-				reject(new Error("Cannot reach the Gateway"));
-			},
-			{ once: true },
-		);
+		const cleanup = () => {
+			globalThis.clearTimeout(timeout);
+			socket.removeEventListener("open", onOpen);
+			socket.removeEventListener("error", onError);
+			socket.removeEventListener("close", onClose);
+			signal?.removeEventListener("abort", onAbort);
+		};
+		socket.addEventListener("open", onOpen);
+		socket.addEventListener("error", onError);
+		socket.addEventListener("close", onClose);
+		signal?.addEventListener("abort", onAbort, { once: true });
+		if (signal?.aborted) onAbort();
 	});
 }
 
@@ -267,6 +292,31 @@ function handshake(
 ): Promise<GatewayHello> {
 	return new Promise((resolve, reject) => {
 		const id = "hello_1";
+		let settled = false;
+		const finish = (callback: () => void) => {
+			if (settled) return;
+			settled = true;
+			cleanup();
+			callback();
+		};
+		const onAbort = () =>
+			finish(() => reject(new DOMException("Connection canceled", "AbortError")));
+		const onClose = () =>
+			finish(() => reject(new Error("Gateway connection closed")));
+		const onError = () =>
+			finish(() => reject(new Error("Cannot authenticate with the Gateway")));
+		const timeout = globalThis.setTimeout(
+			() =>
+				finish(() => reject(new Error("Timed out authenticating with the Gateway"))),
+			options.connectTimeoutMs ?? 5_000,
+		);
+		const cleanup = () => {
+			globalThis.clearTimeout(timeout);
+			socket.removeEventListener("message", onMessage);
+			socket.removeEventListener("close", onClose);
+			socket.removeEventListener("error", onError);
+			options.signal?.removeEventListener("abort", onAbort);
+		};
 		const onMessage = async (event: MessageEvent) => {
 			const text =
 				typeof event.data === "string" ? event.data : await event.data.text();
@@ -274,13 +324,20 @@ function handshake(
 				if (!line.trim()) continue;
 				const response = JSON.parse(line) as GatewayResponse;
 				if (response.id !== id) continue;
-				socket.removeEventListener("message", onMessage);
-				if (response.error) reject(new GatewayRpcError(response.error));
-				else resolve(response.result as GatewayHello);
+				if (response.error)
+					finish(() => reject(new GatewayRpcError(response.error!)));
+				else finish(() => resolve(response.result as GatewayHello));
 				return;
 			}
 		};
 		socket.addEventListener("message", onMessage);
+		socket.addEventListener("close", onClose);
+		socket.addEventListener("error", onError);
+		options.signal?.addEventListener("abort", onAbort, { once: true });
+		if (options.signal?.aborted) {
+			onAbort();
+			return;
+		}
 		socket.send(
 			`${JSON.stringify({
 				version: 1,

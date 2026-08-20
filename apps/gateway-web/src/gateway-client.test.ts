@@ -1,5 +1,18 @@
 import { describe, expect, it } from "vitest";
-import { initialEventCursor, validateRemoteUrl } from "./gateway-client";
+import {
+	BrowserGatewayClient,
+	initialEventCursor,
+	validateRemoteUrl,
+} from "./gateway-client";
+
+class PendingSocket extends EventTarget {
+	closeCalls = 0;
+
+	close() {
+		this.closeCalls += 1;
+		this.dispatchEvent(new Event("close"));
+	}
+}
 
 describe("browser Gateway transport", () => {
 	it("encodes the initial replay cursor", () => {
@@ -29,5 +42,23 @@ describe("browser Gateway transport", () => {
 		expect(() =>
 			validateRemoteUrl("wss://gateway.example.com?token=no", false),
 		).toThrow("query");
+	});
+
+	it("cancels and closes a pending WebSocket connection", async () => {
+		const socket = new PendingSocket();
+		const controller = new AbortController();
+		const connection = BrowserGatewayClient.connect(
+			{
+				url: "wss://gateway.example.com",
+				auth: "secret",
+				signal: controller.signal,
+			},
+			() => socket as unknown as WebSocket,
+		);
+
+		controller.abort();
+
+		await expect(connection).rejects.toMatchObject({ name: "AbortError" });
+		expect(socket.closeCalls).toBe(1);
 	});
 });

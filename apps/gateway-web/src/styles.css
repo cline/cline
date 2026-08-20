@@ -442,6 +442,22 @@ button:disabled {
 	opacity: 1;
 	cursor: wait;
 }
+.connect-form > .cancel-connection {
+	min-height: 42px;
+	border: 1px solid #caa4e84a;
+	border-radius: 5px;
+	background: transparent;
+	color: #d8c3e6;
+	font-size: 11px;
+	font-weight: 650;
+	letter-spacing: 0.06em;
+	text-transform: uppercase;
+}
+.connect-form > .cancel-connection:hover {
+	border-color: #e0c6f266;
+	background: #ffffff0a;
+	color: #fff;
+}
 @keyframes button-sheen {
 	to {
 		transform: translateX(120%);
@@ -673,6 +689,10 @@ button:disabled {
 	display: grid;
 	grid-template-columns: 288px minmax(0, 1fr);
 	overflow: hidden;
+	transition: grid-template-columns 180ms ease;
+}
+.app-shell.sidebar-collapsed {
+	grid-template-columns: 72px minmax(0, 1fr);
 }
 .sidebar {
 	position: relative;
@@ -702,6 +722,55 @@ button:disabled {
 		serif;
 	font-size: 20px;
 	font-weight: 500;
+}
+.sidebar-toggle {
+	margin-left: auto;
+	width: 24px;
+	height: 24px;
+	padding: 0;
+	border: 1px solid #343741;
+	border-radius: 7px;
+	background: #171a20;
+	color: #9599a5;
+	line-height: 1;
+}
+.sidebar-toggle:hover {
+	color: #fff;
+	border-color: #5c526c;
+}
+.sidebar-collapsed .sidebar {
+	padding-left: 9px;
+	padding-right: 9px;
+}
+.sidebar-collapsed .sidebar header {
+	justify-content: center;
+	padding-left: 0;
+	padding-right: 0;
+}
+.sidebar-collapsed .sidebar header strong,
+.sidebar-collapsed .gateway-pill .status-label,
+.sidebar-collapsed .gateway-pill .gateway-id,
+.sidebar-collapsed .gateway-pill button,
+.sidebar-collapsed .section-label,
+.sidebar-collapsed .bot-list,
+.sidebar-collapsed .session-list,
+.sidebar-collapsed .disconnect {
+	display: none;
+}
+.sidebar-collapsed .sidebar-toggle {
+	margin-left: 0;
+	width: 18px;
+	height: 22px;
+}
+.sidebar-collapsed .sidebar header {
+	gap: 5px;
+}
+.sidebar-collapsed .gateway-pill {
+	justify-content: center;
+	margin-left: 5px;
+	margin-right: 5px;
+	padding-left: 0;
+	padding-right: 0;
 }
 .gateway-pill {
 	margin: 0 5px 24px;
@@ -735,7 +804,7 @@ button:disabled {
 		opacity: 0.35;
 	}
 }
-.gateway-pill span {
+.gateway-pill .gateway-id {
 	margin-left: auto;
 	color: #626672;
 }
@@ -815,14 +884,9 @@ button:disabled {
 	background: #1c1f27;
 	border-color: #30333d;
 }
-.session-list strong {
-	font:
-		11px ui-monospace,
-		monospace;
-}
-.session-list small {
-	color: #646873;
-	font-size: 9px;
+.session-list time {
+	color: #a4a7b0;
+	font-size: 10px;
 }
 .disconnect {
 	margin-top: auto;
@@ -833,8 +897,11 @@ button:disabled {
 }
 .conversation {
 	min-width: 0;
+	min-height: 0;
+	height: 100vh;
 	display: grid;
-	grid-template-rows: auto 1fr auto auto;
+	grid-template-rows: auto minmax(0, 1fr) auto auto;
+	overflow: hidden;
 	background: #0d0f14;
 }
 .conversation-header {
@@ -904,7 +971,11 @@ button:disabled {
 	}
 }
 .timeline {
+	min-width: 0;
+	min-height: 0;
 	overflow-y: auto;
+	overflow-x: hidden;
+	overscroll-behavior: contain;
 	padding: 38px max(28px, calc((100% - 760px) / 2));
 }
 .empty {
@@ -934,6 +1005,7 @@ button:disabled {
 	margin: 0 0 20px;
 	line-height: 1.65;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	color: #dadbe1;
 }
 .message.user {
@@ -983,10 +1055,12 @@ button:disabled {
 	color: #c58f95;
 	line-height: 1.5;
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 }
 .event-card pre,
 .approval code {
 	white-space: pre-wrap;
+	overflow-wrap: anywhere;
 	overflow: auto;
 	color: #858995;
 	font-size: 10px;
@@ -1015,6 +1089,7 @@ button:disabled {
 }
 .composer {
 	position: relative;
+	min-width: 0;
 	margin: 12px max(28px, calc((100% - 760px) / 2)) 22px;
 	border: 1px solid #343842;
 	background: #161920;
@@ -1071,30 +1146,8 @@ button:disabled {
 	background: transparent;
 }
 @media (max-width: 760px) {
-	.app-shell {
-		grid-template-columns: 80px 1fr;
-	}
 	.sidebar {
 		padding: 14px 8px;
-	}
-	.sidebar header strong,
-	.gateway-pill span,
-	.gateway-pill:not(i),
-	.section-label,
-	.bot-list button > i,
-	.session-list,
-	.disconnect {
-		font-size: 0;
-	}
-	.gateway-pill {
-		justify-content: center;
-	}
-	.bot-list button {
-		grid-template-columns: 1fr;
-		place-items: center;
-	}
-	.bot-list strong {
-		font-size: 10px;
 	}
 	.conversation-header {
 		padding: 12px;
