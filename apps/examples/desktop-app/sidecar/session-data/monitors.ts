@@ -5,8 +5,13 @@ export type PersistedActiveMonitor = { id: string; name: string };
 const STARTED_MONITOR = /^Started monitor (mon_\d+) \("(.+)"\):/m;
 const MONITOR_RECORD = /^(mon_\d+) \[([^\]]+)] "(.+)":/gm;
 const STOPPED_MONITOR = /^Stopped monitor (mon_\d+)\b/gm;
+/**
+ * Only complete, line-anchored terminal markers may remove a monitor: a
+ * prefix-anywhere match would let ordinary prose quoting a marker suppress
+ * the resume notice for a monitor that never actually ended.
+ */
 const TERMINAL_MONITOR =
-	/\[monitor (mon_\d+) (?:stopped|failed to run:|ended on signal|ended with exit code)/g;
+	/^\[monitor (mon_\d+) (?:stopped(?: by the user| because session resumed)?|failed to run: [^\n]*|ended on signal [A-Za-z0-9]+|ended with exit code -?\d+)\]$/gm;
 /**
  * Fenced regions carry raw watched-process output. The core sanitizer
  * guarantees a forged close tag cannot appear inside the fence, so stripping
@@ -149,19 +154,20 @@ export function createMonitorResumeNotice(
 	};
 }
 
-export function persistMonitorResumeNotice(
-	sessionId: string,
+/**
+ * Derives the resume notice without persisting anything. The caller persists
+ * the returned messages only after the replacement session has actually
+ * started: writing "monitors stopped" to disk before Core released the old
+ * runtime would leave a durable false statement if the start fails while the
+ * old process keeps running. If the process exits before the write, the next
+ * resume simply re-derives the identical notice.
+ */
+export function prepareMonitorResumeNotice(
 	messages: MessageWithMetadata[],
-	persist: (sessionId: string, messages: MessageWithMetadata[]) => void,
 ): { messages: MessageWithMetadata[]; notice?: MessageWithMetadata } {
 	const notice = createMonitorResumeNotice(
 		collectPersistedActiveMonitors(messages),
 	);
 	if (!notice) return { messages };
-	const next = [...messages, notice];
-	// Resumed sessions do not seed-persist their initial messages. Write the
-	// terminal markers before runtime start so a no-turn shutdown cannot lose
-	// them and generate the same notice on the next resume.
-	persist(sessionId, next);
-	return { messages: next, notice };
+	return { messages: [...messages, notice], notice };
 }

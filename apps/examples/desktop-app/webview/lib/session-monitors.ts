@@ -13,8 +13,20 @@ type MonitorToolPayload = {
 
 const STARTED_MONITOR = /^Started monitor (mon_\d+) \("(.+)"\):/m;
 const MONITOR_RECORD = /^(mon_\d+) \[([^\]]+)] "(.+)":/gm;
+/**
+ * Only complete, line-anchored terminal markers may remove a monitor. The
+ * previous prefix-anywhere match let ordinary prose mentioning a marker (or a
+ * watched process printing one) hide a monitor that was still running.
+ */
 const TERMINAL_NOTIFICATION =
-	/\[monitor (mon_\d+) (?:stopped|failed to run:|ended on signal|ended with exit code)/g;
+	/^\[monitor (mon_\d+) (?:stopped(?: by the user| because session resumed)?|failed to run: [^\n]*|ended on signal [A-Za-z0-9]+|ended with exit code -?\d+)\]$/gm;
+/**
+ * Fenced regions carry raw watched-process output. The core sanitizer
+ * guarantees a forged close tag cannot appear inside the fence, so stripping
+ * whole spans (or an unterminated tail) removes exactly the untrusted text —
+ * a live process printing a terminal marker must not hide its own monitor.
+ */
+const MONITOR_OUTPUT_SPAN = /<monitor-output>[\s\S]*?(?:<\/monitor-output>|$)/g;
 
 function parseToolPayload(
 	message: ChatMessage,
@@ -77,7 +89,8 @@ export function buildActiveSessionMonitors(
 			continue;
 		}
 
-		for (const match of message.content.matchAll(TERMINAL_NOTIFICATION)) {
+		const outsideFences = message.content.replace(MONITOR_OUTPUT_SPAN, "");
+		for (const match of outsideFences.matchAll(TERMINAL_NOTIFICATION)) {
 			if (match[1]) {
 				active.delete(match[1]);
 			}

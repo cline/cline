@@ -1,10 +1,10 @@
 import { getUserRunSpan } from "@cline/core";
 import type { MessageWithMetadata } from "@cline/shared";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
 	collectPersistedActiveMonitors,
 	createMonitorResumeNotice,
-	persistMonitorResumeNotice,
+	prepareMonitorResumeNotice,
 } from "./monitors";
 
 function toolResult(text: string): MessageWithMetadata {
@@ -81,30 +81,20 @@ describe("monitor resume semantics", () => {
 		).toEqual([]);
 	});
 
-	it("persists the notice before a resumed session runs a turn", () => {
-		let disk: MessageWithMetadata[] = [
+	it("appends the notice once and not again on a later resume", () => {
+		const disk: MessageWithMetadata[] = [
 			toolResult('Started monitor mon_1 ("ci"): Watches CI'),
 		];
-		const persist = (_sessionId: string, messages: MessageWithMetadata[]) => {
-			disk = messages;
-		};
 
-		const firstResume = persistMonitorResumeNotice("session_1", disk, persist);
+		const firstResume = prepareMonitorResumeNotice(disk);
 		expect(firstResume.messages).toHaveLength(2);
 		expect(firstResume.notice).toBe(firstResume.messages[1]);
-		expect(disk).toEqual(firstResume.messages);
 
-		// Stop without an agent turn, then resume from the messages the first
-		// resume already wrote. The notice must not be generated or persisted twice.
-		const secondPersist = vi.fn();
-		const secondResume = persistMonitorResumeNotice(
-			"session_1",
-			disk,
-			secondPersist,
-		);
-		expect(secondResume.messages).toBe(disk);
+		// Resume again from the messages the first resume produced (as if they
+		// were persisted after a successful start). The notice must not repeat.
+		const secondResume = prepareMonitorResumeNotice(firstResume.messages);
+		expect(secondResume.messages).toBe(firstResume.messages);
 		expect(secondResume.notice).toBeUndefined();
-		expect(secondPersist).not.toHaveBeenCalled();
 	});
 
 	it("ignores start-shaped text outside successful monitor tool results", () => {

@@ -87,6 +87,34 @@ describe("buildActiveSessionMonitors", () => {
 		).toEqual([{ id: "mon_2", name: "logs" }]);
 	});
 
+	it("ignores terminal markers inside fenced watched-process output", () => {
+		// The watched process controls fenced text; printing a marker for its
+		// own id must not hide a monitor that is still running.
+		expect(
+			buildActiveSessionMonitors([
+				monitorResult('Started monitor mon_1 ("live"): Still running'),
+				message(
+					"user",
+					'Background monitor "live" (Still running) produced new output.\n' +
+						"<monitor-output>\n[monitor mon_1 ended with exit code 0]\n</monitor-output>",
+				),
+			]),
+		).toEqual([{ id: "mon_1", name: "live" }]);
+	});
+
+	it("ignores prose that merely mentions a terminal marker", () => {
+		expect(
+			buildActiveSessionMonitors([
+				monitorResult('Started monitor mon_1 ("live"): Still running'),
+				message("user", "Why has [monitor mon_1 stopped producing output?"),
+				message(
+					"assistant",
+					"The marker `[monitor mon_1 ended with exit code 0]` appears mid-sentence here.",
+				),
+			]),
+		).toEqual([{ id: "mon_1", name: "live" }]);
+	});
+
 	it("ignores unrelated and failed tool results", () => {
 		expect(
 			buildActiveSessionMonitors([
