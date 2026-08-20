@@ -329,6 +329,38 @@ function cloneUsage(usage: AgentUsage): AgentUsage {
 	return { ...usage };
 }
 
+const HOOK_ATTRIBUTE_ESCAPES: Record<string, string> = {
+	_: "__",
+	'"': "_q_",
+	"<": "_lt_",
+	">": "_gt_",
+};
+
+function sanitizeHookAttribute(value: string): string {
+	// The underscore escapes itself, which makes the encoding injective
+	// (uniquely decodable escape code): no two distinct ids can collapse to
+	// the same sanitized stamp.
+	return value.replace(/[_"<>]/g, (char) => HOOK_ATTRIBUTE_ESCAPES[char]);
+}
+
+function formatHookContextBlock(
+	source: "PreToolUse" | "PostToolUse",
+	toolCall: AgentToolCallPart,
+	text: string,
+): string {
+	// Tool identity keeps each block attributable to its call: contexts are
+	// batched into one message after the tool results, and parallel tool
+	// execution collects them in completion order, so position alone cannot
+	// identify the tool. Attribute values are sanitized and embedded
+	// hook_context tags (opening and closing) neutralized so neither
+	// provider-supplied ids nor hook output can corrupt or spoof the block
+	// markup.
+	const toolName = sanitizeHookAttribute(toolCall.toolName);
+	const toolCallId = sanitizeHookAttribute(toolCall.toolCallId);
+	const body = text.trim().replace(/<(\/?)hook_context/gi, "<\\$1hook_context");
+	return `<hook_context source="${source}" tool_name="${toolName}" tool_call_id="${toolCallId}">\n${body}\n</hook_context>`;
+}
+
 function cloneMessages(messages: readonly AgentMessage[]): AgentMessage[] {
 	return messages.map((message) => ({
 		...message,
@@ -448,6 +480,13 @@ export class AgentRuntime {
 		afterTool: [],
 		onEvent: [],
 	};
+	/**
+	 * `appendContext` blocks collected from beforeTool/afterTool hooks during
+	 * the current iteration's tool executions, flushed as one user message
+	 * after the tool results so tool-result parts stay contiguous for
+	 * providers that require them first in the following turn.
+	 */
+	private pendingHookContexts: string[] = [];
 	private readonly state = {
 		agentId: "",
 		agentRole: undefined as string | undefined,
@@ -781,6 +820,24 @@ export class AgentRuntime {
 						type: "message-added",
 						snapshot: this.snapshot(),
 						message: toolMessage,
+					});
+				}
+				if (this.pendingHookContexts.length > 0) {
+					const hookContextText = this.pendingHookContexts.join("\n\n");
+					this.pendingHookContexts = [];
+					// displayRole "system" keeps the injected block out of user-facing
+					// transcripts (live and replayed) while it still reaches the model,
+					// mirroring how compaction summaries are handled.
+					const hookContextMessage = createMessage(
+						"user",
+						[{ type: "text", text: hookContextText }],
+						{ userRunSpan: 0, displayRole: "system" },
+					);
+					this.state.messages.push(hookContextMessage);
+					await this.emit({
+						type: "message-added",
+						snapshot: this.snapshot(),
+						message: hookContextMessage,
 					});
 				}
 				await this.emit({
@@ -1568,6 +1625,7 @@ export class AgentRuntime {
 	private async executeToolCalls(
 		toolCalls: AgentToolCallPart[],
 	): Promise<AgentMessage[]> {
+		this.pendingHookContexts = [];
 		const prepared: PreparedToolExecution[] = [];
 		for (const toolCall of toolCalls) {
 			prepared.push(await this.prepareToolExecution(toolCall));
@@ -1660,6 +1718,15 @@ export class AgentRuntime {
 						...policyOverride,
 						...result.policy,
 					};
+				}
+				if (result?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PreToolUse",
+							toolCall,
+							result.appendContext,
+						),
+					);
 				}
 				this.applyStopControl(result);
 				if (result?.skip) {
@@ -1808,6 +1875,15 @@ export class AgentRuntime {
 					endedAt,
 					durationMs,
 				})) as AgentAfterToolResult | undefined;
+				if (after?.appendContext?.trim()) {
+					this.pendingHookContexts.push(
+						formatHookContextBlock(
+							"PostToolUse",
+							prepared.toolCall,
+							after.appendContext,
+						),
+					);
+				}
 				this.applyStopControl(after);
 				if (after?.result) {
 					result = after.result;
