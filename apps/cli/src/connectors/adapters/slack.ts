@@ -1,5 +1,5 @@
 import { createSlackAdapter, type SlackAdapter } from "@chat-adapter/slack";
-import type { ChatStartSessionRequest } from "@cline/core";
+import type { ChatRunTurnRequest, ChatStartSessionRequest } from "@cline/core";
 import {
 	createUserInstructionConfigService,
 	HubSessionClient,
@@ -7,6 +7,7 @@ import {
 import type { ConnectSlackOptions, SlackConnectorState } from "@cline/shared";
 import {
 	type Adapter,
+	type Attachment,
 	Chat,
 	ConsoleLogger,
 	type Message,
@@ -72,6 +73,56 @@ const SLACK_SYSTEM_RULES = getConnectorSystemRules(
 	"You can respond to user messages in threads and DMs, and you can use tools according to user's requests and your capabilities.",
 );
 
+const MAX_SLACK_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+const SUPPORTED_IMAGE_MIME_TYPES = new Set([
+	"image/png",
+	"image/jpeg",
+	"image/gif",
+	"image/webp",
+]);
+const TEXT_FILE_EXTENSIONS = new Set([
+	"txt",
+	"md",
+	"markdown",
+	"json",
+	"jsonl",
+	"yaml",
+	"yml",
+	"xml",
+	"csv",
+	"tsv",
+	"js",
+	"jsx",
+	"ts",
+	"tsx",
+	"css",
+	"html",
+	"htm",
+	"py",
+	"rb",
+	"go",
+	"rs",
+	"java",
+	"kt",
+	"kts",
+	"c",
+	"h",
+	"cc",
+	"cpp",
+	"hpp",
+	"cs",
+	"swift",
+	"sh",
+	"bash",
+	"zsh",
+	"fish",
+	"sql",
+	"toml",
+	"ini",
+	"conf",
+	"log",
+]);
+
 type SlackThreadState = ConnectorThreadState & {
 	teamId?: string;
 };
@@ -131,6 +182,89 @@ function firstRecord(value: unknown): Record<string, unknown> | undefined {
 
 function readString(value: unknown): string | undefined {
 	return typeof value === "string" && value.trim() ? value.trim() : undefined;
+}
+
+function isTextSlackAttachment(attachment: Attachment): boolean {
+	const mimeType = attachment.mimeType?.toLowerCase().split(";", 1)[0]?.trim();
+	if (mimeType?.startsWith("text/")) return true;
+	if (
+		mimeType === "application/json" ||
+		mimeType === "application/xml" ||
+		mimeType === "application/yaml" ||
+		mimeType === "application/x-yaml"
+	)
+		return true;
+	const extension = attachment.name?.toLowerCase().split(".").pop();
+	return extension ? TEXT_FILE_EXTENSIONS.has(extension) : false;
+}
+
+async function readSlackAttachmentData(
+	attachment: Attachment,
+): Promise<Buffer> {
+	let data: Buffer;
+	if (attachment.fetchData) {
+		data = await attachment.fetchData();
+	} else if (Buffer.isBuffer(attachment.data)) {
+		data = attachment.data;
+	} else if (attachment.data instanceof Blob) {
+		data = Buffer.from(await attachment.data.arrayBuffer());
+	} else {
+		throw new Error(
+			`Slack attachment ${attachment.name || "(unnamed)"} cannot be downloaded`,
+		);
+	}
+	if (data.byteLength > MAX_SLACK_ATTACHMENT_BYTES) {
+		throw new Error(
+			`Slack attachment ${attachment.name || "(unnamed)"} exceeds the 10 MB limit`,
+		);
+	}
+	return data;
+}
+
+async function buildSlackRuntimeAttachments(
+	message: Message,
+	text: string,
+): Promise<{ text: string; attachments?: ChatRunTurnRequest["attachments"] }> {
+	const userImages: string[] = [];
+	const userFiles: Array<{ name: string; content: string }> = [];
+	const labels: string[] = [];
+	for (const [index, attachment] of (message.attachments ?? []).entries()) {
+		const name = attachment.name?.trim() || `attachment-${index + 1}`;
+		const mimeType = attachment.mimeType
+			?.toLowerCase()
+			.split(";", 1)[0]
+			?.trim();
+		const data = await readSlackAttachmentData(attachment);
+		if (attachment.type === "image" || mimeType?.startsWith("image/")) {
+			if (!mimeType || !SUPPORTED_IMAGE_MIME_TYPES.has(mimeType)) {
+				throw new Error(
+					`Unsupported Slack image type: ${mimeType || "unknown"}`,
+				);
+			}
+			userImages.push(`data:${mimeType};base64,${data.toString("base64")}`);
+			labels.push(`[image: ${name}]`);
+			continue;
+		}
+		if (attachment.type === "file" && isTextSlackAttachment(attachment)) {
+			userFiles.push({ name, content: data.toString("utf8") });
+			labels.push(`[file: ${name}]`);
+			continue;
+		}
+		throw new Error(
+			`Unsupported Slack attachment type: ${mimeType || attachment.type}`,
+		);
+	}
+	const runtimeText = [text.trim(), ...labels].filter(Boolean).join("\n");
+	return {
+		text: runtimeText,
+		attachments:
+			userImages.length || userFiles.length
+				? {
+						...(userImages.length ? { userImages } : {}),
+						...(userFiles.length ? { userFiles } : {}),
+					}
+				: undefined,
+	};
 }
 
 function normalizeSlackMessageEventChannelType<T>(event: T): T {
@@ -927,6 +1061,7 @@ class SlackConnector extends ConnectorBase<
 		const handleTurn = async (
 			thread: Thread<SlackThreadState>,
 			text: string,
+			attachments?: ChatRunTurnRequest["attachments"],
 		) => {
 			const currentState = await loadThreadState(
 				thread,
@@ -945,6 +1080,7 @@ class SlackConnector extends ConnectorBase<
 							handleConnectorUserTurn({
 								thread,
 								text,
+								attachments,
 								client,
 								pendingApprovals,
 								baseStartRequest: startRequest,
@@ -1077,7 +1213,12 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(mentionThread, text);
+			const runtimeInput = await buildSlackRuntimeAttachments(message, text);
+			await handleTurn(
+				mentionThread,
+				runtimeInput.text,
+				runtimeInput.attachments,
+			);
 		});
 
 		bot.onSubscribedMessage(async (thread, message) => {
@@ -1104,7 +1245,8 @@ class SlackConnector extends ConnectorBase<
 			) {
 				return;
 			}
-			await handleTurn(thread, text);
+			const runtimeInput = await buildSlackRuntimeAttachments(message, text);
+			await handleTurn(thread, runtimeInput.text, runtimeInput.attachments);
 		});
 
 		bot.onSlashCommand(async (event) => {
@@ -1320,6 +1462,7 @@ export const __test__ = {
 	resolveSlackBotUserId,
 	resolveSlackChannelMentionThread,
 	stripSlackBotMention,
+	buildSlackRuntimeAttachments,
 	withSlackTeamBotToken,
 	isSlackInvalidThreadTsError,
 	findBindingForThread: (

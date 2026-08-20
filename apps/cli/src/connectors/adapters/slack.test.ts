@@ -359,6 +359,71 @@ describe("slack binding lookup", () => {
 		).toBe("hi");
 	});
 
+	it("converts Slack images into runtime image attachments", async () => {
+		const result = await __test__.buildSlackRuntimeAttachments(
+			{
+				text: "describe this",
+				attachments: [
+					{
+						type: "image",
+						name: "screen.png",
+						mimeType: "image/png",
+						fetchData: async () => Buffer.from("image bytes"),
+					},
+				],
+			} as Message,
+			"describe this",
+		);
+
+		expect(result.text).toBe("describe this\n[image: screen.png]");
+		expect(result.attachments).toEqual({
+			userImages: [
+				`data:image/png;base64,${Buffer.from("image bytes").toString("base64")}`,
+			],
+		});
+	});
+
+	it("converts Slack text files into runtime file attachments", async () => {
+		const result = await __test__.buildSlackRuntimeAttachments(
+			{
+				text: "",
+				attachments: [
+					{
+						type: "file",
+						name: "notes.md",
+						mimeType: "text/markdown",
+						fetchData: async () => Buffer.from("# Notes"),
+					},
+				],
+			} as Message,
+			"",
+		);
+
+		expect(result.text).toBe("[file: notes.md]");
+		expect(result.attachments).toEqual({
+			userFiles: [{ name: "notes.md", content: "# Notes" }],
+		});
+	});
+
+	it("rejects unsupported binary Slack files", async () => {
+		await expect(
+			__test__.buildSlackRuntimeAttachments(
+				{
+					text: "inspect",
+					attachments: [
+						{
+							type: "file",
+							name: "archive.zip",
+							mimeType: "application/zip",
+							fetchData: async () => Buffer.from("zip"),
+						},
+					],
+				} as Message,
+				"inspect",
+			),
+		).rejects.toThrow("Unsupported Slack attachment type: application/zip");
+	});
+
 	it("keeps Slack text that does not start with the bot mention", () => {
 		expect(
 			__test__.stripSlackBotMention("hi @U0B8E8H3U1F", "U0B8E8H3U1F"),

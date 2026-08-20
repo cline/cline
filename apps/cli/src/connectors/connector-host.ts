@@ -120,6 +120,24 @@ function buildAttachments(input: {
 	return { userImages, userFiles };
 }
 
+function mergeAttachments(
+	left: ChatRunTurnRequest["attachments"] | undefined,
+	right: ChatRunTurnRequest["attachments"] | undefined,
+): ChatRunTurnRequest["attachments"] | undefined {
+	const userImages = [
+		...(left?.userImages ?? []),
+		...(right?.userImages ?? []),
+	];
+	const userFiles = [...(left?.userFiles ?? []), ...(right?.userFiles ?? [])];
+	if (userImages.length === 0 && userFiles.length === 0) {
+		return undefined;
+	}
+	return {
+		...(userImages.length > 0 ? { userImages } : {}),
+		...(userFiles.length > 0 ? { userFiles } : {}),
+	};
+}
+
 async function postConnectorRuntimeReply<TState extends ConnectorThreadState>(
 	thread: Thread<TState>,
 	transport: string,
@@ -325,6 +343,7 @@ type ConnectorUserTurnInput<TState extends ConnectorThreadState> = {
 	thread: Thread<TState>;
 	text: string;
 	runtimeText?: string;
+	attachments?: ChatRunTurnRequest["attachments"];
 	client: HubSessionClient;
 	pendingApprovals: Map<string, PendingConnectorApproval>;
 	baseStartRequest: ChatStartSessionRequest;
@@ -1036,7 +1055,10 @@ export async function handleConnectorUserTurn<
 				{
 					config: startRequest,
 					prompt,
-					attachments: buildAttachments({ userImages, userFiles }),
+					attachments: mergeAttachments(
+						buildAttachments({ userImages, userFiles }),
+						input.attachments,
+					),
 					delivery: "steer",
 				},
 				{ timeoutMs: null },
@@ -1123,7 +1145,10 @@ async function runConnectorRuntimeTurnWithRecovery<
 	const request: ChatRunTurnRequest = {
 		config: startRequest,
 		prompt,
-		attachments: buildAttachments({ userImages, userFiles }),
+		attachments: mergeAttachments(
+			buildAttachments({ userImages, userFiles }),
+			input.attachments,
+		),
 	};
 	if (params.staleSessionId) {
 		await forgetStaleThreadSession({
