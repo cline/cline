@@ -365,6 +365,61 @@ describe("collapseCompletedWork", () => {
 		]);
 	});
 
+	it("counts tool execution time when pre-tool thinking attaches to the answer", () => {
+		// Canonical projection of a thinking-only assistant message that issued
+		// a tool call: the tool row and the reasoning-only row are both stamped
+		// with pre-execution timestamps, and the reasoning row attaches to the
+		// run's final answer in groupChatMessages. The duration must span to
+		// the answer itself (14_500), not to the pre-tool thinking (6_001) —
+		// that would exclude the entire tool execution from "Worked for".
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "run it",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 6_000),
+				makeMessage({
+					id: "r1",
+					reasoning: "planning the command",
+					createdAt: 6_001,
+				}),
+				makeMessage({ id: "a1", content: "Done.", createdAt: 14_500 }),
+			],
+			true,
+		);
+
+		const work = items.find((item) => item.type === "work");
+		if (work?.type !== "work") throw new Error("expected work item");
+		expect(work.toolCallCount).toBe(1);
+		expect(work.durationMilliseconds).toBe(13_500);
+	});
+
+	it("clamps the duration to the collapsed rows when the answer's timestamp is earlier", () => {
+		// A fallback answer bubble can be minted with a synthetic timestamp
+		// near the send time (RPC completion path); it must not shrink the
+		// duration below the work the run demonstrably performed.
+		const items = collapse(
+			[
+				makeMessage({
+					id: "u1",
+					role: "user",
+					content: "go",
+					createdAt: 1_000,
+				}),
+				makeTool("t1", 5_000),
+				makeMessage({ id: "a1", content: "Done.", createdAt: 1_001 }),
+			],
+			true,
+		);
+
+		const work = items.find((item) => item.type === "work");
+		if (work?.type !== "work") throw new Error("expected work item");
+		expect(work.durationMilliseconds).toBe(4_000);
+	});
+
 	it("measures duration from the first working row when no user message precedes it", () => {
 		const items = collapse(
 			[

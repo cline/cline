@@ -43,6 +43,7 @@ export {
 	SearchCombobox,
 	type SearchComboboxOption,
 	type SearchComboboxProps,
+	type SearchComboboxSection,
 } from "./search-combobox.js";
 export {
 	SessionStatus,

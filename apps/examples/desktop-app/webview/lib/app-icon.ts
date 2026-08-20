@@ -9,14 +9,28 @@ export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
  */
 export const APP_ICONS = [
 	{ id: "classic", label: "Classic" },
-	{ id: "sunrise", label: "Sunrise" },
-	{ id: "steel", label: "Steel" },
 	{ id: "midnight", label: "Midnight" },
+	{ id: "hologram", label: "Hologram" },
+	{ id: "chip", label: "Chip" },
 ] as const;
 
 export type AppIconId = (typeof APP_ICONS)[number]["id"];
 
 export const DEFAULT_APP_ICON: AppIconId = "midnight";
+
+const RETIRED_APP_ICON_MIGRATIONS = {
+	sunrise: "hologram",
+	steel: DEFAULT_APP_ICON,
+} as const satisfies Record<string, AppIconId>;
+
+type RetiredAppIconId = keyof typeof RETIRED_APP_ICON_MIGRATIONS;
+
+function isRetiredAppIconId(value: unknown): value is RetiredAppIconId {
+	return (
+		typeof value === "string" &&
+		Object.hasOwn(RETIRED_APP_ICON_MIGRATIONS, value)
+	);
+}
 
 export function isAppIconId(value: unknown): value is AppIconId {
 	return APP_ICONS.some((icon) => icon.id === value);
@@ -29,6 +43,11 @@ export function appIconAssetPath(icon: AppIconId): string {
 export function readStoredAppIcon(): AppIconId {
 	try {
 		const stored = window.localStorage.getItem(APP_ICON_STORAGE_KEY);
+		if (isRetiredAppIconId(stored)) {
+			const migrated = RETIRED_APP_ICON_MIGRATIONS[stored];
+			window.localStorage.setItem(APP_ICON_STORAGE_KEY, migrated);
+			return migrated;
+		}
 		return isAppIconId(stored) ? stored : DEFAULT_APP_ICON;
 	} catch {
 		return DEFAULT_APP_ICON;

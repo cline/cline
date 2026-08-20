@@ -49,13 +49,17 @@ import {
 	setStoredHubTheme,
 } from "@/lib/theme";
 import { cn } from "@/lib/utils";
+import { MarketplaceView } from "../marketplace-view";
 import { PageFrame, PageHeader } from "../page-layout";
 import { AccountView } from "./account-view";
 import { AddProviderContent, type AddProviderPayload } from "./add-provider";
 import { ChannelsContent } from "./channels-view";
-import { CustomizationSectionView } from "./extensions-view";
-import { McpServersContent } from "./mcp-view";
+import {
+	CustomizationSectionView,
+	invalidateExtensionInventoryCache,
+} from "./extensions-view";
 import { NotificationSettings } from "./notification-settings";
+import { PluginsHubView } from "./plugins-hub-view";
 import {
 	ProviderDetailContent,
 	ProviderListContent,
@@ -510,11 +514,14 @@ export function SettingsView({
 		activeNav === "Models" ? (
 			providerContent
 		) : activeNav === "Plugins" ? (
-			<CustomizationSectionView catalogPrimitive="plugin" section="Plugins" />
-		) : activeNav === "Skills" ? (
-			<CustomizationSectionView catalogPrimitive="skill" section="Skills" />
-		) : activeNav === "MCP" ? (
-			<McpServersContent />
+			<PluginsHubView
+				onOpenMarketplace={() => onNavigateSection("Marketplace")}
+			/>
+		) : activeNav === "Marketplace" ? (
+			<MarketplaceView
+				onInstalledItemsChanged={invalidateExtensionInventoryCache}
+				variant="directory"
+			/>
 		) : activeNav === "Hooks" ? (
 			<CustomizationSectionView section="Hooks" />
 		) : activeNav === "Rules" ? (

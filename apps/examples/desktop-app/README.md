@@ -6,8 +6,9 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 From `apps/examples/desktop-app/`:
 
-- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
-- `bun run dev:sidecar` - sidecar backend only
+- `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
+- `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
+- `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
 - `bun run build` - build web assets
 - `bun run build:sidecar` - build the Bun sidecar bundle
