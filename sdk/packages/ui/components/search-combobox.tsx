@@ -168,6 +168,10 @@ export function SearchCombobox({
 			if (disabled) return;
 			if (option.value !== value) onValueChange(option.value);
 			setOpen(false);
+			// Selecting unmounts the focused search input; without an explicit
+			// focus target, focus falls back to <body> and keyboard users lose
+			// their place.
+			triggerRef.current?.focus();
 		},
 		[disabled, onValueChange, value],
 	);
@@ -184,6 +188,13 @@ export function SearchCombobox({
 			event.preventDefault();
 			event.stopPropagation();
 			closeAndRestoreFocus();
+			return;
+		}
+		if (event.key === "Tab") {
+			// The search input is the only tabbable element in the panel, so
+			// Tab always moves focus outside the component; close the popup
+			// instead of leaving it open behind the new focus target.
+			setOpen(false);
 			return;
 		}
 		if (filtered.length === 0) return;

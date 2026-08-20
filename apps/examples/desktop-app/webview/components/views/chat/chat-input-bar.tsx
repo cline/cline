@@ -32,7 +32,10 @@ import { toast } from "@/hooks/use-toast";
 import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
-import { buildModelPickerData } from "@/lib/featured-models";
+import {
+	buildModelPickerData,
+	type ModelPickerData,
+} from "@/lib/featured-models";
 import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
@@ -1572,6 +1575,30 @@ const ModelSelector = memo(function ModelSelector({
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
+	const pickerDataForProvider = useCallback(
+		(providerId: string): ModelPickerData => {
+			const detailsById = new Map(
+				(modelDetails[providerId] ?? []).map(
+					(entry) => [entry.id, entry] as const,
+				),
+			);
+			const models = (visibleProviderModels[providerId] ?? []).map(
+				(id) => detailsById.get(id) ?? { id, name: id },
+			);
+			return buildModelPickerData(providerId, models);
+		},
+		[modelDetails, visibleProviderModels],
+	);
+	const modelPicker = useMemo(
+		() => pickerDataForProvider(resolvedProvider),
+		[pickerDataForProvider, resolvedProvider],
+	);
+	const pickerModelIds = useMemo(
+		() => new Set(modelPicker.options.map((option) => option.value)),
+		[modelPicker],
+	);
 	const resolvedModel = useMemo(() => {
 		if (modelsForProvider.length === 0) {
 			return "";
@@ -1579,18 +1606,66 @@ const ModelSelector = memo(function ModelSelector({
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
 			lastSelection.lastModelByProvider[rememberedLastProvider];
+		// An explicitly configured model stays active even when the picker's
+		// offer hides it (the picker preserves it as a visible option below);
+		// remembered and default selections are our own bookkeeping, so they
+		// must resolve to a visible option — otherwise a stale remembered id
+		// gets silently resurrected into a selection the picker cannot show.
 		if (model && modelsForProvider.includes(model)) {
 			return model;
 		}
-		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
 			return rememberedModel;
 		}
-		return modelsForProvider[0] ?? "";
+		return (
+			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
+			modelsForProvider[0] ??
+			""
+		);
 	}, [
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		pickerModelIds,
 		rememberedLastProvider,
+		resolvedProvider,
+	]);
+	// The picker can intentionally hide catalog models (the ClinePass offer
+	// is exactly its subscribed/free tiers), but the active model must stay
+	// visible and selectable — e.g. a hydrated session configured with a
+	// model outside the current offer. Surface it under its own section
+	// rather than selecting a value that does not exist in the list.
+	const visibleModelPicker = useMemo((): ModelPickerData => {
+		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
+			return modelPicker;
+		}
+		const detail = (modelDetails[resolvedProvider] ?? []).find(
+			(entry) => entry.id === resolvedModel,
+		);
+		const hasSections = (modelPicker.sections?.length ?? 0) > 0;
+		return {
+			options: [
+				...modelPicker.options,
+				{
+					label: detail?.name?.trim() || resolvedModel,
+					...(hasSections ? { section: "current" } : {}),
+					value: resolvedModel,
+				},
+			],
+			...(hasSections
+				? {
+						sections: [
+							...(modelPicker.sections ?? []),
+							{ id: "current", label: "Current model" },
+						],
+					}
+				: {}),
+		};
+	}, [
+		modelDetails,
+		modelPicker,
+		pickerModelIds,
+		resolvedModel,
 		resolvedProvider,
 	]);
 
@@ -1787,10 +1862,17 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
+			// Validate against the target provider's visible picker options,
+			// not its full catalog: a remembered model the picker hides (e.g.
+			// outside the ClinePass offer) must not become the selection.
+			const providerOptionIds = new Set(
+				pickerDataForProvider(value).options.map((option) => option.value),
+			);
 			const nextModel =
-				rememberedModel && providerModelIds.includes(rememberedModel)
+				rememberedModel && providerOptionIds.has(rememberedModel)
 					? rememberedModel
-					: providerModelIds[0];
+					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
+						providerModelIds[0]);
 			rememberSelection(value, nextModel);
 			if (nextModel && nextModel !== model) {
 				onModelChange(nextModel);
@@ -1801,6 +1883,7 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
 		],
@@ -1820,21 +1903,8 @@ const ModelSelector = memo(function ModelSelector({
 			})),
 		[providerNames, providers],
 	);
-	// Sectioned picker data: display names plus the Recommended/Free tiers the
-	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
-	const modelPicker = useMemo(() => {
-		const detailsById = new Map(
-			(modelDetails[resolvedProvider] ?? []).map(
-				(entry) => [entry.id, entry] as const,
-			),
-		);
-		const models = modelsForProvider.map(
-			(id) => detailsById.get(id) ?? { id, name: id },
-		);
-		return buildModelPickerData(resolvedProvider, models);
-	}, [modelDetails, modelsForProvider, resolvedProvider]);
 	const selectedModelLabel =
-		modelPicker.options.find((option) => option.value === resolvedModel)
+		visibleModelPicker.options.find((option) => option.value === resolvedModel)
 			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
@@ -1863,12 +1933,12 @@ const ModelSelector = memo(function ModelSelector({
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelPicker.options}
+			options={visibleModelPicker.options}
 			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
-			sections={modelPicker.sections}
+			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
