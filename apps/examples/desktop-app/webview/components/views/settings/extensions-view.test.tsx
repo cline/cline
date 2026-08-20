@@ -3,14 +3,14 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Provider } from "@/lib/provider-schema";
 import {
 	CustomizationSectionView,
-	GenerateMediaConfiguration,
-	type GenerateMediaToolConfig,
 	invalidateExtensionListsCache,
-	type MediaTypeConfiguration,
 } from "./extensions-view";
+import {
+	generateMediaConfig,
+	imageMediaConfiguration,
+} from "./generate-media-tool.test-fixtures";
 
 const { invoke } = vi.hoisted(() => ({ invoke: vi.fn() }));
 
@@ -32,90 +32,6 @@ const emptyInstructionLists = {
 		servers: [],
 	},
 	warnings: [],
-};
-
-const eligibleProviders: Provider[] = [
-	{
-		id: "vercel-ai-gateway",
-		name: "Vercel AI Gateway",
-		models: 3,
-		color: "#000000",
-		letter: "VA",
-		enabled: true,
-		modelList: [
-			{
-				id: "imagen",
-				name: "Imagen",
-				operation: "image-generation",
-				inputModalities: ["text"],
-				outputModalities: ["image"],
-			},
-			{
-				id: "mixed-image",
-				name: "Mixed Image",
-				operation: "language",
-				inputModalities: ["text"],
-				outputModalities: ["text", "image"],
-			},
-			{
-				id: "chat-only",
-				name: "Chat only",
-				inputModalities: ["text"],
-				outputModalities: ["text"],
-			},
-			{
-				id: "audio-gen",
-				name: "Audio Gen",
-				operation: "speech-generation",
-				inputModalities: ["text"],
-				outputModalities: ["audio"],
-			},
-		],
-	},
-	{
-		id: "custom-provider",
-		name: "Custom provider",
-		models: 1,
-		color: "#111111",
-		letter: "CP",
-		enabled: true,
-		modelList: [
-			{
-				id: "advertised-but-unsupported",
-				name: "Advertised but unsupported",
-				operation: "image-generation",
-				inputModalities: ["text"],
-				outputModalities: ["image"],
-			},
-		],
-	},
-	{
-		id: "disabled-image-provider",
-		name: "Disabled image provider",
-		models: 1,
-		color: "#222222",
-		letter: "DI",
-		enabled: false,
-		modelList: [
-			{
-				id: "disabled-image",
-				name: "Disabled image",
-				operation: "image-generation",
-				inputModalities: ["text"],
-				outputModalities: ["image"],
-			},
-		],
-	},
-];
-
-const mediaGenerationModels = {
-	audio: {},
-	image: {
-		"vercel-ai-gateway": ["imagen", "mixed-image"],
-		"custom-provider": [],
-		"disabled-image-provider": ["disabled-image"],
-	},
-	video: {},
 };
 
 let container: HTMLDivElement;
@@ -143,31 +59,6 @@ afterEach(async () => {
 	await act(async () => root.unmount());
 	container.remove();
 });
-
-function generateMediaConfig(
-	overrides: Partial<GenerateMediaToolConfig> = {},
-): GenerateMediaToolConfig {
-	return {
-		error: null,
-		loading: false,
-		mediaTypes: [imageMediaConfiguration()],
-		onChange: vi.fn(),
-		onConfigureProviders: vi.fn(),
-		providers: eligibleProviders,
-		...overrides,
-	};
-}
-
-function imageMediaConfiguration(
-	selection?: MediaTypeConfiguration["selection"],
-): MediaTypeConfiguration {
-	return {
-		mediaType: "image",
-		modelIdsByProvider: mediaGenerationModels.image,
-		saving: false,
-		selection,
-	};
-}
 
 describe("CustomizationSectionView Generate media tool", () => {
 	it("keeps setup-required tools off and toggles configuration from the card", async () => {
@@ -457,134 +348,5 @@ describe("CustomizationSectionView Generate media tool", () => {
 		expect(container.textContent).toContain(
 			"tool toggle did not persist the requested enabled state",
 		);
-	});
-});
-
-describe("GenerateMediaConfiguration", () => {
-	it("uses the authoritative catalog and reports provider, model, and clear selections", async () => {
-		const onChange = vi.fn();
-		const render = async (selection?: MediaTypeConfiguration["selection"]) => {
-			await act(async () => {
-				root.render(
-					<GenerateMediaConfiguration
-						config={generateMediaConfig({
-							mediaTypes: [imageMediaConfiguration(selection)],
-							onChange,
-						})}
-					/>,
-				);
-			});
-		};
-
-		await render();
-		const providerSelect = container.querySelector<HTMLSelectElement>(
-			'[aria-label="Image generation provider"]',
-		);
-		expect(
-			Array.from(providerSelect?.options ?? []).map((option) => option.value),
-		).toEqual(["", "vercel-ai-gateway"]);
-
-		await act(async () => {
-			if (!providerSelect) return;
-			providerSelect.value = "vercel-ai-gateway";
-			providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onChange).toHaveBeenLastCalledWith("image", {
-			providerId: "vercel-ai-gateway",
-			modelId: "imagen",
-		});
-
-		await render({ providerId: "vercel-ai-gateway", modelId: "imagen" });
-		const modelSelect = container.querySelector<HTMLSelectElement>(
-			'[aria-label="Image generation model"]',
-		);
-		expect(
-			Array.from(modelSelect?.options ?? []).map((option) => option.value),
-		).toEqual(["imagen", "mixed-image"]);
-
-		await act(async () => {
-			if (!modelSelect) return;
-			modelSelect.value = "mixed-image";
-			modelSelect.dispatchEvent(new Event("change", { bubbles: true }));
-		});
-		expect(onChange).toHaveBeenLastCalledWith("image", {
-			providerId: "vercel-ai-gateway",
-			modelId: "mixed-image",
-		});
-
-		const configuredProviderSelect = container.querySelector<HTMLSelectElement>(
-			'[aria-label="Image generation provider"]',
-		);
-		await act(async () => {
-			if (!configuredProviderSelect) return;
-			configuredProviderSelect.value = "";
-			configuredProviderSelect.dispatchEvent(
-				new Event("change", { bubbles: true }),
-			);
-		});
-		expect(onChange).toHaveBeenLastCalledWith("image", undefined);
-	});
-
-	it("links to provider setup when no eligible image provider exists", async () => {
-		const onConfigureProviders = vi.fn();
-		await act(async () => {
-			root.render(
-				<GenerateMediaConfiguration
-					config={generateMediaConfig({
-						onConfigureProviders,
-						providers: eligibleProviders.filter(
-							(provider) => provider.id !== "vercel-ai-gateway",
-						),
-					})}
-				/>,
-			);
-		});
-
-		expect(container.textContent).toContain(
-			"Configure and enable a provider with an eligible image-generation model",
-		);
-		const configureButton = Array.from(
-			container.querySelectorAll<HTMLButtonElement>("button"),
-		).find((button) => button.textContent?.includes("Configure providers"));
-		expect(configureButton).not.toBeUndefined();
-
-		await act(async () => {
-			configureButton?.click();
-		});
-		expect(onConfigureProviders).toHaveBeenCalledOnce();
-	});
-
-	it("renders each media type independently", async () => {
-		await act(async () => {
-			root.render(
-				<GenerateMediaConfiguration
-					config={generateMediaConfig({
-						mediaTypes: [
-							{
-								mediaType: "image",
-								modelIdsByProvider: {},
-								saving: false,
-							},
-							{
-								mediaType: "audio",
-								modelIdsByProvider: {
-									"vercel-ai-gateway": ["audio-gen"],
-								},
-								saving: false,
-							},
-						],
-					})}
-				/>,
-			);
-		});
-
-		expect(container.textContent).toContain("Image generation");
-		expect(container.textContent).toContain("Audio generation");
-		expect(
-			container.querySelector('[aria-label="Image generation provider"]'),
-		).toBeNull();
-		expect(
-			container.querySelector('[aria-label="Audio generation provider"]'),
-		).not.toBeNull();
 	});
 });
