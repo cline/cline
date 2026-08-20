@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.15-beta.1
+
+- Beta: hand off a local session to Cline Cloud with `/handoff` — the conversation, attached images, and an optional follow-up command move to a cloud workspace that keeps working after you close the app. A preflight confirms the repository, branch, and commit are pushed; the composer shows handoff progress and finishes with a receipt linking to the cloud session.
+- Beta: Cloud now lives in the existing Local / Remote environment menu. It is selectable when the Cloud sessions feature flag is on and shows as "Coming soon" otherwise. The separate Local / Cloud toggle is gone; repository and branch controls are unchanged.
+- If a handoff is interrupted — the app restarts, the network drops, or the branch moves mid-transfer — reopening the session recovers or cleanly retries it, and your typed draft and attachments are restored.
+- Includes the 0.0.14 stable release and everything on main since: the unified Plugins hub with a Marketplace page, recommended and free model tiers in the model picker, scheduled tasks for agents, and the app rename to "Cline" (this beta is now "Cline Beta").
+
 ## 0.0.14
 
 - The app now posts native macOS notifications when a task finishes or needs your input, so you can leave Cline working in the background. Configure them under Settings → Notifications.
