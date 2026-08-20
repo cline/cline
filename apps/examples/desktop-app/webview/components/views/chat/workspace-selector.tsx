@@ -317,7 +317,7 @@ export function WorkspaceSelector({
 							setSearch("");
 						}}
 					/>
-					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl">
+					<div className="absolute bottom-full right-0 z-50 mb-2 w-72 rounded-lg border border-border bg-popover shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none">
 						{/* Search row, styled to match the composer's model picker */}
 						<div className="flex items-center gap-2 border-b border-border px-3">
 							<Search className="size-3 text-muted-foreground shrink-0" />
