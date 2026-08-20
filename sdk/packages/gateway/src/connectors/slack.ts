@@ -113,7 +113,14 @@ export interface SlackAdapterOptions {
 	/** How many processed event ids the dedupe cursor retains. */
 	dedupeWindow?: number;
 	errorBackoffMs?: number;
+	/** Rotating Slack Assistant status text shown while a run is active. */
+	loadingMessages?: readonly string[];
 }
+
+export const DEFAULT_SLACK_LOADING_MESSAGES = [
+	"Working on it ...",
+	"Looking into it!",
+] as const;
 
 interface SlackCredential {
 	appToken: string;
@@ -178,6 +185,7 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 	private readonly socketFactory: SlackSocketFactory;
 	private readonly dedupeWindow: number;
 	private readonly errorBackoffMs: number;
+	private readonly loadingMessages: readonly string[];
 
 	constructor(options: SlackAdapterOptions = {}) {
 		this.fetchImpl = options.fetchImpl ?? fetch;
@@ -186,6 +194,7 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 			options.socketFactory ?? this.defaultSocketFactory.bind(this);
 		this.dedupeWindow = options.dedupeWindow ?? 256;
 		this.errorBackoffMs = options.errorBackoffMs ?? 1_000;
+		this.loadingMessages = options.loadingMessages ?? DEFAULT_SLACK_LOADING_MESSAGES;
 	}
 
 	async run(context: ConnectorAdapterContext): Promise<void> {
@@ -211,7 +220,12 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 				socket.onClose(() => resolve());
 			});
 			const unsubscribe = socket.onMessage((frame) => {
-				this.handleEnvelope(context, socket, frame as SlackEnvelope);
+				this.handleEnvelope(
+					context,
+					socket,
+					frame as SlackEnvelope,
+					credential.botToken,
+				);
 			});
 			const onAbort = () => socket.close();
 			context.signal.addEventListener("abort", onAbort);
@@ -345,6 +359,7 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 		context: ConnectorAdapterContext,
 		socket: SlackSocket,
 		envelope: SlackEnvelope,
+		botToken: string,
 	): void {
 		// Every envelope with an id is acknowledged, exactly once, after
 		// its work committed (or was recognized as a duplicate/no-op).
@@ -418,6 +433,12 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 		};
 		try {
 			context.deliver(message, JSON.stringify(nextSeen));
+			void this.setAssistantStatus(
+				botToken,
+				event.channel,
+				event.thread_ts ?? event.ts,
+				context,
+			);
 			ack();
 		} catch (error) {
 			// Admission failed: do not ack, do not advance the cursor.
@@ -425,6 +446,48 @@ export class SlackConnectorAdapter implements ConnectorAdapter {
 			context.log({
 				kind: "slack.deliverError",
 				eventId,
+				error: String(error),
+			});
+		}
+	}
+
+	private async setAssistantStatus(
+		botToken: string,
+		channelId: string,
+		threadTs: string | undefined,
+		context: ConnectorAdapterContext,
+	): Promise<void> {
+		if (!threadTs || this.loadingMessages.length === 0) return;
+		try {
+			const response = await this.fetchImpl(
+				`${this.apiBase}/assistant.threads.setStatus`,
+				{
+					method: "POST",
+					headers: {
+						"content-type": "application/json; charset=utf-8",
+						authorization: `Bearer ${botToken}`,
+					},
+					body: JSON.stringify({
+						channel_id: channelId,
+						thread_ts: threadTs,
+						status: this.loadingMessages[0],
+						loading_messages: [...this.loadingMessages],
+					}),
+				},
+			);
+			const body = (await response.json().catch(() => ({}))) as {
+				ok?: boolean;
+				error?: string;
+			};
+			if (!response.ok || !body.ok) {
+				context.log({
+					kind: "slack.assistantStatusUnavailable",
+					error: body.error ?? `http_${response.status}`,
+				});
+			}
+		} catch (error) {
+			context.log({
+				kind: "slack.assistantStatusUnavailable",
 				error: String(error),
 			});
 		}

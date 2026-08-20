@@ -11,6 +11,7 @@ const NAMESPACE = process.env.CLINE_GATEWAY_NAMESPACE?.trim() || "desktop";
 const REQUIRED_GATEWAY_CAPABILITIES = [
 	"sessions.create",
 	"connectors.authorization",
+	"connectors.slackLoadingStatus",
 ] as const;
 
 export function gatewaySpawnCwd(

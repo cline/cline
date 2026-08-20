@@ -14,6 +14,7 @@ import type { ConnectorAdapterContext } from "./adapter";
 import { ConnectorDeliveryError } from "./adapter";
 import type { SlackSocket } from "./slack";
 import {
+	DEFAULT_SLACK_LOADING_MESSAGES,
 	parseSlackConversationId,
 	parseSlackCredential,
 	redactSlackTokens,
@@ -102,7 +103,16 @@ function createHarness(options: {
 	let cursor: string | undefined;
 	const delivered: NormalizedConnectorMessage[] = [];
 	const socket = new FakeSocket();
+	const requests: { url: string; init?: RequestInit }[] = [];
 	const adapter = new SlackConnectorAdapter({
+		fetchImpl: (async (input: string | URL | Request, init?: RequestInit) => {
+			requests.push({ url: String(input), init });
+			return {
+				ok: true,
+				status: 200,
+				json: async () => ({ ok: true }),
+			} as Response;
+		}) as typeof fetch,
 		socketFactory: async () => socket,
 		dedupeWindow: 4,
 	});
@@ -131,6 +141,7 @@ function createHarness(options: {
 		controller,
 		delivered,
 		done,
+		requests,
 		cursor: () => cursor,
 	};
 }
@@ -161,6 +172,26 @@ describe("slack adapter", () => {
 			channelType: "channel",
 		});
 		expect(harness.socket.sent).toContainEqual({ envelope_id: "env-Ev001" });
+		harness.controller.abort();
+		harness.socket.close();
+		await harness.done;
+	});
+
+	it("shows rotating Slack Assistant loading messages after admitting work", async () => {
+		const harness = createHarness({});
+		await settle();
+		harness.socket.emit(messageEnvelope("EvLoading", "do some work"));
+		await settle();
+		const request = harness.requests.find((entry) =>
+			entry.url.endsWith("/assistant.threads.setStatus"),
+		);
+		expect(request).toBeDefined();
+		expect(JSON.parse(String(request?.init?.body))).toEqual({
+			channel_id: "C7",
+			thread_ts: "1700000000.000100",
+			status: "Working on it ...",
+			loading_messages: [...DEFAULT_SLACK_LOADING_MESSAGES],
+		});
 		harness.controller.abort();
 		harness.socket.close();
 		await harness.done;

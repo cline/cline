@@ -179,7 +179,11 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 		return {
 			updateRequired: ctx.gatewayUpdateRequired,
 			missingCapabilities: ctx.gatewayUpdateRequired
-				? ["sessions.create", "connectors.authorization"]
+				? [
+						"sessions.create",
+						"connectors.authorization",
+						"connectors.slackLoadingStatus",
+					]
 				: [],
 		};
 	}
