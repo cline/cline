@@ -73,10 +73,12 @@ export function PluginsHubView() {
 	// Bumped when the marketplace modal installed/uninstalled something so the
 	// active tab remounts and refetches its inventory after the modal closes.
 	const [inventoryVersion, setInventoryVersion] = useState(0);
-	const [directoryMutated, setDirectoryMutated] = useState(false);
-	// Ref mirror of directoryOpen: install/uninstall completions can arrive
-	// after the modal content unmounted with a stale closure, so the handler
-	// must read the current open state, not the one captured at render time.
+	// Refs instead of state: install/uninstall completions can land at any
+	// moment relative to renders (including after the modal content unmounted,
+	// or right before a close click), so these flags must always be read and
+	// written at their current values, never through render-time closures.
+	// Nothing renders from them, so state is not needed.
+	const directoryMutatedRef = useRef(false);
 	const directoryOpenRef = useRef(false);
 
 	const refreshCounts = useCallback(async () => {
@@ -129,23 +131,20 @@ export function PluginsHubView() {
 		invalidateExtensionInventoryCache();
 		void refreshCounts();
 		if (directoryOpenRef.current) {
-			setDirectoryMutated(true);
+			directoryMutatedRef.current = true;
 		} else {
 			setInventoryVersion((version) => version + 1);
 		}
 	}, [refreshCounts]);
 
-	const handleDirectoryOpenChange = useCallback(
-		(open: boolean) => {
-			directoryOpenRef.current = open;
-			setDirectoryOpen(open);
-			if (!open && directoryMutated) {
-				setDirectoryMutated(false);
-				setInventoryVersion((version) => version + 1);
-			}
-		},
-		[directoryMutated],
-	);
+	const handleDirectoryOpenChange = useCallback((open: boolean) => {
+		directoryOpenRef.current = open;
+		setDirectoryOpen(open);
+		if (!open && directoryMutatedRef.current) {
+			directoryMutatedRef.current = false;
+			setInventoryVersion((version) => version + 1);
+		}
+	}, []);
 
 	return (
 		<PageFrame>
