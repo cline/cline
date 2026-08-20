@@ -1343,9 +1343,7 @@ describe("HubRuntimeHost", () => {
 
 		const statusEvents = () =>
 			events.filter(
-				(
-					event,
-				): event is { type: "status"; payload: { status: string } } =>
+				(event): event is { type: "status"; payload: { status: string } } =>
 					!!event &&
 					typeof event === "object" &&
 					(event as { type?: unknown }).type === "status",
