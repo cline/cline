@@ -746,7 +746,6 @@ export function MarketplaceView({
 	const pageDetails = primitive
 		? primitivePageDetails[primitive]
 		: directoryPageDetails;
-	const PageIcon = pageDetails.icon;
 	const tagLabels = useMemo(
 		() => new Map(catalog?.tags.map((tag) => [tag.id, tag.label]) ?? []),
 		[catalog?.tags],
@@ -1122,7 +1121,6 @@ export function MarketplaceView({
 			{chrome === "page" ? (
 				<PageHeader
 					description={pageDetails.description}
-					icon={PageIcon}
 					title={pageDetails.title}
 					meta={
 						primitive ? (
