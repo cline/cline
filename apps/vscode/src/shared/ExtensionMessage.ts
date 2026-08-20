@@ -66,6 +66,18 @@ export interface ExtensionState {
 	 */
 	queuedPrompts?: QueuedPrompt[]
 	/**
+	 * Background monitors owned by the active SDK session's monitor registry.
+	 * Refreshed on every monitor_state event; running entries render as a
+	 * roster strip with per-monitor stop controls.
+	 */
+	activeMonitors?: ActiveMonitor[]
+	/**
+	 * The SDK session that owns activeMonitors. Stop requests echo it back so
+	 * a session switch between render and click can never stop a same-id
+	 * monitor in a different session.
+	 */
+	activeMonitorsSessionId?: string
+	/**
 	 * Monotonic version of this state snapshot. The webview applies a snapshot only if its
 	 * stateVersion is newer than the last applied, so stale/out-of-order state pushes are
 	 * ignored. Stamped by the extension. Optional for classic/legacy.
@@ -172,6 +184,17 @@ export interface QueuedPrompt {
 	prompt: string
 	delivery: "queue" | "steer"
 	attachmentCount: number
+}
+
+/** One background monitor shown in the webview roster. */
+export interface ActiveMonitor {
+	id: string
+	name: string
+	description: string
+	command: string
+	startedAt: number
+	status: "running" | "exited" | "stopped" | "failed"
+	linesEmitted: number
 }
 
 export interface ClineMessage {

@@ -5,6 +5,7 @@ import type {
 	CompareCheckpointResult,
 	CoreSessionEvent,
 	HookEventPayload,
+	MonitorRecord,
 	PendingPromptMutationResult,
 	PendingPromptsDeleteInput,
 	PendingPromptsListInput,
@@ -58,6 +59,10 @@ export interface SdkSessionHost {
 	pendingPrompts(action: "list", input: PendingPromptsListInput): Promise<SessionPendingPrompt[]>
 	pendingPrompts(action: "update", input: PendingPromptsUpdateInput): Promise<PendingPromptMutationResult>
 	pendingPrompts(action: "delete", input: PendingPromptsDeleteInput): Promise<PendingPromptMutationResult>
+	/** Current roster of the session's background monitors. */
+	listMonitors(sessionId: string): Promise<MonitorRecord[]>
+	/** Stops one background monitor on the user's behalf, without a model turn. */
+	stopMonitor(sessionId: string, monitorId: string): Promise<boolean>
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void
 	updateSessionModel?(sessionId: string, modelId: string): Promise<void>
 }

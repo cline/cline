@@ -14,6 +14,8 @@ service TaskService {
   rpc cancelTask(EmptyRequest) returns (Empty);
   // Cancels a queued prompt by ID
   rpc cancelQueuedPrompt(StringRequest) returns (Empty);
+  // Stops a background monitor by ID on the user's behalf
+  rpc stopMonitor(StopMonitorRequest) returns (Empty);
   // Cancels the currently running background command
   rpc cancelBackgroundCommand(EmptyRequest) returns (Empty);
   // Detaches the running foreground terminal command ("Proceed While Running"):
@@ -54,6 +56,16 @@ message NewTaskRequest {
   repeated string images = 3;
   repeated string files = 4;
   optional Settings task_settings = 5;
+}
+
+// Request message for stopping a background monitor.
+// Carries the owning session so a stop can never land on a monitor of a
+// different session: per-session monitor ids restart at mon_1, so an id
+// alone is ambiguous across a session switch.
+message StopMonitorRequest {
+  Metadata metadata = 1;
+  string monitor_id = 2;
+  string session_id = 3;
 }
 
 // Request message for toggling task favorite status

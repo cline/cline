@@ -65,6 +65,14 @@ export class SdkSessionEventCoordinator {
 			})
 		}
 
+		if (event.type === "monitor_state") {
+			// The state snapshot re-lists monitors from the registry, so a push
+			// is all that is needed to keep the webview roster live.
+			this.options.postStateToWebview().catch((err) => {
+				Logger.error("[SdkController] Failed to post monitor state update:", err)
+			})
+		}
+
 		const result = this.translateSessionEvent(event, this.options.messageTranslatorState)
 		const agentFailure = this.getAgentFailureTelemetry(event)
 		if (agentFailure && !this.options.messageTranslatorState.isSuppressedToolApprovalDenial(agentFailure.error)) {

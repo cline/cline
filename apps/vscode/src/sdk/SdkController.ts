@@ -1452,6 +1452,43 @@ export class Controller {
 	}
 
 	/**
+	 * Stops one background monitor on the user's behalf, without a model turn.
+	 * The agent learns about it from the monitor's terminal notification,
+	 * attributed to the user; the roster refreshes through monitor_state.
+	 *
+	 * The caller names the session the monitor belongs to. Monitor ids restart
+	 * at mon_1 per session, so if the active session changed between the click
+	 * and this handler, a bare id could stop an unrelated monitor in the new
+	 * session; a session mismatch is a no-op instead.
+	 */
+	async stopMonitor(monitorId: string, sessionId: string): Promise<void> {
+		const trimmedMonitorId = monitorId.trim()
+		const trimmedSessionId = sessionId.trim()
+		if (!trimmedMonitorId || !trimmedSessionId) {
+			Logger.warn("[SdkController] stopMonitor: Missing monitor or session id")
+			return
+		}
+
+		const activeSession = this.sessions.getActiveSession()
+		if (!activeSession) {
+			Logger.warn("[SdkController] stopMonitor: No active session")
+			return
+		}
+		if (activeSession.sessionId !== trimmedSessionId) {
+			Logger.warn(
+				`[SdkController] stopMonitor: Session changed since the stop was requested (requested ${trimmedSessionId}, active ${activeSession.sessionId})`,
+			)
+			return
+		}
+
+		const stopped = await activeSession.sdkHost.stopMonitor(trimmedSessionId, trimmedMonitorId)
+		if (!stopped) {
+			Logger.warn(`[SdkController] stopMonitor: Monitor not found: ${trimmedMonitorId}`)
+		}
+		await this.postStateToWebview()
+	}
+
+	/**
 	 * Manually compact (condense) the active task's conversation. Triggered by
 	 * the compact button and the `/compact` (alias `/smol`) slash command.
 	 * Mirrors the CLI's `/compact` local command: runs an SDK manual compaction
@@ -2281,12 +2318,29 @@ export class Controller {
 				.slice(0, 100)
 
 			let queuedPrompts: ExtensionState["queuedPrompts"] = []
+			let activeMonitors: ExtensionState["activeMonitors"] = []
+			let activeMonitorsSessionId: ExtensionState["activeMonitorsSessionId"]
 			const activeSession = this.sessions.getActiveSession()
 			if (activeSession) {
+				activeMonitorsSessionId = activeSession.sessionId
 				try {
 					queuedPrompts = await activeSession.sdkHost.pendingPrompts("list", { sessionId: activeSession.sessionId })
 				} catch (error) {
 					Logger.error("[SdkController] Failed to list pending prompts for webview state:", error)
+				}
+				try {
+					const monitors = await activeSession.sdkHost.listMonitors(activeSession.sessionId)
+					activeMonitors = monitors.map((monitor) => ({
+						id: monitor.id,
+						name: monitor.name,
+						description: monitor.description,
+						command: monitor.command,
+						startedAt: monitor.startedAt,
+						status: monitor.status,
+						linesEmitted: monitor.linesEmitted,
+					}))
+				} catch (error) {
+					Logger.error("[SdkController] Failed to list monitors for webview state:", error)
 				}
 			}
 
@@ -2303,6 +2357,8 @@ export class Controller {
 				taskHistory: processedTaskHistory,
 				turnState: this.turnStateTracker.get(),
 				queuedPrompts,
+				activeMonitors,
+				activeMonitorsSessionId,
 				stateVersion: minter.nextSeq(),
 				epoch: minter.epoch,
 			}

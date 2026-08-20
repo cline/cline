@@ -15,6 +15,7 @@ import {
 	type EditorExecutor,
 	type HookEventPayload,
 	type ITelemetryService,
+	type MonitorRecord,
 	type PendingPromptMutationResult,
 	type PendingPromptsDeleteInput,
 	type PendingPromptsListInput,
@@ -305,6 +306,14 @@ export class VscodeSessionHost implements SdkSessionHost {
 			default:
 				throw new Error(`Unsupported pending prompt action: ${String(action)}`)
 		}
+	}
+
+	listMonitors(sessionId: string): Promise<MonitorRecord[]> {
+		return this.inner.listMonitors(sessionId)
+	}
+
+	stopMonitor(sessionId: string, monitorId: string): Promise<boolean> {
+		return this.inner.stopMonitor(sessionId, monitorId)
 	}
 
 	subscribe(listener: (event: CoreSessionEvent) => void): () => void {

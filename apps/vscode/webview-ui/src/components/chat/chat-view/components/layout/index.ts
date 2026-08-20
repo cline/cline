@@ -3,6 +3,7 @@
  */
 
 export { ActionButtons } from "./ActionButtons"
+export { ActiveMonitors } from "./ActiveMonitors"
 export { ChatLayout } from "./ChatLayout"
 export { InputSection } from "./InputSection"
 export { MessagesArea } from "./MessagesArea"
