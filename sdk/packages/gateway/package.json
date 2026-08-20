@@ -1,0 +1,60 @@
+{
+	"name": "@cline/gateway",
+	"version": "0.0.75",
+	"description": "Cline Gateway — runtime authority for the Gateway RFC (protocol, SQLite authority, singleton lock, async runtime, lifecycle CLI)",
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/cline/cline",
+		"directory": "sdk/packages/gateway"
+	},
+	"private": true,
+	"internal": true,
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		},
+		"./client": {
+			"types": "./dist/client.d.ts",
+			"import": "./dist/client.js"
+		},
+		"./test-support": {
+			"types": "./dist/test-support.d.ts",
+			"import": "./dist/test-support.js"
+		}
+	},
+	"bin": {
+		"cline-gateway": "bin/cline-gateway.mjs",
+		"cline-gateway-worker": "bin/cline-gateway-worker.mjs"
+	},
+	"files": [
+		"dist",
+		"bin",
+		"default-agent"
+	],
+	"license": "Apache-2.0",
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@anthropic-ai/sandbox-runtime": "^0.0.73",
+		"@cline/bot": "workspace:*",
+		"@cline/engine": "workspace:*",
+		"@cline/shared": "workspace:*",
+		"@cline/tools": "workspace:*",
+		"ws": "^8.18.3",
+		"zod": "^4.3.6"
+	},
+	"devDependencies": {
+		"@types/ws": "^8.18.1"
+	}
+}

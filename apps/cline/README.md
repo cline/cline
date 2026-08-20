@@ -1,4 +1,4 @@
-# Cline (Desktop App)
+# Cline Bots (Desktop App)
 
 Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspecting Cline chat sessions.
 

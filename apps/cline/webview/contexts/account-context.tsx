@@ -1,6 +1,6 @@
 "use client";
 
-import type { ClineAccountOrganization, ClineAccountUser } from "@cline/core";
+import type { ClineAccountOrganization, ClineAccountUser } from "@/lib/account-types";
 import {
 	createContext,
 	useCallback,

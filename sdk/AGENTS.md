@@ -23,6 +23,16 @@ Run SDK commands from `sdk/`, not from the legacy repository root. Do not run di
 - `@cline/agents`: stateless agent loop, tool orchestration, hook/extension runtime, event streaming
 - `@cline/core`: stateful orchestration, session lifecycle, storage, config watching, plugin loading, default tools, telemetry. Exposes `@cline/core/hub` for discovery, the detached daemon entry, WebSocket clients, and session/UI client adapters, plus `@cline/core/hub/daemon-entry` for launching the shared daemon
 
+### Internal Gateway RFC Packages (not published)
+
+Foundation for the Gateway RFC (see `packages/gateway/README.md` and `packages/gateway/docs/adr/`). `@cline/core` and the existing Hub are untouched by these packages.
+
+- `@cline/engine`: single-execution engine over the `@cline/agents` loop — immutable `RunSpec`, ordered `EngineEvent`s, steer/interrupt/abort, `RunResult` + persistence deltas. No storage, discovery, sockets, or daemon code.
+- `@cline/bot`: bot domain semantics (immutable roles, lazy sessions, immutable workspaces, FIFO run admission, delegation, contractor teardown, memories, connector-to-session routing) behind injected ports.
+- `@cline/gateway`: Gateway runtime authority — the wire protocol (command registry, `gateway.hello` negotiation), the SQLite authority with migrations, the OS-backed exclusive singleton lock, the loopback server with per-instance auth and durable event replay, the async run runtime (durable FIFO queue, run attempts/retry, crash recovery, approvals), outbox-driven disk projections, and the lifecycle CLI (`serve`/`start`/`status`/`drain`/`upgrade`/`stop`). Phases 4-6 add the Agent Plugins catalog (immutable generations pinned by active runs), worker isolation behind a swappable `WorkerDriver` (in-process for tests, macOS Seatbelt via `@anthropic-ai/sandbox-runtime`; required isolation fails closed), scope-keyed MCP connection pooling with reference-counted leases, bot-scoped connectors (Telegram + Slack V0) with crash-safe dedupe cursors, and schedules that create ordinary runs with explicit `automation` provenance. Server, SQLite, lock, plugin, MCP-pool, connector-supervision, schedule, and CLI code live here only.
+
+Dependency rule: `gateway -> bot -> engine -> agents -> llms -> shared`. Engine never imports bot/gateway; bot never imports gateway; no new package depends on `@cline/core`. Reusable wire contracts live in `@cline/shared/gateway`. These rules are machine-checked by `boundaries.test.ts` in each new package.
+
 ### Dependency Direction
 
 ```mermaid

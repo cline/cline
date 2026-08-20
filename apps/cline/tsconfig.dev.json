@@ -6,11 +6,8 @@
 		"paths": {
 			"@/*": ["./*"],
 			"@cline/agents": ["../../sdk/packages/agents/src/index.ts"],
-			"@cline/core": ["../../sdk/packages/core/src/index.ts"],
-			"@cline/core/hub": ["../../sdk/packages/core/src/hub/index.ts"],
-			"@cline/core/hub/daemon-entry": [
-				"../../sdk/packages/core/src/hub/daemon/entry.ts"
-			],
+			"@cline/gateway": ["../../sdk/packages/gateway/src/index.ts"],
+			"@cline/gateway/*": ["../../sdk/packages/gateway/src/*"],
 			"@cline/llms": ["../../sdk/packages/llms/src/index.ts"],
 			"@cline/shared": ["../../sdk/packages/shared/src/index.ts"],
 			"@cline/shared/storage": [
@@ -25,7 +22,6 @@
 	},
 	"include": [
 		"sidecar/**/*.ts",
-		"sandbox/**/*.ts",
 		"scripts/**/*.ts",
 		"global.d.ts",
 		"bun.mts"

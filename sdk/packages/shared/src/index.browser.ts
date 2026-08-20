@@ -186,6 +186,9 @@ export type {
 export {
 	ApiFormat,
 	ApiFormatSchema,
+	type ChatCompatibleModelDescriptor,
+	type ChatModelModalities,
+	isChatCompatibleModel,
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
@@ -207,6 +210,7 @@ export {
 	modelHasCapability,
 	modelProducesImages,
 	modelSupportsToolCalling,
+	supportsChatModalities,
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
@@ -257,6 +261,11 @@ export {
 	safeJsonStringify,
 } from "./parse/json";
 export { decodeJwtPayload } from "./parse/jwt";
+export {
+	ClineOAuthRefreshError,
+	type ClineOAuthRefreshCredentials,
+	refreshClineOAuthCredentials,
+} from "./auth/cline-oauth-refresh";
 export { type OmitUndefinedValues, omitUndefinedValues } from "./parse/object";
 export {
 	getDefaultShell,

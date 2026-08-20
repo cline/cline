@@ -66,7 +66,7 @@ function projectCacheKey(botId?: string, projectPath?: string): string | null {
  *    know which project's pooled process to reach.
  * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
  *    to `ws://127.0.0.1:3126/transport` — the sidecar's default port when
- *    running in plain web/dev mode (`bun run dev:sidecar` + `bun run dev:web`).
+ *    running in plain web/dev mode (`bun run dev:web` starts both processes).
  *
  * Callers that don't care which project (e.g. error-telemetry POSTs) can
  * omit both arguments to reuse whatever's already resolved.

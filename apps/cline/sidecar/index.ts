@@ -1,213 +1,44 @@
-import { homedir } from "node:os";
-import {
-	createClineTelemetryServiceConfig,
-	setHomeDirIfUnset,
-	watchManagedHubBuildMismatch,
-} from "@cline/core";
-import { captureSdkError, claimHubDaemonProcess } from "@cline/shared";
-import { prewarmWorkspaceMetadata } from "./chat-session";
-import { configureConnectorCliLaunch } from "./connectors";
-import {
-	broadcastEvent,
-	createSidecarContext,
-	disposeSidecarContext,
-	initializeSessionManager,
-} from "./context";
-import { createDesktopObservability } from "./observability";
-import { resolveWorkspaceRoot } from "./paths";
-import { startServer } from "./server";
-import { ensureLoginShellPath } from "./shell-path";
-import { buildTelemetrySelfcheckReport } from "./telemetry-selfcheck";
-import { BunRuntime, SIDECAR_HOST, SIDECAR_MODE, SIDECAR_PORT } from "./types";
+import { resolve } from "node:path";
+import type { GatewayEvent, GatewayServerRequest } from "@cline/shared/gateway";
+import { ensureGateway } from "./gateway";
+import { broadcast, startServer } from "./server";
+import { SIDECAR_HOST, type SidecarContext } from "./types";
 
-const SHUTDOWN_TIMEOUT_MS = 5_000;
-let activeObservability:
-	| ReturnType<typeof createDesktopObservability>
-	| undefined;
+function eventSession(event: GatewayEvent): string | undefined { return event.scope.sessionId; }
 
-function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {
-	let timeout: ReturnType<typeof setTimeout> | undefined;
-	return Promise.race([
-		promise,
-		new Promise<T>((_, reject) => {
-			timeout = setTimeout(
-				() => reject(new Error(`shutdown timed out after ${timeoutMs}ms`)),
-				timeoutMs,
-			);
-		}),
-	]).finally(() => {
-		if (timeout) {
-			clearTimeout(timeout);
+async function main(): Promise<void> {
+	const { client, ownedProcess } = await ensureGateway();
+	const ctx: SidecarContext = {
+		client,
+		workspaceRoot: resolve(process.env.CLINE_WORKSPACE_ROOT?.trim() || process.cwd()),
+		sockets: new Set(), activeRuns: new Map(), pendingApprovals: new Map(),
+	};
+	client.onEvent((event) => {
+		const sessionId = eventSession(event);
+		if (event.event === "run.messageAppended" && sessionId) {
+			const message = event.payload?.message as { role?: string; content?: Array<{ type?: string; text?: string }> } | undefined;
+			const chunk = message?.content?.filter((part) => part.type === "text").map((part) => part.text ?? "").join("") ?? "";
+			if (message?.role === "assistant" && chunk) broadcast(ctx, "chat_event", { sessionId, stream: "chat_text", chunk, timestamp: Date.now() });
+		}
+		if (event.event === "run.started" && sessionId) broadcast(ctx, "chat_session_status", { sessionId, status: "running" });
+		if (["run.completed", "run.failed", "run.interrupted"].includes(event.event) && sessionId) {
+			ctx.activeRuns.delete(sessionId);
+			const reason = event.event === "run.completed" ? "completed" : event.event === "run.interrupted" ? "aborted" : "error";
+			broadcast(ctx, "chat_event", { sessionId, stream: "chat_done", chunk: JSON.stringify({ reason }), timestamp: Date.now() });
+			broadcast(ctx, "chat_session_ended", { sessionId, reason });
 		}
 	});
-}
-
-async function main() {
-	if (!BunRuntime) {
-		throw new Error("sidecar must be run with Bun");
-	}
-
-	// When launched from Finder/the Dock the app inherits launchd's minimal
-	// PATH, so agent-spawned processes can't find shell-profile-installed
-	// tools like `gh`. Kick resolution off first so it overlaps the rest of
-	// startup, but await it before the session manager exists — that's what
-	// spawns children (agent sessions, MCP servers, scheduled runs).
-	const shellPathPromise = ensureLoginShellPath();
-
-	const workspaceRoot = resolveWorkspaceRoot(process.cwd());
-	setHomeDirIfUnset(homedir());
-	configureConnectorCliLaunch(workspaceRoot);
-	const observability = createDesktopObservability();
-	activeObservability = observability;
-	const ctx = createSidecarContext(workspaceRoot, observability);
-	observability.logger.log("Desktop sidecar starting", {
-		workspaceRoot,
-		pid: process.pid,
+	client.onServerRequest((request: GatewayServerRequest) => {
+		ctx.pendingApprovals.set(request.id, { sessionId: request.scope.sessionId, request: request.params });
+		broadcast(ctx, "tool_approval_state", { sessionId: request.scope.sessionId, items: [{ requestId: request.id, sessionId: request.scope.sessionId, ...request.params }] });
+		return new Promise(() => {});
 	});
-
-	prewarmWorkspaceMetadata(workspaceRoot);
-	observability.logger.log(
-		"Login shell PATH resolution",
-		await shellPathPromise,
-	);
-	await initializeSessionManager(ctx);
-
-	let shuttingDown = false;
-	let handlingFatalError = false;
-	const shutdown = async (reason = "code_sidecar_shutdown"): Promise<void> => {
-		if (shuttingDown) {
-			return;
-		}
-		shuttingDown = true;
-		observability.logger.log("Desktop sidecar shutting down", { reason });
-		await withTimeout(
-			(async () => {
-				try {
-					await disposeSidecarContext(ctx, reason);
-				} finally {
-					await observability.dispose();
-				}
-			})(),
-			SHUTDOWN_TIMEOUT_MS,
-		);
-	};
-
-	const shutdownAndExit = (signal: string): void => {
-		void shutdown(`code_sidecar_${signal.toLowerCase()}`).finally(() => {
-			process.exit(signal === "SIGINT" ? 130 : 143);
-		});
-	};
-
-	process.once("SIGINT", () => shutdownAndExit("SIGINT"));
-	process.once("SIGTERM", () => shutdownAndExit("SIGTERM"));
-	const handleFatalError = (kind: string, error: unknown): void => {
-		if (handlingFatalError) {
-			process.exit(1);
-		}
-		handlingFatalError = true;
-		observability.logger.error?.("Desktop sidecar process error", {
-			kind,
-			error,
-		});
-		captureSdkError(observability.telemetry, {
-			component: "desktop",
-			operation: `sidecar.${kind}`,
-			error,
-			handled: false,
-			severity: "fatal",
-		});
-		void shutdown(`code_sidecar_${kind}`).finally(() => process.exit(1));
-	};
-	process.on("uncaughtException", (error) => {
-		handleFatalError("uncaught_exception", error);
-	});
-	process.on("unhandledRejection", (error) => {
-		handleFatalError("unhandled_rejection", error);
-	});
-	process.once("beforeExit", () => {
-		void shutdown("code_sidecar_before_exit");
-	});
-
-	const { port } = startServer(ctx, SIDECAR_PORT, shutdown);
-	observability.logger.log("Desktop sidecar ready", {
-		port,
-		mode: SIDECAR_MODE,
-	});
-
-	// Another Cline installation (e.g. an updated CLI) can replace the shared
-	// Hub daemon while this app is running. Surface that to the webview so it
-	// can prompt the user to update and restart.
-	watchManagedHubBuildMismatch({
-		onMismatch: (mismatch) => {
-			ctx.hubBuildMismatch = mismatch;
-			observability.logger.log("Managed hub build mismatch detected", {
-				hubBuildId: mismatch.hubBuildId,
-				hubCoreVersion: mismatch.hubCoreVersion,
-				reason: mismatch.reason,
-			});
-			broadcastEvent(ctx, "hub_build_mismatch", mismatch);
-		},
-	});
-
-	// A wildcard bind isn't a dialable address; advertise loopback instead.
+	await client.subscribe({});
+	const server = startServer(ctx);
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
-	const endpoint = `http://${dialHost}:${port}`;
-	const wsEndpoint = `ws://${dialHost}:${port}/transport`;
-	process.stdout.write(
-		`${JSON.stringify({
-			type: "ready",
-			endpoint,
-			wsEndpoint,
-			pid: process.pid,
-			mode: SIDECAR_MODE,
-		})}\n`,
-	);
+	process.stdout.write(`${JSON.stringify({ type: "ready", endpoint: `http://${dialHost}:${server.port}`, wsEndpoint: `ws://${dialHost}:${server.port}/transport`, pid: process.pid, mode: "bun" })}\n`);
+	const shutdown = () => { server.stop(); client.close(); ownedProcess?.kill("SIGTERM"); process.exit(0); };
+	process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown);
 }
 
-/**
- * Prints whether the telemetry configuration that was inlined at build time
- * (see scripts/telemetry-define-args.ts) actually made it into this binary,
- * then exits. CI runs this against the packaged sidecar and fails the
- * publish when a release-grade build reports `"enabled":false` or an
- * unusable OTLP endpoint, so a regression in the build-time inlining can
- * never ship silently again.
- */
-function runTelemetrySelfcheck(): void {
-	const report = buildTelemetrySelfcheckReport(
-		createClineTelemetryServiceConfig(),
-	);
-	process.stdout.write(`${JSON.stringify(report)}\n`);
-}
-
-async function runEntrypoint(): Promise<void> {
-	// Before the daemon-sentinel claim: the selfcheck only inspects build-time
-	// config and must not consume the sentinel or start anything.
-	if (process.argv.includes("--telemetry-selfcheck")) {
-		runTelemetrySelfcheck();
-		return;
-	}
-	// Claim rather than read: consuming the sentinel keeps daemon-hosted sessions
-	// from handing it to every process they spawn.
-	if (claimHubDaemonProcess()) {
-		await import("@cline/core/hub/daemon-entry");
-		return;
-	}
-	await main();
-}
-
-runEntrypoint().catch(async (error) => {
-	const message = error instanceof Error ? error.message : String(error);
-	activeObservability?.logger.error?.("Desktop sidecar process failed", {
-		error,
-	});
-	captureSdkError(activeObservability?.telemetry, {
-		component: "desktop",
-		operation: "sidecar.startup",
-		error,
-		handled: false,
-		severity: "fatal",
-	});
-	await activeObservability?.dispose();
-	process.stderr.write(`${message}\n`);
-	process.exit(1);
-});
+main().catch((error) => { process.stderr.write(`${error instanceof Error ? error.stack ?? error.message : String(error)}\n`); process.exit(1); });

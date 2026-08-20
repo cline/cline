@@ -190,6 +190,57 @@ describe("HubSessionClient", () => {
 		client.close();
 	});
 
+	it("maps tool.updated events into runtime tool-call updates", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		await client.connect();
+		const socket = MockWebSocket.instances[0];
+		if (!socket) throw new Error("expected websocket");
+		const received: Array<{
+			sessionId: string;
+			eventType: string;
+			payload: Record<string, unknown>;
+		}> = [];
+		const unsubscribe = client.streamEvents(
+			{ sessionIds: ["session-1"] },
+			{ onEvent: (event) => received.push(event) },
+		);
+
+		socket.emitFrame({
+			kind: "event",
+			envelope: {
+				version: "v1",
+				eventId: "evt-tool-update",
+				event: "tool.updated",
+				timestamp: Date.now(),
+				sessionId: "session-1",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "one\n" },
+				},
+			},
+		});
+
+		expect(received).toEqual([
+			{
+				sessionId: "session-1",
+				eventType: "runtime.chat.tool_call_update",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: { stream: "stdout", chunk: "one\n" },
+				},
+			},
+		]);
+
+		unsubscribe();
+		client.close();
+	});
+
 	it("maps session.notice events without dropping their payload", async () => {
 		vi.stubGlobal("WebSocket", MockWebSocket);
 		const client = new HubSessionClient({

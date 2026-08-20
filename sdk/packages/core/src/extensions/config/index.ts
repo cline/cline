@@ -1,5 +1,6 @@
 export type {
 	AvailableRuntimeCommand,
+	ResolveRuntimeSlashCommandOptions,
 	RuntimeCommandKind,
 } from "./runtime-commands";
 // Skill frontmatter mutation is intentionally not exported from this barrel.

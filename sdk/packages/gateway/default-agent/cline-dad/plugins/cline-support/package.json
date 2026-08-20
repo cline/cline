@@ -1,0 +1,26 @@
+{
+	"name": "cline-plugin-cline-support",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Gateway-native health, configuration, session, log, and schedule diagnostics for Cline Dad.",
+	"type": "module",
+	"exports": {
+		".": "./index.ts"
+	},
+	"cline": {
+		"plugins": [
+			{
+				"paths": ["./index.ts"],
+				"capabilities": ["tools", "commands", "rules"]
+			}
+		]
+	},
+	"peerDependencies": {
+		"@cline/core": "*"
+	},
+	"peerDependenciesMeta": {
+		"@cline/core": {
+			"optional": true
+		}
+	}
+}

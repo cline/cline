@@ -1,0 +1,30 @@
+{
+	"name": "@cline/tools",
+	"version": "0.0.75",
+	"description": "Portable Cline coding tools and worker-safe executors",
+	"private": true,
+	"internal": true,
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"types": "./dist/index.d.ts",
+			"import": "./dist/index.js"
+		}
+	},
+	"files": [
+		"dist"
+	],
+	"scripts": {
+		"build": "bun run bun.mts && bun tsc -p tsconfig.build.json",
+		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit",
+		"test": "vitest run"
+	},
+	"engines": {
+		"node": ">=22"
+	},
+	"dependencies": {
+		"@cline/shared": "workspace:*"
+	}
+}

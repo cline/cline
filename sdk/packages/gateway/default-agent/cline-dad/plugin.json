@@ -1,0 +1,6 @@
+{
+	"$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+	"name": "cline-dad.core",
+	"version": "1.0.0",
+	"description": "Core Cline Dad identity and Gateway operating guidance."
+}

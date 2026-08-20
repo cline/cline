@@ -1,7 +1,7 @@
 // @jsxImportSource @opentui/react
 import type { ChoiceContext } from "@opentui-ui/dialog";
 import { useDialogKeyboard } from "@opentui-ui/dialog/react";
-import { palette } from "../../palette";
+import { useDialogPalette } from "../../hooks/use-theme";
 import { resolveHubUpdateRequiredKeyAction } from "./hub-update-required-helpers";
 
 export interface HubUpdateRequiredDetails {
@@ -12,6 +12,7 @@ export function HubUpdateRequiredContent(
 	props: ChoiceContext<boolean> & HubUpdateRequiredDetails,
 ) {
 	const { dialogId, dismiss, hubCoreVersion, resolve } = props;
+	const palette = useDialogPalette();
 
 	useDialogKeyboard((key) => {
 		const action = resolveHubUpdateRequiredKeyAction(key);

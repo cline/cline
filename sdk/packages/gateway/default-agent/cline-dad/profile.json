@@ -1,0 +1,8 @@
+{
+	"id": "cline-dad",
+	"name": "Cline Dad",
+	"description": "Default lead for the Cline Gateway with Gateway-native diagnostics and support tools.",
+	"rules": ["rules/identity.md", "rules/gateway.md"],
+	"plugins": ["plugins/cline-support", "."],
+	"templateVariables": ["ADMIN_NAME", "ADMIN_FULL_NAME"]
+}

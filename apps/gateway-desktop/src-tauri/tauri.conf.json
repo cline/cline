@@ -1,0 +1,41 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Gateway Desktop",
+	"version": "0.0.1",
+	"identifier": "bot.cline.gateway-desktop",
+	"build": {
+		"beforeDevCommand": "bun run build:sidecars && bun run dev:web",
+		"devUrl": "http://localhost:3135",
+		"beforeBuildCommand": "bun run build",
+		"frontendDist": "../webview/out"
+	},
+	"app": {
+		"windows": [
+			{
+				"title": "Gateway Desktop",
+				"hiddenTitle": true,
+				"titleBarStyle": "Overlay",
+				"width": 1280,
+				"height": 860,
+				"minWidth": 900,
+				"minHeight": 600
+			}
+		],
+		"security": {
+			"csp": "default-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self' ws://127.0.0.1:* ws://localhost:*; img-src 'self' data:; font-src 'self' data:"
+		}
+	},
+	"bundle": {
+		"active": true,
+		"targets": "all",
+		"externalBin": ["bin/gateway-desktop-broker", "bin/cline-gateway"],
+		"resources": ["resources/default-agent"],
+		"icon": [
+			"icons/32x32.png",
+			"icons/128x128.png",
+			"icons/128x128@2x.png",
+			"icons/icon.icns",
+			"icons/icon.ico"
+		]
+	}
+}

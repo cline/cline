@@ -7,8 +7,8 @@ import { HUB_THEME_BOOTSTRAP_SCRIPT } from "@/lib/theme";
 import "./globals.css";
 
 export const metadata: Metadata = {
-	title: "Cline",
-	description: "Build software with Cline.",
+	title: "Cline Bots",
+	description: "Build software with Cline Bots.",
 	icons: {
 		icon: [
 			{
@@ -18,10 +18,6 @@ export const metadata: Metadata = {
 			{
 				url: "/32x32.png",
 				media: "(prefers-color-scheme: dark)",
-			},
-			{
-				url: "/icon.svg",
-				type: "image/svg+xml",
 			},
 		],
 		apple: "/icon.png",

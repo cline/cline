@@ -121,7 +121,7 @@ const main = () => {
 
 	const notes = notesFile
 		? readFileSync(notesFile, "utf8").trim()
-		: `Cline v${version}`;
+		: `Cline Bots v${version}`;
 
 	const manifest = buildUpdateManifest({
 		version,
