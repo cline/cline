@@ -490,6 +490,42 @@ export async function readSessionMessages(
 			textSegmentIndex += 1;
 			textMeta = undefined;
 		};
+		const flushReasoningParts = () => {
+			const reasoning = reasoningParts.join("\n").trim();
+			const redacted = reasoningRedacted;
+			reasoningParts.length = 0;
+			reasoningRedacted = false;
+			if (!reasoning && !redacted) {
+				return;
+			}
+			const target = out
+				.slice(outStartIndex)
+				.find((item) => item.role === role);
+			if (target) {
+				if (reasoning) {
+					const existing =
+						typeof target.reasoning === "string" && target.reasoning
+							? `${target.reasoning}\n`
+							: "";
+					target.reasoning = `${existing}${reasoning}`;
+				}
+				if (redacted) {
+					target.reasoningRedacted = true;
+				}
+				return;
+			}
+			out.push({
+				id: `${messageIdBase}_reasoning`,
+				sessionId,
+				role,
+				content: "",
+				reasoning: reasoning || undefined,
+				reasoningRedacted: redacted || undefined,
+				createdAt: nextPartCreatedAt(),
+				meta: textMeta,
+			});
+			textMeta = undefined;
+		};
 
 		for (let blockIdx = 0; blockIdx < contentBlocks.length; blockIdx += 1) {
 			const block = contentBlocks[blockIdx];
@@ -504,6 +540,13 @@ export async function readSessionMessages(
 			const blockType = typeof record.type === "string" ? record.type : "";
 			if (blockType === "tool_use") {
 				flushTextParts();
+				// Everything the model emitted in this message — thinking
+				// included — happened before the tool executed. Flushing the
+				// reasoning here keeps the thinking row ahead of the tool row
+				// (matching the live-stream order) so the webview never attaches
+				// pre-tool reasoning to a later answer, which would drag the
+				// work summary's duration anchor back before the tool ran.
+				flushReasoningParts();
 				const toolName =
 					typeof record.name === "string" ? record.name : "tool_call";
 				const toolUseId = typeof record.id === "string" ? record.id : "";
@@ -631,32 +674,7 @@ export async function readSessionMessages(
 				textMeta = undefined;
 			}
 		}
-		if (reasoningParts.length > 0 || reasoningRedacted) {
-			const reasoning = reasoningParts.join("\n").trim();
-			const target = out
-				.slice(outStartIndex)
-				.find((item) => item.role === role);
-			if (target) {
-				if (reasoning) {
-					target.reasoning = reasoning;
-				}
-				if (reasoningRedacted) {
-					target.reasoningRedacted = true;
-				}
-			} else {
-				out.push({
-					id: `${messageIdBase}_reasoning`,
-					sessionId,
-					role,
-					content: "",
-					reasoning: reasoning || undefined,
-					reasoningRedacted: reasoningRedacted || undefined,
-					createdAt: nextPartCreatedAt(),
-					meta: textMeta,
-				});
-				textMeta = undefined;
-			}
-		}
+		flushReasoningParts();
 		if (textMeta && out[outStartIndex]) {
 			out[outStartIndex].meta = {
 				...(typeof out[outStartIndex].meta === "object"

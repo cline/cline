@@ -88,6 +88,101 @@ describe("readSessionMessages", () => {
 		]);
 	});
 
+	it("projects pre-tool thinking before the tool row it preceded", async () => {
+		// A thinking model can issue a tool call without narration text:
+		// content = [thinking, tool_use]. The thinking happened before the
+		// tool executed, so it must project before the tool row — matching the
+		// live-stream order and keeping the reasoning from attaching to the
+		// next turn-ending answer (which would corrupt the work summary's
+		// duration anchor in the webview).
+		const sessionId = `thinking-tool-projection-${Date.now()}`;
+		const userTimestamp = 1_781_041_621_000;
+		const assistantTimestamp = userTimestamp + 5_000;
+		const resultTimestamp = userTimestamp + 13_000;
+		const answerTimestamp = userTimestamp + 13_500;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "user-message",
+							role: "user",
+							content: [{ type: "text", text: "Run the command" }],
+							ts: userTimestamp,
+						},
+						{
+							id: "assistant-tool",
+							role: "assistant",
+							content: [
+								{ type: "thinking", thinking: "Planning the command" },
+								{
+									type: "tool_use",
+									id: "tool-use",
+									name: "run_commands",
+									input: { commands: ["sleep 8"] },
+								},
+							],
+							ts: assistantTimestamp,
+						},
+						{
+							id: "tool-result-message",
+							role: "user",
+							content: [
+								{
+									type: "tool_result",
+									tool_use_id: "tool-use",
+									content: "done",
+								},
+							],
+							ts: resultTimestamp,
+						},
+						{
+							id: "assistant-answer",
+							role: "assistant",
+							content: [{ type: "text", text: "The command finished." }],
+							ts: answerTimestamp,
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				id: "user-message_text_0",
+				role: "user",
+				createdAt: userTimestamp,
+			}),
+			expect.objectContaining({
+				id: "assistant-tool_reasoning",
+				role: "assistant",
+				reasoning: "Planning the command",
+				createdAt: assistantTimestamp,
+			}),
+			expect.objectContaining({
+				id: "assistant-tool_tool_use_1",
+				role: "tool",
+				createdAt: assistantTimestamp + 1,
+				meta: expect.objectContaining({
+					toolCallId: "tool-use",
+					hookEventName: "history_tool_result",
+				}),
+			}),
+			expect.objectContaining({
+				id: "assistant-answer_text_0",
+				role: "assistant",
+				content: "The command finished.",
+				createdAt: answerTimestamp,
+			}),
+		]);
+	});
+
 	it("projects image content blocks without replacing them with placeholder text", async () => {
 		const sessionId = `image-projection-${Date.now()}`;
 		const liveSessions = new Map([
