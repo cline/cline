@@ -4,6 +4,11 @@ import path from "node:path";
 import * as LlmsModels from "@cline/llms";
 import { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+	FALLBACK_CLINE_RECOMMENDED_MODELS,
+	getCachedClineRecommendedModels,
+	resetClineRecommendedModelsCacheForTests,
+} from "../llms/cline-recommended-models";
 import { clearLiveModelsCatalogCache } from "../llms/provider-defaults";
 import { ProviderSettingsManager } from "../storage/provider-settings-manager";
 import {
@@ -57,6 +62,7 @@ function makeTempManager(): {
 
 afterEach(() => {
 	clearLiveModelsCatalogCache();
+	resetClineRecommendedModelsCacheForTests();
 	LlmsModels.resetRegistry();
 	vi.restoreAllMocks();
 	vi.unstubAllGlobals();
@@ -359,7 +365,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toEqual(
 			expect.arrayContaining([
 				"cline-pass/live-pass-model",
@@ -412,7 +421,10 @@ describe("addLocalProvider – model ID parsing via modelsSourceUrl", () => {
 
 		const { models } = await getLocalProviderModels("cline-pass");
 
-		expect(fetchMock).toHaveBeenCalledTimes(2);
+		// models.dev, the recommended-models feed via the live catalog, and
+		// the recommended-models feed again for the featured-tier overlay
+		// (separately cached; both caches are cold here).
+		expect(fetchMock).toHaveBeenCalledTimes(3);
 		expect(models.map((model) => model.id)).toContain(
 			"cline-pass/mimo-v2.5-pro",
 		);
@@ -1537,6 +1549,68 @@ describe("listLocalProviders", () => {
 		});
 
 		expect(providers.map((p) => p.id)).toContain("cline-pass");
+	});
+
+	it("stamps featured tiers from the bundled fallback without a feed fetch", async () => {
+		const fetchMock = vi.fn();
+		vi.stubGlobal("fetch", fetchMock);
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+		const stampedIds = modelList
+			.filter((model) => model.featured?.tier === "recommended")
+			.map((model) => model.id);
+		const expectedIds = FALLBACK_CLINE_RECOMMENDED_MODELS.recommended
+			.map((model) => model.id)
+			.filter((id) => modelList.some((model) => model.id === id));
+
+		// A cold boot must still paint tiered sections: the catalog stamps
+		// synchronously from the bundled fallback instead of waiting on (or
+		// triggering) a feed fetch.
+		expect(stampedIds.length).toBeGreaterThan(0);
+		expect(new Set(stampedIds)).toEqual(new Set(expectedIds));
+		expect(fetchMock).not.toHaveBeenCalled();
+	});
+
+	it("stamps featured tiers from the cached live feed once warmed", async () => {
+		const clineModelIds = Object.keys(
+			await LlmsModels.getModelsForProvider("cline"),
+		);
+		const [recommendedId, freeId] = clineModelIds;
+		await getCachedClineRecommendedModels({
+			baseUrl: "https://api.example.test",
+			fetchImpl: async () =>
+				new Response(
+					JSON.stringify({
+						recommended: [
+							{
+								id: recommendedId,
+								name: "Live Pick",
+								description: "Live description",
+								tags: ["NEW"],
+							},
+						],
+						free: [{ id: freeId, name: "Live Free", description: "" }],
+						clinePass: [],
+					}),
+					{ status: 200, headers: { "Content-Type": "application/json" } },
+				),
+			catalogLoader: async () => ({}),
+		});
+
+		const { providers } = await listLocalProviders(manager);
+		const modelList =
+			providers.find((provider) => provider.id === "cline")?.modelList ?? [];
+
+		expect(
+			modelList.find((model) => model.id === recommendedId)?.featured,
+		).toEqual({ tier: "recommended", rank: 0, tags: ["NEW"] });
+		expect(modelList.find((model) => model.id === freeId)?.featured).toEqual({
+			tier: "free",
+			rank: 0,
+			tags: [],
+		});
 	});
 
 	it("marks enabled providers correctly", async () => {

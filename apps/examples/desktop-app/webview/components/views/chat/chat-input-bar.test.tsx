@@ -15,14 +15,12 @@ import {
 } from "./chat-input-bar";
 
 const {
-	loadClineFeaturedModelsMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
-	loadClineFeaturedModelsMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
@@ -71,14 +69,6 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 	};
 });
 
-vi.mock("@/lib/featured-models", async (importOriginal) => {
-	const actual = await importOriginal<typeof import("@/lib/featured-models")>();
-	return {
-		...actual,
-		loadClineFeaturedModels: loadClineFeaturedModelsMock,
-	};
-});
-
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
@@ -103,11 +93,6 @@ beforeEach(() => {
 		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
-	loadClineFeaturedModelsMock.mockReset().mockResolvedValue({
-		recommended: [],
-		free: [],
-		clinePass: [],
-	});
 	speechInputMockState.current = null;
 	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
@@ -1356,25 +1341,6 @@ describe("ChatInputBar", () => {
 	});
 
 	it("renders the cline model picker with recommended and free sections", async () => {
-		loadClineFeaturedModelsMock.mockResolvedValue({
-			recommended: [
-				{
-					id: "anthropic/claude-opus-5",
-					name: "Claude Opus 5",
-					description: "Most intelligent model",
-					tags: ["NEW"],
-				},
-			],
-			free: [
-				{
-					id: "deepseek/deepseek-v4-flash",
-					name: "DeepSeek V4 Flash",
-					description: "Fast and efficient",
-					tags: [],
-				},
-			],
-			clinePass: [],
-		});
 		loadProviderModelCatalogMock.mockResolvedValue({
 			providers: [],
 			enabledProviderIds: ["cline"],
@@ -1385,10 +1351,21 @@ describe("ChatInputBar", () => {
 					"zzz/other-model",
 				],
 			},
+			// Tier data arrives on the models themselves, stamped by the SDK.
 			providerModelDetails: {
 				cline: [
-					{ id: "anthropic/claude-opus-5", name: "Claude Opus 5" },
-					{ id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+					{
+						id: "anthropic/claude-opus-5",
+						name: "Claude Opus 5",
+						description: "Most intelligent model",
+						featured: { tier: "recommended", rank: 0, tags: ["NEW"] },
+					},
+					{
+						id: "deepseek/deepseek-v4-flash",
+						name: "DeepSeek V4 Flash",
+						description: "Fast and efficient",
+						featured: { tier: "free", rank: 0, tags: [] },
+					},
 					{ id: "zzz/other-model", name: "Other Model" },
 				],
 			},
@@ -1433,10 +1410,6 @@ describe("ChatInputBar", () => {
 			);
 			await Promise.resolve();
 		});
-		await vi.waitFor(() => {
-			expect(loadClineFeaturedModelsMock).toHaveBeenCalled();
-		});
-
 		// The provider trigger uses the catalog display name, the model
 		// trigger the model's display name.
 		const providerTrigger = container.querySelector<HTMLButtonElement>(
@@ -1513,28 +1486,15 @@ describe("ChatInputBar", () => {
 				await Promise.resolve();
 			});
 			await vi.waitFor(() => {
-				expect(loadClineFeaturedModelsMock).toHaveBeenCalled();
+				expect(loadProviderModelCatalogMock).toHaveBeenCalled();
 			});
 		};
 
 		beforeEach(() => {
-			// The ClinePass offer: one subscribed and one free model. The
-			// catalog additionally contains a stale model outside the offer,
-			// which the picker hides while the subscribed tier is non-empty.
-			loadClineFeaturedModelsMock.mockResolvedValue({
-				recommended: [],
-				free: [
-					{
-						id: "google/gemini-flash",
-						name: "Gemini Flash",
-						description: "",
-						tags: [],
-					},
-				],
-				clinePass: [
-					{ id: "openai/gpt-5", name: "GPT-5", description: "", tags: [] },
-				],
-			});
+			// The ClinePass offer: one subscribed and one free model, stamped
+			// by the SDK onto ProviderModel.featured. The catalog additionally
+			// contains a stale unstamped model outside the offer, which the
+			// picker hides while the subscribed tier is non-empty.
 			loadProviderModelCatalogMock.mockResolvedValue({
 				providers: [],
 				enabledProviderIds: ["cline", "cline-pass"],
@@ -1548,8 +1508,16 @@ describe("ChatInputBar", () => {
 				},
 				providerModelDetails: {
 					"cline-pass": [
-						{ id: "openai/gpt-5", name: "GPT-5" },
-						{ id: "google/gemini-flash", name: "Gemini Flash" },
+						{
+							id: "openai/gpt-5",
+							name: "GPT-5",
+							featured: { tier: "subscribed", rank: 0, tags: [] },
+						},
+						{
+							id: "google/gemini-flash",
+							name: "Gemini Flash",
+							featured: { tier: "free", rank: 0, tags: [] },
+						},
 						{ id: "legacy/stale-model", name: "Stale Legacy" },
 					],
 				},

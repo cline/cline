@@ -34,9 +34,6 @@ import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
 	buildModelPickerData,
-	EMPTY_FEATURED_MODELS,
-	type FeaturedModelsData,
-	loadClineFeaturedModels,
 	type ModelPickerData,
 } from "@/lib/featured-models";
 import {
@@ -1545,9 +1542,6 @@ const ModelSelector = memo(function ModelSelector({
 	const [modelDetails, setModelDetails] = useState<
 		Record<string, ProviderModel[]>
 	>({});
-	const [featuredModels, setFeaturedModels] = useState<FeaturedModelsData>(
-		EMPTY_FEATURED_MODELS,
-	);
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
@@ -1581,8 +1575,8 @@ const ModelSelector = memo(function ModelSelector({
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
-	// Sectioned picker data: display names from the catalog, plus the
-	// Recommended/Free tiers from the Cline model feed for cline/cline-pass.
+	// Sectioned picker data: display names plus the Recommended/Free tiers the
+	// SDK stamps onto cline/cline-pass models (ProviderModel.featured).
 	const pickerDataForProvider = useCallback(
 		(providerId: string): ModelPickerData => {
 			const detailsById = new Map(
@@ -1593,9 +1587,9 @@ const ModelSelector = memo(function ModelSelector({
 			const models = (visibleProviderModels[providerId] ?? []).map(
 				(id) => detailsById.get(id) ?? { id, name: id },
 			);
-			return buildModelPickerData(providerId, models, featuredModels);
+			return buildModelPickerData(providerId, models);
 		},
-		[featuredModels, modelDetails, visibleProviderModels],
+		[modelDetails, visibleProviderModels],
 	);
 	const modelPicker = useMemo(
 		() => pickerDataForProvider(resolvedProvider),
@@ -1774,16 +1768,6 @@ const ModelSelector = memo(function ModelSelector({
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
-	}, []);
-
-	useEffect(() => {
-		let cancelled = false;
-		void loadClineFeaturedModels().then((data) => {
-			if (!cancelled) setFeaturedModels(data);
-		});
-		return () => {
-			cancelled = true;
-		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
