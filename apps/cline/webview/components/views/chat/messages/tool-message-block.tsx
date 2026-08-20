@@ -1,0 +1,233 @@
+"use client";
+
+import {
+	ToolActivity,
+	ToolActivityCode,
+	ToolActivityContent,
+	ToolActivityDetails,
+	ToolActivityTrigger,
+} from "@cline/ui/components/agent-chat";
+import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
+import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
+import { AlertCircle } from "lucide-react";
+import { memo, useCallback, useEffect, useState } from "react";
+import type { BotSummary } from "@/hooks/use-bots";
+import type { ChatMessage } from "@/lib/chat-schema";
+import { cn } from "@/lib/utils";
+import { IS_DEBUG, STREAMING_TITLE_CLASS } from "./constants";
+import { ProposeNewBotCard } from "./propose-new-bot-card";
+import { getToolNameIcon } from "./tool-icons";
+import { buildToolPresentation, formatToolValue } from "./tool-summaries";
+
+export type OnCreateBot = (
+	name: string,
+	initialProjectPath?: string,
+	icon?: string,
+) => Promise<BotSummary>;
+
+function ToolLabel({
+	parts,
+	isRunning,
+}: {
+	parts: ToolLabelPart[];
+	isRunning: boolean;
+}) {
+	return (
+		<span className={cn(isRunning && STREAMING_TITLE_CLASS)}>
+			{parts.map((part, index) =>
+				part.code ? (
+					<span className="font-mono" key={`${index}_${part.text}`}>
+						{part.text}
+					</span>
+				) : (
+					<span key={`${index}_${part.text}`}>{part.text}</span>
+				),
+			)}
+		</span>
+	);
+}
+
+const ToolCallRow = memo(function ToolCallRow({
+	message,
+	onCreateBot,
+}: {
+	message: ChatMessage;
+	onCreateBot: OnCreateBot;
+}) {
+	const { payload, toolName, inProgress, summary } =
+		buildToolPresentation(message);
+	const fileDiffs = summary.items.flatMap((item, index) => {
+		if (item.type !== "file") return [];
+		const hunks =
+			item.hunks ??
+			(item.newText !== undefined
+				? [{ oldText: item.oldText, newText: item.newText }]
+				: null);
+		if (hunks) {
+			return hunks.map((hunk, hunkIndex) => ({
+				key: `${message.id}_diff_${index}_${hunkIndex}`,
+				kind: "rich" as const,
+				item,
+				hunk,
+			}));
+		}
+		return item.diff
+			? [
+					{
+						key: `${message.id}_diff_${index}`,
+						kind: "text" as const,
+						item,
+						hunk: null,
+					},
+				]
+			: [];
+	});
+	const hasFileDiffs = fileDiffs.length > 0;
+	const [open, setOpen] = useState(hasFileDiffs);
+	const [userToggled, setUserToggled] = useState(false);
+	useEffect(() => {
+		if (hasFileDiffs && !userToggled) setOpen(true);
+	}, [hasFileDiffs, userToggled]);
+	const handleOpenChange = useCallback((nextOpen: boolean) => {
+		setUserToggled(true);
+		setOpen(nextOpen);
+	}, []);
+
+	const hasError = Boolean(payload?.isError);
+	const Icon = getToolNameIcon(toolName);
+	const isCommand = summary.kind === "command";
+	const details = summary.details.map((detail, index) => ({
+		detail,
+		key: `${message.id}_${index}`,
+	}));
+	const inputPreview =
+		IS_DEBUG && payload ? formatToolValue(payload.input) : "";
+	const hasExpandedSections =
+		details.length > 0 ||
+		fileDiffs.length > 0 ||
+		Boolean(summary.outputText) ||
+		Boolean(summary.errorText) ||
+		Boolean(inputPreview);
+
+	if (toolName === "propose_new_bot") {
+		const input = (payload?.input ?? {}) as {
+			name?: string;
+			initialProjectPath?: string;
+			reason?: string;
+		};
+		if (input.name) {
+			return (
+				<ProposeNewBotCard
+					initialProjectPath={input.initialProjectPath}
+					name={input.name}
+					onCreateBot={onCreateBot}
+					reason={input.reason}
+				/>
+			);
+		}
+	}
+
+	return (
+		<ToolActivity
+			className="my-0"
+			expandable={hasExpandedSections}
+			onOpenChange={handleOpenChange}
+			open={open}
+		>
+			<ToolActivityTrigger
+				additions={summary.diff?.additions || undefined}
+				deletions={summary.diff?.deletions || undefined}
+				icon={
+					hasError ? (
+						<AlertCircle className="size-4 text-destructive/80" />
+					) : (
+						<Icon className="size-4" />
+					)
+				}
+				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
+				showDisclosureIcon={false}
+				status={hasError ? "error" : inProgress ? "running" : "success"}
+			/>
+			<ToolActivityContent presentation="rail">
+				{details.length > 0 ? (
+					<ToolActivityDetails
+						className={cn(
+							"whitespace-pre-wrap",
+							isCommand && "font-mono text-xs",
+						)}
+					>
+						{details.map(({ detail, key }) => (
+							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+						))}
+					</ToolActivityDetails>
+				) : null}
+				{fileDiffs.map((entry) =>
+					entry.kind === "rich" && entry.hunk ? (
+						<ToolFileDiff
+							className="mt-1"
+							fragment={entry.item.fragment}
+							key={entry.key}
+							newText={entry.hunk.newText}
+							oldText={entry.hunk.oldText}
+							path={entry.item.path}
+						/>
+					) : (
+						<ToolActivityCode
+							className="mt-1 overflow-x-auto text-xs"
+							key={entry.key}
+						>
+							{entry.item.diff}
+						</ToolActivityCode>
+					),
+				)}
+				{summary.outputText ? (
+					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+						{summary.outputText}
+					</ToolActivityCode>
+				) : null}
+				{inputPreview ? (
+					<div className="space-y-1">
+						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+							Input
+						</div>
+						<ToolActivityCode className="text-sm">
+							{inputPreview}
+						</ToolActivityCode>
+					</div>
+				) : null}
+				{summary.errorText ? (
+					<div className="mt-1 break-words text-destructive">
+						{summary.errorText}
+					</div>
+				) : null}
+			</ToolActivityContent>
+		</ToolActivity>
+	);
+});
+
+export const ToolMessageBlock = memo(
+	function ToolMessageBlock({
+		messages,
+		onCreateBot,
+	}: {
+		messages: ChatMessage[];
+		onCreateBot: OnCreateBot;
+	}) {
+		if (messages.length === 0) return null;
+		return (
+			<div className="flex flex-col gap-1">
+				{messages.map((message) => (
+					<ToolCallRow
+						key={message.id}
+						message={message}
+						onCreateBot={onCreateBot}
+					/>
+				))}
+			</div>
+		);
+	},
+	(prev, next) =>
+		prev.messages.length === next.messages.length &&
+		prev.messages.every((message, index) => message === next.messages[index]) &&
+		prev.onCreateBot === next.onCreateBot,
+);
