@@ -8,7 +8,6 @@ import {
 	MAX_LIVE_COMMAND_OUTPUT_CHARS,
 } from "@/lib/command-output";
 import { MODEL_SELECTION_STORAGE_KEY } from "@/lib/model-selection";
-import { buildActiveSessionMonitors } from "@/lib/session-monitors";
 import { useChatSession } from "./use-chat-session";
 
 const { invokeMock, subscribeMock } = vi.hoisted(() => ({
@@ -2873,9 +2872,13 @@ describe("coerced-queue first turn vs stale send response", () => {
 				startedAt: "2026-08-12T00:00:00.000Z",
 			});
 		});
-		expect(buildActiveSessionMonitors(current.messages)).toEqual([
-			{ id: "mon_1", name: "ci" },
-		]);
+		// Hydration alone carries only the persisted start; the notice arrives
+		// with the start action once the user resumes the conversation.
+		expect(
+			current.messages.some(
+				(message) => message.meta?.messageKind === "monitor_resume_notice",
+			),
+		).toBe(false);
 
 		await act(async () => {
 			await current.sendPrompt("Is the monitor still running?");
@@ -2888,6 +2891,5 @@ describe("coerced-queue first turn vs stale send response", () => {
 		expect(notice?.content).toContain(
 			"[monitor mon_1 stopped because session resumed]",
 		);
-		expect(buildActiveSessionMonitors(current.messages)).toEqual([]);
 	});
 });

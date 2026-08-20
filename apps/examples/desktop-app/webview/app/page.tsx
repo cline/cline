@@ -82,9 +82,9 @@ import {
 	type SessionMetadata,
 } from "@/lib/session-history";
 import {
-	buildActiveSessionMonitors,
-	monitorSuppressionKey,
-	pruneMonitorSuppressions,
+	runningMonitors,
+	type SessionMonitor,
+	type SessionMonitorRecord,
 } from "@/lib/session-monitors";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
@@ -1423,31 +1423,43 @@ function ChatThreadPane({
 			}),
 		[agents, derivedAgentActivity, isSessionActive],
 	);
-	const activeMonitors = useMemo(
-		() => buildActiveSessionMonitors(displayedMessages),
-		[displayedMessages],
-	);
-	const [manuallyStoppedMonitors, setManuallyStoppedMonitors] = useState<
-		Set<string>
-	>(() => new Set());
-	// Once a stopped monitor's terminal marker lands in the transcript its
-	// suppression has done its job. Monitor ids restart at mon_1 with every
-	// runtime rebuild, so a stale key would hide an unrelated future monitor.
+	// Authoritative monitor roster: hydrated once per displayed session and
+	// kept live by monitor_state snapshots from the registry itself. The
+	// transcript is never consulted, so quoted markers, teardown without
+	// markers, or starts older than the message window cannot skew it.
+	const [activeMonitors, setActiveMonitors] = useState<SessionMonitor[]>([]);
 	useEffect(() => {
-		setManuallyStoppedMonitors((current) =>
-			pruneMonitorSuppressions(current, activeMonitors, displayedSessionId),
-		);
-	}, [activeMonitors, displayedSessionId]);
-	const visibleActiveMonitors = useMemo(
-		() =>
-			activeMonitors.filter(
-				(monitor) =>
-					!manuallyStoppedMonitors.has(
-						monitorSuppressionKey(displayedSessionId, monitor.id),
-					),
-			),
-		[activeMonitors, displayedSessionId, manuallyStoppedMonitors],
-	);
+		setActiveMonitors([]);
+		if (!displayedSessionId) {
+			return;
+		}
+		let stale = false;
+		void desktopClient
+			.invoke<{ monitors?: SessionMonitorRecord[] }>("list_monitors", {
+				sessionId: displayedSessionId,
+			})
+			.then((response) => {
+				if (stale) return;
+				setActiveMonitors(runningMonitors(response.monitors));
+			})
+			.catch(() => {
+				// No session runtime yet (fresh resume) or an older hub: the
+				// roster stays empty until a monitor_state snapshot arrives.
+			});
+		const unsubscribe = desktopClient.subscribe("monitor_state", (payload) => {
+			if (!payload || typeof payload !== "object") return;
+			const record = payload as {
+				sessionId?: string;
+				monitors?: SessionMonitorRecord[];
+			};
+			if (record.sessionId !== displayedSessionId) return;
+			setActiveMonitors(runningMonitors(record.monitors));
+		});
+		return () => {
+			stale = true;
+			unsubscribe();
+		};
+	}, [displayedSessionId]);
 	const handleStopMonitor = useCallback(
 		async (monitorId: string) => {
 			if (!displayedSessionId) {
@@ -1461,11 +1473,8 @@ function ChatThreadPane({
 				if (!response.stopped) {
 					throw new Error("The monitor is no longer running.");
 				}
-				setManuallyStoppedMonitors((current) =>
-					new Set(current).add(
-						monitorSuppressionKey(displayedSessionId, monitorId),
-					),
-				);
+				// No optimistic bookkeeping: the registry emits a stopped
+				// monitor_state snapshot as part of the stop itself.
 			} catch (error) {
 				toast({
 					title: "Unable to stop monitor",
@@ -1635,7 +1644,7 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
-							activeMonitors={visibleActiveMonitors}
+							activeMonitors={activeMonitors}
 							agentActivity={agentActivity}
 							agents={agents}
 							agentsError={agentsError}

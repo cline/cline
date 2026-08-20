@@ -415,6 +415,13 @@ function handleCoreSessionEvent(
 			sendPromptsInQueueSnapshot(ctx, sessionId);
 			break;
 		}
+		case "monitor_state": {
+			// Authoritative monitor roster for host UIs. The webview renders its
+			// header strip from these snapshots rather than reconstructing state
+			// from transcript text.
+			sendEvent(ctx, "monitor_state", event.payload);
+			break;
+		}
 		case "pending_prompt_submitted": {
 			const { sessionId, id, prompt, attachmentCount, userImages } =
 				event.payload;
