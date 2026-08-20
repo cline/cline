@@ -98,6 +98,40 @@ describe("tool resolution", () => {
 		);
 		expect(JSON.stringify(snapshot)).not.toContain("apiKey");
 	});
+
+	it("auto-approves connector tools by default but preserves explicit approval", () => {
+		const catalog = new ToolCatalog().current;
+		const defaultSnapshot = resolveToolSnapshot(catalog, {
+			providerId: "cline",
+			modelId: "connector-model",
+			role: "lead",
+			source: "connector",
+			now: 10,
+		});
+		expect(
+			defaultSnapshot.tools.find(
+				(tool) => tool.id === "builtin:run_commands",
+			)?.approval,
+		).toEqual({ mode: "never" });
+
+		const configuredSnapshot = resolveToolSnapshot(catalog, {
+			providerId: "cline",
+			modelId: "connector-model",
+			role: "lead",
+			source: "connector",
+			bot: {
+				tools: {
+					"builtin:run_commands": { approval: "always" },
+				},
+			},
+			now: 10,
+		});
+		expect(
+			configuredSnapshot.tools.find(
+				(tool) => tool.id === "builtin:run_commands",
+			)?.approval,
+		).toEqual({ mode: "always" });
+	});
 });
 
 describe("durable tool configuration and attempts", () => {
@@ -156,6 +190,60 @@ describe("durable tool configuration and attempts", () => {
 		const attempt2 = stores.attempts.begin(runId, 20);
 		const prepared2 = system.prepareAttempt(invocation, attempt2.attempt);
 		expect(prepared2.executionSnapshot).toEqual(prepared1.executionSnapshot);
+		database.close();
+	});
+
+	it("captures connector auto-approval in the immutable attempt snapshot", () => {
+		const database = openGatewayDatabase(join(tempDataRoot(), "gateway.db"));
+		const stores = createGatewayStores(database, "gwi_connector_tools");
+		const configurations = new ToolConfigurationStore(database);
+		configurations.bootstrap(1);
+		const botId = createBotId();
+		stores.bots.save({
+			identity: {
+				botId,
+				name: "connector bot",
+				role: "lead",
+				parentBotId: null,
+				provenance: { createdBy: "bootstrap" },
+				createdAt: 1,
+			},
+			config: { providerId: "cline", modelId: "connector-model" },
+			status: "active",
+			revision: 0,
+		});
+		const runId = createRunId();
+		const system = new GatewayToolSystem({
+			configurations,
+			attempts: stores.attempts,
+			getBot: (id) => stores.bots.get(id as never),
+			resolveModelSelection: () => ({
+				providerId: "cline",
+				modelId: "connector-model",
+			}),
+			clock: () => 10,
+		});
+		const attempt = stores.attempts.begin(runId, 10);
+		const prepared = system.prepareAttempt(
+			{
+				runId,
+				sessionId: createSessionId(),
+				botId,
+				input: "test",
+				workspaceRoot: "/workspace",
+				source: "connector",
+				effectiveConfig: {
+					providerId: "cline",
+					modelId: "connector-model",
+				},
+			},
+			attempt.attempt,
+		);
+		expect(
+			prepared.executionSnapshot?.tools.find(
+				(tool) => tool.id === "builtin:run_commands",
+			)?.approval,
+		).toEqual({ mode: "never" });
 		database.close();
 	});
 });

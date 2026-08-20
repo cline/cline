@@ -19,6 +19,8 @@ export interface ToolResolutionInput {
 	modelCapabilities?: readonly string[];
 	modelManifestRevision?: string;
 	role: "lead" | "worker" | "contractor";
+	/** Admission source controls only the default approval policy. */
+	source?: "interactive" | "connector" | "automation";
 	global?: BotToolConfiguration;
 	workspace?: BotToolConfiguration;
 	bot?: BotToolConfiguration;
@@ -212,7 +214,9 @@ export function resolveToolSnapshot(
 						? { mode: "always" as const }
 						: config?.approval === "never"
 							? { mode: "never" as const }
-							: entry.descriptor.approval,
+							: config?.approval === undefined && input.source === "connector"
+								? { mode: "never" as const }
+								: entry.descriptor.approval,
 				...(config?.configuration
 					? { configuration: config.configuration }
 					: {}),

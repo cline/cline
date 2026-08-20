@@ -111,6 +111,7 @@ export class GatewayToolSystem {
 		return {
 			providerId: model.providerId,
 			modelId: model.modelId,
+			source: invocation.source,
 			modelCapabilities: model.capabilities,
 			modelManifestRevision: model.manifestRevision,
 			strictToolCalling: model.strictToolCalling,
