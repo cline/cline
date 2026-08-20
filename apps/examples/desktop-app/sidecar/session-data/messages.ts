@@ -465,6 +465,11 @@ export async function readSessionMessages(
 		const reasoningParts: string[] = [];
 		let reasoningRedacted = false;
 		let textSegmentIndex = 0;
+		let reasoningSegmentIndex = 0;
+		// The text row pushed since the last reasoning flush. Reasoning that
+		// streamed alongside it (the classic [thinking, text] shape) attaches
+		// there instead of becoming a separate row.
+		let reasoningTextTarget: JsonRecord | undefined;
 		const outStartIndex = out.length;
 		const flushTextParts = () => {
 			if (textParts.length === 0) {
@@ -475,7 +480,7 @@ export async function readSessionMessages(
 			if (!joined.trim()) {
 				return;
 			}
-			out.push({
+			const textRow: JsonRecord = {
 				id: `${messageIdBase}_text_${textSegmentIndex}`,
 				sessionId,
 				role,
@@ -486,7 +491,9 @@ export async function readSessionMessages(
 				// the run; later segments must not acquire a fallback ordinal in
 				// the webview.
 				meta: textMeta ?? (role === "user" ? { userRunSpan: 0 } : undefined),
-			});
+			};
+			out.push(textRow);
+			reasoningTextTarget = textRow;
 			textSegmentIndex += 1;
 			textMeta = undefined;
 		};
@@ -495,12 +502,13 @@ export async function readSessionMessages(
 			const redacted = reasoningRedacted;
 			reasoningParts.length = 0;
 			reasoningRedacted = false;
+			// Consumed per flush: reasoning must only attach to a text row from
+			// its own segment, never to one emitted before an earlier tool call.
+			const target = reasoningTextTarget;
+			reasoningTextTarget = undefined;
 			if (!reasoning && !redacted) {
 				return;
 			}
-			const target = out
-				.slice(outStartIndex)
-				.find((item) => item.role === role);
 			if (target) {
 				if (reasoning) {
 					const existing =
@@ -515,7 +523,7 @@ export async function readSessionMessages(
 				return;
 			}
 			out.push({
-				id: `${messageIdBase}_reasoning`,
+				id: `${messageIdBase}_reasoning_${reasoningSegmentIndex}`,
 				sessionId,
 				role,
 				content: "",
@@ -524,6 +532,7 @@ export async function readSessionMessages(
 				createdAt: nextPartCreatedAt(),
 				meta: textMeta,
 			});
+			reasoningSegmentIndex += 1;
 			textMeta = undefined;
 		};
 

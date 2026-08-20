@@ -160,7 +160,7 @@ describe("readSessionMessages", () => {
 				createdAt: userTimestamp,
 			}),
 			expect.objectContaining({
-				id: "assistant-tool_reasoning",
+				id: "assistant-tool_reasoning_0",
 				role: "assistant",
 				reasoning: "Planning the command",
 				createdAt: assistantTimestamp,
@@ -179,6 +179,71 @@ describe("readSessionMessages", () => {
 				role: "assistant",
 				content: "The command finished.",
 				createdAt: answerTimestamp,
+			}),
+		]);
+	});
+
+	it("keeps interleaved thinking between the tool calls it separates", async () => {
+		// Interleaved thinking can produce [thinking, tool_use, thinking,
+		// tool_use] in a single assistant message. Each thinking segment must
+		// project at its own position — merging the second segment into the
+		// first row would display it before a tool call it actually followed.
+		const sessionId = `interleaved-thinking-projection-${Date.now()}`;
+		const assistantTimestamp = 1_781_041_621_000;
+		const liveSessions = new Map([
+			[
+				sessionId,
+				{
+					messages: [
+						{
+							id: "assistant-tools",
+							role: "assistant",
+							content: [
+								{ type: "thinking", thinking: "First I need the date" },
+								{
+									type: "tool_use",
+									id: "tool-a",
+									name: "run_commands",
+									input: { commands: ["date"] },
+								},
+								{ type: "thinking", thinking: "Now check the files" },
+								{
+									type: "tool_use",
+									id: "tool-b",
+									name: "read_files",
+									input: { paths: ["a.ts"] },
+								},
+							],
+							ts: assistantTimestamp,
+						},
+					],
+				},
+			],
+		]);
+
+		await expect(
+			readSessionMessages(
+				{ liveSessions } as Parameters<typeof readSessionMessages>[0],
+				sessionId,
+			),
+		).resolves.toEqual([
+			expect.objectContaining({
+				id: "assistant-tools_reasoning_0",
+				role: "assistant",
+				reasoning: "First I need the date",
+			}),
+			expect.objectContaining({
+				id: "assistant-tools_tool_use_1",
+				role: "tool",
+			}),
+			expect.objectContaining({
+				id: "assistant-tools_reasoning_1",
+				role: "assistant",
+				reasoning: "Now check the files",
+			}),
+			expect.objectContaining({
+				id: "assistant-tools_tool_use_3",
+				role: "tool",
 			}),
 		]);
 	});
