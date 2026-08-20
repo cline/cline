@@ -738,7 +738,8 @@ export class HookFactory {
 	 * @returns true if at least one hook script exists, false otherwise
 	 */
 	async hasHook<Name extends HookName>(hookName: Name): Promise<boolean> {
-		const scripts = await HookFactory.findHookScripts(hookName)
+		const { HookDiscoveryCache } = await import("./HookDiscoveryCache")
+		const scripts = await HookDiscoveryCache.getInstance().get(hookName)
 		return scripts.length > 0
 	}
 
