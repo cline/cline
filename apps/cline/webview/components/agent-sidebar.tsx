@@ -38,6 +38,7 @@ import {
 	useState,
 } from "react";
 import { AppUpdateIndicator } from "@/components/app-update-indicator";
+import { GatewayUpdateIndicator } from "@/components/gateway-update-indicator";
 import { BotSwitcher } from "@/components/bot-switcher";
 import {
 	AlertDialog,
@@ -651,6 +652,7 @@ export function AgentSidebar({
 							onSwitchBot={onSwitchBot}
 						/>
 						{!isCollapsed ? <AppUpdateIndicator /> : null}
+						{!isCollapsed ? <GatewayUpdateIndicator /> : null}
 					</div>
 					{!isCollapsed ? (
 						<Button
@@ -669,6 +671,7 @@ export function AgentSidebar({
 				{isCollapsed ? (
 					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
 						<AppUpdateIndicator className="mx-auto size-9" />
+						<GatewayUpdateIndicator className="mx-auto size-9" />
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}

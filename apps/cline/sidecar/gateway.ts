@@ -18,10 +18,14 @@ export function gatewaySpawnCwd(
 	return compiledSidecar ? dirname(execPath) : resolve(moduleDir, "..");
 }
 
-function supportsDesktopGateway(client: GatewayClient): boolean {
-	return REQUIRED_GATEWAY_CAPABILITIES.every((capability) =>
-		client.hello.capabilities.includes(capability),
+export function missingDesktopGatewayCapabilities(client: GatewayClient): string[] {
+	return REQUIRED_GATEWAY_CAPABILITIES.filter(
+		(capability) => !client.hello.capabilities.includes(capability),
 	);
+}
+
+function supportsDesktopGateway(client: GatewayClient): boolean {
+	return missingDesktopGatewayCapabilities(client).length === 0;
 }
 
 async function connect(): Promise<GatewayClient | undefined> {
@@ -37,7 +41,7 @@ async function connect(): Promise<GatewayClient | undefined> {
 	}
 }
 
-async function stopIncompatibleGateway(client: GatewayClient): Promise<void> {
+async function stopGatewayForUpdate(client: GatewayClient): Promise<void> {
 	try {
 		await client.mutate("gateway.stop", {
 			reason: "desktop app upgrade requires sessions.create",
@@ -53,14 +57,10 @@ async function stopIncompatibleGateway(client: GatewayClient): Promise<void> {
 	throw new Error("Incompatible desktop Gateway did not stop during upgrade");
 }
 
-export async function ensureGateway(): Promise<{
+async function startBundledGateway(): Promise<{
 	client: GatewayClient;
-	ownedProcess?: ChildProcess;
+	ownedProcess: ChildProcess;
 }> {
-	const existing = await connect();
-	if (existing && supportsDesktopGateway(existing)) return { client: existing };
-	if (existing) await stopIncompatibleGateway(existing);
-
 	const packaged = join(dirname(process.execPath), process.platform === "win32" ? "cline-gateway.exe" : "cline-gateway");
 	const entry = resolve(import.meta.dir, "../../../sdk/packages/gateway/bin/cline-gateway.mjs");
 	const compiledSidecar = basename(process.execPath).startsWith("cline-sidecar");
@@ -105,4 +105,27 @@ export async function ensureGateway(): Promise<{
 	}
 	if (!client) throw new Error("Gateway became ready but discovery connection failed");
 	return { client, ownedProcess: child };
+}
+
+export async function ensureGateway(): Promise<{
+	client: GatewayClient;
+	ownedProcess?: ChildProcess;
+	updateRequired: boolean;
+}> {
+	const existing = await connect();
+	if (existing) {
+		return {
+			client: existing,
+			updateRequired: !supportsDesktopGateway(existing),
+		};
+	}
+	return { ...(await startBundledGateway()), updateRequired: false };
+}
+
+export async function updateGateway(client: GatewayClient): Promise<{
+	client: GatewayClient;
+	ownedProcess: ChildProcess;
+}> {
+	await stopGatewayForUpdate(client);
+	return startBundledGateway();
 }

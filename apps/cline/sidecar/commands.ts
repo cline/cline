@@ -174,6 +174,19 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 }
 
 export async function handleCommand(ctx: SidecarContext, command: string, args: RecordValue = {}): Promise<unknown> {
+	if (command === "get_gateway_update_status") {
+		return {
+			updateRequired: ctx.gatewayUpdateRequired,
+			missingCapabilities: ctx.gatewayUpdateRequired ? ["sessions.create"] : [],
+		};
+	}
+	if (command === "update_gateway_server") {
+		if (ctx.gatewayUpdateRequired) await ctx.updateGateway();
+		return { updateRequired: false };
+	}
+	if (ctx.gatewayUpdateRequired) {
+		throw new Error("The running Gateway must be updated before it can be used by this version of Cline Bots.");
+	}
 	if (command === "list_user_instruction_configs") return gatewayCustomizationLists(ctx);
 	if (command === "set_tool_disabled") {
 		const names = Array.isArray(args.names) ? args.names.filter((name): name is string => typeof name === "string") : [];

@@ -1,10 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { KNOWN_GATEWAY_CAPABILITIES } from "@cline/shared/gateway";
-import { gatewaySpawnCwd } from "./gateway";
+import {
+	gatewaySpawnCwd,
+	missingDesktopGatewayCapabilities,
+} from "./gateway";
 
 describe("gatewaySpawnCwd", () => {
 	it("advertises explicit session creation for desktop version negotiation", () => {
 		expect(KNOWN_GATEWAY_CAPABILITIES).toContain("sessions.create");
+	});
+
+	it("requires an explicit update when the running Gateway is too old", () => {
+		expect(
+			missingDesktopGatewayCapabilities({
+				hello: { capabilities: ["runs.async"] },
+			} as never),
+		).toEqual(["sessions.create"]);
 	});
 	it("uses the real executable directory for a compiled sidecar", () => {
 		expect(

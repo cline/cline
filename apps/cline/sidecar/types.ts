@@ -1,9 +1,13 @@
+import type { ChildProcess } from "node:child_process";
 import type { GatewayClient } from "@cline/gateway/client";
 
 export type SidecarSocket = { send(message: string): void };
 
 export interface SidecarContext {
 	client: GatewayClient;
+	ownedProcess?: ChildProcess;
+	gatewayUpdateRequired: boolean;
+	updateGateway(): Promise<void>;
 	workspaceRoot: string;
 	sockets: Set<SidecarSocket>;
 	activeRuns: Map<string, string>;

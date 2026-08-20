@@ -1260,6 +1260,20 @@ fn resolve_bot_home_dir_path(bot_id: &str) -> Option<PathBuf> {
     )
 }
 
+/// The webview uses `.` (or an empty string) before a project is selected.
+/// Resolve that sentinel to the bot's concrete SDK chat workspace so chat
+/// sessions always receive a real workspace root.
+fn normalize_requested_project_path(bot_id: &str, project_path: String) -> String {
+    let trimmed = project_path.trim();
+    if trimmed.is_empty() || trimmed == "." {
+        resolve_bot_chat_workspace_path(bot_id)
+            .map(|path| path.to_string_lossy().to_string())
+            .unwrap_or_default()
+    } else {
+        trimmed.to_string()
+    }
+}
+
 /// `project_path` must be either empty (the "no project" entry, scoped to
 /// only the bot's own data - used before any project has been assigned, for
 /// provider settings/onboarding), this bot's own shared chat-workspace
@@ -1282,6 +1296,7 @@ fn get_desktop_backend_endpoint(
     bot_id: String,
     project_path: String,
 ) -> Result<String, String> {
+    let project_path = normalize_requested_project_path(&bot_id, project_path);
     let bot_registry_path = resolve_bot_registry_path(&app)?;
     let bot_registry = read_bot_registry_seeded(&bot_registry_path)?;
     let bot = bot_registry
@@ -1295,12 +1310,7 @@ fn get_desktop_backend_endpoint(
         || resolve_bot_home_dir_path(&bot_id)
             .map(|home_path| home_path.to_string_lossy() == project_path)
             .unwrap_or(false);
-    let project_path = if is_chat_workspace {
-        String::new()
-    } else {
-        project_path
-    };
-    if !project_path.is_empty() {
+    if !is_chat_workspace && !project_path.is_empty() {
         let registry_path = resolve_project_registry_path(&app, &bot_id)?;
         let registry = read_project_registry(&registry_path);
         if !registry
@@ -2093,6 +2103,28 @@ mod tests {
             .to_string_lossy()
             .to_string();
         assert_ne!(resolved, other_bot_resolved);
+    }
+
+    #[test]
+    fn initial_workspace_sentinels_use_the_bots_chat_workspace() {
+        let home = std::env::var("HOME").expect("HOME must be set to run this test");
+        let expected = format!("{home}/.cline/bots/cline/data/workspaces/chat");
+        assert_eq!(
+            normalize_requested_project_path("cline", String::new()),
+            expected
+        );
+        assert_eq!(
+            normalize_requested_project_path("cline", ".".to_string()),
+            expected
+        );
+        assert_eq!(
+            normalize_requested_project_path("cline", "  .  ".to_string()),
+            expected
+        );
+        assert_eq!(
+            normalize_requested_project_path("cline", " /tmp/project ".to_string()),
+            "/tmp/project"
+        );
     }
 
     #[test]
