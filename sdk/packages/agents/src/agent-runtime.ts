@@ -1111,11 +1111,14 @@ export class AgentRuntime {
 			});
 			throw error;
 		}
-		// Only a cleanly finished retry counts as recovered — an errored or
-		// aborted retry still fails the run downstream and must be recorded
-		// as a failure or the recovery metric overreports success.
-		const succeeded =
+		// Only a cleanly finished retry with actual content counts as
+		// recovered — an errored or aborted retry still fails the run
+		// downstream, and an empty response is rejected by the loop's
+		// emptiness check, so recording either as success would contradict
+		// the run result.
+		const cleanFinish =
 			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
+		const succeeded = cleanFinish && retry.message.content.length > 0;
 		try {
 			// Emitted before the outcome capture: a throwing listener fails
 			// the run, so recording success first would contradict the result.
@@ -1126,7 +1129,9 @@ export class AgentRuntime {
 					? "recovered from the output token limit after compaction"
 					: retry.finishReason === "max-tokens"
 						? "output-token-limit recovery failed: response truncated again"
-						: `output-token-limit recovery failed: retry ${retry.finishReason}`,
+						: cleanFinish
+							? "output-token-limit recovery failed: model returned an empty response"
+							: `output-token-limit recovery failed: retry ${retry.finishReason}`,
 				metadata: {
 					...noticeMetadata,
 					phase: succeeded ? "succeeded" : "failed",
@@ -1145,7 +1150,9 @@ export class AgentRuntime {
 				? undefined
 				: retry.finishReason === "max-tokens"
 					? "truncated_again"
-					: retry.finishReason,
+					: cleanFinish
+						? "empty_response"
+						: retry.finishReason,
 		});
 		return retry;
 	}
