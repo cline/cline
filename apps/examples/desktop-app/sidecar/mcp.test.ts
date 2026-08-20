@@ -63,10 +63,9 @@ describe("desktop MCP settings", () => {
 		);
 	});
 
-	it("does not probe an unchanged enabled remote server after editing", () => {
+	it("does not probe an unchanged enabled server after editing", () => {
 		expect(
 			shouldProbeMcpServerAfterUpsert({
-				isRemote: true,
 				requestedDisabled: false,
 				existingWasEnabled: true,
 				transportIdentityUnchanged: true,
@@ -74,13 +73,112 @@ describe("desktop MCP settings", () => {
 		).toBe(false);
 		expect(
 			shouldProbeMcpServerAfterUpsert({
-				isRemote: true,
 				requestedDisabled: false,
 				existingWasEnabled: true,
 				transportIdentityUnchanged: false,
 			}),
 		).toBe(true);
 	});
+
+	it("probes newly added or re-enabled servers regardless of transport", () => {
+		// Stdio servers are probed too: a server whose command cannot launch
+		// used to sit in the list looking healthy with no error anywhere.
+		expect(
+			shouldProbeMcpServerAfterUpsert({
+				requestedDisabled: false,
+				existingWasEnabled: false,
+				transportIdentityUnchanged: true,
+			}),
+		).toBe(true);
+		expect(
+			shouldProbeMcpServerAfterUpsert({
+				requestedDisabled: true,
+				existingWasEnabled: false,
+				transportIdentityUnchanged: false,
+			}),
+		).toBe(false);
+	});
+
+	it("re-probes an enabled stdio server when only its env changes", async () => {
+		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-settings-"));
+		const settingsPath = join(tempRoot, "cline_mcp_settings.json");
+		const previousSettingsPath = process.env.CLINE_MCP_SETTINGS_PATH;
+		process.env.CLINE_MCP_SETTINGS_PATH = settingsPath;
+		const missingBinary = join(tempRoot, "does-not-exist-binary");
+		try {
+			await writeFile(
+				settingsPath,
+				JSON.stringify({
+					mcpServers: {
+						local: {
+							transport: {
+								type: "stdio",
+								command: missingBinary,
+								env: { FOO: "a" },
+							},
+						},
+					},
+				}),
+				"utf8",
+			);
+
+			// Same launch configuration: saving must not probe, so the broken
+			// server stays enabled exactly as it was before the edit.
+			const unchanged = (await handleCommand(
+				createContext(tempRoot),
+				"upsert_mcp_server",
+				{
+					input: {
+						name: "local",
+						previousName: "local",
+						transportType: "stdio",
+						command: missingBinary,
+						env: { FOO: "a" },
+						disabled: false,
+					},
+				},
+			)) as JsonRecord;
+			expect(unchanged.probeResult).toBeUndefined();
+			expect(
+				(unchanged.servers as JsonRecord[]).find(
+					(server) => server.name === "local",
+				),
+			).toMatchObject({ disabled: false });
+
+			// An env-only edit changes the spawned process, so it must probe;
+			// the unlaunchable command keeps the server disabled with an error.
+			const envEdited = (await handleCommand(
+				createContext(tempRoot),
+				"upsert_mcp_server",
+				{
+					input: {
+						name: "local",
+						previousName: "local",
+						transportType: "stdio",
+						command: missingBinary,
+						env: { FOO: "b" },
+						disabled: false,
+					},
+				},
+			)) as JsonRecord;
+			expect(envEdited.probeResult).toMatchObject({
+				name: "local",
+				connected: false,
+			});
+			expect(
+				(envEdited.servers as JsonRecord[]).find(
+					(server) => server.name === "local",
+				),
+			).toMatchObject({ disabled: true });
+		} finally {
+			if (previousSettingsPath === undefined) {
+				delete process.env.CLINE_MCP_SETTINGS_PATH;
+			} else {
+				process.env.CLINE_MCP_SETTINGS_PATH = previousSettingsPath;
+			}
+			await rm(tempRoot, { recursive: true, force: true });
+		}
+	}, 30_000);
 
 	it("keeps an unchanged enabled remote server enabled when saving metadata", async () => {
 		const tempRoot = await mkdtemp(join(tmpdir(), "desktop-mcp-settings-"));

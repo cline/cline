@@ -246,8 +246,18 @@ function readProviderSettingsUpdate(
 function mcpTransportIdentity(name: string, record: JsonRecord): string {
 	try {
 		const resolved = parseMcpServerRegistration(name, record).transport;
+		// Stdio identity covers the full launch configuration (command, args,
+		// cwd, and env) so editing anything that changes the spawned process —
+		// including an env-only fix — triggers a fresh connection probe on save.
 		return resolved.type === "stdio"
-			? "stdio\u0000"
+			? `stdio\u0000${JSON.stringify([
+					resolved.command,
+					resolved.args ?? [],
+					resolved.cwd ?? "",
+					Object.entries(resolved.env ?? {}).sort(([a], [b]) =>
+						a.localeCompare(b),
+					),
+				])}`
 			: `${resolved.type}\u0000${resolved.url}`;
 	} catch {
 		// Preserve a best-effort identity for malformed entries so the editor can
@@ -270,6 +280,42 @@ function mcpTransportIdentity(name: string, record: JsonRecord): string {
 	const type = String(rawType ?? (url ? "sse" : "stdio")).trim();
 	const normalizedType = type === "http" ? "streamableHttp" : type;
 	return `${normalizedType}\u0000${url}`;
+}
+
+type McpProbeResult = {
+	name: string;
+	connected: boolean;
+	error?: string;
+	authorizationRequired?: boolean;
+};
+
+/**
+ * Probe a configured MCP server and always come back with a result the
+ * settings UI can display; configuration problems (malformed entries,
+ * unknown names) surface as a failed probe rather than a thrown command.
+ */
+async function runMcpServerProbe(
+	name: string,
+	filePath: string,
+): Promise<McpProbeResult> {
+	try {
+		const probe = await probeMcpServerConnection({
+			serverName: name,
+			filePath,
+		});
+		return {
+			name,
+			connected: probe.connected,
+			...(probe.error ? { error: probe.error } : {}),
+			...(probe.authorizationRequired ? { authorizationRequired: true } : {}),
+		};
+	} catch (error) {
+		return {
+			name,
+			connected: false,
+			error: error instanceof Error ? error.message : String(error),
+		};
+	}
 }
 
 function removePathIfExists(
@@ -1897,18 +1943,19 @@ export async function handleCommand(
 		if (!registration) {
 			throw new Error(`unknown MCP server: ${name}`);
 		}
-		if (registration.transport.type !== "stdio") {
-			setMcpServerDisabled({ filePath: path, name, disabled: true });
-			const probe = await probeMcpServerConnection({
-				serverName: name,
-				filePath: path,
-			});
-			if (!probe.connected) {
-				return readMcpServersResponse();
-			}
+		setMcpServerDisabled({ filePath: path, name, disabled: true });
+		const probe = await runMcpServerProbe(name, path);
+		if (probe.connected) {
+			setMcpServerDisabled({ filePath: path, name, disabled: false });
 		}
-		setMcpServerDisabled({ filePath: path, name, disabled: false });
-		return readMcpServersResponse();
+		return { ...readMcpServersResponse(), probeResult: probe };
+	}
+	if (command === "probe_mcp_server") {
+		const name = String(args?.name ?? "").trim();
+		if (!name) throw new Error("server name is required");
+		const path = ensureMcpSettingsFile();
+		const probe = await runMcpServerProbe(name, path);
+		return { ...readMcpServersResponse(), probeResult: probe };
 	}
 	if (command === "upsert_mcp_server") {
 		const input =
@@ -1924,7 +1971,6 @@ export async function handleCommand(
 			input.transportType ?? input.transport_type ?? "",
 		).trim();
 		const requestedDisabled = Boolean(input.disabled);
-		const isRemote = transportType !== "stdio";
 		const next: JsonRecord =
 			transportType === "stdio"
 				? {
@@ -1972,7 +2018,6 @@ export async function handleCommand(
 				const transportIdentityUnchanged =
 					existingTransportIdentity === nextTransportIdentity;
 				const shouldProbe = shouldProbeMcpServerAfterUpsert({
-					isRemote,
 					requestedDisabled,
 					existingWasEnabled,
 					transportIdentityUnchanged,
@@ -2008,13 +2053,11 @@ export async function handleCommand(
 			},
 		);
 		if (shouldProbeAfterSave) {
-			const probe = await probeMcpServerConnection({
-				serverName: name,
-				filePath: path,
-			});
+			const probe = await runMcpServerProbe(name, path);
 			if (probe.connected) {
 				setMcpServerDisabled({ filePath: path, name, disabled: false });
 			}
+			return { ...readMcpServersResponse(), probeResult: probe };
 		}
 		return readMcpServersResponse();
 	}

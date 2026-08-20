@@ -55,11 +55,40 @@ const MCP_PROTOCOL_VERSION = "2024-11-05";
 // still fail fast through the spawn error/exit path; only an alive-but-silent
 // server waits out this budget.
 export const DEFAULT_MCP_CONNECT_TIMEOUT_MS = 3_000;
+// Grace period a disconnecting stdio child gets to honor SIGTERM before the
+// kill is escalated to SIGKILL.
+const STDIO_KILL_GRACE_MS = 2_000;
 const DEFAULT_HTTP_MCP_REDIRECT_URL =
 	"http://127.0.0.1:1456/mcp/oauth/callback";
 
 function toErrorMessage(error: unknown): string {
 	return error instanceof Error ? error.message : String(error);
+}
+
+/**
+ * Resolves true once the child reports "exit" (or "close", which is the only
+ * terminal event some runtimes emit for children that failed to spawn), or
+ * false when the deadline elapses first.
+ */
+function waitForChildExit(
+	child: ChildProcessWithoutNullStreams,
+	timeoutMs: number,
+): Promise<boolean> {
+	if (child.exitCode !== null || child.signalCode !== null) {
+		return Promise.resolve(true);
+	}
+	return new Promise((resolve) => {
+		const settle = (exited: boolean) => {
+			clearTimeout(timeout);
+			child.removeListener("exit", onExit);
+			child.removeListener("close", onExit);
+			resolve(exited);
+		};
+		const timeout = setTimeout(() => settle(false), timeoutMs);
+		const onExit = () => settle(true);
+		child.once("exit", onExit);
+		child.once("close", onExit);
+	});
 }
 
 /**
@@ -247,10 +276,38 @@ class StdioMcpClient implements McpServerClient {
 		this.failAllPending(
 			new Error(`Disconnected from MCP server "${this.registration.name}".`),
 		);
-		if (!child) {
+		// A child without a pid never spawned (its "exit" event will never
+		// fire), and one with an exit status is already gone.
+		if (
+			!child ||
+			child.pid === undefined ||
+			child.exitCode !== null ||
+			child.signalCode !== null
+		) {
+			return;
+		}
+		// Termination is escalated rather than fire-and-forget so one-shot
+		// lifecycles (such as connection probes) cannot accumulate processes
+		// whose commands ignore the polite signal.
+		if (process.platform === "win32") {
+			// Windows stdio servers are spawned through a shell, and
+			// TerminateProcess (what kill() maps to) only reaches that wrapper;
+			// taskkill /T terminates the actual server process tree.
+			const treeKill = spawn(
+				"taskkill",
+				["/pid", String(child.pid), "/T", "/F"],
+				{ windowsHide: true, stdio: "ignore" },
+			);
+			treeKill.once("error", () => child.kill());
+			await waitForChildExit(child, STDIO_KILL_GRACE_MS);
 			return;
 		}
 		child.kill();
+		if (await waitForChildExit(child, STDIO_KILL_GRACE_MS)) {
+			return;
+		}
+		child.kill("SIGKILL");
+		await waitForChildExit(child, STDIO_KILL_GRACE_MS);
 	}
 
 	async listTools(): Promise<readonly McpToolDescriptor[]> {
@@ -759,8 +816,11 @@ export function createDefaultMcpServerClientFactory(
 }
 
 /**
- * Passively verifies a configured remote MCP endpoint. This may use or refresh
- * existing credentials, but it never starts an interactive OAuth redirect.
+ * Verifies a configured MCP server is reachable. For remote transports this
+ * is passive: it may use or refresh existing credentials, but it never starts
+ * an interactive OAuth redirect. For stdio transports it launches the
+ * configured command once, performs the initialize handshake, and shuts the
+ * process down again — the same lifecycle any session start would run.
  */
 export async function probeMcpServerConnection(
 	options: ProbeMcpServerConnectionOptions,
@@ -776,11 +836,6 @@ export async function probeMcpServerConnection(
 	});
 	if (!registration) {
 		throw new Error(`MCP server "${serverName}" is not configured.`);
-	}
-	if (registration.transport.type === "stdio") {
-		throw new Error(
-			`MCP server "${serverName}" uses stdio and cannot be passively probed.`,
-		);
 	}
 
 	const client = await createDefaultMcpServerClientFactory({
