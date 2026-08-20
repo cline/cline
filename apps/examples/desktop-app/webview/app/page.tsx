@@ -81,7 +81,11 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
-import { buildActiveSessionMonitors } from "@/lib/session-monitors";
+import {
+	buildActiveSessionMonitors,
+	monitorSuppressionKey,
+	pruneMonitorSuppressions,
+} from "@/lib/session-monitors";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -1426,12 +1430,20 @@ function ChatThreadPane({
 	const [manuallyStoppedMonitors, setManuallyStoppedMonitors] = useState<
 		Set<string>
 	>(() => new Set());
+	// Once a stopped monitor's terminal marker lands in the transcript its
+	// suppression has done its job. Monitor ids restart at mon_1 with every
+	// runtime rebuild, so a stale key would hide an unrelated future monitor.
+	useEffect(() => {
+		setManuallyStoppedMonitors((current) =>
+			pruneMonitorSuppressions(current, activeMonitors, displayedSessionId),
+		);
+	}, [activeMonitors, displayedSessionId]);
 	const visibleActiveMonitors = useMemo(
 		() =>
 			activeMonitors.filter(
 				(monitor) =>
 					!manuallyStoppedMonitors.has(
-						`${displayedSessionId ?? ""}:${monitor.id}`,
+						monitorSuppressionKey(displayedSessionId, monitor.id),
 					),
 			),
 		[activeMonitors, displayedSessionId, manuallyStoppedMonitors],
@@ -1450,7 +1462,9 @@ function ChatThreadPane({
 					throw new Error("The monitor is no longer running.");
 				}
 				setManuallyStoppedMonitors((current) =>
-					new Set(current).add(`${displayedSessionId}:${monitorId}`),
+					new Set(current).add(
+						monitorSuppressionKey(displayedSessionId, monitorId),
+					),
 				);
 			} catch (error) {
 				toast({

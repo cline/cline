@@ -86,3 +86,46 @@ export function buildActiveSessionMonitors(
 
 	return [...active.values()];
 }
+
+/** Key used to remember a user-initiated stop until the transcript reflects it. */
+export function monitorSuppressionKey(
+	sessionId: string | undefined,
+	monitorId: string,
+): string {
+	return `${sessionId ?? ""}:${monitorId}`;
+}
+
+/**
+ * Drops suppression keys whose monitor no longer appears in the parsed roster.
+ *
+ * A suppression exists only to bridge the gap between the user's stop and its
+ * terminal marker landing in the transcript; once the id is gone the marker
+ * has landed. Monitor ids are registry-local (`mon_1` restarts at 1 after
+ * every runtime rebuild), so a key kept past that point would permanently
+ * hide an unrelated future monitor that happens to reuse the id.
+ *
+ * Only the displayed session's keys are considered — other sessions' rosters
+ * are not in view, so their keys are pruned when they are displayed again.
+ * Returns the same set when nothing changed so React state stays stable.
+ */
+export function pruneMonitorSuppressions(
+	suppressed: ReadonlySet<string>,
+	activeMonitors: readonly SessionMonitor[],
+	sessionId: string | undefined,
+): Set<string> {
+	if (suppressed.size === 0) {
+		return suppressed as Set<string>;
+	}
+	const prefix = `${sessionId ?? ""}:`;
+	const activeIds = new Set(activeMonitors.map((monitor) => monitor.id));
+	const next = new Set(suppressed);
+	for (const key of suppressed) {
+		if (!key.startsWith(prefix)) {
+			continue;
+		}
+		if (!activeIds.has(key.slice(prefix.length))) {
+			next.delete(key);
+		}
+	}
+	return next.size === suppressed.size ? (suppressed as Set<string>) : next;
+}
