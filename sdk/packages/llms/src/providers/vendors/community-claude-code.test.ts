@@ -44,15 +44,29 @@ describe("createClaudeCodeProviderModule PreToolUse gating", () => {
 		expect(capturedSettings().hooks).toBeUndefined();
 	});
 
-	it("never clobbers hooks the caller configured explicitly", async () => {
-		const userHooks = { PreToolUse: [] };
+	it("appends the gate alongside caller-configured hooks instead of yielding", async () => {
+		// Configuring an unrelated hook (or even other PreToolUse matchers)
+		// must never silently disable the policy gate.
+		const userPreToolUse = { matcher: "Bash", hooks: [vi.fn()] };
+		const userNotification = [{ hooks: [vi.fn()] }];
 		await createClaudeCodeProviderModule(
 			makeConfig({
 				onToolPermission: vi.fn(),
-				defaultSettings: { hooks: userHooks },
+				defaultSettings: {
+					hooks: {
+						PreToolUse: [userPreToolUse],
+						Notification: userNotification,
+					},
+				},
 			}),
 		);
-		expect(capturedSettings().hooks).toBe(userHooks);
+		const hooks = capturedSettings().hooks as Record<string, unknown[]>;
+		expect(hooks.Notification).toBe(userNotification);
+		expect(hooks.PreToolUse).toHaveLength(2);
+		expect(hooks.PreToolUse[0]).toBe(userPreToolUse);
+		expect(
+			(hooks.PreToolUse[1] as { hooks: unknown[] }).hooks[0],
+		).toBeInstanceOf(Function);
 	});
 
 	it("translates the SDK hook payload into a permission request", async () => {

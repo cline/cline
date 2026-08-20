@@ -111,14 +111,25 @@ export async function createClaudeCodeProviderModule(
 	// Bridge the host's provider-tool gate into the agent session as a native
 	// PreToolUse hook. Hooks (unlike canUseTool) fire for every tool use,
 	// including tools the CLI would allow without prompting, so the host's
-	// PreToolUse hooks observe and can veto all of them.
-	if (
-		typeof onToolPermission === "function" &&
-		defaultSettings.hooks === undefined
-	) {
+	// PreToolUse hooks observe and can veto all of them. Caller-configured
+	// hooks are preserved and the gate is appended alongside them (the SDK
+	// runs every matcher) — configuring an unrelated hook must never silently
+	// disable the policy gate.
+	if (typeof onToolPermission === "function") {
 		const permission = onToolPermission as ProviderToolPermissionCallback;
+		const configuredHooks =
+			defaultSettings.hooks &&
+			typeof defaultSettings.hooks === "object" &&
+			!Array.isArray(defaultSettings.hooks)
+				? (defaultSettings.hooks as Record<string, unknown>)
+				: undefined;
+		const configuredPreToolUse = Array.isArray(configuredHooks?.PreToolUse)
+			? (configuredHooks.PreToolUse as unknown[])
+			: [];
 		defaultSettings.hooks = {
+			...(configuredHooks ?? {}),
 			PreToolUse: [
+				...configuredPreToolUse,
 				{
 					hooks: [
 						async (...args: unknown[]) => {

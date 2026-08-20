@@ -147,6 +147,32 @@ describe("createProviderToolPermission", () => {
 		expect(seenBySecond).toHaveBeenCalled();
 	});
 
+	it("keeps an earlier valid rewrite when a later layer returns a non-object input", async () => {
+		const log = vi.fn();
+		const gate = createProviderToolPermission({
+			hooks: [
+				{ beforeTool: async () => ({ input: { command: "ls -la" } }) },
+				{ beforeTool: async () => ({ input: "not-an-object" }) },
+			],
+			sessionId: "s1",
+			logger: { log, debug: vi.fn() },
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({
+			behavior: "allow",
+			updatedInput: { command: "ls -la" },
+		});
+		expect(log).toHaveBeenCalled();
+	});
+
+	it("ignores a non-object rewrite when no valid rewrite preceded it", async () => {
+		const gate = createProviderToolPermission({
+			hooks: [{ beforeTool: async () => ({ input: 42 }) }],
+			sessionId: "s1",
+			logger: { log: vi.fn(), debug: vi.fn() },
+		});
+		await expect(gate?.(REQUEST)).resolves.toEqual({ behavior: "allow" });
+	});
+
 	it("fails open when a hook throws", async () => {
 		const log = vi.fn();
 		const gate = createProviderToolPermission({

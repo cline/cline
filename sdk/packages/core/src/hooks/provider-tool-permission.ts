@@ -107,14 +107,26 @@ export function createProviderToolPermission(options: {
 				};
 			}
 			if (result?.input !== undefined && result.input !== input) {
-				input = result.input;
-				inputUpdated = true;
+				// Provider tool inputs are object-shaped on the wire; a rewrite
+				// that is not an object cannot be represented and must not
+				// displace a valid rewrite an earlier layer already made.
+				const rewrite = toUpdatedInput(result.input);
+				if (rewrite) {
+					input = rewrite;
+					inputUpdated = true;
+				} else {
+					options.logger?.log?.(
+						`provider tool permission hook returned a non-object input rewrite for "${request.toolName}"; ignoring it`,
+						{ severity: "warn" },
+					);
+				}
 			}
 		}
-		const updatedInput = inputUpdated ? toUpdatedInput(input) : undefined;
 		return {
 			behavior: "allow",
-			...(updatedInput ? { updatedInput } : {}),
+			...(inputUpdated
+				? { updatedInput: input as Record<string, unknown> }
+				: {}),
 		};
 	};
 }
