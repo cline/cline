@@ -13,6 +13,33 @@ Requirements:
 - a VM with public TCP ports 80 and 443 open
 - a hostname resolving to that VM (a `nip.io` hostname is sufficient)
 
+### One-command setup
+
+From the repository root, this detects the VM's public IPv4 address, creates a
+`gateway.<ip>.nip.io` hostname, writes `.env`, builds and starts the container,
+waits for health, and prints and saves the generated access token:
+
+```sh
+apps/cline/docker/quickstart.sh
+```
+
+If public-IP detection is unavailable or you already have DNS:
+
+```sh
+apps/cline/docker/quickstart.sh --public-ip 35.254.245.28
+apps/cline/docker/quickstart.sh --domain gateway.example.com
+```
+
+The generated files are deliberately ignored by Git:
+
+- `apps/cline/docker/.env` — non-secret deployment configuration
+- `apps/cline/docker/.access-token` — mode-0600 browser access token
+
+Run `apps/cline/docker/quickstart.sh --help` for project-name, lead-profile,
+rebuild, and replacement options.
+
+### Manual setup
+
 From the repository root:
 
 ```sh
@@ -21,6 +48,33 @@ cp apps/cline/docker/.env.example apps/cline/docker/.env
 docker compose --env-file apps/cline/docker/.env \
   -f apps/cline/docker/compose.yaml up --build -d
 ```
+
+The complete `.env` for a directly exposed single server is:
+
+```dotenv
+# Bare public hostname resolving to this VM. Do not include https:// or a path.
+CLINE_GATEWAY_DOMAIN=gateway.35-254-245-28.nip.io
+
+# Browser origins allowed to open the authenticated WebSocket.
+CLINE_SIDECAR_TRUSTED_ORIGINS=https://cline-gateway-connect.cline-8362.chatgpt.site
+
+# Built-in initial bot profile: cline or cline-dad.
+CLINE_GATEWAY_LEAD_PROFILE=cline
+
+# Public host ports mapped to Caddy inside the container.
+CLINE_HTTP_PORT=80
+CLINE_HTTPS_PORT=443
+
+# Empty means Caddy serves CLINE_GATEWAY_DOMAIN with automatic HTTPS.
+CLINE_CADDY_SITE_ADDRESS=
+
+# Direct deployments listen publicly. Shared-ingress stacks use 127.0.0.1.
+CLINE_BIND_ADDRESS=0.0.0.0
+```
+
+`.env` does not contain the access token. The container generates it once in
+the persistent `cline-data` volume. The quickstart script copies it to
+`.access-token`; manual users can read it with the command below.
 
 Read the generated browser access token:
 
