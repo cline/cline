@@ -635,6 +635,144 @@ describe("sdk-gateway", () => {
 		);
 	});
 
+	it("surfaces provider-executed tool activity as observational events", async () => {
+		// Providers like the Claude Code CLI execute their own tools inside the
+		// inference request and mark every part providerExecuted. That activity
+		// must surface as execution-tagged events (visible in the transcript)
+		// without ever entering AgentRuntime's local execution/approval loop.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					input: { file_path: "/tmp/a.txt" },
+					output: { content: "hello" },
+					providerExecuted: true,
+				},
+				{ type: "text-delta", text: "done" },
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-call-delta",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_read_1",
+				toolName: "Read",
+				execution: "provider",
+				output: { content: "hello" },
+			}),
+		);
+		// Never the runtime-execution path: no execution-less tool events, and
+		// the turn finishes as a normal completion, not a tool-call handoff.
+		expect(
+			events.filter(
+				(event) =>
+					event.type === "tool-call-delta" && event.execution === undefined,
+			),
+		).toHaveLength(0);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
+	it("matches flag-less results and errors to observational provider tool calls by ID", async () => {
+		// Some provider packages set providerExecuted only on the call half of
+		// the pair. Results and errors are matched by tool-call ID so the
+		// activity still completes observationally instead of being dropped or
+		// misread as a runtime tool call.
+		streamTextSpy.mockReturnValue({
+			fullStream: makeStreamParts([
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					input: { command: "ls" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_bash_1",
+					toolName: "Bash",
+					output: { stdout: "a.txt" },
+				},
+				{
+					type: "tool-call",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					input: { command: "boom" },
+					providerExecuted: true,
+				},
+				{
+					type: "tool-error",
+					toolCallId: "cli_bash_2",
+					toolName: "Bash",
+					error: new Error("command failed"),
+				},
+				// Deliberately no trailing text: a tool-only stream must still
+				// surface the activity and finish cleanly.
+				{ type: "finish", finishReason: "stop" },
+			]),
+		});
+		const gateway = createGateway({
+			providerConfigs: [{ providerId: "anthropic", apiKey: "anthropic-key" }],
+		});
+
+		const events = await collect(
+			await gateway.stream({
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-5",
+				messages: baseMessages,
+			}),
+		);
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_1",
+				toolName: "Bash",
+				execution: "provider",
+				output: { stdout: "a.txt" },
+			}),
+		);
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "tool-result",
+				toolCallId: "cli_bash_2",
+				toolName: "Bash",
+				execution: "provider",
+				isError: true,
+				output: { error: "command failed" },
+			}),
+		);
+		expect(events.at(-1)).toEqual({ type: "finish", reason: "stop" });
+	});
+
 	it("rejects model tools not declared by the provider manifest", async () => {
 		const createProvider = vi.fn(() => ({
 			async *stream() {
