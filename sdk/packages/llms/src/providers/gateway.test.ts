@@ -949,6 +949,7 @@ describe("sdk-gateway", () => {
 			"anthropic",
 			"cline",
 			"cline-pass",
+			"gmicloud",
 			"minimax",
 			"oca",
 			"openrouter",

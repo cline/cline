@@ -385,6 +385,22 @@ describe("built-in provider metadata", () => {
 		});
 	});
 
+	it("re-keys the GMI Cloud default model to the id GMI serves", async () => {
+		const provider = await getProvider("gmicloud");
+		const models = await getModelsForProvider("gmicloud");
+		const defaultModel = models[provider.defaultModelId ?? ""];
+
+		expect(provider.defaultModelId).toBe("deepseek-ai/DeepSeek-V4-Flash-0731");
+		// Carries the upstream record rather than the 128k stub fallbackModelInfo
+		// synthesizes for a default missing from the catalog. Bounds instead of
+		// exact values: the numbers rotate with models.dev.
+		expect(defaultModel.contextWindow).toBeGreaterThan(128_000);
+		expect(defaultModel.maxTokens).toBeGreaterThan(0);
+		expect(defaultModel.pricing).toBeDefined();
+		// Added alongside the rolling id GMI also serves, not replacing it.
+		expect(models["deepseek-ai/DeepSeek-V4-Flash"]).toBeDefined();
+	});
+
 	it("derives ChatGPT subscription models from the generated OpenAI catalog", async () => {
 		const chatGptModels = await getModelsForProvider("openai-codex");
 		const openAiModels = await getModelsForProvider("openai-native");

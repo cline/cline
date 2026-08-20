@@ -525,6 +525,30 @@ function buildVertexModels(): Record<string, ModelInfo> {
 	};
 }
 
+const GMICLOUD_DEFAULT_MODEL_ID = "deepseek-ai/DeepSeek-V4-Flash-0731";
+
+function buildGmiCloudModels(): Record<string, ModelInfo> {
+	const gmiCloudModels = generatedModels("gmicloud");
+
+	// GMI serves both the rolling DeepSeek V4 Flash id and its dated snapshot;
+	// models.dev only carries the rolling one. Add the snapshot with the
+	// rolling record's facts so the default model gets its real context window
+	// and pricing instead of the 128k stub fallbackModelInfo synthesizes.
+	// Drop once models.dev carries the dated id.
+	const rolling = gmiCloudModels["deepseek-ai/DeepSeek-V4-Flash"];
+	if (!rolling || gmiCloudModels[GMICLOUD_DEFAULT_MODEL_ID]) {
+		return gmiCloudModels;
+	}
+	return {
+		[GMICLOUD_DEFAULT_MODEL_ID]: {
+			...rolling,
+			id: GMICLOUD_DEFAULT_MODEL_ID,
+			name: "DeepSeek V4 Flash 0731",
+		},
+		...gmiCloudModels,
+	};
+}
+
 function fallbackModelInfo(id: string, spec?: BuiltinSpec): ModelInfo {
 	const info: ModelInfo = {
 		id,
@@ -828,6 +852,16 @@ const OPENAI_COMPATIBLE_SPEC_OVERRIDES: BuiltinSpecOverride[] = [
 		apiKeyEnv: ["SAMBANOVA_API_KEY"],
 		modelsProviderId: "sambanova",
 		defaults: { baseUrl: "https://api.sambanova.ai/v1" },
+	},
+	{
+		// models.dev covers the rest. Cline-specific: the product description,
+		// the coding default model, and the Anthropic wire shapes its resold
+		// Claude ids need.
+		id: "gmicloud",
+		description: "GPU cloud with an OpenAI-compatible inference gateway",
+		defaultModelId: GMICLOUD_DEFAULT_MODEL_ID,
+		modelsFactory: buildGmiCloudModels,
+		metadata: ANTHROPIC_ROUTING_METADATA,
 	},
 	{
 		id: "litellm",

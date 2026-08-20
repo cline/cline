@@ -107,6 +107,16 @@ const GENERIC_PROVIDER_PRESENTATION_OVERRIDES: Record<string, GenericProviderPre
 	chutes: {
 		signupUrl: "https://chutes.ai/app/api",
 	},
+	gmicloud: {
+		// GMI serves far more models than models.dev lists for it, so the picker
+		// must accept ids the catalog does not carry.
+		allowsCustomIds: true,
+		signupUrl: "https://console.gmicloud.ai/user-setting/ie/api-keys",
+		baseUrlField: {
+			label: "Base URL",
+			placeholder: "https://api.gmi-serving.com/v1",
+		},
+	},
 	"zai-coding-plan": {},
 }
 
@@ -169,6 +179,7 @@ const FALLBACK_GENERIC_PROVIDER_NAMES = {
 	xiaomi: "Xiaomi",
 	"tencent-tokenhub": "Tencent TokenHub",
 	chutes: "Chutes",
+	gmicloud: "GMI Cloud",
 	"zai-coding-plan": "Z.AI Coding Plan",
 } as const
 
