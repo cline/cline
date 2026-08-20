@@ -15,12 +15,14 @@ import {
 } from "./chat-input-bar";
 
 const {
+	loadClineFeaturedModelsMock,
 	loadProviderModelCatalogMock,
 	loadProviderModelsMock,
 	speechInputMockState,
 	startVercelStreamingTranscriptionMock,
 	subscribeToProviderModelsMock,
 } = vi.hoisted(() => ({
+	loadClineFeaturedModelsMock: vi.fn(),
 	loadProviderModelCatalogMock: vi.fn(),
 	loadProviderModelsMock: vi.fn(),
 	speechInputMockState: {
@@ -69,6 +71,14 @@ vi.mock("@/components/ai-elements/speech-input", async () => {
 	};
 });
 
+vi.mock("@/lib/featured-models", async (importOriginal) => {
+	const actual = await importOriginal<typeof import("@/lib/featured-models")>();
+	return {
+		...actual,
+		loadClineFeaturedModels: loadClineFeaturedModelsMock,
+	};
+});
+
 vi.mock("@/lib/provider-model-catalog", () => ({
 	loadProviderModelCatalog: loadProviderModelCatalogMock,
 	loadProviderModels: loadProviderModelsMock,
@@ -93,6 +103,11 @@ beforeEach(() => {
 		voiceInput: null,
 	});
 	loadProviderModelsMock.mockReset().mockResolvedValue([]);
+	loadClineFeaturedModelsMock.mockReset().mockResolvedValue({
+		recommended: [],
+		free: [],
+		clinePass: [],
+	});
 	speechInputMockState.current = null;
 	startVercelStreamingTranscriptionMock.mockReset().mockResolvedValue({
 		done: new Promise<void>(() => {}),
@@ -821,7 +836,8 @@ describe("ChatInputBar", () => {
 		expect(
 			container.querySelectorAll<HTMLButtonElement>('[aria-label^="Model:"]'),
 		).toHaveLength(2);
-		expect(container.textContent).toContain("refreshed-model");
+		// The picker labels models by display name, not raw id.
+		expect(container.textContent).toContain("Refreshed model");
 		await act(async () =>
 			container
 				.querySelector<HTMLButtonElement>('[aria-label="Close model selector"]')
@@ -1337,6 +1353,322 @@ describe("ChatInputBar", () => {
 		});
 
 		window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+	});
+
+	it("renders the cline model picker with recommended and free sections", async () => {
+		loadClineFeaturedModelsMock.mockResolvedValue({
+			recommended: [
+				{
+					id: "anthropic/claude-opus-5",
+					name: "Claude Opus 5",
+					description: "Most intelligent model",
+					tags: ["NEW"],
+				},
+			],
+			free: [
+				{
+					id: "deepseek/deepseek-v4-flash",
+					name: "DeepSeek V4 Flash",
+					description: "Fast and efficient",
+					tags: [],
+				},
+			],
+			clinePass: [],
+		});
+		loadProviderModelCatalogMock.mockResolvedValue({
+			providers: [],
+			enabledProviderIds: ["cline"],
+			providerModels: {
+				cline: [
+					"anthropic/claude-opus-5",
+					"deepseek/deepseek-v4-flash",
+					"zzz/other-model",
+				],
+			},
+			providerModelDetails: {
+				cline: [
+					{ id: "anthropic/claude-opus-5", name: "Claude Opus 5" },
+					{ id: "deepseek/deepseek-v4-flash", name: "DeepSeek V4 Flash" },
+					{ id: "zzz/other-model", name: "Other Model" },
+				],
+			},
+			providerNames: { cline: "Cline" },
+			providerReasoningModels: { cline: [] },
+		});
+
+		await act(async () => {
+			root.render(
+				<WorkspaceProvider value={workspaceValue}>
+					<ChatInputBar
+						attachments={[]}
+						gitBranch="main"
+						mode="act"
+						model="anthropic/claude-opus-5"
+						onAbort={vi.fn()}
+						onAttachFiles={vi.fn()}
+						onEditPromptInQueue={vi.fn()}
+						onListGitBranches={vi.fn(async () => ({
+							current: "main",
+							branches: ["main"],
+						}))}
+						onModeToggle={vi.fn()}
+						onModelChange={vi.fn()}
+						onPromptInputChange={vi.fn()}
+						onProviderChange={vi.fn()}
+						onReasoningChange={vi.fn()}
+						onRemoveAttachment={vi.fn()}
+						onRemovePromptInQueue={vi.fn()}
+						onSend={vi.fn()}
+						onSteerPromptInQueue={vi.fn()}
+						onSwitchGitBranch={vi.fn(async () => true)}
+						promptDraft={{ version: 0, value: "" }}
+						promptsInQueue={[]}
+						provider="cline"
+						reasoningEffort="low"
+						status="idle"
+						summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+						thinking={false}
+					/>
+				</WorkspaceProvider>,
+			);
+			await Promise.resolve();
+		});
+		await vi.waitFor(() => {
+			expect(loadClineFeaturedModelsMock).toHaveBeenCalled();
+		});
+
+		// The provider trigger uses the catalog display name, the model
+		// trigger the model's display name.
+		const providerTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Provider:"]',
+		);
+		await vi.waitFor(() => {
+			expect(providerTrigger?.textContent).toContain("Cline");
+		});
+		const modelTrigger = container.querySelector<HTMLButtonElement>(
+			'[aria-label^="Model:"]',
+		);
+		expect(modelTrigger?.textContent).toContain("Claude Opus 5");
+
+		await act(async () => modelTrigger?.click());
+		const panel = document.querySelector('[role="dialog"]');
+		expect(panel?.textContent).toContain("Recommended");
+		expect(panel?.textContent).toContain("Free");
+		expect(panel?.textContent).toContain("All models");
+		expect(panel?.textContent).toContain("Most intelligent model");
+		expect(
+			panel?.querySelector(".cline-ui-search-combobox__badge")?.textContent,
+		).toBe("NEW");
+		// Featured entries lead; the rest of the catalog follows.
+		const optionLabels = [
+			...(panel?.querySelectorAll('[role="option"]') ?? []),
+		].map((option) => option.textContent);
+		expect(optionLabels[0]).toContain("Claude Opus 5");
+		expect(optionLabels[1]).toContain("DeepSeek V4 Flash");
+		expect(optionLabels[2]).toContain("Other Model");
+	});
+
+	describe("cline-pass picker offer", () => {
+		const renderComposer = async (props: {
+			model: string;
+			provider: string;
+			onModelChange?: ReturnType<typeof vi.fn>;
+			onProviderChange?: ReturnType<typeof vi.fn>;
+		}) => {
+			await act(async () => {
+				root.render(
+					<WorkspaceProvider value={workspaceValue}>
+						<ChatInputBar
+							attachments={[]}
+							gitBranch="main"
+							mode="act"
+							model={props.model}
+							onAbort={vi.fn()}
+							onAttachFiles={vi.fn()}
+							onEditPromptInQueue={vi.fn()}
+							onListGitBranches={vi.fn(async () => ({
+								current: "main",
+								branches: ["main"],
+							}))}
+							onModeToggle={vi.fn()}
+							onModelChange={props.onModelChange ?? vi.fn()}
+							onPromptInputChange={vi.fn()}
+							onProviderChange={props.onProviderChange ?? vi.fn()}
+							onReasoningChange={vi.fn()}
+							onRemoveAttachment={vi.fn()}
+							onRemovePromptInQueue={vi.fn()}
+							onSend={vi.fn()}
+							onSteerPromptInQueue={vi.fn()}
+							onSwitchGitBranch={vi.fn(async () => true)}
+							promptDraft={{ version: 0, value: "" }}
+							promptsInQueue={[]}
+							provider={props.provider}
+							reasoningEffort="low"
+							status="idle"
+							summary={{ toolCalls: 0, tokensIn: 0, tokensOut: 0 }}
+							thinking={false}
+						/>
+					</WorkspaceProvider>,
+				);
+				await Promise.resolve();
+			});
+			await vi.waitFor(() => {
+				expect(loadClineFeaturedModelsMock).toHaveBeenCalled();
+			});
+		};
+
+		beforeEach(() => {
+			// The ClinePass offer: one subscribed and one free model. The
+			// catalog additionally contains a stale model outside the offer,
+			// which the picker hides while the subscribed tier is non-empty.
+			loadClineFeaturedModelsMock.mockResolvedValue({
+				recommended: [],
+				free: [
+					{
+						id: "google/gemini-flash",
+						name: "Gemini Flash",
+						description: "",
+						tags: [],
+					},
+				],
+				clinePass: [
+					{ id: "openai/gpt-5", name: "GPT-5", description: "", tags: [] },
+				],
+			});
+			loadProviderModelCatalogMock.mockResolvedValue({
+				providers: [],
+				enabledProviderIds: ["cline", "cline-pass"],
+				providerModels: {
+					cline: ["test-model"],
+					"cline-pass": [
+						"openai/gpt-5",
+						"google/gemini-flash",
+						"legacy/stale-model",
+					],
+				},
+				providerModelDetails: {
+					"cline-pass": [
+						{ id: "openai/gpt-5", name: "GPT-5" },
+						{ id: "google/gemini-flash", name: "Gemini Flash" },
+						{ id: "legacy/stale-model", name: "Stale Legacy" },
+					],
+				},
+				providerNames: { cline: "Cline", "cline-pass": "ClinePass" },
+				providerReasoningModels: { cline: [], "cline-pass": [] },
+			});
+		});
+
+		afterEach(() => {
+			window.localStorage.removeItem(MODEL_SELECTION_STORAGE_KEY);
+		});
+
+		it("does not resurrect a stale remembered model the picker hides", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline-pass",
+					lastModelByProvider: { "cline-pass": "legacy/stale-model" },
+				}),
+			);
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The default selection must come from the visible offer, not the
+			// hidden remembered id.
+			await vi.waitFor(() => {
+				expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			});
+			expect(onModelChange).not.toHaveBeenCalledWith("legacy/stale-model");
+
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).not.toContain("Stale Legacy");
+			expect(panel?.textContent).not.toContain("Current model");
+		});
+
+		it("keeps an explicitly active out-of-offer model visible and selectable", async () => {
+			const onModelChange = vi.fn();
+			await renderComposer({
+				model: "legacy/stale-model",
+				onModelChange,
+				provider: "cline-pass",
+			});
+
+			// The session's configured model stays active…
+			expect(onModelChange).not.toHaveBeenCalled();
+			const modelTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Model:"]',
+			);
+			await vi.waitFor(() => {
+				expect(modelTrigger?.textContent).toContain("Stale Legacy");
+			});
+
+			// …and the picker surfaces it under its own section instead of
+			// selecting a value that does not exist in the list.
+			await act(async () => modelTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			expect(panel?.textContent).toContain("Current model");
+			const staleOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("Stale Legacy"));
+			expect(staleOption?.getAttribute("aria-selected")).toBe("true");
+		});
+
+		it("falls back to a visible model when switching providers with a hidden remembered model", async () => {
+			window.localStorage.setItem(
+				MODEL_SELECTION_STORAGE_KEY,
+				JSON.stringify({
+					lastProvider: "cline",
+					lastModelByProvider: {
+						cline: "test-model",
+						"cline-pass": "legacy/stale-model",
+					},
+				}),
+			);
+			const onModelChange = vi.fn();
+			const onProviderChange = vi.fn();
+			await renderComposer({
+				model: "test-model",
+				onModelChange,
+				onProviderChange,
+				provider: "cline",
+			});
+
+			const providerTrigger = container.querySelector<HTMLButtonElement>(
+				'[aria-label^="Provider:"]',
+			);
+			await act(async () => providerTrigger?.click());
+			const panel = document.querySelector('[role="dialog"]');
+			const clinePassOption = [
+				...(panel?.querySelectorAll<HTMLButtonElement>('[role="option"]') ??
+					[]),
+			].find((option) => option.textContent?.includes("ClinePass"));
+			await act(async () => clinePassOption?.click());
+
+			expect(onProviderChange).toHaveBeenCalledWith("cline-pass");
+			// The hidden remembered model is not restored; the selection falls
+			// back to the offer and the remembered slot is repaired.
+			expect(onModelChange).toHaveBeenCalledWith("openai/gpt-5");
+			expect(
+				parseModelSelectionStorage(
+					window.localStorage.getItem(MODEL_SELECTION_STORAGE_KEY),
+				),
+			).toEqual({
+				lastProvider: "cline-pass",
+				lastModelByProvider: {
+					cline: "test-model",
+					"cline-pass": "openai/gpt-5",
+				},
+			});
+		});
 	});
 
 	it("attaches clipboard images on paste instead of inserting text", async () => {

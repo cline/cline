@@ -33,6 +33,13 @@ import type { ChatSessionConfig, ChatSessionStatus } from "@/lib/chat-schema";
 import { imageFilesFromClipboard } from "@/lib/clipboard-images";
 import { desktopClient, writeDesktopDebugLog } from "@/lib/desktop-client";
 import {
+	buildModelPickerData,
+	EMPTY_FEATURED_MODELS,
+	type FeaturedModelsData,
+	loadClineFeaturedModels,
+	type ModelPickerData,
+} from "@/lib/featured-models";
+import {
 	readModelSelectionStorageFromWindow,
 	writeModelSelectionStorageToWindow,
 } from "@/lib/model-selection";
@@ -44,6 +51,7 @@ import {
 	type TranscriptionModelTarget,
 	VOICE_INPUT_SETTINGS_CHANGED_EVENT,
 } from "@/lib/provider-model-catalog";
+import type { ProviderModel } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 import { startVercelStreamingTranscription } from "@/lib/vercel-streaming-transcription";
 import { MAX_RECORDED_AUDIO_BYTES } from "@/lib/voice-input-limits";
@@ -1531,6 +1539,15 @@ const ModelSelector = memo(function ModelSelector({
 		"loading" | "catalog" | "fallback"
 	>("loading");
 	const [enabledProviderIds, setEnabledProviderIds] = useState<string[]>([]);
+	const [providerNames, setProviderNames] = useState<Record<string, string>>(
+		{},
+	);
+	const [modelDetails, setModelDetails] = useState<
+		Record<string, ProviderModel[]>
+	>({});
+	const [featuredModels, setFeaturedModels] = useState<FeaturedModelsData>(
+		EMPTY_FEATURED_MODELS,
+	);
 	const [lastSelection, setLastSelection] = useState(() =>
 		readModelSelectionStorageFromWindow(),
 	);
@@ -1564,6 +1581,30 @@ const ModelSelector = memo(function ModelSelector({
 		() => visibleProviderModels[resolvedProvider] ?? [],
 		[resolvedProvider, visibleProviderModels],
 	);
+	// Sectioned picker data: display names from the catalog, plus the
+	// Recommended/Free tiers from the Cline model feed for cline/cline-pass.
+	const pickerDataForProvider = useCallback(
+		(providerId: string): ModelPickerData => {
+			const detailsById = new Map(
+				(modelDetails[providerId] ?? []).map(
+					(entry) => [entry.id, entry] as const,
+				),
+			);
+			const models = (visibleProviderModels[providerId] ?? []).map(
+				(id) => detailsById.get(id) ?? { id, name: id },
+			);
+			return buildModelPickerData(providerId, models, featuredModels);
+		},
+		[featuredModels, modelDetails, visibleProviderModels],
+	);
+	const modelPicker = useMemo(
+		() => pickerDataForProvider(resolvedProvider),
+		[pickerDataForProvider, resolvedProvider],
+	);
+	const pickerModelIds = useMemo(
+		() => new Set(modelPicker.options.map((option) => option.value)),
+		[modelPicker],
+	);
 	const resolvedModel = useMemo(() => {
 		if (modelsForProvider.length === 0) {
 			return "";
@@ -1571,18 +1612,66 @@ const ModelSelector = memo(function ModelSelector({
 		const rememberedModel =
 			lastSelection.lastModelByProvider[resolvedProvider] ??
 			lastSelection.lastModelByProvider[rememberedLastProvider];
+		// An explicitly configured model stays active even when the picker's
+		// offer hides it (the picker preserves it as a visible option below);
+		// remembered and default selections are our own bookkeeping, so they
+		// must resolve to a visible option — otherwise a stale remembered id
+		// gets silently resurrected into a selection the picker cannot show.
 		if (model && modelsForProvider.includes(model)) {
 			return model;
 		}
-		if (rememberedModel && modelsForProvider.includes(rememberedModel)) {
+		if (rememberedModel && pickerModelIds.has(rememberedModel)) {
 			return rememberedModel;
 		}
-		return modelsForProvider[0] ?? "";
+		return (
+			modelsForProvider.find((id) => pickerModelIds.has(id)) ??
+			modelsForProvider[0] ??
+			""
+		);
 	}, [
 		lastSelection.lastModelByProvider,
 		model,
 		modelsForProvider,
+		pickerModelIds,
 		rememberedLastProvider,
+		resolvedProvider,
+	]);
+	// The picker can intentionally hide catalog models (the ClinePass offer
+	// is exactly its subscribed/free tiers), but the active model must stay
+	// visible and selectable — e.g. a hydrated session configured with a
+	// model outside the current offer. Surface it under its own section
+	// rather than selecting a value that does not exist in the list.
+	const visibleModelPicker = useMemo((): ModelPickerData => {
+		if (!resolvedModel || pickerModelIds.has(resolvedModel)) {
+			return modelPicker;
+		}
+		const detail = (modelDetails[resolvedProvider] ?? []).find(
+			(entry) => entry.id === resolvedModel,
+		);
+		const hasSections = (modelPicker.sections?.length ?? 0) > 0;
+		return {
+			options: [
+				...modelPicker.options,
+				{
+					label: detail?.name?.trim() || resolvedModel,
+					...(hasSections ? { section: "current" } : {}),
+					value: resolvedModel,
+				},
+			],
+			...(hasSections
+				? {
+						sections: [
+							...(modelPicker.sections ?? []),
+							{ id: "current", label: "Current model" },
+						],
+					}
+				: {}),
+		};
+	}, [
+		modelDetails,
+		modelPicker,
+		pickerModelIds,
+		resolvedModel,
 		resolvedProvider,
 	]);
 
@@ -1598,6 +1687,14 @@ const ModelSelector = memo(function ModelSelector({
 				}
 				setProviderModels(payload.providerModels);
 				setProviderReasoningModels(payload.providerReasoningModels);
+				setProviderNames((current) => ({
+					...current,
+					...(payload.providerNames ?? {}),
+				}));
+				setModelDetails((current) => ({
+					...current,
+					...(payload.providerModelDetails ?? {}),
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) => {
 					const nextProviderIds = new Set(payload.enabledProviderIds);
@@ -1635,6 +1732,10 @@ const ModelSelector = memo(function ModelSelector({
 					...current,
 					[normalizedProvider]: reasoningModelIds,
 				}));
+				setModelDetails((current) => ({
+					...current,
+					[normalizedProvider]: models,
+				}));
 				setReasoningCapabilitySource("catalog");
 				setEnabledProviderIds((current) =>
 					current.includes(normalizedProvider)
@@ -1665,10 +1766,24 @@ const ModelSelector = memo(function ModelSelector({
 					.filter((entry) => entry.supportsReasoning)
 					.map((entry) => entry.id),
 			}));
+			setModelDetails((current) => ({
+				...current,
+				[normalizedId]: models,
+			}));
 			setEnabledProviderIds((current) =>
 				current.includes(normalizedId) ? current : [...current, normalizedId],
 			);
 		});
+	}, []);
+
+	useEffect(() => {
+		let cancelled = false;
+		void loadClineFeaturedModels().then((data) => {
+			if (!cancelled) setFeaturedModels(data);
+		});
+		return () => {
+			cancelled = true;
+		};
 	}, []);
 
 	// The remembered selection (what new sessions default to) is only written
@@ -1763,10 +1878,17 @@ const ModelSelector = memo(function ModelSelector({
 			onProviderChange(value);
 			const rememberedModel = lastSelection.lastModelByProvider[value];
 			const providerModelIds = visibleProviderModels[value] ?? [];
+			// Validate against the target provider's visible picker options,
+			// not its full catalog: a remembered model the picker hides (e.g.
+			// outside the ClinePass offer) must not become the selection.
+			const providerOptionIds = new Set(
+				pickerDataForProvider(value).options.map((option) => option.value),
+			);
 			const nextModel =
-				rememberedModel && providerModelIds.includes(rememberedModel)
+				rememberedModel && providerOptionIds.has(rememberedModel)
 					? rememberedModel
-					: providerModelIds[0];
+					: (providerModelIds.find((id) => providerOptionIds.has(id)) ??
+						providerModelIds[0]);
 			rememberSelection(value, nextModel);
 			if (nextModel && nextModel !== model) {
 				onModelChange(nextModel);
@@ -1777,6 +1899,7 @@ const ModelSelector = memo(function ModelSelector({
 			model,
 			onModelChange,
 			onProviderChange,
+			pickerDataForProvider,
 			rememberSelection,
 			visibleProviderModels,
 		],
@@ -1788,6 +1911,17 @@ const ModelSelector = memo(function ModelSelector({
 		},
 		[onModelChange, rememberSelection, resolvedProvider],
 	);
+	const providerOptions = useMemo(
+		() =>
+			providers.map((value) => ({
+				label: providerNames[value]?.trim() || value,
+				value,
+			})),
+		[providerNames, providers],
+	);
+	const selectedModelLabel =
+		visibleModelPicker.options.find((option) => option.value === resolvedModel)
+			?.label ?? resolvedModel;
 	const renderProviderSelect = (triggerClassName: string) => (
 		<SearchCombobox
 			ariaLabel="Provider"
@@ -1795,7 +1929,7 @@ const ModelSelector = memo(function ModelSelector({
 			disabled={isBusy || providers.length === 0}
 			emptyText="No providers found."
 			onValueChange={handleProviderSelect}
-			options={providers.map((value) => ({ label: value, value }))}
+			options={providerOptions}
 			placeholder="Provider"
 			placement="top"
 			searchPlaceholder="Search providers"
@@ -1815,10 +1949,12 @@ const ModelSelector = memo(function ModelSelector({
 				handleModelSelect(value);
 				if (closeMobileMenu) setMobileOpen(false);
 			}}
-			options={modelsForProvider.map((value) => ({ label: value, value }))}
+			options={visibleModelPicker.options}
+			panelWidth="20rem"
 			placeholder="Model"
 			placement="top"
 			searchPlaceholder="Search models"
+			sections={visibleModelPicker.sections}
 			value={resolvedModel}
 		/>
 	);
@@ -1832,7 +1968,7 @@ const ModelSelector = memo(function ModelSelector({
 				className="hidden size-7 items-center justify-center rounded-md text-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50 max-[560px]:inline-flex"
 				disabled={isBusy || providers.length === 0}
 				onClick={() => setMobileOpen((current) => !current)}
-				title={`${resolvedProvider || "Provider"} / ${resolvedModel || "Model"}`}
+				title={`${providerNames[resolvedProvider]?.trim() || resolvedProvider || "Provider"} / ${selectedModelLabel || "Model"}`}
 				type="button"
 			>
 				<Cpu className="size-3.5" />
@@ -1846,9 +1982,9 @@ const ModelSelector = memo(function ModelSelector({
 						onClick={() => setMobileOpen(false)}
 						type="button"
 					/>
-					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl max-[560px]:block">
+					<div className="absolute bottom-full left-0 z-50 mb-2 hidden w-64 max-w-[calc(100vw-2rem)] space-y-3 rounded-lg border border-border bg-popover p-3 shadow-xl animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-1 motion-reduce:animate-none max-[560px]:block">
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Provider
 							</div>
 							{renderProviderSelect(
@@ -1856,7 +1992,7 @@ const ModelSelector = memo(function ModelSelector({
 							)}
 						</div>
 						<div className="space-y-1">
-							<div className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+							<div className="text-xs font-medium text-muted-foreground">
 								Model
 							</div>
 							{renderModelSelect(
@@ -1869,7 +2005,9 @@ const ModelSelector = memo(function ModelSelector({
 			) : null}
 
 			<div className="flex min-w-0 items-center gap-0.5 max-[560px]:hidden">
-				{renderProviderSelect("max-w-28")}
+				{/* Wide enough for the longest built-in provider names ("Cline
+				    Usage-Billing", "OpenAI ChatGPT Subscription") untruncated. */}
+				{renderProviderSelect("max-w-56")}
 				<div className="bg-border-2 h-4 w-[0.1rem]" />
 				{renderModelSelect("max-w-52")}
 			</div>
