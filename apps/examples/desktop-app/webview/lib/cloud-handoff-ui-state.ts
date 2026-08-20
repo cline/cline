@@ -4,6 +4,7 @@ import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
 type PendingHandoffPrompt = {
 	content: string;
 	submittedAt: number;
+	images?: ChatMessage["images"];
 };
 
 export type CloudHandoffUiEntry =
@@ -47,6 +48,11 @@ export type CloudHandoffUiAction =
 			destination?: "in_app" | "external";
 	  }
 	| {
+			type: "prompt_images";
+			sourceSessionId: string;
+			images: NonNullable<ChatMessage["images"]>;
+	  }
+	| {
 			type: "failed";
 			sourceSessionId: string;
 			exposeRecovery: boolean;
@@ -82,6 +88,20 @@ export function cloudHandoffUiReducer(
 					...(action.pendingPrompt
 						? { pendingPrompt: action.pendingPrompt }
 						: {}),
+				},
+			};
+		case "prompt_images":
+			if (current?.status !== "progress" || !current.pendingPrompt) {
+				return state;
+			}
+			return {
+				...state,
+				[action.sourceSessionId]: {
+					...current,
+					pendingPrompt: {
+						...current.pendingPrompt,
+						images: action.images,
+					},
 				},
 			};
 		case "progress":
@@ -212,6 +232,7 @@ export function appendPendingHandoffPrompt(
 			sessionId: sourceSessionId,
 			role: "user",
 			content: prompt.content,
+			images: prompt.images,
 			createdAt: prompt.submittedAt,
 			meta: { userRunSpan: 0 },
 		},

@@ -138,7 +138,18 @@ describe("cloudHandoffUiReducer", () => {
 				},
 			},
 		);
-		const provisioning = cloudHandoffUiReducer(started, {
+		const withImage = cloudHandoffUiReducer(started, {
+			type: "prompt_images",
+			sourceSessionId: "local-1",
+			images: [
+				{
+					id: "handoff-image-1",
+					mediaType: "image/png",
+					data: "aGVsbG8=",
+				},
+			],
+		});
+		const provisioning = cloudHandoffUiReducer(withImage, {
 			type: "progress",
 			sourceSessionId: "local-1",
 			phase: "provisioning",
@@ -154,6 +165,12 @@ describe("cloudHandoffUiReducer", () => {
 			role: "user",
 			content: "continue in cloud",
 			createdAt: 100,
+			images: [
+				expect.objectContaining({
+					id: "handoff-image-1",
+					mediaType: "image/png",
+				}),
+			],
 			meta: { userRunSpan: 0 },
 		});
 

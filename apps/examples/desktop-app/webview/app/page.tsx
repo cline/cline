@@ -49,7 +49,10 @@ import type { OnboardingStep } from "@/components/views/onboarding/onboarding-vi
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
 import type { ProcessContext } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
@@ -1815,6 +1818,14 @@ function ChatThreadPane({
 			});
 			try {
 				const attachments = await serializeAttachments(sourceAttachments);
+				onHandoffUiAction({
+					type: "prompt_images",
+					sourceSessionId,
+					images: toChatMessageImages(
+						attachments.userImages,
+						`handoff_prompt_${sourceSessionId}`,
+					),
+				});
 				const result = await desktopClient.invoke<HandoffResult>(
 					"chat_session_command",
 					{
@@ -1984,11 +1995,12 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
+			const submittedAt = Date.now();
 			onHandoffUiAction({
 				type: "start",
 				sourceSessionId,
 				pendingPrompt: nextCommand
-					? { content: nextCommand, submittedAt: Date.now() }
+					? { content: nextCommand, submittedAt }
 					: undefined,
 			});
 			setPendingAttachments([]);
