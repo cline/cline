@@ -1,16 +1,26 @@
 import { expect } from "@playwright/test"
 import fs from "fs/promises"
 import path from "path"
-import { e2e } from "./utils/helpers"
+import { e2e, E2ETestHelper } from "./utils/helpers"
 
-// The workspace fixture ships a UserPromptSubmit hook
+// This spec runs against its own fixture workspace: hooks execute on every
+// prompt once discovered (hooksEnabled defaults to true), so keeping the hook
+// out of the shared workspace fixture spares every other prompt-sending spec
+// the per-prompt hook spawn (a cold PowerShell start on Windows).
+const hooksE2e = e2e.extend({
+	workspaceDir: async ({}, use) => {
+		await use(path.join(E2ETestHelper.E2E_TESTS_DIR, "fixtures", "workspace-hooks"))
+	},
+})
+
+// The fixture ships a UserPromptSubmit hook
 // (.clinerules/hooks/UserPromptSubmit[.ps1]) that writes hook-ran.json into its
 // working directory, recording process.cwd() and the workspaceRoots it received
 // on stdin. Discovery, cwd selection, and hook input metadata all resolve from
 // the window's actual workspace folders, so the marker must land in this
 // window's workspace root and name it — regardless of what any other Cline
 // instance recorded in shared state.
-e2e("Hooks - workspace hook runs from this window's workspace root", async ({ helper, sidebar, workspaceDir }) => {
+hooksE2e("Hooks - workspace hook runs from this window's workspace root", async ({ helper, sidebar, workspaceDir }) => {
 	const markerPath = path.join(workspaceDir, "hook-ran.json")
 	await fs.rm(markerPath, { force: true })
 
