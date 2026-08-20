@@ -32,7 +32,7 @@ export function CloudHandoffProgress({
 						{message?.trim() || HANDOFF_PROGRESS_LABELS[phase]}
 					</p>
 					<p className="mt-1 text-xs text-muted-foreground">
-						You can use the rest of Cline Code while this finishes.
+						You can use the rest of Cline while this finishes.
 					</p>
 				</div>
 			</div>

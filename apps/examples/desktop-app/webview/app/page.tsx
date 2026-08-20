@@ -1857,7 +1857,7 @@ function ChatThreadPane({
 							toast({
 								title: "Opened handoff in your browser",
 								description:
-									"The cloud session could not be attached inside Cline Code.",
+									"The cloud session could not be attached inside Cline.",
 							});
 						} catch {
 							toast({
