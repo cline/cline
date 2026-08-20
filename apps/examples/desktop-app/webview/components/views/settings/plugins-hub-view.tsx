@@ -233,7 +233,9 @@ export function PluginsHubView() {
 							marketplace.
 						</DialogDescription>
 					</DialogHeader>
-					<div className="-mx-2 min-h-0 flex-1 overflow-y-auto px-2 pb-1">
+					{/* Padding (offset by negative margins) keeps the inputs' focus
+					    rings from being clipped by the scroll container edges. */}
+					<div className="-mx-2 -mt-2 min-h-0 flex-1 overflow-y-auto px-2 pt-2 pb-1">
 						<MarketplaceView
 							chrome="embedded"
 							defaultTypeFilter={TAB_TO_PRIMITIVE[tab]}
