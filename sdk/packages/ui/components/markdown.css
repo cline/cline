@@ -145,6 +145,21 @@
 	background: transparent;
 }
 
+/* Streamdown renders each code line as a <span> whose contents hold no
+ * newline characters (Shiki line convention), and it only applies its own
+ * block line class when lineNumbers is on. With lineNumbers off the line
+ * spans are bare inline elements with no separator, so every multi-line
+ * block collapses into one run-on line. Stack the lines ourselves; the rule
+ * is a no-op in the lineNumbers path, and empty lines keep their height
+ * because Streamdown renders them as a lone "\n" child that white-space:
+ * pre turns into a line box. */
+:is(.markdown, .cline-markdown)
+	[data-streamdown="code-block-body"]
+	code
+	> span {
+	display: block;
+}
+
 /* The actions overlay's -mt-10 was sized to cover the (now hidden) header
  * row; re-anchor it over the top-right of the code body and reveal on
  * hover/focus so it stops competing with the code. Stickiness is kept so the
