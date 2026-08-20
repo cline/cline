@@ -83,8 +83,8 @@ function isApiKeyOnlyProvider(provider: Provider): boolean {
 
 /**
  * Orders the provider catalog for the API-key setup step: OAuth-managed
- * providers (Cline itself, ChatGPT, OCA) are excluded because they have
- * dedicated sign-in paths, providers needing more than an API key are
+ * providers (Cline itself, ClinePass, ChatGPT, OCA) are excluded because they
+ * have dedicated sign-in paths, providers needing more than an API key are
  * excluded because this form only collects one, popular API-key providers
  * come first, and the rest follow alphabetically.
  */

@@ -6,8 +6,9 @@ Tauri desktop shell + Bun sidecar backend + Next.js UI for running and inspectin
 
 From `apps/examples/desktop-app/`:
 
-- `bun run dev:web` - Next.js UI only (`http://localhost:3125`)
-- `bun run dev:sidecar` - sidecar backend only
+- `bun run dev:headless` - Next.js UI (`http://localhost:3125`) and sidecar backend with a fresh shared approval credential
+- `bun run dev:web` - Next.js UI only (approval-gated tools require `dev:headless` or the native app)
+- `bun run dev:sidecar` - sidecar backend only (approval-gated tools require `dev:headless` or the native app)
 - `bun run dev` - Tauri desktop dev
 - `bun run build` - build web assets
 - `bun run build:sidecar` - build the Bun sidecar bundle
@@ -55,7 +56,7 @@ lost: the `desktop-latest` release/tag (its feed URL is baked into shipped
 apps) and the updater private key (`TAURI_SIGNING_PRIVATE_KEY` — without it,
 shipped apps can't verify new updates).
 
-There is also a beta channel ("Cline Code Beta", a separate app that installs
+There is also a beta channel ("Cline Beta", a separate app that installs
 side by side with stable) cut from the `desktop-experimental` branch and
 served by the rolling `desktop-beta` release — the same never-delete rule
 applies to it. The experimental-branch process and beta release flow live in

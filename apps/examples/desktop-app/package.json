@@ -9,6 +9,8 @@
 		"predev:web": "bun run build:ui && bun run sync:app-icons",
 		"dev:web": "next dev webview -p 3125 --turbo",
 		"dev:sidecar": "bun run sidecar/index.ts",
+		"predev:headless": "bun run build:ui",
+		"dev:headless": "bun run scripts/dev-headless.ts",
 		"dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
 		"prebuild": "bun run build:ui && bun run sync:app-icons",
 		"build": "bun run bun.mts",

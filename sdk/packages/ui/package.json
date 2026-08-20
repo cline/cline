@@ -1,6 +1,6 @@
 {
 	"name": "@cline/ui",
-	"version": "0.2.0-next.5",
+	"version": "0.2.0-next.6",
 	"description": "Shared Cline web theme and reusable agent UI components",
 	"repository": {
 		"type": "git",
