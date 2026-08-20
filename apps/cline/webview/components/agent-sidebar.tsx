@@ -201,6 +201,7 @@ function SettingsSectionNavigation({
 export function AgentSidebar({
 	canNavigateBack = false,
 	canNavigateForward = false,
+	showNavigationControls = true,
 	activeBotId,
 	bots,
 	canCreateBot,
@@ -218,6 +219,7 @@ export function AgentSidebar({
 }: {
 	canNavigateBack?: boolean;
 	canNavigateForward?: boolean;
+	showNavigationControls?: boolean;
 	activeBotId: string;
 	bots: BotSummary[];
 	canCreateBot: boolean;
@@ -318,9 +320,24 @@ export function AgentSidebar({
 		}
 	}, []);
 
-	useEffect(() => {
-		void loadProcessContext();
-	}, [loadProcessContext]);
+	useEffect(
+		() =>
+			desktopClient.subscribeTransportState((state) => {
+				if (state === "connected") {
+					void loadProcessContext();
+					return;
+				}
+				setGatewayStatus((current) => ({
+					connected: false,
+					error:
+						state === "unavailable"
+							? desktopClient.getTransportError()
+							: null,
+					namespace: current?.namespace ?? null,
+				}));
+			}),
+		[loadProcessContext],
+	);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -595,7 +612,7 @@ export function AgentSidebar({
 					)}
 					data-tauri-drag-region
 				>
-					{!isCollapsed ? (
+					{!isCollapsed && showNavigationControls ? (
 						<>
 							<Button
 								aria-label="Previous page"

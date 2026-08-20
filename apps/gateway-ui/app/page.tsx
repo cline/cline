@@ -47,9 +47,11 @@ async function verifyConnection(
 }
 
 export default function GatewayUiPage() {
-	const [configured, setConfigured] = useState(false);
 	const [endpoint, setEndpoint] = useState(() => storedValue(ENDPOINT_KEY));
 	const [token, setToken] = useState(() => storedValue(TOKEN_KEY));
+	const [configured, setConfigured] = useState(
+		() => Boolean(storedValue(ENDPOINT_KEY) && storedValue(TOKEN_KEY)),
+	);
 	const [connecting, setConnecting] = useState(false);
 	const [error, setError] = useState<string>();
 

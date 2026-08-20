@@ -1646,9 +1646,14 @@ const ModelSelector = memo(function ModelSelector({
 			}
 		}
 
-		void loadCatalogAndActiveModels();
+		const unsubscribeTransport = desktopClient.subscribeTransportState(
+			(state) => {
+				if (state === "connected") void loadCatalogAndActiveModels();
+			},
+		);
 		return () => {
 			cancelled = true;
+			unsubscribeTransport();
 		};
 	}, [normalizedProvider]);
 

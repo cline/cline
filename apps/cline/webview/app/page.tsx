@@ -476,6 +476,7 @@ export default function Home() {
 							view={view}
 							canNavigateBack={navigation.back.length > 0}
 							canNavigateForward={navigation.forward.length > 0}
+							showNavigationControls={isTauriAvailable()}
 						/>
 						<SidebarRail />
 					</Sidebar>
