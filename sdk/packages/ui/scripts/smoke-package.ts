@@ -139,7 +139,7 @@ async function verifyTailwindContract(
 		"border-cline-ui-border/60",
 		"text-cline-ui-muted-foreground",
 		"bg-cline-ui-primary/10",
-		"max-h-56",
+		"max-h-64",
 		"leading-none",
 		"max-h-44",
 		"not-last:border-b",
