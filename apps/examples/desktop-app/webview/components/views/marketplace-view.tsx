@@ -5,6 +5,7 @@ import {
 	Search,
 	Server,
 	Star,
+	Store,
 	Trash2,
 	Zap,
 } from "lucide-react";
@@ -69,39 +70,60 @@ const CODE_FONT_STYLE: CSSProperties = {
 		'"Geist Mono Variable", ui-monospace, "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace',
 };
 
+type MarketplacePageDetails = {
+	title: string;
+	description: string;
+	emptyInstalled: string;
+	emptyCatalog: string;
+	icon: typeof Server;
+};
+
 const primitivePageDetails = {
 	mcp: {
 		title: "MCP Servers",
 		description:
 			"Install Model Context Protocol servers into this CLI environment.",
-		emptyInstalled: "No MCP servers installed.",
+		emptyInstalled:
+			"No MCP servers installed. Browse the marketplace or add a server manually.",
 		emptyCatalog: "No MCP servers match the current filters.",
 		icon: Server,
 	},
 	skill: {
 		title: "Skills",
 		description: "Install skills globally for Cline.",
-		emptyInstalled: "No skills installed.",
+		emptyInstalled: "No skills installed. Browse the marketplace to add one.",
 		emptyCatalog: "No skills match the current filters.",
 		icon: Zap,
 	},
 	plugin: {
 		title: "Plugins",
 		description: "Install plugins into this CLI environment.",
-		emptyInstalled: "No plugins installed.",
+		emptyInstalled: "No plugins installed. Browse the marketplace to add one.",
 		emptyCatalog: "No plugins match the current filters.",
 		icon: Puzzle,
 	},
-} satisfies Record<
-	MarketplacePrimitiveType,
-	{
-		title: string;
-		description: string;
-		emptyInstalled: string;
-		emptyCatalog: string;
-		icon: typeof Server;
-	}
->;
+} satisfies Record<MarketplacePrimitiveType, MarketplacePageDetails>;
+
+const directoryPageDetails: MarketplacePageDetails = {
+	title: "Marketplace",
+	description:
+		"Browse and install plugins, MCP servers, and skills from the Cline marketplace.",
+	emptyInstalled: "Nothing installed yet.",
+	emptyCatalog: "No marketplace entries match the current filters.",
+	icon: Store,
+};
+
+const TYPE_FILTER_LABELS: Record<MarketplacePrimitiveType, string> = {
+	plugin: "Plugins",
+	mcp: "MCP servers",
+	skill: "Skills",
+};
+
+const TYPE_FILTER_ORDER: MarketplacePrimitiveType[] = [
+	"plugin",
+	"mcp",
+	"skill",
+];
 
 const primitiveCommands = {
 	mcp: "cline mcp install",
@@ -567,15 +589,17 @@ function MarketplaceSection({
 	showEntryTags?: boolean;
 	sourceLabel?: string;
 	tagLabels: Map<string, string>;
-	title: string;
+	title?: string;
 }) {
 	const totalCount = entries.length + localInstalledItems.length;
 	return (
 		<section className="grid min-w-0 gap-3">
-			<div className="flex items-center justify-between gap-3">
-				<h2 className="text-base font-semibold text-foreground">{title}</h2>
-				<span className="text-sm text-muted-foreground">{totalCount}</span>
-			</div>
+			{title ? (
+				<div className="flex items-center justify-between gap-3">
+					<h2 className="text-base font-semibold text-foreground">{title}</h2>
+					<span className="text-sm text-muted-foreground">{totalCount}</span>
+				</div>
+			) : null}
 			{headerContent}
 			{totalCount > 0 ? (
 				<div className="grid min-w-0 gap-3">
@@ -612,21 +636,32 @@ function MarketplaceSection({
 	);
 }
 
+export type MarketplaceViewVariant = "full" | "installed" | "directory";
+
 export function MarketplaceView({
 	chrome = "page",
+	defaultTypeFilter,
 	installedItems,
 	onInstalledItemsChanged,
 	primitive,
+	variant = "full",
 }: {
 	chrome?: "page" | "embedded";
+	/** Preselected type filter chip in the all-types directory variant. */
+	defaultTypeFilter?: MarketplacePrimitiveType;
 	installedItems?: MarketplaceLocalInstalledItem[];
 	onInstalledItemsChanged?: () => void | Promise<void>;
-	primitive: MarketplacePrimitiveType;
+	/** When omitted, the view spans every catalog type (directory variant). */
+	primitive?: MarketplacePrimitiveType;
+	variant?: MarketplaceViewVariant;
 }) {
 	const [catalog, setCatalog] = useState<MarketplaceCatalog | null>(null);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [query, setQuery] = useState("");
 	const [selectedTag, setSelectedTag] = useState<string | null>(null);
+	const [typeFilter, setTypeFilter] = useState<MarketplacePrimitiveType | null>(
+		defaultTypeFilter ?? null,
+	);
 	const [expandedEntryKey, setExpandedEntryKey] = useState<string | null>(null);
 	const [installedEntryKeys, setInstalledEntryKeys] = useState<Set<string>>(
 		() => new Set(),
@@ -708,8 +743,9 @@ export function MarketplaceView({
 		};
 	}, [catalog, installedItemsSignature]);
 
-	const pageDetails = primitivePageDetails[primitive];
-	const PageIcon = pageDetails.icon;
+	const pageDetails = primitive
+		? primitivePageDetails[primitive]
+		: directoryPageDetails;
 	const tagLabels = useMemo(
 		() => new Map(catalog?.tags.map((tag) => [tag.id, tag.label]) ?? []),
 		[catalog?.tags],
@@ -717,9 +753,11 @@ export function MarketplaceView({
 
 	const primitiveEntries = useMemo(
 		() =>
-			(catalog?.entries.filter((entry) => entry.type === primitive) ?? []).sort(
-				compareFeaturedEntries,
-			),
+			(
+				catalog?.entries.filter(
+					(entry) => !primitive || entry.type === primitive,
+				) ?? []
+			).sort(compareFeaturedEntries),
 		[catalog?.entries, primitive],
 	);
 
@@ -836,36 +874,56 @@ export function MarketplaceView({
 		[queryFilteredEntries, installedEntryKeys, matchedEntryKeys],
 	);
 
-	const marketplaceEntriesBeforeTag = useMemo(
+	// The directory variant is a single browsable list of every catalog entry
+	// (installed entries stay in place with an Uninstall action); other
+	// variants keep not-yet-installed entries in the catalog section only.
+	const catalogEntriesBeforeTag = useMemo(
 		() =>
-			queryFilteredEntries.filter(
-				(entry) => !installedEntryKeys.has(entryKey(entry)),
-			),
-		[queryFilteredEntries, installedEntryKeys],
+			variant === "directory"
+				? queryFilteredEntries.filter(
+						(entry) => !typeFilter || entry.type === typeFilter,
+					)
+				: queryFilteredEntries.filter(
+						(entry) => !installedEntryKeys.has(entryKey(entry)),
+					),
+		[queryFilteredEntries, installedEntryKeys, typeFilter, variant],
 	);
 
 	const tagCounts = useMemo(() => {
 		const counts = new Map<string, number>();
-		for (const entry of marketplaceEntriesBeforeTag) {
+		for (const entry of catalogEntriesBeforeTag) {
 			for (const tag of entry.tags) {
 				counts.set(tag, (counts.get(tag) ?? 0) + 1);
 			}
 		}
 		return counts;
-	}, [marketplaceEntriesBeforeTag]);
+	}, [catalogEntriesBeforeTag]);
 
+	const typeCounts = useMemo(() => {
+		const counts = new Map<MarketplacePrimitiveType, number>();
+		for (const entry of queryFilteredEntries) {
+			counts.set(entry.type, (counts.get(entry.type) ?? 0) + 1);
+		}
+		return counts;
+	}, [queryFilteredEntries]);
+
+	// Keep the selected tag's chip visible even when the current type/query has
+	// no matches for it, so an active filter can never silently empty the list
+	// while its chip is hidden.
 	const primitiveTags = useMemo(
 		() =>
-			(catalog?.tags ?? []).filter((tag) => (tagCounts.get(tag.id) ?? 0) > 0),
-		[catalog?.tags, tagCounts],
+			(catalog?.tags ?? []).filter(
+				(tag) => (tagCounts.get(tag.id) ?? 0) > 0 || tag.id === selectedTag,
+			),
+		[catalog?.tags, selectedTag, tagCounts],
 	);
 
 	const catalogEntries = useMemo(
 		() =>
-			marketplaceEntriesBeforeTag.filter(
+			catalogEntriesBeforeTag.filter(
 				(entry) => !selectedTag || entry.tags.includes(selectedTag),
 			),
-		[marketplaceEntriesBeforeTag, selectedTag],
+		[catalogEntriesBeforeTag, selectedTag],
 	);
 
 	const localInstalledItems = useMemo(() => {
@@ -895,6 +953,41 @@ export function MarketplaceView({
 	}, [installedItems, matchedEntriesByLocalItemKey, query, tagLabels]);
 
 	const installedStatusReady = installedStatusState === "ready";
+
+	const typeFilterChips =
+		variant === "directory" && !primitive ? (
+			<div className="flex min-w-0 gap-2 overflow-x-auto pb-1">
+				<Button
+					aria-pressed={typeFilter === null}
+					onClick={() => setTypeFilter(null)}
+					size="sm"
+					type="button"
+					variant={typeFilter === null ? "default" : "outline"}
+				>
+					All
+					<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
+						{queryFilteredEntries.length}
+					</span>
+				</Button>
+				{TYPE_FILTER_ORDER.map((type) => (
+					<Button
+						aria-pressed={typeFilter === type}
+						key={type}
+						onClick={() =>
+							setTypeFilter((current) => (current === type ? null : type))
+						}
+						size="sm"
+						type="button"
+						variant={typeFilter === type ? "default" : "outline"}
+					>
+						{TYPE_FILTER_LABELS[type]}
+						<span className="rounded bg-background/30 px-1.5 py-0.5 text-xs">
+							{typeCounts.get(type) ?? 0}
+						</span>
+					</Button>
+				))}
+			</div>
+		) : null;
 
 	const marketplaceTagFilters =
 		primitiveTags.length > 0 ? (
@@ -1028,9 +1121,12 @@ export function MarketplaceView({
 			{chrome === "page" ? (
 				<PageHeader
 					description={pageDetails.description}
-					icon={PageIcon}
 					title={pageDetails.title}
-					meta={<CommandBadge>{primitiveCommands[primitive]}</CommandBadge>}
+					meta={
+						primitive ? (
+							<CommandBadge>{primitiveCommands[primitive]}</CommandBadge>
+						) : undefined
+					}
 					actions={
 						catalog?.generatedAt ? (
 							<p className="text-xs text-muted-foreground">
@@ -1083,38 +1179,49 @@ export function MarketplaceView({
 						</div>
 					</div>
 
-					<MarketplaceSection
-						actionStates={actionStates}
-						emptyMessage={pageDetails.emptyInstalled}
-						entries={installedEntries}
-						expandedEntryKey={expandedEntryKey}
-						installedEntryKeys={installedEntryKeys}
-						installedStatusReady={installedStatusReady}
-						localInstalledItems={localInstalledItems}
-						onInstall={installEntry}
-						onToggleExpanded={toggleExpanded}
-						onUninstall={uninstallEntry}
-						showFeaturedBadges={false}
-						showEntryTags={false}
-						sourceLabel="Marketplace"
-						tagLabels={tagLabels}
-						title="Installed"
-					/>
+					{variant !== "directory" ? (
+						<MarketplaceSection
+							actionStates={actionStates}
+							emptyMessage={pageDetails.emptyInstalled}
+							entries={installedEntries}
+							expandedEntryKey={expandedEntryKey}
+							installedEntryKeys={installedEntryKeys}
+							installedStatusReady={installedStatusReady}
+							localInstalledItems={localInstalledItems}
+							onInstall={installEntry}
+							onToggleExpanded={toggleExpanded}
+							onUninstall={uninstallEntry}
+							showFeaturedBadges={false}
+							showEntryTags={false}
+							sourceLabel="Marketplace"
+							tagLabels={tagLabels}
+							title="Installed"
+						/>
+					) : null}
 
-					<MarketplaceSection
-						actionStates={actionStates}
-						emptyMessage={pageDetails.emptyCatalog}
-						entries={catalogEntries}
-						expandedEntryKey={expandedEntryKey}
-						headerContent={marketplaceTagFilters}
-						installedEntryKeys={installedEntryKeys}
-						installedStatusReady={installedStatusReady}
-						onInstall={installEntry}
-						onToggleExpanded={toggleExpanded}
-						onUninstall={uninstallEntry}
-						tagLabels={tagLabels}
-						title="Marketplace"
-					/>
+					{variant !== "installed" ? (
+						<MarketplaceSection
+							actionStates={actionStates}
+							emptyMessage={pageDetails.emptyCatalog}
+							entries={catalogEntries}
+							expandedEntryKey={expandedEntryKey}
+							headerContent={
+								typeFilterChips || marketplaceTagFilters ? (
+									<div className="grid min-w-0 gap-2">
+										{typeFilterChips}
+										{marketplaceTagFilters}
+									</div>
+								) : null
+							}
+							installedEntryKeys={installedEntryKeys}
+							installedStatusReady={installedStatusReady}
+							onInstall={installEntry}
+							onToggleExpanded={toggleExpanded}
+							onUninstall={uninstallEntry}
+							tagLabels={tagLabels}
+							title={variant === "directory" ? undefined : "Marketplace"}
+						/>
+					) : null}
 				</div>
 			) : null}
 		</div>

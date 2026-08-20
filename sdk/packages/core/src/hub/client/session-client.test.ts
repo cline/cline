@@ -1,3 +1,10 @@
+import type {
+	AgendaAutomationPolicy,
+	AgendaTaskCreateInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	AgendaTaskUpdateInput,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HubSessionClient } from "./session-client";
 
@@ -5,6 +12,11 @@ type SocketListener = (...args: unknown[]) => void;
 
 class MockWebSocket {
 	static instances: MockWebSocket[] = [];
+	static sentCommands: Array<{
+		command: string;
+		payload?: Record<string, unknown>;
+	}> = [];
+	static commandPayloads = new Map<string, Record<string, unknown>>();
 
 	readyState = 0;
 	private readonly listeners = new Map<string, SocketListener[]>();
@@ -19,16 +31,27 @@ class MockWebSocket {
 
 	static reset(): void {
 		MockWebSocket.instances = [];
+		MockWebSocket.sentCommands = [];
+		MockWebSocket.commandPayloads.clear();
 	}
 
 	send(data: string): void {
 		const frame = JSON.parse(data) as {
 			kind?: string;
-			envelope?: { requestId?: string; command?: string };
+			envelope?: {
+				requestId?: string;
+				command?: string;
+				payload?: Record<string, unknown>;
+			};
 		};
 		if (frame.kind !== "command" || !frame.envelope?.requestId) {
 			return;
 		}
+		const command = frame.envelope.command ?? "";
+		MockWebSocket.sentCommands.push({
+			command,
+			payload: frame.envelope.payload,
+		});
 		queueMicrotask(() => {
 			this.emitFrame({
 				kind: "reply",
@@ -37,7 +60,7 @@ class MockWebSocket {
 					requestId: frame.envelope?.requestId,
 					command: frame.envelope?.command,
 					ok: true,
-					payload: {},
+					payload: MockWebSocket.commandPayloads.get(command) ?? {},
 				},
 			});
 		});
@@ -398,6 +421,131 @@ describe("HubSessionClient", () => {
 		]);
 
 		unsubscribe();
+		client.close();
+	});
+
+	it("sends typed task commands and returns their task queue payloads", async () => {
+		vi.stubGlobal("WebSocket", MockWebSocket);
+		const client = new HubSessionClient({
+			address: "ws://127.0.0.1:25463/hub",
+			clientId: "client-1",
+		});
+		const task: AgendaTaskRecord = {
+			taskId: "task-1",
+			type: "todo",
+			status: "pending_approval",
+			title: "Check the build",
+			instructions: "Run the build and fix any failures.",
+			scope: "workspace",
+			workspaceRoot: "/repo",
+			resourcePaths: [],
+			priority: 1,
+			availableAt: "2026-08-14T00:00:00.000Z",
+			expiresAt: "2026-08-21T00:00:00.000Z",
+			automationEligible: true,
+			revision: 1,
+			createdBy: { kind: "user", clientId: "client-1" },
+			updatedBy: { kind: "user", clientId: "client-1" },
+			createdAt: "2026-08-14T00:00:00.000Z",
+			updatedAt: "2026-08-14T00:00:00.000Z",
+		};
+		const run: AgendaTaskRunRecord = {
+			runId: "run-1",
+			taskId: task.taskId,
+			taskRevision: 1,
+			attempt: 1,
+			status: "starting",
+			claimedAt: "2026-08-14T00:01:00.000Z",
+			createdAt: "2026-08-14T00:01:00.000Z",
+			updatedAt: "2026-08-14T00:01:00.000Z",
+		};
+		const policy: AgendaAutomationPolicy = {
+			scopeKey: "global",
+			mode: "manual",
+			applyToAgentCreated: true,
+			maxConcurrentRuns: 2,
+			maxChainDepth: 1,
+			maxStartsPerHour: 20,
+			updatedAt: "2026-08-14T00:00:00.000Z",
+		};
+		MockWebSocket.commandPayloads.set("task.create", { task });
+		MockWebSocket.commandPayloads.set("task.list", { tasks: [task] });
+		MockWebSocket.commandPayloads.set("task.get", { task });
+		MockWebSocket.commandPayloads.set("task.update", { task });
+		MockWebSocket.commandPayloads.set("task.approve", { task });
+		MockWebSocket.commandPayloads.set("task.cancel", { task });
+		MockWebSocket.commandPayloads.set("task.run", { task, run });
+		MockWebSocket.commandPayloads.set("task.automation.get", { policy });
+		MockWebSocket.commandPayloads.set("task.automation.set", { policy });
+
+		const createInput: AgendaTaskCreateInput = {
+			type: "todo",
+			title: task.title,
+			instructions: task.instructions,
+			scope: "workspace",
+			workspaceRoot: "/repo",
+			expiresAt: task.expiresAt,
+			createdBy: task.createdBy,
+		};
+		const updateInput: AgendaTaskUpdateInput = {
+			taskId: task.taskId,
+			expectedRevision: 1,
+			priority: 0,
+			updatedBy: task.updatedBy,
+		};
+		const policyInput: Omit<AgendaAutomationPolicy, "updatedAt"> = {
+			scopeKey: "global",
+			mode: "manual",
+			applyToAgentCreated: true,
+			maxConcurrentRuns: 2,
+			maxChainDepth: 1,
+			maxStartsPerHour: 20,
+		};
+
+		expect(await client.createTask(createInput)).toEqual(task);
+		expect(await client.listTasks({ priorities: [1] })).toEqual([task]);
+		expect(await client.getTask(task.taskId)).toEqual(task);
+		expect(await client.updateTask(updateInput)).toEqual(task);
+		expect(await client.approveTask(task.taskId, 1)).toEqual(task);
+		expect(await client.cancelTask(task.taskId, 1, "no longer needed")).toEqual(
+			task,
+		);
+		expect(await client.runTask(task.taskId, 1)).toEqual({ task, run });
+		expect(await client.getTaskAutomation()).toEqual(policy);
+		expect(await client.setTaskAutomation(policyInput)).toEqual(policy);
+
+		expect(
+			MockWebSocket.sentCommands.filter(({ command }) =>
+				command.startsWith("task."),
+			),
+		).toEqual([
+			{ command: "task.create", payload: createInput },
+			{ command: "task.list", payload: { priorities: [1] } },
+			{ command: "task.get", payload: { taskId: "task-1" } },
+			{ command: "task.update", payload: updateInput },
+			{
+				command: "task.approve",
+				payload: { taskId: "task-1", expectedRevision: 1 },
+			},
+			{
+				command: "task.cancel",
+				payload: {
+					taskId: "task-1",
+					reason: "no longer needed",
+					expectedRevision: 1,
+				},
+			},
+			{
+				command: "task.run",
+				payload: { taskId: "task-1", expectedRevision: 1 },
+			},
+			{ command: "task.automation.get", payload: {} },
+			{
+				command: "task.automation.set",
+				payload: { policy: policyInput },
+			},
+		]);
+
 		client.close();
 	});
 });

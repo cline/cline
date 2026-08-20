@@ -1,6 +1,6 @@
 {
 	"$schema": "https://schema.tauri.app/config/2",
-	"productName": "Cline Code",
+	"productName": "Cline",
 	"version": "0.0.14",
 	"identifier": "bot.cline.app",
 	"build": {
@@ -21,7 +21,7 @@
 		"windows": [
 			{
 				"label": "main",
-				"title": "Cline Code",
+				"title": "Cline",
 				"width": 1500,
 				"height": 980,
 				"resizable": true,

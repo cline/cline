@@ -703,11 +703,22 @@ export class AgentRuntime {
 					throw this.normalizeAbortError();
 				}
 				if (message.content.length === 0) {
-					throw new Error(
-						finishReason === "error"
-							? (this.state.lastError ?? "Model stream failed")
-							: "Model returned empty response",
-					);
+					if (finishReason === "error") {
+						throw new Error(this.state.lastError ?? "Model stream failed");
+					}
+					// Provider-executed tool activity lives in message metadata, not
+					// content (projecting it into content would replay tool_use blocks
+					// the model never gets results for). A turn that is only such
+					// activity is not empty: keep the message so the transcript and
+					// display projection retain it. Replay stays safe — the codec
+					// renders empty content as its placeholder text block.
+					const modelToolActivities = message.metadata?.modelToolActivities;
+					const hasModelToolActivity =
+						Array.isArray(modelToolActivities) &&
+						modelToolActivities.length > 0;
+					if (!hasModelToolActivity) {
+						throw new Error("Model returned empty response");
+					}
 				}
 				const toolCalls = message.content.filter(
 					(part: AgentMessagePart): part is AgentToolCallPart =>
