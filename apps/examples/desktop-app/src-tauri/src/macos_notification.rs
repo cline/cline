@@ -6,7 +6,7 @@ use std::sync::OnceLock;
 use tauri::AppHandle;
 
 const DEV_APP_DIRECTORY: &str = "notification-identity";
-const DEV_BUNDLE_NAME: &str = "Cline Code.app";
+const DEV_BUNDLE_NAME: &str = "Cline.app";
 const LAUNCH_SERVICES_REGISTER: &str = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister";
 
 static CONFIGURATION: OnceLock<Result<(), String>> = OnceLock::new();
@@ -200,17 +200,13 @@ mod tests {
         fs::write(&executable, b"test executable").unwrap();
         fs::write(&icon, b"test icon").unwrap();
 
-        let bundle = create_dev_application_bundle(
-            &executable,
-            &icon,
-            "bot.cline.app.dev",
-            "Cline Code Dev",
-        )
-        .unwrap();
+        let bundle =
+            create_dev_application_bundle(&executable, &icon, "bot.cline.app.dev", "Cline Dev")
+                .unwrap();
         let plist = fs::read_to_string(bundle.join("Contents/Info.plist")).unwrap();
 
         assert!(plist.contains("<string>bot.cline.app.dev</string>"));
-        assert!(plist.contains("<string>Cline Code Dev</string>"));
+        assert!(plist.contains("<string>Cline Dev</string>"));
         assert_eq!(
             fs::read_link(bundle.join("Contents/MacOS/cline-app")).unwrap(),
             executable

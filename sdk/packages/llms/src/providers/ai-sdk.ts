@@ -1031,6 +1031,9 @@ function calculateUsageCostFromPricing(
  * Accepts both AI SDK's normalized shapes (AiSdkStreamTotalUsage, AiSdkStreamUsage)
  * and raw provider responses. Handles multiple naming conventions (camelCase vs snake_case),
  * extracts costs from provider-specific fields, and falls back to pricing-based calculation.
+ * Provider-reported billed cost takes precedence over market cost so gateway discounts
+ * are reflected in user-facing totals. Market cost remains a fallback when no billed
+ * cost is available.
  *
  * @param usageValue - AI SDK normalized usage or raw provider response object
  * @param providerMetadata - Provider-specific metadata for cost extraction
@@ -1091,9 +1094,13 @@ export function normalizeUsage(
 		baseCost !== undefined && baseCost > 0
 			? baseCost
 			: (upstreamInferenceCost ?? baseCost);
+	const billedCost = shouldAddUpstreamCost
+		? baseCost + upstreamInferenceCost
+		: costOrUpstream;
 	const totalCost =
-		marketCost ??
-		(shouldAddUpstreamCost ? baseCost + upstreamInferenceCost : costOrUpstream);
+		billedCost !== undefined && billedCost !== 0
+			? billedCost
+			: (marketCost ?? billedCost);
 	const normalizedUsage = {
 		inputTokens:
 			getNestedUsageValue(usage, "inputTokens", "total") ||
@@ -1307,6 +1314,12 @@ async function* emitAiSdkEvents(
 	const projectedModelToolResults = new Map<string, ProjectedModelToolResult>();
 	const pendingProjectedModelToolOutputs = new Map<string, unknown>();
 	const projectedModelToolErrors = new Map<string, string>();
+	// Tool calls the provider executed inside this inference request (e.g. the
+	// Claude Code CLI's own tools). They surface as observational activity and
+	// must never enter AgentRuntime's local execution/approval loop. Result and
+	// error parts are matched by ID because some providers omit the
+	// providerExecuted flag on the result half of the pair.
+	const observationalProviderToolCallIds = new Set<string>();
 
 	try {
 		if (stream.fullStream) {
@@ -1425,6 +1438,22 @@ async function* emitAiSdkEvents(
 						};
 						continue;
 					}
+					if (part.providerExecuted === true) {
+						const toolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined) ??
+							`provider_tool_${nanoid()}`;
+						observationalProviderToolCallIds.add(toolCallId);
+						sawVisibleContent = true;
+						yield {
+							type: "tool-call-delta",
+							toolCallId,
+							toolName,
+							execution: "provider",
+							input: part.input ?? part.args,
+						};
+						continue;
+					}
 					sawToolCalls = true;
 					sawVisibleContent = true;
 					const toolCallId =
@@ -1500,6 +1529,26 @@ async function* emitAiSdkEvents(
 						}
 						continue;
 					}
+					const toolCallId =
+						(part.toolCallId as string | undefined) ??
+						(part.id as string | undefined);
+					if (
+						part.providerExecuted === true ||
+						(toolCallId && observationalProviderToolCallIds.has(toolCallId))
+					) {
+						if (part.preliminary !== true) {
+							sawVisibleContent = true;
+							yield {
+								type: "tool-result",
+								toolCallId: toolCallId ?? `provider_tool_${nanoid()}`,
+								toolName,
+								execution: "provider",
+								input: part.input ?? part.args,
+								output: part.output ?? part.result,
+							};
+						}
+						continue;
+					}
 				}
 
 				if (part.type === "tool-error") {
@@ -1539,6 +1588,27 @@ async function* emitAiSdkEvents(
 							isError: true,
 						};
 						continue;
+					}
+					{
+						const errorToolCallId =
+							(part.toolCallId as string | undefined) ??
+							(part.id as string | undefined);
+						if (
+							part.providerExecuted === true ||
+							(errorToolCallId &&
+								observationalProviderToolCallIds.has(errorToolCallId))
+						) {
+							yield {
+								type: "tool-result",
+								toolCallId: errorToolCallId ?? `provider_tool_${nanoid()}`,
+								toolName,
+								execution: "provider",
+								input: part.input ?? part.args,
+								output: { error: extractErrorMessage(part.error) },
+								isError: true,
+							};
+							continue;
+						}
 					}
 					sawToolCalls = true;
 					const toolCallId =
