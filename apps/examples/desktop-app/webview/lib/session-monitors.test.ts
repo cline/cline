@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-schema";
-import { buildActiveSessionMonitors } from "@/lib/session-monitors";
+import {
+	buildActiveSessionMonitors,
+	monitorSuppressionKey,
+	pruneMonitorSuppressions,
+} from "@/lib/session-monitors";
 
 let messageCounter = 0;
 
@@ -86,5 +90,45 @@ describe("buildActiveSessionMonitors", () => {
 				message("tool", "not json", "read_files"),
 			]),
 		).toEqual([]);
+	});
+});
+
+describe("pruneMonitorSuppressions", () => {
+	it("keeps a suppression while the stopped monitor still parses as active", () => {
+		const suppressed = new Set([monitorSuppressionKey("session_1", "mon_1")]);
+		expect(
+			pruneMonitorSuppressions(
+				suppressed,
+				[{ id: "mon_1", name: "ci" }],
+				"session_1",
+			),
+		).toBe(suppressed);
+	});
+
+	it("drops a suppression once its terminal marker lands", () => {
+		expect(
+			pruneMonitorSuppressions(
+				new Set([monitorSuppressionKey("session_1", "mon_1")]),
+				[],
+				"session_1",
+			),
+		).toEqual(new Set());
+	});
+
+	it("does not let a stale suppression hide a reused monitor id", () => {
+		// User stops mon_1, the marker lands, and a rebuilt runtime later hands
+		// out mon_1 again to a different monitor: the new monitor must show.
+		let suppressed = new Set([monitorSuppressionKey("session_1", "mon_1")]);
+		suppressed = pruneMonitorSuppressions(suppressed, [], "session_1");
+		expect(suppressed.has(monitorSuppressionKey("session_1", "mon_1"))).toBe(
+			false,
+		);
+	});
+
+	it("leaves other sessions' suppressions alone", () => {
+		const otherKey = monitorSuppressionKey("session_2", "mon_1");
+		expect(
+			pruneMonitorSuppressions(new Set([otherKey]), [], "session_1"),
+		).toEqual(new Set([otherKey]));
 	});
 });
