@@ -824,6 +824,7 @@ export {
 } from "./session/models/session-graph";
 export type { SessionManifest } from "./session/models/session-manifest";
 export type { SessionRow } from "./session/models/session-row";
+export * from "./session/search";
 export type {
 	CreateRootSessionWithArtifactsInput,
 	RootSessionArtifacts,
