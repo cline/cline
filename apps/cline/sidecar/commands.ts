@@ -7,6 +7,7 @@ import type {
 	SessionId,
 } from "@cline/shared/gateway";
 import type { SidecarContext } from "./types";
+import { listProviderCatalog, listProviderModels } from "./provider-catalog";
 
 type RecordValue = Record<string, unknown>;
 
@@ -115,7 +116,22 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		if (running) ctx.activeRuns.set(sessionId, running.runId);
 		return { sessionId, workspaceRoot: snapshot.session.workspace.rootPath, cwd: snapshot.session.workspace.rootPath };
 	}
-	if (action === "start" || action === "send") {
+	if (action === "start") {
+		const bots = await ctx.client.listBots();
+		const botId = String((request.config as RecordValue | undefined)?.botId ?? bots.bots[0]?.identity.botId ?? "");
+		if (!botId) throw new Error("No Gateway bot is configured");
+		const config = (request.config as RecordValue | undefined) ?? {};
+		const session = await ctx.client.createSession({
+			botId: botId as BotId,
+			workspaceRoot: String(config.workspaceRoot ?? ctx.workspaceRoot),
+		});
+		return {
+			sessionId: session.sessionId,
+			workspaceRoot: session.workspace.rootPath,
+			cwd: session.workspace.rootPath,
+		};
+	}
+	if (action === "send") {
 		const prompt = String(request.prompt ?? "").trim();
 		if (!prompt) throw new Error("prompt is required");
 		const bots = await ctx.client.listBots();
@@ -129,8 +145,12 @@ async function chatCommand(ctx: SidecarContext, request: RecordValue) {
 		const accepted = await ctx.client.startRun({
 			botId: botId as BotId,
 			prompt,
+			...(sessionId ? { sessionId: sessionId as SessionId } : {}),
 			workspaceRoot: String((request.config as RecordValue | undefined)?.workspaceRoot ?? ctx.workspaceRoot),
-			newSession: !sessionId,
+			overrides: {
+				providerId: String((request.config as RecordValue | undefined)?.provider ?? "") || undefined,
+				modelId: String((request.config as RecordValue | undefined)?.model ?? "") || undefined,
+			},
 		});
 		const { runs } = await ctx.client.listRuns({ runId: accepted.runId });
 		const acceptedSessionId = runs[0]?.sessionId;
@@ -193,8 +213,8 @@ export async function handleCommand(ctx: SidecarContext, command: string, args: 
 	if (command === "list_mcp_servers") return { servers: [] };
 	if (command === "read_session_hooks" || command === "list_session_agents") return [];
 	if (command === "get_chat_ws_endpoint") return "";
-	if (command === "get_provider_catalog") return { providers: [] };
-	if (command === "get_provider_models") return { models: [] };
+	if (command === "list_provider_catalog") return listProviderCatalog();
+	if (command === "list_provider_models") return listProviderModels(String(args.provider ?? ""));
 	if (command === "get_global_settings") return {};
 	if (command === "get_update_status") return { available: false };
 	if (command === "cline_account") return null;

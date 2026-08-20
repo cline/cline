@@ -167,6 +167,17 @@ export class Bot {
 		return this.enqueue(sessionRecord, text, options.overrides, options.source);
 	}
 
+	/** Create the canonical session before its first prompt. */
+	openSession(workspace?: WorkspaceRef): SessionRecord {
+		this.requireActiveBot();
+		if (this.session) {
+			this.replaceSession();
+		}
+		const session = this.createSession(workspace, "canonical");
+		this.canonicalSessionId = session.sessionId;
+		return session;
+	}
+
 	/**
 	 * Admit a prompt into an explicit session (Phase 6). Without a
 	 * `sessionId` a NEW dedicated session is created — this is how each

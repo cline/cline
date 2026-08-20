@@ -45,6 +45,7 @@ describe("method registry", () => {
 				"run.start",
 				"run.steer",
 				"schedule.create",
+				"session.create",
 				"tools.configuration.put",
 				"tools.profiles.put",
 			].sort(),

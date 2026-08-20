@@ -151,6 +151,14 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	),
 	define("bot.list", false, z.object({}).strict().optional()),
 	define(
+		"session.create",
+		true,
+		IdempotentParamsBase.extend({
+			botId: BotIdSchema,
+			workspaceRoot: z.string().min(1).optional(),
+		}).strict(),
+	),
+	define(
 		"session.list",
 		false,
 		z.object({ botId: BotIdSchema.optional() }).strict().optional(),

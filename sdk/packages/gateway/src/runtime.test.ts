@@ -48,6 +48,19 @@ function createRuntime(
 }
 
 describe("run admission", () => {
+	it("creates an empty canonical session before its first prompt", () => {
+		const { runtime, stores } = createRuntime();
+		const botId = runtime.defaultBotId;
+		if (!botId) throw new Error("bootstrap failed");
+		const session = runtime.createSession("desktop_test", {
+			botId,
+			workspaceRoot: "/workspace/project",
+		});
+		expect(session.workspace.rootPath).toBe("/workspace/project");
+		expect(stores.sessions.get(session.sessionId)).toEqual(session);
+		expect(stores.runs.listBySession(session.sessionId)).toEqual([]);
+	});
+
 	it("acks immediately with runId/acceptedAt/queuePosition and runs FIFO", async () => {
 		const { runtime, stores, engine } = createRuntime();
 		const botId = runtime.defaultBotId;

@@ -50,7 +50,11 @@ import type { ConnectorRecord } from "./connectors/store";
 import { isLoopbackHost } from "./remote";
 import { createGatewayWebSocketStream } from "./websocket-stream";
 
-export { listSavedProviderSummaries } from "./provider-settings";
+export {
+	gatewayProviderSettingsPath,
+	listSavedProviderSummaries,
+	readSavedProviderSelection,
+} from "./provider-settings";
 
 import type { DiscoveryRecord } from "./discovery";
 import type { SessionSnapshot } from "./runtime";
@@ -191,6 +195,7 @@ export interface GatewayStatusSummary {
 export interface StartRunInput {
 	botId: BotId;
 	prompt: string;
+	sessionId?: SessionId;
 	workspaceRoot?: string;
 	newSession?: boolean;
 	overrides?: TurnOverrides;
@@ -466,6 +471,7 @@ export class GatewayClient {
 		const result = await this.mutate("run.start", {
 			botId: input.botId,
 			prompt: input.prompt,
+			...(input.sessionId ? { sessionId: input.sessionId } : {}),
 			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
 			...(input.newSession ? { newSession: true } : {}),
 			...(input.overrides ? { overrides: input.overrides } : {}),
@@ -474,6 +480,20 @@ export class GatewayClient {
 				: {}),
 		});
 		return RunAcceptedSchema.parse(result);
+	}
+
+	createSession(input: {
+		botId: BotId;
+		workspaceRoot?: string;
+		idempotencyKey?: string;
+	}): Promise<SessionRecord> {
+		return this.mutate("session.create", {
+			botId: input.botId,
+			...(input.workspaceRoot ? { workspaceRoot: input.workspaceRoot } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<SessionRecord>;
 	}
 
 	steerRun(input: {

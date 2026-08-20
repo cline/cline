@@ -855,6 +855,11 @@ export interface RunStartParams {
 	newSession?: boolean;
 }
 
+export interface SessionCreateParams {
+	botId: BotId;
+	workspaceRoot?: string;
+}
+
 export interface GatewayRecoveryReport {
 	readonly interruptedRuns: readonly RunId[];
 	readonly requeuedRuns: readonly RunId[];
@@ -1204,6 +1209,20 @@ export class GatewayRuntime {
 			this.finishAdmission(actor, params.botId, accepted, provenance);
 			this.stores.runs.saveConfigSnapshot(accepted.runId, snapshotConfig);
 			return accepted;
+		});
+	}
+
+	createSession(actor: string, params: SessionCreateParams): SessionRecord {
+		this.refuseWhileDraining();
+		const bot = this.getBot(params.botId);
+		return this.database.transaction(() => {
+			const session = bot.openSession(
+				params.workspaceRoot ? { rootPath: params.workspaceRoot } : undefined,
+			);
+			this.stores.audit.record(actor, "session.create", session.sessionId, {
+				botId: params.botId,
+			});
+			return session;
 		});
 	}
 

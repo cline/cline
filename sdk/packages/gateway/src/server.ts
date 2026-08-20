@@ -955,6 +955,11 @@ export class GatewayServer {
 					newSession: p.newSession as boolean | undefined,
 					overrides: p.overrides as never,
 				});
+			case "session.create":
+				return this.runtime.createSession(actor, {
+					botId: p.botId as BotId,
+					workspaceRoot: p.workspaceRoot as string | undefined,
+				});
 			case "run.steer":
 				return this.runtime.steerRun(actor, p.runId as RunId, p.text as string);
 			case "run.interrupt":
