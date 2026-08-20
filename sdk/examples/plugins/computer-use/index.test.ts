@@ -75,6 +75,84 @@ describe("Playwright tool policy", () => {
 			reason: expect.stringContaining("execute arbitrary code"),
 		});
 	});
+
+	test("enforces the file-upload exfiltration block in the hook", () => {
+		const result = plugin.hooks?.beforeTool?.({
+			toolCall: {
+				toolName: `${COMPUTER_USE_BROWSER_SERVER_NAME}__browser_file_upload`,
+			},
+		} as never);
+
+		expect(result).toEqual({
+			skip: true,
+			reason: expect.stringContaining("arbitrary local files"),
+		});
+	});
+});
+
+describe("Peekaboo hook enforcement", () => {
+	test("applies the allowlist and background policy through beforeTool", () => {
+		const platformDescriptor = Object.getOwnPropertyDescriptor(
+			process,
+			"platform",
+		);
+		const previousOverride = process.env.CLINE_COMPUTER_USE_BACKEND;
+		Object.defineProperty(process, "platform", {
+			value: "darwin",
+			configurable: true,
+		});
+		delete process.env.CLINE_COMPUTER_USE_BACKEND;
+
+		try {
+			type PluginSetup = NonNullable<typeof plugin.setup>;
+			plugin.setup?.(
+				{
+					registerMcpServer: () => {},
+					registerRule: () => {},
+				} as unknown as Parameters<PluginSetup>[0],
+				{} as Parameters<PluginSetup>[1],
+			);
+
+			const disallowed = plugin.hooks?.beforeTool?.({
+				toolCall: {
+					toolName: `${COMPUTER_USE_DESKTOP_SERVER_NAME}__agent`,
+				},
+				input: {},
+			} as never);
+			expect(disallowed).toEqual({
+				skip: true,
+				reason: expect.stringContaining("not allowlisted"),
+			});
+
+			const backgroundViolation = plugin.hooks?.beforeTool?.({
+				toolCall: {
+					toolName: `${COMPUTER_USE_DESKTOP_SERVER_NAME}__type`,
+				},
+				input: { text: "hello" },
+			} as never);
+			expect(backgroundViolation).toEqual({
+				skip: true,
+				reason: expect.stringContaining("background-only macOS"),
+			});
+
+			const allowed = plugin.hooks?.beforeTool?.({
+				toolCall: {
+					toolName: `${COMPUTER_USE_DESKTOP_SERVER_NAME}__inspect_ui`,
+				},
+				input: { app_target: "Slack" },
+			} as never);
+			expect(allowed).toBeUndefined();
+		} finally {
+			if (platformDescriptor) {
+				Object.defineProperty(process, "platform", platformDescriptor);
+			}
+			if (previousOverride === undefined) {
+				delete process.env.CLINE_COMPUTER_USE_BACKEND;
+			} else {
+				process.env.CLINE_COMPUTER_USE_BACKEND = previousOverride;
+			}
+		}
+	});
 });
 
 describe("computer-use backend selection", () => {
@@ -164,6 +242,14 @@ describe("Peekaboo tool policy", () => {
 			["window", { action: "focus", app: "Slack" }],
 			["app", { action: "launch", name: "Slack" }],
 			["space", { action: "switch", to: 2 }],
+			["space", { action: "move-window", app: "Safari", to_current: true }],
+			["dock", { action: "hide" }],
+			["dock", { action: "launch", app: "Slack" }],
+			["perform_action", { on: "elem_3", action: "AXRaise" }],
+			["perform_action", { on: "elem_3", action: "AXShowMenu" }],
+			["perform_action", { on: "elem_3" }],
+			["see", { app_target: "Slack", capture_focus: "foreground" }],
+			["see", { app_target: "Slack", max_dimension: 4000 }],
 			["move", { to: "100,200" }],
 			["click", { on: "elem_1", foreground: true }],
 		] as const) {
@@ -207,6 +293,10 @@ describe("Peekaboo tool policy", () => {
 			["set_value", { on: "elem_2", value: "hello" }],
 			["perform_action", { on: "elem_3", action: "AXPress" }],
 			["scroll", { on: "elem_4", snapshot: "snapshot-1", direction: "down" }],
+			["space", { action: "list" }],
+			["dock", { action: "list" }],
+			["see", { app_target: "Slack" }],
+			["see", { app_target: "Slack", capture_focus: "background" }],
 			[
 				"image",
 				{
@@ -242,6 +332,10 @@ describe("Peekaboo tool policy", () => {
 					format: "data",
 					max_dimension: 2000,
 				},
+			],
+			[
+				"image",
+				{ app_target: "Slack", capture_focus: "background", format: "data" },
 			],
 			["dialog", { action: "list", app: "Slack" }],
 			["dialog", { action: "click", app: "Slack", button: "Save" }],

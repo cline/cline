@@ -50,6 +50,7 @@ export const PLAYWRIGHT_MCP_ARGS = [
 ] as const;
 export const PLAYWRIGHT_BLOCKED_TOOL_NAMES = [
 	"browser_run_code_unsafe",
+	"browser_file_upload",
 ] as const;
 export const PEEKABOO_ALLOWED_TOOL_NAMES = [
 	"app",
@@ -74,6 +75,13 @@ export const PEEKABOO_ALLOWED_TOOL_NAMES = [
 	"swipe",
 	"type",
 	"window",
+] as const;
+export const PEEKABOO_ALLOWED_AX_ACTIONS = [
+	"AXPress",
+	"AXConfirm",
+	"AXCancel",
+	"AXIncrement",
+	"AXDecrement",
 ] as const;
 
 const computerUseBrowserToolPrefix = `${COMPUTER_USE_BROWSER_SERVER_NAME}__`;
@@ -227,16 +235,28 @@ export function enforcePeekabooBackgroundPolicy(
 			}
 			break;
 		case "space":
-			if (args.action === "switch" || args.follow === true) {
+			if (args.action !== "list" || args.follow === true) {
 				return backgroundOnlyReason(
-					"switching to or following another Space would replace the user's current desktop.",
+					`space action '${String(args.action)}' can switch Spaces or move windows across them, replacing or disrupting the user's current desktop. Only space list is allowed.`,
 				);
 			}
 			break;
 		case "dock":
-			if (args.action === "launch" || args.action === "right-click") {
+			if (args.action !== "list") {
 				return backgroundOnlyReason(
-					`dock action '${String(args.action)}' requires foreground desktop interaction.`,
+					`dock action '${String(args.action)}' mutates the user's Dock or requires foreground desktop interaction. Only dock list is allowed.`,
+				);
+			}
+			break;
+		case "perform_action":
+			if (
+				typeof args.action !== "string" ||
+				!PEEKABOO_ALLOWED_AX_ACTIONS.includes(
+					args.action as (typeof PEEKABOO_ALLOWED_AX_ACTIONS)[number],
+				)
+			) {
+				return backgroundOnlyReason(
+					`perform_action '${String(args.action)}' is not an allowlisted accessibility action; actions such as AXRaise or AXShowMenu can take focus or open foreground UI. Allowed: ${PEEKABOO_ALLOWED_AX_ACTIONS.join(", ")}.`,
 				);
 			}
 			break;
@@ -284,11 +304,29 @@ export function enforcePeekabooBackgroundPolicy(
 				);
 			}
 			if (
+				typeof args.max_dimension !== "number" ||
+				args.max_dimension > 1_568
+			) {
+				return backgroundOnlyReason(
+					"image must set max_dimension to 1,568 pixels or less; omitting it returns full-resolution captures that break the model's coordinate space.",
+				);
+			}
+			break;
+		case "see":
+			if (
+				args.capture_focus !== undefined &&
+				args.capture_focus !== "background"
+			) {
+				return backgroundOnlyReason(
+					"see must not request non-background capture focus, which can activate the target application.",
+				);
+			}
+			if (
 				typeof args.max_dimension === "number" &&
 				args.max_dimension > 1_568
 			) {
 				return backgroundOnlyReason(
-					"image max_dimension must be 1,568 pixels or less to preserve the model's coordinate space.",
+					"see max_dimension must be 1,568 pixels or less to preserve the model's coordinate space.",
 				);
 			}
 			break;
@@ -385,7 +423,7 @@ const plugin: AgentPlugin = {
 									]
 								: [
 										"Keep macOS desktop work in the background. Do not focus, switch, launch, relaunch, or unhide apps; focus windows; switch Spaces; move the real pointer; request foreground input; mutate dialogs; or send keyboard events.",
-										"Use app list to find already-running apps, then inspect_ui or see and use set_value or perform_action. Element clicks and scrolls must include both an element target and the snapshot that produced it. Image captures must use capture_focus='background', format='data', and max_dimension no greater than 1,568.",
+										"Use app list to find already-running apps, then inspect_ui or see and use set_value or perform_action (allowed accessibility actions: AXPress, AXConfirm, AXCancel, AXIncrement, AXDecrement). space and dock support only their list actions. Element clicks and scrolls must include both an element target and the snapshot that produced it. Image captures must set capture_focus='background', format='data', and an explicit max_dimension no greater than 1,568; see captures must not request non-background focus.",
 									]),
 							...(foregroundComputerUseAllowed
 								? [
@@ -415,7 +453,7 @@ const plugin: AgentPlugin = {
 			if (!isAllowedPlaywrightTool(toolCall.toolName)) {
 				return {
 					skip: true,
-					reason: `${toolCall.toolName} is blocked by the computer-use plugin because it can execute arbitrary code in the Playwright server process. Use the bounded browser interaction tools instead.`,
+					reason: `${toolCall.toolName} is blocked by the computer-use plugin because it can execute arbitrary code or read and upload arbitrary local files from the Playwright server process. Use the bounded browser interaction tools instead.`,
 				};
 			}
 			if (backend === "peekaboo" && !isAllowedPeekabooTool(toolCall.toolName)) {

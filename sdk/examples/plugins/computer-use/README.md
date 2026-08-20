@@ -50,15 +50,20 @@ use the pixel backend instead of Peekaboo.
 ### Background control on macOS
 
 Peekaboo desktop control is background-only by default. The plugin blocks app
-and window focus, foreground input, Space switches, real-pointer movement, and
+and window focus, foreground input, real-pointer movement, and
 process-targeted keyboard delivery, because a process target does not identify
-which field currently owns keyboard focus. Prefer `see` or `inspect_ui`, then
-use `set_value` or `perform_action` on accessibility elements. Element clicks
-and scrolls require both an element and its originating snapshot. Image capture
-must use `capture_focus: "background"`, `format: "data"`, and a
-`max_dimension` no greater than 1,568. All dialog commands are blocked because
-Peekaboo auto-focuses their target; `inspect_ui` can inspect dialogs without
-that focus path.
+which field currently owns keyboard focus. `space` and `dock` allow only their
+`list` actions (no Space switches, cross-Space window moves, or Dock
+mutation). Prefer `see` or `inspect_ui`, then use `set_value` or
+`perform_action` on accessibility elements; `perform_action` accepts only the
+non-focusing accessibility actions `AXPress`, `AXConfirm`, `AXCancel`,
+`AXIncrement`, and `AXDecrement`. Element clicks and scrolls require both an
+element and its originating snapshot. Image capture must use
+`capture_focus: "background"`, `format: "data"`, and an explicit
+`max_dimension` no greater than 1,568; `see` captures must not request a
+non-background focus and honor the same `max_dimension` bound. All dialog
+commands are blocked because Peekaboo auto-focuses their target; `inspect_ui`
+can inspect dialogs without that focus path.
 
 Some applications do not accept background input. If foreground control is
 essential, explain why and get the user's approval first. The user can then
@@ -76,6 +81,9 @@ macOS pointer for that session.
 Browser tools are exposed under `computer-use-browser` and desktop tools under
 `computer-use-desktop`. Distinct namespaces let the agent choose the appropriate
 backend and use both during tasks that cross the browser/desktop boundary.
+Playwright's `browser_run_code_unsafe` (RCE-equivalent server-process code
+execution) and `browser_file_upload` (absolute-path local file read and upload)
+are hard-blocked in the plugin's `beforeTool` hook.
 
 On macOS, the plugin exposes Peekaboo's bounded native UI tools, including
 `permissions`, `see`, `inspect_ui`, `click`, `type`, `app`, and `window`.
