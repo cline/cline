@@ -55,6 +55,7 @@ import {
 	MarketplaceView,
 } from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
 
@@ -205,7 +206,15 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 	};
 }
 
-export function McpServersContent() {
+export function McpServersContent({
+	chrome = "page",
+	onInventoryChanged,
+}: {
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Invoked whenever the server list is (re)loaded or mutated. */
+	onInventoryChanged?: () => void;
+} = {}) {
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
@@ -228,11 +237,15 @@ export function McpServersContent() {
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
-	const applyResponse = useCallback((response: McpServersResponse) => {
-		setServers(response.servers);
-		setSettingsPath(response.settingsPath);
-		setHasSettingsFile(response.hasSettingsFile);
-	}, []);
+	const applyResponse = useCallback(
+		(response: McpServersResponse) => {
+			setServers(response.servers);
+			setSettingsPath(response.settingsPath);
+			setHasSettingsFile(response.hasSettingsFile);
+			onInventoryChanged?.();
+		},
+		[onInventoryChanged],
+	);
 
 	const setServerActionError = useCallback(
 		(serverName: string, message?: string) => {
@@ -273,6 +286,17 @@ export function McpServersContent() {
 		}, 0);
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshServers]);
+
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refreshServers();
+			}),
+		[refreshServers],
+	);
 
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
 		setBusyServerName(server.name);
@@ -717,42 +741,55 @@ export function McpServersContent() {
 		}),
 	);
 
-	return (
-		<PageFrame>
-			<PageHeader
-				description={
-					hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."
-				}
-				title="MCP Servers"
-				meta={
-					<>
-						<CommandBadge>cline config mcp</CommandBadge>
-						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-							From settings file
-						</span>
-					</>
-				}
-				actions={
-					<>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => void refreshServers()}
-							disabled={isLoading}
-						>
-							<RefreshCw
-								className={cn("h-4 w-4", isLoading && "animate-spin")}
-							/>
-						</Button>
-						<Button size="sm" onClick={openCreateDialog}>
-							<Plus className="h-4 w-4" />
-							Add MCP Server
-						</Button>
-					</>
-				}
-			/>
+	const headerActions = (
+		<>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => void refreshServers()}
+				disabled={isLoading}
+			>
+				<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+			</Button>
+			<Button size="sm" onClick={openCreateDialog}>
+				<Plus className="h-4 w-4" />
+				Add MCP Server
+			</Button>
+		</>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={
+						hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."
+					}
+					title="MCP Servers"
+					meta={
+						<>
+							<CommandBadge>cline config mcp</CommandBadge>
+							<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+								From settings file
+							</span>
+						</>
+					}
+					actions={headerActions}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."}
+					</p>
+					<div className="flex shrink-0 items-center gap-2">
+						{headerActions}
+					</div>
+				</div>
+			)}
 
 			<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span>MCP settings path:</span>
@@ -776,6 +813,7 @@ export function McpServersContent() {
 				installedItems={installedItems}
 				onInstalledItemsChanged={() => refreshServers()}
 				primitive="mcp"
+				variant={chrome === "embedded" ? "installed" : "full"}
 			/>
 			<Dialog
 				open={editorOpen}
@@ -1144,6 +1182,12 @@ export function McpServersContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }

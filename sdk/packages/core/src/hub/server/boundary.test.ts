@@ -949,6 +949,7 @@ describe("HubServerTransport boundaries", () => {
 			payload: {
 				metadata: {
 					hubCapabilityOwnerClientId: "attacker-client",
+					autoApproveTools: true,
 					title: "safe title",
 				},
 			},

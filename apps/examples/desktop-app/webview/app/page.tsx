@@ -912,6 +912,7 @@ export default function Home() {
 							onNavigateBack={handleNavigateBack}
 							onNavigateForward={handleNavigateForward}
 							onNewThread={handleNewThread}
+							onOpenSessionById={handleOpenSessionById}
 							realtimeVoiceControl={
 								<RealtimeVoiceOverlay
 									bridge={
@@ -930,6 +931,11 @@ export default function Home() {
 							setView={handleViewChange}
 							settingsSection={settingsSection}
 							view={view}
+							workspaceRoot={
+								activeThread?.historySession?.workspaceRoot ||
+								activeThread?.historySession?.cwd ||
+								historyWorkspacePaths[0]
+							}
 							canNavigateBack={navigation.back.length > 0}
 							canNavigateForward={navigation.forward.length > 0}
 						/>
@@ -2968,6 +2974,7 @@ function ChatThreadPane({
 						) : undefined
 					}
 					onListGitBranches={listGitBranches}
+					onOpenSession={onOpenSessionById}
 					onSwitchGitBranch={switchGitBranch}
 					executionTarget={isCloudSession ? "cloud" : "local"}
 					repoUrl={config.repoUrl ?? ""}

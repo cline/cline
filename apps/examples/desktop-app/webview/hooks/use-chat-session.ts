@@ -3361,6 +3361,10 @@ export function useChatSession(environmentId: string) {
 						sessionId: session.sessionId,
 						hydrationStartedAt,
 					});
+					// Hub attachment starts forwarding future events but does not
+					// replay the tool.started event for a command already in flight.
+					// Rebuild its routing key from canonical history before those
+					// future updates can arrive.
 					const liveToolState = deriveLiveToolState(mergedMessages);
 					liveToolMessageIdsRef.current = liveToolState.messageIds;
 					liveToolInputsRef.current = liveToolState.inputs;

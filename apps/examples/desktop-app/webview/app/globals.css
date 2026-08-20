@@ -59,26 +59,6 @@
  * @cline/ui (components/markdown.css and agent-chat.css), shared with the
  * cloud dashboard so both products render assistant output identically. */
 
-.cline-thinking-slider-shimmer {
-	background-image: linear-gradient(
-		105deg,
-		transparent 20%,
-		color-mix(in oklab, var(--primary-foreground) 45%, transparent) 42%,
-		color-mix(in oklab, var(--primary-foreground) 70%, transparent) 50%,
-		color-mix(in oklab, var(--primary-foreground) 45%, transparent) 58%,
-		transparent 80%
-	);
-	background-position: 180% 0;
-	background-size: 220% 100%;
-	animation: cline-thinking-slider-shimmer 1.8s ease-in-out infinite;
-}
-
-@keyframes cline-thinking-slider-shimmer {
-	to {
-		background-position: -180% 0;
-	}
-}
-
 /* Softens the welcome <-> conversation swap: the hero and the message grid
  * replace each other in a single commit, which otherwise reads as a hard
  * white flash. Plays whenever the element (re)becomes visible — display:none
@@ -99,10 +79,6 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.cline-thinking-slider-shimmer {
-		display: none;
-	}
-
 	.cline-view-enter {
 		animation: none;
 	}

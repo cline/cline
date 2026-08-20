@@ -147,9 +147,27 @@ export interface EnterpriseStatusRequest {
 
 export type EnterpriseStatusResponse = EnterpriseSyncResponse;
 
+/** Which tier of the Cline recommended-models feed featured a model. */
+export type ProviderModelFeaturedTier = "recommended" | "free" | "subscribed";
+
+export interface ProviderModelFeatured {
+	tier: ProviderModelFeaturedTier;
+	/** Position within the tier, preserving the feed's intentional order. */
+	rank: number;
+	/** Feed marketing tags, e.g. "NEW" or "BEST". */
+	tags: string[];
+}
+
 export interface ProviderModel {
 	id: string;
 	name: string;
+	description?: string;
+	/**
+	 * Present when the Cline recommended-models feed features this model
+	 * (cline / cline-pass providers only), so pickers can lead with the
+	 * feed's tiers without fetching and joining the feed themselves.
+	 */
+	featured?: ProviderModelFeatured;
 	operation?: ModelOperation;
 	contextWindow?: number;
 	supportsAttachments?: boolean;

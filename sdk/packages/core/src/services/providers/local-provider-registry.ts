@@ -224,6 +224,7 @@ export function toProviderModel(
 	info: Pick<
 		ModelInfo,
 		| "name"
+		| "description"
 		| "contextWindow"
 		| "capabilities"
 		| "thinkingConfig"
@@ -235,6 +236,7 @@ export function toProviderModel(
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.description ? { description: info.description } : {}),
 		operation: info.operation,
 		...(info.contextWindow !== undefined
 			? { contextWindow: info.contextWindow }

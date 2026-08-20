@@ -26,6 +26,7 @@ import {
 	createUserInstructionConfigService,
 	ensureCustomProvidersLoaded,
 	executeClineAccountAction,
+	fetchClineRecommendedModels,
 	getCoreBuiltinToolCatalog,
 	getLocalProviderModels,
 	listHookConfigFiles,
@@ -92,6 +93,7 @@ import {
 	findSessionRuntimeBinding,
 	getRuntimeBinding,
 	resolveSidecarAskQuestion,
+	sendEventToClient,
 } from "./context";
 import {
 	readDesktopSettings,
@@ -145,6 +147,7 @@ import type {
 	ChatSessionCommandRequest,
 	JsonRecord,
 	SidecarContext,
+	SidecarWebSocketClient,
 } from "./types";
 import { LOCAL_ENVIRONMENT_ID } from "./types";
 import { pickWorkspaceDirectory } from "./workspace-picker";
@@ -1112,6 +1115,43 @@ async function handleRoutineScheduleCommand(
 }
 
 // ---------------------------------------------------------------------------
+// Agenda task queue helpers (in-process via shared hub server)
+// ---------------------------------------------------------------------------
+
+const AGENDA_TASK_COMMANDS = new Set([
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
+]);
+
+const AGENDA_TASK_EXECUTION_COMMANDS = new Set([
+	"task.create",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.set",
+]);
+
+async function handleAgendaTaskCommand(
+	ctx: SidecarContext,
+	command: string,
+	args?: Record<string, unknown>,
+): Promise<unknown> {
+	const hubClient = await ensureSharedHubClient(ctx);
+	const reply = await hubClient.command(command as never, args);
+	if (!reply.ok) {
+		throw new Error(reply.error?.message ?? `hub command failed: ${command}`);
+	}
+	return reply.payload ?? {};
+}
+
+// ---------------------------------------------------------------------------
 // User instruction config listing through the core config service.
 // ---------------------------------------------------------------------------
 
@@ -1519,7 +1559,7 @@ export async function handleCommand(
 	ctx: SidecarContext,
 	command: string,
 	args?: Record<string, unknown>,
-	options?: { connection?: object },
+	options?: { connection?: SidecarWebSocketClient },
 ): Promise<unknown> {
 	// ── SSH remote environments ──────────────────────────────────────
 	if (command === "list_remote_environments") {
@@ -1856,8 +1896,16 @@ export async function handleCommand(
 	// ── Tool approvals (in-memory) ────────────────────────────────────
 	if (command === "poll_tool_approvals") {
 		const sessionId = String(args?.sessionId ?? "").trim();
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
+		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1866,20 +1914,36 @@ export async function handleCommand(
 		if (!sessionId || !requestId) {
 			throw new Error("sessionId and requestId are required");
 		}
-		const pending = ctx.pendingApprovals.get(requestId);
-		if (pending) {
-			await pending.resolve({
-				approved: Boolean(args?.approved),
-				...(typeof args?.reason === "string" && args.reason.trim().length > 0
-					? { reason: args.reason.trim() }
-					: {}),
-			});
+		const connection = options?.connection;
+		if (!connection?.data?.canApproveTools) {
+			throw new Error("tool approvals require a trusted desktop connection");
 		}
+		const pending = ctx.pendingApprovals.get(requestId);
+		// Ownerless approvals are cloud-session relays: any trusted surface may
+		// answer them (the pod outlives individual desktop connections).
+		if (!pending || (pending.owner && pending.owner !== connection)) {
+			throw new Error("tool approval does not belong to this connection");
+		}
+		if (pending.item.sessionId !== sessionId) {
+			throw new Error("tool approval does not belong to this session");
+		}
+		// Cloud approvals resolve asynchronously (they relay the answer to the
+		// pod) and may throw; keep the entry pending if the relay fails.
+		await pending.resolve({
+			approved: Boolean(args?.approved),
+			...(typeof args?.reason === "string" && args.reason.trim().length > 0
+				? { reason: args.reason.trim() }
+				: {}),
+		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
-		broadcastEvent(ctx, "tool_approval_state", {
+		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
 			items: remaining,
 		});
@@ -2264,6 +2328,11 @@ export async function handleCommand(
 			manager.getProviderConfig(providerId),
 			{ loadLatest: providerId === "cline" },
 		);
+	}
+	if (command === "list_cline_recommended_models") {
+		// Tiered picker data (recommended / free / clinePass) with
+		// display-ready names; falls back to a bundled list offline.
+		return await fetchClineRecommendedModels();
 	}
 	if (command === "create_mode_session") {
 		const mode = ProviderSessionModeSchema.parse(args?.mode);
@@ -2880,6 +2949,17 @@ export async function handleCommand(
 		command === "delete_routine_schedule"
 	) {
 		return await handleRoutineScheduleCommand(ctx, command, args);
+	}
+
+	// ── Agenda task queue ─────────────────────────────────────────────
+	if (AGENDA_TASK_COMMANDS.has(command)) {
+		if (
+			AGENDA_TASK_EXECUTION_COMMANDS.has(command) &&
+			!options?.connection?.data?.canApproveTools
+		) {
+			throw new Error("task execution requires a trusted desktop connection");
+		}
+		return await handleAgendaTaskCommand(ctx, command, args);
 	}
 
 	// ── User instruction configs ──────────────────────────────────────
