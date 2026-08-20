@@ -53,7 +53,7 @@ import { filterExtensionToolRegistrations } from "./global-settings";
 import {
 	generateConfiguredMedia,
 	resolveConfiguredMediaGenerationTarget,
-} from "./providers/local-provider-service";
+} from "./providers/media-generation-service";
 import { hasRuntimeHooks, mergeAgentExtensions } from "./session-data";
 import type { ProviderSettingsManager } from "./storage/provider-settings-manager";
 import { InMemoryWorkspaceManager } from "./workspace/workspace-manager";
