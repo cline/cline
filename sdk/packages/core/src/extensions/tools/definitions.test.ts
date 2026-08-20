@@ -631,6 +631,36 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("accepts cmd-aliased entries inside a commands array", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string }) =>
+				`ran:${typeof command === "string" ? command : command.command}`,
+		);
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: [{ cmd: "git status --short" }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "git status --short",
+				result: "ran:git status --short",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			expect.objectContaining({ command: "git status --short" }),
+			process.cwd(),
+			expect.objectContaining({ agentId: "agent-1" }),
+		);
+	});
+
 	it("accepts structured commands and preserves argv", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string; args?: string[] }) =>

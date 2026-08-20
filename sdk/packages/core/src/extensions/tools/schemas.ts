@@ -141,9 +141,23 @@ export const StructuredCommandInputSchema = z.object({
 		.describe("Optional argv list passed directly to the executable."),
 });
 
+// Models frequently key a structured entry as `{ cmd }` instead of `{ command }`.
+// The union already accepts `{ cmd }` at the top level (RunCommandsInputUnionSchema);
+// accept and normalize it inside a `commands` array too, so a mixed/aliased array
+// entry does not fail validation with "Invalid input" and render as `[object Object]`.
+const StructuredCommandAliasInputSchema = z
+	.object({
+		cmd: z
+			.string()
+			.min(1)
+			.describe("Alias for `command` - the executable to run directly."),
+	})
+	.transform(({ cmd }) => ({ command: cmd }));
+
 export const StructuredCommandEntrySchema = z.union([
 	CommandInputSchema,
 	StructuredCommandInputSchema,
+	StructuredCommandAliasInputSchema,
 ]);
 
 export const RunCommandsInputSchema = z.object({
