@@ -81,6 +81,11 @@ import {
 	type SessionHistoryItem,
 	type SessionMetadata,
 } from "@/lib/session-history";
+import {
+	buildActiveSessionMonitors,
+	monitorSuppressionKey,
+	pruneMonitorSuppressions,
+} from "@/lib/session-monitors";
 import { syncHubAccent, syncHubTheme, watchSystemHubTheme } from "@/lib/theme";
 import {
 	filterWorkspacePaths,
@@ -1418,6 +1423,60 @@ function ChatThreadPane({
 			}),
 		[agents, derivedAgentActivity, isSessionActive],
 	);
+	const activeMonitors = useMemo(
+		() => buildActiveSessionMonitors(displayedMessages),
+		[displayedMessages],
+	);
+	const [manuallyStoppedMonitors, setManuallyStoppedMonitors] = useState<
+		Set<string>
+	>(() => new Set());
+	// Once a stopped monitor's terminal marker lands in the transcript its
+	// suppression has done its job. Monitor ids restart at mon_1 with every
+	// runtime rebuild, so a stale key would hide an unrelated future monitor.
+	useEffect(() => {
+		setManuallyStoppedMonitors((current) =>
+			pruneMonitorSuppressions(current, activeMonitors, displayedSessionId),
+		);
+	}, [activeMonitors, displayedSessionId]);
+	const visibleActiveMonitors = useMemo(
+		() =>
+			activeMonitors.filter(
+				(monitor) =>
+					!manuallyStoppedMonitors.has(
+						monitorSuppressionKey(displayedSessionId, monitor.id),
+					),
+			),
+		[activeMonitors, displayedSessionId, manuallyStoppedMonitors],
+	);
+	const handleStopMonitor = useCallback(
+		async (monitorId: string) => {
+			if (!displayedSessionId) {
+				throw new Error("No active session.");
+			}
+			try {
+				const response = await desktopClient.invoke<{ stopped?: boolean }>(
+					"stop_monitor",
+					{ sessionId: displayedSessionId, monitorId },
+				);
+				if (!response.stopped) {
+					throw new Error("The monitor is no longer running.");
+				}
+				setManuallyStoppedMonitors((current) =>
+					new Set(current).add(
+						monitorSuppressionKey(displayedSessionId, monitorId),
+					),
+				);
+			} catch (error) {
+				toast({
+					title: "Unable to stop monitor",
+					description: error instanceof Error ? error.message : String(error),
+					variant: "destructive",
+				});
+				throw error;
+			}
+		},
+		[displayedSessionId],
+	);
 	// A child agent has its own session row, so opening it goes through the same
 	// path as any other session — it is just never listed in the sidebar.
 	const onOpenAgentSession = useCallback(
@@ -1576,6 +1635,7 @@ function ChatThreadPane({
 				{!isWelcomeState ? (
 					<div className="cline-view-enter z-20 border-b border-border/70 bg-background/85 backdrop-blur-sm">
 						<AgentHeader
+							activeMonitors={visibleActiveMonitors}
 							agentActivity={agentActivity}
 							agents={agents}
 							agentsError={agentsError}
@@ -1583,6 +1643,7 @@ function ChatThreadPane({
 							onAgentsOpenChange={setAgentPanelOpen}
 							onOpenAgentSession={onOpenAgentSession}
 							onOpenParentSession={onOpenSessionById}
+							onStopMonitor={handleStopMonitor}
 							parentSession={hideDeletedSessionUi ? undefined : parentSession}
 							canEditTitle={Boolean(activeSessionForTitle)}
 							canDeleteSession={Boolean(activeSessionToDelete)}

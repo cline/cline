@@ -1187,6 +1187,26 @@ export async function handleCommand(
 					: 0,
 		};
 	}
+	if (command === "stop_monitor") {
+		const sessionId = String(args?.sessionId ?? "").trim();
+		const monitorId = String(args?.monitorId ?? "").trim();
+		if (!sessionId || !monitorId) {
+			throw new Error("sessionId and monitorId are required");
+		}
+		const hubClient = await ensureSharedHubClient(
+			ctx,
+			ctx.sessionManager?.runtimeAddress,
+		);
+		const reply = await hubClient.command(
+			"run.stop_monitor",
+			{ sessionId, monitorId },
+			sessionId,
+		);
+		if (!reply.ok) {
+			throw new Error(reply.error?.message ?? "Could not stop monitor.");
+		}
+		return { stopped: reply.payload?.stopped === true };
+	}
 
 	// ── Session data reading ──────────────────────────────────────────
 	if (command === "read_session_messages") {

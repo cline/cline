@@ -602,6 +602,16 @@ describe("formatMonitorNotification", () => {
 		expect(formatted.split("</monitor-output>").length - 1).toBe(1);
 	});
 
+	it("attributes a UI-initiated stop to the user", () => {
+		expect(
+			formatMonitorNotification({
+				...base,
+				lines: [],
+				exit: { status: "stopped", stoppedBy: "user" },
+			}),
+		).toContain("[monitor mon_1 stopped by the user]");
+	});
+
 	it("keeps watched output from escaping the untrusted region", () => {
 		// A watched log is attacker-influenced: anything that could close the
 		// fence and resume as trusted framing has to be neutralized.

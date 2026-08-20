@@ -52,6 +52,7 @@ export interface BuiltRuntime {
 	extensions?: AgentConfig["extensions"];
 	completionPolicy?: AgentConfig["completionPolicy"];
 	registerLeadAgent?: (agent: LeadAgentHandle) => void;
+	stopMonitor?: (monitorId: string) => Promise<boolean>;
 	shutdown: (reason: string) => Promise<void> | void;
 }
 

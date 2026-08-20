@@ -394,6 +394,33 @@ export async function handleRunProceedWhileRunning(
 	return okReply(envelope, { detachedCount });
 }
 
+export async function handleRunStopMonitor(
+	ctx: HubTransportContext,
+	envelope: HubCommandEnvelope,
+): Promise<HubReplyEnvelope> {
+	const sessionId = extractSessionId(envelope);
+	const monitorId =
+		typeof envelope.payload?.monitorId === "string"
+			? envelope.payload.monitorId.trim()
+			: "";
+	if (!sessionId || !monitorId) {
+		return errorReply(
+			envelope,
+			"invalid_monitor_request",
+			"run.stop_monitor requires a sessionId and monitorId",
+		);
+	}
+	if (typeof ctx.sessionHost.stopMonitor !== "function") {
+		return errorReply(
+			envelope,
+			"unsupported_command",
+			"This runtime does not support stopping monitors.",
+		);
+	}
+	const stopped = await ctx.sessionHost.stopMonitor(sessionId, monitorId);
+	return okReply(envelope, { stopped });
+}
+
 export async function handleSessionHook(
 	ctx: HubTransportContext,
 	envelope: HubCommandEnvelope,

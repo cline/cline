@@ -1161,6 +1161,14 @@ export class LocalRuntimeHost implements RuntimeHost {
 		);
 	}
 
+	async stopMonitor(sessionId: string, monitorId: string): Promise<boolean> {
+		const session = this.sessions.get(sessionId);
+		if (!session) {
+			throw new SessionNotFoundError(sessionId);
+		}
+		return (await session.runtime.stopMonitor?.(monitorId)) ?? false;
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		const session = this.sessions.get(sessionId);
 		if (!session) return;

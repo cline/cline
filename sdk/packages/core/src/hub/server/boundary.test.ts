@@ -1578,6 +1578,22 @@ describe("HubServerTransport boundaries", () => {
 		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
 	});
 
+	it("stops a monitor through the hub command boundary", async () => {
+		const stopMonitor = vi.fn().mockResolvedValue(true);
+		const transport = createTransport({ sessionHost: { stopMonitor } });
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-stop-monitor",
+			command: "run.stop_monitor",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", monitorId: "mon_1" },
+		});
+
+		expect(reply).toMatchObject({ ok: true, payload: { stopped: true } });
+		expect(stopMonitor).toHaveBeenCalledWith("session-1", "mon_1");
+	});
+
 	it("projects an unreported non-recoverable agent error as run.failed", async () => {
 		const transport = createTransport({
 			sessionHost: {
