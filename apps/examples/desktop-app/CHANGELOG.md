@@ -1,4 +1,4 @@
-# Cline Code Desktop Changelog
+# Cline Desktop Changelog
 
 ## 0.0.14
 

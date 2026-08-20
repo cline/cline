@@ -226,6 +226,50 @@ describe("AgentRuntime", () => {
 		expect(eventTypes).toContain("tool-finished");
 	});
 
+	it("keeps a turn that is only provider-executed tool activity", async () => {
+		// No trailing text: the whole turn is observational activity. The
+		// empty-content guard must not reject it — the transcript would lose
+		// the activity, which lives in metadata rather than content.
+		const model = new ScriptedModel([
+			() => [
+				{
+					type: "tool-call-delta",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					execution: "provider",
+					input: { file_path: "/tmp/a.txt" },
+				},
+				{
+					type: "tool-result",
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					execution: "provider",
+					output: { content: "hello" },
+				},
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Read the file");
+
+		expect(result.status).toBe("completed");
+		const lastMessage = result.messages.at(-1);
+		expect(lastMessage?.role).toBe("assistant");
+		expect(lastMessage?.content).toEqual([]);
+		expect(lastMessage?.metadata).toEqual({
+			modelToolActivities: [
+				{
+					toolCallId: "cli_read_1",
+					toolName: "Read",
+					execution: "provider",
+					input: { file_path: "/tmp/a.txt" },
+					output: { content: "hello" },
+				},
+			],
+		});
+	});
+
 	it("stores generated model-tool media once and keeps activity metadata compact", async () => {
 		const data = "aGVsbG8=";
 		const model = new ScriptedModel([
