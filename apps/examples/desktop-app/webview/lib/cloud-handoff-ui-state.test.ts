@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { cloudHandoffUiReducer } from "./cloud-handoff-ui-state";
+import {
+	appendPendingHandoffPrompt,
+	cloudHandoffUiReducer,
+} from "./cloud-handoff-ui-state";
 
 describe("cloudHandoffUiReducer", () => {
 	it("keeps a source locked across pane remounts and preserves its latest phase", () => {
@@ -121,6 +124,47 @@ describe("cloudHandoffUiReducer", () => {
 			status: "progress",
 			phase: "checking",
 		});
+	});
+
+	it("shows the cloud instruction throughout handoff progress only", () => {
+		const started = cloudHandoffUiReducer(
+			{},
+			{
+				type: "start",
+				sourceSessionId: "local-1",
+				pendingPrompt: {
+					content: "continue in cloud",
+					submittedAt: 100,
+				},
+			},
+		);
+		const provisioning = cloudHandoffUiReducer(started, {
+			type: "progress",
+			sourceSessionId: "local-1",
+			phase: "provisioning",
+		});
+		const existing = [];
+		const displayed = appendPendingHandoffPrompt(
+			existing,
+			"local-1",
+			provisioning["local-1"],
+		);
+		expect(displayed).toHaveLength(1);
+		expect(displayed[0]).toMatchObject({
+			role: "user",
+			content: "continue in cloud",
+			createdAt: 100,
+			meta: { userRunSpan: 0 },
+		});
+
+		const failed = cloudHandoffUiReducer(provisioning, {
+			type: "failed",
+			sourceSessionId: "local-1",
+			exposeRecovery: false,
+		});
+		expect(
+			appendPendingHandoffPrompt(existing, "local-1", failed["local-1"]),
+		).toBe(existing);
 	});
 
 	it("reconciles an authoritative late completion after a webview failure", () => {

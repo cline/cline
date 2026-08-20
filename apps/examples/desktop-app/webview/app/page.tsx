@@ -73,6 +73,7 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
+	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
@@ -1986,6 +1987,9 @@ function ChatThreadPane({
 			onHandoffUiAction({
 				type: "start",
 				sourceSessionId,
+				pendingPrompt: nextCommand
+					? { content: nextCommand, submittedAt: Date.now() }
+					: undefined,
 			});
 			setPendingAttachments([]);
 			try {
@@ -2585,7 +2589,9 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)

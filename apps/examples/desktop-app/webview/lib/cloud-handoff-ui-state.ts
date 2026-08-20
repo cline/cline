@@ -1,4 +1,10 @@
+import type { ChatMessage } from "@/lib/chat-schema";
 import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
+
+type PendingHandoffPrompt = {
+	content: string;
+	submittedAt: number;
+};
 
 export type CloudHandoffUiEntry =
 	| {
@@ -6,6 +12,7 @@ export type CloudHandoffUiEntry =
 			phase: HandoffProgressPhase;
 			message?: string;
 			dashboardUrl?: string;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| {
 			status: "recovery";
@@ -28,6 +35,7 @@ export type CloudHandoffUiAction =
 	| {
 			type: "start";
 			sourceSessionId: string;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| {
 			type: "progress";
@@ -71,6 +79,9 @@ export function cloudHandoffUiReducer(
 				[action.sourceSessionId]: {
 					status: "progress",
 					phase: "checking",
+					...(action.pendingPrompt
+						? { pendingPrompt: action.pendingPrompt }
+						: {}),
 				},
 			};
 		case "progress":
@@ -109,6 +120,8 @@ export function cloudHandoffUiReducer(
 					dashboardUrl:
 						action.dashboardUrl ||
 						(current?.status === "progress" ? current.dashboardUrl : undefined),
+					pendingPrompt:
+						current?.status === "progress" ? current.pendingPrompt : undefined,
 				},
 			};
 		case "failed": {
@@ -179,4 +192,28 @@ export function cloudHandoffUiReducer(
 			}
 			return state;
 	}
+}
+
+export function appendPendingHandoffPrompt(
+	messages: ChatMessage[],
+	sourceSessionId: string | undefined,
+	handoff: CloudHandoffUiEntry | undefined,
+): ChatMessage[] {
+	if (!sourceSessionId || handoff?.status !== "progress") return messages;
+	const prompt = handoff.pendingPrompt;
+	if (!prompt) return messages;
+
+	const id = `handoff_prompt_${sourceSessionId}_${prompt.submittedAt}`;
+	if (messages.some((message) => message.id === id)) return messages;
+	return [
+		...messages,
+		{
+			id,
+			sessionId: sourceSessionId,
+			role: "user",
+			content: prompt.content,
+			createdAt: prompt.submittedAt,
+			meta: { userRunSpan: 0 },
+		},
+	];
 }
