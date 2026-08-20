@@ -167,6 +167,28 @@ describe("useSessionHistory initial load", () => {
 		expect(current.threads).toHaveLength(1);
 	});
 
+	it("stops fast retries when the hook unmounts mid-request", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+
+		// Unmount while the initial request is still in flight, then fail it:
+		// the retry continuation must not re-arm the cleared refresh timer.
+		await act(async () => root.unmount());
+		await act(async () => {
+			pendingLists[0].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+
+		await flush(3_000);
+		expect(pendingLists).toHaveLength(1);
+
+		// Fresh root so the shared afterEach unmount stays valid.
+		root = createRoot(container);
+	});
+
 	it("does not schedule fast retries once history has loaded", async () => {
 		await act(async () => {
 			root.render(<HookHarness />);

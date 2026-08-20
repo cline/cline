@@ -526,6 +526,10 @@ export function useSessionHistory({
 	const refreshLimitRef = useRef(0);
 	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
+	// Guards scheduleRefresh against continuations that settle after unmount
+	// (e.g. the fast retry of a failed initial fetch), which would otherwise
+	// re-arm a timer the cleanup has already cleared and poll forever.
+	const disposedRef = useRef(false);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -675,6 +679,9 @@ export function useSessionHistory({
 
 	const scheduleRefresh = useCallback(
 		(delayMs = 0, options: { force?: boolean } = {}) => {
+			if (disposedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			const minTarget = options.force
 				? now
@@ -715,6 +722,7 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let disposed = false;
+		disposedRef.current = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
@@ -732,6 +740,7 @@ export function useSessionHistory({
 
 		return () => {
 			disposed = true;
+			disposedRef.current = true;
 			window.clearInterval(interval);
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
