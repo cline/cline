@@ -80,6 +80,7 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	pendingHandoffPromptCaughtUp,
 } from "@/lib/cloud-handoff-ui-state";
 import {
 	cloudRepositoryLabel,
@@ -2000,7 +2001,16 @@ function ChatThreadPane({
 				type: "start",
 				sourceSessionId,
 				pendingPrompt: nextCommand
-					? { content: nextCommand, submittedAt }
+					? {
+							content: nextCommand,
+							submittedAt,
+							occurrence:
+								messages.filter(
+									(message) =>
+										message.role === "user" &&
+										message.content.trim() === nextCommand,
+								).length + 1,
+						}
 					: undefined,
 			});
 			setPendingAttachments([]);
@@ -2065,6 +2075,7 @@ function ChatThreadPane({
 			config,
 			historySession?.sessionId,
 			isCloudSession,
+			messages,
 			pendingAttachments,
 			promptsInQueue.length,
 			runHandoff,
@@ -2604,6 +2615,14 @@ function ChatThreadPane({
 	const displayedMessages = hideDeletedSessionUi
 		? []
 		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
+	useEffect(() => {
+		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
+			onHandoffUiAction({
+				type: "prompt_reconciled",
+				sourceSessionId,
+			});
+		}
+	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)

@@ -4,6 +4,7 @@ import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
 type PendingHandoffPrompt = {
 	content: string;
 	submittedAt: number;
+	occurrence: number;
 	images?: ChatMessage["images"];
 };
 
@@ -24,6 +25,7 @@ export type CloudHandoffUiEntry =
 	| { status: "recovery_dismissed"; dashboardUrl: string }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
 	| { status: "retry_restored" }
+	| { status: "target_prompt"; pendingPrompt: PendingHandoffPrompt }
 	| {
 			status: "complete";
 			receipt: HandoffReceipt;
@@ -66,12 +68,36 @@ export type CloudHandoffUiAction =
 			externalPresentation: boolean;
 	  }
 	| { type: "external"; sourceSessionId: string }
+	| { type: "prompt_reconciled"; sourceSessionId: string }
 	| {
 			type: "dismiss_recovery";
 			sourceSessionId: string;
 			dashboardUrl: string;
 	  }
 	| { type: "retry_restored"; sourceSessionId: string };
+
+function completeHandoff(
+	state: CloudHandoffUiState,
+	sourceSessionId: string,
+	receipt: HandoffReceipt,
+	externalPresentation: boolean,
+): CloudHandoffUiState {
+	const current = state[sourceSessionId];
+	return {
+		...state,
+		[sourceSessionId]: { status: "complete", receipt, externalPresentation },
+		...(!externalPresentation &&
+		current?.status === "progress" &&
+		current.pendingPrompt
+			? {
+					[receipt.targetSessionId]: {
+						status: "target_prompt" as const,
+						pendingPrompt: current.pendingPrompt,
+					},
+				}
+			: {}),
+	};
+}
 
 export function cloudHandoffUiReducer(
 	state: CloudHandoffUiState,
@@ -110,17 +136,15 @@ export function cloudHandoffUiReducer(
 				action.sessionId?.trim() &&
 				action.dashboardUrl?.trim()
 			) {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						status: "complete",
-						receipt: {
-							targetSessionId: action.sessionId,
-							dashboardUrl: action.dashboardUrl,
-						},
-						externalPresentation: action.destination === "external",
+				return completeHandoff(
+					state,
+					action.sourceSessionId,
+					{
+						targetSessionId: action.sessionId,
+						dashboardUrl: action.dashboardUrl,
 					},
-				};
+					action.destination === "external",
+				);
 			}
 			if (
 				current?.status === "complete" ||
@@ -168,14 +192,12 @@ export function cloudHandoffUiReducer(
 			};
 		}
 		case "complete":
-			return {
-				...state,
-				[action.sourceSessionId]: {
-					status: "complete",
-					receipt: action.receipt,
-					externalPresentation: action.externalPresentation,
-				},
-			};
+			return completeHandoff(
+				state,
+				action.sourceSessionId,
+				action.receipt,
+				action.externalPresentation,
+			);
 		case "external":
 			return current?.status === "complete"
 				? {
@@ -186,6 +208,12 @@ export function cloudHandoffUiReducer(
 						},
 					}
 				: state;
+		case "prompt_reconciled": {
+			if (current?.status !== "target_prompt") return state;
+			const next = { ...state };
+			delete next[action.sourceSessionId];
+			return next;
+		}
 		case "dismiss_recovery":
 			return {
 				...state,
@@ -219,9 +247,15 @@ export function appendPendingHandoffPrompt(
 	sourceSessionId: string | undefined,
 	handoff: CloudHandoffUiEntry | undefined,
 ): ChatMessage[] {
-	if (!sourceSessionId || handoff?.status !== "progress") return messages;
+	if (
+		!sourceSessionId ||
+		(handoff?.status !== "progress" && handoff?.status !== "target_prompt")
+	) {
+		return messages;
+	}
 	const prompt = handoff.pendingPrompt;
 	if (!prompt) return messages;
+	if (pendingHandoffPromptCaughtUp(messages, handoff)) return messages;
 
 	const id = `handoff_prompt_${sourceSessionId}_${prompt.submittedAt}`;
 	if (messages.some((message) => message.id === id)) return messages;
@@ -237,4 +271,18 @@ export function appendPendingHandoffPrompt(
 			meta: { userRunSpan: 0 },
 		},
 	];
+}
+
+export function pendingHandoffPromptCaughtUp(
+	messages: ChatMessage[],
+	handoff: CloudHandoffUiEntry | undefined,
+): boolean {
+	if (handoff?.status !== "target_prompt") return false;
+	const expected = handoff.pendingPrompt.content.trim();
+	return (
+		messages.filter(
+			(message) =>
+				message.role === "user" && message.content.trim() === expected,
+		).length >= handoff.pendingPrompt.occurrence
+	);
 }

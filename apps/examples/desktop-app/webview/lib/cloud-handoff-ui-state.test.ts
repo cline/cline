@@ -126,7 +126,7 @@ describe("cloudHandoffUiReducer", () => {
 		});
 	});
 
-	it("shows the cloud instruction throughout handoff progress only", () => {
+	it("carries the cloud instruction from progress into the target session", () => {
 		const started = cloudHandoffUiReducer(
 			{},
 			{
@@ -135,6 +135,7 @@ describe("cloudHandoffUiReducer", () => {
 				pendingPrompt: {
 					content: "continue in cloud",
 					submittedAt: 100,
+					occurrence: 1,
 				},
 			},
 		);
@@ -173,6 +174,29 @@ describe("cloudHandoffUiReducer", () => {
 			],
 			meta: { userRunSpan: 0 },
 		});
+		const completed = cloudHandoffUiReducer(provisioning, {
+			type: "complete",
+			sourceSessionId: "local-1",
+			receipt: {
+				targetSessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			},
+			externalPresentation: false,
+		});
+		expect(
+			appendPendingHandoffPrompt([], "cloud-1", completed["cloud-1"])[0],
+		).toMatchObject({ content: "continue in cloud" });
+
+		const canonical = [{ ...displayed[0], id: "canonical-user" }];
+		expect(
+			appendPendingHandoffPrompt(canonical, "cloud-1", completed["cloud-1"]),
+		).toBe(canonical);
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "prompt_reconciled",
+				sourceSessionId: "cloud-1",
+			})["cloud-1"],
+		).toBeUndefined();
 
 		const failed = cloudHandoffUiReducer(provisioning, {
 			type: "failed",
