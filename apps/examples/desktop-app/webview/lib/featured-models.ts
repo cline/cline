@@ -182,19 +182,30 @@ export function buildModelPickerData(
 	if (providerId === "cline-pass") {
 		const subscribed = featuredOptions(featured.clinePass, "subscribed");
 		const free = featuredOptions(featured.free, "free", () => "Free");
-		const rest = models
-			.filter((model) => !usedIds.has(model.id))
-			.map((model) => ({
-				label: displayName(model),
-				section: "all",
-				value: model.id,
-			}))
-			.sort(byLabel);
 		if (subscribed.length === 0 && free.length === 0) {
 			return {
-				options: rest.map(({ section: _section, ...option }) => option),
+				options: models
+					.map((model) => ({ label: displayName(model), value: model.id }))
+					.sort(byLabel),
 			};
 		}
+		// The ClinePass offer is exactly the subscribed + free tiers (CLI
+		// parity). Catalog entries outside the feed are stale bundled/cached
+		// models, not part of the plan — hide them rather than advertise them
+		// under an "All models" tier. The full catalog only comes back when
+		// the subscribed bucket is empty (offline/degraded fallback), so a
+		// subscriber is never limited to free models.
+		const rest =
+			subscribed.length === 0
+				? models
+						.filter((model) => !usedIds.has(model.id))
+						.map((model) => ({
+							label: displayName(model),
+							section: "all",
+							value: model.id,
+						}))
+						.sort(byLabel)
+				: [];
 		return {
 			options: [...subscribed, ...free, ...rest],
 			sections: [

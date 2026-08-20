@@ -106,12 +106,14 @@ describe("buildModelPickerData", () => {
 		});
 	});
 
-	it("builds subscribed / free sections for cline-pass without an all tier", () => {
+	it("builds subscribed / free sections for cline-pass and hides stale catalog leftovers", () => {
 		const { options, sections } = buildModelPickerData(
 			"cline-pass",
 			[
 				model("cline-pass/kimi-k3", "Kimi K3"),
 				model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash"),
+				// Bundled/cached entry no longer part of the plan's offer.
+				model("nvidia/nemotron-ultra", "Nemotron Ultra"),
 			],
 			FEATURED,
 		);
@@ -123,6 +125,30 @@ describe("buildModelPickerData", () => {
 			"subscribed",
 			"free",
 		]);
+		expect(
+			options.some((option) => option.value === "nvidia/nemotron-ultra"),
+		).toBe(false);
+	});
+
+	it("falls back to the full cline-pass catalog when the subscribed tier is empty", () => {
+		const { options, sections } = buildModelPickerData(
+			"cline-pass",
+			[
+				model("deepseek/deepseek-v4-flash", "DeepSeek V4 Flash"),
+				model("nvidia/nemotron-ultra", "Nemotron Ultra"),
+			],
+			{ ...FEATURED, clinePass: [] },
+		);
+		expect(sections?.map((section) => section.id)).toEqual([
+			"subscribed",
+			"free",
+			"all",
+		]);
+		expect(options.map((option) => option.value)).toEqual([
+			"deepseek/deepseek-v4-flash",
+			"nvidia/nemotron-ultra",
+		]);
+		expect(options[1]?.section).toBe("all");
 	});
 
 	it("falls back to a flat name-sorted list when the feed is empty", () => {
