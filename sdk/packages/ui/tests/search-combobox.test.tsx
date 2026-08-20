@@ -66,6 +66,8 @@ describe("SearchCombobox", () => {
 
 		expect(onValueChange).toHaveBeenCalledWith("core-platform");
 		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		// Selecting by click must hand focus back to the trigger, not <body>.
+		expect(document.activeElement).toBe(trigger);
 	});
 
 	it("closes on Escape and returns focus to the trigger", async () => {
@@ -135,6 +137,37 @@ describe("SearchCombobox", () => {
 		});
 		expect(onValueChange).toHaveBeenCalledWith("core-platform");
 		expect(container.querySelector('[role="dialog"]')).toBeNull();
+		// Selecting by Enter must hand focus back to the trigger, not <body>.
+		expect(document.activeElement).toBe(container.querySelector("button"));
+	});
+
+	it("closes the popup when Tab moves focus out of the component", async () => {
+		const onValueChange = vi.fn();
+		await act(async () =>
+			root.render(
+				<SearchCombobox
+					ariaLabel="Repository"
+					onValueChange={onValueChange}
+					options={options}
+					value="cline"
+				/>,
+			),
+		);
+
+		const trigger = container.querySelector("button");
+		await act(async () => trigger?.click());
+		expect(container.querySelector('[role="dialog"]')).not.toBeNull();
+
+		const search = container.querySelector("input");
+		await act(async () => {
+			search?.dispatchEvent(
+				new KeyboardEvent("keydown", { bubbles: true, key: "Tab" }),
+			);
+		});
+
+		expect(container.querySelector('[role="dialog"]')).toBeNull();
+		expect(trigger?.getAttribute("aria-expanded")).toBe("false");
+		expect(onValueChange).not.toHaveBeenCalled();
 	});
 
 	it("renders section headers and badges, and flattens while searching", async () => {
