@@ -16,6 +16,22 @@ import type { SidecarContext } from "./types";
 
 type RecordValue = Record<string, unknown>;
 
+const MARKETPLACE_CATALOG_URL =
+	process.env.CLINE_MARKETPLACE_CATALOG_URL?.trim() ||
+	"https://cline.github.io/marketplace/catalog.json";
+
+async function marketplaceCatalog(): Promise<unknown> {
+	const response = await fetch(MARKETPLACE_CATALOG_URL, {
+		headers: { Accept: "application/json" },
+	});
+	if (!response.ok) {
+		throw new Error(
+			`Failed to fetch marketplace catalog: ${response.status} ${response.statusText}`.trim(),
+		);
+	}
+	return response.json();
+}
+
 async function uploadChatAttachments(
 	ctx: SidecarContext,
 	sessionId: string,
@@ -313,6 +329,7 @@ export async function handleCommand(
 	}
 	if (command === "list_user_instruction_configs")
 		return gatewayCustomizationLists(ctx);
+	if (command === "get_marketplace_catalog") return marketplaceCatalog();
 	if (command === "set_tool_disabled") {
 		const names = Array.isArray(args.names)
 			? args.names.filter((name): name is string => typeof name === "string")

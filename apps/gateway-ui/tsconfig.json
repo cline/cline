@@ -24,7 +24,10 @@
 			"@cline/gateway": ["../../sdk/packages/gateway/src/index.ts"],
 			"@cline/gateway/*": ["../../sdk/packages/gateway/src/*"],
 			"@cline/llms": ["../../sdk/packages/llms/src/index.ts"],
-			"@cline/shared": ["../../sdk/packages/shared/src/index.ts"],
+			"@cline/shared": ["../../sdk/packages/shared/src/index.browser.ts"],
+			"@cline/shared/browser": [
+				"../../sdk/packages/shared/src/index.browser.ts"
+			],
 			"@cline/shared/*": [
 				"../../sdk/packages/shared/src/*",
 				"../../sdk/packages/shared/src/*/index.ts"

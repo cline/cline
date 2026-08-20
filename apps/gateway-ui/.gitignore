@@ -1,4 +1,6 @@
 .next/
+dist/
 out/
 public/
 tsconfig.tsbuildinfo
+.wrangler/

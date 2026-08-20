@@ -1,6 +1,6 @@
 "use client";
 
-import { resolveDesktopBackendHttpEndpoint } from "@/lib/desktop-client";
+import { desktopClient } from "@/lib/desktop-client";
 
 export type MarketplacePrimitiveType = "mcp" | "skill" | "plugin";
 
@@ -46,8 +46,6 @@ export type MarketplaceCatalog = {
 	tags: MarketplaceTag[];
 	entries: MarketplaceEntry[];
 };
-
-const MARKETPLACE_CATALOG_URL = "/api/marketplace/catalog";
 
 const EMPTY_CATALOG: MarketplaceCatalog = {
 	version: 1,
@@ -101,36 +99,7 @@ function parseEnv(value: unknown): MarketplaceEnvVar[] | undefined {
 }
 
 export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
-	const urls = [MARKETPLACE_CATALOG_URL];
-	try {
-		const backendEndpoint = await resolveDesktopBackendHttpEndpoint();
-		urls.unshift(new URL(MARKETPLACE_CATALOG_URL, `${backendEndpoint}/`).href);
-	} catch {
-		// Fall back to the statically exported route when the sidecar is unavailable.
-	}
-
-	let data: unknown;
-	let lastError: unknown;
-	for (const url of urls) {
-		try {
-			const response = await fetch(url, {
-				headers: { Accept: "application/json" },
-			});
-			if (!response.ok) {
-				throw new Error(`Failed to fetch marketplace: ${response.status}`);
-			}
-			data = await response.json();
-			break;
-		} catch (error) {
-			lastError = error;
-		}
-	}
-
-	if (data === undefined) {
-		throw lastError instanceof Error
-			? lastError
-			: new Error("Failed to fetch marketplace");
-	}
+	const data = await desktopClient.invoke<unknown>("get_marketplace_catalog");
 
 	const baseUrl = typeof data?.baseUrl === "string" ? data.baseUrl : undefined;
 	const rawCounts =
@@ -219,4 +188,4 @@ export async function fetchMarketplaceCatalog(): Promise<MarketplaceCatalog> {
 	};
 }
 
-export { EMPTY_CATALOG, MARKETPLACE_CATALOG_URL };
+export { EMPTY_CATALOG };
