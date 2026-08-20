@@ -45,9 +45,10 @@ import {
 	IDEMPOTENCY_KEY_PARAM,
 	RunAcceptedSchema,
 } from "@cline/shared/gateway";
-import { createWebSocketStream, WebSocket } from "ws";
+import { WebSocket } from "ws";
 import type { ConnectorRecord } from "./connectors/store";
 import { isLoopbackHost } from "./remote";
+import { createGatewayWebSocketStream } from "./websocket-stream";
 
 export { listSavedProviderSummaries } from "./provider-settings";
 
@@ -974,7 +975,7 @@ function connectWebSocket(
 		webSocket.once("open", () => {
 			clearTimeout(timeout);
 			webSocket.off("error", onError);
-			resolve(createWebSocketStream(webSocket, { encoding: "utf8" }));
+			resolve(createGatewayWebSocketStream(webSocket));
 		});
 		webSocket.once("error", onError);
 	});

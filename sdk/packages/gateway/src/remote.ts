@@ -6,7 +6,8 @@ import {
 } from "node:https";
 import { isIP } from "node:net";
 import type { Duplex } from "node:stream";
-import { createWebSocketStream, type WebSocket, WebSocketServer } from "ws";
+import { type WebSocket, WebSocketServer } from "ws";
+import { createGatewayWebSocketStream } from "./websocket-stream";
 
 export interface GatewayTlsOptions {
 	readonly cert: string | Buffer;
@@ -98,7 +99,7 @@ export class GatewayRemoteListener {
 			webSocketServer = new WebSocketServer({ host, port: options.port });
 		}
 		webSocketServer.on("connection", (socket: WebSocket) => {
-			onConnection(createWebSocketStream(socket, { encoding: "utf8" }));
+			onConnection(createGatewayWebSocketStream(socket));
 		});
 		if (httpsServer) await listen(httpsServer, host, options.port);
 		else await onceListening(webSocketServer);
