@@ -750,17 +750,7 @@ export class AgentRuntime {
 					if (finishReason === "error") {
 						throw new Error(this.state.lastError ?? "Model stream failed");
 					}
-					// Provider-executed tool activity lives in message metadata, not
-					// content (projecting it into content would replay tool_use blocks
-					// the model never gets results for). A turn that is only such
-					// activity is not empty: keep the message so the transcript and
-					// display projection retain it. Replay stays safe — the codec
-					// renders empty content as its placeholder text block.
-					const modelToolActivities = message.metadata?.modelToolActivities;
-					const hasModelToolActivity =
-						Array.isArray(modelToolActivities) &&
-						modelToolActivities.length > 0;
-					if (!hasModelToolActivity) {
+					if (!this.hasRenderableTurnOutput(message)) {
 						throw new Error("Model returned empty response");
 					}
 				}
@@ -1111,14 +1101,15 @@ export class AgentRuntime {
 			});
 			throw error;
 		}
-		// Only a cleanly finished retry with actual content counts as
+		// Only a cleanly finished retry the loop will accept counts as
 		// recovered — an errored or aborted retry still fails the run
-		// downstream, and an empty response is rejected by the loop's
-		// emptiness check, so recording either as success would contradict
-		// the run result.
+		// downstream, and a turn without renderable output is rejected by
+		// the loop's emptiness check, so recording either as success would
+		// contradict the run result.
 		const cleanFinish =
 			retry.finishReason === "stop" || retry.finishReason === "tool-calls";
-		const succeeded = cleanFinish && retry.message.content.length > 0;
+		const succeeded =
+			cleanFinish && this.hasRenderableTurnOutput(retry.message);
 		try {
 			// Emitted before the outcome capture: a throwing listener fails
 			// the run, so recording success first would contradict the result.
@@ -1634,6 +1625,24 @@ export class AgentRuntime {
 	 */
 	private isRunStopError(error: unknown): boolean {
 		return error instanceof ControlledStopError || this.isAbortError(error);
+	}
+
+	/**
+	 * The run loop's acceptance rule for a finished turn. Provider-executed
+	 * tool activity lives in message metadata, not content (projecting it
+	 * into content would replay tool_use blocks the model never gets results
+	 * for), so a turn with empty content but such activity is not empty: the
+	 * transcript and display projection keep it, and replay stays safe — the
+	 * codec renders empty content as its placeholder text block. Recovery
+	 * outcome classification uses the same rule so the metric can never
+	 * contradict what the loop accepts.
+	 */
+	private hasRenderableTurnOutput(message: AgentMessage): boolean {
+		if (message.content.length > 0) {
+			return true;
+		}
+		const modelToolActivities = message.metadata?.modelToolActivities;
+		return Array.isArray(modelToolActivities) && modelToolActivities.length > 0;
 	}
 
 	private captureUnexpectedReasoningTokens(
