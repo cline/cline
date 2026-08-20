@@ -20,6 +20,7 @@ import {
 } from "./specs/task-spec-parser";
 import { SqliteAgendaTaskStore } from "./store/sqlite-task-store";
 import { normalizeAgendaTaskLocation } from "./task-location";
+import { toWatchablePath } from "./watchable-path";
 
 const FILE_RECONCILER_ACTOR: AgendaTaskActor = {
 	kind: "system",
@@ -925,22 +926,25 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		try {
 			store.ensureSpecsDir();
 			if (this.watchFiles) {
-				watched.watcher = watch(store.specsDir, (_event, filename) => {
-					if (!filename || !String(filename).endsWith(".task.md")) return;
-					if (watched.timer) clearTimeout(watched.timer);
-					watched.timer = setTimeout(() => {
-						watched.timer = undefined;
-						void this.reconcileFileStore(store).catch((error) =>
-							this.logError(
-								"agenda task watcher reconciliation failed",
-								error,
-								{
-									specsDir: store.specsDir,
-								},
-							),
-						);
-					}, this.watcherDebounceMs);
-				});
+				watched.watcher = watch(
+					toWatchablePath(store.specsDir),
+					(_event, filename) => {
+						if (!filename || !String(filename).endsWith(".task.md")) return;
+						if (watched.timer) clearTimeout(watched.timer);
+						watched.timer = setTimeout(() => {
+							watched.timer = undefined;
+							void this.reconcileFileStore(store).catch((error) =>
+								this.logError(
+									"agenda task watcher reconciliation failed",
+									error,
+									{
+										specsDir: store.specsDir,
+									},
+								),
+							);
+						}, this.watcherDebounceMs);
+					},
+				);
 				watched.watcher.on("error", (error) =>
 					this.logError("agenda task watcher failed", error, {
 						specsDir: store.specsDir,
