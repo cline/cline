@@ -279,7 +279,7 @@ export function AgentSidebar({
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
 		loadOlderSessions,
 		loadMoreSessions,
@@ -942,7 +942,11 @@ export function AgentSidebar({
 						<div className="mt-1 min-h-0 w-full flex-1">
 							<ScrollArea className="h-full min-h-0 w-full min-w-0">
 								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
-									{isLoadingHistory && threads.length === 0 ? (
+									{/* Empty-state copy is reserved for a definitive zero-
+									    session answer from the backend: before the first
+									    response (or while a failed fetch is being retried)
+									    "No sessions found" would read as lost history. */}
+									{!hasLoadedHistory && threads.length === 0 ? (
 										<div className="p-4 text-xs text-muted-foreground">
 											Loading session history...
 										</div>
