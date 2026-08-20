@@ -25,3 +25,10 @@
 	font-weight: inherit;
 	line-height: inherit;
 }
+
+/* Selected row: the semantic accent surface (step 3) is too faint in light
+ * mode to read as "selected"; step 4 keeps the row unmistakably highlighted
+ * in both themes without touching the shared --accent token. */
+.cline-ui-search-combobox__option[aria-selected="true"] {
+	background-color: var(--accent-4, var(--accent));
+}

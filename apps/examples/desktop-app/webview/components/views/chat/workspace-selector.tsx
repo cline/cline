@@ -383,7 +383,7 @@ export function WorkspaceSelector({
 														className={cn(
 															"flex items-center justify-between h-auto rounded-md p-2 text-left w-full",
 															isActive
-																? "bg-accent hover:bg-accent"
+																? "bg-(--accent-4) hover:bg-(--accent-4)"
 																: "hover:bg-surface-hover",
 														)}
 													>
@@ -478,7 +478,7 @@ export function WorkspaceSelector({
 														className={cn(
 															"flex items-start gap-2 h-auto rounded-md px-2 py-2 text-left",
 															currentBranch === branch
-																? "bg-accent hover:bg-accent"
+																? "bg-(--accent-4) hover:bg-(--accent-4)"
 																: "hover:bg-surface-hover",
 														)}
 													>

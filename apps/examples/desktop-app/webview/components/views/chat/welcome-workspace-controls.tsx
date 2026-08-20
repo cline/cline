@@ -254,7 +254,7 @@ function WorkspacePicker({
 											className={cn(
 												"flex h-auto w-full items-center justify-between rounded-md p-2 text-left",
 												isActive
-													? "bg-accent hover:bg-accent"
+													? "bg-(--accent-4) hover:bg-(--accent-4)"
 													: "hover:bg-surface-hover",
 											)}
 											data-current={isActive || undefined}
@@ -413,7 +413,7 @@ function BranchPicker({
 											className={cn(
 												"flex h-auto items-center gap-2 rounded-md px-2 py-2 text-left",
 												currentBranch === branch
-													? "bg-accent hover:bg-accent"
+													? "bg-(--accent-4) hover:bg-(--accent-4)"
 													: "hover:bg-surface-hover",
 											)}
 											data-current={currentBranch === branch || undefined}
