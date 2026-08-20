@@ -13,11 +13,12 @@ export const SETTINGS_SECTIONS = [
 	"Account",
 ] as const;
 
-// Mirrors the Cline Hub dashboard's Customizations nav group.
+// Mirrors the Cline Hub dashboard's Customizations nav group. Plugins is the
+// unified hub for installed plugins, MCP servers, and skills; Marketplace is
+// the full catalog page for installing more.
 export const CUSTOMIZATION_SECTIONS = [
 	"Plugins",
-	"Skills",
-	"MCP",
+	"Marketplace",
 	"Hooks",
 	"Rules",
 	"Agents",

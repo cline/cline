@@ -8,7 +8,6 @@ import type {
 } from "@cline/shared";
 import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
-	Activity,
 	ArrowDownUp,
 	Bot,
 	Check,
@@ -32,10 +31,10 @@ import {
 	Plus,
 	Radio,
 	Search,
-	Server,
 	Settings,
 	SlidersHorizontal,
 	Star,
+	Store,
 	Trash2,
 	Wrench,
 	X,
@@ -168,8 +167,7 @@ const SETTINGS_SECTION_ICONS = {
 	Schedules: Clock3,
 	Account: CircleUserRound,
 	Plugins: Plug,
-	Skills: Activity,
-	MCP: Server,
+	Marketplace: Store,
 	Hooks: Code,
 	Rules: FileText,
 	Agents: Bot,
