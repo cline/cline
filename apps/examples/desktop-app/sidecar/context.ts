@@ -472,7 +472,6 @@ export function emitQueuedPromptStart(
 				countQueuedPromptOccurrences(session.messages, input.prompt) + 1,
 				previousOccurrence + 1,
 			),
-			replayedAfterHydration: false,
 		};
 	}
 	emitChunk(

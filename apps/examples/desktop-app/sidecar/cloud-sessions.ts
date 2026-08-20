@@ -27,7 +27,6 @@ import {
 } from "../webview/lib/cloud-repositories";
 import { resolveFreshClineAuthToken } from "./cline-auth";
 import {
-	emitQueuedPromptStart,
 	handleHubLiveEvent,
 	sendEvent,
 	sendPromptsInQueueSnapshot,
@@ -1133,6 +1132,26 @@ function countPromptOccurrences(
 	);
 }
 
+function queuedPromptMessage(
+	input: NonNullable<LiveSession["lastQueuedPromptStart"]>,
+): MessageWithMetadata {
+	const content: MessageWithMetadata["content"] = [];
+	if (input.prompt) {
+		content.push({ type: "text", text: input.prompt });
+	}
+	for (const image of input.userImages ?? []) {
+		const match = image.match(/^data:(image\/[^;,]+);base64,(.+)$/);
+		if (match) {
+			content.push({ type: "image", mediaType: match[1], data: match[2] });
+		}
+	}
+	return {
+		id: `queued_user_${input.promptId}`,
+		role: "user",
+		content,
+	};
+}
+
 const TERMINAL_RUN_EVENTS = new Set([
 	"run.completed",
 	"run.aborted",
@@ -2188,7 +2207,22 @@ export class CloudSessionManager {
 			await this.refreshPendingApprovals(outerSessionId, connection);
 			connection.transcriptKnown = true;
 
-			// Publish the snapshot before releasing the reconciled tail.
+			const queuedPromptStart = live?.lastQueuedPromptStart;
+			const historyCaughtUp =
+				queuedPromptStart !== undefined &&
+				countPromptOccurrences(messages, [], queuedPromptStart.prompt) >=
+					queuedPromptStart.occurrence;
+			if (live && historyCaughtUp) {
+				live.lastQueuedPromptStart = undefined;
+			}
+			const displayMessages =
+				queuedPromptStart && !historyCaughtUp
+					? [...messages, queuedPromptMessage(queuedPromptStart)]
+					: messages;
+
+			// Publish the snapshot before releasing the reconciled tail. Keep a
+			// submitted prompt in stale snapshots until the pod persists it so a
+			// second hydration cannot erase the live turn boundary.
 			sendEvent(this.ctx, "cloud_session_rehydrated", {
 				sessionId: outerSessionId,
 				status,
@@ -2198,29 +2232,9 @@ export class CloudSessionManager {
 					this.ctx,
 					outerSessionId,
 					800,
-					messages,
+					displayMessages,
 				),
 			});
-			const queuedPromptStart = live?.lastQueuedPromptStart;
-			if (live && queuedPromptStart) {
-				const historyCaughtUp =
-					countPromptOccurrences(messages, [], queuedPromptStart.prompt) >=
-					queuedPromptStart.occurrence;
-				if (historyCaughtUp) {
-					live.lastQueuedPromptStart = undefined;
-				} else if (!queuedPromptStart.replayedAfterHydration) {
-					// The queue-start event can beat handoff navigation while the pod's
-					// transcript snapshot is still stale. Replay the missed turn boundary
-					// once after hydration so live assistant deltas cannot join the prior reply.
-					queuedPromptStart.replayedAfterHydration = true;
-					emitQueuedPromptStart(
-						this.ctx,
-						outerSessionId,
-						undefined,
-						queuedPromptStart,
-					);
-				}
-			}
 			const buffered = reconcileBufferedCloudEvents(
 				connection.bufferedEvents,
 				messages,

@@ -1986,37 +1986,42 @@ describe("CloudSessionManager", () => {
 		).toMatchObject({
 			promptId: "q-handoff",
 			occurrence: 2,
-			replayedAfterHydration: false,
 		});
 		events.length = 0;
 
 		await manager.readMessages("ses-outer");
-
-		const hydrationIndex = events.findIndex(
+		const firstSnapshot = events.find(
 			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
+		expect(firstSnapshot).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					id: "queued_user_q-handoff_text_0",
+					role: "user",
+					content: prompt,
+					images: [
+						{
+							id: "queued_user_q-handoff_image_1",
+							mediaType: "image/png",
+							data: "AQID",
+						},
+					],
+				}),
+			]),
 		);
-		const replayIndex = events.findIndex(
-			(event) =>
-				event.name === "chat_event" &&
-				event.payload.stream === "chat_queued_prompt_start",
-		);
-		expect(hydrationIndex).toBeGreaterThanOrEqual(0);
-		expect(replayIndex).toBeGreaterThan(hydrationIndex);
-		expect(
-			events.find(
-				(event) =>
-					event.name === "chat_event" &&
-					event.payload.stream === "chat_queued_prompt_start",
-			)?.payload.chunk,
-		).toContain(prompt);
-		expect(
-			ctx.liveSessions.get("ses-outer")?.lastQueuedPromptStart,
-		).toMatchObject({ replayedAfterHydration: true });
 
-		// A second hydration of the same stale snapshot must not reset the active
-		// assistant turn again.
+		// A second hydration of the same stale snapshot must keep the prompt
+		// without emitting another live turn boundary.
 		events.length = 0;
 		await manager.readMessages("ses-outer");
+		const secondSnapshot = events.find(
+			(event) => event.name === "cloud_session_rehydrated",
+		)?.payload.messages as Array<Record<string, unknown>>;
+		expect(secondSnapshot).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({ content: prompt, role: "user" }),
+			]),
+		);
 		expect(
 			events.some(
 				(event) =>
