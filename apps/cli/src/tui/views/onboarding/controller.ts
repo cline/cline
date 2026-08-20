@@ -116,6 +116,7 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 		LocalCliStatus | undefined
 	>();
 	const [localCliChecking, setLocalCliChecking] = useState(false);
+	const localCliProbeRef = useRef(0);
 	const authAbortRef = useRef(false);
 
 	// Device code flow
@@ -489,17 +490,29 @@ export function useOnboardingController(props: OnboardingControllerProps) {
 	}, [step, clinePassSubscriptionStatus, transitionToModelPicker]);
 
 	const refreshLocalCliStatus = useCallback((provider: LocalCliProvider) => {
+		// Probing spawns the provider's CLI, so a result can land long after the
+		// user moved on. Two local-CLI providers share this single status, so an
+		// unlabelled result could mark the selected provider ready off a probe of
+		// the previous one (or block it off a stale failure). Only the newest
+		// probe may write.
+		const probeId = ++localCliProbeRef.current;
+		const isCurrentProbe = () => localCliProbeRef.current === probeId;
 		setLocalCliStatus(undefined);
 		setLocalCliChecking(true);
 		checkLocalCliInstalled(provider)
-			.then(setLocalCliStatus)
+			.then((status) => {
+				if (isCurrentProbe()) setLocalCliStatus(status);
+			})
 			.catch((error: unknown) => {
+				if (!isCurrentProbe()) return;
 				setLocalCliStatus({
 					installed: false,
 					reason: error instanceof Error ? error.message : String(error),
 				});
 			})
-			.finally(() => setLocalCliChecking(false));
+			.finally(() => {
+				if (isCurrentProbe()) setLocalCliChecking(false);
+			});
 	}, []);
 
 	const selectProvider = useCallback(
