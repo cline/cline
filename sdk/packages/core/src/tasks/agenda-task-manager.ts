@@ -1,5 +1,5 @@
 import type { FSWatcher } from "node:fs";
-import { existsSync, statSync, watch } from "node:fs";
+import { existsSync, realpathSync, statSync, watch } from "node:fs";
 import { relative } from "node:path";
 import type {
 	AgendaAutomationPolicy,
@@ -115,6 +115,20 @@ function assertFutureExpiry(expiresAt: string): void {
 function isPathInside(parent: string, child: string): boolean {
 	const rel = relative(parent, child);
 	return rel !== "" && !rel.startsWith("..") && !rel.startsWith("/");
+}
+
+/**
+ * fs.watch must be handed the fully resolved form of a path: on Windows,
+ * libuv aborts the entire process (fs-event.c assertion) when the watched
+ * path contains 8.3 short components such as C:\Users\RUNNER~1, because
+ * event filenames come back in long form and fail its prefix check.
+ */
+function watchablePath(dir: string): string {
+	try {
+		return realpathSync.native(dir);
+	} catch {
+		return dir;
+	}
 }
 
 function isExistingDirectory(path: string | undefined): path is string {
@@ -925,22 +939,25 @@ export class AgendaTaskManager implements AgendaTaskManagerApi {
 		try {
 			store.ensureSpecsDir();
 			if (this.watchFiles) {
-				watched.watcher = watch(store.specsDir, (_event, filename) => {
-					if (!filename || !String(filename).endsWith(".task.md")) return;
-					if (watched.timer) clearTimeout(watched.timer);
-					watched.timer = setTimeout(() => {
-						watched.timer = undefined;
-						void this.reconcileFileStore(store).catch((error) =>
-							this.logError(
-								"agenda task watcher reconciliation failed",
-								error,
-								{
-									specsDir: store.specsDir,
-								},
-							),
-						);
-					}, this.watcherDebounceMs);
-				});
+				watched.watcher = watch(
+					watchablePath(store.specsDir),
+					(_event, filename) => {
+						if (!filename || !String(filename).endsWith(".task.md")) return;
+						if (watched.timer) clearTimeout(watched.timer);
+						watched.timer = setTimeout(() => {
+							watched.timer = undefined;
+							void this.reconcileFileStore(store).catch((error) =>
+								this.logError(
+									"agenda task watcher reconciliation failed",
+									error,
+									{
+										specsDir: store.specsDir,
+									},
+								),
+							);
+						}, this.watcherDebounceMs);
+					},
+				);
 				watched.watcher.on("error", (error) =>
 					this.logError("agenda task watcher failed", error, {
 						specsDir: store.specsDir,
