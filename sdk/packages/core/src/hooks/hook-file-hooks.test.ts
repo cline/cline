@@ -256,7 +256,7 @@ describe("createHookConfigFileHooks", () => {
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const control = await hooks?.beforeTool?.(beforeToolContext());
-			expect(control).toBeUndefined();
+			expect(control).toEqual({ appendContext: "shebang-ok" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -283,7 +283,7 @@ describe("createHookConfigFileHooks", () => {
 			ctx.tool.name = "run_commands";
 			ctx.toolCall.toolName = "run_commands";
 			const control = await hooks?.beforeTool?.(ctx);
-			expect(control).toBeUndefined();
+			expect(control).toEqual({ appendContext: "needs-review" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -307,7 +307,7 @@ describe("createHookConfigFileHooks", () => {
 			});
 			expect(hooks?.beforeTool).toBeTypeOf("function");
 			const control = await hooks?.beforeTool?.(beforeToolContext());
-			expect(control).toBeUndefined();
+			expect(control).toEqual({ appendContext: "python-ok" });
 		} finally {
 			await rm(workspace, {
 				recursive: true,
@@ -317,6 +317,97 @@ describe("createHookConfigFileHooks", () => {
 			});
 		}
 	}, 15000);
+
+	it("returns appendContext from legacy contextModification output", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PreToolUse.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: false, contextModification: "WORKSPACE_NOTE: the codename is PREM-1188." }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			expect(hooks?.beforeTool).toBeTypeOf("function");
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toEqual({
+				appendContext: "WORKSPACE_NOTE: the codename is PREM-1188.",
+			});
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("does not inject context when the hook cancels", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PreToolUse.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: true, errorMessage: "blocked by policy" }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control).toEqual({ stop: true });
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("truncates oversized hook context", async () => {
+		const { workspace } = await createWorkspaceWithHook(
+			"PreToolUse.js",
+			`console.log('HOOK_CONTROL\\t' + JSON.stringify({ cancel: false, contextModification: "x".repeat(60_000) }))\n`,
+		);
+		try {
+			const hooks = createHookConfigFileHooks({
+				cwd: workspace,
+				workspacePath: workspace,
+				detachAsyncHooks: false,
+			});
+			const control = await hooks?.beforeTool?.(beforeToolContext());
+			expect(control?.appendContext?.startsWith("xxx")).toBe(true);
+			expect(control?.appendContext).toContain("[hook context truncated");
+			expect(control?.appendContext?.length).toBeLessThan(50_200);
+		} finally {
+			await rm(workspace, {
+				recursive: true,
+				force: true,
+				maxRetries: 3,
+				retryDelay: 250,
+			});
+		}
+	});
+
+	it("concatenates appendContext across merged hook layers", async () => {
+		const hooks = mergeAgentHooks([
+			{
+				beforeTool: async () => ({ appendContext: "layer-a" }),
+			},
+			{
+				beforeTool: async () => ({ appendContext: "layer-b" }),
+			},
+		]);
+
+		const control = await hooks?.beforeTool?.(beforeToolContext());
+
+		expect(control).toMatchObject({
+			appendContext: "layer-a\n\nlayer-b",
+		});
+	});
 
 	it("falls back from py -3 to python when the Windows launcher is missing", () => {
 		expect(
@@ -364,7 +455,7 @@ describe("createHookConfigFileHooks", () => {
 				});
 				expect(hooks?.beforeTool).toBeTypeOf("function");
 				const control = await hooks?.beforeTool?.(beforeToolContext());
-				expect(control).toBeUndefined();
+				expect(control).toEqual({ appendContext: "powershell-ok" });
 			} finally {
 				await rm(workspace, {
 					recursive: true,
