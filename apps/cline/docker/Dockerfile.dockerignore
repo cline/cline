@@ -1,0 +1,8 @@
+.git
+**/.DS_Store
+**/node_modules
+**/.next
+**/dist
+**/target
+apps/cline/src-tauri/bin
+apps/cline/webview/out

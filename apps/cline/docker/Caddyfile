@@ -1,0 +1,10 @@
+{
+	admin off
+	http_port 8080
+	https_port 8443
+}
+
+{$CLINE_CADDY_SITE_ADDRESS} {
+	encode zstd gzip
+	reverse_proxy 127.0.0.1:3126
+}

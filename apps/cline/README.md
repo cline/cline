@@ -21,6 +21,12 @@ From `apps/cline/`:
 - `bun run package:desktop` - package the current OS desktop app into `dist/desktop/`
 - `bun run typecheck` - TypeScript check
 
+## Headless Docker deployment
+
+The all-in-one Gateway + compatibility sidecar + Caddy image and Compose
+template live in [`docker/`](./docker/README.md). It provides the authenticated
+`wss://<host>/transport` endpoint consumed by the hosted Gateway UI.
+
 ## Login Shell PATH Resolution
 
 Apps launched from Finder/the Dock inherit launchd's minimal `PATH`
