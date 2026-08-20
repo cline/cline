@@ -120,6 +120,98 @@ describe("useSessionHistory session mapping", () => {
 	});
 });
 
+describe("useSessionHistory initial load", () => {
+	it("reports history as loaded only after the backend has answered", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+		expect(current.hasLoadedHistory).toBe(false);
+
+		await act(async () => {
+			pendingLists[0].resolve([]);
+			await Promise.resolve();
+		});
+
+		// A zero-session answer is a definitive result, not a loading state.
+		expect(current.hasLoadedHistory).toBe(true);
+		expect(current.threads).toHaveLength(0);
+	});
+
+	it("retries a failed initial fetch quickly instead of waiting for the poll", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+
+		await act(async () => {
+			pendingLists[0].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+
+		// The rejected request must not read as an empty history.
+		expect(current.hasLoadedHistory).toBe(false);
+
+		// The retry fires on the short event cadence (2s), well before the
+		// 12s periodic poll.
+		await flush(2_000);
+		expect(pendingLists).toHaveLength(2);
+
+		await act(async () => {
+			pendingLists[1].resolve([sessionRow("recovered-session")]);
+			await Promise.resolve();
+		});
+		expect(current.hasLoadedHistory).toBe(true);
+		expect(current.threads).toHaveLength(1);
+	});
+
+	it("stops fast retries when the hook unmounts mid-request", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		expect(pendingLists).toHaveLength(1);
+
+		// Unmount while the initial request is still in flight, then fail it:
+		// the retry continuation must not re-arm the cleared refresh timer.
+		await act(async () => root.unmount());
+		await act(async () => {
+			pendingLists[0].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+
+		await flush(3_000);
+		expect(pendingLists).toHaveLength(1);
+
+		// Fresh root so the shared afterEach unmount stays valid.
+		root = createRoot(container);
+	});
+
+	it("does not schedule fast retries once history has loaded", async () => {
+		await act(async () => {
+			root.render(<HookHarness />);
+		});
+		await flush();
+		await act(async () => {
+			pendingLists[0].resolve([sessionRow("session-1")]);
+			await Promise.resolve();
+		});
+		expect(current.hasLoadedHistory).toBe(true);
+
+		// Advance to the periodic poll and fail it: no 2s retry may follow.
+		await flush(12_000);
+		expect(pendingLists).toHaveLength(2);
+		await act(async () => {
+			pendingLists[1].reject(new Error("transport closed"));
+			await Promise.resolve();
+		});
+		await flush(3_000);
+		expect(pendingLists).toHaveLength(2);
+	});
+});
+
 describe("useSessionHistory refresh coalescing", () => {
 	it("reuses an in-flight refresh that already covers the requested limit", async () => {
 		await act(async () => {
