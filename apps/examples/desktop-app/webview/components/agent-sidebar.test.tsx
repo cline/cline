@@ -706,6 +706,44 @@ describe("AgentSidebar session organization", () => {
 		expect(setView).not.toHaveBeenCalled();
 	});
 
+	it("suppresses the settings gear hover state while the Account screen is open", async () => {
+		invoke.mockResolvedValue(signedInUser);
+
+		const renderSidebar = async (settingsSection: "Account" | "General") => {
+			await act(async () => {
+				root.render(
+					<AccountProvider>
+						<SidebarProvider>
+							<AgentSidebar
+								activeSessionId={null}
+								onHome={vi.fn()}
+								onNewThread={vi.fn()}
+								onSettingsSectionChange={vi.fn()}
+								sessionHistory={makeSessionHistory([], vi.fn())}
+								setView={vi.fn()}
+								settingsSection={settingsSection}
+								view="settings"
+							/>
+						</SidebarProvider>
+					</AccountProvider>,
+				);
+			});
+			return vi.waitFor(() => {
+				const button = container.querySelector('[aria-label="Settings"]');
+				expect(button).not.toBeNull();
+				return button as HTMLButtonElement;
+			});
+		};
+
+		const gearOnAccount = await renderSidebar("Account");
+		expect(gearOnAccount.className).toContain("hover:bg-transparent");
+		expect(gearOnAccount.className).not.toContain("bg-surface-hover");
+
+		const gearOnGeneral = await renderSidebar("General");
+		expect(gearOnGeneral.className).not.toContain("hover:bg-transparent");
+		expect(gearOnGeneral.className).toContain("bg-surface-hover");
+	});
+
 	it("shows the desktop app version and connected Hub when the logo is hovered", async () => {
 		const onHome = vi.fn();
 		invoke.mockImplementation(async (command: string) => {

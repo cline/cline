@@ -1091,8 +1091,11 @@ export function AgentSidebar({
 								className={cn(
 									"size-9 shrink-0 justify-center px-0",
 									view === "settings" &&
-										settingsSection !== "Account" &&
-										"bg-surface-hover text-sidebar-foreground",
+										(settingsSection !== "Account"
+											? "bg-surface-hover text-sidebar-foreground"
+											: // Clicking the gear is a no-op while the Account (profile)
+												// screen is open, so don't hint interactivity on hover.
+												"hover:bg-transparent hover:text-muted-foreground"),
 								)}
 								onClick={openSettings}
 								title="Settings"
