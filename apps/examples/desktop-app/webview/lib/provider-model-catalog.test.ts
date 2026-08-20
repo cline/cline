@@ -68,7 +68,7 @@ describe("transcription model selection", () => {
 		).toBe(false);
 	});
 
-	it("keeps chat models in the composer and routes image models to settings", () => {
+	it("keeps chat and image-generation models in the composer and routes image models to settings", () => {
 		expect(
 			isChatModel({
 				id: "chat",
@@ -94,7 +94,7 @@ describe("transcription model selection", () => {
 				inputModalities: ["text", "image"],
 				outputModalities: ["text", "image"],
 			}),
-		).toBe(false);
+		).toBe(true);
 		expect(
 			isImageGenerationModel({
 				id: "mixed-image",
@@ -118,7 +118,7 @@ describe("transcription model selection", () => {
 				inputModalities: ["text", "image"],
 				outputModalities: ["image"],
 			}),
-		).toBe(false);
+		).toBe(true);
 		expect(
 			isChatModel({
 				id: "whisper",
