@@ -1285,14 +1285,35 @@ export class HubRuntimeHost implements RuntimeHost {
 			: [];
 	}
 
+	/**
+	 * Detaching leaves the session — and its monitor registry — running in the
+	 * hub daemon. The detaching client's roster clears, so those monitors
+	 * would keep running invisibly, each delivery still able to start a paid
+	 * turn. A client that stops or leaves a session therefore stops its
+	 * monitors first. Best-effort: a failure here must not block the detach.
+	 */
+	private async stopSessionMonitorsBestEffort(sessionId: string): Promise<void> {
+		try {
+			const monitors = await this.listMonitors(sessionId);
+			for (const monitor of monitors) {
+				if (monitor.status !== "running") continue;
+				await this.stopMonitor(sessionId, monitor.id).catch(() => {});
+			}
+		} catch {
+			// The hub may predate monitor commands or the session may be gone.
+		}
+	}
+
 	async stopSession(sessionId: string): Promise<void> {
 		this.sessionCapabilities.delete(sessionId);
+		await this.stopSessionMonitorsBestEffort(sessionId);
 		this.disposeSessionSubscription(sessionId);
 		await this.client.command("session.detach", { sessionId }, sessionId);
 	}
 
 	async dispose(): Promise<void> {
 		for (const [sessionId, unsubscribe] of this.sessionSubscriptions) {
+			await this.stopSessionMonitorsBestEffort(sessionId);
 			unsubscribe();
 			try {
 				await this.client.command("session.detach", { sessionId }, sessionId);

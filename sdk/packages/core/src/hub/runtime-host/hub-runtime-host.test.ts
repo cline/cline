@@ -888,6 +888,67 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("stops running monitors before detaching a session", async () => {
+		// Detach leaves the session running in the hub daemon; without this,
+		// the detached session's monitors keep running with no roster entry
+		// and each delivery can still start a paid turn.
+		subscribeMock.mockReturnValue(vi.fn());
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		await host.startSession({
+			config: { ...createConfig(), sessionId: "sess-1" },
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		commandMock.mockImplementation(async (command: string) => {
+			if (command === "run.list_monitors") {
+				return {
+					ok: true,
+					payload: {
+						monitors: [
+							{ id: "mon_7", name: "watch", status: "running" },
+							{ id: "mon_8", name: "done", status: "exited" },
+						],
+					},
+				};
+			}
+			if (command === "run.stop_monitor") {
+				return { ok: true, payload: { stopped: true } };
+			}
+			return { ok: true, payload: {} };
+		});
+		await host.stopSession("sess-1");
+
+		const commands = commandMock.mock.calls.map((call) => call[0]);
+		const stopIndex = commands.indexOf("run.stop_monitor");
+		const detachIndex = commands.indexOf("session.detach");
+		expect(stopIndex).toBeGreaterThan(-1);
+		expect(detachIndex).toBeGreaterThan(stopIndex);
+		// Only the running monitor is stopped; terminal records are left alone.
+		const stopCalls = commandMock.mock.calls.filter(
+			(call) => call[0] === "run.stop_monitor",
+		);
+		expect(stopCalls).toHaveLength(1);
+		expect(stopCalls[0]?.[1]).toEqual({
+			sessionId: "sess-1",
+			monitorId: "mon_7",
+		});
+	});
+
 	it("maps hub completion events back to agent and lifecycle events without duplicating done", async () => {
 		let onEvent:
 			| ((event: {
