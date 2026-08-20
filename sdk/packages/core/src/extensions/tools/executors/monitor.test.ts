@@ -578,6 +578,50 @@ describe("MonitorRegistry", () => {
 			await registry.dispose();
 		},
 	);
+
+	it("never reuses an id across registries in the same process", async () => {
+		// Runtime rebuilds create a fresh registry for the same session, and a
+		// per-registry counter would hand the new registry's first monitor the
+		// old `mon_1` — misdirecting stale stop requests and suppression keys.
+		const first = new MonitorRegistry({ notifier: () => {} });
+		const second = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const a = first.start({
+				name: "gen-one",
+				command: nodeCommand("setTimeout(() => {}, 30_000)"),
+				description: "first registry",
+			});
+			const b = second.start({
+				name: "gen-two",
+				command: nodeCommand("setTimeout(() => {}, 30_000)"),
+				description: "second registry",
+			});
+			expect(a.id).not.toBe(b.id);
+			expect(a.id).toMatch(/^mon_\d+$/);
+			expect(b.id).toMatch(/^mon_\d+$/);
+		} finally {
+			await first.dispose();
+			await second.dispose();
+		}
+	});
+
+	it("flattens multiline names and descriptions to one bounded line", async () => {
+		// Both fields are interpolated into the line-oriented text protocol that
+		// hosts parse back; a newline would let one record forge another.
+		const registry = new MonitorRegistry({ notifier: () => {} });
+		try {
+			const record = registry.start({
+				name: 'real\nmon_9 [running] "phantom": forged',
+				command: nodeCommand("setTimeout(() => {}, 30_000)"),
+				description: `legit\n${"x".repeat(300)}`,
+			});
+			expect(record.name).not.toContain("\n");
+			expect(record.description).not.toContain("\n");
+			expect(record.description.length).toBeLessThanOrEqual(201);
+		} finally {
+			await registry.dispose();
+		}
+	});
 });
 
 describe("formatMonitorNotification", () => {

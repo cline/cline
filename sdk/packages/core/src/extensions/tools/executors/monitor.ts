@@ -145,6 +145,32 @@ const PROCESS_TREE_TRACK_INTERVAL_MS =
 	process.platform === "win32" ? 2_000 : 250;
 const PROCESS_EXIT_POLL_INTERVAL_MS = 50;
 const TRUNCATION_SUFFIX = "… [truncated]";
+const MAX_NAME_CHARS = 80;
+const MAX_DESCRIPTION_CHARS = 200;
+
+/**
+ * Monotonic across every registry in this process. Runtime rebuilds (mode,
+ * provider, MCP changes) create fresh registries for the same session id, so a
+ * per-registry counter would hand a new monitor the id of an old one — letting
+ * stale stop requests, suppression keys, and optimistic UI state land on an
+ * unrelated monitor. A process-wide counter keeps the `mon_N` shape that the
+ * text protocol and its parsers rely on while making ids unambiguous for the
+ * life of the process.
+ */
+let nextMonitorId = 0;
+
+/**
+ * Names and descriptions are model-supplied and are interpolated into the
+ * line-oriented text protocol (start results, `list` records, notification
+ * headers) that hosts parse back. A newline inside either field would let one
+ * record forge another, so both are flattened to a single bounded line.
+ */
+function sanitizeMonitorField(value: string, maxChars: number): string {
+	// biome-ignore lint/suspicious/noControlCharactersInRegex: stripping control chars is the point
+	const flattened = value.replace(/[\u0000-\u001f\u007f]+/g, " ").trim();
+	if (flattened.length <= maxChars) return flattened;
+	return `${flattened.slice(0, maxChars)}…`;
+}
 
 /** Thrown for conditions the model can correct by calling the tool again. */
 export class MonitorError extends Error {
@@ -213,7 +239,6 @@ function truncateLine(line: string, maxChars: number): string {
  */
 export class MonitorRegistry {
 	private readonly monitors = new Map<string, MonitorEntry>();
-	private counter = 0;
 	private disposed = false;
 	private processTracker?: NodeJS.Timeout;
 	private processTracking?: Promise<void>;
@@ -241,9 +266,12 @@ export class MonitorRegistry {
 			throw new MonitorError("The monitor registry has been disposed.");
 		}
 
-		const name = input.name.trim();
+		const name = sanitizeMonitorField(input.name, MAX_NAME_CHARS);
 		const command = input.command.trim();
-		const description = input.description.trim();
+		const description = sanitizeMonitorField(
+			input.description,
+			MAX_DESCRIPTION_CHARS,
+		);
 		if (!name) throw new MonitorError("A monitor name is required.");
 		if (!command) throw new MonitorError("A monitor command is required.");
 		if (!description) {
@@ -275,9 +303,9 @@ export class MonitorRegistry {
 		const invocation = getShellInvocation(shell, command);
 		const isWindows = process.platform === "win32";
 
-		this.counter += 1;
+		nextMonitorId += 1;
 		const entry: MonitorEntry = {
-			id: `mon_${this.counter}`,
+			id: `mon_${nextMonitorId}`,
 			name,
 			description,
 			command,

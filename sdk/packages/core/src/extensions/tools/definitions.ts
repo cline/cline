@@ -862,7 +862,7 @@ export function createMonitorTool(
 						});
 						return (
 							`Started monitor ${record.id} ("${record.name}"): ${record.description}\n` +
-							`Command: ${record.command}\n` +
+							`Command: ${displayCommand(record.command)}\n` +
 							"Output will arrive as notifications. Continue with your other work; " +
 							`stop it with action "stop" and monitor_id ${record.id}.`
 						);
@@ -890,10 +890,20 @@ export function createMonitorTool(
 	});
 }
 
+/**
+ * Commands legitimately contain newlines, but monitor results are a
+ * line-oriented text protocol that hosts parse back into records. Escape line
+ * breaks in the displayed command so a crafted multiline command cannot forge
+ * a record boundary; execution uses the original string.
+ */
+function displayCommand(command: string): string {
+	return command.replace(/\r/g, "\\r").replace(/\n/g, "\\n");
+}
+
 function formatMonitorRecord(record: MonitorRecord): string {
 	const parts = [
 		`${record.id} [${record.status}] "${record.name}": ${record.description}`,
-		`  command: ${record.command}`,
+		`  command: ${displayCommand(record.command)}`,
 		`  lines delivered: ${record.linesEmitted}`,
 	];
 	if (record.status === "exited" && record.exitCode !== undefined) {

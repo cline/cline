@@ -50,7 +50,10 @@ describe("MonitorRegistry onStateChange", () => {
 		});
 
 		expect(snapshots[0]).toEqual([
-			expect.objectContaining({ id: "mon_1", status: "running" }),
+			expect.objectContaining({
+				id: expect.stringMatching(/^mon_\d+$/),
+				status: "running",
+			}),
 		]);
 
 		await waitFor(() =>
@@ -91,7 +94,10 @@ describe("MonitorRegistry onStateChange", () => {
 		await registry.stop("longrun");
 
 		expect(snapshots.at(-1)).toEqual([
-			expect.objectContaining({ id: "mon_1", status: "stopped" }),
+			expect.objectContaining({
+				id: expect.stringMatching(/^mon_\d+$/),
+				status: "stopped",
+			}),
 		]);
 	});
 
