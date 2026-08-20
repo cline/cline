@@ -347,6 +347,21 @@ export async function getCachedClineRecommendedModels(
 	return request;
 }
 
+/**
+ * Synchronous, never-blocking view of the feed: the cached live data when
+ * fresh, otherwise the bundled fallback. For callers that build model lists
+ * eagerly and must not wait on the network (the provider catalog at startup),
+ * so even a cold boot renders tiered sections instead of a flat list. The
+ * async `getCachedClineRecommendedModels` path refreshes the cache, after
+ * which peeks serve live data for the TTL.
+ */
+export function peekClineRecommendedModels(): ClineRecommendedModelsData {
+	if (feedCache && feedCache.expiresAt > Date.now()) {
+		return cloneRecommendedModels(feedCache.data);
+	}
+	return cloneRecommendedModels(FALLBACK_CLINE_RECOMMENDED_MODELS);
+}
+
 export function resetClineRecommendedModelsCacheForTests(): void {
 	feedCache = null;
 	feedInFlight = null;

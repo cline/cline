@@ -956,6 +956,7 @@ export {
 	type FetchClineRecommendedModelsOptions,
 	fetchClineRecommendedModels,
 	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
 	resetClineRecommendedModelsCacheForTests,
 } from "./services/llms/cline-recommended-models";
 export {

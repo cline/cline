@@ -20,6 +20,7 @@ import {
 import {
 	applyClineFeaturedModels,
 	getCachedClineRecommendedModels,
+	peekClineRecommendedModels,
 } from "../../services/llms/cline-recommended-models";
 import { resolveProviderConfig } from "../../services/llms/provider-defaults";
 import type {
@@ -731,6 +732,13 @@ export async function listLocalProviders(
 	const state = manager.read();
 	const ids = LlmsModels.getProviderIds();
 
+	// The catalog is built for every provider at startup and must not wait on
+	// the network, so featured tiers come from a synchronous peek (cached live
+	// feed, else the bundled fallback). This keeps even the very first picker
+	// paint after a cold boot sectioned; the per-provider model-list path
+	// (getLocalProviderModels) then refreshes with live feed data.
+	const featuredData = peekClineRecommendedModels();
+
 	const providerEntries = await Promise.all(
 		ids.map(
 			async (id): Promise<{ provider: ProviderListItem; rank: number }> => {
@@ -738,7 +746,11 @@ export async function listLocalProviders(
 					LlmsModels.getProvider(id),
 					LlmsModels.getModelsForProvider(id),
 				]);
-				const modelList = toSortedProviderModels(registeredModels);
+				const modelList = applyClineFeaturedModels(
+					id,
+					toSortedProviderModels(registeredModels),
+					featuredData,
+				);
 				const directSettings = state.providers[id]?.settings;
 				const persistedSettings = manager.getProviderSettings(id);
 				const name = info?.name ?? titleCaseFromId(id);
