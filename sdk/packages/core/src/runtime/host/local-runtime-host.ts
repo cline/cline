@@ -264,6 +264,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 	private readonly providerSettingsManager: ProviderSettingsManager;
 	private readonly oauthTokenManager: RuntimeOAuthTokenManager;
 	private readonly defaultTelemetry?: ITelemetryService;
+	private readonly distinctId: string;
 	private readonly defaultLogger?: BasicLogger;
 	private readonly defaultFetch?: typeof fetch;
 	private readonly events = new RuntimeHostEventBus();
@@ -286,6 +287,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const homeDir = homedir();
 		if (homeDir) setHomeDirIfUnset(homeDir);
 		const distinctId = resolveCoreDistinctId(options.distinctId);
+		this.distinctId = distinctId;
 		this.sessionService = options.sessionService;
 		this.runtimeBuilder = options.runtimeBuilder ?? new DefaultRuntimeBuilder();
 		this.createAgentInstance =
@@ -612,6 +614,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build({
 			...bootstrap.runtimeBuilderInput,
+			distinctId: this.distinctId,
 			runCommandExecutionController: this.runCommandExecutionController,
 		});
 		const configWithProvider = bootstrap.config;
@@ -712,6 +715,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		});
 
 		const agentConfig = {
+			distinctId: this.distinctId,
 			sessionId,
 			providerId: providerConfig.providerId,
 			modelId: providerConfig.modelId,

@@ -1026,6 +1026,9 @@ export class AgentRuntime {
 		const usageBeforeModel = cloneUsage(this.state.usage);
 		const modelRequestMetadata = omitUndefinedValues({
 			distinctId: trimNonEmpty(this.config.distinctId),
+			clientName: trimNonEmpty(this.config.clientName),
+			clientVersion: trimNonEmpty(this.config.clientVersion),
+			clineCoreVersion: trimNonEmpty(this.config.clineCoreVersion),
 			sessionId: trimNonEmpty(this.config.sessionId),
 			agentId: this.state.agentId,
 			conversationId: trimNonEmpty(this.config.conversationId),
