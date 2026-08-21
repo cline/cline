@@ -1664,6 +1664,65 @@ describe("useChatSession", () => {
 		]);
 	});
 
+	it("appends live generated images from a legacy chat_image stream", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_text",
+				chunk: "Here it is.",
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_image",
+				chunk: JSON.stringify({
+					data: "aGVsbG8=",
+					mediaType: "image/webp",
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const assistant = current.messages.findLast(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant).toMatchObject({
+			content: "Here it is.",
+			images: [
+				expect.objectContaining({
+					data: "aGVsbG8=",
+					mediaType: "image/webp",
+				}),
+			],
+		});
+	});
+
 	it("deduplicates repeated live generated image events", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -1715,6 +1774,56 @@ describe("useChatSession", () => {
 				(message.media ?? []).map((media) => media.id),
 			),
 		).toEqual(["generated-1", "generated-2"]);
+	});
+
+	it("deduplicates repeated live generated images from a legacy chat_image stream", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Draw three puppies"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			for (const [index, data] of [
+				"aGVsbG8=",
+				"aGVsbG8=",
+				"d29ybGQ=",
+			].entries()) {
+				chatEventHandler?.({
+					sessionId: current.sessionId,
+					stream: "chat_image",
+					chunk: JSON.stringify({ data, mediaType: "image/webp" }),
+					ts: Date.now(),
+					index: index + 1,
+				});
+			}
+		});
+
+		const assistant = current.messages.findLast(
+			(message) => message.role === "assistant",
+		);
+		expect(assistant?.images?.map((image) => image.data)).toEqual([
+			"aGVsbG8=",
+			"d29ybGQ=",
+		]);
 	});
 
 	it("projects generated media from a completed tool call onto its tool message", async () => {
@@ -1849,6 +1958,55 @@ describe("useChatSession", () => {
 				expect.objectContaining({
 					data: "aGVsbG8=",
 					mediaType: "image/png",
+				}),
+			],
+		});
+	});
+
+	it("appends live generated videos to the active assistant message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") return { ok: true };
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Animate a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_video",
+				chunk: JSON.stringify({
+					mediaType: "video/mp4",
+					artifactName: "video-result.mp4",
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+		});
+
+		expect(
+			current.messages.findLast((message) => message.role === "assistant"),
+		).toMatchObject({
+			content: "",
+			videos: [
+				expect.objectContaining({
+					mediaType: "video/mp4",
+					artifactName: "video-result.mp4",
 				}),
 			],
 		});

@@ -901,6 +901,18 @@ export function formatMessagesForAiSdk(
 						);
 					}
 					break;
+				case "video":
+					messageParts.push({
+						type: "text",
+						text: `[Generated video artifact: ${sanitizeSurrogates(part.mediaType)}]`,
+					});
+					break;
+				case "audio":
+					messageParts.push({
+						type: "text",
+						text: `[Generated audio artifact: ${sanitizeSurrogates(part.mediaType)}]`,
+					});
+					break;
 				case "file":
 					messageParts.push({
 						type: "text",

@@ -198,6 +198,12 @@ export function isDedicatedImageGenerationModel(
 	);
 }
 
+export function usesVideoGenerationOperation(
+	model: ImageOutputModelDescriptor,
+): boolean {
+	return model.operation === "video-generation";
+}
+
 export function isVideoGenerationModel(
 	model: Pick<ModelInfo, "operation" | "modalities">,
 ): boolean {

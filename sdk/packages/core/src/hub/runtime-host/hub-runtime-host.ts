@@ -93,6 +93,32 @@ function toJsonRecord(
 	>;
 }
 
+function readHubArtifactReference(
+	payload: Record<string, unknown> | undefined,
+	key: string,
+): { artifactName: string; mediaType: string } | undefined {
+	const value = payload?.[key];
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return undefined;
+	}
+	const artifact = value as Record<string, unknown>;
+	if (
+		typeof artifact.artifactName !== "string" ||
+		!artifact.artifactName ||
+		artifact.artifactName === "." ||
+		artifact.artifactName === ".." ||
+		artifact.artifactName.includes("/") ||
+		artifact.artifactName.includes("\\") ||
+		typeof artifact.mediaType !== "string"
+	) {
+		return undefined;
+	}
+	return {
+		artifactName: artifact.artifactName,
+		mediaType: artifact.mediaType,
+	};
+}
+
 const HUB_HOOK_NAMES = [
 	"beforeRun",
 	"afterRun",
@@ -1754,6 +1780,77 @@ export class HubRuntimeHost implements RuntimeHost {
 							type: "content_end",
 							contentType: "media",
 							media,
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.image": {
+				const image =
+					event.payload?.image &&
+					typeof event.payload.image === "object" &&
+					!Array.isArray(event.payload.image)
+						? (event.payload.image as Record<string, unknown>)
+						: undefined;
+				if (
+					typeof image?.data !== "string" ||
+					typeof image.mediaType !== "string"
+				) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "image",
+							image: {
+								data: image.data,
+								mediaType: image.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.video": {
+				const video = readHubArtifactReference(event.payload, "video");
+				if (!video) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "video",
+							video: {
+								path: video.artifactName,
+								mediaType: video.mediaType,
+							},
+						},
+					},
+				});
+				return;
+			}
+			case "assistant.audio": {
+				const audio = readHubArtifactReference(event.payload, "audio");
+				if (!audio) {
+					return;
+				}
+				this.events.emit({
+					type: "agent_event",
+					payload: {
+						sessionId,
+						event: {
+							type: "content_end",
+							contentType: "audio",
+							audio: {
+								path: audio.artifactName,
+								mediaType: audio.mediaType,
+							},
 						},
 					},
 				});

@@ -276,7 +276,7 @@ describe("built-in provider metadata", () => {
 			defaultModelId: "scribe_v2",
 			client: "fetch",
 		});
-		await expect(getModelsForProvider("elevenlabs")).resolves.toEqual({
+		await expect(getModelsForProvider("elevenlabs")).resolves.toMatchObject({
 			scribe_v2: expect.objectContaining({
 				id: "scribe_v2",
 				operation: "transcription",

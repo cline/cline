@@ -27,6 +27,7 @@ import type {
 	ChatTransportState,
 	ChatUsageEvent,
 	CoreLogChunk,
+	ImageDeltaEvent,
 	ProcessContext,
 	PromptInQueue,
 	ReasoningDeltaEvent,
@@ -83,6 +84,9 @@ const RELEVANT_STREAMS = new Set([
 	"chat_text",
 	"chat_reasoning",
 	"chat_media",
+	"chat_image",
+	"chat_video",
+	"chat_audio",
 	"chat_queued_prompt_start",
 	"chat_tool_call_start",
 	"chat_tool_call_update",
@@ -1716,6 +1720,61 @@ export function useChatSession(environmentId: string) {
 				});
 				activeAssistantMessageIdRef.current = null;
 				setActiveAssistantMessageId(null);
+				return;
+			}
+
+			if (payload.stream === "chat_image") {
+				let parsed: ImageDeltaEvent;
+				try {
+					parsed = JSON.parse(payload.chunk) as ImageDeltaEvent;
+				} catch {
+					return;
+				}
+				const image = ChatMessageImageSchema.safeParse({
+					id: makeId("generated_image"),
+					data: parsed.data,
+					mediaType: parsed.mediaType,
+				});
+				if (!image.success) {
+					console.warn(
+						"[desktop:chat] Ignoring invalid generated image",
+						image.error.flatten(),
+					);
+					return;
+				}
+				let assistantId = activeAssistantMessageIdRef.current;
+				if (!assistantId) {
+					assistantId = makeId("assistant");
+					addMessage({
+						id: assistantId,
+						sessionId: listeningSessionId,
+						role: "assistant",
+						content: "",
+						images: [image.data],
+						createdAt: chunkCreatedAt(payload),
+					});
+					activeAssistantMessageIdRef.current = assistantId;
+					setActiveAssistantMessageId(assistantId);
+					return;
+				}
+				setMessages((prev) =>
+					updateMessageById(prev, assistantId, (message) => {
+						const images = message.images ?? [];
+						if (
+							images.some(
+								(existing) =>
+									existing.data === image.data.data &&
+									existing.mediaType === image.data.mediaType,
+							)
+						) {
+							return message;
+						}
+						return {
+							...message,
+							images: [...images, image.data],
+						};
+					}),
+				);
 				return;
 			}
 

@@ -60,13 +60,13 @@ export const ChatMessageMediaSchema = GeneratedMediaSchema;
  */
 export const ChatMessageVideoSchema = z.object({
 	id: z.string().min(1),
-	mediaType: z.string().min(1),
+	mediaType: z.string().regex(/^video\//),
 	artifactName: z.string().min(1),
 });
 
 export const ChatMessageAudioSchema = z.object({
 	id: z.string().min(1),
-	mediaType: z.string().min(1),
+	mediaType: z.string().regex(/^audio\//),
 	artifactName: z.string().min(1),
 });
 

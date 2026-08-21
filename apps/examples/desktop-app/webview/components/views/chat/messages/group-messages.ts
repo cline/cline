@@ -45,7 +45,8 @@ export function isReasoningOnlyAssistantMessage(message: ChatMessage): boolean {
 		message.role === "assistant" &&
 		hasMessageReasoning(message) &&
 		!message.content.trim() &&
-		!message.images?.length
+		!message.images?.length &&
+		!message.videos?.length
 	);
 }
 

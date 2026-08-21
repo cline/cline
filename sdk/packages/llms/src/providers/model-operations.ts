@@ -20,6 +20,12 @@ const IMAGE_GENERATION_OPERATION: GatewayModelOperationCapability = {
 	outputModalities: ["image"],
 };
 
+const VIDEO_GENERATION_OPERATION: GatewayModelOperationCapability = {
+	operation: "video-generation",
+	inputModalities: ["text", "image"],
+	outputModalities: ["video"],
+};
+
 interface BuiltinTranscriptionOperation {
 	transport: NonNullable<GatewayProviderMetadata["transcriptionTransport"]>;
 	modes: readonly ModelOperationMode[];
@@ -58,11 +64,19 @@ const BUILTIN_MEDIA_OPERATION_CAPABILITIES: Readonly<
 	Record<string, readonly GatewayModelOperationCapability[]>
 > = {
 	"openai-native": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
-	gemini: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	gemini: [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		VIDEO_GENERATION_OPERATION,
+	],
 	vertex: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
 	bedrock: [IMAGE_GENERATION_OPERATION],
 	openrouter: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
-	"vercel-ai-gateway": [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
+	"vercel-ai-gateway": [
+		IMAGE_LANGUAGE_OPERATION,
+		IMAGE_GENERATION_OPERATION,
+		VIDEO_GENERATION_OPERATION,
+	],
 	digitalocean: [IMAGE_GENERATION_OPERATION],
 	xai: [IMAGE_GENERATION_OPERATION],
 	cline: [IMAGE_LANGUAGE_OPERATION, IMAGE_GENERATION_OPERATION],
@@ -185,9 +199,13 @@ function operationCapabilitiesSupportModel(
 	model: OperationModelDescriptor,
 ): boolean {
 	const operation = resolveModelOperation(model);
+	// Mixed image output requires the provider's responseModalities/output-image
+	// routing, so it stays gated behind an explicit capability. Other mixed
+	// output modalities (video, audio) have no such transport requirement for a
+	// language-operation model — they ride the normal streaming path untouched.
 	const needsExplicitCapability =
 		operation !== "language" ||
-		model.modalities?.output.some((modality) => modality !== "text") === true;
+		model.modalities?.output.includes("image") === true;
 	if (!needsExplicitCapability) return true;
 
 	return (
@@ -243,10 +261,19 @@ export function normalizeBuiltinModelOperationModalities(input: {
 		input.modalities.input,
 		capability.inputModalities,
 	);
-	const outputModalities = intersect(
-		input.modalities.output,
-		capability.outputModalities,
-	);
+	// A language-operation model's non-image output modalities (video, audio)
+	// have no mixed-output transport requirement, so only image is reconciled
+	// against the capability here — reconciling the rest would silently strip
+	// a real output modality the model advertises but the capability table
+	// happens not to enumerate for its language entry.
+	const outputModalities =
+		resolveModelOperation(model) === "language"
+			? input.modalities.output.filter(
+					(modality) =>
+						modality !== "image" ||
+						(capability.outputModalities?.includes(modality) ?? true),
+				)
+			: intersect(input.modalities.output, capability.outputModalities);
 
 	// Preserve an unmatchable declaration so the fail-closed support check can
 	// reject it instead of turning an empty intersection into apparent support.

@@ -57,6 +57,7 @@ export async function createGoogleProviderModule(
 		operations: {
 			language: (modelId) => provider(modelId),
 			imageGeneration: (modelId) => provider.image(modelId),
+			videoGeneration: (modelId) => provider.video(modelId),
 		},
 	};
 }

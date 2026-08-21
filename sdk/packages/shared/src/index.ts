@@ -247,6 +247,7 @@ export {
 	type ThinkingConfig,
 	ThinkingConfigSchema,
 	usesImageGenerationOperation,
+	usesVideoGenerationOperation,
 } from "./llms/model-info";
 export { mergeModelOptions } from "./llms/model-options";
 export * from "./llms/model-tools";

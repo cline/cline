@@ -28,12 +28,14 @@ import {
 	parseJsonStream,
 	sanitizeSurrogates,
 	usesImageGenerationOperation,
+	usesVideoGenerationOperation,
 	validateAndReserveBase64Media,
 	validateAndReserveImageMedia,
 	validateImageMedia,
 } from "@cline/shared";
 import {
 	type CallSettings,
+	experimental_generateVideo as generateVideo,
 	generateImage,
 	jsonSchema,
 	NoSuchToolError,
@@ -322,6 +324,48 @@ function summarizeProjectedMedia(media: readonly GeneratedMedia[]): unknown {
 		mediaTypes: media.map((item) => item.mediaType),
 		byteLength: media.reduce((total, item) => total + (item.sizeBytes ?? 0), 0),
 	};
+}
+
+type VideoGenerationPrompt =
+	| string
+	| { image: ImageGenerationInput; text?: string };
+
+function resolveVideoGenerationPrompt(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): VideoGenerationPrompt {
+	for (let index = request.messages.length - 1; index >= 0; index -= 1) {
+		const message = request.messages[index];
+		if (message?.role !== "user") continue;
+		const text = message.content
+			.filter((part) => part.type === "text")
+			.map((part) => part.text)
+			.join("\n")
+			.trim();
+		if (!text) continue;
+		if (context.model.modalities?.input.includes("image") !== true) {
+			return text;
+		}
+		const image = message.content.find((part) => part.type === "image");
+		return image ? { image: normalizeImageGenerationInput(image), text } : text;
+	}
+	throw new Error("Video generation requires a text prompt");
+}
+
+function extractGeneratedVideo(
+	file: unknown,
+): { data: string; mediaType: string } | undefined {
+	if (!file || typeof file !== "object") return undefined;
+	const record = file as Record<string, unknown>;
+	if (
+		typeof record.mediaType !== "string" ||
+		!record.mediaType.startsWith("video/") ||
+		typeof record.base64 !== "string" ||
+		!record.base64
+	) {
+		return undefined;
+	}
+	return { data: record.base64, mediaType: record.mediaType };
 }
 
 export function buildAiSdkStreamConfig(
@@ -709,6 +753,24 @@ function toAiSdkMessages(
 
 			if (part.type === "media") {
 				content.push({ type: "media", media: part.media });
+				continue;
+			}
+
+			if (part.type === "video") {
+				content.push({
+					type: "video",
+					path: part.path,
+					mediaType: part.mediaType,
+				});
+				continue;
+			}
+
+			if (part.type === "audio") {
+				content.push({
+					type: "audio",
+					path: part.path,
+					mediaType: part.mediaType,
+				});
 				continue;
 			}
 
@@ -1435,6 +1497,12 @@ async function* emitAiSdkEvents(
 				}
 
 				if (part.type === "file") {
+					const video = extractGeneratedVideo(part.file);
+					if (video) {
+						sawVisibleContent = true;
+						yield { type: "video", ...video };
+						continue;
+					}
 					const extracted = extractGeneratedImage(part.file, mediaBudget);
 					if (extracted.kind === "accepted") {
 						sawVisibleContent = true;
@@ -2055,22 +2123,23 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 									modalities: ["image", "text"],
 								},
 							}
-						: googleImageProviderKey !== undefined &&
-								modelProducesImages(context.model) &&
-								!usesImageGenerationOperation(context.model)
-							? {
-									...composedProviderOptions,
-									[googleImageProviderKey]: {
-										...((composedProviderOptions[googleImageProviderKey] ??
-											{}) as Record<string, unknown>),
-										responseModalities: ["TEXT", "IMAGE"],
-									},
-								}
-							: composedProviderOptions;
+					: googleImageProviderKey !== undefined &&
+							modelProducesImages(context.model) &&
+							!usesImageGenerationOperation(context.model)
+						? {
+								...composedProviderOptions,
+								[googleImageProviderKey]: {
+									...((composedProviderOptions[googleImageProviderKey] ??
+										{}) as Record<string, unknown>),
+									responseModalities: ["TEXT", "IMAGE"],
+								},
+							}
+						: composedProviderOptions;
 				const modelOperation = context.model.operation ?? "language";
 				if (
 					modelOperation !== "language" &&
-					modelOperation !== "image-generation"
+					modelOperation !== "image-generation" &&
+					modelOperation !== "video-generation"
 				) {
 					throw new Error(
 						`Provider "${context.provider.id}" does not implement the "${modelOperation}" model operation`,
@@ -2136,6 +2205,39 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 								context.model.metadata?.pricing,
 							),
 						};
+					}
+					yield { type: "finish", reason: "stop" };
+					return;
+				}
+				if (usesVideoGenerationOperation(context.model)) {
+					if (!provider.operations.videoGeneration) {
+						throw new Error(
+							`Provider "${context.provider.id}" does not support video generation models`,
+						);
+					}
+					const prompt = resolveVideoGenerationPrompt(request, context);
+					recordProviderRequestCapture({
+						stage: "ai_sdk_prompt",
+						request,
+						payload: { operation: "generate_video", prompt },
+					});
+					const result = await generateVideo({
+						model: provider.operations.videoGeneration(
+							context.model.id,
+						) as never,
+						prompt,
+						abortSignal: request.signal,
+						providerOptions: composedProviderOptions as never,
+					});
+					let emittedVideos = 0;
+					for (const file of result.videos) {
+						const video = extractGeneratedVideo(file);
+						if (!video) continue;
+						emittedVideos += 1;
+						yield { type: "video", ...video };
+					}
+					if (emittedVideos === 0) {
+						throw new Error("Video model returned no supported videos");
 					}
 					yield { type: "finish", reason: "stop" };
 					return;

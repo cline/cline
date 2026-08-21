@@ -262,6 +262,31 @@ persists that same ID and its artifacts. Closing a runtime before a user turn
 therefore leaves no empty history entry, and persistence code never allocates a
 replacement ID for an unknown session.
 
+### Generated Video Flow
+
+Generated video follows the normal package direction while keeping large media
+bytes out of persisted provider history:
+
+1. `@cline/llms` routes dedicated video-only models through the AI SDK
+   `experimental_generateVideo` API. Models that return both text and video stay
+   on the streaming language-model path, where video file parts are classified
+   into structured video events.
+2. `@cline/agents` assembles video events into assistant message parts. A
+   stateless host may retain base64 data, while a persistent host supplies
+   `storeGeneratedArtifact` to materialize the bytes.
+3. `@cline/core` writes each video through a temporary file and atomic rename
+   beneath `<session-artifacts-root>/<session-id>/artifacts`, then replaces the
+   base64 payload with the resulting host-local path. The session artifacts
+   root comes from the session persistence adapter (`resolveSessionDataDir()`
+   for the local adapter); it is distinct from the SQLite database directory.
+4. Provider-history formatting and context compaction retain only a media-type
+   marker. Absolute host paths are persistence metadata and must never be sent
+   to a model or summarizer.
+5. Host UIs project the artifact basename together with the owning session ID
+   into a trusted, session-scoped media endpoint. When desktop history is forked
+   or restored from a checkpoint, generated videos are staged and atomically
+   cloned into the new session before that session is exposed to the webview.
+
 Workspace bootstrap is owned by the runtime that executes the session. Hub
 clients preserve an omitted `cwd` and `workspaceRoot` across the transport so
 the hub-side execution host can place the session in the shared chat

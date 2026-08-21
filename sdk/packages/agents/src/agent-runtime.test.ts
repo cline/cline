@@ -144,6 +144,31 @@ describe("AgentRuntime", () => {
 		});
 	});
 
+	it("persists generated images from a legacy image event", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "image", data: "aGVsbG8=", mediaType: "image/png" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const runtime = new AgentRuntime({ model });
+
+		const result = await runtime.run("Draw a lighthouse");
+
+		expect(result.status).toBe("completed");
+		expect(result.outputText).toBe("");
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "image",
+					image: "aGVsbG8=",
+					mediaType: "image/png",
+				},
+			],
+		});
+	});
+
 	it("preserves generated media in exact text/media/text order", async () => {
 		const model = new ScriptedModel([
 			() => [
@@ -327,6 +352,37 @@ describe("AgentRuntime", () => {
 			],
 		});
 		expect(JSON.stringify(assistant).split(data)).toHaveLength(2);
+	});
+
+	it("stores generated videos through the host artifact callback", async () => {
+		const model = new ScriptedModel([
+			() => [
+				{ type: "video", data: "dmlkZW8=", mediaType: "video/mp4" },
+				{ type: "finish", reason: "stop" },
+			],
+		]);
+		const storeGeneratedArtifact = vi.fn(async () => ({
+			path: "/sessions/session-1/artifacts/video.mp4",
+		}));
+		const runtime = new AgentRuntime({ model, storeGeneratedArtifact });
+
+		const result = await runtime.run("Animate a lighthouse");
+
+		expect(storeGeneratedArtifact).toHaveBeenCalledWith({
+			kind: "video",
+			data: "dmlkZW8=",
+			mediaType: "video/mp4",
+		});
+		expect(result.messages.at(-1)).toMatchObject({
+			role: "assistant",
+			content: [
+				{
+					type: "video",
+					path: "/sessions/session-1/artifacts/video.mp4",
+					mediaType: "video/mp4",
+				},
+			],
+		});
 	});
 
 	it("fails a turn that hits the model output token limit before completion", async () => {

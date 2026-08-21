@@ -565,6 +565,39 @@ function toApiStreamChunk(
 			// event path. The legacy ApiStream contract has no observational tool
 			// event that would not imply caller-owned execution.
 			return undefined;
+		case "image":
+			return {
+				type: "media",
+				id,
+				media: {
+					id: `media_${nanoid()}`,
+					modality: "image",
+					mediaType: event.mediaType,
+					source: { type: "base64", data: event.data },
+				},
+			};
+		case "video":
+			return {
+				type: "media",
+				id,
+				media: {
+					id: `media_${nanoid()}`,
+					modality: "video",
+					mediaType: event.mediaType,
+					source: { type: "base64", data: event.data },
+				},
+			};
+		case "audio":
+			return {
+				type: "media",
+				id,
+				media: {
+					id: `media_${nanoid()}`,
+					modality: "audio",
+					mediaType: event.mediaType,
+					source: { type: "base64", data: event.data },
+				},
+			};
 		case "reasoning-delta": {
 			const metadata = event.metadata as Record<string, unknown> | undefined;
 			return {

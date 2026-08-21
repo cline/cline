@@ -1060,6 +1060,86 @@ describe("HubRuntimeHost", () => {
 		);
 	});
 
+	it("maps safe video artifact references without accepting host paths", async () => {
+		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
+		subscribeMock.mockImplementation((listener) => {
+			onEvent = listener;
+			return () => {};
+		});
+		commandMock.mockResolvedValue({
+			payload: {
+				session: {
+					sessionId: "sess-1",
+					status: "running",
+					createdAt: Date.now(),
+					updatedAt: Date.now(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				},
+			},
+		});
+		const events: unknown[] = [];
+
+		const { HubRuntimeHost } = await import("./hub-runtime-host");
+		const host = new HubRuntimeHost({ url: "ws://127.0.0.1:25463/hub" });
+		host.subscribe((event) => events.push(event));
+
+		await host.startSession({
+			config: createConfig(),
+			source: SessionSource.CLI,
+			prompt: "Hey",
+		});
+
+		onEvent?.({
+			version: "v1",
+			event: "assistant.video",
+			eventId: "evt-video",
+			timestamp: Date.now(),
+			sessionId: "sess-1",
+			payload: {
+				video: {
+					artifactName: "video result.mp4",
+					mediaType: "video/mp4",
+				},
+			},
+		});
+
+		expect(events).toEqual([
+			{
+				type: "agent_event",
+				payload: {
+					sessionId: "sess-1",
+					event: {
+						type: "content_end",
+						contentType: "video",
+						video: {
+							path: "video result.mp4",
+							mediaType: "video/mp4",
+						},
+					},
+				},
+			},
+		]);
+
+		for (const video of [
+			{
+				path: "/private/host/sessions/sess-1/artifacts/video.mp4",
+				mediaType: "video/mp4",
+			},
+			{ artifactName: "../video.mp4", mediaType: "video/mp4" },
+		]) {
+			onEvent?.({
+				version: "v1",
+				event: "assistant.video",
+				eventId: "evt-invalid-video",
+				timestamp: Date.now(),
+				sessionId: "sess-1",
+				payload: { video },
+			});
+		}
+		expect(events).toHaveLength(1);
+	});
+
 	it("maps hub usage updates back to agent usage events with identity", async () => {
 		let onEvent: ((event: HubEventEnvelope) => void) | undefined;
 		subscribeMock.mockImplementation((listener) => {
