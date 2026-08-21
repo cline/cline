@@ -16,6 +16,7 @@
  *   capabilities?: string[],     // e.g. ["tools", "reasoning", "prompt-cache", "images"]
  *   modalities?: { input: string[], output: string[] },
  *   pricing?: { input?, output?, cacheRead?, cacheWrite? },
+ *   metadata?: { requestModelId?: string },
  *   description?: string,
  *   releaseDate?: string,        // not mapped — see "Unmapped SDK fields" below
  *   family?: string,             // not mapped
@@ -43,6 +44,7 @@
  * | capabilities | `sdk.capabilities` preserved verbatim | omitted (undefined) |
  * | modalities | `sdk.modalities` preserved after validation | omitted (undefined) |
  * | operation modes | `sdk.operationModes` preserved after validation | omitted (undefined) |
+ * | requestModelId | `sdk.metadata.requestModelId` after validation | omitted (undefined) |
  *
  * The full SDK capability list is preserved on `ModelInfo.capabilities` in
  * addition to the boolean projections above. The booleans exist for legacy
@@ -150,6 +152,28 @@ function readPricing(value: unknown): NormalizedPricing | undefined {
 	return result
 }
 
+function readRequestModelId(value: unknown): string | undefined {
+	if (value === undefined) {
+		return undefined
+	}
+	if (!isPlainObject(value)) {
+		throw new CatalogShapeError("SDK model-info `metadata` must be an object when present.", {
+			details: { receivedType: typeof value },
+		})
+	}
+
+	const raw = value.requestModelId
+	if (raw === undefined) {
+		return undefined
+	}
+	if (typeof raw !== "string" || raw.trim().length === 0) {
+		throw new CatalogShapeError("SDK model-info `metadata.requestModelId` must be a non-empty string when present.", {
+			details: { receivedType: typeof raw },
+		})
+	}
+	return raw.trim()
+}
+
 function readModalities(value: unknown): NonNullable<ModelInfo["modalities"]> | undefined {
 	if (value === undefined) {
 		return undefined
@@ -244,6 +268,7 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 
 	const capabilities = readStringArray(input.capabilities)
 	const pricing = readPricing(input.pricing)
+	const requestModelId = readRequestModelId(input.metadata)
 	const modalities = readModalities(input.modalities)
 	const operation = input.operation
 	if (operation !== undefined && (typeof operation !== "string" || !MODEL_OPERATIONS.has(operation))) {
@@ -310,6 +335,9 @@ export function adaptSdkModelInfo(input: unknown): ModelInfo {
 	}
 	if (operationModes !== undefined) {
 		result.operationModes = operationModes as NonNullable<ModelInfo["operationModes"]>
+	}
+	if (requestModelId !== undefined) {
+		result.requestModelId = requestModelId
 	}
 
 	return result

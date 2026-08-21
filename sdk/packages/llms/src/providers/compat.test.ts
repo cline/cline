@@ -462,6 +462,37 @@ describe("createGatewayApiHandler.createMessage", () => {
 		);
 	});
 
+	it("routes a catalog alias through its provider request model id", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openai-compatible",
+			clientType: "openai-compatible",
+			modelId: "xai/grok-4.6",
+			apiKey: "test-key",
+			knownModels: {
+				"xai/grok-4.6": {
+					id: "xai/grok-4.6",
+					name: "xai/grok-4.6",
+					metadata: { requestModelId: "openai/grok-4.6" },
+				},
+			},
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(openaiCompatibleSpy).toHaveBeenCalledWith("openai/grok-4.6");
+	});
+
 	it("caps configured maxOutputTokens with the catalog model output limit", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
@@ -859,6 +890,29 @@ describe("buildGatewayModels", () => {
 			expect.objectContaining({
 				id: "openai/gpt-5.6",
 				reasoningOptions,
+			}),
+		]);
+	});
+
+	it("preserves the provider request model id on projected gateway models", () => {
+		const models = buildGatewayModels("litellm", {
+			providerId: "litellm",
+			modelId: "xai/grok-4.6",
+			knownModels: {
+				"xai/grok-4.6": {
+					id: "xai/grok-4.6",
+					name: "xai/grok-4.6",
+					metadata: { requestModelId: "openai/grok-4.6" },
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "xai/grok-4.6",
+				metadata: expect.objectContaining({
+					requestModelId: "openai/grok-4.6",
+				}),
 			}),
 		]);
 	});

@@ -599,29 +599,31 @@ async function fetchLiteLlmPrivateModels(
 					const entries = payload?.data ?? [];
 					const models: Record<string, ModelInfo> = {};
 					for (const model of entries) {
-						const displayName = model.model_name?.trim();
-						const actualModelId = model.litellm_params?.model?.trim();
-						const modelId = actualModelId || displayName;
+						// Keep model_name as the catalog/selection identity while retaining
+						// the backend model for provider requests. Without an alias, the
+						// backend id serves both roles.
+						const aliasModelId = model.model_name?.trim();
+						const backendModelId = model.litellm_params?.model?.trim();
+						const modelId = aliasModelId || backendModelId;
 						if (!modelId) {
 							continue;
 						}
 						const info = model.model_info;
 						const converted = buildModelFromPrivateSource(modelId, {
-							name: displayName ?? modelId,
+							name: modelId,
 							maxTokens: info?.max_output_tokens ?? info?.max_tokens,
 							maxInputTokens: info?.max_input_tokens ?? info?.max_tokens,
 							supportsImages: info?.supports_vision,
 							supportsPromptCache: info?.supports_prompt_caching,
 							supportsReasoning: info?.supports_reasoning,
 						});
-						models[modelId] = converted;
-						if (displayName) {
-							models[displayName] = {
-								...converted,
-								id: displayName,
-								name: displayName,
+						if (backendModelId && backendModelId !== modelId) {
+							converted.metadata = {
+								...converted.metadata,
+								requestModelId: backendModelId,
 							};
 						}
+						models[modelId] = converted;
 					}
 					return models;
 				}

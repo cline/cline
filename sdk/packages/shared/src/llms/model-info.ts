@@ -66,6 +66,7 @@ export const ModelMetadataSchema = z
 	// Keep metadata open for catalog-defined facts while typing routing fields.
 	.object({
 		reasoningDefaultOn: z.boolean().optional(),
+		requestModelId: z.string().trim().min(1).optional(),
 	})
 	.catchall(z.unknown());
 
