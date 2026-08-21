@@ -109,7 +109,8 @@ export abstract class WebviewProvider {
 					connect-src https://*.posthog.com https://*.cline.bot; 
 					font-src ${this.getCspSource()} data:; 
 					style-src ${this.getCspSource()} 'unsafe-inline'; 
-					img-src ${this.getCspSource()} https: data:; 
+					img-src ${this.getCspSource()} https: data: blob:; 
+					media-src blob:; 
 					script-src 'nonce-${nonce}' 'unsafe-eval';">
 				<title>Cline</title>
 			</head>
@@ -194,7 +195,8 @@ export abstract class WebviewProvider {
 			"default-src 'none'",
 			`font-src ${this.getCspSource()}`,
 			`style-src ${this.getCspSource()} 'unsafe-inline' https://* http://${localServerUrl} http://0.0.0.0:${localPort}`,
-			`img-src ${this.getCspSource()} https: data:`,
+			`img-src ${this.getCspSource()} https: data: blob:`,
+			`media-src blob:`,
 			`script-src 'unsafe-eval' https://* http://${localServerUrl} http://0.0.0.0:${localPort} 'nonce-${nonce}'`,
 			`connect-src https://* ws://${localServerUrl} ws://0.0.0.0:${localPort} http://${localServerUrl} http://0.0.0.0:${localPort}`,
 		]
