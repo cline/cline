@@ -2,7 +2,7 @@ import type {
 	ModelModality,
 	ModelOperation,
 	ProviderModesSettings,
-} from "@cline/shared/browser";
+} from "@cline/shared";
 
 export interface ProviderModel {
 	id: string;

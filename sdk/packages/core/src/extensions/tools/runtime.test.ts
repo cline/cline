@@ -28,6 +28,16 @@ describe("builtin tool catalog", () => {
 				(entry) => entry.id === "tasks",
 			),
 		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "cli" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
+		expect(
+			getCoreBuiltinToolCatalog({ mode: "act", clientType: "vscode" }).some(
+				(entry) => entry.id === "tasks",
+			),
+		).toBe(false);
 	});
 
 	it("marks teams enabled by default in act mode", () => {

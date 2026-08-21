@@ -68,15 +68,20 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 	}
 
 	try {
+		// Give Langfuse and any other OTEL exporter a stable resource identity.
+		// Respect an explicitly configured service name from the host.
+		if (!process.env.OTEL_SERVICE_NAME?.trim()) {
+			process.env.OTEL_SERVICE_NAME = "cline-sdk";
+		}
 		const [
-			{ OpenTelemetry },
 			{ LangfuseSpanProcessor },
+			{ LangfuseVercelAiSdkIntegration },
 			{ registerTelemetry },
 			{ trace },
 			{ NodeTracerProvider },
 		] = await Promise.all([
-			import("@ai-sdk/otel"),
 			import("@langfuse/otel"),
+			import("@langfuse/vercel-ai-sdk"),
 			import("ai"),
 			import("@opentelemetry/api"),
 			import("@opentelemetry/sdk-trace-node"),
@@ -94,7 +99,7 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 			tracerProvider.addSpanProcessor(spanProcessor);
 			const hasDelegate = hasActiveTracerDelegate(trace);
 			if (hasDelegate) {
-				registerTelemetry(new OpenTelemetry());
+				registerTelemetry(new LangfuseVercelAiSdkIntegration());
 			}
 			debugLangfuse(
 				`attached processor to existing tracer provider delegateReady=${String(hasDelegate)}`,
@@ -117,7 +122,7 @@ async function initializeLangfuseTelemetry(): Promise<boolean> {
 		nodeTracerProvider.register();
 		const hasDelegate = hasActiveTracerDelegate(trace);
 		if (hasDelegate) {
-			registerTelemetry(new OpenTelemetry());
+			registerTelemetry(new LangfuseVercelAiSdkIntegration());
 		}
 		debugLangfuse(
 			`registered NodeTracerProvider delegateReady=${String(hasDelegate)}`,

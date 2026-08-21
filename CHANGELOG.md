@@ -1,5 +1,41 @@
 # Changelog
 
+## [4.1.11]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle — except the last section, which is a legacy-bundle fix.
+
+### Added
+
+- Let models that support it generate images during a task. Generated images render inline in the conversation.
+
+### Fixed
+
+- Fix code actions failing with "command not found" on VS Code 1.134.
+- Fix `@` file mentions breaking on paths that contain spaces.
+- Show the diff edit view for multi-line edits in files with CRLF line endings.
+- Continue the surviving session when resuming a task, instead of rebuilding it from the original task text.
+- Clear the task-scoped settings overlay when the task view is cleared or switched, so one task's overrides no longer leak into the next.
+- Honor the classic truncation range when migrating legacy tasks.
+- Preserve LiteLLM input token limits instead of overwriting them with catalog values.
+- Restore custom base URLs for Gemini, and normalize legacy host-root values so they keep working.
+- Point provider signup links at each provider's API key page instead of a generic landing page.
+- Load skill slash commands through the skills tool instead of pasting their instructions into your message, which previously delivered them twice.
+- Stop offering image, voice, and other non-chat models in chat model pickers.
+- Deliver a `PreToolUse` hook's `contextModification` to the model again, and wait for `PostToolUse` hooks so their output and `cancel` control are honored.
+- Show tool activity a provider runs itself — every tool the Claude Code provider executes inside its own session — instead of dropping it from the conversation.
+- Fix `run_commands` failing with ENOENT when a structured command carried a full command line with no arguments.
+- Run PowerShell commands fail-fast, so a pipeline erroring per item stops at the first error instead of flooding output and still reporting success.
+- Keep remote configuration in step with the SDK: coordinated refreshes, session gating, and a fail-closed opt-out.
+
+### Changed
+
+- Show the billed cost for Cline gateway usage.
+- Refresh the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board.
+
+### Fixed (legacy bundle)
+
+- Only treat an Anthropic `invalid_request_error` as a context-overflow when its message says so. An unrelated invalid request (bad tool schema, oversized image, unknown model id) no longer triggers context-overflow recovery.
+
 ## [4.1.10]
 
 Everything in this release lands through the SDK bundle, so it applies to windows running that bundle and not the legacy one. The legacy bundle is unchanged from 4.1.9.

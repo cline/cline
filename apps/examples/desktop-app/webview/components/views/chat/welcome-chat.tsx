@@ -2,12 +2,7 @@
 
 import type { AgendaTaskRecord } from "@cline/shared";
 import { getClineEnvironmentConfig } from "@cline/shared/browser";
-import {
-	AgentAurora,
-	AgentHeroHeading,
-	type AgentQuickAction,
-	AgentQuickActions,
-} from "@cline/ui";
+import { type AgentQuickAction, AgentQuickActions } from "@cline/ui";
 import { Cloud } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -29,6 +24,7 @@ import {
 	type CloudOnboardingVariant,
 } from "./cloud-onboarding";
 import { SessionContent } from "./session-content";
+import { WelcomeHero } from "./welcome-hero";
 import { WelcomeWorkspaceControls } from "./welcome-workspace-controls";
 
 // Used only until the API's connectUrl arrives (or when it is blank), so a
@@ -348,7 +344,6 @@ export function WelcomeScreen({
 					: "contents",
 			)}
 		>
-			{active ? <AgentAurora /> : null}
 			<div
 				className={cn(
 					active
@@ -365,7 +360,8 @@ export function WelcomeScreen({
 				>
 					{active ? (
 						<div className="cline-view-enter">
-							<AgentHeroHeading />
+							<h1 className="sr-only">What would you like to build?</h1>
+							<WelcomeHero />
 
 							<div className="mt-11 flex min-w-0 items-center gap-2">
 								{environmentSelector}

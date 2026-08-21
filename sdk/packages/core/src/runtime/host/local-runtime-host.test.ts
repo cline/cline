@@ -3474,6 +3474,87 @@ describe("LocalRuntimeHost", () => {
 		).toEqual([{ prompt: "second queued", delivery: "queue" }]);
 	});
 
+	it("starts interactive sessions without a prompt as idle until their first turn", async () => {
+		const sessionId = "sess-idle-until-first-turn";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-idle-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-idle-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+
+		// The desktop host starts interactive sessions without a prompt and
+		// dispatches turns through separate send calls. Reporting such a
+		// session as "running" wedged clients that gate workspace operations
+		// (e.g. checkpoint restores) on active turns.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			}),
+		);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+
+		// The first turn still transitions through running and back to idle.
+		await manager.runTurn({ sessionId, prompt: "first turn" });
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+	});
+
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
 		const sessionId = "sess-abort-then-next-turn";
 		const manifest = createManifest(sessionId);
@@ -3577,20 +3658,28 @@ describe("LocalRuntimeHost", () => {
 		expect(continueTurn).toHaveBeenCalledTimes(1);
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
+		// Interactive sessions now start idle (no turn runs inside start), so
+		// each turn records its own running → idle transition.
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			1,
-			sessionId,
-			"idle",
-			null,
-		);
-		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
-			2,
 			sessionId,
 			"running",
 			null,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			4,
 			sessionId,
 			"idle",
 			null,

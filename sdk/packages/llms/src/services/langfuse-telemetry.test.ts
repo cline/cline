@@ -20,8 +20,8 @@ vi.mock("ai", async (importOriginal) => {
 	};
 });
 
-vi.mock("@ai-sdk/otel", () => ({
-	OpenTelemetry: class MockOpenTelemetry {
+vi.mock("@langfuse/vercel-ai-sdk", () => ({
+	LangfuseVercelAiSdkIntegration: class MockLangfuseVercelAiSdkIntegration {
 		onStart = telemetryStartSpy;
 	},
 }));
