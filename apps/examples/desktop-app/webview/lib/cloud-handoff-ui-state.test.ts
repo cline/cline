@@ -247,7 +247,7 @@ describe("cloudHandoffUiReducer", () => {
 			images: prompt.images,
 		});
 		const laterSamePrompt = {
-			id: "later-user",
+			id: "user_optimistic-later",
 			sessionId: "cloud-1",
 			role: "user" as const,
 			content: prompt.content,
@@ -255,11 +255,17 @@ describe("cloudHandoffUiReducer", () => {
 		};
 		expect(
 			appendPendingHandoffPrompt(
-				[priorPrompt, seedTail, liveResponse, laterSamePrompt],
+				[priorPrompt, seedTail, laterSamePrompt, liveResponse],
 				"cloud-1",
 				completed["cloud-1"],
 			),
-		).toEqual([...displayed, laterSamePrompt]);
+		).toEqual([
+			priorPrompt,
+			seedTail,
+			displayed[2],
+			laterSamePrompt,
+			liveResponse,
+		]);
 
 		const canonical = {
 			...displayed[2],

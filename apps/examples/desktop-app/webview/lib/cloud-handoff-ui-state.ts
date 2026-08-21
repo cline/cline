@@ -317,6 +317,7 @@ export function matchingUserPromptCount(
 	return messages.filter(
 		(message) =>
 			message.role === "user" &&
+			!message.id.startsWith("user_") &&
 			formatDisplayUserInput(message.content) === expected,
 	).length;
 }
