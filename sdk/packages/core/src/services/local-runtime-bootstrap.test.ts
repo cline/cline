@@ -454,6 +454,54 @@ describe("prepareLocalRuntimeBootstrap", () => {
 		generateSpy.mockRestore();
 	});
 
+	it("reports provider usage from a failed generation before rethrowing", async () => {
+		const modelId = "bootstrap-test-image-model";
+		registerBootstrapImageModel(modelId);
+		const usage = {
+			inputTokens: 21,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 0.04,
+		};
+		const generateSpy = vi
+			.spyOn(LlmsModels, "generateMedia")
+			.mockRejectedValue(
+				new LlmsModels.MediaGenerationError(
+					"Media generation returned no image media",
+					{ usage },
+				),
+			);
+		const { prepareLocalRuntimeBootstrap } = await import(
+			"./local-runtime-bootstrap"
+		);
+		const bootstrap = await prepareLocalRuntimeBootstrap({
+			input: createStartInput(),
+			sessionId: "sess-media-failed-usage",
+			providerSettingsManager: createProviderSettingsManager(undefined, {
+				image: { providerId: "openrouter", modelId },
+			}) as never,
+			defaultTelemetry: undefined,
+			defaultToolPolicies: undefined,
+			onPluginEvent: () => {},
+			onTeamEvent: () => {},
+			createSpawnTool,
+			readSessionMetadata: async () => undefined,
+			writeSessionMetadata: async () => {},
+		});
+		const reportUsage = vi.fn();
+
+		await expect(
+			bootstrap.runtimeBuilderInput.toolExecutors?.generateMedia?.(
+				{ media_type: "image", prompt: "A lighthouse" },
+				{ agentId: "agent-1", iteration: 1, reportUsage },
+			),
+		).rejects.toThrow("Media generation returned no image media");
+
+		expect(reportUsage).toHaveBeenCalledWith(usage);
+		generateSpy.mockRestore();
+	});
+
 	it.each([
 		{
 			label: "threads defaultFetch through the configured media executor",

@@ -14,7 +14,7 @@ vi.mock("./providers", () => ({
 	createHandlerAsync: createHandlerAsyncMock,
 }));
 
-import { generateMedia } from "./media-generation";
+import { generateMedia, MediaGenerationError } from "./media-generation";
 
 function apiStream(chunks: ApiStreamChunk[]): ApiStream {
 	return (async function* () {
@@ -130,6 +130,12 @@ describe("generateMedia", () => {
 				id: "response-1",
 			},
 			{
+				type: "usage",
+				inputTokens: 9,
+				outputTokens: 2,
+				id: "response-1",
+			},
+			{
 				type: "done",
 				success: false,
 				error: "provider rejected the image",
@@ -137,17 +143,31 @@ describe("generateMedia", () => {
 			},
 		]);
 
-		await expect(
-			generateMedia({
-				providerConfig: providerConfig(),
-				modelId: "image-model",
-				prompt: "Draw a bee",
-				mediaType: "image",
-			}),
-		).rejects.toThrow("Media generation failed: provider rejected the image");
+		const error = await generateMedia({
+			providerConfig: providerConfig(),
+			modelId: "image-model",
+			prompt: "Draw a bee",
+			mediaType: "image",
+		}).then(
+			() => {
+				throw new Error("expected generateMedia to reject");
+			},
+			(rejection: unknown) => rejection,
+		);
+
+		expect(error).toBeInstanceOf(MediaGenerationError);
+		expect((error as MediaGenerationError).message).toBe(
+			"Media generation failed: provider rejected the image",
+		);
+		expect((error as MediaGenerationError).usage).toEqual({
+			inputTokens: 9,
+			outputTokens: 2,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		});
 	});
 
-	it("throws when the stream returns no requested media", async () => {
+	it("preserves provider usage when the stream returns no requested media", async () => {
 		mockHandler([
 			{
 				type: "media",
@@ -159,17 +179,58 @@ describe("generateMedia", () => {
 				},
 				id: "response-1",
 			},
+			{
+				type: "usage",
+				inputTokens: 15,
+				outputTokens: 5,
+				totalCost: 0.03,
+				id: "response-1",
+			},
 			{ type: "done", success: true, id: "response-1" },
 		]);
 
-		await expect(
-			generateMedia({
-				providerConfig: providerConfig(),
-				modelId: "image-model",
-				prompt: "Draw a bee",
-				mediaType: "image",
-			}),
-		).rejects.toThrow("Media generation returned no image media");
+		const error = await generateMedia({
+			providerConfig: providerConfig(),
+			modelId: "image-model",
+			prompt: "Draw a bee",
+			mediaType: "image",
+		}).then(
+			() => {
+				throw new Error("expected generateMedia to reject");
+			},
+			(rejection: unknown) => rejection,
+		);
+
+		expect(error).toBeInstanceOf(MediaGenerationError);
+		expect((error as MediaGenerationError).message).toBe(
+			"Media generation returned no image media",
+		);
+		expect((error as MediaGenerationError).usage).toEqual({
+			inputTokens: 15,
+			outputTokens: 5,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+			totalCost: 0.03,
+		});
+	});
+
+	it("omits usage from the no-media error when the provider reported none", async () => {
+		mockHandler([{ type: "done", success: true, id: "response-1" }]);
+
+		const error = await generateMedia({
+			providerConfig: providerConfig(),
+			modelId: "image-model",
+			prompt: "Draw a bee",
+			mediaType: "image",
+		}).then(
+			() => {
+				throw new Error("expected generateMedia to reject");
+			},
+			(rejection: unknown) => rejection,
+		);
+
+		expect(error).toBeInstanceOf(MediaGenerationError);
+		expect((error as MediaGenerationError).usage).toBeUndefined();
 	});
 
 	it("composes provider and request cancellation signals", async () => {
