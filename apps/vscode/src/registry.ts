@@ -17,6 +17,8 @@ const ClineCommands = {
 	HistoryButton: prefix + ".historyButtonClicked",
 	AccountButton: prefix + ".accountButtonClicked",
 	WorktreesButton: prefix + ".worktreesButtonClicked",
+	PopoutButton: prefix + ".popoutButtonClicked",
+	OpenInNewTab: prefix + ".openInNewTab",
 	TerminalOutput: prefix + ".addTerminalOutputToChat",
 	AddToChat: prefix + ".addToChat",
 	FixWithCline: prefix + ".fixWithCline",
@@ -38,6 +40,7 @@ const ClineCommands = {
  */
 const ClineViewIds = {
 	Sidebar: name + ".SidebarProvider",
+	TabPanel: name + ".TabPanelProvider",
 }
 
 /**

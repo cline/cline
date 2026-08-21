@@ -142,6 +142,43 @@ export async function activate(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand(commands.AccountButton, () => sendAccountButtonClickedEvent()))
 	context.subscriptions.push(vscode.commands.registerCommand(commands.WorktreesButton, () => sendWorktreesButtonClickedEvent()))
 
+	// Opens Cline in an editor tab. Unlike sidebar views, editor tabs can be dragged
+	// into their own group and moved into a separate (detached) window.
+	const openClineInNewTab = async () => {
+		// There is a single controller, so only one tab panel can exist at a time.
+		const existingPanel = webview.getTabPanel()
+		if (existingPanel) {
+			existingPanel.reveal()
+			return
+		}
+		Logger.log("Opening Cline in new tab")
+
+		const lastCol = Math.max(...vscode.window.visibleTextEditors.map((editor) => editor.viewColumn || 0))
+		// Check if there are any visible text editors, otherwise open a new group to the right
+		const hasVisibleEditors = vscode.window.visibleTextEditors.length > 0
+		if (!hasVisibleEditors) {
+			await vscode.commands.executeCommand("workbench.action.newGroupRight")
+		}
+		const targetCol = hasVisibleEditors ? Math.max(lastCol + 1, 1) : vscode.ViewColumn.Two
+
+		const panel = vscode.window.createWebviewPanel(VscodeWebviewProvider.TAB_PANEL_ID, "Cline", targetCol, {
+			enableScripts: true,
+			retainContextWhenHidden: true,
+			localResourceRoots: [vscode.Uri.file(HostProvider.get().extensionFsPath)],
+		})
+		panel.iconPath = {
+			light: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_light.png"),
+			dark: vscode.Uri.joinPath(context.extensionUri, "assets", "icons", "robot_panel_dark.png"),
+		}
+		await webview.resolveWebviewPanel(panel)
+
+		// Lock the editor group so clicking on files doesn't open them over the panel
+		await new Promise((resolve) => setTimeout(resolve, 100))
+		await vscode.commands.executeCommand("workbench.action.lockEditorGroup")
+	}
+	context.subscriptions.push(vscode.commands.registerCommand(commands.PopoutButton, openClineInNewTab))
+	context.subscriptions.push(vscode.commands.registerCommand(commands.OpenInNewTab, openClineInNewTab))
+
 	context.subscriptions.push(vscode.workspace.registerTextDocumentContentProvider(DIFF_VIEW_URI_SCHEME, diffContentProvider))
 
 	// Edit previews use a separate, mutable provider (content set programmatically and
@@ -349,10 +386,13 @@ export async function activate(context: vscode.ExtensionContext) {
 		vscode.commands.registerCommand(commands.FocusChatInput, async (preserveEditorFocus = false) => {
 			const webview = WebviewProvider.getInstance() as VscodeWebviewProvider
 
-			// Show the webview
+			// Show the webview (either the sidebar view or the editor tab panel)
 			const webviewView = webview.getWebview()
 			if (webviewView) {
-				if (preserveEditorFocus) {
+				if ("reveal" in webviewView) {
+					// Editor tab panel
+					webviewView.reveal(undefined, preserveEditorFocus)
+				} else if (preserveEditorFocus) {
 					// Only make webview visible without forcing focus
 					webviewView.show(false)
 				} else {

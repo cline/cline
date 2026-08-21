@@ -148,6 +148,16 @@
 				"icon": "$(history)"
 			},
 			{
+				"command": "cline.popoutButtonClicked",
+				"title": "Open in Editor",
+				"icon": "$(link-external)"
+			},
+			{
+				"command": "cline.openInNewTab",
+				"title": "Open In New Tab",
+				"category": "Cline"
+			},
+			{
 				"command": "cline.accountButtonClicked",
 				"title": "Account",
 				"icon": "$(account)"
@@ -270,6 +280,11 @@
 					"when": "view == claude-dev.SidebarProvider"
 				},
 				{
+					"command": "cline.popoutButtonClicked",
+					"group": "navigation@4",
+					"when": "view == claude-dev.SidebarProvider"
+				},
+				{
 					"command": "cline.accountButtonClicked",
 					"group": "navigation@5",
 					"when": "view == claude-dev.SidebarProvider"
@@ -278,6 +293,33 @@
 					"command": "cline.settingsButtonClicked",
 					"group": "navigation@6",
 					"when": "view == claude-dev.SidebarProvider"
+				}
+			],
+			"editor/title": [
+				{
+					"command": "cline.plusButtonClicked",
+					"group": "navigation@1",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+				},
+				{
+					"command": "cline.marketplaceButtonClicked",
+					"group": "navigation@2",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+				},
+				{
+					"command": "cline.historyButtonClicked",
+					"group": "navigation@3",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+				},
+				{
+					"command": "cline.accountButtonClicked",
+					"group": "navigation@5",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
+				},
+				{
+					"command": "cline.settingsButtonClicked",
+					"group": "navigation@6",
+					"when": "activeWebviewPanelId == claude-dev.TabPanelProvider"
 				}
 			],
 			"editor/context": [
