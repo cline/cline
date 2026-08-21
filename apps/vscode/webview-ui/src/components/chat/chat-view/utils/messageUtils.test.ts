@@ -91,6 +91,30 @@ describe("filterVisibleMessages", () => {
 
 		expect(visible).toEqual([askMessage, userMessage])
 	})
+
+	it("hides empty text messages without images or media", () => {
+		const emptyMessage = createTextMessage(1, "")
+		const visible = filterVisibleMessages([emptyMessage])
+
+		expect(visible).toEqual([])
+	})
+
+	it("keeps empty text messages that carry generated media", () => {
+		const mediaMessage: ClineMessage = {
+			...createTextMessage(1, ""),
+			media: [
+				{
+					id: "generated-1",
+					modality: "image",
+					mediaType: "image/png",
+					source: { type: "base64", data: "aGVsbG8=" },
+				},
+			],
+		}
+		const visible = filterVisibleMessages([mediaMessage])
+
+		expect(visible).toEqual([mediaMessage])
+	})
 })
 
 describe("canRestoreWorkspaceFromMessage", () => {

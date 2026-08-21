@@ -159,8 +159,8 @@ export function filterVisibleMessages(messages: ClineMessage[]): ClineMessage[] 
 				return false
 			}
 			case "text":
-				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that)
-				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0) {
+				// Sometimes cline returns an empty text message, we don't want to render these. (We also use a say text for user messages, so in case they just sent images we still render that. Same for generated media rows, which carry an image with no accompanying text.)
+				if ((message.text ?? "") === "" && (message.images?.length ?? 0) === 0 && (message.media?.length ?? 0) === 0) {
 					return false
 				}
 				break
