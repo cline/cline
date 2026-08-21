@@ -9,14 +9,9 @@ import { reconnectDaemonConnectors } from "../../services/connectors/daemon-conn
 import { createLocalHubScheduleRuntimeHandlers } from "../daemon/runtime-handlers";
 import { resolveHubEndpointOptions } from "../discovery/defaults";
 import {
-	HUB_LOCK_HELD_EXIT_CODE,
-	isHubLockHeldError,
-} from "../discovery/instance-lock";
-import {
 	resolveProductionHubOwnerContext,
 	resolveSharedHubOwnerContext,
 } from "../discovery/workspace";
-import { resolveHubBotProfile } from "../profiles/cline-dad";
 import { startHubWebSocketServer } from "../server";
 import {
 	createHubDaemonShutdownCoordinator,
@@ -60,15 +55,7 @@ async function startHubWebSocketServerWithBindRetry(
 		try {
 			return await startHubWebSocketServer(options);
 		} catch (error) {
-			// A retiring predecessor can hold the port — or the instance lock —
-			// for a couple of seconds after acking shutdown. Wait either out
-			// within the deadline; a lock still held past it means a live Hub
-			// owns this context, and the rule is connect or diagnose, never
-			// replace (exit code 3, below).
-			if (
-				(!isAddressInUseError(error) && !isHubLockHeldError(error)) ||
-				Date.now() >= bindDeadline
-			) {
+			if (!isAddressInUseError(error) || Date.now() >= bindDeadline) {
 				throw error;
 			}
 			await new Promise((resolve) =>
@@ -83,13 +70,11 @@ function parseArgs(argv: string[]): {
 	host?: string;
 	port?: number;
 	pathname?: string;
-	profile?: string;
 } {
 	let cwd = process.cwd();
 	let host: string | undefined;
 	let port: number | undefined;
 	let pathname: string | undefined;
-	let profile: string | undefined;
 
 	for (let index = 0; index < argv.length; index += 1) {
 		const arg = argv[index];
@@ -112,18 +97,13 @@ function parseArgs(argv: string[]): {
 			index += 1;
 			continue;
 		}
-		if (arg === "--profile" && value) {
-			profile = value;
-			index += 1;
-			continue;
-		}
 		if (arg === "--pathname" && value) {
 			pathname = value;
 			index += 1;
 		}
 	}
 
-	return { cwd, host, port, pathname, profile };
+	return { cwd, host, port, pathname };
 }
 
 /**
@@ -250,23 +230,11 @@ async function main(): Promise<void> {
 	// after acking shutdown (its watchdog force-exits below the 3s retire
 	// poll). Spawning into that window must wait the port out instead of
 	// dying with EADDRINUSE and leaving clients with no hub at all.
-	// Bot profile resolution fails closed: a daemon serving as the wrong
-	// identity is worse than a daemon that refuses to start. Bundled ids
-	// (`cline`, `cline-dad`) resolve without any files on disk.
-	const botProfile = resolveHubBotProfile(
-		options.profile ?? process.env.CLINE_HUB_BOT_PROFILE,
-		{
-			ADMIN_NAME: process.env.CLINE_HUB_ADMIN_NAME,
-			ADMIN_FULL_NAME: process.env.CLINE_HUB_ADMIN_FULL_NAME,
-		},
-	);
-
 	const bindDeadline = Date.now() + HUB_STARTUP_BIND_RETRY_WINDOW_MS;
 	let server: Awaited<ReturnType<typeof startHubWebSocketServer>>;
 	try {
 		server = await startHubWebSocketServerWithBindRetry(bindDeadline, {
 			workspaceRoot: options.cwd,
-			botProfile,
 			onShutdownRequested: () => {
 				void requestOrQueueShutdown({
 					reason: "authenticated HTTP shutdown request",
@@ -378,15 +346,6 @@ async function main(): Promise<void> {
 
 void main().catch((error) => {
 	rejectHubDaemonReady(error);
-	if (isHubLockHeldError(error)) {
-		// A live Hub owns this context. Losing the singleton race is a
-		// diagnosis, not a failure to fight: exit distinctly and leave the
-		// running Hub alone.
-		process.stderr.write(
-			`[hub-daemon] another live Hub owns this data directory: ${error.message}\n`,
-		);
-		process.exit(HUB_LOCK_HELD_EXIT_CODE);
-	}
 	const message =
 		error instanceof Error ? error.stack || error.message : String(error);
 	process.stderr.write(`[hub-daemon] fatal: ${message}\n`);

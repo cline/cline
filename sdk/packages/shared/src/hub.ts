@@ -40,13 +40,7 @@ export type HubCapabilityName =
 	| "settings.set"
 	| "connector.start"
 	| "connector.stop"
-	| "connector.supervised"
-	| "run.enqueue"
-	| "run.list"
-	| "hub.drain"
-	| "hub.status"
-	| "profile.get"
-	| "stream.replay";
+	| "connector.supervised";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -72,12 +66,6 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"connector.start",
 	"connector.stop",
 	"connector.supervised",
-	"run.enqueue",
-	"run.list",
-	"hub.drain",
-	"hub.status",
-	"profile.get",
-	"stream.replay",
 ];
 
 export interface HubProtocolMetadata {
@@ -530,13 +518,8 @@ export type HubCommandName =
 	| "session.hook"
 	| "run.start"
 	| "session.send_input"
-	| "run.enqueue"
-	| "run.list"
 	| "run.abort"
 	| "run.proceed_while_running"
-	| "hub.drain"
-	| "hub.status"
-	| "profile.get"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
@@ -645,9 +628,6 @@ export type HubEventName =
 	| "run.aborted"
 	| "run.completed"
 	| "run.failed"
-	| "run.enqueued"
-	| "run.interrupted"
-	| "hub.drain_changed"
 	| "iteration.started"
 	| "iteration.finished"
 	| "assistant.delta"
@@ -696,13 +676,6 @@ export interface HubEventEnvelope {
 	version: HubProtocolVersion;
 	event: HubEventName;
 	eventId?: string;
-	/**
-	 * Monotonic global sequence assigned by the Hub's durable event log.
-	 * A client can resume delivery exactly where it left off by passing the
-	 * last observed sequence as `sinceSequence` on `stream.subscribe`.
-	 * Absent on hubs (or events) without a durable log.
-	 */
-	sequence?: number;
 	sessionId?: string;
 	clientId?: string;
 	sourceHubId?: string;
@@ -956,17 +929,7 @@ export interface HubStateSnapshot {
 export type HubTransportFrame =
 	| { kind: "command"; envelope: HubCommandEnvelope }
 	| { kind: "reply"; envelope: HubReplyEnvelope }
-	| {
-			kind: "stream.subscribe";
-			clientId: string;
-			sessionId?: string;
-			/**
-			 * Replay cursor: when set, the Hub first replays durable events with
-			 * `sequence > sinceSequence` (scoped to `sessionId` when given), then
-			 * live-tails. Omit for live-only delivery (legacy behavior).
-			 */
-			sinceSequence?: number;
-	  }
+	| { kind: "stream.subscribe"; clientId: string; sessionId?: string }
 	| { kind: "stream.unsubscribe"; clientId: string; sessionId?: string }
 	| { kind: "event"; envelope: HubEventEnvelope };
 

@@ -12,9 +12,6 @@ import type {
 import type { CoreSettingsService } from "../../settings";
 import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
-import type { ResolvedBotProfile } from "../profiles/bot-profiles";
-import type { HubEventLogOptions } from "./hub-event-log";
-import type { HubRunQueueOptions } from "./hub-run-queue";
 
 export interface HubWebSocketServerOptions {
 	/** Workspace authority assigned by the Hub to authenticated clients. */
@@ -64,20 +61,6 @@ export interface HubWebSocketServerOptions {
 	 * signals, and fatal errors through one shutdown coordinator.
 	 */
 	onShutdownRequested?: () => void | Promise<void>;
-	/**
-	 * Bot profile this Hub serves as: a rendered system prompt inherited by
-	 * sessions created without an explicit one, plus plugin roots injected
-	 * into session runtimes. Defaults to the plain `cline` profile.
-	 */
-	botProfile?: ResolvedBotProfile;
-	/**
-	 * Durable event log configuration. Pass `false` to disable persistence
-	 * (events become fire-and-forget, the pre-log behavior; `stream.subscribe`
-	 * replay cursors are then best-effort no-ops).
-	 */
-	eventLog?: HubEventLogOptions | false;
-	/** Durable run queue configuration (`run.enqueue`). */
-	runQueue?: HubRunQueueOptions | false;
 }
 
 export interface HubWebSocketServer {

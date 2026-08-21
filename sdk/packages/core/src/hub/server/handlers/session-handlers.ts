@@ -364,13 +364,11 @@ export async function handleSessionCreate(
 					? payload.cwd.trim()
 					: workspaceRoot),
 			workspaceRoot: sessionConfig?.workspaceRoot ?? workspaceRoot,
-			// Sessions without an explicit system prompt inherit the Hub's
-			// bot profile prompt (empty for the plain `cline` profile).
 			systemPrompt:
 				sessionConfig?.systemPrompt ??
 				(typeof runtimeOptions.systemPrompt === "string"
 					? runtimeOptions.systemPrompt
-					: (ctx.botProfile?.systemPrompt ?? "")),
+					: ""),
 			mode: sessionMode,
 			maxIterations:
 				sessionConfig?.maxIterations ??
@@ -644,7 +642,7 @@ export async function handleSessionRestore(
 							sessionConfig?.systemPrompt ??
 							(typeof runtimeOptions.systemPrompt === "string"
 								? runtimeOptions.systemPrompt
-								: (ctx.botProfile?.systemPrompt ?? "")),
+								: ""),
 						mode: sessionMode,
 						maxIterations:
 							sessionConfig?.maxIterations ??
