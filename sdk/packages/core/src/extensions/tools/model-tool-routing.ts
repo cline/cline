@@ -41,6 +41,7 @@ const TOOL_NAME_TO_FLAG: Record<
 		| "enableWebFetch"
 		| "enableApplyPatch"
 		| "enableEditor"
+		| "enableGenerateMedia"
 		| "enableSkills"
 		| "enableAskQuestion"
 		| "enableSubmitAndExit"
@@ -52,6 +53,7 @@ const TOOL_NAME_TO_FLAG: Record<
 	fetch_web_content: "enableWebFetch",
 	apply_patch: "enableApplyPatch",
 	editor: "enableEditor",
+	generate_media: "enableGenerateMedia",
 	skills: "enableSkills",
 	ask_question: "enableAskQuestion",
 	submit_and_exit: "enableSubmitAndExit",

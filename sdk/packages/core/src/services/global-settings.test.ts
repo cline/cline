@@ -5,19 +5,20 @@ import type { ITelemetryService } from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	GlobalSettingsSchema,
-	isModelToolEnabledGlobally,
+	isOptInToolEnabledGlobally,
 	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
 	readPlanActModeGlobally,
 	readToolAutoApproveGlobally,
 	readTuiThemeGlobally,
+	resolveDisabledToolNames,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
-	setModelToolEnabledGlobally,
+	setOptInToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
 	setToolAutoApproveGlobally,
@@ -53,6 +54,23 @@ describe("global-settings", () => {
 		expect(GlobalSettingsSchema.parse({ disabledTools: [] })).toEqual({
 			autoUpdateEnabled: true,
 			telemetryOptOut: false,
+		});
+		expect(
+			GlobalSettingsSchema.parse({
+				disabledTools: ["generate_media", "read_files", "web_search"],
+				tools: {
+					generate_media: { enabled: true },
+					web_search: { enabled: false },
+				},
+			}),
+		).toEqual({
+			autoUpdateEnabled: true,
+			disabledTools: ["read_files"],
+			telemetryOptOut: false,
+			tools: {
+				generate_media: { enabled: true },
+				web_search: { enabled: false },
+			},
 		});
 		expect(
 			GlobalSettingsSchema.parse({
@@ -166,7 +184,7 @@ describe("global-settings", () => {
 		}
 	});
 
-	it("stores provider-executed tool preferences in the scalable tools map", async () => {
+	it("stores opt-in tool preferences only in the scalable tools map", async () => {
 		const root = await mkdtemp(join(tmpdir(), "core-global-settings-"));
 		try {
 			process.env.CLINE_GLOBAL_SETTINGS_PATH = join(
@@ -174,17 +192,33 @@ describe("global-settings", () => {
 				"global-settings.json",
 			);
 
-			expect(isModelToolEnabledGlobally("web_search")).toBe(false);
-			setModelToolEnabledGlobally("web_search", true);
-			expect(isModelToolEnabledGlobally("web_search")).toBe(true);
+			expect(isOptInToolEnabledGlobally("web_search")).toBe(false);
+			expect(isOptInToolEnabledGlobally("generate_media")).toBe(false);
+			expect(resolveDisabledToolNames()).toEqual(
+				new Set(["web_search", "generate_media"]),
+			);
+
+			setOptInToolEnabledGlobally("web_search", true);
+			setDisabledTools(["generate_media"], false);
+			expect(isOptInToolEnabledGlobally("web_search")).toBe(true);
+			expect(isOptInToolEnabledGlobally("generate_media")).toBe(true);
+			expect(resolveDisabledToolNames()).toEqual(new Set());
+			expect(resolveDisabledToolNames(["generate_media"])).toEqual(new Set());
 			expect(readGlobalSettings().tools).toEqual({
+				generate_media: { enabled: true },
 				web_search: { enabled: true },
 			});
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
 
-			setDisabledTools(["web_search"], true);
+			setDisabledTools(["web_search", "generate_media"], true);
 			expect(readGlobalSettings().tools).toEqual({
+				generate_media: { enabled: false },
 				web_search: { enabled: false },
 			});
+			expect(resolveDisabledToolNames()).toEqual(
+				new Set(["web_search", "generate_media"]),
+			);
+			expect(readGlobalSettings().disabledTools).toBeUndefined();
 		} finally {
 			await rm(root, { recursive: true, force: true });
 		}

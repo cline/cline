@@ -13,6 +13,7 @@ import {
 	resolveHubOwnerContext,
 	writeHubDiscovery,
 } from ".";
+import { resolveSdkRuntimeBuildIdFromCoreSource } from "./runtime-build-id";
 
 type EnvSnapshot = {
 	CLINE_DATA_DIR: string | undefined;
@@ -69,10 +70,11 @@ describe("hub discovery", () => {
 		);
 	});
 
-	it("allows tests to override the unbundled source build identity", () => {
+	it("fingerprints unbundled source builds and allows an explicit override", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_ID;
-		expect(resolveHubBuildId()).toMatch(/^source-/);
+		expect(resolveHubBuildId()).toBe(resolveSdkRuntimeBuildIdFromCoreSource());
+		expect(resolveHubBuildId()).toMatch(/^source-v3-[a-f0-9]{64}$/);
 
 		process.env.CLINE_HUB_BUILD_ID = "e2e-build";
 		expect(resolveHubBuildId()).toBe("e2e-build");
@@ -102,10 +104,10 @@ describe("hub discovery", () => {
 		).toEqual({ compatible: false, reason: "unsupported_protocol" });
 	});
 
-	it("allows tests to override the build epoch and treats sources as unordered", () => {
+	it("orders source builds by runtime input time and allows an explicit override", () => {
 		snapshot = captureEnv();
 		delete process.env.CLINE_HUB_BUILD_EPOCH_MS;
-		expect(resolveHubBuildEpochMs()).toBeUndefined();
+		expect(resolveHubBuildEpochMs()).toBeGreaterThan(0);
 
 		process.env.CLINE_HUB_BUILD_EPOCH_MS = "12345";
 		expect(resolveHubBuildEpochMs()).toBe(12345);

@@ -37,16 +37,20 @@ import {
 	parseProviderModeSettings,
 	probeMcpServerConnection,
 	readGlobalSettings,
+	resolveDisabledToolNames,
+	resolveEnabledOptInToolNames,
+	resolveLocalClineAuthToken,
 	resolveMcpServerRegistration,
 	resolveSessionBackend,
 	resolveAgentConfigSearchPaths as resolveSharedAgentConfigSearchPaths,
 	SqliteSessionStore,
 	saveLocalProviderSettings,
+	saveMediaGenerationSettings,
 	saveModeSettings,
 	saveVoiceInputSettings,
 	setAutoUpdateEnabledGlobally,
 	setMcpServerDisabled,
-	setModelToolEnabledGlobally,
+	setOptInToolEnabledGlobally,
 	setTelemetryOptOutGlobally,
 	synthesizeConfiguredVoiceOutput,
 	transcribeConfiguredVoiceInput,
@@ -1295,13 +1299,14 @@ async function listUserInstructionConfigs(
 		userInstructionService.stop();
 	}
 
-	const disabledTools = new Set(readGlobalSettings().disabledTools ?? []);
+	const disabledTools = resolveDisabledToolNames();
 	// Pin spawn/teams availability so this listing matches the hub's
 	// (apps/cline-hub/src/server/user-instructions.ts) even if the preset
 	// defaults change.
 	const builtinToolCatalog = getCoreBuiltinToolCatalog({
 		enableSpawnAgent: true,
 		enableAgentTeams: true,
+		enabledOptInToolIds: resolveEnabledOptInToolNames(),
 		disabledToolIds: disabledTools,
 	});
 
@@ -2536,6 +2541,31 @@ export async function handleCommand(
 		});
 		return result;
 	}
+	if (command === "save_media_generation_settings") {
+		const mediaType = String(args?.media_type ?? "").trim();
+		if (mediaType !== "image") {
+			throw new Error('media_type must be "image"');
+		}
+		const providerId = String(args?.provider ?? "").trim();
+		const modelId = String(args?.model ?? "").trim();
+		if (Boolean(providerId) !== Boolean(modelId)) {
+			throw new Error(
+				"media generation provider and model must both be set or both be cleared",
+			);
+		}
+		const manager = new ProviderSettingsManager();
+		const result = await saveMediaGenerationSettings(
+			manager,
+			mediaType,
+			providerId && modelId ? { providerId, modelId } : undefined,
+		);
+		emitDesktopDebugLog(ctx, "info", "Media generation settings saved", {
+			providerId: result.mediaGeneration?.image?.providerId,
+			modelId: result.mediaGeneration?.image?.modelId,
+			configured: Boolean(result.mediaGeneration?.image),
+		});
+		return result;
+	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
@@ -2659,7 +2689,7 @@ export async function handleCommand(
 		if (typeof args?.web_search_enabled !== "boolean") {
 			throw new Error("web_search_enabled must be a boolean");
 		}
-		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
+		setOptInToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
 	}
 	if (command === "get_desktop_settings") {

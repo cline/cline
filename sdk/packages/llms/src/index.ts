@@ -1,4 +1,9 @@
 export { CLINE_DEFAULT_MODEL_ID } from "@cline/shared";
+export {
+	generateMedia,
+	type MediaGenerationRequest,
+	type MediaGenerationResult,
+} from "./media-generation";
 export type {
 	GetModelsForProviderOptions,
 	ModelCollection,

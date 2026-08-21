@@ -141,6 +141,35 @@ describe("isManagedHubReusable", () => {
 		).toBe(true);
 	});
 
+	it("retires the legacy static source daemon after runtime fingerprinting", () => {
+		const legacy = {
+			buildId: "source-0.0.75",
+			coreVersion: "0.0.75",
+		};
+		const fingerprinted = {
+			buildId: `source-v3-${"a".repeat(64)}`,
+			coreVersion: "0.0.75",
+		};
+
+		expect(retires(fingerprinted, legacy)).toBe(true);
+		expect(retires(legacy, fingerprinted)).toBe(false);
+	});
+
+	it("retires the hash-only source daemon after adding source epochs", () => {
+		const hashOnly = {
+			buildId: `source-v2-${"f".repeat(64)}`,
+			coreVersion: "0.0.75",
+		};
+		const timestamped = {
+			buildId: `source-v3-${"0".repeat(64)}`,
+			buildEpochMs: 2_000,
+			coreVersion: "0.0.75",
+		};
+
+		expect(retires(timestamped, hashOnly)).toBe(true);
+		expect(retires(hashOnly, timestamped)).toBe(false);
+	});
+
 	it("attaches to a strictly newer Hub instead of downgrading it", () => {
 		expect(
 			retires(
