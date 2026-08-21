@@ -1,5 +1,5 @@
 import { type RefObject, useEffect } from "react";
-import { WELCOME_HERO_CONFIG } from "./hero-config";
+import { WELCOME_HERO_POINTER_CONFIG } from "./hero-config";
 
 function clamp(value: number, min: number, max: number): number {
 	return Math.min(Math.max(value, min), max);
@@ -12,6 +12,20 @@ interface WelcomeHeroPointerState {
 	gridY: string;
 }
 
+const WELCOME_HERO_POINTER_PROPERTIES = [
+	"--welcome-grid-x",
+	"--welcome-grid-y",
+	"--welcome-eye-x",
+	"--welcome-eye-y",
+] as const;
+
+function resetWelcomeHeroPointerStyles(element: HTMLDivElement | null): void {
+	if (!element) return;
+	for (const property of WELCOME_HERO_POINTER_PROPERTIES) {
+		element.style.removeProperty(property);
+	}
+}
+
 function getWelcomeHeroPointerState(
 	element: HTMLDivElement,
 	clientX: number,
@@ -20,13 +34,35 @@ function getWelcomeHeroPointerState(
 	const bounds = element.getBoundingClientRect();
 	if (bounds.width <= 0 || bounds.height <= 0) return null;
 
-	const { frame, grid, eyes } = WELCOME_HERO_CONFIG;
+	const { defaultFrameHeight, defaultGridHeight, eyes } =
+		WELCOME_HERO_POINTER_CONFIG;
 	const pointerX = clientX - bounds.left;
 	const pointerY = clientY - bounds.top;
-	const gridX = clamp(pointerX, 0, bounds.width);
-	const gridY = clamp(pointerY, 0, frame.height);
+	const gridElement = element.querySelector<HTMLElement>(
+		'[data-welcome-hero-layer="grid"]',
+	);
+	const gridBounds = gridElement?.getBoundingClientRect();
+	const hasRenderedGridBounds =
+		gridBounds !== undefined && gridBounds.width > 0 && gridBounds.height > 0;
+	const gridX = hasRenderedGridBounds
+		? `${(
+				(clamp(clientX - gridBounds.left, 0, gridBounds.width) /
+					gridBounds.width) *
+					100
+			).toFixed(2)}%`
+		: `${((clamp(pointerX, 0, bounds.width) / bounds.width) * 100).toFixed(2)}%`;
+	const gridY = hasRenderedGridBounds
+		? `${(
+				(clamp(clientY - gridBounds.top, 0, gridBounds.height) /
+					gridBounds.height) *
+					100
+			).toFixed(2)}%`
+		: `${(
+				clamp(pointerY, 0, defaultFrameHeight) +
+					(defaultGridHeight - defaultFrameHeight) / 2
+			).toFixed(2)}px`;
 	const deltaX = pointerX - bounds.width / 2;
-	const deltaY = pointerY - frame.height / 2;
+	const deltaY = pointerY - defaultFrameHeight / 2;
 	const distance = Math.hypot(deltaX, deltaY);
 	const eyeStrength =
 		Math.min(distance / eyes.falloffDistance, 1) * eyes.travel;
@@ -36,8 +72,8 @@ function getWelcomeHeroPointerState(
 	return {
 		eyeX,
 		eyeY,
-		gridX: `${((gridX / bounds.width) * 100).toFixed(2)}%`,
-		gridY: `${(gridY + (grid.height - frame.height) / 2).toFixed(2)}px`,
+		gridX,
+		gridY,
 	};
 }
 
@@ -53,8 +89,11 @@ function applyWelcomeHeroEyeState(
 /** Tracks the full page while keeping the visual response clamped to the hero. */
 export function useWelcomeHeroPointer(
 	heroRef: RefObject<HTMLDivElement | null>,
+	enabled = true,
 ): void {
 	useEffect(() => {
+		if (!enabled) return;
+
 		let animationFrame: number | null = null;
 		let currentEyeX = 0;
 		let currentEyeY = 0;
@@ -89,7 +128,7 @@ export function useWelcomeHeroPointer(
 
 			updatePointerTarget(hero);
 
-			const { smoothing } = WELCOME_HERO_CONFIG.eyes;
+			const { smoothing } = WELCOME_HERO_POINTER_CONFIG.eyes;
 			currentEyeX += (targetEyeX - currentEyeX) * smoothing;
 			currentEyeY += (targetEyeY - currentEyeY) * smoothing;
 
@@ -146,6 +185,11 @@ export function useWelcomeHeroPointer(
 				animationFrame = null;
 			}
 			pointerDirty = false;
+			currentEyeX = 0;
+			currentEyeY = 0;
+			targetEyeX = 0;
+			targetEyeY = 0;
+			resetWelcomeHeroPointerStyles(heroRef.current);
 		};
 
 		const motionPreference = window.matchMedia?.(
@@ -162,5 +206,5 @@ export function useWelcomeHeroPointer(
 			motionPreference?.removeEventListener("change", syncMotionPreference);
 			stopPointerTracking();
 		};
-	}, [heroRef]);
+	}, [enabled, heroRef]);
 }
