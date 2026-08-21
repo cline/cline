@@ -61,6 +61,7 @@
 		"components/agent-prompt-queue.tsx",
 		"components/agent-quick-actions.css",
 		"components/agent-quick-actions.tsx",
+		"components/github-icon.tsx",
 		"components/markdown.css",
 		"components/index.ts",
 		"components/search-combobox.css",
