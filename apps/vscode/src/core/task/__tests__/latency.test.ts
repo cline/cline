@@ -1,7 +1,7 @@
 import { describe, it } from "mocha"
 import "should"
 
-import { isRemoteWorkspaceEnvironment } from "../latency"
+import { isRemoteWorkspaceEnvironment, shouldLogAssistantPresentationSchedule } from "../latency"
 
 describe("latency", () => {
 	it("detects remote workspaces from explicit remoteName metadata", () => {
@@ -48,5 +48,10 @@ describe("latency", () => {
 
 	it("does not classify hosts as remote when no fields are provided", () => {
 		isRemoteWorkspaceEnvironment({}).should.equal(false)
+	})
+
+	it("logs presentation schedules only at immediate semantic boundaries", () => {
+		shouldLogAssistantPresentationSchedule("immediate").should.equal(true)
+		shouldLogAssistantPresentationSchedule("normal").should.equal(false)
 	})
 })
