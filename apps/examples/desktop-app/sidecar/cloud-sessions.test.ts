@@ -719,7 +719,7 @@ describe("CloudSessionApi", () => {
 		]);
 	});
 
-	it("recovers distinct sessions for overlapping identical create requests", async () => {
+	it("refuses ambiguous recovery for overlapping identical create requests", async () => {
 		const now = new Date().toISOString();
 		const record = (id: string, createdAt: string) => ({
 			id,
@@ -750,17 +750,118 @@ describe("CloudSessionApi", () => {
 			repoUrl: "https://github.com/cline/test",
 		};
 
-		// Two identical CONCURRENT requests fail over to list-based recovery;
-		// each must claim a different record or one sandbox is orphaned.
-		const [first, second] = await Promise.all([
+		// The API exposes no request id that can map either failed POST to one of
+		// these rows. Newest-wins can steal another conversation's sandbox.
+		const results = await Promise.allSettled([
 			api.create(input),
 			api.create(input),
 		]);
 
-		expect([first.sessionId, second.sessionId].sort()).toEqual([
-			"ses-newer",
-			"ses-older",
+		expect(results.map((result) => result.status)).toEqual([
+			"rejected",
+			"rejected",
 		]);
+		for (const result of results) {
+			if (result.status === "rejected") {
+				expect(result.reason).toMatchObject({ code: "request_failed" });
+				expect(String(result.reason)).toContain("ambiguous result");
+			}
+		}
+	});
+
+	it("cleans up terminal provisioning failures with the creation identity", async () => {
+		const authorizations: string[] = [];
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:create",
+			fetch: async (input, init) => {
+				authorizations.push(
+					new Headers(init?.headers).get("Authorization") ?? "",
+				);
+				if (init?.method === "POST") {
+					return jsonResponse({
+						success: true,
+						data: { sessionId: "ses-failed", status: "provisioning" },
+					});
+				}
+				if (init?.method === "DELETE") {
+					return new Response(undefined, { status: 204 });
+				}
+				expect(new URL(String(input)).pathname).toBe(
+					"/api/v1/session/ses-failed/status",
+				);
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-failed",
+						status: "failed",
+						statusReason: "clone failed",
+					},
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toMatchObject({ code: "session_failed", detail: "clone failed" });
+		expect(authorizations).toEqual([
+			"Bearer workos:create",
+			"Bearer workos:create",
+			"Bearer workos:create",
+		]);
+	});
+
+	it("turns a generic forbidden response into actionable account guidance", async () => {
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:test",
+			fetch: async () =>
+				jsonResponse({ success: false, error: "forbidden" }, 403),
+		});
+
+		const error = await api
+			.create({ modelId: "model", repoUrl: "https://github.com/cline/test" })
+			.catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(CloudSessionError);
+		expect(error.code).toBe("request_failed");
+		expect(error.status).toBe(403);
+		expect(error.message).toContain(
+			"Switch to Personal or another organization in Settings → Account",
+		);
+	});
+
+	it("does not retry an arbitrary 502 that could have provisioned", async () => {
+		const { ctx } = createContext();
+		const create = vi.fn(async () => {
+			throw new CloudSessionError(
+				"request_failed",
+				"upstream request failed",
+				undefined,
+				502,
+			);
+		});
+		const sleep = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: { create } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			sleep,
+		});
+
+		await expect(
+			manager.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("upstream request failed");
+		expect(create).toHaveBeenCalledOnce();
+		expect(sleep).not.toHaveBeenCalled();
 	});
 
 	it("recovery never steals a session whose successful POST is still completing", async () => {
@@ -975,20 +1076,15 @@ describe("CloudSessionApi", () => {
 		await expect(failing).rejects.toThrow();
 	});
 
-	it("rechecks peers that start while recovery credentials are loading", async () => {
+	it("rechecks peers that start while the recovery list is loading", async () => {
 		const now = new Date().toISOString();
-		let authCalls = 0;
-		let releaseRecoveryAuth!: () => void;
-		const recoveryAuthBlocked = new Promise<void>((resolve) => {
-			releaseRecoveryAuth = resolve;
-		});
-		let announceRecoveryAuth!: () => void;
-		const recoveryAuthStarted = new Promise<void>((resolve) => {
-			announceRecoveryAuth = resolve;
-		});
 		let releaseSuccessfulPost!: () => void;
 		const successfulPostBlocked = new Promise<void>((resolve) => {
 			releaseSuccessfulPost = resolve;
+		});
+		let releaseRecoveryList!: () => void;
+		const recoveryListBlocked = new Promise<void>((resolve) => {
+			releaseRecoveryList = resolve;
 		});
 		let announceRecoveryList!: () => void;
 		const recoveryListStarted = new Promise<void>((resolve) => {
@@ -998,14 +1094,7 @@ describe("CloudSessionApi", () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
-			getAuthToken: async () => {
-				authCalls += 1;
-				if (authCalls === 2) {
-					announceRecoveryAuth();
-					await recoveryAuthBlocked;
-				}
-				return "sk_test";
-			},
+			getAuthToken: async () => "sk_test",
 			fetch: async (_input, init) => {
 				if (init?.method === "POST") {
 					posts += 1;
@@ -1025,6 +1114,7 @@ describe("CloudSessionApi", () => {
 					);
 				}
 				announceRecoveryList();
+				await recoveryListBlocked;
 				return jsonResponse({
 					success: true,
 					data: [
@@ -1047,10 +1137,9 @@ describe("CloudSessionApi", () => {
 		};
 
 		const failing = api.create(input);
-		await recoveryAuthStarted;
-		const successful = api.create(input);
-		releaseRecoveryAuth();
 		await recoveryListStarted;
+		const successful = api.create(input);
+		releaseRecoveryList();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		releaseSuccessfulPost();
 

@@ -228,6 +228,30 @@ export function mergeCloudSnapshotWithLive(
 		preserveUnmatchedLive?: boolean;
 	},
 ): ChatMessage[] {
+	const reconciledHydrated = [...hydrated];
+	const mergeImagesIntoHydrated = (
+		index: number | undefined,
+		source: ChatMessage,
+	) => {
+		if (index === undefined || !source.images?.length) return;
+		const target = reconciledHydrated[index];
+		if (!target) return;
+		const existing = target.images ?? [];
+		const additions = source.images.filter(
+			(image) =>
+				!existing.some(
+					(candidate) =>
+						candidate.data === image.data &&
+						candidate.mediaType === image.mediaType,
+				),
+		);
+		if (additions.length > 0) {
+			reconciledHydrated[index] = {
+				...target,
+				images: [...existing, ...additions],
+			};
+		}
+	};
 	const messageKey = (message: ChatMessage) => {
 		if (message.role === "tool" && message.meta?.toolCallId) {
 			return `tool\u0000${message.meta.toolCallId}`;
@@ -238,10 +262,12 @@ export function mergeCloudSnapshotWithLive(
 				: message.content;
 		return `${message.role}\u0000${content}\u0000${message.reasoning ?? ""}`;
 	};
-	const hydratedKeyCounts = new Map<string, number>();
-	for (const message of hydrated) {
+	const hydratedIndexesByKey = new Map<string, number[]>();
+	for (const [index, message] of hydrated.entries()) {
 		const key = messageKey(message);
-		hydratedKeyCounts.set(key, (hydratedKeyCounts.get(key) ?? 0) + 1);
+		const indexes = hydratedIndexesByKey.get(key) ?? [];
+		indexes.push(index);
+		hydratedIndexesByKey.set(key, indexes);
 	}
 	const hydratedAssistantTexts = hydrated
 		.filter((message) => message.role === "assistant" && message.content)
@@ -263,10 +289,13 @@ export function mergeCloudSnapshotWithLive(
 			continue;
 		}
 		const key = messageKey(message);
-		const hydratedCount = hydratedKeyCounts.get(key) ?? 0;
-		if (hydratedCount > 0) {
-			if (hydratedCount === 1) hydratedKeyCounts.delete(key);
-			else hydratedKeyCounts.set(key, hydratedCount - 1);
+		const matchingHydratedIndexes = hydratedIndexesByKey.get(key);
+		if (matchingHydratedIndexes?.length) {
+			const matchingIndex = matchingHydratedIndexes.shift();
+			mergeImagesIntoHydrated(matchingIndex, message);
+			if (matchingHydratedIndexes.length === 0) {
+				hydratedIndexesByKey.delete(key);
+			}
 			if (message.role === "assistant" && message.content) {
 				const index = unmatchedHydratedAssistantTexts.indexOf(message.content);
 				if (index >= 0) unmatchedHydratedAssistantTexts.splice(index, 1);
@@ -293,13 +322,26 @@ export function mergeCloudSnapshotWithLive(
 
 	const currentUserCounts = userMessageCounts(hydrated);
 	const reflectedPromptBudget = new Map<string, number>();
+	const reflectedUserIndexes = new Map<string, number[]>();
+	for (const [index, message] of hydrated.entries()) {
+		if (message.role !== "user") continue;
+		const content = comparableUserContent(message.content);
+		const indexes = reflectedUserIndexes.get(content) ?? [];
+		indexes.push(index);
+		reflectedUserIndexes.set(content, indexes);
+	}
 	for (const [content, count] of currentUserCounts) {
+		const previousCount = options.previousUserCounts.get(content) ?? 0;
 		reflectedPromptBudget.set(
 			content,
-			options.transcriptKnown
-				? Math.max(0, count - (options.previousUserCounts.get(content) ?? 0))
-				: count,
+			options.transcriptKnown ? Math.max(0, count - previousCount) : count,
 		);
+		if (options.transcriptKnown && previousCount > 0) {
+			reflectedUserIndexes.set(
+				content,
+				(reflectedUserIndexes.get(content) ?? []).slice(previousCount),
+			);
+		}
 	}
 	// Reconcile pending prompts by count delta; always retain failed bubbles.
 	for (const message of optimistic) {
@@ -312,12 +354,18 @@ export function mergeCloudSnapshotWithLive(
 			budget > 0
 		) {
 			reflectedPromptBudget.set(content, budget - 1);
+			mergeImagesIntoHydrated(
+				reflectedUserIndexes.get(content)?.shift(),
+				message,
+			);
 			options.optimisticStates.delete(message.id);
 			continue;
 		}
 		liveOnly.push(message);
 	}
-	return sliceMessages(sortMessagesChronologically([...hydrated, ...liveOnly]));
+	return sliceMessages(
+		sortMessagesChronologically([...reconciledHydrated, ...liveOnly]),
+	);
 }
 
 function deriveLiveToolState(messages: ChatMessage[]): {

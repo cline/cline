@@ -1328,7 +1328,11 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		return Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 	}
 	if (command === "respond_tool_approval") {
@@ -1342,7 +1346,7 @@ export async function handleCommand(
 			throw new Error("tool approvals require a trusted desktop connection");
 		}
 		const pending = ctx.pendingApprovals.get(requestId);
-		if (!pending || pending.owner !== connection) {
+		if (!pending || (pending.owner && pending.owner !== connection)) {
 			throw new Error("tool approval does not belong to this connection");
 		}
 		if (pending.item.sessionId !== sessionId) {
@@ -1357,7 +1361,11 @@ export async function handleCommand(
 		});
 		ctx.pendingApprovals.delete(requestId);
 		const remaining = Array.from(ctx.pendingApprovals.values())
-			.filter((a) => a.owner === connection && a.item.sessionId === sessionId)
+			.filter(
+				(a) =>
+					(!a.owner || a.owner === connection) &&
+					a.item.sessionId === sessionId,
+			)
 			.map((a) => a.item);
 		sendEventToClient(ctx, connection, "tool_approval_state", {
 			sessionId,
@@ -1426,11 +1434,22 @@ export async function handleCommand(
 		if (!sessionId) throw new Error("session id is required");
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
-			return (
-				(await cloud.listForDiscovery()).find(
+			// The active-scope list can omit a session created under another
+			// org scope; fall back to revalidating the cached record by id so
+			// the session stays openable, and to the raw cache when the
+			// account APIs are unavailable entirely.
+			try {
+				const listed = (await cloud.listForDiscovery()).find(
 					(session) => session.sessionId === sessionId,
-				) ?? null
-			);
+				);
+				return (
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
+				);
+			} catch {
+				return cloud.getCachedDiscoveryRecord(sessionId) ?? null;
+			}
 		}
 		return (await getSessionFromSidecarManager(ctx, sessionId)) ?? null;
 	}

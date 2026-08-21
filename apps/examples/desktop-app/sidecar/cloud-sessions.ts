@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import {
 	ClineAccountService,
+	isHubCommandTimeoutError,
 	isHubReconnectableTransportError,
 	NodeHubClient,
 	ProviderSettingsManager,
@@ -38,6 +39,9 @@ const CREATE_TIMEOUT_MS = 610_000;
 const PROVISIONING_POLL_MS = 3_000;
 // Bound hot-path REST calls so a dead network cannot hang the sidebar.
 const REQUEST_TIMEOUT_MS = 15_000;
+// Queue deliveries are acked promptly by the hub; a dead transport must not
+// hang them forever the way a run-length immediate send legitimately can.
+const QUEUE_COMMAND_TIMEOUT_MS = 30_000;
 const CLOUD_ERROR_PREFIX = "CLOUD_SESSION_ERROR:";
 const MAX_BUFFERED_SYNC_EVENTS = 2_000;
 const MAX_SEEN_EVENT_IDS = 2_000;
@@ -108,21 +112,32 @@ type CloudErrorCode =
 	| "github_not_connected"
 	| "session_not_found"
 	| "session_expired"
+	| "session_failed"
 	| "request_failed";
 
 export class CloudSessionError extends Error {
 	constructor(
 		readonly code: CloudErrorCode,
-		message: string,
+		readonly detail: string,
 		readonly connectUrl?: string,
 		/** HTTP status of the failed request, when one was received. */
 		readonly status?: number,
 	) {
 		super(
-			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message, connectUrl })}`,
+			`${CLOUD_ERROR_PREFIX}${JSON.stringify({ code, message: detail, connectUrl })}`,
 		);
 		this.name = "CloudSessionError";
 	}
+}
+
+function isTransientGitHubTokenVendFailure(error: unknown): boolean {
+	if (!(error instanceof CloudSessionError) || error.status !== 502)
+		return false;
+	const detail = error.detail.toLowerCase();
+	return (
+		detail.includes("couldn't authenticate with github") &&
+		detail.includes("reconnecting the integration")
+	);
 }
 
 type ApiResponse<T> = {
@@ -188,6 +203,14 @@ function cloudErrorForResponse(
 			message,
 			githubConnectUrl ??
 				`${trimTrailingSlash(appBaseUrl)}/dashboard/integrations`,
+		);
+	}
+	if (status === 403 && message.trim().toLowerCase() === "forbidden") {
+		return new CloudSessionError(
+			"request_failed",
+			"Your active account or organization cannot create cloud sessions. Switch to Personal or another organization in Settings → Account, then try again.",
+			undefined,
+			status,
 		);
 	}
 	return new CloudSessionError("request_failed", message, undefined, status);
@@ -504,7 +527,33 @@ export class CloudSessionApi {
 				cleanupAuthToken: creationAuthToken,
 			};
 		} catch (error) {
-			if (createdSessionId) throw error;
+			if (createdSessionId) {
+				if (
+					error instanceof CloudSessionError &&
+					error.code === "session_failed"
+				) {
+					// A terminally failed sandbox lingers in the account list
+					// otherwise; clean it up under the identity that created it.
+					try {
+						await this.delete(createdSessionId, creationAuthToken);
+					} catch (cleanupError) {
+						if (
+							!(
+								cleanupError instanceof CloudSessionError &&
+								(cleanupError.code === "session_not_found" ||
+									cleanupError.code === "session_expired")
+							)
+						) {
+							throw new AggregateError(
+								[error, cleanupError],
+								"The cloud workspace failed to provision and could not be cleaned up.",
+							);
+						}
+					}
+					this.claimedSessionIds.delete(createdSessionId);
+				}
+				throw error;
+			}
 			// Provisioning may outlive the synchronous request only when the
 			// POST timed out or the server failed after possibly accepting it
 			// (5xx / no HTTP status). A fast client-side rejection (4xx) never
@@ -533,13 +582,13 @@ export class CloudSessionApi {
 					await Promise.allSettled(pending.map(([, settled]) => settled));
 				}
 				const requestedBranch = input.branch?.trim();
-				const recoveryToken =
-					(await this.options.getAuthToken().catch(() => undefined))?.trim() ||
-					creationAuthToken;
+				// Recovery must observe the same identity/scope that issued the
+				// create — the active account can change mid-provision.
 				const candidates = (
-					await this.listWithToken(input.organizationId, recoveryToken).catch(
-						() => [],
-					)
+					await this.listWithToken(
+						input.organizationId,
+						creationAuthToken,
+					).catch(() => [])
 				)
 					.filter(
 						(session) =>
@@ -559,7 +608,7 @@ export class CloudSessionApi {
 					([peerSequence]) => !awaited.has(peerSequence),
 				);
 				await Promise.allSettled(latePeers.map(([, settled]) => settled));
-				const recovered = this.claimFirstUnclaimed(candidates);
+				const recovered = this.claimOnlyUnclaimed(candidates);
 				if (recovered) {
 					if (
 						recovered.status === "provisioning" ||
@@ -574,6 +623,7 @@ export class CloudSessionApi {
 							await this.waitUntilReady(
 								recovered.id,
 								recoveryController.signal,
+								creationAuthToken,
 							);
 						} finally {
 							clearTimeout(recoveryTimeout);
@@ -600,6 +650,7 @@ export class CloudSessionApi {
 	private async waitUntilReady(
 		sessionId: string,
 		signal: AbortSignal,
+		authToken?: string,
 	): Promise<void> {
 		while (!signal.aborted) {
 			let result:
@@ -611,6 +662,7 @@ export class CloudSessionApi {
 						signal,
 						AbortSignal.timeout(REQUEST_TIMEOUT_MS),
 					]),
+					authToken,
 				});
 			} catch (error) {
 				if (signal.aborted) throw error;
@@ -627,7 +679,7 @@ export class CloudSessionApi {
 			if (status === "ready" || status === "active") return;
 			if (status === "failed") {
 				throw new CloudSessionError(
-					"request_failed",
+					"session_failed",
 					result?.statusReason?.trim() ||
 						"The cloud sandbox could not be prepared.",
 				);
@@ -649,15 +701,21 @@ export class CloudSessionApi {
 	 * that atomicity (per event-loop continuation) is what guarantees two
 	 * concurrent recoveries can never adopt the same session record.
 	 */
-	private claimFirstUnclaimed(
+	private claimOnlyUnclaimed(
 		candidates: CloudSessionRecord[],
 	): CloudSessionRecord | undefined {
-		for (const candidate of candidates) {
-			if (this.claimedSessionIds.has(candidate.id)) continue;
-			this.claimedSessionIds.add(candidate.id);
-			return candidate;
+		const unclaimed = candidates.filter(
+			(candidate) => !this.claimedSessionIds.has(candidate.id),
+		);
+		if (unclaimed.length > 1) {
+			throw new CloudSessionError(
+				"request_failed",
+				"Cloud session creation had an ambiguous result. Check your cloud session list before trying again.",
+			);
 		}
-		return undefined;
+		const candidate = unclaimed[0];
+		if (candidate) this.claimedSessionIds.add(candidate.id);
+		return candidate;
 	}
 
 	async delete(sessionId: string, authToken?: string): Promise<void> {
@@ -772,6 +830,8 @@ type CloudSessionManagerOptions = {
 	getActiveOrganizationId?: (options?: {
 		fresh?: boolean;
 	}) => Promise<string | undefined>;
+	/** Test seam for retry backoff waits. */
+	sleep?: (ms: number) => Promise<void>;
 	createHubClient?: (
 		options: ConstructorParameters<typeof NodeHubClient>[0],
 	) => CloudHubClient;
@@ -1164,6 +1224,38 @@ export class CloudSessionManager {
 		);
 	}
 
+	/** Returns a session this process already created or discovered without
+	 * making account/environment availability a prerequisite for opening it. */
+	getCachedDiscoveryRecord(sessionId: string): JsonRecord | undefined {
+		const record = this.knownSessions.get(sessionId);
+		return record ? cloudSessionToDiscoveryRecord(record) : undefined;
+	}
+
+	/** Revalidates a cached row by id when the active-scope list does not include it. */
+	async getCrossScopeDiscoveryRecord(
+		sessionId: string,
+	): Promise<JsonRecord | undefined> {
+		const cached = this.getCachedDiscoveryRecord(sessionId);
+		if (!cached || typeof this.options.api.status !== "function") {
+			return undefined;
+		}
+		try {
+			const status = await this.options.api.status(sessionId);
+			const value = status.status?.trim();
+			return value ? { ...cached, status: value } : cached;
+		} catch (error) {
+			if (
+				error instanceof CloudSessionError &&
+				(error.code === "session_not_found" || error.code === "session_expired")
+			) {
+				this.knownSessions.delete(sessionId);
+				return undefined;
+			}
+			// A scope/auth/network failure cannot prove the cached session is gone.
+			return cached;
+		}
+	}
+
 	getProvisioningOutcome(
 		placeholderId: string,
 	): CloudProvisioningOutcome | null {
@@ -1422,10 +1514,28 @@ export class CloudSessionManager {
 		const organizationId =
 			input.organizationId ??
 			(await this.resolveActiveOrganizationId({ fresh: true }));
-		const created = await this.options.api.create({
-			...input,
-			organizationId,
-		});
+		let created: Awaited<ReturnType<CloudSessionApi["create"]>> | undefined;
+		for (let attempt = 0; attempt < 3; attempt += 1) {
+			try {
+				created = await this.options.api.create({
+					...input,
+					organizationId,
+				});
+				break;
+			} catch (error) {
+				// The secrets proxy occasionally 502s while vending the GitHub
+				// token; that specific failure is safe to retry (nothing was
+				// provisioned). Any other 502 could have provisioned.
+				if (!isTransientGitHubTokenVendFailure(error) || attempt === 2) {
+					throw error;
+				}
+				await (
+					this.options.sleep ??
+					((ms: number) =>
+						new Promise<void>((resolve) => setTimeout(resolve, ms)))
+				)(500 * (attempt + 1));
+			}
+		}
 		if (!created?.sessionId?.trim()) {
 			throw new CloudSessionError(
 				"request_failed",
@@ -1622,7 +1732,9 @@ export class CloudSessionManager {
 					...(userImages?.length ? { attachments: { userImages } } : {}),
 				},
 				innerSessionId,
-				{ timeoutMs: null },
+				delivery === "queue"
+					? { timeoutMs: QUEUE_COMMAND_TIMEOUT_MS }
+					: { timeoutMs: null },
 			);
 			// Advance the baseline so an older identical prompt cannot confirm this send.
 			if (live && delivery !== "queue") {
@@ -1638,7 +1750,10 @@ export class CloudSessionManager {
 				result: reply.payload?.result,
 			};
 		} catch (error) {
-			if (isHubReconnectableTransportError(error)) {
+			if (
+				isHubReconnectableTransportError(error) ||
+				isHubCommandTimeoutError(error, "session.send_input")
+			) {
 				let snapshot: CloudRehydrationSnapshot;
 				try {
 					snapshot = await this.rehydrateAfterTransportDrop(
@@ -1651,6 +1766,15 @@ export class CloudSessionManager {
 						live.status = "error";
 					}
 					throw recoveryError;
+				}
+				// Without a queue snapshot the absence of the prompt proves
+				// nothing for a queue delivery — telling the user to resend
+				// would duplicate a durably queued prompt.
+				if (delivery === "queue" && snapshot.prompts === undefined) {
+					throw new CloudSessionError(
+						"request_failed",
+						"The connection was interrupted and Cline could not confirm whether this message was queued. Check the cloud session before resending it.",
+					);
 				}
 				const promptOccurrencesAfterRecovery = countPromptOccurrences(
 					snapshot.messages,
@@ -2482,29 +2606,11 @@ export class CloudSessionManager {
 					? payload.conversationId
 					: undefined,
 		};
-		// Approvals are answered through a trusted webview connection (the
-		// same ownership contract local approvals follow); without one there
-		// is nobody to ask, so decline pod-side rather than queueing forever.
-		const owner = [...this.ctx.wsClients].find(
-			(client) => client.data?.canApproveTools === true,
-		);
-		if (!owner) {
-			void connection.client
-				.command(
-					"approval.respond",
-					{
-						approvalId,
-						approved: false,
-						reason: "No trusted desktop approval surface is connected",
-					},
-					connection.innerSessionId ?? undefined,
-				)
-				.catch(() => undefined);
-			return;
-		}
+		// Pod-relayed approvals have no local owner: they must survive a
+		// webview reload/disconnect and stay answerable from any trusted
+		// surface, so they are stored ownerless rather than declined.
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
-			owner,
 			resolve: async (result) => {
 				if (connection.disposed) {
 					// Commanding a disposed NodeHubClient would silently redial;
