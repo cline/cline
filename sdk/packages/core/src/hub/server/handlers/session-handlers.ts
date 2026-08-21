@@ -1,4 +1,5 @@
 import type {
+	ClientContext,
 	HubCommandEnvelope,
 	HubReplyEnvelope,
 	JsonValue,
@@ -56,6 +57,37 @@ export function selectSessionTools<T extends { name: string }>(
 			(mode !== "yolo" || tool.name !== TASKS_TOOL_NAME) &&
 			isCoreBuiltinToolAvailable(tool.name, clientType),
 	);
+}
+
+/**
+ * Rebuild the caller's client identity from `runtimeOptions.client`.
+ * `extensionContext` is local-only and never crosses the hub transport, so
+ * the hub client forwards this plain-data descriptor instead; it becomes
+ * `localRuntime.extensionContext.client` on the daemon so session traces
+ * carry `clientName` / `clientVersion` for every provider, on both
+ * `session.create` and `session.restore`.
+ */
+export function parseRuntimeOptionsClientContext(
+	value: unknown,
+): ClientContext | undefined {
+	const record = asPlainRecord(value);
+	const name = typeof record?.name === "string" ? record.name.trim() : "";
+	if (!name) {
+		return undefined;
+	}
+	return {
+		name,
+		...(typeof record?.version === "string" ? { version: record.version } : {}),
+		...(typeof record?.platform === "string"
+			? { platform: record.platform }
+			: {}),
+		...(typeof record?.platformVersion === "string"
+			? { platformVersion: record.platformVersion }
+			: {}),
+		...(typeof record?.isMultiRoot === "boolean"
+			? { isMultiRoot: record.isMultiRoot }
+			: {}),
+	};
 }
 
 function readConnectionString(value: unknown): string | undefined {
@@ -266,6 +298,7 @@ export async function handleSessionCreate(
 	const configExtensions = parseRuntimeConfigExtensions(
 		runtimeOptions.configExtensions,
 	);
+	const clientContext = parseRuntimeOptionsClientContext(runtimeOptions.client);
 	logHubMessage("info", "session.create.runtime_build.begin", {
 		...baseLogContext,
 		sessionId,
@@ -318,6 +351,7 @@ export async function handleSessionCreate(
 				loadPrivateOnAuth: true,
 			},
 			configExtensions,
+			...(clientContext ? { extensionContext: { client: clientContext } } : {}),
 			...clientContributionRuntime.localRuntime,
 			extensions: [
 				...(ctx.sessionExtensions ?? []),
@@ -540,6 +574,9 @@ export async function handleSessionRestore(
 		const configExtensions = parseRuntimeConfigExtensions(
 			runtimeOptions.configExtensions,
 		);
+		const clientContext = parseRuntimeOptionsClientContext(
+			runtimeOptions.client,
+		);
 		const clientContributionRuntime = createHubClientContributionRuntime({
 			sessionId,
 			targetClientId: clientId,
@@ -600,6 +637,9 @@ export async function handleSessionRestore(
 							loadPrivateOnAuth: true,
 						},
 						configExtensions,
+						...(clientContext
+							? { extensionContext: { client: clientContext } }
+							: {}),
 						...clientContributionRuntime.localRuntime,
 						extensions: [
 							...(ctx.sessionExtensions ?? []),
