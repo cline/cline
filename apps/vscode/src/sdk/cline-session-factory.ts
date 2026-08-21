@@ -258,13 +258,14 @@ function toSdkModelInfo(selection: ResolvedModelSelection): SdkModelInfo {
 	setCapability("prompt-cache", modelInfo.supportsPromptCache)
 	if (modelInfo.supportsReasoning !== undefined) setCapability("reasoning", modelInfo.supportsReasoning)
 	if (selection.overrides?.supportsAttachments !== undefined) setCapability("files", selection.overrides.supportsAttachments)
-	if (preservedCapabilities === undefined) {
+	if (preservedCapabilities === undefined || preservedCapabilities.length === 0) {
 		// No authoritative SDK list survived to here (dynamic-list snapshot,
-		// fallback metadata, or a custom model). The array we are rebuilding
-		// from booleans must still carry a definitive tool-calling signal,
-		// because a non-empty capabilities array without "tools" reads as
-		// "cannot call tools" to the SDK runtime. Legacy metadata only models
-		// tool support for OpenAI-compatible entries via `supportsTools`.
+		// fallback metadata, or a custom model). An empty list carries no
+		// signal either — same fail-open rule as `modelHasCapability` — and
+		// booleans like `supportsReasoning` can populate the rebuilt array, so
+		// without this it would read as "cannot call tools" to the SDK runtime
+		// (issue #13463). Legacy metadata only models tool support for
+		// OpenAI-compatible entries via `supportsTools`.
 		const supportsTools = (modelInfo as { supportsTools?: boolean }).supportsTools
 		setCapability("tools", supportsTools !== false)
 	}

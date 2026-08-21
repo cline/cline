@@ -949,6 +949,30 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.capabilities).not.toContain("tools")
 	})
 
+	it("treats an empty preserved capability list as unspecified and keeps tool-calling on", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/empty-capabilities-reasoner",
+			openRouterApiKey: "openrouter-key",
+			// A defined-but-empty capabilities array carries no signal (same
+			// fail-open rule as `modelHasCapability`). With supportsReasoning
+			// set, the rebuilt array becomes populated — it must still include
+			// "tools", or the SDK silently drops every tool (issue #13463).
+			actModeOpenRouterModelInfo: {
+				name: "Empty Capabilities Reasoner",
+				supportsPromptCache: false,
+				supportsReasoning: true,
+				capabilities: [],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/empty-capabilities-reasoner"]
+
+		expect(knownModel.capabilities).toContain("reasoning")
+		expect(knownModel.capabilities).toContain("tools")
+	})
+
 	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",
