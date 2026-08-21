@@ -2013,6 +2013,9 @@ function ChatThreadPane({
 								messages,
 								nextCommand,
 							),
+							baselineTailMessageId: pendingHandoffRecovery
+								? undefined
+								: messages.at(-1)?.id,
 							images: toChatMessageImages(
 								attachments.userImages,
 								`handoff_prompt_${sourceSessionId}`,
@@ -2088,6 +2091,7 @@ function ChatThreadPane({
 			isCloudSession,
 			messages,
 			pendingAttachments,
+			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
 			sessionId,

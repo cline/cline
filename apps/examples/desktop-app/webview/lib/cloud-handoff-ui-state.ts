@@ -6,6 +6,7 @@ export type PendingHandoffPrompt = {
 	content: string;
 	submittedAt: number;
 	baselineOccurrences: number;
+	baselineTailMessageId?: string;
 	images?: ChatMessage["images"];
 };
 
@@ -257,9 +258,17 @@ export function appendPendingHandoffPrompt(
 		createdAt: prompt.submittedAt,
 		meta: { userRunSpan: 0 },
 	};
-	const insertionIndex = messages.findIndex(
-		(existing) => existing.createdAt >= prompt.submittedAt,
-	);
+	const baselineTailIndex = prompt.baselineTailMessageId
+		? messages.findIndex(
+				(existing) => existing.id === prompt.baselineTailMessageId,
+			)
+		: -1;
+	const insertionIndex =
+		baselineTailIndex >= 0
+			? baselineTailIndex + 1
+			: messages.findIndex(
+					(existing) => existing.createdAt >= prompt.submittedAt,
+				);
 	if (insertionIndex < 0) return [...messages, message];
 	return [
 		...messages.slice(0, insertionIndex),
@@ -273,6 +282,27 @@ export function pendingHandoffPromptCaughtUp(
 	handoff: CloudHandoffUiEntry | undefined,
 ): boolean {
 	if (handoff?.status !== "target_prompt") return false;
+	const baselineTailIndex = handoff.pendingPrompt.baselineTailMessageId
+		? messages.findIndex(
+				(message) => message.id === handoff.pendingPrompt.baselineTailMessageId,
+			)
+		: -1;
+	if (baselineTailIndex >= 0) {
+		const messagesAfterSeed = messages.slice(baselineTailIndex + 1);
+		const firstResponseIndex = messagesAfterSeed.findIndex(
+			(message) => message.role === "assistant",
+		);
+		const messagesBeforeResponse =
+			firstResponseIndex >= 0
+				? messagesAfterSeed.slice(0, firstResponseIndex)
+				: messagesAfterSeed;
+		return (
+			matchingUserPromptCount(
+				messagesBeforeResponse,
+				handoff.pendingPrompt.content,
+			) > 0
+		);
+	}
 	return (
 		matchingUserPromptCount(messages, handoff.pendingPrompt.content) >
 		handoff.pendingPrompt.baselineOccurrences

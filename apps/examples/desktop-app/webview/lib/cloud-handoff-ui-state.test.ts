@@ -188,6 +188,7 @@ describe("cloudHandoffUiReducer", () => {
 			content: "hey cloud what do you see",
 			submittedAt: 100,
 			baselineOccurrences: 1,
+			baselineTailMessageId: "seed-tail",
 			images: [
 				{
 					id: "handoff-image",
@@ -214,7 +215,7 @@ describe("cloudHandoffUiReducer", () => {
 			sessionId: "cloud-1",
 			role: "assistant" as const,
 			content: "I see a robot",
-			createdAt: 120,
+			createdAt: 90,
 		};
 		const priorPrompt = {
 			id: "prior-user",
@@ -223,33 +224,55 @@ describe("cloudHandoffUiReducer", () => {
 			content: prompt.content,
 			createdAt: 50,
 		};
+		const seedTail = {
+			id: prompt.baselineTailMessageId,
+			sessionId: "cloud-1",
+			role: "assistant" as const,
+			content: "Previous local response",
+			createdAt: 75,
+		};
 		const displayed = appendPendingHandoffPrompt(
-			[priorPrompt, liveResponse],
+			[priorPrompt, seedTail, liveResponse],
 			"cloud-1",
 			completed["cloud-1"],
 		);
 		expect(displayed.map((message) => message.role)).toEqual([
 			"user",
+			"assistant",
 			"user",
 			"assistant",
 		]);
-		expect(displayed[1]).toMatchObject({
+		expect(displayed[2]).toMatchObject({
 			content: prompt.content,
 			images: prompt.images,
 		});
-
-		const canonical = {
-			...displayed[1],
-			id: "canonical-user",
-			content: `<user_input mode="act">${prompt.content}</user_input>`,
-			createdAt: 90,
+		const laterSamePrompt = {
+			id: "later-user",
+			sessionId: "cloud-1",
+			role: "user" as const,
+			content: prompt.content,
+			createdAt: 110,
 		};
 		expect(
 			appendPendingHandoffPrompt(
-				[priorPrompt, canonical, liveResponse],
+				[priorPrompt, seedTail, liveResponse, laterSamePrompt],
 				"cloud-1",
 				completed["cloud-1"],
 			),
-		).toEqual([priorPrompt, canonical, liveResponse]);
+		).toEqual([...displayed, laterSamePrompt]);
+
+		const canonical = {
+			...displayed[2],
+			id: "canonical-user",
+			content: `<user_input mode="act">${prompt.content}</user_input>`,
+			createdAt: 80,
+		};
+		expect(
+			appendPendingHandoffPrompt(
+				[priorPrompt, seedTail, canonical, liveResponse],
+				"cloud-1",
+				completed["cloud-1"],
+			),
+		).toEqual([priorPrompt, seedTail, canonical, liveResponse]);
 	});
 });
