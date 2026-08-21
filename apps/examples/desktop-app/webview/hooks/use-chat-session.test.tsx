@@ -1717,6 +1717,77 @@ describe("useChatSession", () => {
 		).toEqual(["generated-1", "generated-2"]);
 	});
 
+	it("projects generated media from a completed tool call onto its tool message", async () => {
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as
+						| { action?: string; config?: { sessionId?: string } }
+						| undefined;
+					if (request?.action === "start") {
+						return { sessionId: request.config?.sessionId };
+					}
+					if (request?.action === "send") {
+						return { ok: true };
+					}
+				}
+				return [];
+			},
+		);
+		await act(async () => current.sendPrompt("Draw a lighthouse"));
+		const chatEventHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "chat_event",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		const media = {
+			id: "tool-generated-1",
+			modality: "image",
+			mediaType: "image/png",
+			source: { type: "base64", data: "aGVsbG8=" },
+		};
+
+		await act(async () => {
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_start",
+				chunk: JSON.stringify({
+					toolCallId: "generate-call",
+					toolName: "generate_media",
+					input: { media_type: "image", prompt: "A lighthouse" },
+				}),
+				ts: Date.now(),
+				index: 1,
+			});
+			chatEventHandler?.({
+				sessionId: current.sessionId,
+				stream: "chat_tool_call_end",
+				chunk: JSON.stringify({
+					toolCallId: "generate-call",
+					toolName: "generate_media",
+					output: [
+						{ type: "text", text: "Generated an image." },
+						{ type: "media", media },
+					],
+				}),
+				ts: Date.now(),
+				index: 2,
+			});
+		});
+
+		const toolMessage = current.messages.find(
+			(message) => message.meta?.toolName === "generate_media",
+		);
+		expect(toolMessage).toMatchObject({
+			role: "tool",
+			media: [media],
+			meta: { hookEventName: "tool_call_end" },
+		});
+		expect(toolMessage?.content).toContain("[generated image]");
+		expect(toolMessage?.content).not.toContain("aGVsbG8=");
+	});
+
 	it("renders generated images returned in the completed RPC result", async () => {
 		invokeMock.mockImplementation(
 			async (command: string, args?: Record<string, unknown>) => {
@@ -2271,6 +2342,78 @@ describe("useChatSession", () => {
 				}),
 			}),
 		);
+	});
+
+	it("restores a pending question when switching to its session", async () => {
+		const hydratedSessionId = "session-with-question";
+		const pendingQuestion = {
+			requestId: "question-1",
+			sessionId: hydratedSessionId,
+			createdAt: "2026-08-11T00:00:00.000Z",
+			question: "Which branch should I use?",
+			options: ["Keep current", "Create new"],
+		};
+		const askQuestionHandler = subscribeMock.mock.calls.find(
+			([eventName]) => eventName === "ask_question_requested",
+		)?.[1] as ((payload: unknown) => void) | undefined;
+		expect(askQuestionHandler).toBeTypeOf("function");
+
+		await act(async () => {
+			askQuestionHandler?.(pendingQuestion);
+		});
+		expect(current.pendingAskQuestions).toEqual([]);
+
+		invokeMock.mockImplementation(
+			async (command: string, args?: Record<string, unknown>) => {
+				if (command === "get_process_context") {
+					return { cwd: "/workspace/cline", workspaceRoot: "/workspace/cline" };
+				}
+				if (command === "poll_ask_questions") {
+					return args?.sessionId === hydratedSessionId ? [pendingQuestion] : [];
+				}
+				if (
+					command === "poll_tool_approvals" ||
+					command === "read_session_messages" ||
+					command === "read_session_hooks"
+				) {
+					return [];
+				}
+				if (command === "chat_session_command") {
+					const request = args?.request as { action?: string } | undefined;
+					if (request?.action === "attach") {
+						return {
+							sessionId: hydratedSessionId,
+							status: "running",
+							provider: "cline",
+							model: "test-model",
+							cwd: "/workspace/cline",
+							workspaceRoot: "/workspace/cline",
+						};
+					}
+					return { promptsInQueue: [] };
+				}
+				return [];
+			},
+		);
+
+		await act(async () => {
+			await current.hydrateSession({
+				sessionId: hydratedSessionId,
+				status: "running",
+				provider: "cline",
+				model: "test-model",
+				cwd: "/workspace/cline",
+				workspaceRoot: "/workspace/cline",
+				startedAt: "2026-08-11T00:00:00.000Z",
+			});
+		});
+
+		await vi.waitFor(() =>
+			expect(current.pendingAskQuestions).toEqual([pendingQuestion]),
+		);
+		expect(invokeMock).toHaveBeenCalledWith("poll_ask_questions", {
+			sessionId: hydratedSessionId,
+		});
 	});
 
 	it("restores a pending question when switching to its session", async () => {

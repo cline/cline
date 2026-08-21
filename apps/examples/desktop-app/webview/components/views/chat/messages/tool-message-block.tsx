@@ -1,5 +1,6 @@
 "use client";
 
+import { GeneratedMediaContent } from "@cline/ui";
 import {
 	ToolActivity,
 	ToolActivityCode,
@@ -153,104 +154,127 @@ const ToolCallRow = memo(function ToolCallRow({
 		canProceed;
 
 	return (
-		<ToolActivity
-			className="my-0"
-			expandable={hasExpandedSections}
-			onOpenChange={handleOpenChange}
-			open={open}
-		>
-			<ToolActivityTrigger
-				additions={summary.diff?.additions || undefined}
-				deletions={summary.diff?.deletions || undefined}
-				icon={
-					hasError ? (
-						<AlertCircle className="size-4 text-destructive/80" />
-					) : (
-						<Icon className="size-4" />
-					)
-				}
-				label={<ToolLabel isRunning={inProgress} parts={summary.labelParts} />}
-				showDisclosureIcon={false}
-				status={hasError ? "error" : inProgress ? "running" : "success"}
-			/>
-			<ToolActivityContent presentation="rail">
-				{details.length > 0 ? (
-					<ToolActivityDetails
-						className={cn(
-							"whitespace-pre-wrap",
-							isCommand && "font-mono text-xs",
-						)}
-					>
-						{details.map(({ detail, key }) => (
-							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
-						))}
-					</ToolActivityDetails>
-				) : null}
-				{fileDiffs.map((entry) =>
-					entry.kind === "rich" && entry.hunk ? (
-						<ToolFileDiff
-							className="mt-1"
-							fragment={entry.item.fragment}
-							key={entry.key}
-							newText={entry.hunk.newText}
-							oldText={entry.hunk.oldText}
-							path={entry.item.path}
+		<div className="space-y-2">
+			<ToolActivity
+				className="my-0"
+				expandable={hasExpandedSections}
+				onOpenChange={handleOpenChange}
+				open={open}
+			>
+				<ToolActivityTrigger
+					additions={summary.diff?.additions || undefined}
+					deletions={summary.diff?.deletions || undefined}
+					icon={
+						hasError ? (
+							<AlertCircle className="size-4 text-destructive/80" />
+						) : (
+							<Icon className="size-4" />
+						)
+					}
+					label={
+						<ToolLabel isRunning={inProgress} parts={summary.labelParts} />
+					}
+					showDisclosureIcon={false}
+					status={hasError ? "error" : inProgress ? "running" : "success"}
+				/>
+				<ToolActivityContent presentation="rail">
+					{details.length > 0 ? (
+						<ToolActivityDetails
+							className={cn(
+								"whitespace-pre-wrap",
+								isCommand && "font-mono text-xs",
+							)}
+						>
+							{details.map(({ detail, key }) => (
+								<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+							))}
+						</ToolActivityDetails>
+					) : null}
+					{fileDiffs.map((entry) =>
+						entry.kind === "rich" && entry.hunk ? (
+							<ToolFileDiff
+								className="mt-1"
+								fragment={entry.item.fragment}
+								key={entry.key}
+								newText={entry.hunk.newText}
+								oldText={entry.hunk.oldText}
+								path={entry.item.path}
+							/>
+						) : (
+							<ToolActivityCode
+								className="mt-1 overflow-x-auto text-xs"
+								key={entry.key}
+							>
+								{entry.item.diff}
+							</ToolActivityCode>
+						),
+					)}
+					{commandOutput ? (
+						<CommandOutputTerminal
+							isRunning={inProgress}
+							output={commandOutput}
 						/>
-					) : (
-						<ToolActivityCode
-							className="mt-1 overflow-x-auto text-xs"
-							key={entry.key}
-						>
-							{entry.item.diff}
+					) : summary.outputText ? (
+						<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+							{summary.outputText}
 						</ToolActivityCode>
-					),
-				)}
-				{commandOutput ? (
-					<CommandOutputTerminal
-						isRunning={inProgress}
-						output={commandOutput}
-					/>
-				) : summary.outputText ? (
-					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
-						{summary.outputText}
-					</ToolActivityCode>
-				) : null}
-				{inputPreview ? (
-					<div className="space-y-1">
-						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							Input
+					) : null}
+					{inputPreview ? (
+						<div className="space-y-1">
+							<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+								Input
+							</div>
+							<ToolActivityCode className="text-sm">
+								{inputPreview}
+							</ToolActivityCode>
 						</div>
-						<ToolActivityCode className="text-sm">
-							{inputPreview}
-						</ToolActivityCode>
-					</div>
-				) : null}
-				{summary.errorText ? (
-					<div className="mt-1 break-words text-destructive">
-						{summary.errorText}
-					</div>
-				) : null}
-				{canProceed ? (
-					<div className="mt-2 space-y-1.5">
-						<Button
-							disabled={isProceeding}
-							onClick={() => void handleProceedWhileRunning()}
-							size="sm"
-							type="button"
-							variant="outline"
-						>
-							{isProceeding ? (
-								<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+					) : null}
+					{summary.errorText ? (
+						<div className="mt-1 break-words text-destructive">
+							{summary.errorText}
+						</div>
+					) : null}
+					{canProceed ? (
+						<div className="mt-2 space-y-1.5">
+							<Button
+								disabled={isProceeding}
+								onClick={() => void handleProceedWhileRunning()}
+								size="sm"
+								type="button"
+								variant="outline"
+							>
+								{isProceeding ? (
+									<Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+								) : null}
+								Proceed while running
+							</Button>
+							{proceedError ? (
+								<div className="text-xs text-destructive">{proceedError}</div>
 							) : null}
-							Proceed while running
-						</Button>
-						{proceedError ? (
-							<div className="text-xs text-destructive">{proceedError}</div>
-						) : null}
-					</div>
-				) : null}
-			</ToolActivityContent>
-		</ToolActivity>
+						</div>
+					) : null}
+				</ToolActivityContent>
+			</ToolActivity>
+			{message.media?.length ? (
+				<div className="ml-7 flex max-w-2xl flex-col gap-2">
+					{message.media.map((media) => (
+						<GeneratedMediaContent
+							classNames={{
+								image:
+									"max-h-96 max-w-full rounded-lg border border-border bg-muted object-contain",
+								audio: "w-full",
+								video: "max-h-96 max-w-full rounded-lg",
+								file: "text-sm underline",
+								unavailable:
+									"rounded-lg border border-border bg-muted p-3 text-sm",
+							}}
+							key={media.id}
+							media={media}
+						/>
+					))}
+				</div>
+			) : null}
+		</div>
 	);
 });
 
