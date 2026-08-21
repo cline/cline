@@ -5,6 +5,7 @@ import {
 	toGatewayRequestMessages,
 } from "./compat";
 import { ClineNotSubscribedError } from "./errors";
+import { DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS } from "./gateway";
 import type { Message } from "./types";
 
 const streamTextSpy = vi.fn();
@@ -361,7 +362,7 @@ describe("createGatewayApiHandler.createMessage", () => {
 		openaiCompatibleSpy.mockClear();
 	});
 
-	it("does not convert catalog maxTokens into request maxOutputTokens", async () => {
+	it("uses the default maxOutputTokens without expanding to catalog maxTokens", async () => {
 		streamTextSpy.mockReturnValue({
 			fullStream: (async function* () {
 				yield { type: "finish", finishReason: "stop" };
@@ -395,7 +396,40 @@ describe("createGatewayApiHandler.createMessage", () => {
 		const call = streamTextSpy.mock.calls.at(-1)?.[0] as
 			| { maxOutputTokens?: unknown }
 			| undefined;
-		expect(call).not.toHaveProperty("maxOutputTokens");
+		expect(call).toHaveProperty(
+			"maxOutputTokens",
+			DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS,
+		);
+	});
+
+	it("conservatively normalizes exotic effort for unlisted OpenRouter models", async () => {
+		streamTextSpy.mockReturnValue({
+			fullStream: (async function* () {
+				yield { type: "finish", finishReason: "stop" };
+			})(),
+			usage: Promise.resolve({ inputTokens: 1, outputTokens: 1 }),
+		});
+
+		const handler = createGatewayApiHandler({
+			providerId: "openrouter",
+			clientType: "openai-compatible",
+			modelId: "reasoning-model",
+			apiKey: "test-key",
+			thinking: true,
+			reasoningEffort: "max",
+		});
+
+		for await (const _chunk of handler.createMessage("", [
+			{ role: "user", content: "Hello" },
+		])) {
+			// Drain the stream so the provider request is executed.
+		}
+
+		expect(streamTextSpy).toHaveBeenCalledWith(
+			expect.objectContaining({
+				reasoning: "xhigh",
+			}),
+		);
 	});
 
 	it("sends configured OpenAI-compatible maxOutputTokens to the provider request", async () => {
@@ -800,6 +834,31 @@ describe("buildGatewayModels", () => {
 				id: "llama3.1",
 				contextWindow: 8192,
 				maxInputTokens: 8192,
+			}),
+		]);
+	});
+
+	it("preserves catalog reasoning controls on projected gateway models", () => {
+		const reasoningOptions = [
+			{ type: "effort" as const, values: ["medium", "high", "max"] as const },
+		];
+		const models = buildGatewayModels("openrouter", {
+			providerId: "openrouter",
+			modelId: "openai/gpt-5.6",
+			knownModels: {
+				"openai/gpt-5.6": {
+					id: "openai/gpt-5.6",
+					name: "GPT-5.6",
+					contextWindow: 400_000,
+					reasoningOptions,
+				},
+			},
+		});
+
+		expect(models).toEqual([
+			expect.objectContaining({
+				id: "openai/gpt-5.6",
+				reasoningOptions,
 			}),
 		]);
 	});

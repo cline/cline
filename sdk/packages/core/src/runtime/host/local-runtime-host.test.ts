@@ -1,4 +1,5 @@
 import {
+	existsSync,
 	mkdirSync,
 	mkdtempSync,
 	readFileSync,
@@ -6,18 +7,23 @@ import {
 	writeFileSync,
 } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import type { MessageWithMetadata } from "@cline/llms";
-import type {
-	AgentConfig,
-	AgentEvent,
-	AgentExtensionAutomationContext,
-	AgentResult,
-	AgentRuntimeEvent,
-	BasicLogger,
+import {
+	type AgentConfig,
+	type AgentEvent,
+	type AgentExtensionAutomationContext,
+	type AgentResult,
+	type AgentRuntimeEvent,
+	type BasicLogger,
+	estimateRequestInputTokens,
+	isChatWorkspacePath,
 } from "@cline/shared";
-import { estimateRequestInputTokens } from "@cline/shared";
-import { setClineDir, setHomeDir } from "@cline/shared/storage";
+import {
+	resolveChatWorkspacePath,
+	setClineDir,
+	setHomeDir,
+} from "@cline/shared/storage";
 import simpleGit from "simple-git";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TelemetryService } from "../../services/telemetry/TelemetryService";
@@ -164,6 +170,7 @@ describe("LocalRuntimeHost", () => {
 	const envSnapshot = {
 		HOME: process.env.HOME,
 		CLINE_DIR: process.env.CLINE_DIR,
+		CLINE_DATA_DIR: process.env.CLINE_DATA_DIR,
 	};
 	let isolatedHomeDir = "";
 
@@ -171,6 +178,7 @@ describe("LocalRuntimeHost", () => {
 		isolatedHomeDir = mkdtempSync(join(tmpdir(), "core-session-home-"));
 		process.env.HOME = isolatedHomeDir;
 		process.env.CLINE_DIR = join(isolatedHomeDir, ".cline");
+		delete process.env.CLINE_DATA_DIR;
 		setHomeDir(isolatedHomeDir);
 		setClineDir(process.env.CLINE_DIR);
 	});
@@ -178,9 +186,102 @@ describe("LocalRuntimeHost", () => {
 	afterEach(() => {
 		process.env.HOME = envSnapshot.HOME;
 		process.env.CLINE_DIR = envSnapshot.CLINE_DIR;
+		if (envSnapshot.CLINE_DATA_DIR === undefined) {
+			delete process.env.CLINE_DATA_DIR;
+		} else {
+			process.env.CLINE_DATA_DIR = envSnapshot.CLINE_DATA_DIR;
+		}
 		setHomeDir(envSnapshot.HOME ?? "~");
 		setClineDir(envSnapshot.CLINE_DIR ?? join("~", ".cline"));
 		rmSync(isolatedHomeDir, { recursive: true, force: true });
+	});
+
+	it("recovers stale detached command logs for non-daemon hosts", async () => {
+		const detachedLogDirectory = mkdtempSync(
+			join(tmpdir(), "cline-command-local-host-recovery-"),
+		);
+		writeFileSync(join(detachedLogDirectory, "output.log"), "stale output");
+		writeFileSync(join(detachedLogDirectory, "completed-at"), "0");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(join(isolatedHomeDir, "sessions")),
+		});
+
+		try {
+			await expect.poll(() => existsSync(detachedLogDirectory)).toBe(false);
+		} finally {
+			await manager.dispose();
+			rmSync(detachedLogDirectory, { recursive: true, force: true });
+		}
+	});
+
+	it.each([
+		{ source: "generated", requestedSessionId: undefined },
+		{ source: "requested", requestedSessionId: "session-explicit" },
+	] as const)("resolves an omitted workspace with the $source session ID", async ({
+		requestedSessionId,
+	}) => {
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn().mockResolvedValue(undefined),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-temp-workspace"),
+			getConversationId: vi.fn().mockReturnValue("conv-temp-workspace"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const sessionsDir = join(isolatedHomeDir, "sessions");
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: new FileSessionService(sessionsDir),
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		let chatWorkspace = "";
+
+		try {
+			const result = await manager.startSession({
+				config: {
+					...(requestedSessionId ? { sessionId: requestedSessionId } : {}),
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					systemPrompt: "You are a test agent",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			});
+
+			chatWorkspace = result.manifest.cwd;
+			if (requestedSessionId) {
+				expect(result.sessionId).toBe(requestedSessionId);
+			}
+			expect(chatWorkspace).toBe(resolveChatWorkspacePath());
+			expect(isChatWorkspacePath(chatWorkspace)).toBe(true);
+			expect(result.manifest.workspace_root).toBe(chatWorkspace);
+			expect(existsSync(join(sessionsDir, result.sessionId))).toBe(false);
+			expect(runtimeBuilder.build).toHaveBeenCalledWith(
+				expect.objectContaining({
+					config: expect.objectContaining({
+						cwd: chatWorkspace,
+						workspaceRoot: chatWorkspace,
+					}),
+				}),
+			);
+		} finally {
+			await manager.dispose();
+			if (chatWorkspace) {
+				rmSync(dirname(chatWorkspace), { recursive: true, force: true });
+			}
+		}
 	});
 
 	it("stores git under metadata and refreshes it after an active turn", async () => {
@@ -1025,12 +1126,17 @@ describe("LocalRuntimeHost", () => {
 		expect(started.manifest.source).toBe("kanban");
 	});
 
-	it("persists initial messages for idle resumed sessions", async () => {
+	it("persists seeded history at session start so recovery can rebuild it", async () => {
 		const sessionId = "sess-fork-copy";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
 			{ role: "user" as const, content: "build a thing" },
 			{ role: "assistant" as const, content: "done" },
+		];
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user" as const, content: "continue" },
+			{ role: "assistant" as const, content: "continued" },
 		];
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -1058,7 +1164,11 @@ describe("LocalRuntimeHost", () => {
 		};
 		const agent = {
 			run: vi.fn().mockResolvedValue(createResult()),
-			continue: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(
+				createResult({
+					messages: continuedMessages,
+				}),
+			),
 			getMessages: vi.fn().mockReturnValue(initialMessages),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
 			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
@@ -1083,23 +1193,162 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		expect(agent.run).not.toHaveBeenCalled();
-		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledTimes(
-			1,
+		// Seeded history is durable immediately: if the resident session is
+		// lost before the first completed turn (hub restart/crash), the
+		// missing-session recovery rebuilds from the persisted file instead of
+		// silently wiping the conversation.
+		expect(sessionService.createRootSessionWithArtifacts).toHaveBeenCalledWith(
+			expect.objectContaining({ sessionId }),
 		);
 		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
 			sessionId,
 			initialMessages,
 			"You are a test agent",
 		);
-		expect(sessionService.updateSessionStatus).toHaveBeenCalledWith(
+		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
+		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
+			initialMessages,
+		);
+
+		await manager.runTurn({ sessionId, prompt: "continue" });
+
+		expect(agent.continue).toHaveBeenCalledTimes(1);
+		expect(sessionService.persistSessionMessages).toHaveBeenLastCalledWith(
 			sessionId,
-			"completed",
-			0,
+			expect.arrayContaining(
+				continuedMessages.map((message) => expect.objectContaining(message)),
+			),
+			"You are a test agent",
 		);
 		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
 			sessionId,
-			status: "completed",
+			status: "idle",
 		});
+	});
+
+	it("keeps brand-new empty sessions lazy until the first user turn", async () => {
+		const sessionId = "sess-lazy-empty";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		// No seeded history to protect: closing the runtime before any user
+		// turn must still leave no empty history entry behind.
+		expect(
+			sessionService.createRootSessionWithArtifacts,
+		).not.toHaveBeenCalled();
+		expect(sessionService.persistSessionMessages).not.toHaveBeenCalled();
+	});
+
+	it("readLiveSessionMessages serves in-memory messages for resident sessions before persistence", async () => {
+		const sessionId = "sess-live-messages";
+		const manifest = createManifest(sessionId);
+		// The in-flight conversation exists only on the agent; nothing has been
+		// flushed to the messages file yet (mid-turn, or an aborted turn).
+		const liveMessages: MessageWithMetadata[] = [
+			{ role: "user" as const, content: "list the files in this folder" },
+			{ role: "assistant" as const, content: "I will list them now." },
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: join(isolatedHomeDir, "never-written.json"),
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				teamRuntime: undefined,
+				teamRestoredFromPersistence: false,
+				shutdown: vi.fn(),
+			}),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue(liveMessages),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		// The live read sees the conversation; the persisted read still lags.
+		await expect(manager.readLiveSessionMessages(sessionId)).resolves.toEqual(
+			liveMessages,
+		);
+		await expect(manager.readSessionMessages(sessionId)).resolves.toEqual([]);
 	});
 
 	it("reads manifest-only session records and messages", async () => {
@@ -1245,11 +1494,12 @@ describe("LocalRuntimeHost", () => {
 			createAgent: () => agent as never,
 		});
 
+		// No seeded history: the session never materializes artifacts, so
+		// disposing it must not write a status row.
 		await manager.startSession(
 			normalizeStartInput({
 				config: createConfig({ sessionId }),
 				interactive: true,
-				initialMessages: [{ role: "user", content: "done already" }],
 			}),
 		);
 		sessionService.updateSessionStatus.mockClear();
@@ -1571,6 +1821,82 @@ describe("LocalRuntimeHost", () => {
 		expect(order).toEqual(["persist", "run-return", "persist"]);
 		expect(logger.error).toHaveBeenCalledWith(
 			"Failed to persist session messages after assistant response",
+			{ sessionId, error: persistError },
+		);
+	});
+
+	it("observes iteration-end persist failures instead of leaking an unhandled rejection", async () => {
+		const sessionId = "sess-iteration-end-persist";
+		const manifest = createManifest(sessionId);
+		const persistError = new Error("row missing");
+		const persistSessionMessages = vi
+			.fn()
+			.mockRejectedValueOnce(persistError)
+			.mockResolvedValue(undefined);
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-iteration-end.json",
+				messagesPath: "/tmp/messages-iteration-end.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let subscribedHandler: ((event: AgentRuntimeEvent) => void) | undefined;
+		const run = vi.fn(async () => {
+			subscribedHandler?.({ type: "iteration_end", iteration: 1 } as never);
+			// Let the fire-and-forget persist settle before the run returns.
+			await new Promise((resolve) => setImmediate(resolve));
+			return createResult();
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockImplementation((handler) => {
+						subscribedHandler = handler as (event: AgentRuntimeEvent) => void;
+						return () => {};
+					}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		const started = await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId, logger }),
+				prompt: "hello",
+				interactive: false,
+			}),
+		);
+
+		expect(started.result?.finishReason).toBe("completed");
+		expect(logger.error).toHaveBeenCalledWith(
+			"Failed to persist session messages from agent event",
 			{ sessionId, error: persistError },
 		);
 	});
@@ -2024,7 +2350,26 @@ describe("LocalRuntimeHost", () => {
 							parentAgentId: null,
 							status: "running" as const,
 							iteration: 1,
-							messages: [],
+							messages: [
+								{
+									id: "user-first",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "first" }],
+									createdAt: 1,
+								},
+								{
+									id: "user-second",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "second" }],
+									createdAt: 2,
+								},
+								{
+									id: "user-current",
+									role: "user" as const,
+									content: [{ type: "text" as const, text: "hello" }],
+									createdAt: 3,
+								},
+							],
 							pendingToolCalls: [],
 							usage: {
 								inputTokens: 0,
@@ -2034,7 +2379,11 @@ describe("LocalRuntimeHost", () => {
 							},
 						};
 						await config.hooks?.beforeRun?.({
-							snapshot: { ...snapshot, iteration: 0 },
+							snapshot: {
+								...snapshot,
+								iteration: 0,
+								messages: snapshot.messages.slice(0, -1),
+							},
 						});
 						await config.hooks?.beforeModel?.({
 							snapshot,
@@ -2465,8 +2814,8 @@ describe("LocalRuntimeHost", () => {
 		expect(agentConfig?.telemetry).toBe(telemetry);
 	});
 
-	it("clears pending prompts after an interactive abort", async () => {
-		const sessionId = "sess-abort-clears-prompts";
+	it("preserves pending prompts through an interactive abort and drains them in order", async () => {
+		const sessionId = "sess-abort-preserves-prompts";
 		const manifest = createManifest(sessionId);
 		const sessionService = {
 			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
@@ -2496,6 +2845,7 @@ describe("LocalRuntimeHost", () => {
 		const runStarted = new Promise<void>((resolve) => {
 			markRunStarted = resolve;
 		});
+		const drainedPrompts: string[] = [];
 		const run = vi
 			.fn()
 			.mockImplementationOnce(
@@ -2509,10 +2859,17 @@ describe("LocalRuntimeHost", () => {
 						markRunStarted?.();
 					}),
 			)
-			.mockResolvedValueOnce(createResult({ text: "queued result" }));
+			.mockImplementation((prompt: string) => {
+				drainedPrompts.push(prompt);
+				return Promise.resolve(createResult({ text: "queued result" }));
+			});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			drainedPrompts.push(prompt);
+			return Promise.resolve(createResult());
+		});
 		const agent = {
 			run,
-			continue: vi.fn().mockResolvedValue(createResult()),
+			continue: continueTurn,
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
@@ -2579,13 +2936,624 @@ describe("LocalRuntimeHost", () => {
 				}),
 			}),
 		);
-		expect(run).toHaveBeenCalledTimes(1);
+		// The abort must not eat the prompts the user queued: they drain once
+		// the abort settles, steered prompt first.
+		await vi.waitFor(async () => {
+			expect(drainedPrompts).toEqual([
+				'<user_input mode="act">steered prompt</user_input>',
+				'<user_input mode="act">queued prompt</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("drains queued prompts after a turn that self-aborts (loop detector / mistake limit)", async () => {
+		const sessionId = "sess-self-abort-drains-prompts";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let finishRun: (() => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve) => {
+				// The run resolves with finishReason "aborted" without
+				// manager.abort() ever being called — this is how an internal
+				// safety stop (loop detector / mistake limit) ends a run.
+				finishRun = () => {
+					activeRun = false;
+					resolve(createResult({ finishReason: "aborted" }));
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "drained result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued prompt",
+			delivery: "queue",
+		});
 		expect(
 			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
 				prompt: prompt.prompt,
 				delivery: prompt.delivery,
 			})),
-		).toEqual([]);
+		).toEqual([{ prompt: "queued prompt", delivery: "queue" }]);
+
+		finishRun?.();
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">queued prompt</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("keeps queued prompts through a user-initiated abort and drains them after it settles", async () => {
+		const sessionId = "sess-user-abort-keeps-prompts";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let rejectRun: ((error: Error) => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((_resolve, reject) => {
+				rejectRun = (error: Error) => {
+					activeRun = false;
+					reject(error);
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ text: "drained result" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			// A user abort tears the in-flight stream down, which surfaces to
+			// runTurn() as a rejection — the completeAbortedInteractiveTurn path.
+			abort: vi.fn().mockImplementation(() => {
+				rejectRun?.(new Error("aborted by user"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued survivor",
+			delivery: "queue",
+		});
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
+				prompt: prompt.prompt,
+				delivery: prompt.delivery,
+			})),
+		).toEqual([{ prompt: "queued survivor", delivery: "queue" }]);
+
+		await manager.abort(sessionId);
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+
+		// The queued prompt must survive the abort and run once it settles —
+		// aborting only stops the in-flight turn, it must never eat input the
+		// user already typed and queued.
+		await vi.waitFor(async () => {
+			expect(sentPrompts.slice(1)).toEqual([
+				'<user_input mode="act">queued survivor</user_input>',
+			]);
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+	});
+
+	it("clears the remaining queue when a queue-initiated turn is aborted", async () => {
+		const sessionId = "sess-second-abort-clears-queue";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		const sentPrompts: string[] = [];
+		const rejectors: Array<(error: Error) => void> = [];
+		// Every run hangs until aborted, so each abort targets the turn that
+		// is actually in flight (first the user turn, then the drained turn).
+		const run = vi.fn().mockImplementation(
+			(prompt: string) =>
+				new Promise<AgentResult>((_resolve, reject) => {
+					sentPrompts.push(prompt);
+					activeRun = true;
+					rejectors.push((error) => {
+						activeRun = false;
+						reject(error);
+					});
+				}),
+		);
+		const agent = {
+			run,
+			continue: vi.fn().mockResolvedValue(createResult()),
+			abort: vi.fn(() => {
+				rejectors.shift()?.(new Error("user cancelled"));
+			}),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await vi.waitFor(() => {
+			expect(run).toHaveBeenCalledTimes(1);
+		});
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued one",
+			delivery: "queue",
+		});
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued two",
+			delivery: "queue",
+		});
+
+		// First abort: the user-initiated turn stops, the queue survives, and
+		// the drain starts running "queued one".
+		await manager.abort(sessionId, new Error("first abort"));
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "aborted",
+		});
+		await vi.waitFor(() => {
+			expect(run).toHaveBeenCalledTimes(2);
+		});
+		expect(sentPrompts[1]).toContain("queued one");
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map(
+				(prompt) => prompt.prompt,
+			),
+		).toEqual(["queued two"]);
+
+		// Second abort lands on a queue-initiated turn: that means "stop the
+		// queued work too" — the remainder is dropped so repeated aborts
+		// reliably bring the session to a full stop instead of consuming one
+		// queued prompt (and one provider call) per abort.
+		await manager.abort(sessionId, new Error("second abort"));
+		await vi.waitFor(async () => {
+			expect(await manager.pendingPrompts.list({ sessionId })).toEqual([]);
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(run).toHaveBeenCalledTimes(2);
+		expect(sentPrompts).toHaveLength(2);
+	});
+
+	it("does not drain queued prompts after a turn that finishes with error", async () => {
+		const sessionId = "sess-error-holds-prompts";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let finishRun: (() => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve) => {
+				finishRun = () => {
+					activeRun = false;
+					resolve(createResult({ finishReason: "error" }));
+				};
+			});
+		});
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult());
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "queued prompt",
+			delivery: "queue",
+		});
+
+		finishRun?.();
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "error",
+		});
+
+		// Give any (incorrectly) scheduled drain a chance to fire, then
+		// assert the queued prompt is still held and was never sent.
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(sentPrompts).toHaveLength(1);
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
+				prompt: prompt.prompt,
+				delivery: prompt.delivery,
+			})),
+		).toEqual([{ prompt: "queued prompt", delivery: "queue" }]);
+	});
+
+	it("stops draining when a drained prompt's turn finishes with error", async () => {
+		const sessionId = "sess-drain-stops-on-error";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({
+				updated: true,
+				endedAt: "2026-01-01T00:00:05.000Z",
+			}),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		let activeRun = false;
+		let finishRun: (() => void) | undefined;
+		let markRunStarted: (() => void) | undefined;
+		const runStarted = new Promise<void>((resolve) => {
+			markRunStarted = resolve;
+		});
+		const sentPrompts: string[] = [];
+		const run = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			activeRun = true;
+			markRunStarted?.();
+			return new Promise<AgentResult>((resolve) => {
+				finishRun = () => {
+					activeRun = false;
+					resolve(createResult());
+				};
+			});
+		});
+		// The drained prompt's turn resolves with an error finish; the
+		// remaining queued prompt must be held instead of drained next.
+		const continueTurn = vi.fn().mockImplementation((prompt: string) => {
+			sentPrompts.push(prompt);
+			return Promise.resolve(createResult({ finishReason: "error" }));
+		});
+		const agent = {
+			run,
+			continue: continueTurn,
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue([]),
+			canStartRun: vi.fn(() => !activeRun),
+		};
+
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () => agent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		const firstTurn = manager.runTurn({ sessionId, prompt: "slow" });
+		await runStarted;
+		await manager.runTurn({
+			sessionId,
+			prompt: "first queued",
+			delivery: "queue",
+		});
+		await manager.runTurn({
+			sessionId,
+			prompt: "second queued",
+			delivery: "queue",
+		});
+
+		finishRun?.();
+		await expect(firstTurn).resolves.toMatchObject({
+			finishReason: "completed",
+		});
+
+		// The first queued prompt drains and errors; the second must be held.
+		await vi.waitFor(() => {
+			expect(sentPrompts).toHaveLength(2);
+			expect(sentPrompts[1]).toContain("first queued");
+		});
+		await new Promise((resolve) => setTimeout(resolve, 20));
+		expect(sentPrompts).toHaveLength(2);
+		expect(
+			(await manager.pendingPrompts.list({ sessionId })).map((prompt) => ({
+				prompt: prompt.prompt,
+				delivery: prompt.delivery,
+			})),
+		).toEqual([{ prompt: "second queued", delivery: "queue" }]);
+	});
+
+	it("starts interactive sessions without a prompt as idle until their first turn", async () => {
+		const sessionId = "sess-idle-until-first-turn";
+		const manifest = createManifest(sessionId);
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest.json",
+				messagesPath: "/tmp/messages.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({ tools: [], shutdown: vi.fn() }),
+		};
+		const agent = {
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn().mockResolvedValue(createResult()),
+			getMessages: vi.fn().mockReturnValue([]),
+			getAgentId: vi.fn().mockReturnValue("agent-idle-1"),
+			getConversationId: vi.fn().mockReturnValue("conv-idle-1"),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+		};
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: runtimeBuilder as never,
+			createAgent: () => agent as never,
+		});
+		const events: unknown[] = [];
+		manager.subscribe((event) => events.push(event));
+
+		// The desktop host starts interactive sessions without a prompt and
+		// dispatches turns through separate send calls. Reporting such a
+		// session as "running" wedged clients that gate workspace operations
+		// (e.g. checkpoint restores) on active turns.
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({ sessionId }),
+				interactive: true,
+			}),
+		);
+
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			}),
+		);
+		expect(events).not.toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+
+		// The first turn still transitions through running and back to idle.
+		await manager.runTurn({ sessionId, prompt: "first turn" });
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				type: "status",
+				payload: { sessionId, status: "running" },
+			}),
+		);
+		await expect(manager.getSession(sessionId)).resolves.toMatchObject({
+			sessionId,
+			status: "idle",
+		});
 	});
 
 	it("keeps the same live interactive session usable after aborting before the first response", async () => {
@@ -2668,6 +3636,14 @@ describe("LocalRuntimeHost", () => {
 		await expect(firstTurn).resolves.toMatchObject({
 			finishReason: "aborted",
 		});
+		// The aborted turn is flushed to disk immediately: persistence
+		// otherwise lags to the next assistant message or turn end, so a hub
+		// restart in between would rebuild the session without this exchange.
+		expect(sessionService.persistSessionMessages).toHaveBeenCalledWith(
+			sessionId,
+			[{ role: "user", content: "slow" }],
+			"You are a test agent",
+		);
 
 		await expect(
 			manager.runTurn({ sessionId, prompt: "next turn after abort" }),
@@ -2683,20 +3659,28 @@ describe("LocalRuntimeHost", () => {
 		expect(continueTurn).toHaveBeenCalledTimes(1);
 		expect(agent.shutdown).not.toHaveBeenCalled();
 		expect(runtime.shutdown).not.toHaveBeenCalled();
+		// Interactive sessions now start idle (no turn runs inside start), so
+		// each turn records its own running → idle transition.
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			1,
-			sessionId,
-			"idle",
-			null,
-		);
-		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
-			2,
 			sessionId,
 			"running",
 			null,
 		);
 		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			2,
+			sessionId,
+			"idle",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
 			3,
+			sessionId,
+			"running",
+			null,
+		);
+		expect(sessionService.updateSessionStatus).toHaveBeenNthCalledWith(
+			4,
 			sessionId,
 			"idle",
 			null,
@@ -3280,6 +4264,10 @@ describe("LocalRuntimeHost", () => {
 				title: "saved title",
 				totalCost: 0.25,
 				aggregatedAgentsCost: 0.37,
+				checkpoint: {
+					latest: { ref: "checkpoint-1", createdAt: 1, runCount: 1 },
+					history: [{ ref: "checkpoint-1", createdAt: 1, runCount: 1 }],
+				},
 			},
 			messages_path: messagesPath,
 		};
@@ -3355,18 +4343,39 @@ describe("LocalRuntimeHost", () => {
 				}) as never,
 		});
 
-		await manager.startSession(
-			normalizeStartInput({
-				config: createConfig({ sessionId }),
-				interactive: true,
-				initialMessages,
-			}),
-		);
+		const pathlessConfig = {
+			...createConfig({ sessionId }),
+			cwd: undefined,
+		};
+		await manager.startSession({
+			config: pathlessConfig,
+			interactive: true,
+			initialMessages,
+			sessionMetadata: {
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+			},
+		});
 
 		expect(createRootSessionWithArtifacts).not.toHaveBeenCalled();
+		expect(runtimeBuilder.build).toHaveBeenCalledWith(
+			expect.objectContaining({
+				config: expect.objectContaining({
+					cwd: manifest.cwd,
+					workspaceRoot: manifest.workspace_root,
+				}),
+			}),
+		);
 		expect(persistSessionMessages).not.toHaveBeenCalled();
 		expect(updateSessionStatus).not.toHaveBeenCalled();
 		expect(updateSession).not.toHaveBeenCalled();
+		expect((await manager.getSession(sessionId))?.metadata).toEqual(
+			expect.objectContaining({
+				title: "updated title",
+				modelId: "anthropic/claude-haiku-4.5",
+				checkpoint: manifest.metadata.checkpoint,
+			}),
+		);
 		expect((await manager.getAccumulatedUsage(sessionId))?.usage).toEqual({
 			inputTokens: 11,
 			outputTokens: 7,
@@ -4193,6 +5202,71 @@ describe("LocalRuntimeHost", () => {
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 	});
 
+	it("does not mask the run error when the failure-path transcript flush also fails", async () => {
+		const sessionId = "sess-fail-persist";
+		const manifest = createManifest(sessionId);
+		const persistError = new Error("persist failed");
+		const persistSessionMessages = vi.fn().mockRejectedValue(persistError);
+		const logger: BasicLogger = {
+			debug: vi.fn(),
+			log: vi.fn(),
+			error: vi.fn(),
+		};
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-fail-persist.json",
+				messagesPath: "/tmp/messages-fail-persist.json",
+				manifest,
+			}),
+			persistSessionMessages,
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const runtimeBuilder = {
+			build: vi.fn().mockReturnValue({
+				tools: [],
+				shutdown: vi.fn(),
+			}),
+		};
+		const run = vi.fn().mockRejectedValue(new Error("run failed"));
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder,
+			createAgent: () =>
+				({
+					run,
+					continue: vi.fn(),
+					abort: vi.fn(),
+					subscribeEvents: vi.fn().mockReturnValue(() => {}),
+					canStartRun: vi.fn().mockReturnValue(true),
+					getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+					getConversationId: vi.fn().mockReturnValue("conv-root-1"),
+					shutdown: vi.fn().mockResolvedValue(undefined),
+					getMessages: vi.fn().mockReturnValue([]),
+					messages: [],
+				}) as never,
+		});
+
+		await expect(
+			manager.startSession(
+				normalizeStartInput({
+					config: createConfig({ sessionId, logger }),
+					prompt: "hello",
+					interactive: false,
+				}),
+			),
+		).rejects.toThrow("run failed");
+		expect(persistSessionMessages).toHaveBeenCalled();
+		expect(logger.error).toHaveBeenCalledWith(
+			"Failed to persist session messages after turn error",
+			{ sessionId, error: persistError },
+		);
+	});
+
 	it("marks a single-run error result as failed", async () => {
 		const sessionId = "sess-error-result";
 		const manifest = createManifest(sessionId);
@@ -4304,7 +5378,7 @@ describe("LocalRuntimeHost", () => {
 			sessionService.createRootSessionWithArtifacts,
 		).not.toHaveBeenCalled();
 		expect(sessionService.updateSessionStatus).not.toHaveBeenCalled();
-		expect(agentShutdown).not.toHaveBeenCalled();
+		expect(agentShutdown).toHaveBeenCalledWith("session_stop");
 		expect(runtimeShutdown).toHaveBeenCalledTimes(1);
 	});
 
@@ -4626,10 +5700,18 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user", content: "continue" },
+			{ role: "assistant", content: "continued" },
+		];
 		const run = vi.fn().mockResolvedValue(createResult());
+		const continueRun = vi
+			.fn()
+			.mockResolvedValue(createResult({ messages: continuedMessages }));
 		const createAgent = vi.fn().mockReturnValue({
 			run,
-			continue: vi.fn(),
+			continue: continueRun,
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
@@ -4668,6 +5750,8 @@ describe("LocalRuntimeHost", () => {
 			}),
 		);
 
+		// Seeded sessions persist eagerly, so the unowned state is bound and
+		// written as soon as the session starts.
 		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
 			sessionId,
 			expect.objectContaining({
@@ -4675,9 +5759,17 @@ describe("LocalRuntimeHost", () => {
 				messages: initialCompactionState.messages,
 			}),
 		);
+
+		await manager.runTurn({ sessionId, prompt: "continue" });
+
+		expect(continueRun).toHaveBeenCalledTimes(1);
 	});
 
-	it("does not project compaction state when compaction is disabled", async () => {
+	// Manual /compact persists a sidecar regardless of the auto-compaction
+	// setting, so the projection must stay wired even when compaction is
+	// disabled — otherwise a manual compaction would silently never reach the
+	// model. Without a sidecar the prepareTurn is a no-op.
+	it("projects compaction state even when compaction is disabled", async () => {
 		const sessionId = "sess-compaction-disabled";
 		const manifest = createManifest(sessionId);
 		const initialMessages: MessageWithMetadata[] = [
@@ -4703,10 +5795,18 @@ describe("LocalRuntimeHost", () => {
 			listSessions: vi.fn().mockResolvedValue([]),
 			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
 		};
+		const continuedMessages: MessageWithMetadata[] = [
+			...initialMessages,
+			{ role: "user", content: "follow-up" },
+			{ role: "assistant", content: "continued" },
+		];
 		const run = vi.fn().mockResolvedValue(createResult());
+		const continueRun = vi
+			.fn()
+			.mockResolvedValue(createResult({ messages: continuedMessages }));
 		const createAgent = vi.fn().mockReturnValue({
 			run,
-			continue: vi.fn(),
+			continue: continueRun,
 			abort: vi.fn(),
 			subscribeEvents: vi.fn().mockReturnValue(() => {}),
 			canStartRun: vi.fn().mockReturnValue(true),
@@ -4745,13 +5845,44 @@ describe("LocalRuntimeHost", () => {
 		);
 
 		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
-		expect(prepareTurn).toBeUndefined();
-		expect(sessionService.persistSessionCompactionState).not.toHaveBeenCalled();
+		expect(prepareTurn).toBeDefined();
 
-		await expect(
-			manager.updateSessionCompactionState(sessionId, initialCompactionState),
-		).resolves.toEqual({ updated: true });
-		expect(createAgent.mock.calls[0]?.[0]?.prepareTurn).toBeUndefined();
+		// Seeded sessions persist eagerly, so the sidecar lands on disk with
+		// the seeded transcript and remains available for projection without
+		// enabling automatic re-compaction.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				messages: initialCompactionState.messages,
+			}),
+		);
+
+		await manager.runTurn({ sessionId, prompt: "follow-up" });
+		const followUpMessages = [
+			...initialMessages,
+			{ role: "user", content: "follow-up" },
+		];
+		const projected = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: followUpMessages,
+			apiMessages: followUpMessages,
+			model: {
+				id: "mock-model",
+				provider: "anthropic",
+				info: { id: "mock-model", maxInputTokens: 100_000 },
+			},
+		});
+		expect(projected?.messages).toEqual([
+			{ role: "user", content: "projected summary" },
+			{ role: "user", content: "follow-up" },
+		]);
 	});
 
 	it("persists active manual compaction state against the persisted transcript", async () => {
@@ -4891,6 +6022,153 @@ describe("LocalRuntimeHost", () => {
 		} finally {
 			rmSync(tempCwd, { recursive: true, force: true });
 		}
+	});
+
+	it("persists auto-compaction state against runtime messages and replaces an invalid older sidecar", async () => {
+		// Regression: the orchestrator appends the follow-up user turn to the
+		// conversation store WITHOUT id/ts while the runtime's working
+		// transcript (which prepareTurn sees, and which the compaction state's
+		// source-prefix hash is computed over) carries codec-generated id/ts.
+		// Validating the persist against agent.getMessages() therefore skipped
+		// every auto-compaction write ("Skipped stale session compaction
+		// state") and forced a full re-compaction on every subsequent turn.
+		// Additionally, an unprojectable older sidecar (e.g. invalidated by
+		// resume-time identity churn) must not permanently block a newer valid
+		// state just because its source count is larger.
+		const sessionId = "sess-compaction-auto-persist";
+		const manifest = createManifest(sessionId);
+		const priorMessages: MessageWithMetadata[] = [
+			{ role: "user", content: "task", id: "m1", ts: 1 },
+			{ role: "assistant", content: "working", id: "m2", ts: 2 },
+		];
+		// What the conversation store holds mid-turn: prior transcript plus the
+		// just-appended follow-up WITHOUT identity fields.
+		const storeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{ role: "user", content: [{ type: "text", text: "follow-up" }] },
+		];
+		// What the runtime's prepareTurn context carries: the same transcript
+		// with codec-assigned id/ts on the follow-up.
+		const runtimeMessages: MessageWithMetadata[] = [
+			...priorMessages,
+			{
+				role: "user",
+				content: [{ type: "text", text: "follow-up" }],
+				id: "msg_generated_1",
+				ts: 3,
+			},
+		];
+		const sessionService = {
+			ensureSessionsDir: vi.fn().mockReturnValue("/tmp/sessions"),
+			createRootSessionWithArtifacts: vi.fn().mockResolvedValue({
+				manifestPath: "/tmp/manifest-compaction-auto-persist.json",
+				messagesPath: "/tmp/messages-compaction-auto-persist.json",
+				manifest,
+			}),
+			persistSessionMessages: vi.fn(),
+			persistSessionCompactionState: vi.fn(),
+			updateSessionStatus: vi.fn().mockResolvedValue({ updated: true }),
+			writeSessionManifest: vi.fn(),
+			listSessions: vi.fn().mockResolvedValue([]),
+			deleteSession: vi.fn().mockResolvedValue({ deleted: true }),
+		};
+		const createAgent = vi.fn().mockReturnValue({
+			run: vi.fn().mockResolvedValue(createResult()),
+			continue: vi.fn(),
+			abort: vi.fn(),
+			subscribeEvents: vi.fn().mockReturnValue(() => {}),
+			canStartRun: vi.fn().mockReturnValue(true),
+			getAgentId: vi.fn().mockReturnValue("agent-root-1"),
+			getConversationId: vi.fn().mockReturnValue(sessionId),
+			restore: vi.fn(),
+			shutdown: vi.fn().mockResolvedValue(undefined),
+			getMessages: vi.fn().mockReturnValue(storeMessages),
+			messages: storeMessages,
+		});
+		const manager = new RuntimeHostUnderTest({
+			distinctId,
+			sessionService: sessionService as never,
+			runtimeBuilder: {
+				build: vi.fn().mockReturnValue({
+					tools: [],
+					shutdown: vi.fn(),
+				}),
+			},
+			createAgent: createAgent as never,
+		});
+
+		await manager.startSession(
+			normalizeStartInput({
+				config: createConfig({
+					sessionId,
+					compaction: {
+						enabled: true,
+						strategy: "basic",
+						compact: vi.fn().mockResolvedValue({
+							messages: [{ role: "user", content: "summary" }],
+						}),
+					},
+				}),
+				initialMessages: priorMessages,
+				interactive: true,
+			}),
+		);
+
+		// Simulate an invalid older sidecar squatting in the session: it covers
+		// MORE messages than the live transcript (so it can never project), and
+		// under a count-first stale guard it would block every replacement.
+		const staleState = createSessionCompactionState({
+			sourceMessages: [
+				...runtimeMessages,
+				{ role: "assistant", content: "old extra message", id: "m4", ts: 4 },
+			],
+			compactedMessages: [{ role: "user", content: "stale summary" }],
+			conversationId: sessionId,
+			updatedAt: "2026-01-01T00:00:00.000Z",
+		});
+		const activeSessions = Reflect.get(manager as object, "sessions") as Map<
+			string,
+			{ compactionState?: typeof staleState }
+		>;
+		const activeSession = activeSessions.get(sessionId);
+		expect(activeSession).toBeDefined();
+		if (!activeSession) {
+			throw new Error("expected active session");
+		}
+		activeSession.compactionState = staleState;
+
+		const prepareTurn = createAgent.mock.calls[0]?.[0]?.prepareTurn;
+		expect(prepareTurn).toBeDefined();
+
+		const result = await prepareTurn({
+			agentId: "agent-root-1",
+			conversationId: sessionId,
+			parentAgentId: null,
+			iteration: 1,
+			abortSignal: new AbortController().signal,
+			systemPrompt: "",
+			tools: [],
+			messages: runtimeMessages,
+			apiMessages: runtimeMessages,
+			model: {
+				id: "mock-model",
+				provider: "mock-provider",
+				// Tiny budget so the auto trigger always fires.
+				info: { id: "mock-model", maxInputTokens: 10 },
+			},
+		});
+		expect(result?.messages).toEqual([{ role: "user", content: "summary" }]);
+
+		// The sidecar write must validate against the exact source messages the
+		// state was computed from, not the store's id-less mid-turn shapes.
+		expect(sessionService.persistSessionCompactionState).toHaveBeenCalledWith(
+			sessionId,
+			expect.objectContaining({
+				conversation_id: sessionId,
+				source_message_count: runtimeMessages.length,
+				messages: [{ role: "user", content: "summary" }],
+			}),
+		);
 	});
 
 	it("orders equal-length compaction updates by parsed timestamp", async () => {
@@ -6311,6 +7589,92 @@ describe("LocalRuntimeHost", () => {
 			const emissions = countTaskCompletedEmissions(adapter);
 			expect(emissions).toHaveLength(1);
 			expect(emissions[0]).toMatchObject({ source: "shutdown" });
+		});
+	});
+
+	describe("LocalRuntimeHost releasing a session mid-run", () => {
+		it("aborts and drains the run before shutting the sandbox down", async () => {
+			// A hub restart disposes its sessions. Tearing one down while a run is in
+			// flight used to reject shutdown ("a run is in progress") and SIGTERM the
+			// plugin sandbox with tool calls still pending, so a connector turn awaiting
+			// the run got an error instead of an answer.
+			const order: string[] = [];
+			let running = true;
+			const agent = {
+				run: vi.fn().mockResolvedValue(createResult()),
+				continue: vi.fn().mockResolvedValue(createResult()),
+				getMessages: vi.fn().mockReturnValue([]),
+				getAgentId: vi.fn().mockReturnValue("agent-mid-run"),
+				getConversationId: vi.fn().mockReturnValue("conv-mid-run"),
+				abort: vi.fn(() => {
+					order.push("agent.abort");
+					running = false;
+				}),
+				subscribeEvents: vi.fn().mockReturnValue(() => {}),
+				// Reports "busy" until the abort lands, like a live run.
+				canStartRun: vi.fn(() => !running),
+				shutdown: vi.fn(async () => {
+					order.push("agent.shutdown");
+				}),
+			};
+			const runtimeShutdown = vi.fn(async () => {
+				order.push("runtime.shutdown");
+				if (running) {
+					throw new Error(
+						"SessionRuntime.shutdown called while a run is in progress (agentId=agent-mid-run)",
+					);
+				}
+			});
+			const runtimeBuilder = {
+				build: vi
+					.fn()
+					.mockReturnValue({ tools: [], shutdown: runtimeShutdown }),
+			};
+			const manager = new RuntimeHostUnderTest({
+				distinctId,
+				sessionService: new FileSessionService(
+					join(isolatedHomeDir, "sessions"),
+				),
+				runtimeBuilder: runtimeBuilder as never,
+				createAgent: () => agent as never,
+			});
+
+			const started = await manager.startSession({
+				config: {
+					providerId: "mock-provider",
+					modelId: "mock-model",
+					systemPrompt: "You are a test agent",
+					enableTools: false,
+					enableSpawnAgent: false,
+					enableAgentTeams: false,
+				},
+			});
+			const session = (
+				manager as unknown as {
+					sessions: Map<
+						string,
+						{ pluginSandboxShutdown?: () => Promise<void> }
+					>;
+				}
+			).sessions.get(started.sessionId);
+			if (!session) {
+				throw new Error("session was not registered");
+			}
+			session.pluginSandboxShutdown = async () => {
+				order.push("sandbox.shutdown");
+			};
+
+			// dispose() is what a hub restart runs.
+			await manager.dispose("hub_restart");
+
+			// The abort has to come first, so the runtime drains instead of refusing and
+			// the sandbox is only killed once no tool call can be pending.
+			expect(order[0]).toBe("agent.abort");
+			expect(order).toContain("sandbox.shutdown");
+			expect(order.indexOf("agent.abort")).toBeLessThan(
+				order.indexOf("sandbox.shutdown"),
+			);
+			expect(agent.abort).toHaveBeenCalledTimes(1);
 		});
 	});
 });

@@ -1,3 +1,4 @@
+import { supportsModelTool } from "@cline/llms";
 import type { CoreAgentMode } from "../../types/config";
 import {
 	DEFAULT_MODEL_TOOL_ROUTING_RULES,
@@ -22,11 +23,18 @@ export interface BuiltinToolAvailabilityContext {
 	enableSpawnAgent?: boolean;
 	enableAgentTeams?: boolean;
 	disabledToolIds?: ReadonlySet<string>;
+	enabledModelToolIds?: ReadonlySet<string>;
 }
 
 type RuntimeToolCatalogEntry = Omit<ToolCatalogEntry, "defaultEnabled">;
 
 const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
+	{
+		id: "web_search",
+		description:
+			"Search the public web using the selected model provider's native search capability.",
+		headlessToolNames: ["web_search"],
+	},
 	{
 		id: "read_files",
 		description:
@@ -68,6 +76,12 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		description:
 			"Ask the user a single clarifying question with 2-5 selectable options.",
 		headlessToolNames: ["ask_question"],
+	},
+	{
+		id: "tasks",
+		description:
+			"Create and manage durable Todo items or explicitly requested one-time and recurring agent schedules.",
+		headlessToolNames: ["tasks"],
 	},
 	{
 		id: "spawn_agent",
@@ -166,6 +180,9 @@ function isEntryEnabledByDefault(
 	if (context.disabledToolIds?.has(entryId)) {
 		return false;
 	}
+	if (entryId === "web_search") {
+		return context.enabledModelToolIds?.has(entryId) === true;
+	}
 
 	const { flags } = resolvePresetFlags(context);
 	if (entryId === "spawn_agent") {
@@ -173,6 +190,9 @@ function isEntryEnabledByDefault(
 	}
 	if (entryId === "teams") {
 		return flags.enableAgentTeams === true;
+	}
+	if (entryId === "tasks") {
+		return true;
 	}
 	if (entryId === "editor") {
 		return flags.enableEditor === true || flags.enableApplyPatch === true;
@@ -206,7 +226,31 @@ function buildCatalogEntry(
 export function getCoreBuiltinToolCatalog(
 	context: BuiltinToolAvailabilityContext = {},
 ): ToolCatalogEntry[] {
-	return BASE_TOOL_CATALOG.map((entry) => buildCatalogEntry(entry, context));
+	return BASE_TOOL_CATALOG.filter(
+		(entry) =>
+			(entry.id !== "tasks" || resolveContextMode(context.mode) !== "yolo") &&
+			(entry.id !== "web_search" ||
+				supportsModelTool(
+					{ providerId: context.providerId ?? "", modelId: context.modelId },
+					"web_search",
+				)),
+	).map((entry) => buildCatalogEntry(entry, context));
+}
+
+/**
+ * Whether the `skills` tool is part of a session's default toolset for this
+ * availability context. Hosts consult this before dispatching a typed
+ * `/skill` command: when the tool is available the command passes through as
+ * typed and the model loads the instructions via the tool; when it is not
+ * (e.g. the yolo preset or a user toggle disables it), textual expansion is
+ * the only delivery path left.
+ */
+export function isSkillsToolAvailable(
+	context: BuiltinToolAvailabilityContext = {},
+): boolean {
+	return getCoreBuiltinToolCatalog(context).some(
+		(entry) => entry.id === "skills" && entry.defaultEnabled,
+	);
 }
 
 export function getCoreDefaultEnabledToolIds(

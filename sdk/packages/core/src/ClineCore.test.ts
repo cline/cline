@@ -82,6 +82,62 @@ describe("ClineCore", () => {
 		createRuntimeHostMock.mockReset();
 	});
 
+	it("keeps raw reads canonical and offers an explicit display projection", async () => {
+		const rawMessages = [
+			{
+				id: "assistant-search",
+				role: "assistant" as const,
+				content: "Found it",
+				metadata: {
+					modelToolActivities: [
+						{
+							toolCallId: "search-1",
+							toolName: "web_search",
+							execution: "provider",
+							input: { query: "latest release" },
+							output: "1.3.14",
+						},
+					],
+				},
+			},
+		];
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(),
+			runTurn: vi.fn(),
+			restoreSession: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			updateSession: vi.fn(),
+			readSessionMessages: vi.fn(async () => rawMessages),
+			dispatchHookEvent: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		const displayMessages = await core.readDisplayMessages("session-1");
+
+		expect(displayMessages.map(({ message }) => message.role)).toEqual([
+			"assistant",
+			"user",
+			"assistant",
+		]);
+		expect(displayMessages[0]?.message.content).toEqual([
+			expect.objectContaining({
+				type: "tool_use",
+				id: "search-1",
+			}),
+		]);
+		expect(await core.readMessages("session-1")).toBe(rawMessages);
+		expect(rawMessages[0]?.metadata).toHaveProperty("modelToolActivities");
+		await core.dispose();
+	});
+
 	it("compares a checkpoint to the current workspace through the public SDK API", async () => {
 		const dir = mkdtempSync(join(tmpdir(), "cline-core-compare-"));
 		let core: ClineCore | undefined;
@@ -213,6 +269,46 @@ describe("ClineCore", () => {
 		expect(host.startSession).toHaveBeenCalledTimes(1);
 		expect(dispose).toHaveBeenCalledTimes(1);
 		expect(listeners).toHaveLength(1);
+	});
+
+	it("preserves an omitted workspace until the execution host resolves it", async () => {
+		const host = {
+			runtimeAddress: undefined,
+			startSession: vi.fn(async (_input: StartSessionInput) =>
+				createStartResult("session-pathless"),
+			),
+			runTurn: vi.fn(),
+			getAccumulatedUsage: vi.fn(),
+			abort: vi.fn(),
+			stopSession: vi.fn(),
+			dispose: vi.fn(),
+			getSession: vi.fn(async () => undefined),
+			listSessions: vi.fn(),
+			deleteSession: vi.fn(),
+			readSessionMessages: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			updateSessionModel: vi.fn(),
+		};
+		createRuntimeHostMock.mockResolvedValue(host);
+		const core = await ClineCore.create();
+
+		await core.start({
+			config: {
+				providerId: "anthropic",
+				modelId: "claude-sonnet-4-6",
+				apiKey: "test",
+				systemPrompt: "You are concise.",
+				mode: "act",
+				enableTools: true,
+				enableSpawnAgent: false,
+				enableAgentTeams: false,
+			},
+		});
+
+		expect(host.startSession).toHaveBeenCalledTimes(1);
+		const forwarded = host.startSession.mock.calls[0]?.[0];
+		expect(forwarded?.config).not.toHaveProperty("cwd");
+		expect(forwarded?.config).not.toHaveProperty("workspaceRoot");
 	});
 
 	it("disposes active session bootstraps when the session ends", async () => {

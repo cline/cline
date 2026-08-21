@@ -3,6 +3,7 @@ import {
 	resolveDefaultMcpSettingsPath,
 	updateMcpSettingsFileSync,
 } from "../extensions/mcp";
+import { resolveNativeMcpTransport } from "../extensions/mcp/remote-proxy";
 
 export interface McpInstallOptions {
 	name: string;
@@ -170,13 +171,14 @@ export function buildMcpInstallTransport(options: {
 				"Stdio MCP install requires a command after the server name, for example: cline mcp install fs --yes -- npx -y @modelcontextprotocol/server-filesystem /tmp",
 			);
 		}
+		const stdioTransport = resolveNativeMcpTransport({
+			type,
+			command,
+			args: args.length > 0 ? args : undefined,
+		});
 		return {
 			name,
-			transport: {
-				type,
-				command,
-				args: args.length > 0 ? args : undefined,
-			},
+			transport: stdioTransport,
 			warnings,
 		};
 	}
@@ -241,5 +243,49 @@ export function installMcpServer(options: McpInstallOptions): McpInstallResult {
 		status: "installed",
 		transport,
 		warnings,
+	};
+}
+
+export interface McpUninstallOptions {
+	name: string;
+	settingsPath?: string;
+}
+
+export interface McpUninstallResult {
+	name: string;
+	status: "uninstalled";
+}
+
+function removeMcpServer(name: string, settingsPath: string): boolean {
+	return updateMcpSettingsFileSync(settingsPath, (settings) => {
+		const serversValue = settings.mcpServers;
+		const servers =
+			serversValue &&
+			typeof serversValue === "object" &&
+			!Array.isArray(serversValue)
+				? (serversValue as Record<string, unknown>)
+				: {};
+		const hadServer = Object.hasOwn(servers, name);
+		if (!hadServer) {
+			throw new Error(`MCP server "${name}" is not installed.`);
+		}
+		delete servers[name];
+		settings.mcpServers = servers;
+		return true;
+	});
+}
+
+export function uninstallMcpServer(
+	options: McpUninstallOptions,
+): McpUninstallResult {
+	const name = options.name.trim();
+	if (!name) {
+		throw new Error("MCP server name is required");
+	}
+	const settingsPath = options.settingsPath ?? resolveDefaultMcpSettingsPath();
+	removeMcpServer(name, settingsPath);
+	return {
+		name,
+		status: "uninstalled",
 	};
 }

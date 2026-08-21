@@ -19,6 +19,7 @@ function thread(
 		provider: "cline",
 		model: "test-model",
 		status: "completed",
+		isScheduled: false,
 		...overrides,
 	};
 }
@@ -46,6 +47,14 @@ describe("sidebar session organization", () => {
 		expect(workspaceDisplayName("/Users/saoud/code/cline/")).toBe("cline");
 		expect(workspaceDisplayName("C:\\Users\\saoud\\code\\cline\\")).toBe(
 			"cline",
+		);
+	});
+
+	it("labels chat workspace groups as Chat", () => {
+		const path = "/home/host/.cline/data/workspaces/chat";
+		expect(workspaceDisplayName(path)).toBe("Chat");
+		expect(groupThreadsByProject([thread("temp", path)])[0]?.label).toBe(
+			"Chat",
 		);
 	});
 });

@@ -67,7 +67,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: hello @file",
 			["image.png"],
 			["a.ts"],
-			undefined,
 		)
 	})
 
@@ -166,7 +165,6 @@ describe("SdkFollowupCoordinator", () => {
 			"resolved: next request",
 			undefined,
 			undefined,
-			undefined,
 		)
 	})
 
@@ -228,7 +226,6 @@ describe("SdkFollowupCoordinator", () => {
 			rebuiltSession.sdkHost,
 			"session-123",
 			"resolved: after rebuild",
-			undefined,
 			undefined,
 			undefined,
 		)
@@ -302,6 +299,99 @@ describe("SdkFollowupCoordinator", () => {
 		expect(options.postStateToWebview).toHaveBeenCalledOnce()
 	})
 
+	it("ends a resumed session without mutating a task selected while start was pending", async () => {
+		const task = makeTask("task-1")
+		const replacementTask = makeTask("task-2")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.sessions.startNewSession.mockImplementationOnce(async () => {
+			const sdkHost = { send: vi.fn() }
+			options.getTask.mockReturnValue(replacementTask)
+			options.sessions.getActiveSession.mockReturnValue({
+				sessionId: "resumed-session",
+				sdkHost,
+				isRunning: true,
+			})
+			return { startResult: { sessionId: "resumed-session" }, sdkHost }
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(replacementTask.taskId).toBe("task-2")
+		expect(options.sessions.endActiveSession).toHaveBeenCalledWith("followupTargetChanged", { awaitStop: true })
+		expect(options.sessions.fireAndForgetSend).not.toHaveBeenCalled()
+		// askResponse pre-set the streaming phase; abandoning must settle it.
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
+	})
+
+	it("delivers the follow-up when the same task was reloaded with a new proxy", async () => {
+		const task = makeTask("task-1")
+		// showTaskWithId allocates a fresh proxy for the same task id.
+		const reloadedProxy = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.loadInitialMessages.mockImplementationOnce(async () => {
+			options.getTask.mockReturnValue(reloadedProxy)
+			return [{ role: "user", content: "hello" }]
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.onFollowUpAbandoned).not.toHaveBeenCalled()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("settles the turn phase when the task changes before the resume starts", async () => {
+		const task = makeTask("task-1")
+		const replacementTask = makeTask("task-2")
+		const { coordinator, options } = makeCoordinator({ task })
+		options.loadInitialMessages.mockImplementationOnce(async () => {
+			options.getTask.mockReturnValue(replacementTask)
+			return [{ role: "user", content: "hello" }]
+		})
+
+		await coordinator.askResponse("continue")
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.onFollowUpAbandoned).toHaveBeenCalledOnce()
+		expect(options.postStateToWebview).toHaveBeenCalled()
+	})
+
+	it("holds transcript preparation and session start inside the rebuild scheduler", async () => {
+		const task = makeTask("task-1")
+		let runOperation: (() => Promise<void>) | undefined
+		const runExclusive = vi.fn(
+			(operation: () => Promise<void>) =>
+				new Promise<void>((resolve, reject) => {
+					runOperation = async () => {
+						try {
+							await operation()
+							resolve()
+						} catch (error) {
+							reject(error)
+						}
+					}
+				}),
+		)
+		const { coordinator, options } = makeCoordinator({ task, runExclusive })
+
+		const sendPromise = coordinator.askResponse("continue")
+		await vi.waitFor(() => expect(runExclusive).toHaveBeenCalledOnce())
+
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+
+		await runOperation?.()
+		await sendPromise
+
+		expect(options.loadInitialMessages).toHaveBeenCalledOnce()
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+	})
+
 	it("adds a legacy warning to initial messages when resuming a legacy task", async () => {
 		const task = makeTask("legacy-task")
 		const historyItem = {
@@ -331,6 +421,100 @@ describe("SdkFollowupCoordinator", () => {
 				],
 			}),
 		)
+	})
+
+	it("continues the surviving idle session on a bare resume instead of rebuilding", async () => {
+		// Stop -> Resume: cancelling a turn keeps the session alive, so a bare
+		// Resume must continue that session in place (like the CLI does after
+		// an abort) rather than tearing it down and rebuilding from history.
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.loadInitialMessages).not.toHaveBeenCalled()
+		expect(options.sessions.setRunning).toHaveBeenCalledWith(true)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const [sdkHost, sessionId, sentPrompt] = options.sessions.fireAndForgetSend.mock.calls[0]
+		expect(sdkHost).toBe(activeSession.sdkHost)
+		expect(sessionId).toBe("session-123")
+		expect(sentPrompt).toContain("[TASK RESUMPTION]")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
+	})
+
+	it("continues the surviving idle session for a typed follow-up instead of rebuilding", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("session-123")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("keep going", ["image.png"], undefined)
+
+		expect(options.sessions.startNewSession).not.toHaveBeenCalled()
+		expect(options.messages.appendAndEmit).toHaveBeenCalledWith(
+			[
+				expect.objectContaining({
+					say: "user_feedback",
+					text: "keep going",
+					images: ["image.png"],
+				}),
+			],
+			{ type: "status", payload: { sessionId: "session-123", status: "running" } },
+		)
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			activeSession.sdkHost,
+			"session-123",
+			"resolved: keep going",
+			["image.png"],
+			undefined,
+		)
+	})
+
+	it("rebuilds from history when the idle session does not match the displayed task", async () => {
+		const activeSession = makeActiveSession({ isRunning: false })
+		const task = makeTask("task-1")
+		const { coordinator, options } = makeCoordinator({ activeSession, task })
+
+		await coordinator.askResponse("continue")
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledWith(
+			expect.anything(),
+			"resumed-session",
+			"resolved: continue",
+			undefined,
+			undefined,
+		)
+	})
+
+	it("does not resubmit the original task text when a bare resume must rebuild the session", async () => {
+		// No live session (task opened from history / extension reload): the
+		// rebuild path reconstructs the session from persisted messages. The
+		// resumption prompt must stay neutral; re-sending historyItem.task as
+		// "new instructions" made the model redo completed commands (#12975).
+		const task = makeTask("task-1")
+		const historyItem = {
+			id: "task-1",
+			ts: 1,
+			task: "Run the five terminal commands",
+			tokensIn: 0,
+			tokensOut: 0,
+			totalCost: 0,
+			cwdOnTaskInitialization: "/task-cwd",
+		}
+		const { coordinator, options } = makeCoordinator({ task, historyItem })
+
+		await coordinator.askResponse(undefined)
+
+		expect(options.sessions.startNewSession).toHaveBeenCalledOnce()
+		expect(options.sessions.fireAndForgetSend).toHaveBeenCalledOnce()
+		const sentPrompt = options.sessions.fireAndForgetSend.mock.calls[0][2] as string
+		expect(sentPrompt).toBe("resolved: [TASK RESUMPTION] Please continue where you left off.")
+		expect(sentPrompt).not.toContain("Run the five terminal commands")
+		// A bare resumption prompt is synthetic and must not render a user bubble.
+		expect(options.messages.appendAndEmit).not.toHaveBeenCalled()
 	})
 
 	it("echoes attachments on an attachment-only resume", async () => {
@@ -413,7 +597,6 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			getGlobalSettingsKey: vi.fn(() => input.mode ?? "act"),
 		} as unknown as StateManager,
 		interactions: {
-			resolvePendingMistakeLimit: vi.fn(() => false),
 			resolvePendingToolApproval: vi.fn(() => false),
 			resolvePendingAskQuestion: vi.fn(() => false),
 		},
@@ -425,6 +608,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 				startResult: { sessionId: "resumed-session" },
 				sdkHost: { send: vi.fn() },
 			}),
+			endActiveSession: vi.fn().mockResolvedValue(undefined),
 		},
 		messages: {
 			appendAndEmit: vi.fn(),
@@ -451,10 +635,11 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		resetMessageTranslator: vi.fn(),
 		postStateToWebview: vi.fn().mockResolvedValue(undefined),
 		waitForPendingRebuilds: input.waitForPendingRebuilds ?? vi.fn().mockResolvedValue(undefined),
+		runExclusive: input.runExclusive ?? vi.fn(async (operation: () => Promise<unknown>) => operation()),
 		onResumeFailed: vi.fn(),
+		onFollowUpAbandoned: vi.fn(),
 	} as unknown as SdkFollowupCoordinatorOptions & {
 		interactions: SdkFollowupCoordinatorOptions["interactions"] & {
-			resolvePendingMistakeLimit: ReturnType<typeof vi.fn>
 			resolvePendingToolApproval: ReturnType<typeof vi.fn>
 			resolvePendingAskQuestion: ReturnType<typeof vi.fn>
 		}
@@ -463,6 +648,7 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 			setRunning: ReturnType<typeof vi.fn>
 			fireAndForgetSend: ReturnType<typeof vi.fn>
 			startNewSession: ReturnType<typeof vi.fn>
+			endActiveSession: ReturnType<typeof vi.fn>
 		}
 		messages: SdkFollowupCoordinatorOptions["messages"] & {
 			appendAndEmit: ReturnType<typeof vi.fn>
@@ -485,7 +671,9 @@ function makeCoordinator(input: Partial<MakeCoordinatorInput> = {}) {
 		emitClineAuthError: ReturnType<typeof vi.fn>
 		resetMessageTranslator: ReturnType<typeof vi.fn>
 		postStateToWebview: ReturnType<typeof vi.fn>
+		runExclusive: ReturnType<typeof vi.fn>
 		onResumeFailed: ReturnType<typeof vi.fn>
+		onFollowUpAbandoned: ReturnType<typeof vi.fn>
 	}
 
 	return {
@@ -510,6 +698,7 @@ interface MakeCoordinatorInput {
 	mode: "act" | "plan"
 	isLegacyTask: boolean
 	waitForPendingRebuilds: () => Promise<void>
+	runExclusive: (operation: () => Promise<void>) => Promise<void>
 }
 
 function makeActiveSession(input: { isRunning?: boolean } = {}) {

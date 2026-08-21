@@ -13,6 +13,8 @@ import {
 	type AgentToolContext,
 	ClineCore,
 	createTool,
+	type ITelemetryService,
+	stripUtf8Bom,
 } from "@cline/core";
 import YAML from "yaml";
 import { z } from "zod";
@@ -179,6 +181,9 @@ function parseFrontmatter(md: string): {
 	data: Record<string, unknown>;
 	body: string;
 } {
+	// stripUtf8Bom keeps the frontmatter match below working for files saved with a leading
+	// UTF-8 BOM (see cline/cline#12151).
+	md = stripUtf8Bom(md);
 	const m = md.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?([\s\S]*)$/);
 	if (!m) return { data: {}, body: md.trim() };
 	try {
@@ -403,6 +408,16 @@ function steerPrompt(subagent: RunningSubagent): string {
 		.join("\n\n");
 }
 
+/**
+ * Host telemetry captured in setup(). Module-level so background work like
+ * runSubagentTurn can report outcomes. Always optional: feature-detect with
+ * `?.` — it is undefined when the host has no telemetry service. Only pass
+ * plain JSON data as properties; in sandboxed plugins the calls are bridged
+ * to the host over IPC, which namespaces them under `plugin.` and stamps
+ * `plugin_name`.
+ */
+let pluginTelemetry: ITelemetryService | undefined;
+
 async function runSubagentTurn(
 	subagent: RunningSubagent,
 	message: string,
@@ -426,6 +441,21 @@ async function runSubagentTurn(
 		subagent.error = err instanceof Error ? err.message : String(err);
 		subagent.completedAt = Date.now();
 	}
+	// Outcome telemetry: status as an event, wall-clock as a histogram. Keep
+	// properties low-cardinality (status, preset) — never task text or output.
+	pluginTelemetry?.capture({
+		event: "subagent_turn_completed",
+		properties: {
+			status: subagent.status,
+			preset: subagent.agent,
+			finish_reason: subagent.finishReason,
+		},
+	});
+	pluginTelemetry?.recordHistogram(
+		"subagents.turn_duration_ms",
+		(subagent.completedAt ?? Date.now()) - subagent.startedAt,
+		{ status: subagent.status },
+	);
 	if (steer) emitSteer(subagent.parentSessionId, steerPrompt(subagent));
 }
 
@@ -546,6 +576,15 @@ const plugin: AgentPlugin = {
 			backendMode: DEFAULT_BACKEND_MODE,
 			workspaceRoot: ctx.workspaceInfo?.rootPath,
 		});
+		// See the telemetry.ts example for the full ctx.telemetry contract.
+		pluginTelemetry = ctx.telemetry;
+		pluginTelemetry?.capture({
+			event: "subagents_setup",
+			properties: {
+				default_preset: DEFAULT_AGENT_PRESET,
+				backend_mode: DEFAULT_BACKEND_MODE,
+			},
+		});
 
 		// -- start_subagent: Start a new subagent session --
 		api.registerTool(
@@ -618,6 +657,10 @@ const plugin: AgentPlugin = {
 							preset: def?.name ?? input.preset,
 							providerId,
 							modelId,
+						});
+						pluginTelemetry?.recordCounter("subagents.started", 1, {
+							preset: def?.name ?? input.preset ?? "custom",
+							provider_id: providerId,
 						});
 						void runSubagentTurn(
 							subagent,

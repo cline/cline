@@ -1,6 +1,8 @@
 import type {
 	ClineCoreListHistoryOptions,
 	ClineCoreStartInput,
+	CompareCheckpointInput,
+	CompareCheckpointResult,
 	CoreSessionEvent,
 	HookEventPayload,
 	PendingPromptMutationResult,
@@ -34,8 +36,16 @@ export interface SdkSessionHost {
 	listHistory(options?: ClineCoreListHistoryOptions): Promise<SessionHistoryRecord[]>
 	delete(sessionId: string): Promise<boolean>
 	readMessages(sessionId: string): Promise<SdkInitialMessages>
+	/**
+	 * Like readMessages, but prefers the live in-memory conversation when the
+	 * session is still resident, so an in-flight (or just-aborted) turn is not
+	 * lost to the persisted transcript lagging behind.
+	 */
+	readLiveMessages?(sessionId: string): Promise<SdkInitialMessages>
 	updateSessionCompactionState?(sessionId: string, state: SessionCompactionState): Promise<{ updated: boolean }>
 	restore(input: RestoreInput): Promise<RestoreResult>
+	/** Diffs a checkpoint snapshot against the current working tree. */
+	compareCheckpoint?(input: CompareCheckpointInput): Promise<CompareCheckpointResult>
 	update(
 		sessionId: string,
 		updates: {

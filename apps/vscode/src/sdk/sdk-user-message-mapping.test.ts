@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest"
-import { ACT_MODE_CONTINUATION_PROMPT } from "./sdk-mode-coordinator"
-import { extractSdkUserText, findSdkUserMessageIndexByOrdinal, isSyntheticUserPrompt } from "./sdk-user-message-mapping"
+import {
+	ACT_MODE_CONTINUATION_PROMPT,
+	extractSdkUserText,
+	findSdkUserMessageIndexByOrdinal,
+	getSdkCheckpointRunCountForMessageIndex,
+	isSyntheticSdkUserMessage,
+	isSyntheticUserPrompt,
+} from "./sdk-user-message-mapping"
 
 // Persisted prompts are wrapped by formatModePrompt before they reach SDK
 // history; the mapping must recognize the wrapped shape, not just raw text.
@@ -22,6 +28,12 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt(wrapped("go ahead and implement step 1"))).toBe(false)
 	})
 
+	it("flags hook-injected context blocks", () => {
+		expect(isSyntheticUserPrompt('<hook_context source="PreToolUse" tool_name="read_files">\nNOTE\n</hook_context>')).toBe(
+			true,
+		)
+	})
+
 	it("flags synthetic prompts that carry a mode-switch notice", () => {
 		// A user-initiated plan -> act toggle stamps a <mode_notice> onto the
 		// canned continuation; the notice must not make the synthetic prompt
@@ -31,6 +43,28 @@ describe("isSyntheticUserPrompt", () => {
 		expect(isSyntheticUserPrompt(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`)).toBe(true)
 		expect(isSyntheticUserPrompt(wrapped(`${notice}\n${ACT_MODE_CONTINUATION_PROMPT}`))).toBe(true)
 		expect(isSyntheticUserPrompt(`${notice}\ngo ahead and implement step 1`)).toBe(false)
+	})
+})
+
+describe("isSyntheticSdkUserMessage", () => {
+	it("flags messages stamped with a system display role", () => {
+		expect(
+			isSyntheticSdkUserMessage({
+				role: "user",
+				content: [{ type: "text", text: "compaction summary or hook context" }],
+				metadata: { displayRole: "system", userRunSpan: 0 },
+			}),
+		).toBe(true)
+	})
+
+	it("does not flag ordinary user messages", () => {
+		expect(
+			isSyntheticSdkUserMessage({
+				role: "user",
+				content: [{ type: "text", text: wrapped("fix the bug") }],
+				metadata: { userRunSpan: 1 },
+			}),
+		).toBe(false)
 	})
 })
 
@@ -128,6 +162,33 @@ describe("findSdkUserMessageIndexByOrdinal", () => {
 		]
 
 		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(2)
+	})
+})
+
+describe("getSdkCheckpointRunCountForMessageIndex", () => {
+	it("counts hidden mode-switch runs that do not have webview rows", () => {
+		const messages = [
+			{ role: "user", content: wrapped("plan the change", "plan") },
+			{ role: "assistant", content: "a plan" },
+			{ role: "user", content: wrapped(ACT_MODE_CONTINUATION_PROMPT) },
+			{ role: "assistant", content: "implemented" },
+			{ role: "user", content: wrapped("adjust the tests") },
+		]
+
+		expect(findSdkUserMessageIndexByOrdinal(messages, 2)).toBe(4)
+		expect(getSdkCheckpointRunCountForMessageIndex(messages, 4)).toBe(3)
+	})
+
+	it("does not count recovery notices as checkpoint runs", () => {
+		const messages = [
+			{ role: "user", content: "task" },
+			{ role: "user", content: "recovered", metadata: { kind: "recovery_notice" } },
+			{ role: "user", content: "follow-up" },
+		]
+
+		expect(getSdkCheckpointRunCountForMessageIndex(messages, 2)).toBe(2)
+		expect(getSdkCheckpointRunCountForMessageIndex(messages, 1)).toBe(1)
+		expect(getSdkCheckpointRunCountForMessageIndex(messages, 9)).toBeUndefined()
 	})
 })
 

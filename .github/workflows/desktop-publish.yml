@@ -1,0 +1,655 @@
+name: desktop-publish
+
+on:
+  workflow_dispatch:
+    inputs:
+      git_tag:
+        description: "Existing release tag to publish, for example desktop-v0.1.0"
+        required: true
+        type: string
+      confirm_publish:
+        description: 'Type "publish" to confirm the desktop release.'
+        required: true
+        type: string
+      channel:
+        description: "Release channel"
+        required: true
+        type: choice
+        options:
+          - stable
+          - beta
+        default: stable
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  validate:
+    name: Validate release tag
+    if: |
+      github.repository == 'cline/cline' &&
+      github.event.inputs.confirm_publish == 'publish' &&
+      !endsWith(github.actor, '[bot]')
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      channel: ${{ steps.version.outputs.channel }}
+      feed: ${{ steps.version.outputs.feed }}
+      product: ${{ steps.version.outputs.product }}
+    steps:
+      # Companion to the presence check in `build`, and the half that actually
+      # establishes scope. This job declares no environment, so a signing secret
+      # that resolves here can only be a repository or organization secret —
+      # meaning it is still readable by every workflow in the repo, which is the
+      # thing the PublishDesktop environment exists to prevent. Neither check
+      # proves provenance alone (an environment-gated job resolves repository
+      # secrets too, with environment values merely taking precedence), but
+      # together they do: empty here plus present in `build` means the value came
+      # from the environment.
+      - name: Verify signing secrets are not repository-scoped
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          unscoped=()
+          for name in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT \
+                      APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -z "${!name}" ] || unscoped+=("$name")
+          done
+
+          if [ ${#unscoped[@]} -gt 0 ]; then
+            echo "These signing secrets resolve in a job with no environment:"
+            printf '  - %s\n' "${unscoped[@]}"
+            echo
+            echo "That means they are still repository or organization secrets and"
+            echo "are readable by any workflow in this repo. Delete them at that"
+            echo "level and add them to the PublishDesktop environment instead."
+            exit 1
+          fi
+
+          echo "No signing secret resolves outside the PublishDesktop environment."
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.git_tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Validate release tag
+        id: version
+        env:
+          TAG: ${{ github.event.inputs.git_tag }}
+          # inputs.* (not github.event.inputs.*) so the declared default
+          # applies when an API dispatch omits the channel input entirely.
+          CHANNEL: ${{ inputs.channel }}
+        run: |
+          # Fail-closed channel mapping: every channel defines its tag shape,
+          # its ancestry source, its feed, and its product name, and an unknown
+          # channel dies here. The feed assignment is the load-bearing one —
+          # the updater comparator is a plain semver "newer than", so a beta
+          # manifest landing on desktop-latest would auto-update every stable
+          # install onto the beta. The stable regex rejects prerelease
+          # suffixes for the same reason.
+          case "$CHANNEL" in
+            stable)
+              if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+$'; then
+                echo "stable git_tag must look like desktop-vX.Y.Z with no suffix, got: ${TAG}"
+                exit 1
+              fi
+              ANCESTOR_REF=main
+              FEED=desktop-latest
+              PRODUCT="Cline"
+              ;;
+            beta)
+              if ! printf "%s\n" "$TAG" | grep -Eq '^desktop-v[0-9]+\.[0-9]+\.[0-9]+-beta\.[0-9]+$'; then
+                echo "beta git_tag must look like desktop-vX.Y.Z-beta.N, got: ${TAG}"
+                exit 1
+              fi
+              ANCESTOR_REF=desktop-experimental
+              FEED=desktop-beta
+              PRODUCT="Cline Beta"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+
+          VERSION="${TAG#desktop-v}"
+          PACKAGE_VERSION=$(node -p "require('./apps/examples/desktop-app/package.json').version")
+          TAURI_VERSION=$(node -p "require('./apps/examples/desktop-app/src-tauri/tauri.conf.json').version")
+
+          if [ "$PACKAGE_VERSION" != "$VERSION" ]; then
+            echo "apps/examples/desktop-app/package.json version ${PACKAGE_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          if [ "$TAURI_VERSION" != "$VERSION" ]; then
+            echo "apps/examples/desktop-app/src-tauri/tauri.conf.json version ${TAURI_VERSION} does not match ${TAG}"
+            exit 1
+          fi
+
+          TAG_COMMIT=$(git rev-parse "${TAG}^{commit}")
+          HEAD_COMMIT=$(git rev-parse HEAD)
+          if [ "$TAG_COMMIT" != "$HEAD_COMMIT" ]; then
+            echo "${TAG} does not point at the checked out commit"
+            exit 1
+          fi
+
+          git fetch origin "+${ANCESTOR_REF}:refs/remotes/origin/${ANCESTOR_REF}"
+          if ! git merge-base --is-ancestor "$HEAD_COMMIT" "origin/${ANCESTOR_REF}"; then
+            echo "${TAG} is not reachable from origin/${ANCESTOR_REF}"
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "channel=${CHANNEL}" >> "$GITHUB_OUTPUT"
+          echo "feed=${FEED}" >> "$GITHUB_OUTPUT"
+          echo "product=${PRODUCT}" >> "$GITHUB_OUTPUT"
+
+  build:
+    name: Build macOS (universal)
+    needs: validate
+    # The Apple signing/notarization and Tauri updater secrets live in the
+    # PublishDesktop environment rather than at repository level, so they are
+    # readable only by this job and only once a required reviewer approves the
+    # run. Defense in depth: this `if` is advisory because a dispatched branch
+    # runs its own copy of this file; the enforced gate is the PublishDesktop
+    # environment's deployment-branch policy, which must also allow only main.
+    #
+    # Beta releases do not weaken this: a beta publish is ALSO dispatched from
+    # main (so this gate, the branch policy, and the workflow file executed all
+    # stay main's) — only the checked-out tag points into desktop-experimental,
+    # which validate pins via the ancestry check. A workflow copy edited on
+    # desktop-experimental can therefore never reach the signing secrets.
+    #
+    # What dispatch-from-main does NOT protect: the checked-out tag's own
+    # build scripts (bun install hooks, build:sdk, Tauri's beforeBuildCommand,
+    # build.rs) run inside this job with the signing secrets in scope, for
+    # stable and beta alike. The control for that is this environment's
+    # required-reviewer approval — the approver is vouching for the code the
+    # tag points at, not just for "a release happening". Two consequences:
+    # desktop-experimental must keep main-grade merge controls (branch
+    # protection, maintainer-only pushes), and an approval should only follow
+    # a look at what the tag actually contains. Building betas without these
+    # secrets is not an option: unsigned bundles fail Gatekeeper and updater
+    # artifacts must be signed with the same key or beta installs cannot
+    # verify their updates.
+    if: github.ref == 'refs/heads/main'
+    environment: PublishDesktop
+    runs-on: macos-latest
+    timeout-minutes: 90
+    steps:
+      # A secret missing here is dangerous rather than merely broken: Tauri skips
+      # code signing when APPLE_CERTIFICATE is empty and skips notarization when
+      # APPLE_API_KEY is empty, both silently, so the build would still succeed
+      # and publish an unsigned, un-notarized bundle. Only the missing updater
+      # key is caught later (by the .sig check in "Collect artifacts"). Fail up
+      # front instead, before any build work, if the environment is misconfigured.
+      - name: Verify PublishDesktop secrets are present
+        env:
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          missing=()
+          for name in APPLE_API_ISSUER APPLE_API_KEY APPLE_API_KEY_CONTENT \
+                      APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY \
+                      TAURI_SIGNING_PRIVATE_KEY TAURI_SIGNING_PRIVATE_KEY_PASSWORD; do
+            [ -n "${!name}" ] || missing+=("$name")
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "Missing from the PublishDesktop environment:"
+            printf '  - %s\n' "${missing[@]}"
+            echo
+            echo "Check that every secret above is set on the PublishDesktop"
+            echo "environment and that this job still declares"
+            echo "'environment: PublishDesktop'."
+            exit 1
+          fi
+
+          # Deliberately not phrased as "resolved from PublishDesktop": a
+          # non-empty value here could also be a repository or organization
+          # secret. The repository-scope check in `validate` is what rules that
+          # out.
+          echo "All 8 signing secrets are present."
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      # A universal (fat) macOS bundle needs both architecture slices, so
+      # install both Rust targets; `tauri build --target universal-apple-darwin`
+      # compiles each and lipos the results into one binary.
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      # No Rust build cache here, deliberately. This is the only job that can
+      # read the Apple signing certificate and the Tauri updater key, and a
+      # restored cache archive is attacker-controlled the moment the Actions
+      # cache is poisoned.
+
+      - name: Install dependencies
+        run: bun install
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build SDK packages
+        run: bun run build:sdk
+        env:
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+
+      - name: Write App Store Connect API key
+        env:
+          APPLE_API_KEY_CONTENT: ${{ secrets.APPLE_API_KEY_CONTENT }}
+        run: |
+          if [ -z "$APPLE_API_KEY_CONTENT" ]; then
+            echo "APPLE_API_KEY_CONTENT secret is not configured"
+            exit 1
+          fi
+          printf "%s" "$APPLE_API_KEY_CONTENT" > "$RUNNER_TEMP/AuthKey.p8"
+
+      - name: Build, sign, and notarize desktop bundle
+        working-directory: apps/examples/desktop-app
+        # Tauri merges repeated --config flags in order, so the beta overlay
+        # (product name, bundle identifier, beta update feed) layers on top of
+        # the release overlay without duplicating it. $CONFIG_ARGS is
+        # deliberately unquoted: it must word-split into separate flags.
+        run: bunx tauri build --target universal-apple-darwin $CONFIG_ARGS
+        env:
+          CONFIG_ARGS: ${{ needs.validate.outputs.channel == 'beta' && '--config src-tauri/tauri.release.conf.json --config src-tauri/tauri.beta.conf.json' || '--config src-tauri/tauri.release.conf.json' }}
+          # Telemetry config for the sidecar binary. Tauri's beforeBuildCommand
+          # (`bun run build` -> build:sidecar:bin) compiles the sidecar during
+          # this step and inlines these values into the binary via `--define`
+          # (scripts/telemetry-define-args.ts); a packaged app launched from
+          # Finder/the Dock has no runtime env, so build-time inlining is the
+          # only way the shipped sidecar can ever report telemetry.
+          TELEMETRY_SERVICE_API_KEY: ${{ secrets.TELEMETRY_SERVICE_API_KEY }}
+          ERROR_SERVICE_API_KEY: ${{ secrets.ERROR_SERVICE_API_KEY }}
+          OTEL_TELEMETRY_ENABLED: ${{ secrets.OTEL_TELEMETRY_ENABLED }}
+          OTEL_LOGS_EXPORTER: otlp
+          OTEL_METRICS_EXPORTER: otlp
+          OTEL_EXPORTER_OTLP_PROTOCOL: ${{ secrets.OTEL_EXPORTER_OTLP_PROTOCOL }}
+          OTEL_EXPORTER_OTLP_ENDPOINT: ${{ secrets.OTEL_EXPORTER_OTLP_ENDPOINT }}
+          OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
+          # Developer ID signing (Tauri imports the cert into a temp keychain)
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          # Notarization via App Store Connect API key. Tauri reads the Key ID
+          # from APPLE_API_KEY; APPLE_API_KEY_ID alone silently skips notarization.
+          APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}
+          APPLE_API_KEY_PATH: ${{ runner.temp }}/AuthKey.p8
+          APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}
+          # Updater artifact signing (minisign keypair, independent of Apple)
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      # Tauri lipos the main binary itself but sidecars are merged by our own
+      # build-sidecar-bin.ts, so assert every Mach-O in the bundle really
+      # carries both slices before anything is published. A single-arch
+      # sidecar would otherwise ship fine and only crash on the other arch.
+      - name: Verify bundle is a universal binary
+        working-directory: apps/examples/desktop-app
+        env:
+          PRODUCT: ${{ needs.validate.outputs.product }}
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/${PRODUCT}.app"
+          if [ ! -d "$APP" ]; then
+            echo "app bundle not found at $APP"
+            exit 1
+          fi
+          for bin in "$APP/Contents/MacOS/"*; do
+            archs=$(lipo -archs "$bin")
+            echo "$bin: $archs"
+            case "$archs" in
+              *arm64*x86_64*|*x86_64*arm64*) ;;
+              *)
+                echo "$bin is not a universal binary (archs: $archs)"
+                exit 1
+                ;;
+            esac
+          done
+
+      # Guardrail: the updater endpoint is compiled into the main binary as a
+      # string literal (tauri-build embeds the merged config via codegen), so
+      # assert the bundle carries this channel's feed URL and not the other
+      # channel's, before anything gets signed into a release. This catches a
+      # --config overlay that silently failed to apply: a beta bundle polling
+      # desktop-latest would pull its users onto stable builds, and a stable
+      # bundle polling desktop-beta would push betas to every stable install.
+      - name: Verify updater feed endpoint
+        working-directory: apps/examples/desktop-app
+        env:
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
+        run: |
+          APP="src-tauri/target/universal-apple-darwin/release/bundle/macos/${PRODUCT}.app"
+          case "$CHANNEL" in
+            stable)
+              WANT="releases/download/desktop-latest/latest.json"
+              FORBID="releases/download/desktop-beta/latest.json"
+              ;;
+            beta)
+              WANT="releases/download/desktop-beta/latest.json"
+              FORBID="releases/download/desktop-latest/latest.json"
+              ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+
+          # Plain grep >/dev/null rather than grep -q: -q exits at the first
+          # match, SIGPIPEs strings, and would read as a failed pipeline under
+          # pipefail.
+          found=0
+          for bin in "$APP/Contents/MacOS/"*; do
+            if strings -a "$bin" | grep "$FORBID" >/dev/null; then
+              echo "$bin embeds the other channel's feed URL (${FORBID})"
+              exit 1
+            fi
+            if strings -a "$bin" | grep "$WANT" >/dev/null; then
+              found=1
+            fi
+          done
+
+          if [ "$found" -ne 1 ]; then
+            echo "No binary in ${APP}/Contents/MacOS embeds ${WANT}."
+            echo "The updater endpoint overlay did not apply; check the"
+            echo "--config flags on the build step and tauri.beta.conf.json."
+            exit 1
+          fi
+          echo "Updater endpoint verified: ${WANT}"
+
+      # Guardrail: assert the telemetry config actually made it into the
+      # compiled sidecar. Missing env on the build step (or a regression in
+      # the --define inlining) would otherwise ship a release with telemetry
+      # silently disabled — exactly what happened for every release before
+      # this check existed. Being enabled is not enough on its own: an empty,
+      # malformed, or non-http(s) OTLP endpoint would still drop every event
+      # at runtime (the SDK exporters speak OTLP http/json only), so the
+      # selfcheck must also report a usable endpoint host.
+      - name: Verify sidecar telemetry config was inlined
+        working-directory: apps/examples/desktop-app
+        run: |
+          SELFCHECK=$(./src-tauri/bin/code-sidecar-universal-apple-darwin --telemetry-selfcheck)
+          echo "$SELFCHECK"
+          if ! printf '%s' "$SELFCHECK" | grep -q '"enabled":true'; then
+            echo "Packaged sidecar reports telemetry disabled."
+            echo "Check the OTEL_* / TELEMETRY_SERVICE_API_KEY env on the"
+            echo "'Build, sign, and notarize desktop bundle' step and the"
+            echo "--define inlining in scripts/build-sidecar-bin.ts."
+            exit 1
+          fi
+          if printf '%s' "$SELFCHECK" | grep -Eq '"otlp_endpoint_host":"(invalid-endpoint-url)?"'; then
+            echo "Packaged sidecar reports telemetry enabled but its OTLP"
+            echo "endpoint is missing, unparseable, or not an http(s) URL, so"
+            echo "every event would be dropped at runtime. Check the"
+            echo "OTEL_EXPORTER_OTLP_ENDPOINT secret."
+            exit 1
+          fi
+
+      - name: Collect artifacts
+        working-directory: apps/examples/desktop-app
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          PRODUCT: ${{ needs.validate.outputs.product }}
+        run: |
+          BUNDLE_DIR="src-tauri/target/universal-apple-darwin/release/bundle"
+          OUT="dist/publish"
+          mkdir -p "$OUT"
+
+          # "Cline" -> Cline, "Cline Beta" -> Cline-Beta
+          PREFIX="${PRODUCT// /-}"
+
+          DMG=$(find "$BUNDLE_DIR/dmg" -name '*.dmg' -print -quit)
+          if [ -z "$DMG" ]; then
+            echo "no DMG produced under $BUNDLE_DIR/dmg"
+            exit 1
+          fi
+          cp "$DMG" "$OUT/${PREFIX}_${VERSION}_universal.dmg"
+
+          TARBALL=$(find "$BUNDLE_DIR/macos" -name '*.app.tar.gz' -print -quit)
+          if [ -z "$TARBALL" ] || [ ! -f "${TARBALL}.sig" ]; then
+            echo "updater artifact or signature missing under $BUNDLE_DIR/macos"
+            exit 1
+          fi
+          cp "$TARBALL" "$OUT/${PREFIX}_${VERSION}_universal.app.tar.gz"
+          cp "${TARBALL}.sig" "$OUT/${PREFIX}_${VERSION}_universal.app.tar.gz.sig"
+
+          ls -lh "$OUT"
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-universal
+          path: apps/examples/desktop-app/dist/publish/*
+          if-no-files-found: error
+
+  release:
+    name: Create GitHub release
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+          fetch-depth: 0
+          fetch-tags: true
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: "1.3.13"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist/desktop
+          merge-multiple: true
+
+      - name: Get Changelog Entry
+        id: changelog
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          # Grab content between this release's "## <version>" header and the
+          # next one. Exact match, not "first section": once main and
+          # desktop-experimental cross-merge, stable and beta sections
+          # interleave and the top section may belong to the other channel.
+          CONTENT=$(awk -v ver="$VERSION" '$0 == "## " ver {found=1; next} /^## [0-9]/ {if (found) exit} found {print}' apps/examples/desktop-app/CHANGELOG.md)
+          if [ -z "$CONTENT" ]; then
+            echo "No '## ${VERSION}' section found in apps/examples/desktop-app/CHANGELOG.md"
+            exit 1
+          fi
+          echo "content<<EOF" >> $GITHUB_OUTPUT
+          echo "$CONTENT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+          printf "%s\n" "$CONTENT" > "$RUNNER_TEMP/release-notes.md"
+
+          # Slack section blocks reject text longer than 3000 characters, and the
+          # Slack action logs that rejection WITHOUT failing the step - so an
+          # over-long changelog silently drops the release announcement while the
+          # run stays green. Post a trimmed copy to Slack and link out to the full
+          # notes. The GitHub release body and updater manifest stay whole.
+          RELEASE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/tag/${{ needs.validate.outputs.tag }}"
+          SLACK_CONTENT=$(CONTENT="$CONTENT" RELEASE_URL="$RELEASE_URL" python3 -c '
+          import os
+          content = os.environ["CONTENT"]
+          more = "\n\n… <%s|Read the full release notes>" % os.environ["RELEASE_URL"]
+          if len(content) <= 3000:
+              print(content, end="")
+          else:
+              budget = 3000 - len(more)
+              kept, used = [], 0
+              for line in content.splitlines(keepends=True):
+                  if used + len(line) > budget:
+                      break
+                  kept.append(line)
+                  used += len(line)
+              body = "".join(kept).rstrip() if kept else content[:budget].rstrip()
+              print(body + more, end="")
+          ')
+          echo "slack_content<<SLACK_EOF" >> $GITHUB_OUTPUT
+          echo "$SLACK_CONTENT" >> $GITHUB_OUTPUT
+          echo "SLACK_EOF" >> $GITHUB_OUTPUT
+
+      - name: Generate updater manifest
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
+        run: |
+          bun apps/examples/desktop-app/scripts/generate-update-manifest.ts \
+            --version "$VERSION" \
+            --tag "$TAG" \
+            --dir dist/desktop \
+            --out dist/desktop/latest.json \
+            --repo "$GITHUB_REPOSITORY" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+          cat dist/desktop/latest.json
+
+      - name: Get Previous Desktop Tag
+        id: prev_tag
+        env:
+          CURRENT_TAG: ${{ needs.validate.outputs.tag }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+        run: |
+          # Stable compare links skip beta tags so they read stable -> stable;
+          # beta compares against whatever shipped last on either channel.
+          if [ "$CHANNEL" = "stable" ]; then
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' --exclude 'desktop-v*-beta*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          else
+            PREV_TAG=$(git describe --tags --abbrev=0 --match 'desktop-v*' "$CURRENT_TAG^" 2>/dev/null || echo "")
+          fi
+          echo "prev_tag=$PREV_TAG" >> $GITHUB_OUTPUT
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: "Desktop v${{ needs.validate.outputs.version }}"
+          # The repo-wide "latest" release stays owned by CLI releases; the
+          # desktop auto-update feed is the rolling desktop-latest release.
+          make_latest: "false"
+          prerelease: ${{ needs.validate.outputs.channel == 'beta' }}
+          files: dist/desktop/*
+          body: |
+            ${{ steps.changelog.outputs.content }}
+
+            ${{ steps.prev_tag.outputs.prev_tag != '' && format('**Full Changelog**: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update auto-update feed
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+          FEED: ${{ needs.validate.outputs.feed }}
+        run: |
+          # Belt and braces: recompute the feed from the channel and require it
+          # to agree with validate's output, so no single threading bug can
+          # point a publish at the other channel's feed. Stable installs poll
+          # desktop-latest and beta installs poll desktop-beta; crossing the
+          # streams either pushes betas to every stable user or strands beta
+          # users on stale builds.
+          case "$CHANNEL" in
+            stable) EXPECTED_FEED=desktop-latest ;;
+            beta) EXPECTED_FEED=desktop-beta ;;
+            *)
+              echo "unknown channel: ${CHANNEL}"
+              exit 1
+              ;;
+          esac
+          if [ "$FEED" != "$EXPECTED_FEED" ]; then
+            echo "feed mismatch: validate says '${FEED}' but channel '${CHANNEL}' expects '${EXPECTED_FEED}'"
+            exit 1
+          fi
+
+          if ! gh release view "$FEED" >/dev/null 2>&1; then
+            if [ "$CHANNEL" = "beta" ]; then
+              gh release create "$FEED" \
+                --title "Cline desktop beta (auto-update feed)" \
+                --notes "Rolling release backing the beta desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z-beta.N release. Only beta installs poll this feed; stable installs use desktop-latest. Do not delete." \
+                --latest=false \
+                --prerelease \
+                --target "$(git rev-parse HEAD)"
+            else
+              gh release create "$FEED" \
+                --title "Cline desktop (auto-update feed)" \
+                --notes "Rolling release backing the desktop app auto-updater. The latest.json asset points at the newest desktop-vX.Y.Z release. Do not delete." \
+                --latest=false \
+                --target "$(git rev-parse HEAD)"
+            fi
+          fi
+          gh release upload "$FEED" dist/desktop/latest.json --clobber
+
+      - name: Summary
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          FEED: ${{ needs.validate.outputs.feed }}
+        run: |
+          echo "Published Cline desktop v${VERSION}"
+          echo "Release: https://github.com/${GITHUB_REPOSITORY}/releases/tag/${TAG}"
+          echo "Auto-update feed refreshed: https://github.com/${GITHUB_REPOSITORY}/releases/download/${FEED}/latest.json"
+
+      - name: Post release to Slack
+        uses: slackapi/slack-github-action@v3.0.1
+        with:
+          method: chat.postMessage
+          token: ${{ secrets.SLACK_RELEASE_BOT_TOKEN }}
+          payload: |
+            channel: "C0APVKGGZFC"
+            text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+            blocks:
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: "Cline desktop v${{ needs.validate.outputs.version }}${{ needs.validate.outputs.channel == 'beta' && ' (beta)' || '' }}"
+              - type: "section"
+                text:
+                  type: "mrkdwn"
+                  text: ${{ toJSON(steps.changelog.outputs.slack_content) }}
+              - type: "context"
+                elements:
+                  - type: "mrkdwn"
+                    text: "<https://github.com/${{ github.repository }}/releases/tag/${{ needs.validate.outputs.tag }}|Download DMG> — ${{ needs.validate.outputs.channel == 'beta' && 'beta channel: installs side by side with the stable app and only beta installs auto-update; stable users are unaffected' || 'installed apps auto-update on next launch' }}${{ steps.prev_tag.outputs.prev_tag != '' && format(' | Full Changelog: https://github.com/{0}/compare/{1}...{2}', github.repository, steps.prev_tag.outputs.prev_tag, needs.validate.outputs.tag) || '' }}"

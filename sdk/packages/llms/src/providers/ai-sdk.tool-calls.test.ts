@@ -176,7 +176,7 @@ describe("ai-sdk adapter malformed tool calls", () => {
 		expect(findToolInput(events)).toEqual({ commands: ["ls", "pwd"] });
 	});
 
-	it("repairs truncated JSON arguments", async () => {
+	it("repairs unclosed container brackets with complete string values", async () => {
 		const events = await streamToolCallEvents(
 			sseToolCall("read_files", '{"files": [{"path": "/tmp/a.txt"}]'),
 			[READ_FILES_TOOL],
@@ -184,6 +184,16 @@ describe("ai-sdk adapter malformed tool calls", () => {
 
 		expect(findParseError(events)).toBeUndefined();
 		expect(findToolInput(events)).toEqual({ files: [{ path: "/tmp/a.txt" }] });
+	});
+
+	it("surfaces parse error for truncated JSON with unterminated string value", async () => {
+		const truncated = '{"commands": ["npm install';
+		const events = await streamToolCallEvents(
+			sseToolCall("run_commands", truncated),
+			[RUN_COMMANDS_TOOL],
+		);
+
+		expect(findParseError(events)).toContain("Invalid input");
 	});
 
 	it("repairs single-quoted JSON arguments", async () => {
@@ -222,12 +232,21 @@ describe("repairMalformedToolCall", () => {
 		input,
 	});
 
-	it("repairs truncated JSON", async () => {
+	it("repairs unclosed containers (brackets/braces) with complete string values", async () => {
 		const repaired = await repairMalformedToolCall({
 			toolCall: toolCall('{"commands": ["ls"'),
 			error: new Error("JSON parsing failed"),
 		});
 		expect(repaired?.input).toBe('{"commands":["ls"]}');
+	});
+
+	it("returns null for unterminated string values in truncated JSON", async () => {
+		const truncated = '{"commands": ["npm install ';
+		const repaired = await repairMalformedToolCall({
+			toolCall: toolCall(truncated),
+			error: new Error("JSON parsing failed"),
+		});
+		expect(repaired).toBeNull();
 	});
 
 	it("repairs single-quoted JSON", async () => {

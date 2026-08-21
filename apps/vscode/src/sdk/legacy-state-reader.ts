@@ -7,13 +7,13 @@
 // All reads are non-throwing — missing or corrupt files return defaults.
 
 import fs from "node:fs"
-import os from "node:os"
 import path from "node:path"
 import { Anthropic } from "@anthropic-ai/sdk"
 import { ClineMessage } from "@shared/ExtensionMessage"
 import { HistoryItem } from "@shared/HistoryItem"
 import { Logger } from "@shared/services/Logger"
 import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
+import { resolveDataDirFromEnv } from "@shared/storage/storage-context"
 
 // ---------------------------------------------------------------------------
 // Path resolution
@@ -24,10 +24,9 @@ import { GlobalStateAndSettings, Secrets } from "@shared/storage/state-keys"
  * Priority: CLINE_DATA_DIR env > CLINE_DIR env + "/data" > ~/.cline/data
  */
 export function resolveDataDir(override?: string): string {
-	if (override) return override
-	if (process.env.CLINE_DATA_DIR) return process.env.CLINE_DATA_DIR
-	const clineDir = process.env.CLINE_DIR || path.join(os.homedir(), ".cline")
-	return path.join(clineDir, "data")
+	// Delegates to the same resolver createStorageContext uses so the two
+	// stores can never drift apart again (ENG-2332).
+	return override || resolveDataDirFromEnv()
 }
 
 /** Path to globalState.json */
@@ -190,11 +189,19 @@ export function readApiConversationHistory(taskId: string, dataDir?: string): An
 }
 
 /**
+ * Say types the legacy extension persisted but the current webview no longer
+ * renders (the pre-SDK auto-retry status rows). Dropped on read so old
+ * transcripts don't degrade into raw-JSON text rows.
+ */
+const REMOVED_LEGACY_SAY_TYPES = new Set(["error_retry", "api_req_retried"])
+
+/**
  * Read the UI messages for a specific task.
  * Returns an empty array if the file is missing or corrupt.
  */
 export function readUiMessages(taskId: string, dataDir?: string): ClineMessage[] {
-	return readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+	const messages = readJsonFile<ClineMessage[]>(uiMessagesPath(taskId, dataDir), [])
+	return messages.filter((message) => !REMOVED_LEGACY_SAY_TYPES.has((message as { say?: string }).say ?? ""))
 }
 
 /**

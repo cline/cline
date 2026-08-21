@@ -1,6 +1,7 @@
 import fs from "fs/promises"
 import path from "path"
 import * as vscode from "vscode"
+import { readGlobalState, readSecrets } from "@/sdk/legacy-state-reader"
 import { Logger } from "@/shared/services/Logger"
 import { ensureRulesDirectoryExists } from "./disk"
 
@@ -115,7 +116,7 @@ export async function migrateCustomInstructionsToGlobalRules(context: vscode.Ext
 	}
 }
 
-export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext) {
+export async function migrateWelcomeViewCompleted(context: vscode.ExtensionContext, dataDir?: string) {
 	try {
 		// Check if welcomeViewCompleted is already set
 		const welcomeViewCompleted = context.globalState.get("welcomeViewCompleted")
@@ -157,6 +158,28 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 			const planModeVsCodeLmModelSelector = context.globalState.get("planModeVsCodeLmModelSelector")
 			const actModeVsCodeLmModelSelector = context.globalState.get("actModeVsCodeLmModelSelector")
 
+			// ENG-2346: The live 4.x extension persists provider config in the shared
+			// file-backed stores (~/.cline/data/globalState.json + secrets.json), not in
+			// VS Code storage — so for users upgrading from it, every value above is
+			// undefined. Also consider the file-backed stores (same signals: the
+			// completed flag itself, any provider secret, or the keyless provider
+			// configs), otherwise fully configured users are sent back through onboarding.
+			const fileGlobalState = readGlobalState(dataDir)
+			const fileSecrets: Record<string, string | undefined> = readSecrets(dataDir)
+			const hasFileBackedConfig =
+				fileGlobalState.welcomeViewCompleted === true ||
+				Object.entries(fileSecrets).some(([key, value]) => key !== "authNonce" && key !== "mcpOAuthSecrets" && !!value) ||
+				[
+					fileGlobalState.awsRegion,
+					fileGlobalState.vertexProjectId,
+					fileGlobalState.planModeOllamaModelId,
+					fileGlobalState.planModeLmStudioModelId,
+					fileGlobalState.actModeOllamaModelId,
+					fileGlobalState.actModeLmStudioModelId,
+					fileGlobalState.planModeVsCodeLmModelSelector,
+					fileGlobalState.actModeVsCodeLmModelSelector,
+				].some((value) => value !== undefined)
+
 			// This is the original logic used for checking if the welcome view should be shown
 			// It was located in the ExtensionStateContextProvider
 			const hasKey = [
@@ -191,10 +214,12 @@ export async function migrateWelcomeViewCompleted(context: vscode.ExtensionConte
 				openAiCodexCredentials,
 			].some((key) => key !== undefined)
 
-			// Set welcomeViewCompleted based on whether user has keys
-			await context.globalState.update("welcomeViewCompleted", hasKey)
+			const completed = hasKey || hasFileBackedConfig
 
-			Logger.log(`Migration: Set welcomeViewCompleted to ${hasKey} based on existing API keys`)
+			// Set welcomeViewCompleted based on whether user has keys
+			await context.globalState.update("welcomeViewCompleted", completed)
+
+			Logger.log(`Migration: Set welcomeViewCompleted to ${completed} based on existing API keys`)
 		}
 	} catch (error) {
 		Logger.error("Failed to migrate welcomeViewCompleted:", error)

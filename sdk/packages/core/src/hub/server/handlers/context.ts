@@ -1,4 +1,6 @@
 import type {
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
@@ -10,6 +12,7 @@ import type {
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -51,10 +54,25 @@ export interface HubTransportContext {
 	readonly pendingApprovals: Map<string, PendingApproval>;
 	readonly pendingCapabilityRequests: Map<string, PendingCapabilityRequest>;
 	readonly suppressNextTerminalEventBySession: Map<string, string>;
+	/**
+	 * Count of RPC-driven turns (`run.start` / session input commands)
+	 * currently awaiting `sessionHost.runTurn` per session. While > 0 the
+	 * awaiting handler publishes the authoritative terminal run event, so the
+	 * session-event projector must not publish its own `run.failed` for
+	 * agent-level error events emitted during that turn. Turns drained from
+	 * the pending-prompt queue run with no awaiting RPC handler (count 0), so
+	 * the projector is their only failure reporter.
+	 */
+	readonly activeRpcTurnCountBySession: Map<string, number>;
 	readonly telemetry?: ITelemetryService;
+	/** Hub-owned tools injected into every local session runtime. */
+	readonly sessionTools?: readonly AgentTool[];
+	/** Hub-owned extensions injected into every local session runtime. */
+	readonly sessionExtensions?: readonly AgentExtension[];
 	readonly sessionHost: RuntimeHost &
 		Partial<
-			PendingPromptsRuntimeService &
+			CommandExecutionRuntimeService &
+				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;

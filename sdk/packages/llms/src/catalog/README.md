@@ -8,6 +8,21 @@ generation scripts.
 This file documents the intended meaning of the token-limit fields and the
 boundary between catalog metadata and runtime request policy.
 
+## Audio Modalities
+
+Audio-capable entries retain models.dev's directional modality metadata:
+
+```text
+modalities.input   content accepted by the model
+modalities.output  content produced by the model
+```
+
+These directions are not interchangeable. A microphone transcription model
+accepts `audio` and produces `text`; a text-to-speech model accepts `text` and
+produces `audio`. Audio models are retained even when they do not support tool
+calling so non-chat surfaces can discover them. Chat model pickers must exclude
+utility models that do not accept and produce text.
+
 ## Source Fields
 
 `models.dev` exposes model limits under `limit`:
@@ -77,13 +92,16 @@ while generating the catalog. Conceptually:
 safeOutputTokens = min(
 	modelReportedMaxOutput,
 	contextWindow - estimatedPromptTokens - reserveTokens,
-	userConfiguredOutputCap,
+	userConfiguredOutputCap or productDefaultOutputCap,
 )
 ```
 
-The SDK gateway only sends an output token limit when the caller provides
-`request.options.maxTokens` or an equivalent host configuration. Catalog
-metadata does not become a request parameter by itself.
+The SDK gateway resolves an output token limit for the provider request. It uses
+`request.options.maxTokens` or an equivalent host configuration when present,
+otherwise it applies the product default output cap
+(`DEFAULT_GATEWAY_MAX_OUTPUT_TOKENS`, currently 32000) when the model catalog has
+either an output limit or a context window. Provider modules are responsible for
+forwarding that limit only to wire API surfaces that support it.
 
 The exact request-limit policy belongs in the provider/gateway/core request
 path, not in generated catalog data.
@@ -125,8 +143,11 @@ src/catalog/catalog-live.ts
 	v
 scripts/generate-models.ts
 	|
-	v
-src/catalog/catalog.generated.ts
+	+--> src/catalog/catalog.generated.ts
+	|
+	+--> src/providers/providers.generated.ts
+	|
+	+--> src/providers/provider-ids.generated.ts
 ```
 
 Use the package script when regenerating:
@@ -160,6 +181,8 @@ and observable.
 - `catalog-live.ts`: normalizes live `models.dev` data.
 - `catalog-live.test.ts`: tests catalog normalization behavior.
 - `catalog.generated.ts`: checked-in generated provider/model catalog.
+- `../providers/providers.generated.ts`: checked-in generated provider specs.
+- `../providers/provider-ids.generated.ts`: checked-in generated provider IDs.
 - `../../scripts/generate-models.ts`: writes generated catalog output.
-- `../providers/ai-sdk.ts`: passes `maxOutputTokens` into AI SDK.
+- `../providers/ai-sdk.ts`: conditionally passes `maxOutputTokens` into AI SDK.
 - `../providers/gateway.ts`: resolves per-request/default `maxTokens`.

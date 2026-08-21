@@ -91,6 +91,7 @@ vi.mock("../provider-migration", () => ({
 }))
 
 vi.mock("@cline/core", () => ({
+	isPrivateModelCatalogProvider: (providerId: string) => ["baseten", "hicap", "litellm", "poolside"].includes(providerId),
 	syncStoredProviderRegistration: vi.fn(),
 	readModelsFileSync: vi.fn(() => mocks.getModelsFile()),
 	resolveModelsRegistryPath: vi.fn(() => "/tmp/models.json"),
@@ -183,6 +184,26 @@ describe("createProviderConfigStore", () => {
 		expect(store.read(providerId).baseUrl).toBeUndefined()
 	})
 
+	// Changing the regional API line in the settings UI goes through
+	// store.write. It must land in providers.json (the CLI and desktop app
+	// bake the regional base URL from its stored apiLine) AND mirror to the
+	// legacy state key (the VS Code session factory's resolveApiLine reads
+	// legacy state first).
+	it.each([
+		["qwen", "qwenApiLine"],
+		["moonshot", "moonshotApiLine"],
+	] as const)("mirrors %s apiLine writes to both providers.json and the legacy state key", async (provider, legacyKey) => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId(provider)
+
+		store.write(providerId, { apiLine: "china" })
+
+		expect(mocks.getSavedProviderSettings(provider)).toMatchObject({ provider, apiLine: "china" })
+		expect(mocks.getApiConfiguration()[legacyKey]).toBe("china")
+		expect(store.read(providerId).apiLine).toBe("china")
+	})
+
 	it("round-trips commitSelection then readSelection for provider-specific model info", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
@@ -199,6 +220,143 @@ describe("createProviderConfigStore", () => {
 			apiFormat: "openai-responses",
 			capabilities: ["prompt-cache"],
 		})
+	})
+
+	it("persists host catalog metadata for a dynamic LiteLLM model without turning it into an override", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		const liveModelInfo: ModelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+			supportsReasoning: true,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toEqual(liveModelInfo)
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			providerId,
+			modelId,
+			overrides: undefined,
+			modelInfoSource: "state",
+			baseModelInfo: liveModelInfo,
+			modelInfo: liveModelInfo,
+		})
+		expect(mocks.getModelsFile().providers.litellm?.models?.[modelId]).toBeUndefined()
+	})
+
+	it.each([
+		["litellm", "actModeLiteLlmModelInfo"],
+		["baseten", "actModeBasetenModelInfo"],
+		["hicap", "actModeHicapModelInfo"],
+	] as const)("keeps a persisted %s private-catalog snapshot authoritative after reload", async (provider, modelInfoKey) => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId(provider)
+		const modelId = "shared-private-model"
+		const staticModelInfo: ModelInfo = {
+			name: "SDK fallback model",
+			contextWindow: 128_000,
+			maxInputTokens: 128_000,
+			maxTokens: 16_384,
+			supportsPromptCache: true,
+		}
+		const liveModelInfo: ModelInfo = {
+			name: "Private endpoint deployment",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+		mocks.setGeneratedModels(provider, { [modelId]: staticModelInfo })
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration()[modelInfoKey]).toEqual(liveModelInfo)
+
+		// A window reload clears the in-process catalog and selection envelope;
+		// the durable provider snapshot must still beat the same-id static entry.
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		expect(createReloadedStore().readSelection(providerId, "act")).toMatchObject({
+			modelInfoSource: "state",
+			baseModelInfo: liveModelInfo,
+			modelInfo: liveModelInfo,
+		})
+	})
+
+	it("lets a public catalog update supersede an older persisted snapshot after reload", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("openrouter")
+		const modelId = "shared-public-model"
+		const refreshedModelInfo: ModelInfo = {
+			name: "Refreshed public catalog model",
+			contextWindow: 256_000,
+			maxTokens: 32_000,
+			supportsPromptCache: true,
+		}
+		const selectedModelInfo: ModelInfo = {
+			name: "Catalog model at selection time",
+			contextWindow: 128_000,
+			maxTokens: 16_000,
+			supportsPromptCache: false,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId }, selectedModelInfo)
+		mocks.setGeneratedModels("openrouter", { [modelId]: refreshedModelInfo })
+
+		vi.resetModules()
+		const { createProviderConfigStore: createReloadedStore } = await import("./store")
+		expect(createReloadedStore().readSelection(providerId, "act")).toMatchObject({
+			modelInfoSource: "catalog",
+			baseModelInfo: refreshedModelInfo,
+			modelInfo: refreshedModelInfo,
+		})
+	})
+
+	it("keeps a LiteLLM max-input override ahead of cached catalog metadata without baking it into the base", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		const liveModelInfo: ModelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+
+		store.commitSelection(providerId, "act", { providerId, modelId, overrides: { maxInputTokens: 300_000 } }, liveModelInfo)
+
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toEqual(liveModelInfo)
+		expect(store.readSelection(providerId, "act")).toMatchObject({
+			baseModelInfo: liveModelInfo,
+			overrides: { maxInputTokens: 300_000 },
+			modelInfo: { maxInputTokens: 300_000 },
+		})
+	})
+
+	it("does not fabricate maxInputTokens or a metadata snapshot when a dynamic model has no catalog metadata", async () => {
+		const { createProviderConfigStore } = await import("./store")
+		const store = createProviderConfigStore()
+		const providerId = parseProviderId("litellm")
+		const modelId = "custom/no-metadata"
+
+		store.commitSelection(providerId, "act", { providerId, modelId })
+
+		expect(mocks.getApiConfiguration()).toMatchObject({ actModeLiteLlmModelId: modelId })
+		expect(mocks.getApiConfiguration().actModeLiteLlmModelInfo).toBeUndefined()
+		const resolved = store.readSelection(providerId, "act")
+		expect(resolved?.modelInfoSource).toBe("fallback")
+		expect(resolved?.modelInfo.maxInputTokens).toBeUndefined()
+		expect(mocks.getModelsFile().providers.litellm?.models?.[modelId]).toBeUndefined()
 	})
 
 	it("round-trips generic provider selections using the in-process modelInfo envelope", async () => {
@@ -316,7 +474,6 @@ describe("createProviderConfigStore", () => {
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
 			apiFormat: ApiFormat.OPENAI_RESPONSES,
-			isR1FormatRequired: true,
 		}
 		mocks.setApiConfiguration({
 			actModeOpenAiModelId: "legacy-custom",
@@ -342,7 +499,6 @@ describe("createProviderConfigStore", () => {
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
 			apiFormat: "openai-responses",
-			isR1FormatRequired: true,
 		})
 		expect(first?.overrides).toEqual(second?.overrides)
 		expect(first?.modelInfo).toMatchObject({
@@ -357,7 +513,7 @@ describe("createProviderConfigStore", () => {
 			cacheReadsPrice: 0.25,
 			cacheWritesPrice: 0.5,
 			temperature: 0.3,
-			apiFormat: ApiFormat.R1_CHAT,
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
 		})
 		expect(syncStoredProviderRegistration).toHaveBeenCalledTimes(1)
 	})
@@ -454,7 +610,6 @@ describe("createProviderConfigStore", () => {
 			actModeOpenAiModelInfo: {
 				...openAiModelInfoSafeDefaults,
 				maxTokens: 2_048,
-				isR1FormatRequired: true,
 			},
 		})
 		const { createProviderConfigStore } = await import("./store")
@@ -468,10 +623,10 @@ describe("createProviderConfigStore", () => {
 
 		expect(mocks.getModelsFile().providers["openai-compatible"]?.models).toMatchObject({
 			"legacy-plan": { contextWindow: 64_000, apiFormat: "openai-responses" },
-			"legacy-act": { maxTokens: 2_048, isR1FormatRequired: true },
+			"legacy-act": { maxTokens: 2_048 },
 		})
 		expect(plan?.modelInfo).toMatchObject({ contextWindow: 64_000, apiFormat: ApiFormat.OPENAI_RESPONSES })
-		expect(act?.modelInfo).toMatchObject({ maxTokens: 2_048, apiFormat: ApiFormat.R1_CHAT })
+		expect(act?.modelInfo).toMatchObject({ maxTokens: 2_048 })
 		expect(syncStoredProviderRegistration).toHaveBeenCalledTimes(2)
 	})
 
@@ -690,7 +845,7 @@ describe("createProviderConfigStore", () => {
 		expect(syncStoredProviderRegistration).not.toHaveBeenCalled()
 	})
 
-	it("lets explicit capability booleans win and applies the R1 alias deterministically", async () => {
+	it("lets explicit capability booleans win over capability arrays", async () => {
 		const { createProviderConfigStore } = await import("./store")
 		const store = createProviderConfigStore()
 		const providerId = parseProviderId("openai")
@@ -703,7 +858,6 @@ describe("createProviderConfigStore", () => {
 				capabilities: ["images", "prompt-cache", "reasoning"],
 				supportsVision: false,
 				supportsReasoning: false,
-				isR1FormatRequired: false,
 			},
 		})
 		let selection = store.readSelection(providerId, "act")
@@ -721,14 +875,13 @@ describe("createProviderConfigStore", () => {
 				apiFormat: ApiFormat.OPENAI_RESPONSES,
 				capabilities: ["prompt-cache"],
 				supportsVision: true,
-				isR1FormatRequired: true,
 			},
 		})
 		selection = store.readSelection(providerId, "act")
 		expect(selection?.modelInfo).toMatchObject({
 			supportsImages: true,
 			supportsPromptCache: true,
-			apiFormat: ApiFormat.R1_CHAT,
+			apiFormat: ApiFormat.OPENAI_RESPONSES,
 		})
 	})
 
@@ -977,7 +1130,6 @@ describe("createProviderConfigStore", () => {
 				cacheWritesPrice: 0.2,
 				temperature: 0.7,
 				apiFormat: ApiFormat.OPENAI_RESPONSES,
-				isR1FormatRequired: true,
 			},
 		})
 

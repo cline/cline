@@ -1,15 +1,21 @@
 import { spawn } from "node:child_process";
-import { closeSync, mkdirSync, openSync } from "node:fs";
+import {
+	closeSync,
+	mkdirSync,
+	openSync,
+	readFileSync,
+	unlinkSync,
+} from "node:fs";
 import { basename, dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
 	CLINE_RUN_AS_HUB_DAEMON_ENV,
 	isHubDaemonProcess,
-	isHubProtocolCompatible,
 	resolveClineBuildEnv,
 	withResolvedClineBuildEnv,
 } from "@cline/shared";
 import {
+	localHubHasNoActiveSessions,
 	rememberRecoverableLocalHubUrl,
 	requestHubShutdown,
 	verifyHubConnection,
@@ -18,10 +24,14 @@ import {
 	clearHubDiscovery,
 	createHubServerUrl,
 	type HubOwnerContext,
+	type HubServerDiscoveryRecord,
 	type HubServerProbeRecord,
+	isManagedHubReusable,
 	probeHubServer,
 	readHubDiscovery,
 	resolveClineDataDir,
+	withHubStartupLock,
+	writeHubDiscovery,
 } from "../discovery";
 import {
 	type HubEndpointOverrides,
@@ -38,6 +48,41 @@ const HUB_RETIRE_TIMEOUT_MS = 3_000;
 const HUB_RETIRE_POLL_MS = 100;
 const HUB_SPAWN_RETRY_DELAYS_MS = [100, 250, 500, 1_000, 2_000];
 const COMPILED_BUN_HUB_DAEMON_ARG = "--cline-hub-daemon";
+const HUB_RETIRE_ATTEMPT_LIMIT = 3;
+const HUB_RETIRE_ATTEMPT_WINDOW_MS = 60_000;
+
+const retireAttemptsByUrl = new Map<
+	string,
+	{ count: number; windowStartedAt: number }
+>();
+
+export const __test__ = {
+	/** Retire attempts are module state keyed by URL; clear between cases. */
+	resetRetireAttempts(): void {
+		retireAttemptsByUrl.clear();
+	},
+};
+
+/**
+ * Circuit breaker on repeated retirements of the same Hub URL.
+ *
+ * Build ordering already guarantees that only one side of a pair can decide to
+ * retire, so a healthy install retires a given URL once. Retiring the same URL
+ * over and over means something upstream is wrong, and the failure mode is
+ * severe: long-lived clients (sidecars, interactive CLI sessions) tear each
+ * other's daemon down in a tight loop and every session dies with an abnormal
+ * socket close. Backing off after a few attempts keeps a future ordering bug to
+ * a stale-build prompt instead of an unusable Hub.
+ */
+function shouldAttemptRetire(url: string, now = Date.now()): boolean {
+	const entry = retireAttemptsByUrl.get(url);
+	if (!entry || now - entry.windowStartedAt > HUB_RETIRE_ATTEMPT_WINDOW_MS) {
+		retireAttemptsByUrl.set(url, { count: 1, windowStartedAt: now });
+		return true;
+	}
+	entry.count += 1;
+	return entry.count <= HUB_RETIRE_ATTEMPT_LIMIT;
+}
 
 function endpointArgs(endpoint: HubEndpointOverrides): string[] {
 	return [
@@ -65,8 +110,48 @@ function resolveDefaultHubOwnerContext() {
 		: resolveSharedHubOwnerContext();
 }
 
-function isCompatibleHubRecord(record: HubServerProbeRecord): boolean {
-	return isHubProtocolCompatible(record).compatible;
+function isReusableHubRecord(record: HubServerProbeRecord): boolean {
+	return isManagedHubReusable(record);
+}
+
+/**
+ * Reads the discovery record the npm postinstall set aside (see
+ * apps/cli/script/postinstall.mjs). Deliberately bypasses readHubDiscovery —
+ * the file is best-effort recovery metadata, not a live record — and stays
+ * synchronous so it adds no async boundary to the ensure flow.
+ *
+ * Exported for `cline doctor`, which must not mistake a shielded live hub for
+ * a stale daemon just because its record is set aside.
+ */
+export function readSupersededHubDiscovery(
+	discoveryPath: string,
+): { url?: string; authToken?: string; pid?: number } | undefined {
+	try {
+		const raw = JSON.parse(
+			readFileSync(`${discoveryPath}.superseded`, "utf8"),
+		) as { url?: unknown; authToken?: unknown; pid?: unknown };
+		return {
+			url: typeof raw.url === "string" ? raw.url : undefined,
+			authToken: typeof raw.authToken === "string" ? raw.authToken : undefined,
+			pid: typeof raw.pid === "number" ? raw.pid : undefined,
+		};
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * The set-aside record is one-shot recovery metadata: once an ensure completes
+ * with a live, verified hub it has served its purpose, and keeping it around
+ * is a hazard — its pid can be recycled by the OS and a much later launch
+ * that finds no live record would SIGTERM an unrelated process with it.
+ */
+function discardSupersededHubDiscovery(discoveryPath: string): void {
+	try {
+		unlinkSync(`${discoveryPath}.superseded`);
+	} catch {
+		// Already gone or unreadable — nothing to discard.
+	}
 }
 
 function withMatchingDiscoveryRetirementMetadata(
@@ -114,6 +199,9 @@ async function retireDiscoveredHub(
 	record: { url: string; authToken?: string; pid?: number },
 	discoveryPath: string,
 ): Promise<boolean> {
+	if (!shouldAttemptRetire(record.url)) {
+		return false;
+	}
 	await requestHubShutdown(record.url, record.authToken).catch(() => false);
 	if (record.pid) {
 		try {
@@ -127,14 +215,49 @@ async function retireDiscoveredHub(
 	return retired;
 }
 
+export type HubRetirementOutcome =
+	| "reusable"
+	| "retired"
+	| "deferred_busy"
+	| "failed";
+
+/**
+ * Whether the Hub is currently serving sessions, and so must not be shut down
+ * under them.
+ *
+ * Failing open (treating an unanswerable Hub as idle) preserves the existing
+ * replacement path for a Hub that is wedged or too old to answer the query;
+ * only a Hub that positively reports live sessions is spared.
+ */
+async function hubHasLiveSessions(
+	record: HubServerProbeRecord,
+): Promise<boolean> {
+	try {
+		return !(await localHubHasNoActiveSessions(record.url, record.authToken));
+	} catch {
+		return false;
+	}
+}
+
+/**
+ * Retiring a Hub kills its established WebSockets, so a session running on it
+ * dies mid-turn with an abnormal close. Defer instead while it is busy: the
+ * caller attaches to the older Hub, the build-mismatch watcher tells the user a
+ * newer build is waiting, and the swap happens at a boundary they choose.
+ */
 async function retireIncompatibleHub(
 	record: HubServerProbeRecord,
 	discoveryPath: string,
-): Promise<boolean> {
-	if (isCompatibleHubRecord(record)) {
-		return true;
+): Promise<HubRetirementOutcome> {
+	if (isReusableHubRecord(record)) {
+		return "reusable";
 	}
-	return retireDiscoveredHub(record, discoveryPath);
+	if (await hubHasLiveSessions(record)) {
+		return "deferred_busy";
+	}
+	return (await retireDiscoveredHub(record, discoveryPath))
+		? "retired"
+		: "failed";
 }
 
 /**
@@ -266,78 +389,9 @@ export function prewarmDetachedHubServer(
 	if (isHubDaemonProcess()) {
 		return;
 	}
-	const owner = resolveDefaultHubOwnerContext();
-	const resolvedEndpoint = resolveHubEndpointOptions(endpoint);
-	const expectedUrl = createHubServerUrl(
-		resolvedEndpoint.host,
-		resolvedEndpoint.port,
-		resolvedEndpoint.pathname,
-	);
-	const shouldUseFallbackPort =
-		endpoint.allowPortFallback === true && resolvedEndpoint.port !== 0;
-	void retireLegacySharedHub(owner)
-		.catch(() => undefined)
-		.then(() => readHubDiscovery(owner.discoveryPath))
-		.then(async (discovered) => {
-			let retiredUnusableDiscovery = false;
-			if (discovered?.url) {
-				if (!discovered.authToken) {
-					retiredUnusableDiscovery = true;
-					const retired = await retireDiscoveredHub(
-						discovered,
-						owner.discoveryPath,
-					);
-					if (!retired && !shouldUseFallbackPort) {
-						return;
-					}
-				} else {
-					const healthy = await safeProbeHubServer(
-						discovered.url,
-						discovered.authToken,
-					);
-					if (
-						healthy?.url &&
-						isCompatibleHubRecord(healthy) &&
-						(await verifyHubConnection(healthy.url, {
-							authToken: discovered.authToken,
-						}))
-					) {
-						return;
-					}
-					if (healthy?.url) {
-						await retireIncompatibleHub(
-							{ ...healthy, authToken: discovered.authToken },
-							owner.discoveryPath,
-						);
-					} else {
-						await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
-					}
-				}
-			}
-			const expected = await safeProbeHubServer(expectedUrl);
-			if (expected?.url) {
-				if (isCompatibleHubRecord(expected)) {
-					if (!shouldUseFallbackPort || !retiredUnusableDiscovery) {
-						return;
-					}
-				} else {
-					const retiredExpected = await retireIncompatibleHub(
-						{ ...expected, authToken: undefined },
-						owner.discoveryPath,
-					);
-					if (!retiredExpected && !shouldUseFallbackPort) {
-						return;
-					}
-				}
-			}
-			const spawnEndpoint = shouldUseFallbackPort
-				? { ...resolvedEndpoint, port: 0 }
-				: resolvedEndpoint;
-			await spawnDetachedHubServerWithRetry(workspaceRoot, spawnEndpoint);
-		})
-		.catch(() => {
-			// best-effort prewarm only
-		});
+	void ensureDetachedHubServer(workspaceRoot, endpoint).catch(() => {
+		// best-effort prewarm only
+	});
 }
 
 export interface DetachedHubResolution {
@@ -345,13 +399,13 @@ export interface DetachedHubResolution {
 	authToken: string;
 }
 
-export async function ensureDetachedHubServer(
+async function ensureDetachedHubServerLocked(
+	owner: HubOwnerContext,
 	workspaceRoot: string,
 	endpointOverrides: HubEndpointOverrides & {
 		allowPortFallback?: boolean;
 	} = {},
 ): Promise<DetachedHubResolution> {
-	const owner = resolveDefaultHubOwnerContext();
 	const hasExplicitEndpoint =
 		endpointOverrides.host !== undefined ||
 		endpointOverrides.port !== undefined ||
@@ -373,6 +427,13 @@ export async function ensureDetachedHubServer(
 	};
 	await retireLegacySharedHub(owner).catch(() => undefined);
 	const discovered = await readHubDiscovery(owner.discoveryPath);
+	// The npm package's postinstall sets the discovery record aside (same
+	// ".superseded" suffix) so pre-3.0.55 updaters cannot restart a busy hub.
+	// Without it, a hub displaced that way could never be retired here: the
+	// port probe alone carries no auth token or pid.
+	const superseded = discovered?.url
+		? undefined
+		: readSupersededHubDiscovery(owner.discoveryPath);
 	let retiredUnusableDiscovery = false;
 	if (discovered?.url) {
 		const discoveredAuthToken = discovered.authToken;
@@ -386,21 +447,35 @@ export async function ensureDetachedHubServer(
 			);
 			if (
 				healthy?.url &&
-				isCompatibleHubRecord(healthy) &&
+				isReusableHubRecord(healthy) &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: discoveredAuthToken,
 				}))
 			) {
+				discardSupersededHubDiscovery(owner.discoveryPath);
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: discoveredAuthToken,
 				});
 			}
 			if (healthy?.url) {
-				await retireIncompatibleHub(
+				const outcome = await retireIncompatibleHub(
 					{ ...healthy, authToken: discoveredAuthToken },
 					owner.discoveryPath,
 				);
+				// A busy older Hub is left running, so attach to it rather than
+				// spawning a second daemon that would race it for the port.
+				if (
+					outcome === "deferred_busy" &&
+					(await verifyHubConnection(healthy.url, {
+						authToken: discoveredAuthToken,
+					}))
+				) {
+					return rememberIfManaged({
+						url: healthy.url,
+						authToken: discoveredAuthToken,
+					});
+				}
 			} else {
 				await clearHubDiscovery(owner.discoveryPath).catch(() => undefined);
 			}
@@ -410,23 +485,90 @@ export async function ensureDetachedHubServer(
 	if (expected?.url) {
 		const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 			expected,
-			discovered,
+			discovered ?? superseded,
 			expectedUrl,
 		);
-		if (isCompatibleHubRecord(expected)) {
+		if (isReusableHubRecord(expected)) {
+			// Live hub is healthy but discovery is missing/unreadable (or auth
+			// token was empty). Prefer attaching via any known auth token rather
+			// than spawning a second daemon that dies with EADDRINUSE.
+			const candidateTokens = [
+				expected.authToken,
+				discovered?.authToken,
+				superseded?.authToken,
+			].filter(
+				(token): token is string =>
+					typeof token === "string" && token.trim().length > 0,
+			);
+			for (const token of candidateTokens) {
+				if (
+					!(await verifyHubConnection(expected.url, {
+						authToken: token,
+					}))
+				) {
+					continue;
+				}
+				const repaired: HubServerDiscoveryRecord = {
+					hubId: expected.hubId ?? `repaired-${expected.port}`,
+					protocolVersion: expected.protocolVersion,
+					minClientProtocolVersion: expected.minClientProtocolVersion,
+					maxClientProtocolVersion: expected.maxClientProtocolVersion,
+					capabilities: expected.capabilities,
+					coreVersion: expected.coreVersion,
+					buildId: expected.buildId,
+					authToken: token,
+					host: expected.host,
+					port: expected.port,
+					url: expected.url,
+					pid: expected.pid ?? discovered?.pid ?? superseded?.pid,
+					startedAt: expected.startedAt ?? new Date().toISOString(),
+					updatedAt: new Date().toISOString(),
+				};
+				try {
+					await writeHubDiscovery(owner.discoveryPath, repaired);
+				} catch {
+					// Best-effort repair; attaching still works with the token
+					// we just verified even if the discovery file is unwritable.
+				}
+				discardSupersededHubDiscovery(owner.discoveryPath);
+				return rememberIfManaged({
+					url: expected.url,
+					authToken: token,
+				});
+			}
 			const upgradeHint = retiredUnusableDiscovery
 				? " This can happen immediately after upgrading from a build that wrote an empty hub auth token; run 'cline doctor fix' to stop the old daemon and repair local hub discovery."
 				: "";
 			throw new Error(
-				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
+				`A compatible Cline Hub is already running at ${expectedUrl}, but its discovery record is missing or unreadable and no usable auth token is available. Run 'cline doctor fix' to repair local hub discovery.${upgradeHint}`,
 			);
 		}
-		const retiredExpected = await retireIncompatibleHub(
+		const expectedOutcome = await retireIncompatibleHub(
 			expectedForRetirement,
 			owner.discoveryPath,
 		);
+		if (expectedOutcome === "deferred_busy") {
+			// Same as above: the older Hub is still serving sessions, so attach
+			// with whichever token verifies instead of replacing it.
+			for (const token of [
+				expectedForRetirement.authToken,
+				discovered?.authToken,
+			].filter(
+				(candidate): candidate is string =>
+					typeof candidate === "string" && candidate.trim().length > 0,
+			)) {
+				if (await verifyHubConnection(expected.url, { authToken: token })) {
+					return rememberIfManaged({ url: expected.url, authToken: token });
+				}
+			}
+			if (endpointOverrides.allowPortFallback !== true && endpoint.port !== 0) {
+				throw new Error(
+					`An older Cline Hub is running at ${expectedUrl} and is still serving active sessions, so it was not replaced, but no usable auth token is available to attach to it. Finish those sessions, or run 'cline doctor fix' to stop the hub.`,
+				);
+			}
+		}
 		if (
-			!retiredExpected &&
+			expectedOutcome === "failed" &&
 			endpointOverrides.allowPortFallback !== true &&
 			endpoint.port !== 0
 		) {
@@ -451,11 +593,12 @@ export async function ensureDetachedHubServer(
 			);
 			if (
 				healthy?.url &&
-				isCompatibleHubRecord(healthy) &&
+				isReusableHubRecord(healthy) &&
 				(await verifyHubConnection(healthy.url, {
 					authToken: nextDiscovery.authToken,
 				}))
 			) {
+				discardSupersededHubDiscovery(owner.discoveryPath);
 				return rememberIfManaged({
 					url: healthy.url,
 					authToken: nextDiscovery.authToken,
@@ -463,18 +606,30 @@ export async function ensureDetachedHubServer(
 			}
 		}
 		const nextExpected = await safeProbeHubServer(expectedUrl);
-		if (nextExpected?.url && !isCompatibleHubRecord(nextExpected)) {
+		if (nextExpected?.url && !isReusableHubRecord(nextExpected)) {
 			const expectedForRetirement = withMatchingDiscoveryRetirementMetadata(
 				nextExpected,
-				nextDiscovery,
+				nextDiscovery ?? superseded,
 				expectedUrl,
 			);
-			const retiredExpected = await retireIncompatibleHub(
+			const nextOutcome = await retireIncompatibleHub(
 				expectedForRetirement,
 				owner.discoveryPath,
 			);
 			if (
-				!retiredExpected &&
+				nextOutcome === "deferred_busy" &&
+				nextDiscovery?.authToken &&
+				(await verifyHubConnection(nextExpected.url, {
+					authToken: nextDiscovery.authToken,
+				}))
+			) {
+				return rememberIfManaged({
+					url: nextExpected.url,
+					authToken: nextDiscovery.authToken,
+				});
+			}
+			if (
+				nextOutcome === "failed" &&
 				endpointOverrides.allowPortFallback !== true &&
 				endpoint.port !== 0
 			) {
@@ -486,4 +641,16 @@ export async function ensureDetachedHubServer(
 		await new Promise((resolve) => setTimeout(resolve, HUB_STARTUP_POLL_MS));
 	}
 	throw new Error("Timed out waiting for detached hub startup.");
+}
+
+export async function ensureDetachedHubServer(
+	workspaceRoot: string,
+	endpointOverrides: HubEndpointOverrides & {
+		allowPortFallback?: boolean;
+	} = {},
+): Promise<DetachedHubResolution> {
+	const owner = resolveDefaultHubOwnerContext();
+	return await withHubStartupLock(owner.discoveryPath, async () =>
+		ensureDetachedHubServerLocked(owner, workspaceRoot, endpointOverrides),
+	);
 }

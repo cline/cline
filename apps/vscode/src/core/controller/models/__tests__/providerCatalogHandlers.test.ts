@@ -116,8 +116,16 @@ describe("provider model catalog handlers", () => {
 						apiFormat: ApiFormat.OPENAI_CHAT,
 					},
 				],
+				[
+					"whisper-large-v3",
+					{
+						name: "Whisper Large V3",
+						supportsPromptCache: false,
+						modalities: { input: ["audio"], output: ["text"] },
+					},
+				],
 			]),
-			defaultModelId: "deepseek-v4-flash",
+			defaultModelId: "whisper-large-v3",
 			source: "sdk-dynamic",
 			fetchedAt: 99,
 		})
@@ -141,6 +149,10 @@ describe("provider model catalog handlers", () => {
 			temperature: 0.2,
 			apiFormat: ApiFormat.OPENAI_CHAT,
 		})
+		expect(response.models["whisper-large-v3"]).toBeUndefined()
+		// Do not invent an order-dependent default when the declared default is
+		// filtered out. The picker can leave the selection unset instead.
+		expect(response.defaultModelId).toBeUndefined()
 		expect(catalog.resolveModels).toHaveBeenCalledWith(providerId, { forceRefresh: true })
 	})
 
@@ -277,6 +289,137 @@ describe("provider model catalog handlers", () => {
 			actModeApiModelId: "deepseek-v4-flash",
 		})
 		expect(stateManager.flushPendingState).toHaveBeenCalledTimes(1)
+	})
+
+	it("commitModelSelection carries cached dynamic model metadata into the host store", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("litellm")
+		const store = makeStore({ providerId, apiKey: "litellm-key" })
+		const catalog = makeCatalog()
+		const modelInfo = {
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+			supportsPromptCache: false,
+		}
+		vi.mocked(catalog.peekModels).mockReturnValue({
+			ok: true,
+			providerId,
+			configFingerprint: computeConfigFingerprint(providerId, { providerId, apiKey: "litellm-key" }),
+			models: new Map([["openai/grok-4.6", modelInfo]]),
+			defaultModelId: "openai/grok-4.6",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await commitModelSelection(controller, {
+			providerId: "litellm",
+			mode: "act",
+			modelId: "openai/grok-4.6",
+		})
+
+		expect(catalog.peekModels).toHaveBeenCalledWith(providerId)
+		expect(store.commitSelection).toHaveBeenCalledWith(
+			providerId,
+			"act",
+			{
+				providerId,
+				modelId: "openai/grok-4.6",
+				overrides: undefined,
+			},
+			modelInfo,
+		)
+	})
+
+	it("commitModelSelection does not substitute a different cached model when the selected ID has no metadata", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("litellm")
+		const store = makeStore({ providerId, apiKey: "litellm-key" })
+		const catalog = makeCatalog()
+		vi.mocked(catalog.peekModels).mockReturnValue({
+			ok: true,
+			providerId,
+			configFingerprint: computeConfigFingerprint(providerId, { providerId, apiKey: "litellm-key" }),
+			models: new Map([
+				["openai/other-model", { name: "Other model", maxInputTokens: 200_000, supportsPromptCache: false }],
+			]),
+			defaultModelId: "openai/other-model",
+			source: "sdk-dynamic",
+			fetchedAt: 99,
+		})
+		const controller = makeController(store, catalog)
+
+		await commitModelSelection(controller, {
+			providerId: "litellm",
+			mode: "act",
+			modelId: "custom/no-metadata",
+		})
+
+		expect(catalog.peekModels).toHaveBeenCalledWith(providerId)
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "custom/no-metadata",
+			overrides: undefined,
+		})
+	})
+
+	// The settings UI sources provider ids from the SDK catalog, whose OpenAI
+	// Compatible built-in is spelled `openai-compatible`. Committing under that
+	// spelling must land on the legacy `openai` state keys
+	// (`actModeApiProvider` / `actModeOpenAiModelId`), otherwise the chat view
+	// and session factory (both keyed by `openai`) read stale or default
+	// models (gpt-4o) instead of the user's selection.
+	it("commitModelSelection folds the SDK openai-compatible spelling to legacy openai state keys", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("openai-compatible")
+		expect(providerId).toBe("openai")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const controller = makeController(store, makeCatalog(), stateManager)
+
+		await commitModelSelection(controller, {
+			providerId: "openai-compatible",
+			mode: "act",
+			modelId: "my-custom-model",
+		})
+
+		expect(store.commitSelection).toHaveBeenCalledWith(providerId, "act", {
+			providerId,
+			modelId: "my-custom-model",
+			overrides: undefined,
+		})
+		expect(stateManager.setGlobalStateBatch).toHaveBeenCalledWith({
+			actModeApiProvider: "openai",
+			actModeOpenAiModelId: "my-custom-model",
+		})
+	})
+
+	// The model label under the chat input renders from pushed extension
+	// state; a model-only commit must push state itself instead of waiting
+	// for an unrelated action (e.g. sending a message) to refresh it.
+	it("commitModelSelection posts updated state to the webview when available", async () => {
+		const { commitModelSelection } = await import("../commitModelSelection")
+		const providerId = parseProviderId("deepseek")
+		const store = makeStore({ providerId })
+		const stateManager: TestStateManager = {
+			setGlobalStateBatch: vi.fn(),
+			flushPendingState: vi.fn(async () => undefined),
+		}
+		const postStateToWebview = vi.fn(async () => undefined)
+		const controller = { ...makeController(store, makeCatalog(), stateManager), postStateToWebview }
+
+		await commitModelSelection(controller, {
+			providerId: "deepseek",
+			mode: "act",
+			modelId: "deepseek-v4-flash",
+		})
+
+		expect(postStateToWebview).toHaveBeenCalledTimes(1)
 	})
 
 	// The overrides field is tri-state: absent preserves the model's stored

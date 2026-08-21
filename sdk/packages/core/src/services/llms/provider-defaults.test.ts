@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
 	clearLiveModelsCatalogCache,
 	clearPrivateModelsCatalogCache,
+	isPrivateModelCatalogProvider,
 	resolveProviderConfig,
 } from "./provider-defaults";
 
@@ -10,6 +11,25 @@ afterEach(() => {
 	clearPrivateModelsCatalogCache();
 	vi.unstubAllGlobals();
 	vi.restoreAllMocks();
+});
+
+describe("isPrivateModelCatalogProvider", () => {
+	it.each([
+		"baseten",
+		"hicap",
+		"litellm",
+		"poolside",
+	])("recognizes %s as an endpoint-specific catalog provider", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(true);
+	});
+
+	it.each([
+		"openrouter",
+		"requesty",
+		"anthropic",
+	])("does not classify %s as endpoint-specific", (providerId) => {
+		expect(isPrivateModelCatalogProvider(providerId)).toBe(false);
+	});
 });
 
 describe("resolveProviderConfig", () => {
@@ -56,6 +76,77 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["vendor/live-only-model"]?.name).toBe(
 			"Live Only Model",
 		);
+	});
+
+	it("filters image-output models from the merged Cline catalog", async () => {
+		vi.stubGlobal(
+			"fetch",
+			vi.fn(async () => {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-chat-model": {
+									name: "Live Chat Model",
+									tool_call: true,
+								},
+								"vendor/live-image-model": {
+									name: "Live Image Model",
+									tool_call: true,
+									modalities: {
+										input: ["text", "image"],
+										output: ["text", "image"],
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}),
+		);
+
+		const resolved = await resolveProviderConfig(
+			"cline",
+			{
+				loadLatestOnInit: true,
+				failOnError: false,
+				cacheTtlMs: 0,
+			},
+			{
+				providerId: "cline",
+				modelId: "vendor/live-chat-model",
+				knownModels: {
+					"vendor/custom-image-model": {
+						id: "vendor/custom-image-model",
+						name: "Custom Image Model",
+						modalities: {
+							input: ["text"],
+							output: ["image"],
+						},
+					},
+					"vendor/custom-image-operation-model": {
+						id: "vendor/custom-image-operation-model",
+						name: "Custom Image Operation Model",
+						operation: "image-generation",
+					},
+				},
+			},
+		);
+
+		expect(resolved?.knownModels?.["vendor/live-chat-model"]?.name).toBe(
+			"Live Chat Model",
+		);
+		expect(resolved?.knownModels?.["vendor/live-image-model"]).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-model"],
+		).toBeUndefined();
+		expect(
+			resolved?.knownModels?.["vendor/custom-image-operation-model"],
+		).toBeUndefined();
 	});
 
 	it("uses only live Cline recommended models for ClinePass when live models are found", async () => {
@@ -134,6 +225,12 @@ describe("resolveProviderConfig", () => {
 									name: "Live Free Model",
 									tool_call: true,
 									release_date: "2026-01-01",
+									cost: {
+										input: 1,
+										output: 2,
+										cache_read: 0.1,
+										cache_write: 0.2,
+									},
 								},
 							},
 						},
@@ -153,7 +250,7 @@ describe("resolveProviderConfig", () => {
 							name: "vendor/live-pass-model",
 						},
 					],
-					free: [{ id: "vendor/live-free-model" }],
+					free: [{ id: "cline-free/live-free-model" }],
 				}),
 				{
 					status: 200,
@@ -175,14 +272,87 @@ describe("resolveProviderConfig", () => {
 		// even when a free model has a newer release date.
 		expect(Object.keys(resolved?.knownModels ?? {})).toEqual([
 			"cline-pass/live-pass-model",
-			"vendor/live-free-model",
+			"cline-free/live-free-model",
 		]);
-		expect(resolved?.knownModels?.["vendor/live-free-model"]?.pricing).toEqual({
+		expect(resolved?.knownModels?.["cline-free/live-free-model"]).toMatchObject(
+			{
+				id: "cline-free/live-free-model",
+				name: "Live Free Model (free)",
+			},
+		);
+		expect(
+			resolved?.knownModels?.["cline-free/live-free-model"]?.pricing,
+		).toEqual({
 			input: 0,
 			output: 0,
 			cacheRead: 0,
 			cacheWrite: 0,
 		});
+	});
+
+	it("adds cline-free models from the recommended endpoint to the Cline catalog", async () => {
+		const fetchMock = vi.fn(async (url: string) => {
+			if (url === "https://models.test/api.json") {
+				return new Response(
+					JSON.stringify({
+						openrouter: {
+							models: {
+								"vendor/live-free-model": {
+									name: "Live Free Model",
+									tool_call: true,
+									reasoning: true,
+									limit: { context: 300_000, input: 250_000, output: 64_000 },
+									cost: {
+										input: 1,
+										output: 2,
+										cache_read: 0.1,
+										cache_write: 0.2,
+									},
+								},
+							},
+						},
+					}),
+					{
+						status: 200,
+						headers: { "content-type": "application/json" },
+					},
+				);
+			}
+
+			return new Response(
+				JSON.stringify({
+					free: [
+						{
+							id: "cline-free/live-free-model",
+						},
+					],
+				}),
+				{
+					status: 200,
+					headers: { "content-type": "application/json" },
+				},
+			);
+		});
+		vi.stubGlobal("fetch", fetchMock);
+
+		const resolved = await resolveProviderConfig("cline", {
+			loadLatestOnInit: true,
+			failOnError: false,
+			cacheTtlMs: 0,
+			url: "https://models.test/api.json",
+		});
+
+		expect(fetchMock).toHaveBeenCalledTimes(2);
+		expect(resolved?.knownModels?.["cline-free/live-free-model"]).toMatchObject(
+			{
+				id: "cline-free/live-free-model",
+				name: "Live Free Model (free)",
+				contextWindow: 300_000,
+				maxInputTokens: 250_000,
+				maxTokens: 64_000,
+				pricing: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+			},
+		);
 	});
 
 	it("falls back to generated ClinePass models when no live ClinePass models are found", async () => {
@@ -235,8 +405,8 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
 			name: "GLM 5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 		expect(resolved?.knownModels?.["z-ai/glm-5.2"]).toBeUndefined();
 	});
@@ -263,8 +433,8 @@ describe("resolveProviderConfig", () => {
 		});
 		expect(resolved?.knownModels?.["zai/glm-5.2"]).toMatchObject({
 			id: "zai/glm-5.2",
-			contextWindow: 1_040_000,
-			maxInputTokens: 1_040_000,
+			contextWindow: 1_000_000,
+			maxInputTokens: 1_000_000,
 		});
 	});
 
@@ -434,6 +604,8 @@ describe("resolveProviderConfig", () => {
 								model_name: "private-proxy-model",
 								litellm_params: { model: "openai/gpt-4o-mini" },
 								model_info: {
+									max_output_tokens: 64_000,
+									max_input_tokens: 500_000,
 									supports_vision: true,
 									supports_reasoning: true,
 								},
@@ -464,12 +636,16 @@ describe("resolveProviderConfig", () => {
 		expect(resolved?.knownModels?.["openai/gpt-4o-mini"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);
 		expect(resolved?.knownModels?.["private-proxy-model"]).toEqual(
 			expect.objectContaining({
 				name: "private-proxy-model",
+				maxTokens: 64_000,
+				maxInputTokens: 500_000,
 				capabilities: expect.arrayContaining(["images", "reasoning"]),
 			}),
 		);

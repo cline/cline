@@ -1,7 +1,15 @@
 import type { AgentMessage } from "./agent";
-import type { ReasoningEffort } from "./agents/types";
 import type { GatewayModelSelection, JsonValue } from "./llms/gateway";
+import type { ReasoningEffort } from "./llms/reasoning-options";
 import type { RuntimeConfigExtensionKind } from "./session/runtime-config";
+import type {
+	AgendaAutomationPolicy,
+	AgendaTaskCreateInput,
+	AgendaTaskListInput,
+	AgendaTaskRecord,
+	AgendaTaskRunRecord,
+	AgendaTaskUpdateInput,
+} from "./tasks";
 
 export type HubProtocolVersion = "v1";
 
@@ -19,8 +27,20 @@ export type HubCapabilityName =
 	| "session.abort"
 	| "schedule.create"
 	| "schedule.list"
+	| "task.create"
+	| "task.list"
+	| "task.get"
+	| "task.update"
+	| "task.approve"
+	| "task.cancel"
+	| "task.run"
+	| "task.automation.get"
+	| "task.automation.set"
 	| "settings.get"
-	| "settings.set";
+	| "settings.set"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised";
 
 export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"client.register",
@@ -32,8 +52,20 @@ export const HUB_CAPABILITIES: readonly HubCapabilityName[] = [
 	"session.abort",
 	"schedule.create",
 	"schedule.list",
+	"task.create",
+	"task.list",
+	"task.get",
+	"task.update",
+	"task.approve",
+	"task.cancel",
+	"task.run",
+	"task.automation.get",
+	"task.automation.set",
 	"settings.get",
 	"settings.set",
+	"connector.start",
+	"connector.stop",
+	"connector.supervised",
 ];
 
 export interface HubProtocolMetadata {
@@ -109,6 +141,9 @@ export interface ClientCapability {
 	scopes?: string[];
 	payloadSchema?: Record<string, unknown>;
 }
+
+/** Client capability advertised by a live user surface that can answer tool approvals. */
+export const HUB_CLIENT_TOOL_APPROVAL_CAPABILITY = "approval.respond";
 
 export interface HubClientRegistration {
 	clientId?: string;
@@ -282,6 +317,7 @@ export interface ScheduleRecord {
 	scheduleId: string;
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	prompt: string;
 	workspaceRoot: string;
 	cwd?: string;
@@ -326,15 +362,47 @@ export interface ScheduleExecutionRecord {
 	costUsd?: number;
 }
 
+export const ONE_TIME_SCHEDULE_CRON_PATTERN = "0";
+export const ONE_TIME_SCHEDULE_RUN_AT_METADATA_KEY = "__hubScheduleRunAt";
+
+export const HUB_SCHEDULE_MODES = ["act", "plan", "yolo"] as const;
+export type HubScheduleMode = (typeof HUB_SCHEDULE_MODES)[number];
+
+export function isHubScheduleMode(value: unknown): value is HubScheduleMode {
+	return HUB_SCHEDULE_MODES.some((mode) => mode === value);
+}
+
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent: HubScheduleMode,
+): HubScheduleMode;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+): HubScheduleMode | undefined;
+export function readHubScheduleMode(
+	payload: Record<string, unknown> | undefined,
+	defaultWhenAbsent?: HubScheduleMode,
+): HubScheduleMode | undefined {
+	if (!payload || !Object.hasOwn(payload, "mode")) {
+		return defaultWhenAbsent;
+	}
+	const mode = payload.mode;
+	if (isHubScheduleMode(mode)) {
+		return mode;
+	}
+	throw new Error(`mode must be one of: ${HUB_SCHEDULE_MODES.join(", ")}`);
+}
+
 export interface HubScheduleCreateInput {
 	name: string;
 	cronPattern: string;
+	timezone?: string;
 	prompt: string;
 	workspaceRoot: string;
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string;
 	maxIterations?: number;
 	timeoutSeconds?: number;
@@ -349,12 +417,13 @@ export interface HubScheduleUpdateInput {
 	scheduleId: string;
 	name?: string;
 	cronPattern?: string;
+	timezone?: string | null;
 	prompt?: string;
 	workspaceRoot?: string;
 	cwd?: string;
 	modelSelection?: GatewayModelSelection;
 	enabled?: boolean;
-	mode?: "act" | "plan" | "yolo";
+	mode?: HubScheduleMode;
 	systemPrompt?: string | null;
 	maxIterations?: number | null;
 	timeoutSeconds?: number | null;
@@ -364,6 +433,61 @@ export interface HubScheduleUpdateInput {
 	runtimeOptions?: HubSessionRuntimeOptions;
 	metadata?: Record<string, JsonValue | undefined>;
 }
+
+export interface HubTaskIdInput {
+	taskId: string;
+}
+
+export type HubTaskCreateInput = Omit<AgendaTaskCreateInput, "createdBy">;
+export type HubTaskUpdateInput = Omit<AgendaTaskUpdateInput, "updatedBy">;
+
+export interface HubTaskRevisionInput extends HubTaskIdInput {
+	expectedRevision: number;
+}
+
+export interface HubTaskCancelInput extends HubTaskRevisionInput {
+	reason?: string;
+}
+
+export interface HubTaskAutomationSetInput {
+	policy: Omit<AgendaAutomationPolicy, "updatedAt">;
+}
+
+/**
+ * Strongly typed task command payloads. This map is intentionally extensible so
+ * other Hub command families can adopt typed payloads without changing the wire
+ * envelope.
+ */
+export interface HubCommandInputMap {
+	"task.create": HubTaskCreateInput;
+	"task.list": AgendaTaskListInput;
+	"task.get": HubTaskIdInput;
+	"task.update": HubTaskUpdateInput;
+	"task.approve": HubTaskRevisionInput;
+	"task.cancel": HubTaskCancelInput;
+	"task.run": HubTaskRevisionInput;
+	"task.automation.get": Record<string, never>;
+	"task.automation.set": HubTaskAutomationSetInput;
+}
+
+/** Typed task command results returned in {@link HubReplyEnvelope.payload}. */
+export interface HubCommandOutputMap {
+	"task.create": { task: AgendaTaskRecord };
+	"task.list": { tasks: AgendaTaskRecord[] };
+	"task.get": { task?: AgendaTaskRecord };
+	"task.update": { task: AgendaTaskRecord };
+	"task.approve": { task: AgendaTaskRecord };
+	"task.cancel": { task: AgendaTaskRecord };
+	"task.run": { task: AgendaTaskRecord; run?: AgendaTaskRunRecord };
+	"task.automation.get": { policy: AgendaAutomationPolicy };
+	"task.automation.set": { policy: AgendaAutomationPolicy };
+}
+
+export type HubTypedCommandName = keyof HubCommandInputMap & HubCommandName;
+export type HubCommandInput<TCommand extends HubTypedCommandName> =
+	HubCommandInputMap[TCommand];
+export type HubCommandOutput<TCommand extends HubTypedCommandName> =
+	HubCommandOutputMap[TCommand];
 
 export type HubCommandName =
 	| "client.register"
@@ -395,6 +519,7 @@ export type HubCommandName =
 	| "run.start"
 	| "session.send_input"
 	| "run.abort"
+	| "run.proceed_while_running"
 	| "approval.request"
 	| "approval.respond"
 	| "capability.request"
@@ -417,6 +542,15 @@ export type HubCommandName =
 	| "schedule.stats"
 	| "schedule.active"
 	| "schedule.upcoming"
+	| "task.create"
+	| "task.list"
+	| "task.get"
+	| "task.update"
+	| "task.approve"
+	| "task.cancel"
+	| "task.run"
+	| "task.automation.get"
+	| "task.automation.set"
 	| "settings.list"
 	| "settings.get"
 	| "settings.patch"
@@ -424,6 +558,9 @@ export type HubCommandName =
 	| "connector.channels"
 	| "connector.configure"
 	| "connector.delete_config"
+	| "connector.start"
+	| "connector.stop"
+	| "connector.supervised"
 	| "cron.event.ingest"
 	| "cron.event.list"
 	| "cron.event.get"
@@ -494,6 +631,7 @@ export type HubEventName =
 	| "iteration.started"
 	| "iteration.finished"
 	| "assistant.delta"
+	| "assistant.media"
 	| "assistant.finished"
 	| "session.notice"
 	| "reasoning.delta"
@@ -522,6 +660,13 @@ export type HubEventName =
 	| "schedule.triggered"
 	| "schedule.execution_completed"
 	| "schedule.execution_failed"
+	| "task.created"
+	| "task.updated"
+	| "task.deleted"
+	| "task.run.started"
+	| "task.run.completed"
+	| "task.run.failed"
+	| "task.automation.updated"
 	| "settings.changed"
 	| "ui.notify"
 	| "ui.show_window"

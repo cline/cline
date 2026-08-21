@@ -1,5 +1,6 @@
 // type that represents json data that is sent from extension to webview, called ExtensionMessage and has 'type' enum which can be 'plusButtonClicked' or 'settingsButtonClicked' or 'hello'
 
+import type { GeneratedMedia } from "@cline/shared"
 import { WorkspaceRoot } from "@shared/multi-root/types"
 import { RemoteConfigFields } from "@shared/storage/state-keys"
 import type { Environment } from "../config"
@@ -88,7 +89,6 @@ export interface ExtensionState {
 	telemetrySetting: TelemetrySetting
 	shellIntegrationTimeout: number
 	terminalReuseEnabled?: boolean
-	maxConsecutiveMistakes: number
 	defaultTerminalProfile?: string
 	vscodeTerminalExecutionMode: string
 	backgroundCommandRunning?: boolean
@@ -101,6 +101,11 @@ export interface ExtensionState {
 	lastCompletedCommandTs?: number
 	userInfo?: UserInfo
 	version: string
+	/**
+	 * Which rollout bundle this build is ("legacy" or "next"). Only present for
+	 * bundles built by the combined rollout workflow; undefined for ordinary builds.
+	 */
+	extensionVariant?: "legacy" | "next"
 	distinctId: string
 	globalClineRulesToggles: ClineRulesToggles
 	localClineRulesToggles: ClineRulesToggles
@@ -112,12 +117,11 @@ export interface ExtensionState {
 	remoteWorkflowToggles?: ClineRulesToggles
 	localAgentsRulesToggles: ClineRulesToggles
 	mcpResponsesCollapsed?: boolean
-	yoloModeToggled?: boolean
 	useAutoCondense?: boolean
 	compactionStrategy?: string
+	webSearchEnabled?: boolean
 	subagentsEnabled?: boolean
 	worktreesEnabled?: ClineFeatureSetting
-	customPrompt?: string
 	favoritedModelIds: string[]
 	// NEW: Add workspace information
 	workspaceRoots: WorkspaceRoot[]
@@ -130,10 +134,12 @@ export interface ExtensionState {
 	dismissedBanners?: Array<{ bannerId: string; dismissedAt: number }>
 	hooksEnabled?: boolean
 	remoteConfigSettings?: Partial<RemoteConfigFields>
+	remoteConfigRevision?: number
 	globalSkillsToggles?: Record<string, boolean>
 	localSkillsToggles?: Record<string, boolean>
 	backgroundEditEnabled?: boolean
 	optOutOfRemoteConfig?: boolean
+	remoteConfigAvailable?: boolean
 	showFeatureTips?: boolean
 	banners?: BannerCardData[]
 	welcomeBanners?: BannerCardData[]
@@ -176,6 +182,7 @@ export interface ClineMessage {
 	text?: string
 	reasoning?: string
 	images?: string[]
+	media?: GeneratedMedia[]
 	files?: string[]
 	partial?: boolean
 	/**
@@ -222,15 +229,14 @@ export type ClineAsk =
 export type ClineSay =
 	| "task"
 	| "error"
-	| "error_retry"
 	| "api_req_started"
 	| "api_req_finished"
 	| "text"
 	| "reasoning"
 	| "completion_result"
+	| "plan_completion_result" // turn-final plan-mode response inferred at turn end (SDK path)
 	| "user_feedback"
 	| "user_feedback_diff"
-	| "api_req_retried"
 	| "command"
 	| "command_output"
 	| "tool"
@@ -257,6 +263,7 @@ export type ClineSay =
 	| "use_subagents"
 	| "subagent_usage"
 	| "conditional_rules_applied"
+	| "compaction" // context compaction progress/result divider
 
 export interface ClineSayTool {
 	tool:
@@ -368,12 +375,20 @@ export interface ClineApiReqInfo {
 	cost?: number
 	cancelReason?: ClineApiReqCancelReason
 	streamingFailedMessage?: string
-	retryStatus?: {
-		attempt: number
-		maxAttempts: number
-		delaySec: number
-		errorSnippet?: string
-	}
+}
+
+/**
+ * JSON payload of a say:"compaction" message. Mirrors the CLI's compaction
+ * divider (apps/cli/src/tui/utils/compaction-status.ts): a "started" row shows
+ * a spinner and is later updated in place (same ts) to its terminal status.
+ */
+export interface ClineCompactionInfo {
+	status: "started" | "completed" | "skipped" | "failed" | "cancelled"
+	mode: "auto" | "manual"
+	tokensBefore?: number
+	tokensAfter?: number
+	messagesBefore?: number
+	messagesAfter?: number
 }
 
 export interface ClineSubagentUsageInfo {

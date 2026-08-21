@@ -35,8 +35,11 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 			...createClineTelemetryServiceConfig({
 				metadata: {
 					extension_version: ExtensionRegistryInfo.version,
-					cline_type: "VSCode Extension",
-					platform: "VS Code",
+					// VscodeTelemetryPolicyService replaces these with the authoritative
+					// getHostVersion values before any event is emitted. "unknown" surfaces
+					// a failed host version lookup instead of mislabeling the host as VSCode.
+					cline_type: "unknown",
+					platform: "unknown",
 					platform_version: "unknown",
 					os_type: process.platform,
 					os_version: os.version(),
@@ -46,6 +49,10 @@ export function createVscodeSdkTelemetryHandle(options: CreateVscodeSdkTelemetry
 			}),
 			commonProperties: getRolloutTelemetryMetadata(),
 			distinctId: getDistinctId() || undefined,
+			// telemetry.provider_created is otherwise captured during construction,
+			// before the host identity resolves; VscodeTelemetryPolicyService emits
+			// it once the getHostVersion metadata has been applied.
+			deferProviderCreatedEvent: true,
 		})
 
 	const telemetry = new VscodeTelemetryPolicyService(sdkHandle)
@@ -60,6 +67,8 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 	private hostTelemetryEnabled = false
 	private disposed = false
 	private unsubscribeHostTelemetrySettings?: () => void
+	private receivedHostSubscriptionUpdate = false
+	private providerCreatedEmitted = false
 
 	constructor(private readonly handle: ConfiguredTelemetryHandle) {
 		this.initializeHostTelemetryState()
@@ -142,14 +151,40 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 		this.disposed = true
 		this.unsubscribeHostTelemetrySettings?.()
 		this.unsubscribeHostTelemetrySettings = undefined
+		// If the host-version lookup is still pending, emit the deferred
+		// provider_created now (with the construction-time fallback identity, as the
+		// undeferred event always did) so disposal never swallows the required event.
+		this.emitProviderCreatedOnce()
 		await this.handle.dispose()
 	}
 
+	private emitProviderCreatedOnce(): void {
+		if (this.providerCreatedEmitted) {
+			return
+		}
+		this.providerCreatedEmitted = true
+		this.handle.emitProviderCreated?.()
+	}
+
 	private initializeHostTelemetryState(): void {
-		HostProvider.env
-			.getTelemetrySettings({})
-			.then((settings) => {
-				this.applyHostTelemetrySetting(settings.isEnabled)
+		// Resolve host-derived metadata first and only then let events flow: the gate
+		// below (and every subscription update) waits on this promise, so no event —
+		// including the deferred provider_created — is emitted before the host
+		// identity metadata is in place. Never rejects: resolveHostMetadata catches.
+		const hostMetadataApplied = this.resolveHostMetadata().then((hostMetadata) => {
+			if (Object.keys(hostMetadata).length > 0) {
+				this.handle.telemetry.updateMetadata(hostMetadata)
+			}
+			this.emitProviderCreatedOnce()
+		})
+
+		Promise.all([hostMetadataApplied, HostProvider.env.getTelemetrySettings({})])
+			.then(([, settings]) => {
+				// A subscription event is always newer than the initial fetch; don't
+				// let a slow fetch overwrite a setting change that already arrived.
+				if (!this.receivedHostSubscriptionUpdate) {
+					this.applyHostTelemetrySetting(settings.isEnabled)
+				}
 			})
 			.catch((error) => {
 				Logger.warn("[SdkTelemetry] Failed to read host telemetry setting; keeping SDK telemetry disabled", error)
@@ -160,7 +195,11 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 				{},
 				{
 					onResponse: (event: TelemetrySettingsEvent) => {
-						this.applyHostTelemetrySetting(event.isEnabled)
+						this.receivedHostSubscriptionUpdate = true
+						// Chain on the metadata promise so a setting flip cannot open the
+						// gate while the host identity is still resolving. Chained callbacks
+						// run in attach order, so multiple updates apply in arrival order.
+						hostMetadataApplied.then(() => this.applyHostTelemetrySetting(event.isEnabled))
 					},
 					onError: (error: Error) => {
 						Logger.warn("[SdkTelemetry] Host telemetry subscription failed; keeping last known state", error)
@@ -169,6 +208,24 @@ export class VscodeTelemetryPolicyService implements ITelemetryService {
 			)
 		} catch (error) {
 			Logger.warn("[SdkTelemetry] Failed to subscribe to host telemetry changes", error)
+		}
+	}
+
+	// Mirrors the classic TelemetryService.create() mapping of GetHostVersionResponse
+	// fields, so both pipelines report the same host identity. Fields the host does not
+	// report are left out to keep the handle's construction-time "unknown" fallbacks.
+	private async resolveHostMetadata(): Promise<Partial<TelemetryMetadata>> {
+		try {
+			const hostVersion = await HostProvider.env.getHostVersion({})
+			return {
+				...(hostVersion.clineVersion ? { host_plugin_version: hostVersion.clineVersion } : {}),
+				...(hostVersion.clineType ? { cline_type: hostVersion.clineType } : {}),
+				...(hostVersion.platform ? { platform: hostVersion.platform } : {}),
+				...(hostVersion.version ? { platform_version: hostVersion.version } : {}),
+			}
+		} catch (error) {
+			Logger.warn("[SdkTelemetry] Failed to resolve host version for telemetry metadata", error)
+			return {}
 		}
 	}
 

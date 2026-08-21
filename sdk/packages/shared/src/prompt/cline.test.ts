@@ -3,6 +3,7 @@ import {
 	buildClineSystemPrompt,
 	MODE_TAG_INSTRUCTIONS,
 	PLAN_MODE_INSTRUCTIONS,
+	PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH,
 } from "./cline";
 
 const BASE_OPTIONS = {
@@ -40,6 +41,19 @@ describe("buildClineSystemPrompt mode instructions", () => {
 		expect(PLAN_MODE_INSTRUCTIONS).toContain("run_commands");
 		expect(PLAN_MODE_INSTRUCTIONS).toContain("read-only");
 		expect(PLAN_MODE_INSTRUCTIONS).toContain("switch_to_act_mode");
+	});
+
+	it("swaps in the manual-switch plan contract when the host has no switch tool", () => {
+		const prompt = buildClineSystemPrompt({
+			...BASE_OPTIONS,
+			mode: "plan",
+			planModeSwitchTool: false,
+		});
+		expect(prompt).toContain(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH);
+		expect(prompt).not.toContain("switch_to_act_mode");
+		// The read-only run_commands contract is shared by both variants.
+		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("run_commands");
+		expect(PLAN_MODE_INSTRUCTIONS_MANUAL_SWITCH).toContain("Plan/Act toggle");
 	});
 
 	it("emits mode instructions for both mode: undefined and yolo", () => {

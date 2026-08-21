@@ -1,29 +1,44 @@
 "use client";
 
+import type {
+	AgendaTaskPriority,
+	AgendaTaskRecord,
+	AgendaTaskType,
+	HubTaskCreateInput,
+} from "@cline/shared";
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import {
 	ArrowDownUp,
-	Blocks,
 	Bot,
+	Check,
 	ChevronDown,
+	ChevronLeft,
+	ChevronRight,
 	CircleUserRound,
+	ClipboardList,
 	Clock3,
+	Code,
+	FileText,
 	Filter,
 	FolderTree,
 	GitFork,
-	Home,
 	Loader2,
-	MessageSquare,
+	MessageSquarePlus,
 	PanelLeftOpen,
 	Pencil,
-	Pin,
+	Play,
+	Plug,
 	Plus,
 	Radio,
 	Search,
-	Server,
 	Settings,
 	SlidersHorizontal,
+	Star,
 	Store,
 	Trash2,
+	Wrench,
+	X,
+	Zap,
 } from "lucide-react";
 import {
 	type ReactNode,
@@ -33,6 +48,8 @@ import {
 	useRef,
 	useState,
 } from "react";
+import { AgendaTaskReviewDialog } from "@/components/agenda-task-review-dialog";
+import { AppUpdateIndicator } from "@/components/app-update-indicator";
 import { ClineLogo } from "@/components/cline-logo";
 import {
 	AlertDialog,
@@ -44,6 +61,7 @@ import {
 	AlertDialogHeader,
 	AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	ContextMenu,
@@ -52,10 +70,20 @@ import {
 	ContextMenuTrigger,
 } from "@/components/ui/context-menu";
 import {
+	Dialog,
+	DialogContent,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+	DialogTrigger,
+} from "@/components/ui/dialog";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuLabel,
 	DropdownMenuRadioGroup,
 	DropdownMenuRadioItem,
+	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -66,16 +94,33 @@ import {
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useSidebar } from "@/components/ui/sidebar";
+import { Textarea } from "@/components/ui/textarea";
 import { normalizeTitle } from "@/components/utils";
 import {
+	CUSTOMIZATION_SECTIONS,
 	SETTINGS_SECTIONS,
 	type SettingsSection,
-} from "@/components/views/settings/settings-view";
+} from "@/components/views/settings/sections";
+import { useAccount } from "@/contexts/account-context";
+import { useAgendaAutomation, useAgendaTasks } from "@/hooks/use-agenda-tasks";
 import type {
 	SessionThread,
 	UseSessionHistoryResult,
 } from "@/hooks/use-session-history";
 import { formatCostUsd, formatTokenCount } from "@/hooks/use-session-history";
+import {
+	BETA_PRODUCT_NAME,
+	isBetaVersion,
+	productNameForVersion,
+} from "@/lib/app-channel";
+import { desktopClient } from "@/lib/desktop-client";
+import { readModelSelectionStorageFromWindow } from "@/lib/model-selection";
+import {
+	ALL_SESSION_SOURCES,
+	filterSessionsBySource,
+	getSessionSourceLabel,
+	getSessionSources,
+} from "@/lib/session-history";
 import {
 	groupThreadsByProject,
 	INITIAL_VISIBLE_THREAD_COUNT,
@@ -86,18 +131,47 @@ import { cn } from "@/lib/utils";
 type Thread = SessionThread;
 type AppView = "chat" | "sessions" | "settings";
 
-const filterOptions = ["All", "Running", "Recent", "Pinned"] as const;
+const filterOptions = ["All", "Running", "Schedules", "Favorites"] as const;
 type FilterOption = (typeof filterOptions)[number];
 type SidebarSortMode = "time" | "project";
+type SidebarContent = "sessions" | "agenda";
+type DesktopProcessContext = {
+	appVersion?: unknown;
+	hub?: {
+		error?: unknown;
+		status?: unknown;
+		url?: unknown;
+	};
+};
+type HubStatus = {
+	connected: boolean;
+	error: string | null;
+	url: string | null;
+};
+
+function hubPort(url: string | null): string | null {
+	if (!url) {
+		return null;
+	}
+	try {
+		return new URL(url).port || null;
+	} catch {
+		return null;
+	}
+}
+
 const SETTINGS_SECTION_ICONS = {
 	General: SlidersHorizontal,
 	Models: Bot,
-	"MCP Servers": Server,
-	"MCP Marketplace": Store,
-	Customizations: Blocks,
 	Channels: Radio,
 	Schedules: Clock3,
 	Account: CircleUserRound,
+	Plugins: Plug,
+	Marketplace: Store,
+	Hooks: Code,
+	Rules: FileText,
+	Agents: Bot,
+	Tools: Wrench,
 } satisfies Record<SettingsSection, typeof Settings>;
 
 function SettingsSectionNavigation({
@@ -109,12 +183,36 @@ function SettingsSectionNavigation({
 	collapsed: boolean;
 	onSelect: (section: SettingsSection) => void;
 }) {
+	const renderSectionButton = (section: SettingsSection) => {
+		const Icon = SETTINGS_SECTION_ICONS[section];
+		return (
+			<Button
+				aria-current={activeSection === section ? "page" : undefined}
+				aria-label={section}
+				className={cn(
+					"min-w-0 justify-start",
+					activeSection === section &&
+						"bg-surface-hover text-sidebar-foreground",
+					collapsed && "size-9 justify-center px-0",
+				)}
+				key={section}
+				onClick={() => onSelect(section)}
+				title={section}
+				type="button"
+				variant="sidebarItem"
+			>
+				<Icon className="size-4 shrink-0" />
+				{!collapsed ? <span className="truncate">{section}</span> : null}
+			</Button>
+		);
+	};
+
 	return (
 		<nav
 			aria-label="Settings sections"
 			className={cn(
-				"flex h-full min-h-0 flex-col gap-0.5 overflow-y-auto",
-				collapsed ? "w-full items-center" : "w-full",
+				"flex h-full min-h-0 flex-col overflow-y-auto overflow-x-hidden",
+				collapsed ? "w-full items-start" : "w-full",
 			)}
 		>
 			{!collapsed ? (
@@ -122,60 +220,64 @@ function SettingsSectionNavigation({
 					Settings
 				</p>
 			) : null}
-			{SETTINGS_SECTIONS.map((section) => {
-				const Icon = SETTINGS_SECTION_ICONS[section];
-				return (
-					<Button
-						aria-current={activeSection === section ? "page" : undefined}
-						aria-label={section}
-						className={cn(
-							"min-w-0 justify-start",
-							activeSection === section &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							collapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						key={section}
-						onClick={() => onSelect(section)}
-						title={section}
-						type="button"
-						variant="sidebarItem"
-					>
-						<Icon className="size-4 shrink-0" />
-						{!collapsed ? <span className="truncate">{section}</span> : null}
-					</Button>
-				);
-			})}
+			{SETTINGS_SECTIONS.map(renderSectionButton)}
+			{!collapsed ? (
+				<p className="px-2 pb-2 pt-4 text-sm font-medium text-muted-foreground">
+					Customizations
+				</p>
+			) : (
+				<div className="my-2 h-px w-6 shrink-0 bg-sidebar-border" />
+			)}
+			{CUSTOMIZATION_SECTIONS.map(renderSectionButton)}
 		</nav>
 	);
 }
 
 export function AgentSidebar({
-	isHomeActive,
+	canNavigateBack = false,
+	canNavigateForward = false,
 	onHome,
+	onNavigateBack,
+	onNavigateForward,
 	onNewThread,
+	onOpenSessionById,
 	onSettingsSectionChange,
 	setView,
 	settingsSection,
 	view,
 	activeSessionId,
 	sessionHistory,
+	workspaceRoot,
 }: {
-	isHomeActive: boolean;
+	canNavigateBack?: boolean;
+	canNavigateForward?: boolean;
 	onHome: () => void;
+	onNavigateBack?: () => void;
+	onNavigateForward?: () => void;
 	onNewThread?: () => void;
+	onOpenSessionById?: (sessionId: string) => void | Promise<void>;
 	onSettingsSectionChange: (section: SettingsSection) => void;
 	setView: (view: AppView) => void;
 	settingsSection: SettingsSection;
 	view: AppView;
 	activeSessionId?: string | null;
 	sessionHistory: UseSessionHistoryResult;
+	workspaceRoot?: string;
 }) {
 	const { isMobile, setOpen, setOpenMobile, state } = useSidebar();
 	const isCollapsed = !isMobile && state === "collapsed";
+	const { user, activeOrganization } = useAccount();
+	const { displayName, email } = user || {};
+	const username = displayName?.split(" ")?.[0] || email?.split("@")?.[0];
+	const accountName = username?.trim() || "Cline Desktop";
+	const accountScope = user
+		? (activeOrganization?.name ?? "Personal")
+		: undefined;
+	const accountInitial = accountName.charAt(0).toUpperCase();
 	const {
 		deleteThread: deleteHistoryThread,
 		forkThread: forkHistoryThread,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
 		loadOlderSessions,
 		loadMoreSessions,
@@ -183,12 +285,18 @@ export function AgentSidebar({
 		openThread: openHistoryThread,
 		pendingAction,
 		renameThread,
+		setThreadPinned,
 		threads,
 		unreadSessionIds,
 	} = sessionHistory;
 	const activeThread = activeSessionId ?? "";
 	const [filter, setFilter] = useState<FilterOption>("All");
+	const [sourceFilter, setSourceFilter] = useState(ALL_SESSION_SOURCES);
 	const [sortMode, setSortMode] = useState<SidebarSortMode>("time");
+	const [sidebarContent, setSidebarContent] =
+		useState<SidebarContent>("sessions");
+	const [hasNewTodoTasks, setHasNewTodoTasks] = useState(false);
+	const knownAgendaTaskIdsRef = useRef<Set<string> | null>(null);
 	const [searchOpen, setSearchOpen] = useState(false);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [showMoreCount, setShowMoreCount] = useState(
@@ -205,6 +313,78 @@ export function AgentSidebar({
 	const [projectVisibleCounts, setProjectVisibleCounts] = useState<
 		Record<string, number>
 	>({});
+	const [appVersion, setAppVersion] = useState<string | null>(null);
+	const [hubStatus, setHubStatus] = useState<HubStatus | null>(null);
+	const normalizedWorkspaceRoot = workspaceRoot?.trim() ?? "";
+	const agendaWorkspaceRoot =
+		normalizedWorkspaceRoot && !isChatWorkspacePath(normalizedWorkspaceRoot)
+			? normalizedWorkspaceRoot
+			: undefined;
+	const agenda = useAgendaTasks(
+		{
+			statuses: ["pending_approval", "approved", "in_progress", "failed"],
+			workspaceRoot: agendaWorkspaceRoot,
+			limit: 200,
+		},
+		view !== "settings",
+	);
+	const agendaAutomation = useAgendaAutomation(view !== "settings");
+
+	useEffect(() => {
+		if (view === "settings") {
+			knownAgendaTaskIdsRef.current = null;
+			return;
+		}
+		if (agenda.isLoading) return;
+		const currentTaskIds = new Set(agenda.tasks.map((task) => task.taskId));
+		const knownTaskIds = knownAgendaTaskIdsRef.current;
+		if (
+			knownTaskIds !== null &&
+			sidebarContent !== "agenda" &&
+			agenda.tasks.some((task) => !knownTaskIds.has(task.taskId))
+		) {
+			setHasNewTodoTasks(true);
+		}
+		knownAgendaTaskIdsRef.current = currentTaskIds;
+	}, [agenda.isLoading, agenda.tasks, sidebarContent, view]);
+
+	const loadProcessContext = useCallback(async () => {
+		try {
+			const context = await desktopClient.invoke<DesktopProcessContext>(
+				"get_process_context",
+			);
+			const version =
+				typeof context?.appVersion === "string"
+					? context.appVersion.trim()
+					: "";
+			setAppVersion(version || null);
+			const hubUrl =
+				typeof context?.hub?.url === "string"
+					? context.hub.url.trim() || null
+					: null;
+			setHubStatus({
+				connected: context?.hub?.status === "connected",
+				error:
+					typeof context?.hub?.error === "string"
+						? context.hub.error.trim() || null
+						: null,
+				url: hubUrl,
+			});
+		} catch (error) {
+			setHubStatus({
+				connected: false,
+				error:
+					error instanceof Error
+						? error.message
+						: "Unable to read Cline Hub status.",
+				url: null,
+			});
+		}
+	}, []);
+
+	useEffect(() => {
+		void loadProcessContext();
+	}, [loadProcessContext]);
 
 	useEffect(() => {
 		if (isCollapsed && searchOpen) {
@@ -212,8 +392,9 @@ export function AgentSidebar({
 		}
 	}, [isCollapsed, searchOpen]);
 
+	const sourceOptions = useMemo(() => getSessionSources(threads), [threads]);
 	const filteredThreads = useMemo(() => {
-		let filtered = threads;
+		let filtered = filterSessionsBySource(threads, sourceFilter);
 		if (searchQuery) {
 			const q = searchQuery.toLowerCase();
 			filtered = filtered.filter(
@@ -226,32 +407,49 @@ export function AgentSidebar({
 		switch (filter) {
 			case "Running":
 				return filtered.filter((t) => t.status === "running");
-			case "Recent":
-				return filtered.slice(0, 8);
-			case "Pinned":
+			case "Schedules":
+				return filtered.filter((t) => t.isScheduled);
+			case "Favorites":
 				return filtered.filter((t) => t.pinned);
 			default:
 				return filtered;
 		}
-	}, [filter, searchQuery, threads]);
+	}, [filter, searchQuery, sourceFilter, threads]);
 	const closeMobileSidebar = useCallback(() => {
 		if (isMobile) setOpenMobile(false);
 	}, [isMobile, setOpenMobile]);
+	const openAgendaSession = useCallback(
+		(task: AgendaTaskRecord) => {
+			if (!task.lastSessionId) return;
+			void onOpenSessionById?.(task.lastSessionId);
+			closeMobileSidebar();
+		},
+		[closeMobileSidebar, onOpenSessionById],
+	);
+	const runAgendaTask = useCallback(
+		async (task: AgendaTaskRecord) => {
+			try {
+				const started = await agenda.runTask(task);
+				if (started.lastSessionId) openAgendaSession(started);
+			} catch {
+				// The queue hook exposes the error inline and refreshes after recovery.
+			}
+		},
+		[agenda.runTask, openAgendaSession],
+	);
 
 	const openThread = useCallback(
 		(threadId: string) => {
-			setView("chat");
 			openHistoryThread(threadId);
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, openHistoryThread, setView],
+		[closeMobileSidebar, openHistoryThread],
 	);
 
 	const openNewThread = useCallback(() => {
-		setView("chat");
 		onNewThread?.();
 		closeMobileSidebar();
-	}, [closeMobileSidebar, onNewThread, setView]);
+	}, [closeMobileSidebar, onNewThread]);
 	const openHome = useCallback(() => {
 		onHome();
 		closeMobileSidebar();
@@ -267,11 +465,22 @@ export function AgentSidebar({
 	const openSettingsSection = useCallback(
 		(section: SettingsSection) => {
 			onSettingsSectionChange(section);
-			setView("settings");
 			closeMobileSidebar();
 		},
-		[closeMobileSidebar, onSettingsSectionChange, setView],
+		[closeMobileSidebar, onSettingsSectionChange],
 	);
+	const navigateBack = useCallback(() => {
+		onNavigateBack?.();
+	}, [onNavigateBack]);
+	const navigateForward = useCallback(() => {
+		onNavigateForward?.();
+	}, [onNavigateForward]);
+	const toggleSidebarContent = useCallback(() => {
+		const next = sidebarContent === "agenda" ? "sessions" : "agenda";
+		setSidebarContent(next);
+		if (next === "agenda") setHasNewTodoTasks(false);
+		if (next === "agenda" && view === "settings") setView("chat");
+	}, [setView, sidebarContent, view]);
 
 	const startRenameThread = useCallback((thread: Thread) => {
 		setEditingSessionId(thread.id);
@@ -298,6 +507,13 @@ export function AgentSidebar({
 			await forkHistoryThread(thread.id);
 		},
 		[forkHistoryThread],
+	);
+
+	const toggleFavorite = useCallback(
+		async (thread: Thread) => {
+			await setThreadPinned(thread.id, !thread.pinned);
+		},
+		[setThreadPinned],
 	);
 
 	const requestDeleteThread = useCallback((thread: Thread) => {
@@ -357,7 +573,7 @@ export function AgentSidebar({
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label="Filter sessions"
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 					variant="ghost"
 					size="icon"
 				>
@@ -365,6 +581,7 @@ export function AgentSidebar({
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end" className="w-36">
+				<DropdownMenuLabel>Session type</DropdownMenuLabel>
 				<DropdownMenuRadioGroup
 					onValueChange={(value) => {
 						setFilter(value as FilterOption);
@@ -379,6 +596,29 @@ export function AgentSidebar({
 						</DropdownMenuRadioItem>
 					))}
 				</DropdownMenuRadioGroup>
+				{sourceOptions.length > 0 ? (
+					<>
+						<DropdownMenuSeparator />
+						<DropdownMenuLabel>Source</DropdownMenuLabel>
+						<DropdownMenuRadioGroup
+							onValueChange={(value) => {
+								setSourceFilter(value);
+								setShowMoreCount(INITIAL_VISIBLE_THREAD_COUNT);
+								setProjectVisibleCounts({});
+							}}
+							value={sourceFilter}
+						>
+							<DropdownMenuRadioItem value={ALL_SESSION_SOURCES}>
+								All sources
+							</DropdownMenuRadioItem>
+							{sourceOptions.map((source) => (
+								<DropdownMenuRadioItem key={source} value={source}>
+									{getSessionSourceLabel(source)}
+								</DropdownMenuRadioItem>
+							))}
+						</DropdownMenuRadioGroup>
+					</>
+				) : null}
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);
@@ -387,7 +627,7 @@ export function AgentSidebar({
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={`Sort sessions: ${sortMode === "time" ? "Time" : "Project"}`}
-					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground transition-colors hover:bg-sidebar-accent hover:text-sidebar-foreground"
+					className="m-0! inline-flex size-8 items-center justify-center rounded-md p-0! text-muted-foreground hover:bg-surface-hover hover:text-sidebar-foreground"
 					size="icon"
 					title={sortMode === "time" ? "Sort by time" : "Sort by project"}
 					variant="ghost"
@@ -429,6 +669,7 @@ export function AgentSidebar({
 			onEditTitleChange={setEditingTitle}
 			onFork={() => void forkThread(thread)}
 			onRename={() => startRenameThread(thread)}
+			onToggleFavorite={() => void toggleFavorite(thread)}
 			pendingAction={
 				pendingAction?.sessionId === thread.id ? pendingAction.action : null
 			}
@@ -442,62 +683,170 @@ export function AgentSidebar({
 			<div className="flex h-full min-h-0 w-full min-w-0 shrink-0 flex-col overflow-hidden bg-sidebar text-sidebar-foreground">
 				<div
 					className={cn(
-						"flex h-16 shrink-0 items-center px-4",
-						isCollapsed && "justify-center px-0",
+						"flex h-12 shrink-0 items-center justify-end gap-0.5 pr-2 pl-19",
+						isCollapsed && "px-0",
 					)}
+					data-tauri-drag-region
 				>
-					<button
-						aria-label="Cline home"
-						className="rounded-md p-1 text-sidebar-foreground transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
-						onClick={openHome}
-						type="button"
-					>
-						<ClineLogo className="h-6 w-6" />
-					</button>
+					{!isCollapsed ? (
+						<>
+							<Button
+								aria-label="Previous page"
+								className="size-7 text-muted-foreground hover:bg-surface-hover"
+								disabled={!canNavigateBack}
+								onClick={navigateBack}
+								size="icon"
+								title="Previous page"
+								type="button"
+								variant="ghost"
+							>
+								<ChevronLeft className="size-4" />
+							</Button>
+							<Button
+								aria-label="Next page"
+								className="size-7 text-muted-foreground hover:text-sidebar-foreground"
+								disabled={!canNavigateForward}
+								onClick={navigateForward}
+								size="icon"
+								title="Next page"
+								type="button"
+								variant="ghost"
+							>
+								<ChevronRight className="size-4" />
+							</Button>
+						</>
+					) : null}
 				</div>
 
-				<div className={cn("shrink-0 px-3", isCollapsed && "px-1.5")}>
-					<Button
-						className={cn(
-							"min-w-0 justify-start",
-							view === "chat" &&
-								isHomeActive &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							isCollapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						aria-label="Home"
-						onClick={openHome}
-						title="Home"
-						variant="sidebarItem"
-					>
-						<Home className="size-4" />
-						{!isCollapsed ? "Home" : null}
-					</Button>
+				<div
+					className={cn(
+						"flex h-10 shrink-0 items-center justify-between px-2",
+						isCollapsed && "px-1.5",
+					)}
+				>
+					<div className="flex min-w-0 items-center gap-0.5">
+						<HoverCard
+							closeDelay={100}
+							openDelay={0}
+							onOpenChange={(open) => {
+								if (open) {
+									void loadProcessContext();
+								}
+							}}
+						>
+							<HoverCardTrigger asChild>
+								<button
+									aria-label="Cline home"
+									className={cn(
+										"flex size-8 shrink-0 items-center justify-center rounded-md text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+										isCollapsed && "size-9",
+									)}
+									onClick={openHome}
+									title="Home"
+									type="button"
+								>
+									<ClineLogo className="size-5" />
+								</button>
+							</HoverCardTrigger>
+							<HoverCardContent
+								align="start"
+								className="w-64 p-3"
+								side="bottom"
+							>
+								<p className="text-sm font-medium">
+									{productNameForVersion(appVersion)}
+								</p>
+								<p className="mt-0.5 text-xs text-muted-foreground">
+									{appVersion ? `Version ${appVersion}` : "Version unavailable"}
+								</p>
+								<div className="mt-3 border-border border-t pt-3">
+									<div className="flex items-center gap-2 text-xs">
+										<span
+											aria-hidden="true"
+											className={cn(
+												"h-2 w-2 shrink-0 rounded-full",
+												hubStatus?.connected
+													? "bg-emerald-500"
+													: "bg-muted-foreground",
+											)}
+										/>
+										<span className="font-medium">
+											Cline Hub @{hubPort(hubStatus?.url ?? null) ?? "unknown"}
+										</span>
+									</div>
+									{hubStatus && !hubStatus.connected && (
+										<p className="mt-1 text-[11px] text-destructive">
+											{hubStatus.error ?? "Cline Hub is not connected."}
+										</p>
+									)}
+								</div>
+							</HoverCardContent>
+						</HoverCard>
+						{!isCollapsed && isBetaVersion(appVersion) ? (
+							<Badge
+								className="ml-0.5 px-1.5 py-0 text-[10px] uppercase tracking-wide"
+								title={`${BETA_PRODUCT_NAME} — beta builds install side by side with the stable app and update from the beta channel`}
+								variant="secondary"
+							>
+								Beta
+							</Badge>
+						) : null}
+						{!isCollapsed ? <AppUpdateIndicator /> : null}
+					</div>
+					{!isCollapsed ? (
+						<div className="flex items-center gap-1">
+							<Button
+								aria-label={
+									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
+								}
+								aria-pressed={sidebarContent === "agenda"}
+								className={cn(
+									"relative size-8 shrink-0 justify-center px-0",
+									sidebarContent === "agenda" &&
+										"bg-surface-hover text-sidebar-foreground",
+								)}
+								onClick={toggleSidebarContent}
+								title={
+									sidebarContent === "agenda" ? "Show Sessions" : "Show Agenda"
+								}
+								type="button"
+								variant="sidebarItem"
+							>
+								<ClipboardList className="size-4" />
+								{hasNewTodoTasks ? (
+									<span
+										className="absolute right-1 top-1 size-1.5 rounded-full bg-primary"
+										data-testid="new-todo-indicator"
+									/>
+								) : null}
+							</Button>
+							<Button
+								aria-label="New Session"
+								className="size-8 shrink-0 justify-center px-0"
+								onClick={openNewThread}
+								title="New Session"
+								type="button"
+								variant="sidebarItem"
+							>
+								<MessageSquarePlus className="size-4" />
+							</Button>
+						</div>
+					) : null}
 				</div>
 
 				{isCollapsed ? (
-					<div className="mt-2 flex min-h-0 flex-1 flex-col items-center gap-1 px-1.5">
+					<div className="mt-2 flex min-h-0 flex-1 flex-col items-start gap-1 px-1.5">
+						<AppUpdateIndicator className="mx-auto size-9" />
 						{view === "settings" ? (
 							<SettingsSectionNavigation
 								activeSection={settingsSection}
 								collapsed
 								onSelect={openSettingsSection}
 							/>
-						) : (
-							<Button
-								aria-label="New session"
-								className="mx-auto size-9 justify-center px-0"
-								onClick={openNewThread}
-								title="New session"
-								type="button"
-								variant="sidebarItem"
-							>
-								<MessageSquare className="size-4" />
-							</Button>
-						)}
+						) : null}
 						<Button
 							aria-label="Expand sidebar"
-							className="mx-auto size-9 justify-center px-0"
+							className="mt-auto size-9 justify-center px-0"
 							onClick={() => setOpen(true)}
 							title="Expand sidebar"
 							type="button"
@@ -514,13 +863,43 @@ export function AgentSidebar({
 							onSelect={openSettingsSection}
 						/>
 					</div>
+				) : sidebarContent === "agenda" ? (
+					<AgendaSection
+						automatic={
+							agendaAutomation.policy !== null &&
+							agendaAutomation.policy.mode !== "manual"
+						}
+						automationDisabled={
+							agendaAutomation.isLoading || agendaAutomation.isUpdating
+						}
+						error={agenda.error ?? agendaAutomation.error}
+						isLoading={agenda.isLoading}
+						onCreate={agenda.createTask}
+						onApprove={agenda.approveTask}
+						onCancel={(task) => {
+							return agenda.cancelTask(task).catch(() => undefined);
+						}}
+						onOpen={openAgendaSession}
+						onRun={(task) => void runAgendaTask(task)}
+						onToggleAutomation={() => {
+							void agendaAutomation
+								.setAutomatic(
+									agendaAutomation.policy?.mode !== "auto_start" &&
+										agendaAutomation.policy?.mode !== "unattended",
+								)
+								.catch(() => undefined);
+						}}
+						pendingTaskIds={agenda.pendingTaskIds}
+						tasks={agenda.tasks}
+						workspaceRoot={agendaWorkspaceRoot}
+					/>
 				) : (
 					<>
-						<div className="mt-5 shrink-0 px-3">
+						<div className="mt-5 shrink-0 pl-4 pr-2">
 							<div className="flex h-8 items-center justify-between gap-2">
 								<button
 									className={cn(
-										"min-w-0 truncate text-sm font-medium text-muted-foreground transition-colors hover:text-sidebar-foreground",
+										"min-w-0 truncate text-sm font-medium text-muted-foreground",
 										view === "sessions" && "text-sidebar-foreground",
 									)}
 									onClick={openSessions}
@@ -531,7 +910,7 @@ export function AgentSidebar({
 								<div className="flex shrink-0 items-center gap-0.5">
 									<Button
 										aria-label="Search sessions"
-										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
+										className="m-0! size-8 p-0! text-muted-foreground hover:bg-surface-hover"
 										onClick={() => setSearchOpen((current) => !current)}
 										size="icon"
 										title="Search sessions"
@@ -542,17 +921,6 @@ export function AgentSidebar({
 									</Button>
 									{sortMenu}
 									{filterMenu}
-									<Button
-										aria-label="New session"
-										className="m-0! size-8 p-0! text-muted-foreground hover:text-sidebar-foreground"
-										onClick={openNewThread}
-										size="icon"
-										title="New session"
-										type="button"
-										variant="ghost"
-									>
-										<Plus className="size-4" />
-									</Button>
 								</div>
 							</div>
 							{searchOpen ? (
@@ -571,8 +939,12 @@ export function AgentSidebar({
 
 						<div className="mt-1 min-h-0 w-full flex-1">
 							<ScrollArea className="h-full min-h-0 w-full min-w-0">
-								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-3">
-									{isLoadingHistory && threads.length === 0 ? (
+								<div className="flex min-w-0 flex-col gap-0.5 pb-3 px-2">
+									{/* Empty-state copy is reserved for a definitive zero-
+									    session answer from the backend: before the first
+									    response (or while a failed fetch is being retried)
+									    "No sessions found" would read as lost history. */}
+									{!hasLoadedHistory && threads.length === 0 ? (
 										<div className="p-4 text-xs text-muted-foreground">
 											Loading session history...
 										</div>
@@ -596,7 +968,7 @@ export function AgentSidebar({
 																	.map(threadItem)}
 																{project.threads.length > visibleCount ? (
 																	<Button
-																		className="pl-2"
+																		className="pl-2!"
 																		onClick={() =>
 																			showMoreForProject(project.id)
 																		}
@@ -624,7 +996,11 @@ export function AgentSidebar({
 									)}
 									{sortMode === "time" && showTimeShowMore && (
 										<Button
-											className="pl-0"
+											// `pl-0!`: the default button size adds
+											// `has-[>svg]:px-3`, and that modifier beats a plain
+											// `pl-0` on specificity, so the icon child was
+											// re-indenting the row.
+											className="pl-0!"
 											disabled={isLoadingMore}
 											onClick={() => {
 												const nextCount =
@@ -641,10 +1017,10 @@ export function AgentSidebar({
 													Loading...
 												</>
 											) : (
-												<>
+												<div className="ml-2 flex items-center gap-1">
 													Show more
 													<ChevronDown className="size-3" />
-												</>
+												</div>
 											)}
 										</Button>
 									)}
@@ -653,7 +1029,7 @@ export function AgentSidebar({
 										!searchQuery &&
 										mayHaveMoreSessions && (
 											<Button
-												className="pl-0"
+												className="pl-0!"
 												disabled={isLoadingMore}
 												onClick={() => void loadOlderSessions()}
 												type="button"
@@ -678,38 +1054,77 @@ export function AgentSidebar({
 					</>
 				)}
 
-				<div className="shrink-0 border-t border-sidebar-border/70 px-2 py-3">
-					<Button
-						aria-label="Settings"
-						type="button"
-						variant="sidebarItem"
-						className={cn(
-							"min-w-0 justify-start",
-							view === "settings" &&
-								"bg-sidebar-accent text-sidebar-accent-foreground",
-							isCollapsed && "mx-auto size-9 justify-center px-0",
-						)}
-						onClick={openSettings}
-						title="Settings"
-					>
-						<Settings className="size-4" />
-						{!isCollapsed ? "Settings" : null}
-					</Button>
-					{!isCollapsed ? (
-						<div className="mt-2 flex items-center gap-2 rounded-md px-3 py-2 text-sidebar-foreground">
-							<span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary text-[11px] font-semibold text-primary-foreground">
-								C
-							</span>
-							<span className="min-w-0">
-								<span className="block truncate text-sm font-medium">
-									Cline Desktop
+				<div
+					className={cn(
+						"shrink-0 border-t border-sidebar-border/70 py-3",
+						isCollapsed ? "px-1.5" : "px-2",
+					)}
+				>
+					{user && !isCollapsed ? (
+						<div className="flex min-w-0 items-center gap-2">
+							<button
+								aria-label="Account settings"
+								className={cn(
+									"flex min-w-0 flex-1 items-center gap-2.5 rounded-md p-2 text-left text-sidebar-foreground hover:bg-surface-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+									view === "settings" &&
+										settingsSection === "Account" &&
+										"bg-surface-hover text-sidebar-foreground",
+								)}
+								onClick={() => openSettingsSection("Account")}
+								title={user.email || undefined}
+								type="button"
+							>
+								<span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+									{accountInitial}
 								</span>
-								<span className="block text-[11px] text-muted-foreground">
-									Local
+								<span className="flex min-w-0 flex-col leading-tight">
+									<span className="truncate text-sm font-medium">
+										{accountName}
+									</span>
+									{accountScope ? (
+										<span className="truncate text-[11px] text-muted-foreground">
+											{accountScope}
+										</span>
+									) : null}
 								</span>
-							</span>
+							</button>
+							<Button
+								aria-label="Settings"
+								className={cn(
+									"size-9 shrink-0 justify-center px-0",
+									view === "settings" &&
+										(settingsSection !== "Account"
+											? "bg-surface-hover text-sidebar-foreground"
+											: // Clicking the gear is a no-op while the Account (profile)
+												// screen is open, so don't hint interactivity on hover.
+												"hover:bg-transparent hover:text-muted-foreground"),
+								)}
+								onClick={openSettings}
+								title="Settings"
+								type="button"
+								variant="sidebarItem"
+							>
+								<Settings className="size-4" />
+							</Button>
 						</div>
-					) : null}
+					) : (
+						<Button
+							aria-label="Settings"
+							className={cn(
+								"min-w-0 justify-start",
+								isCollapsed && "size-9 justify-center px-0",
+								view === "settings" &&
+									"bg-surface-hover text-sidebar-foreground",
+							)}
+							onClick={openSettings}
+							title="Settings"
+							type="button"
+							variant="sidebarItem"
+						>
+							<Settings className="size-4" />
+							{!isCollapsed ? "Settings" : null}
+						</Button>
+					)}
 				</div>
 			</div>
 			<AlertDialog
@@ -761,6 +1176,421 @@ export function AgentSidebar({
 	);
 }
 
+function AgendaSection({
+	tasks,
+	workspaceRoot,
+	isLoading,
+	error,
+	pendingTaskIds,
+	automatic,
+	automationDisabled,
+	onApprove,
+	onRun,
+	onOpen,
+	onCancel,
+	onToggleAutomation,
+	onCreate,
+}: {
+	tasks: AgendaTaskRecord[];
+	workspaceRoot?: string;
+	isLoading: boolean;
+	error: string | null;
+	pendingTaskIds: ReadonlySet<string>;
+	automatic: boolean;
+	automationDisabled: boolean;
+	onApprove: (task: AgendaTaskRecord) => Promise<AgendaTaskRecord>;
+	onRun: (task: AgendaTaskRecord) => void;
+	onOpen: (task: AgendaTaskRecord) => void;
+	onCancel: (task: AgendaTaskRecord) => void | Promise<void>;
+	onToggleAutomation: () => void;
+	onCreate: (input: HubTaskCreateInput) => Promise<AgendaTaskRecord>;
+}) {
+	const [createOpen, setCreateOpen] = useState(false);
+	const [reviewTask, setReviewTask] = useState<AgendaTaskRecord | null>(null);
+	const [creating, setCreating] = useState(false);
+	const [title, setTitle] = useState("");
+	const [instructions, setInstructions] = useState("");
+	const [type, setType] = useState<AgendaTaskType>("todo");
+	const [priority, setPriority] = useState<AgendaTaskPriority>(3);
+	const [scope, setScope] = useState<"workspace" | "global">(
+		workspaceRoot ? "workspace" : "global",
+	);
+	const [expiresAt, setExpiresAt] = useState(() =>
+		new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
+	);
+	const resetCreateForm = () => {
+		setTitle("");
+		setInstructions("");
+		setType("todo");
+		setPriority(3);
+		setScope(workspaceRoot ? "workspace" : "global");
+		setExpiresAt(
+			new Date(Date.now() + 7 * 86_400_000).toISOString().slice(0, 16),
+		);
+	};
+	const submitCreate = async () => {
+		const normalizedTitle = title.trim();
+		const normalizedInstructions = instructions.trim();
+		if (!normalizedTitle || !normalizedInstructions || !expiresAt) return;
+		const expiration = new Date(expiresAt);
+		if (Number.isNaN(expiration.getTime())) return;
+		setCreating(true);
+		try {
+			const rememberedModel = readModelSelectionStorageFromWindow();
+			const providerId = rememberedModel.lastProvider.trim();
+			const modelId = providerId
+				? rememberedModel.lastModelByProvider[providerId]?.trim()
+				: undefined;
+			await onCreate({
+				type,
+				title: normalizedTitle,
+				instructions: normalizedInstructions,
+				scope: scope === "workspace" && workspaceRoot ? "workspace" : "global",
+				workspaceRoot:
+					scope === "workspace" && workspaceRoot ? workspaceRoot : undefined,
+				priority,
+				modelSelection: providerId
+					? { providerId, ...(modelId ? { modelId } : {}) }
+					: undefined,
+				expiresAt: expiration.toISOString(),
+				automationEligible: true,
+			});
+			setCreateOpen(false);
+			resetCreateForm();
+		} catch {
+			// The Agenda hook surfaces the manager's structured error inline.
+		} finally {
+			setCreating(false);
+		}
+	};
+	return (
+		<section
+			aria-label="Agenda"
+			className="mt-4 flex min-h-0 flex-1 flex-col px-2"
+		>
+			<div className="flex h-8 items-center justify-between px-2">
+				<span className="text-sm font-medium text-muted-foreground">Todo</span>
+				<div className="flex items-center">
+					<Button
+						aria-label={
+							automatic ? "Pause Agenda automation" : "Automate Agenda"
+						}
+						aria-pressed={automatic}
+						className={cn(
+							"size-7 p-0 text-muted-foreground",
+							automatic && "text-emerald-500",
+						)}
+						disabled={automationDisabled}
+						onClick={onToggleAutomation}
+						title={
+							automatic
+								? "Auto mode: click to switch to manual"
+								: "Manual mode: click to automate eligible trusted work"
+						}
+						type="button"
+						variant="ghost"
+					>
+						{automationDisabled ? (
+							<Loader2 className="size-3.5 animate-spin" />
+						) : (
+							<Zap className={cn("size-3.5", automatic && "fill-current")} />
+						)}
+					</Button>
+					<Dialog
+						onOpenChange={(open) => {
+							setCreateOpen(open);
+							if (open) setScope(workspaceRoot ? "workspace" : "global");
+						}}
+						open={createOpen}
+					>
+						<DialogTrigger asChild>
+							<Button
+								aria-label="Create Todo item"
+								className="size-7 p-0 text-muted-foreground"
+								title="Create task"
+								type="button"
+								variant="ghost"
+							>
+								<Plus className="size-3.5" />
+							</Button>
+						</DialogTrigger>
+						<DialogContent className="sm:max-w-md">
+							<DialogHeader>
+								<DialogTitle>Create Todo Item</DialogTitle>
+							</DialogHeader>
+							<div className="space-y-3">
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-title"
+								>
+									<span className="text-muted-foreground">Title</span>
+									<Input
+										autoFocus
+										id="agenda-task-title"
+										onChange={(event) => setTitle(event.target.value)}
+										placeholder="What needs attention?"
+										value={title}
+									/>
+								</label>
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-instructions"
+								>
+									<span className="text-muted-foreground">Instructions</span>
+									<Textarea
+										id="agenda-task-instructions"
+										onChange={(event) => setInstructions(event.target.value)}
+										placeholder="Describe the outcome and any relevant files."
+										rows={4}
+										value={instructions}
+									/>
+								</label>
+								<div className="grid grid-cols-3 gap-2">
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Type</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setType(event.target.value as AgendaTaskType)
+											}
+											value={type}
+										>
+											{[
+												"todo",
+												"follow-up",
+												"suggestion",
+												"handoff",
+												"idea",
+												"reminder",
+											].map((value) => (
+												<option key={value} value={value}>
+													{value}
+												</option>
+											))}
+										</select>
+									</label>
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Priority</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setPriority(
+													Number(event.target.value) as AgendaTaskPriority,
+												)
+											}
+											value={priority}
+										>
+											{[0, 1, 2, 3, 4, 5].map((value) => (
+												<option key={value} value={value}>
+													P{value}
+												</option>
+											))}
+										</select>
+									</label>
+									<label className="space-y-1 text-xs">
+										<span className="text-muted-foreground">Scope</span>
+										<select
+											className="h-9 w-full rounded-md border border-input bg-background px-2"
+											onChange={(event) =>
+												setScope(event.target.value as "workspace" | "global")
+											}
+											value={scope}
+										>
+											{workspaceRoot ? (
+												<option value="workspace">Project</option>
+											) : null}
+											<option value="global">General</option>
+										</select>
+									</label>
+								</div>
+								<label
+									className="block space-y-1 text-xs"
+									htmlFor="agenda-task-expires-at"
+								>
+									<span className="text-muted-foreground">Expires</span>
+									<Input
+										id="agenda-task-expires-at"
+										onChange={(event) => setExpiresAt(event.target.value)}
+										type="datetime-local"
+										value={expiresAt}
+									/>
+								</label>
+							</div>
+							<DialogFooter>
+								<Button
+									disabled={
+										creating ||
+										!title.trim() ||
+										!instructions.trim() ||
+										!expiresAt
+									}
+									onClick={() => void submitCreate()}
+									type="button"
+								>
+									{creating ? (
+										<Loader2 className="size-4 animate-spin" />
+									) : null}
+									Add to Agenda
+								</Button>
+							</DialogFooter>
+						</DialogContent>
+					</Dialog>
+				</div>
+			</div>
+			{/* Radix ScrollArea wraps its children in a display:table element. A long
+			    task title can therefore widen the table beyond the sidebar and push the
+			    action buttons off-screen, so this fixed-width list uses native scrolling. */}
+			<div className="min-h-0 w-full min-w-0 flex-1 overflow-x-hidden overflow-y-auto overscroll-contain">
+				<div className="w-full min-w-0 max-w-full space-y-1">
+					{isLoading && tasks.length === 0 ? (
+						<div className="flex items-center gap-2 px-2 py-2 text-xs text-muted-foreground">
+							<Loader2 className="size-3 animate-spin" />
+							Loading Agenda…
+						</div>
+					) : null}
+					{tasks.map((task) => {
+						const pending = pendingTaskIds.has(task.taskId);
+						const requiresFileReview =
+							task.updatedBy.kind === "system" &&
+							task.updatedBy.id === "file_reconciler" &&
+							task.status === "pending_approval";
+						const canOpen = Boolean(task.lastSessionId);
+						const canRun =
+							task.status === "approved" || task.status === "failed";
+						const taskWorkspaceName =
+							task.scope === "workspace"
+								? workspaceDisplayName(task.workspaceRoot ?? task.cwd ?? "") ||
+									"Workspace"
+								: "General";
+						return (
+							<div
+								className="group flex w-full min-w-0 max-w-full flex-col items-stretch overflow-hidden rounded-md px-2 py-1.5 hover:bg-surface-hover"
+								key={task.taskId}
+								title={
+									requiresFileReview
+										? "File-created or edited tasks always require manual review."
+										: task.description || task.instructions
+								}
+							>
+								<button
+									className="w-full min-w-0 overflow-hidden text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+									onClick={() => setReviewTask(task)}
+									type="button"
+								>
+									<span className="block truncate text-xs text-sidebar-foreground">
+										{task.title}
+									</span>
+								</button>
+								<div className="flex min-w-0 items-center justify-between">
+									<span className="min-w-0 truncate text-[10px] capitalize text-muted-foreground">
+										{taskWorkspaceName}
+										{task.status !== "pending_approval"
+											? ` · ${task.status.replace("_", " ")}`
+											: ""}
+										{requiresFileReview ? " · file review" : ""}
+									</span>
+									<div className="flex shrink-0 items-center">
+										{pending ? (
+											<Loader2 className="mx-1 size-3 animate-spin text-muted-foreground" />
+										) : task.status === "pending_approval" ? (
+											<AgendaIconButton
+												className="text-emerald-500! hover:text-emerald-400!"
+												icon={<Check className="size-3" />}
+												label={`Approve ${task.title}`}
+												onClick={() => setReviewTask(task)}
+											/>
+										) : canRun ? (
+											<AgendaIconButton
+												icon={<Play className="size-3 fill-current" />}
+												label={`Run ${task.title}`}
+												onClick={() => onRun(task)}
+											/>
+										) : canOpen ? (
+											<AgendaIconButton
+												icon={<ChevronRight className="size-3" />}
+												label={`Open session for ${task.title}`}
+												onClick={() => onOpen(task)}
+											/>
+										) : null}
+										{!pending ? (
+											<AgendaIconButton
+												className="text-destructive! hover:text-destructive!"
+												icon={<X className="size-3" />}
+												label={`Cancel ${task.title}`}
+												onClick={() => onCancel(task)}
+											/>
+										) : null}
+									</div>
+								</div>
+							</div>
+						);
+					})}
+					{!isLoading && tasks.length === 0 && !error ? (
+						<p className="px-2 py-1 text-[11px] text-muted-foreground">
+							Nothing waiting for review.
+						</p>
+					) : null}
+					{error ? (
+						<p
+							className="truncate px-2 py-1 text-[11px] text-destructive"
+							title={error}
+						>
+							{error}
+						</p>
+					) : null}
+				</div>
+			</div>
+			<AgendaTaskReviewDialog
+				onConfirm={async (task) => {
+					try {
+						await onApprove(task);
+						setReviewTask(null);
+					} catch {
+						// The Agenda hook keeps the manager error visible in this section.
+					}
+				}}
+				onOpenChange={(open) => {
+					if (!open) setReviewTask(null);
+				}}
+				onReject={async (task) => {
+					await onCancel(task);
+					setReviewTask(null);
+				}}
+				open={reviewTask !== null}
+				pending={reviewTask ? pendingTaskIds.has(reviewTask.taskId) : false}
+				task={reviewTask}
+			/>
+		</section>
+	);
+}
+
+function AgendaIconButton({
+	className,
+	icon,
+	label,
+	onClick,
+}: {
+	className?: string;
+	icon: ReactNode;
+	label: string;
+	onClick: () => void;
+}) {
+	return (
+		<button
+			aria-label={label}
+			className={cn(
+				"flex size-6 items-center justify-center rounded text-muted-foreground hover:bg-background/70 hover:text-sidebar-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring",
+				className,
+			)}
+			onClick={onClick}
+			title={label}
+			type="button"
+		>
+			{icon}
+		</button>
+	);
+}
+
 function ProjectSection({
 	label,
 	collapsed,
@@ -776,7 +1606,7 @@ function ProjectSection({
 		<div className="mb-1 min-w-0">
 			<button
 				aria-expanded={!collapsed}
-				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground transition-colors hover:bg-sidebar-accent/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
+				className="flex h-8 w-full min-w-0 items-center gap-1.5 rounded-md px-1 text-left text-sm font-medium text-sidebar-foreground hover:bg-surface-hover-lighter focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sidebar-ring"
 				onClick={onToggle}
 				title={label}
 				type="button"
@@ -804,6 +1634,7 @@ function ThreadItem({
 	onCommitRename,
 	onEditTitleChange,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
@@ -818,16 +1649,15 @@ function ThreadItem({
 	onCommitRename: () => void;
 	onEditTitleChange: (title: string) => void;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
 	unread: boolean;
 }) {
-	const tokenLabel = formatTokenCount(thread.inputTokens, thread.outputTokens);
-	const costLabel = formatCostUsd(thread.totalCostUsd);
 	const title = normalizeTitle(thread.title);
+	const overviewTitle = getSessionOverviewTitle(title);
 	const pending = pendingAction !== null;
-	const workspacePath = thread.workspacePath || thread.codebase;
 	const statusDotClass = pending
 		? "bg-yellow-400"
 		: thread.status === "running"
@@ -835,20 +1665,7 @@ function ThreadItem({
 			: unread
 				? "bg-blue-500"
 				: "";
-	const infoItems: Array<[string, string | null | undefined, string?]> = [
-		["ID", thread.id],
-		[
-			"Workspace",
-			workspaceDisplayName(workspacePath),
-			workspacePath || undefined,
-		],
-		["Status", thread.status],
-		["Updated", thread.time],
-		["Provider", thread.provider],
-		["Model", thread.model],
-		["Tokens", tokenLabel],
-		["Cost", costLabel],
-	].filter((item): item is [string, string, string?] => Boolean(item[1]));
+	const infoItems = getSessionOverviewItems(thread);
 
 	if (editing) {
 		return (
@@ -856,7 +1673,7 @@ function ThreadItem({
 				className={cn(
 					"grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2",
 					isActive
-						? "bg-sidebar-accent text-sidebar-accent-foreground"
+						? "bg-surface-hover text-sidebar-foreground"
 						: "text-sidebar-foreground/80",
 				)}
 			>
@@ -876,15 +1693,15 @@ function ThreadItem({
 
 	return (
 		<ContextMenu>
-			<HoverCard openDelay={250} closeDelay={100}>
+			<HoverCard openDelay={0} closeDelay={100}>
 				<ContextMenuTrigger asChild>
 					<HoverCardTrigger asChild>
 						<button
 							className={cn(
-								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2 overflow-hidden rounded-md px-2 text-left text-sm font-normal transition-colors",
+								"group grid h-8 w-full max-w-full min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-1 overflow-hidden rounded-md px-2 text-left text-sm font-normal",
 								isActive
-									? "bg-sidebar-accent text-sidebar-accent-foreground"
-									: "text-sidebar-foreground/80 hover:bg-sidebar-accent/50",
+									? "bg-surface-hover text-sidebar-foreground"
+									: "text-sidebar-foreground/80 hover:bg-surface-hover",
 							)}
 							disabled={pending}
 							onClick={onClick}
@@ -895,7 +1712,10 @@ function ThreadItem({
 							</span>
 							<span className="flex shrink-0 items-center gap-1.5 text-[11px] text-muted-foreground">
 								{thread.pinned ? (
-									<Pin aria-label="Pinned" className="size-3" />
+									<Star
+										aria-label="Favorited"
+										className="size-3 fill-current"
+									/>
 								) : statusDotClass ? (
 									<span
 										aria-hidden="true"
@@ -915,13 +1735,15 @@ function ThreadItem({
 					sideOffset={8}
 				>
 					<div className="min-w-0 space-y-2">
-						<div className="truncate text-sm font-medium">{title}</div>
-						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1 text-xs">
+						<div className="wrap-break-word text-sm font-medium">
+							{overviewTitle}
+						</div>
+						<div className="grid grid-cols-[72px_minmax(0,1fr)] gap-x-2 gap-y-1.5 text-xs">
 							{infoItems.map(([label, value, fullValue]) => (
 								<div className="contents" key={label}>
 									<span className="text-muted-foreground">{label}</span>
 									<span
-										className="min-w-0 truncate font-mono"
+										className="min-w-0 truncate font-mono text-foreground"
 										title={fullValue}
 									>
 										{value}
@@ -933,12 +1755,42 @@ function ThreadItem({
 				</HoverCardContent>
 			</HoverCard>
 			<SessionContextMenuContent
+				favorited={Boolean(thread.pinned)}
 				onDelete={onDelete}
 				onFork={onFork}
 				onRename={onRename}
+				onToggleFavorite={onToggleFavorite}
 				pendingAction={pendingAction}
 			/>
 		</ContextMenu>
+	);
+}
+
+export function getSessionOverviewTitle(title: string): string {
+	const firstLine = title.split(/\r?\n/, 1)[0] ?? "";
+	return normalizeTitle(firstLine);
+}
+
+export function getSessionOverviewItems(
+	thread: SessionThread,
+): Array<[string, string, string?]> {
+	// Updated time is already visible in the sidebar item.
+	const workspacePath = thread.workspacePath || thread.codebase;
+	const items: Array<[string, string | null | undefined, string?]> = [
+		[
+			"Workspace",
+			workspaceDisplayName(workspacePath),
+			workspacePath || undefined,
+		],
+		["Branch", thread.gitBranch],
+		["Provider", thread.provider],
+		["Model", thread.model],
+		["Tokens", formatTokenCount(thread.inputTokens, thread.outputTokens)],
+		["Cost", formatCostUsd(thread.totalCostUsd)],
+		["Source", thread.source],
+	];
+	return items.filter((item): item is [string, string, string?] =>
+		Boolean(item[1]),
 	);
 }
 
@@ -995,12 +1847,16 @@ function EditableSessionTitle({
 }
 
 function SessionContextMenuContent({
+	favorited,
 	onRename,
+	onToggleFavorite,
 	onFork,
 	onDelete,
 	pendingAction,
 }: {
+	favorited: boolean;
 	onRename: () => void;
+	onToggleFavorite: () => void;
 	onFork: () => void;
 	onDelete: () => void;
 	pendingAction: "rename" | "fork" | "delete" | null;
@@ -1008,6 +1864,10 @@ function SessionContextMenuContent({
 	const pending = pendingAction !== null;
 	return (
 		<ContextMenuContent className="w-40">
+			<ContextMenuItem disabled={pending} onSelect={onToggleFavorite}>
+				<Star className={cn("size-4", favorited && "fill-current")} />
+				{favorited ? "Unfavorite" : "Favorite"}
+			</ContextMenuItem>
 			<ContextMenuItem disabled={pending} onSelect={onRename}>
 				{pendingAction === "rename" ? (
 					<Loader2 className="size-4 animate-spin" />

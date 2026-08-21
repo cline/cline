@@ -14,6 +14,9 @@ import {
 	type ModelCapability,
 	ModelCapabilitySchema,
 	type ModelInfo,
+	ModelModalitiesSchema,
+	ModelOperationModeSchema,
+	ModelOperationSchema,
 	type ProviderCapability,
 	ProviderCapabilitySchema,
 	type ProviderClient,
@@ -54,13 +57,15 @@ export const StoredModelEntrySchema = z
 		supportsVision: z.boolean().optional(),
 		supportsAttachments: z.boolean().optional(),
 		supportsReasoning: z.boolean().optional(),
+		operation: ModelOperationSchema.optional(),
+		operationModes: z.array(ModelOperationModeSchema).optional(),
+		modalities: ModelModalitiesSchema.optional(),
 		inputPrice: OptionalNonNegativeFiniteNumberSchema,
 		outputPrice: OptionalNonNegativeFiniteNumberSchema,
 		cacheReadsPrice: OptionalNonNegativeFiniteNumberSchema,
 		cacheWritesPrice: OptionalNonNegativeFiniteNumberSchema,
 		temperature: OptionalNonNegativeFiniteNumberSchema,
 		apiFormat: ApiFormatSchema.optional(),
-		isR1FormatRequired: z.boolean().optional(),
 	})
 	.passthrough();
 
@@ -216,19 +221,33 @@ export async function writeModelsFile(
 
 export function toProviderModel(
 	modelId: string,
-	info: {
-		name?: string;
-		capabilities?: string[];
-		thinkingConfig?: unknown;
-	},
+	info: Pick<
+		ModelInfo,
+		| "name"
+		| "description"
+		| "contextWindow"
+		| "capabilities"
+		| "thinkingConfig"
+		| "operation"
+		| "operationModes"
+		| "modalities"
+	>,
 ): ProviderModel {
 	return {
 		id: modelId,
 		name: info.name ?? modelId,
+		...(info.description ? { description: info.description } : {}),
+		operation: info.operation,
+		...(info.contextWindow !== undefined
+			? { contextWindow: info.contextWindow }
+			: {}),
 		supportsAttachments: info.capabilities?.includes("files"),
 		supportsVision: info.capabilities?.includes("images"),
 		supportsReasoning:
 			info.capabilities?.includes("reasoning") || info.thinkingConfig != null,
+		operationModes: info.operationModes,
+		inputModalities: info.modalities?.input,
+		outputModalities: info.modalities?.output,
 	};
 }
 
@@ -323,7 +342,7 @@ function toStoredModelInfo(
 		else capabilities.delete("reasoning");
 	}
 
-	const apiFormat = model?.isR1FormatRequired ? "r1" : model?.apiFormat;
+	const apiFormat = model?.apiFormat;
 	const hasPricing =
 		model?.inputPrice !== undefined ||
 		model?.outputPrice !== undefined ||
@@ -344,6 +363,13 @@ function toStoredModelInfo(
 			? { temperature: model.temperature }
 			: {}),
 		...(apiFormat !== undefined ? { apiFormat } : {}),
+		...(model?.operation !== undefined ? { operation: model.operation } : {}),
+		...(model?.operationModes !== undefined
+			? { operationModes: model.operationModes }
+			: {}),
+		...(model?.modalities !== undefined
+			? { modalities: model.modalities }
+			: {}),
 		...(hasPricing
 			? {
 					pricing: {

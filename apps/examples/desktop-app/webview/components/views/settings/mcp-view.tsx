@@ -1,6 +1,14 @@
 "use client";
 
-import { Circle, Minus, Pencil, Plus, RefreshCw, Trash2 } from "lucide-react";
+import {
+	ChevronRight,
+	Circle,
+	Minus,
+	Pencil,
+	Plus,
+	RefreshCw,
+	Trash2,
+} from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
 	AlertDialog,
@@ -14,6 +22,11 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
+import {
 	Dialog,
 	DialogContent,
 	DialogDescription,
@@ -23,6 +36,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
 	Select,
 	SelectContent,
@@ -34,9 +48,28 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { desktopClient } from "@/lib/desktop-client";
 import { cn } from "@/lib/utils";
+import {
+	MarketplaceEntrySetupDetails,
+	type MarketplaceLocalInstalledItem,
+	type MarketplaceLocalInstalledItemRenderContext,
+	MarketplaceView,
+} from "../marketplace-view";
 import { CommandBadge, PageFrame, PageHeader } from "../page-layout";
+import { subscribeToExtensionInventoryInvalidation } from "./extensions-view";
 
 type McpTransportType = "stdio" | "sse" | "streamableHttp";
+
+type McpServerType = "local" | "remote";
+
+function serverTypeOf(transportType: McpTransportType): McpServerType {
+	return transportType === "stdio" ? "local" : "remote";
+}
+
+const TRANSPORT_TYPE_LABELS: Record<McpTransportType, string> = {
+	stdio: "Local · stdio",
+	sse: "Remote · SSE (legacy)",
+	streamableHttp: "Remote · Streamable HTTP",
+};
 
 interface McpServer {
 	name: string;
@@ -49,6 +82,14 @@ interface McpServer {
 	url?: string;
 	headers?: Record<string, string>;
 	metadata?: unknown;
+	configurationError?: string;
+	oauthStatus?: {
+		supported: boolean;
+		configured: boolean;
+		authorizationRequired: boolean;
+		lastError?: string;
+		lastAuthenticatedAt?: number;
+	};
 }
 
 interface McpServersResponse {
@@ -165,27 +206,63 @@ function createServerFormState(existing?: McpServer): McpServerFormState {
 	};
 }
 
-export function McpServersContent() {
+export function McpServersContent({
+	chrome = "page",
+	onInventoryChanged,
+}: {
+	/** "embedded" renders without the page frame/header for use inside the Plugins hub. */
+	chrome?: "page" | "embedded";
+	/** Invoked whenever the server list is (re)loaded or mutated. */
+	onInventoryChanged?: () => void;
+} = {}) {
 	const [servers, setServers] = useState<McpServer[]>([]);
 	const [settingsPath, setSettingsPath] = useState("");
 	const [hasSettingsFile, setHasSettingsFile] = useState(false);
 	const [isLoading, setIsLoading] = useState(true);
 	const [isOpeningSettingsFile, setIsOpeningSettingsFile] = useState(false);
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
+	const [serverActionErrors, setServerActionErrors] = useState<
+		Record<string, string>
+	>({});
 	const [busyServerName, setBusyServerName] = useState<string | null>(null);
+	const [authorizingServerName, setAuthorizingServerName] = useState<
+		string | null
+	>(null);
 	const [editorOpen, setEditorOpen] = useState(false);
 	const [editorMode, setEditorMode] = useState<"create" | "edit">("create");
 	const [formState, setFormState] = useState<McpServerFormState>(() =>
 		createServerFormState(),
 	);
+	const [advancedOpen, setAdvancedOpen] = useState(false);
 	const [formErrorMessage, setFormErrorMessage] = useState<string | null>(null);
 	const [deleteTarget, setDeleteTarget] = useState<McpServer | null>(null);
 
-	const applyResponse = useCallback((response: McpServersResponse) => {
-		setServers(response.servers);
-		setSettingsPath(response.settingsPath);
-		setHasSettingsFile(response.hasSettingsFile);
-	}, []);
+	const applyResponse = useCallback(
+		(response: McpServersResponse) => {
+			setServers(response.servers);
+			setSettingsPath(response.settingsPath);
+			setHasSettingsFile(response.hasSettingsFile);
+			onInventoryChanged?.();
+		},
+		[onInventoryChanged],
+	);
+
+	const setServerActionError = useCallback(
+		(serverName: string, message?: string) => {
+			setServerActionErrors((current) => {
+				if (message) {
+					return { ...current, [serverName]: message };
+				}
+				if (!(serverName in current)) {
+					return current;
+				}
+				const next = { ...current };
+				delete next[serverName];
+				return next;
+			});
+		},
+		[],
+	);
 
 	const refreshServers = useCallback(async () => {
 		setIsLoading(true);
@@ -194,6 +271,7 @@ export function McpServersContent() {
 			const response =
 				await desktopClient.invoke<McpServersResponse>("list_mcp_servers");
 			applyResponse(response);
+			setServerActionErrors({});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
 			setErrorMessage(message);
@@ -209,9 +287,21 @@ export function McpServersContent() {
 		return () => window.clearTimeout(timeoutId);
 	}, [refreshServers]);
 
+	// Marketplace installs/uninstalls can complete after this view mounted
+	// (e.g. the user navigated back to Plugins mid-install); refetch when the
+	// shared inventory cache is invalidated so the list is never stale.
+	useEffect(
+		() =>
+			subscribeToExtensionInventoryInvalidation(() => {
+				void refreshServers();
+			}),
+		[refreshServers],
+	);
+
 	const toggleServer = async (server: McpServer, disabled: boolean) => {
 		setBusyServerName(server.name);
 		setErrorMessage(null);
+		setServerActionError(server.name);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"set_mcp_server_disabled",
@@ -223,7 +313,7 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(server.name, message);
 		} finally {
 			setBusyServerName(null);
 		}
@@ -240,10 +330,6 @@ export function McpServersContent() {
 				},
 			);
 			applyResponse(response);
-		} catch (error) {
-			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
-			throw error;
 		} finally {
 			setBusyServerName(null);
 		}
@@ -252,6 +338,7 @@ export function McpServersContent() {
 	const deleteServer = async (serverName: string) => {
 		setBusyServerName(serverName);
 		setErrorMessage(null);
+		setServerActionError(serverName);
 		try {
 			const response = await desktopClient.invoke<McpServersResponse>(
 				"delete_mcp_server",
@@ -262,9 +349,46 @@ export function McpServersContent() {
 			applyResponse(response);
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			setErrorMessage(message);
+			setServerActionError(serverName, message);
 		} finally {
 			setBusyServerName(null);
+		}
+	};
+
+	const authorizeOAuth = async (serverName: string) => {
+		setAuthorizingServerName(serverName);
+		setErrorMessage(null);
+		setServerActionError(serverName);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"authorize_mcp_server_oauth",
+				{ name: serverName },
+				{ timeoutMs: null },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			await refreshServers();
+			setServerActionError(serverName, message);
+		} finally {
+			setAuthorizingServerName(null);
+		}
+	};
+
+	const cancelOAuth = async (serverName: string) => {
+		setErrorMessage(null);
+		setServerActionError(serverName);
+		try {
+			const response = await desktopClient.invoke<McpServersResponse>(
+				"cancel_mcp_server_oauth",
+				{ name: serverName },
+			);
+			applyResponse(response);
+		} catch (error) {
+			const message = error instanceof Error ? error.message : String(error);
+			setServerActionError(serverName, message);
+		} finally {
+			setAuthorizingServerName(null);
 		}
 	};
 
@@ -287,7 +411,7 @@ export function McpServersContent() {
 		if (form.transportType === "stdio") {
 			const command = form.command.trim();
 			if (!command) {
-				throw new Error("Command is required for stdio transport.");
+				throw new Error("Command is required for local servers.");
 			}
 			const args = splitCsv(form.argsText);
 			return {
@@ -304,7 +428,7 @@ export function McpServersContent() {
 		}
 		const url = form.url.trim();
 		if (!url) {
-			throw new Error("URL is required for sse and streamableHttp transport.");
+			throw new Error("Server URL is required for remote servers.");
 		}
 		return {
 			name,
@@ -320,6 +444,7 @@ export function McpServersContent() {
 	const openCreateDialog = () => {
 		setEditorMode("create");
 		setFormState(createServerFormState());
+		setAdvancedOpen(false);
 		setFormErrorMessage(null);
 		setEditorOpen(true);
 	};
@@ -327,6 +452,9 @@ export function McpServersContent() {
 	const openEditDialog = (server: McpServer) => {
 		setEditorMode("edit");
 		setFormState(createServerFormState(server));
+		setAdvancedOpen(
+			Boolean(server.cwd?.trim()) || server.metadata !== undefined,
+		);
 		setFormErrorMessage(null);
 		setEditorOpen(true);
 	};
@@ -404,42 +532,264 @@ export function McpServersContent() {
 		}));
 	};
 
-	return (
-		<PageFrame>
-			<PageHeader
-				description={
-					hasSettingsFile
-						? "Editing this list updates cline_mcp_settings.json."
-						: "No MCP settings file found yet. Add a server to create it."
-				}
-				title="MCP Servers"
-				meta={
-					<>
-						<CommandBadge>cline config mcp</CommandBadge>
-						<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
-							From settings file
-						</span>
-					</>
-				}
-				actions={
-					<>
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => void refreshServers()}
-							disabled={isLoading}
-						>
-							<RefreshCw
-								className={cn("h-4 w-4", isLoading && "animate-spin")}
-							/>
-						</Button>
-						<Button size="sm" onClick={openCreateDialog}>
-							<Plus className="h-4 w-4" />
-							Add MCP Server
-						</Button>
-					</>
-				}
+	const renderServerToggle = (server: McpServer) => {
+		const isBusy = busyServerName === server.name;
+		return (
+			<Switch
+				checked={!server.disabled}
+				onCheckedChange={(enabled) => toggleServer(server, !enabled)}
+				disabled={isBusy}
+				aria-label={`Enable ${server.name}`}
 			/>
+		);
+	};
+
+	const renderServerManagementActions = (server: McpServer) => {
+		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
+		return (
+			<div className="flex items-center gap-1">
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Edit ${server.name}`}
+					onClick={() => openEditDialog(server)}
+					disabled={isBusy || isAuthorizing}
+				>
+					<Pencil className="h-3.5 w-3.5" />
+				</Button>
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={`Delete ${server.name}`}
+					onClick={() => setDeleteTarget(server)}
+					disabled={isBusy || isAuthorizing}
+				>
+					<Trash2 className="h-3.5 w-3.5" />
+				</Button>
+			</div>
+		);
+	};
+
+	const renderServerDetails = (server: McpServer) => (
+		<div className="flex flex-col gap-1 text-xs text-muted-foreground">
+			{server.command && (
+				<p>
+					<span className="text-muted-foreground/70">Command:</span>{" "}
+					{server.command}
+				</p>
+			)}
+			{server.args && server.args.length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Args:</span>{" "}
+					{server.args.join(", ")}
+				</p>
+			)}
+			{server.cwd && (
+				<p>
+					<span className="text-muted-foreground/70">CWD:</span> {server.cwd}
+				</p>
+			)}
+			{server.url && (
+				<p>
+					<span className="text-muted-foreground/70">URL:</span> {server.url}
+				</p>
+			)}
+			{server.env && Object.keys(server.env).length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Env:</span>{" "}
+					{stringifyRedactedKeyValuePairs(server.env)}
+				</p>
+			)}
+			{server.headers && Object.keys(server.headers).length > 0 && (
+				<p>
+					<span className="text-muted-foreground/70">Headers:</span>{" "}
+					{stringifyKeyValuePairs(server.headers)}
+				</p>
+			)}
+		</div>
+	);
+
+	const renderServerCard = (
+		server: McpServer,
+		context?: MarketplaceLocalInstalledItemRenderContext,
+	) => {
+		const isBusy = busyServerName === server.name;
+		const isAuthorizing = authorizingServerName === server.name;
+		const serverError =
+			serverActionErrors[server.name] ??
+			(server.disabled ? undefined : server.oauthStatus?.lastError);
+
+		return (
+			<div
+				key={server.name}
+				className="group relative rounded-lg border border-border px-5 py-4 hover:bg-surface-hover"
+			>
+				<div className="flex items-center gap-3">
+					<Circle
+						className={cn(
+							"h-2.5 w-2.5 shrink-0",
+							server.disabled
+								? "fill-muted-foreground/40 text-muted-foreground/40"
+								: "fill-primary text-primary",
+						)}
+					/>
+					<h3 className="text-sm font-semibold text-foreground">
+						{server.name}
+					</h3>
+					<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+						{TRANSPORT_TYPE_LABELS[server.transportType] ??
+							server.transportType}
+					</span>
+					{context?.matchedEntries?.length ? (
+						<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
+							Marketplace
+						</span>
+					) : null}
+					<div className="flex-1" />
+					{renderServerToggle(server)}
+				</div>
+				<div className="mt-2.5 grid gap-2">
+					{server.configurationError ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Invalid configuration
+							</p>
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{server.configurationError}
+							</p>
+						</div>
+					) : null}
+					{server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="flex items-center justify-between gap-3 rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2"
+							role="alert"
+						>
+							<div className="min-w-0 flex-1 grid gap-0.5">
+								<p className="text-xs font-medium text-foreground">
+									{isAuthorizing
+										? "Waiting for OAuth authorization"
+										: "OAuth authorization required"}
+								</p>
+								<p className="wrap-break-word text-xs text-muted-foreground">
+									{isAuthorizing
+										? "Complete sign-in in your browser, or select Cancel to stop waiting."
+										: (serverError ??
+											"Select Connect to sign in with your browser. The server will remain off until authorization succeeds.")}
+								</p>
+							</div>
+							<Button
+								variant="default"
+								size="sm"
+								className="shrink-0"
+								aria-label={
+									isAuthorizing
+										? `Cancel OAuth for ${server.name}`
+										: `Connect ${server.name} with OAuth`
+								}
+								onClick={() =>
+									void (isAuthorizing
+										? cancelOAuth(server.name)
+										: authorizeOAuth(server.name))
+								}
+								disabled={isBusy}
+							>
+								{isAuthorizing ? "Cancel" : "Connect"}
+							</Button>
+						</div>
+					) : null}
+					{serverError && !server.oauthStatus?.authorizationRequired ? (
+						<div
+							className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2"
+							role="alert"
+						>
+							<p className="text-xs font-medium text-destructive">
+								Connection failed
+							</p>
+							<p className="mt-0.5 wrap-break-word text-xs text-muted-foreground">
+								{serverError}
+							</p>
+						</div>
+					) : null}
+					{renderServerDetails(server)}
+					{server.oauthStatus?.configured ? (
+						<div className="flex items-center gap-2 text-xs text-muted-foreground">
+							<span className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-primary">
+								OAuth connected
+							</span>
+						</div>
+					) : null}
+					{context?.matchedEntries?.length ? (
+						<MarketplaceEntrySetupDetails entries={context.matchedEntries} />
+					) : null}
+					<div className="pointer-events-none absolute right-4 bottom-3 opacity-0 transition-opacity group-focus-within:pointer-events-auto group-focus-within:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100">
+						{renderServerManagementActions(server)}
+					</div>
+				</div>
+			</div>
+		);
+	};
+
+	const installedItems = sortedServers.map(
+		(server): MarketplaceLocalInstalledItem => ({
+			key: server.name,
+			matchValues: [server.name],
+			render: (context) => renderServerCard(server, context),
+		}),
+	);
+
+	const headerActions = (
+		<>
+			<Button
+				variant="outline"
+				size="sm"
+				onClick={() => void refreshServers()}
+				disabled={isLoading}
+			>
+				<RefreshCw className={cn("h-4 w-4", isLoading && "animate-spin")} />
+			</Button>
+			<Button size="sm" onClick={openCreateDialog}>
+				<Plus className="h-4 w-4" />
+				Add MCP Server
+			</Button>
+		</>
+	);
+
+	const content = (
+		<>
+			{chrome === "page" ? (
+				<PageHeader
+					description={
+						hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."
+					}
+					title="MCP Servers"
+					meta={
+						<>
+							<CommandBadge>cline config mcp</CommandBadge>
+							<span className="rounded-md border border-border bg-background px-2 py-0.5 text-xs text-muted-foreground">
+								From settings file
+							</span>
+						</>
+					}
+					actions={headerActions}
+				/>
+			) : (
+				<div className="mb-4 flex items-center justify-between gap-3">
+					<p className="text-sm text-muted-foreground">
+						{hasSettingsFile
+							? "Editing this list updates cline_mcp_settings.json."
+							: "No MCP settings file found yet. Add a server to create it."}
+					</p>
+					<div className="flex shrink-0 items-center gap-2">
+						{headerActions}
+					</div>
+				</div>
+			)}
 
 			<div className="mb-1 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
 				<span>MCP settings path:</span>
@@ -458,112 +808,13 @@ export function McpServersContent() {
 				</div>
 			)}
 
-			{isLoading ? (
-				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-					Loading MCP servers...
-				</div>
-			) : sortedServers.length === 0 ? (
-				<div className="rounded-lg border border-border px-5 py-4 text-sm text-muted-foreground">
-					No MCP servers configured.
-				</div>
-			) : (
-				<div className="flex flex-col gap-3">
-					{sortedServers.map((server) => {
-						const isBusy = busyServerName === server.name;
-						return (
-							<div
-								key={server.name}
-								className="rounded-lg border border-border px-5 py-4 transition-colors hover:bg-accent/20"
-							>
-								<div className="flex items-center gap-3">
-									<Circle
-										className={cn(
-											"h-2.5 w-2.5 shrink-0",
-											server.disabled
-												? "fill-muted-foreground/40 text-muted-foreground/40"
-												: "fill-primary text-primary",
-										)}
-									/>
-									<h3 className="text-sm font-semibold text-foreground">
-										{server.name}
-									</h3>
-									<span className="rounded-md border border-border px-2 py-0.5 text-xs text-muted-foreground">
-										{server.transportType}
-									</span>
-									<div className="flex-1" />
-									<div className="flex items-center gap-1">
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Edit ${server.name}`}
-											onClick={() => openEditDialog(server)}
-											disabled={isBusy}
-										>
-											<Pencil className="h-3.5 w-3.5" />
-										</Button>
-										<Button
-											variant="ghost"
-											size="icon-sm"
-											aria-label={`Delete ${server.name}`}
-											onClick={() => setDeleteTarget(server)}
-											disabled={isBusy}
-										>
-											<Trash2 className="h-3.5 w-3.5" />
-										</Button>
-										<Switch
-											checked={!server.disabled}
-											onCheckedChange={(enabled) =>
-												toggleServer(server, !enabled)
-											}
-											disabled={isBusy}
-											aria-label={`Enable ${server.name}`}
-										/>
-									</div>
-								</div>
-
-								<div className="mt-2.5 ml-5.5 flex flex-col gap-1 text-xs text-muted-foreground">
-									{server.command && (
-										<p>
-											<span className="text-muted-foreground/70">Command:</span>{" "}
-											{server.command}
-										</p>
-									)}
-									{server.args && server.args.length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Args:</span>{" "}
-											{server.args.join(", ")}
-										</p>
-									)}
-									{server.cwd && (
-										<p>
-											<span className="text-muted-foreground/70">CWD:</span>{" "}
-											{server.cwd}
-										</p>
-									)}
-									{server.url && (
-										<p>
-											<span className="text-muted-foreground/70">URL:</span>{" "}
-											{server.url}
-										</p>
-									)}
-									{server.env && Object.keys(server.env).length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Env:</span>{" "}
-											{stringifyRedactedKeyValuePairs(server.env)}
-										</p>
-									)}
-									{server.headers && Object.keys(server.headers).length > 0 && (
-										<p>
-											<span className="text-muted-foreground/70">Headers:</span>{" "}
-											{stringifyKeyValuePairs(server.headers)}
-										</p>
-									)}
-								</div>
-							</div>
-						);
-					})}
-				</div>
-			)}
+			<MarketplaceView
+				chrome="embedded"
+				installedItems={installedItems}
+				onInstalledItemsChanged={() => refreshServers()}
+				primitive="mcp"
+				variant={chrome === "embedded" ? "installed" : "full"}
+			/>
 			<Dialog
 				open={editorOpen}
 				onOpenChange={(open) => {
@@ -579,7 +830,9 @@ export function McpServersContent() {
 							{editorMode === "edit" ? "Edit MCP Server" : "Add MCP Server"}
 						</DialogTitle>
 						<DialogDescription>
-							Update the MCP server stored in{" "}
+							{editorMode === "edit"
+								? "Update the MCP server stored in "
+								: "The server is saved to "}
 							<code className="font-mono">
 								{settingsPath || "cline_mcp_settings.json"}
 							</code>
@@ -604,25 +857,60 @@ export function McpServersContent() {
 						</div>
 
 						<div className="grid gap-2">
-							<Label>Transport type</Label>
-							<Select
-								value={formState.transportType}
+							<Label>Server type</Label>
+							<RadioGroup
+								className="grid gap-2"
+								value={serverTypeOf(formState.transportType)}
 								onValueChange={(value) =>
 									setFormState((current) => ({
 										...current,
-										transportType: value as McpTransportType,
+										transportType:
+											value === "local"
+												? "stdio"
+												: serverTypeOf(current.transportType) === "remote"
+													? current.transportType
+													: "streamableHttp",
 									}))
 								}
 							>
-								<SelectTrigger className="w-full">
-									<SelectValue placeholder="Select transport" />
-								</SelectTrigger>
-								<SelectContent>
-									<SelectItem value="stdio">stdio</SelectItem>
-									<SelectItem value="sse">sse</SelectItem>
-									<SelectItem value="streamableHttp">streamableHttp</SelectItem>
-								</SelectContent>
-							</Select>
+								<Label
+									htmlFor="mcp-server-type-local"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
+								>
+									<RadioGroupItem
+										className="mt-0.5"
+										id="mcp-server-type-local"
+										value="local"
+									/>
+									<span className="grid gap-0.5">
+										<span className="text-sm font-medium text-foreground">
+											Local
+										</span>
+										<span className="text-xs text-muted-foreground">
+											Runs a command on this machine (stdio). Recommended when
+											available.
+										</span>
+									</span>
+								</Label>
+								<Label
+									htmlFor="mcp-server-type-remote"
+									className="flex cursor-pointer items-start gap-3 rounded-md border border-border px-3 py-2.5 font-normal has-[[data-state=checked]]:border-primary/60 has-[[data-state=checked]]:bg-surface-hover-lighter"
+								>
+									<RadioGroupItem
+										className="mt-0.5"
+										id="mcp-server-type-remote"
+										value="remote"
+									/>
+									<span className="grid gap-0.5">
+										<span className="text-sm font-medium text-foreground">
+											Remote
+										</span>
+										<span className="text-xs text-muted-foreground">
+											Connects to a hosted server over HTTP by URL.
+										</span>
+									</span>
+								</Label>
+							</RadioGroup>
 						</div>
 
 						{formState.transportType === "stdio" ? (
@@ -653,20 +941,6 @@ export function McpServersContent() {
 											}))
 										}
 										placeholder="-y, @modelcontextprotocol/server-github"
-									/>
-								</div>
-								<div className="grid gap-2">
-									<Label htmlFor="mcp-cwd">Working directory</Label>
-									<Input
-										id="mcp-cwd"
-										value={formState.cwd}
-										onChange={(event) =>
-											setFormState((current) => ({
-												...current,
-												cwd: event.target.value,
-											}))
-										}
-										placeholder="/path/to/project"
 									/>
 								</div>
 								<div className="grid gap-2">
@@ -747,23 +1021,83 @@ export function McpServersContent() {
 										placeholder="Authorization=Bearer token"
 									/>
 								</div>
+								<div className="grid gap-2">
+									<Label>Transport</Label>
+									<Select
+										value={formState.transportType}
+										onValueChange={(value) =>
+											setFormState((current) => ({
+												...current,
+												transportType: value as McpTransportType,
+											}))
+										}
+									>
+										<SelectTrigger className="w-full">
+											<SelectValue placeholder="Select transport" />
+										</SelectTrigger>
+										<SelectContent>
+											<SelectItem value="streamableHttp">
+												Streamable HTTP (recommended)
+											</SelectItem>
+											<SelectItem value="sse">SSE (legacy)</SelectItem>
+										</SelectContent>
+									</Select>
+								</div>
 							</>
 						)}
 
-						<div className="grid gap-2">
-							<Label htmlFor="mcp-metadata">Metadata JSON</Label>
-							<Textarea
-								id="mcp-metadata"
-								value={formState.metadataText}
-								onChange={(event) =>
-									setFormState((current) => ({
-										...current,
-										metadataText: event.target.value,
-									}))
-								}
-								placeholder='{"key":"value"}'
-							/>
-						</div>
+						<Collapsible
+							className="grid gap-3"
+							onOpenChange={setAdvancedOpen}
+							open={advancedOpen}
+						>
+							<CollapsibleTrigger asChild>
+								<button
+									type="button"
+									className="flex w-fit items-center gap-1 text-sm text-muted-foreground  hover:text-foreground"
+								>
+									<ChevronRight
+										className={cn(
+											"h-3.5 w-3.5 transition-transform",
+											advancedOpen && "rotate-90",
+										)}
+									/>
+									Advanced
+								</button>
+							</CollapsibleTrigger>
+							<CollapsibleContent className="grid gap-4">
+								{formState.transportType === "stdio" && (
+									<div className="grid gap-2">
+										<Label htmlFor="mcp-cwd">Working directory</Label>
+										<Input
+											id="mcp-cwd"
+											value={formState.cwd}
+											onChange={(event) =>
+												setFormState((current) => ({
+													...current,
+													cwd: event.target.value,
+												}))
+											}
+											placeholder="/path/to/project"
+										/>
+									</div>
+								)}
+								<div className="grid gap-2">
+									<Label htmlFor="mcp-metadata">Metadata JSON</Label>
+									<Textarea
+										id="mcp-metadata"
+										value={formState.metadataText}
+										onChange={(event) =>
+											setFormState((current) => ({
+												...current,
+												metadataText: event.target.value,
+											}))
+										}
+										placeholder='{"key":"value"}'
+									/>
+								</div>
+							</CollapsibleContent>
+						</Collapsible>
 
 						<div className="flex items-center justify-between rounded-md border border-border px-3 py-2">
 							<div>
@@ -848,6 +1182,12 @@ export function McpServersContent() {
 					</AlertDialogFooter>
 				</AlertDialogContent>
 			</AlertDialog>
-		</PageFrame>
+		</>
+	);
+
+	return chrome === "embedded" ? (
+		<div>{content}</div>
+	) : (
+		<PageFrame>{content}</PageFrame>
 	);
 }

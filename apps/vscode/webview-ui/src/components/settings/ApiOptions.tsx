@@ -1,18 +1,13 @@
-import { StringRequest } from "@shared/proto/cline/common"
 import type { Mode } from "@shared/storage/types"
 import { VSCodeTextField } from "@vscode/webview-ui-toolkit/react"
 import Fuse from "fuse.js"
-import { type KeyboardEvent, useCallback, useEffect, useMemo, useRef, useState } from "react"
-import { useInterval } from "react-use"
+import { type KeyboardEvent, useEffect, useMemo, useRef, useState } from "react"
 import styled from "styled-components"
 
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { PLATFORM_CONFIG, PlatformType } from "@/config/platform.config"
-import { CLINE_PASS_FEATURE_FLAG } from "@/constants/featureFlags"
 import { useExtensionState } from "@/context/ExtensionStateContext"
-import { useHasFeatureFlag } from "@/hooks/useFeatureFlag"
 import { useProviderListings } from "@/hooks/useProviderListings"
-import { ModelsServiceClient } from "@/services/grpc-client"
 import { OPENROUTER_MODEL_PICKER_Z_INDEX } from "./OpenRouterModelPicker"
 import { AIhubmixProvider } from "./providers/AihubmixProvider"
 import { AnthropicProvider } from "./providers/AnthropicProvider"
@@ -96,12 +91,9 @@ const ApiOptions = ({
 }: ApiOptionsProps) => {
 	// Use full context state for immediate save payload
 	const { apiConfiguration, remoteConfigSettings } = useExtensionState()
-	const isClinePassEnabled = useHasFeatureFlag(CLINE_PASS_FEATURE_FLAG)
 
-	const selectedProviderRaw =
+	const selectedProvider =
 		(currentMode === "plan" ? apiConfiguration?.planModeApiProvider : apiConfiguration?.actModeApiProvider) || "anthropic"
-	// Fall back from cline-pass to cline when the feature flag is off.
-	const selectedProvider = selectedProviderRaw === "cline-pass" && !isClinePassEnabled ? "cline" : selectedProviderRaw
 	const { providers: catalogProviderListings } = useProviderListings()
 	const catalogProviderListing = useMemo(
 		() => catalogProviderListings.find((provider) => provider.id === selectedProvider),
@@ -120,33 +112,6 @@ const ApiOptions = ({
 
 	const { handleModeFieldChange } = useApiConfigurationHandlers()
 
-	const [_ollamaModels, setOllamaModels] = useState<string[]>([])
-
-	// Poll ollama/vscode-lm models
-	const requestLocalModels = useCallback(async () => {
-		if (selectedProvider === "ollama") {
-			try {
-				const response = await ModelsServiceClient.getOllamaModels(
-					StringRequest.create({
-						value: apiConfiguration?.ollamaBaseUrl || "",
-					}),
-				)
-				if (response && response.values) {
-					setOllamaModels(response.values)
-				}
-			} catch (error) {
-				console.error("Failed to fetch Ollama models:", error)
-				setOllamaModels([])
-			}
-		}
-	}, [selectedProvider, apiConfiguration?.ollamaBaseUrl])
-	useEffect(() => {
-		if (selectedProvider === "ollama") {
-			requestLocalModels()
-		}
-	}, [selectedProvider, requestLocalModels])
-	useInterval(requestLocalModels, selectedProvider === "ollama" ? 2000 : null)
-
 	// Provider search state
 	const [searchTerm, setSearchTerm] = useState("")
 	const [isDropdownVisible, setIsDropdownVisible] = useState(false)
@@ -163,9 +128,6 @@ const ApiOptions = ({
 			value: provider.id,
 			label: provider.name,
 		}))
-		if (!isClinePassEnabled) {
-			providers = providers.filter((option) => option.value !== "cline-pass")
-		}
 		// Filter by platform
 		if (PLATFORM_CONFIG.type !== PlatformType.VSCODE) {
 			// Don't include VS Code LM API for non-VSCode platforms
@@ -179,7 +141,7 @@ const ApiOptions = ({
 		}
 
 		return providers
-	}, [catalogProviderListings, isClinePassEnabled, remoteConfigSettings])
+	}, [catalogProviderListings, remoteConfigSettings])
 
 	const currentProviderLabel = useMemo(() => {
 		return providerOptions.find((option) => option.value === selectedProvider)?.label || selectedProvider
@@ -399,7 +361,7 @@ const ApiOptions = ({
 				/>
 			)}
 
-			{apiConfiguration && isClinePassEnabled && selectedProvider === "cline-pass" && (
+			{apiConfiguration && selectedProvider === "cline-pass" && (
 				<ClinePassProvider currentMode={currentMode} isPopup={isPopup} showModelOptions={showModelOptions} />
 			)}
 
@@ -571,8 +533,10 @@ const ProviderDropdownItem = styled.div<{ isSelected: boolean }>`
 	white-space: normal;
 
 	background-color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionBackground)" : "inherit")};
+	color: ${({ isSelected }) => (isSelected ? "var(--vscode-list-activeSelectionForeground, inherit)" : "inherit")};
 
 	&:hover {
 		background-color: var(--vscode-list-activeSelectionBackground);
+		color: var(--vscode-list-activeSelectionForeground, inherit);
 	}
 `

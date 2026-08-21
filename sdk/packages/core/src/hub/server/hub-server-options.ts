@@ -1,23 +1,30 @@
-import type { ITelemetryService } from "@cline/shared";
+import type { BasicLogger, ITelemetryService } from "@cline/shared";
 import type { CronServiceOptions } from "../../cron/service/cron-service";
 import type {
 	HubScheduleRuntimeHandlers,
 	HubScheduleServiceOptions,
 } from "../../cron/service/schedule-service";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 } from "../../runtime/host/runtime-host";
 import type { CoreSettingsService } from "../../settings";
+import type { AgendaTaskManagerOptions } from "../../tasks";
 import type { HubOwnerContext } from "../discovery";
 
 export interface HubWebSocketServerOptions {
+	/** Workspace authority assigned by the Hub to authenticated clients. */
+	workspaceRoot?: string;
 	host?: string;
 	port?: number;
 	pathname?: string;
 	owner?: HubOwnerContext;
-	sessionHost?: RuntimeHost & Partial<PendingPromptsRuntimeService>;
+	sessionHost?: RuntimeHost &
+		Partial<PendingPromptsRuntimeService & CommandExecutionRuntimeService>;
 	settingsService?: CoreSettingsService;
+	/** File/DB/watcher overrides for the Hub-owned agenda task manager. */
+	taskOptions?: Omit<AgendaTaskManagerOptions, "runtime" | "publish">;
 	runtimeHandlers: HubScheduleRuntimeHandlers;
 	scheduleOptions?: Omit<HubScheduleServiceOptions, "runtimeHandlers">;
 	/**
@@ -43,6 +50,17 @@ export interface HubWebSocketServerOptions {
 	 * Ignored when `sessionHost` is supplied.
 	 */
 	telemetry?: ITelemetryService;
+	/**
+	 * Structured logger forwarded to the internally-constructed local runtime.
+	 * Ignored when `sessionHost` is supplied.
+	 */
+	logger?: BasicLogger;
+	/**
+	 * Notifies the owning process of an authenticated `/shutdown` request before
+	 * the server begins its memoized close. The daemon uses this to route HTTP,
+	 * signals, and fatal errors through one shutdown coordinator.
+	 */
+	onShutdownRequested?: () => void | Promise<void>;
 }
 
 export interface HubWebSocketServer {
@@ -50,7 +68,18 @@ export interface HubWebSocketServer {
 	port: number;
 	url: string;
 	authToken: string;
+	/**
+	 * Starts the memoized two-phase close. Runtime/session teardown is exposed
+	 * separately so daemon telemetry can remain available until it completes,
+	 * even when the listener close is stalled by the runtime.
+	 */
+	beginClose(): HubWebSocketServerClose;
 	close(): Promise<void>;
+}
+
+export interface HubWebSocketServerClose {
+	transportStopped: Promise<void>;
+	closed: Promise<void>;
 }
 
 export interface EnsureHubWebSocketServerOptions

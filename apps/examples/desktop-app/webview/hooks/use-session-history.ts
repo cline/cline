@@ -1,5 +1,6 @@
 "use client";
 
+import { isChatWorkspacePath } from "@cline/shared/browser";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { normalizeTitle } from "@/components/utils";
 import { toast } from "@/hooks/use-toast";
@@ -9,7 +10,14 @@ import type {
 	SessionHistoryStatus,
 	SessionMetadata,
 } from "@/lib/session-history";
-import { getSessionMetadataTitle } from "@/lib/session-history";
+import {
+	getSessionMetadataGitBranch,
+	getSessionMetadataIsScheduled,
+	getSessionMetadataPinned,
+	getSessionMetadataTitle,
+	getSessionSource,
+	PINNED_METADATA_KEY,
+} from "@/lib/session-history";
 
 type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 	status: string;
@@ -18,16 +26,19 @@ type CliDiscoveredSession = Omit<SessionHistoryItem, "status"> & {
 export interface SessionThread {
 	id: string;
 	title: string;
+	source?: string;
 	codebase: string;
 	workspacePath: string;
 	time: string;
 	provider: string;
 	model: string;
+	gitBranch?: string;
 	inputTokens?: number;
 	outputTokens?: number;
 	totalCostUsd?: number;
 	status: SessionHistoryStatus;
 	pinned?: boolean;
+	isScheduled: boolean;
 }
 
 type SessionHookEvent = {
@@ -85,7 +96,10 @@ export type UseSessionHistoryOptions = {
 	) => void;
 };
 
-const INITIAL_HISTORY_FETCH_LIMIT = 300;
+// Kept small on purpose: the sidebar shows 10 threads and the sessions view
+// pages 10 at a time, so the mount fetch (and every 12s poll after it) only
+// needs enough rows for the first few pages. Older pages are fetched on demand.
+const INITIAL_HISTORY_FETCH_LIMIT = 50;
 const HISTORY_REFRESH_INTERVAL_MS = 12_000;
 const MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS = 2_000;
 const HISTORY_EVENT_REFRESH_DELAY_MS = 1_000;
@@ -106,11 +120,21 @@ export function parseTimestamp(value?: string): number {
 	return Number.isNaN(parsed) ? Number.NEGATIVE_INFINITY : parsed;
 }
 
-function compareSessionsByStartedAtDesc(
+export function sessionActivityTimestamp(session: SessionHistoryItem): number {
+	const endedAt = parseTimestamp(session.endedAt);
+	const startedAt = parseTimestamp(session.startedAt);
+	return Math.max(endedAt, startedAt);
+}
+
+// Order by last activity, not by start time: a long-running session that was
+// resumed today must outrank one that started later but has been idle for
+// days. This is also the timestamp both the sidebar and the sessions view
+// render, so the list order matches the "1d"/"3d" labels next to each row.
+function compareSessionsByActivityDesc(
 	a: SessionHistoryItem,
 	b: SessionHistoryItem,
 ): number {
-	const timeDelta = parseTimestamp(b.startedAt) - parseTimestamp(a.startedAt);
+	const timeDelta = sessionActivityTimestamp(b) - sessionActivityTimestamp(a);
 	if (timeDelta !== 0) {
 		return timeDelta;
 	}
@@ -170,6 +194,7 @@ export function formatRelativeTime(value?: string): string {
 
 export function basenamePath(input?: string): string {
 	if (!input) return "workspace";
+	if (isChatWorkspacePath(input)) return "Chat";
 	const trimmed = input.replace(/[\\/]+$/, "");
 	if (!trimmed) return "workspace";
 	const parts = trimmed.split(/[\\/]/);
@@ -179,10 +204,10 @@ export function basenamePath(input?: string): string {
 function toTitle(session: SessionHistoryItem): string {
 	const metadataTitle = getSessionMetadataTitle(session.metadata);
 	if (metadataTitle) {
-		return metadataTitle.slice(0, 70);
+		return metadataTitle;
 	}
 	const line = normalizeTitle(session.prompt).trim().split("\n")[0]?.trim();
-	if (line) return line.slice(0, 70);
+	if (line) return line;
 	return `Session ${session.sessionId.slice(-6)}`;
 }
 
@@ -196,7 +221,7 @@ function titleFromMessages(messages: SessionMessage[]): string | null {
 				typeof message.content === "string" ? message.content : "";
 			const line = normalizeTitle(content).trim().split("\n")[0]?.trim();
 			if (line) {
-				return line.slice(0, 70);
+				return line;
 			}
 		}
 	}
@@ -229,12 +254,16 @@ function toThread(session: SessionHistoryItem): SessionThread {
 	return {
 		id: session.sessionId,
 		title: toTitle(session),
+		source: getSessionSource(session) || undefined,
 		codebase: basenamePath(workspacePath),
 		workspacePath,
 		time: formatRelativeTime(session.endedAt || session.startedAt),
 		provider: session.provider || "",
 		model: session.model || "",
+		gitBranch: getSessionMetadataGitBranch(session.metadata) || undefined,
 		status: normalizeDiscoveredStatus(session.status, session.prompt),
+		pinned: getSessionMetadataPinned(session.metadata),
+		isScheduled: getSessionMetadataIsScheduled(session.metadata),
 	};
 }
 
@@ -327,12 +356,19 @@ function areSessionsEquivalent(
 		const b = next[i];
 		if (
 			a.sessionId !== b.sessionId ||
+			getSessionSource(a) !== getSessionSource(b) ||
 			a.status !== b.status ||
 			a.startedAt !== b.startedAt ||
 			a.endedAt !== b.endedAt ||
 			a.prompt !== b.prompt ||
+			getSessionMetadataIsScheduled(a.metadata) !==
+				getSessionMetadataIsScheduled(b.metadata) ||
+			getSessionMetadataGitBranch(a.metadata) !==
+				getSessionMetadataGitBranch(b.metadata) ||
 			getSessionMetadataTitle(a.metadata) !==
 				getSessionMetadataTitle(b.metadata) ||
+			getSessionMetadataPinned(a.metadata) !==
+				getSessionMetadataPinned(b.metadata) ||
 			a.workspaceRoot !== b.workspaceRoot ||
 			a.cwd !== b.cwd ||
 			a.provider !== b.provider ||
@@ -357,16 +393,19 @@ function areThreadsEquivalent(
 		if (
 			a.id !== b.id ||
 			a.title !== b.title ||
+			a.source !== b.source ||
 			a.codebase !== b.codebase ||
 			a.workspacePath !== b.workspacePath ||
 			a.time !== b.time ||
 			a.provider !== b.provider ||
 			a.model !== b.model ||
+			a.gitBranch !== b.gitBranch ||
 			a.inputTokens !== b.inputTokens ||
 			a.outputTokens !== b.outputTokens ||
 			a.totalCostUsd !== b.totalCostUsd ||
 			a.status !== b.status ||
-			a.pinned !== b.pinned
+			a.pinned !== b.pinned ||
+			a.isScheduled !== b.isScheduled
 		) {
 			return false;
 		}
@@ -453,14 +492,24 @@ export function useSessionHistory({
 }: UseSessionHistoryOptions) {
 	const [sessions, setSessions] = useState<SessionHistoryItem[]>([]);
 	const [threads, setThreads] = useState<SessionThread[]>([]);
-	const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+	// False until the backend has answered a history request at least once.
+	// Consumers use this to tell "still loading" apart from "loaded, zero
+	// sessions": an empty-state copy shown before the first response reads as
+	// lost history whenever fetching takes more than an instant.
+	const [hasLoadedHistory, setHasLoadedHistory] = useState(false);
 	const [isLoadingMore, setIsLoadingMore] = useState(false);
+	const [mayHaveMoreSessions, setMayHaveMoreSessions] = useState(false);
 	const [pendingAction, setPendingAction] =
 		useState<SessionPendingAction>(null);
 	const [unreadSessionIds, setUnreadSessionIds] = useState<Set<string>>(
 		() => new Set(),
 	);
 	const fetchLimitRef = useRef(INITIAL_HISTORY_FETCH_LIMIT);
+	// Limit of the most recent refresh that actually returned sessions. Failed
+	// attempts roll back to this rather than to a caller-local snapshot, which
+	// may itself name a batch that was never fetched.
+	const loadedLimitRef = useRef(0);
+	const mayHaveMoreSessionsRef = useRef(false);
 	const usageLoadingRef = useRef<Set<string>>(new Set());
 	const usageHydratedStatusRef = useRef<Map<string, SessionHistoryStatus>>(
 		new Map(),
@@ -473,8 +522,14 @@ export function useSessionHistory({
 	const threadsRef = useRef<SessionThread[]>([]);
 	const refreshTimeoutRef = useRef<number | null>(null);
 	const scheduledRefreshAtRef = useRef<number | null>(null);
-	const refreshPromiseRef = useRef<Promise<void> | null>(null);
+	const refreshPromiseRef = useRef<Promise<boolean> | null>(null);
+	const refreshLimitRef = useRef(0);
+	const loadAllPromiseRef = useRef<Promise<boolean> | null>(null);
 	const lastRefreshStartedAtRef = useRef(0);
+	// Guards scheduleRefresh against continuations that settle after unmount
+	// (e.g. the fast retry of a failed initial fetch), which would otherwise
+	// re-arm a timer the cleanup has already cleared and poll forever.
+	const disposedRef = useRef(false);
 
 	useEffect(() => {
 		sessionsRef.current = sessions;
@@ -499,18 +554,39 @@ export function useSessionHistory({
 	}, [activeSessionId]);
 
 	const refreshSessions = useCallback(async () => {
-		if (refreshPromiseRef.current) {
-			return refreshPromiseRef.current;
+		// Reuse an in-flight refresh only when it already asked for at least as
+		// many sessions as we need now. "Load more" raises the limit and then
+		// awaits a refresh; sharing a request that captured the smaller limit
+		// would resolve without the larger batch ever being fetched.
+		while (refreshPromiseRef.current) {
+			const pending = refreshPromiseRef.current;
+			if (refreshLimitRef.current >= fetchLimitRef.current) {
+				return pending;
+			}
+			await pending;
 		}
 
-		const refreshPromise = (async () => {
+		const refreshPromise = (async (): Promise<boolean> => {
 			lastRefreshStartedAtRef.current = Date.now();
 			const limit = fetchLimitRef.current;
-			setIsLoadingHistory(true);
+			refreshLimitRef.current = limit;
 			try {
 				const discovered = await desktopClient
 					.invoke<CliDiscoveredSession[]>("list_discovered_sessions", { limit })
-					.catch(() => []);
+					.catch(() => null);
+				// A rejected request is not an empty history. Treating it as one
+				// would blank the list (the merge below is keyed off the response)
+				// and mark the backend exhausted, hiding sessions that still exist
+				// and disabling "load more" until some later poll happened to work.
+				if (!Array.isArray(discovered)) {
+					return false;
+				}
+				// Ask the raw response, not the filtered list: subagents and
+				// sessions without a known model are dropped below, so a filtered
+				// count under the limit does not mean the backend is exhausted.
+				const hasMoreSessions = discovered.length >= limit;
+				mayHaveMoreSessionsRef.current = hasMoreSessions;
+				setMayHaveMoreSessions(hasMoreSessions);
 				const topLevelSessions = discovered
 					.map((session) => {
 						const normalized: SessionHistoryItem = {
@@ -532,7 +608,7 @@ export function useSessionHistory({
 					.filter((session) => Boolean(session.sessionId))
 					.filter(isValidHistorySession)
 					.filter((session) => !session.isSubagent && !session.parentSessionId)
-					.sort(compareSessionsByStartedAtDesc);
+					.sort(compareSessionsByActivityDesc);
 				const mergedSessions = mergeDiscoveredSessions(
 					sessionsRef.current,
 					topLevelSessions,
@@ -580,25 +656,32 @@ export function useSessionHistory({
 					});
 					return areThreadsEquivalent(current, next) ? current : next;
 				});
+				loadedLimitRef.current = Math.max(loadedLimitRef.current, limit);
+				setHasLoadedHistory(true);
+				return true;
 			} catch {
 				// Ignore in browser mode or when tauri command is unavailable.
-			} finally {
-				setIsLoadingHistory(false);
+				return false;
 			}
 		})();
 
 		refreshPromiseRef.current = refreshPromise;
-		try {
-			await refreshPromise;
-		} finally {
+		// Release the slot from the promise itself rather than from this caller,
+		// so a waiter in the loop above always observes a cleared ref when it
+		// resumes instead of spinning on a settled promise.
+		refreshPromise.finally(() => {
 			if (refreshPromiseRef.current === refreshPromise) {
 				refreshPromiseRef.current = null;
 			}
-		}
+		});
+		return await refreshPromise;
 	}, []);
 
 	const scheduleRefresh = useCallback(
 		(delayMs = 0, options: { force?: boolean } = {}) => {
+			if (disposedRef.current) {
+				return;
+			}
 			const now = Date.now();
 			const minTarget = options.force
 				? now
@@ -620,7 +703,16 @@ export function useSessionHistory({
 				() => {
 					refreshTimeoutRef.current = null;
 					scheduledRefreshAtRef.current = null;
-					void refreshSessions();
+					void refreshSessions().then((loaded) => {
+						// Until something has loaded the UI has nothing but a
+						// loading state to show, so a failed fetch (e.g. the
+						// websocket losing the race with a webview reload) retries
+						// on the short event cadence instead of stranding the
+						// sidebar until the periodic poll fires.
+						if (!loaded && loadedLimitRef.current === 0) {
+							scheduleRefresh(MIN_EVENT_HISTORY_REFRESH_INTERVAL_MS);
+						}
+					});
 				},
 				Math.max(0, target - now),
 			);
@@ -630,6 +722,7 @@ export function useSessionHistory({
 
 	useEffect(() => {
 		let disposed = false;
+		disposedRef.current = false;
 
 		const runRefresh = () => {
 			if (!disposed) {
@@ -647,6 +740,7 @@ export function useSessionHistory({
 
 		return () => {
 			disposed = true;
+			disposedRef.current = true;
 			window.clearInterval(interval);
 			if (refreshTimeoutRef.current !== null) {
 				window.clearTimeout(refreshTimeoutRef.current);
@@ -1096,6 +1190,56 @@ export function useSessionHistory({
 		[getSessionByThreadId, onUpdateSessionMetadata, pendingAction],
 	);
 
+	const setThreadPinned = useCallback(
+		async (threadId: string, pinned: boolean) => {
+			const applyPinned = (next: boolean) => {
+				setThreads((current) =>
+					updateThreadById(current, threadId, (thread) =>
+						thread.pinned === next ? thread : { ...thread, pinned: next },
+					),
+				);
+				setSessions((current) =>
+					updateSessionById(current, threadId, (session) => ({
+						...session,
+						metadata: {
+							...(session.metadata ?? {}),
+							[PINNED_METADATA_KEY]: next || undefined,
+						},
+					})),
+				);
+			};
+
+			// Favoriting is a single click, so apply it locally first and roll back
+			// if the write fails rather than blocking the row on a round trip.
+			applyPinned(pinned);
+			try {
+				await desktopClient.invoke("update_chat_session_metadata", {
+					sessionId: threadId,
+					metadata: { [PINNED_METADATA_KEY]: pinned ? true : null },
+				});
+				const sourceSession = getSessionByThreadId(threadId);
+				onUpdateSessionMetadata?.(threadId, {
+					...(sourceSession?.metadata ?? {}),
+					[PINNED_METADATA_KEY]: pinned || undefined,
+				});
+				scheduleRefresh(HISTORY_FAST_REFRESH_DELAY_MS);
+				return true;
+			} catch (error) {
+				applyPinned(!pinned);
+				toast({
+					variant: "destructive",
+					title: pinned ? "Favorite failed" : "Unfavorite failed",
+					description:
+						error instanceof Error
+							? error.message
+							: "The session could not be updated.",
+				});
+				return false;
+			}
+		},
+		[getSessionByThreadId, onUpdateSessionMetadata, scheduleRefresh],
+	);
+
 	const forkThread = useCallback(
 		async (threadId: string) => {
 			const thread = threadsRef.current.find((item) => item.id === threadId);
@@ -1165,9 +1309,6 @@ export function useSessionHistory({
 		async (threadId: string) => {
 			setPendingAction({ sessionId: threadId, action: "delete" });
 			try {
-				console.error(
-					`[webview:delete] invoke delete_chat_session sessionId=${threadId}`,
-				);
 				const deleteResult = await desktopClient.invoke<
 					boolean | { deleted?: boolean }
 				>("delete_chat_session", {
@@ -1177,9 +1318,6 @@ export function useSessionHistory({
 					typeof deleteResult === "boolean"
 						? deleteResult
 						: deleteResult.deleted === true;
-				console.error(
-					`[webview:delete] invoke result sessionId=${threadId} deleted=${deleted}`,
-				);
 				if (!deleted) {
 					throw new Error(
 						"The session could not be removed from local history.",
@@ -1213,13 +1351,30 @@ export function useSessionHistory({
 
 	const loadMoreSessions = useCallback(
 		async (nextLimit: number) => {
-			if (fetchLimitRef.current >= nextLimit) {
-				return;
+			if (loadedLimitRef.current >= nextLimit) {
+				return true;
 			}
-			fetchLimitRef.current = nextLimit;
+			const requestedLimit = Math.max(fetchLimitRef.current, nextLimit);
+			fetchLimitRef.current = requestedLimit;
 			setIsLoadingMore(true);
 			try {
-				await refreshSessions();
+				const loaded = await refreshSessions();
+				// Roll back to what was last fetched so a retry asks for this batch
+				// again instead of skipping past it — but only when no overlapping
+				// call has raised the limit further in the meantime, since lowering
+				// it would make that call fetch a smaller batch than it asked for
+				// and still report success.
+				if (!loaded && fetchLimitRef.current === requestedLimit) {
+					fetchLimitRef.current = loadedLimitRef.current;
+				}
+				if (!loaded) {
+					toast({
+						variant: "destructive",
+						title: "Could not load more sessions",
+						description: "Session history is unavailable right now.",
+					});
+				}
+				return loaded;
 			} finally {
 				setIsLoadingMore(false);
 			}
@@ -1230,8 +1385,45 @@ export function useSessionHistory({
 		() => loadMoreSessions(fetchLimitRef.current + INITIAL_HISTORY_FETCH_LIMIT),
 		[loadMoreSessions],
 	);
+	const loadAllSessions = useCallback(() => {
+		if (loadAllPromiseRef.current) {
+			return loadAllPromiseRef.current;
+		}
+		const loadAllPromise = (async () => {
+			// A global search, filter, or oldest-first sort can be selected while
+			// the mount request is still in flight. Wait for that request before
+			// deciding whether there is any older history to fetch.
+			if (loadedLimitRef.current === 0 && !(await refreshSessions())) {
+				return false;
+			}
+			// Grow exponentially so complete-history operations need only
+			// logarithmically many requests while ordinary paging stays in
+			// predictable 50-session increments.
+			while (mayHaveMoreSessionsRef.current) {
+				const currentLimit = Math.max(
+					fetchLimitRef.current,
+					loadedLimitRef.current,
+					INITIAL_HISTORY_FETCH_LIMIT,
+				);
+				const nextLimit = Math.max(
+					currentLimit + INITIAL_HISTORY_FETCH_LIMIT,
+					currentLimit * 2,
+				);
+				if (!(await loadMoreSessions(nextLimit))) {
+					return false;
+				}
+			}
+			return true;
+		})();
+		loadAllPromiseRef.current = loadAllPromise;
+		loadAllPromise.finally(() => {
+			if (loadAllPromiseRef.current === loadAllPromise) {
+				loadAllPromiseRef.current = null;
+			}
+		});
+		return loadAllPromise;
+	}, [loadMoreSessions, refreshSessions]);
 
-	const mayHaveMoreSessions = sessions.length >= fetchLimitRef.current;
 	const sessionById = useMemo(
 		() => new Map(sessions.map((session) => [session.sessionId, session])),
 		[sessions],
@@ -1239,8 +1431,9 @@ export function useSessionHistory({
 
 	return {
 		getSessionByThreadId,
-		isLoadingHistory,
+		hasLoadedHistory,
 		isLoadingMore,
+		loadAllSessions,
 		loadOlderSessions,
 		loadMoreSessions,
 		mayHaveMoreSessions,
@@ -1248,6 +1441,7 @@ export function useSessionHistory({
 		pendingAction,
 		refreshSessions,
 		renameThread,
+		setThreadPinned,
 		deleteThread,
 		forkThread,
 		sessionById,

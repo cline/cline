@@ -118,29 +118,42 @@ export {
 	type FeatureFlagsServiceOptions,
 	NoOpFeatureFlagsProvider,
 } from "./services/feature-flags";
-export type { GlobalSettings } from "./services/global-settings";
+export type {
+	GlobalCompactionMode,
+	GlobalCompactionStrategy,
+	GlobalPlanActMode,
+	GlobalSettings,
+} from "./services/global-settings";
 export {
 	filterDisabledPluginPaths,
 	filterDisabledTools,
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
 	isAutoUpdateEnabledGlobally,
+	isModelToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
 	isToolDisabledGlobally,
+	readCompactionModeGlobally,
 	readCompactionStrategyGlobally,
 	readGlobalSettings,
+	readPlanActModeGlobally,
+	readToolAutoApproveGlobally,
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
+	resolveModelToolSettings,
 	setAutoUpdateEnabledGlobally,
+	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	setModelToolEnabledGlobally,
+	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,
+	setToolAutoApproveGlobally,
 	toggleDisabledTool,
 	writeGlobalSettings,
 } from "./services/global-settings";
-export type { GlobalCompactionStrategy } from "./services/global-settings";
 export type {
 	ListPluginToolsResult,
 	PluginToolSummary,

@@ -1,4 +1,9 @@
-export { OLLAMA_DEFAULT_CONTEXT_WINDOW } from "./providers/builtins";
+export {
+	isProviderApiLine,
+	OLLAMA_DEFAULT_CONTEXT_WINDOW,
+	type ProviderApiLine,
+	resolveProviderApiLineBaseUrl,
+} from "./providers/builtins";
 export {
 	type ApiHandler,
 	BUILT_IN_PROVIDER,
@@ -29,14 +34,20 @@ import {
 	type ProviderConfig,
 } from "./providers/types";
 
+export { classifyProviderError } from "./providers/error-classification";
 export {
+	ClineFreeModelLimitError,
 	ClineNotSubscribedError,
 	ClineOrgIndividualInferenceSubscriptionError,
 	ClinePassLimitError,
+	extractClineFreeModelLimitResetTime,
 	extractClinePassLimitMessage,
-	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClineNotSubscribedMessage,
+	getClineOrgIndividualInferenceSubscriptionMessage,
 	getClinePassSubscriptionUrl,
+	isClineFreeModelLimitError,
+	isClineFreeModelLimitMessage,
+	isClineModelNotFoundMessage,
 	isClineNotSubscribedError,
 	isClineNotSubscribedMessage,
 	isClineOrgIndividualInferenceSubscriptionError,

@@ -1,7 +1,7 @@
 {
 	"name": "@cline/core",
 	"description": "Cline Core SDK for Node Runtime",
-	"version": "0.0.62",
+	"version": "0.0.76",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/cline/cline",
@@ -37,11 +37,12 @@
 		}
 	},
 	"scripts": {
-		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json",
+		"build": "bun run ./bun.mts && bun tsc -p tsconfig.build.json && bun run ./scripts/verify-runtime-build-id.ts",
 		"typecheck": "bun tsc -p tsconfig.dev.json --noEmit && bun run typecheck:smoke",
 		"typecheck:smoke": "bun tsc -p tsconfig.smoke.json --noEmit",
 		"test": "bun run test:unit && bun run test:e2e",
 		"test:live": "vitest run --config vitest.config.ts src/extensions/context/compaction.live.test.ts",
+		"test:compaction": "bun --conditions=development run scripts/compact-session.ts",
 		"test:unit": "vitest run --config vitest.config.ts",
 		"test:e2e": "vitest run --config vitest.e2e.config.ts",
 		"verify:routines": "zsh -lc 'bunx vitest run src/cron/schedule-service.test.ts --config vitest.config.ts'",

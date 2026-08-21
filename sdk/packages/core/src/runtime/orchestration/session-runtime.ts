@@ -6,12 +6,16 @@ import type {
 	AgentTool,
 	BasicLogger,
 	ITelemetryService,
+	ModelTool,
 	RuntimeConfigExtensionKind,
 	ToolApprovalRequest,
 	ToolApprovalResult,
 } from "@cline/shared";
 import type { UserInstructionConfigService } from "../../extensions/config";
-import type { ToolExecutors } from "../../extensions/tools";
+import type {
+	RunCommandExecutionController,
+	ToolExecutors,
+} from "../../extensions/tools";
 import type {
 	AgentTeamsRuntime,
 	DelegatedAgentConfigProvider,
@@ -37,6 +41,7 @@ type LeadAgentHandle = {
 
 export interface BuiltRuntime {
 	tools: AgentTool[];
+	modelTools?: ModelTool[];
 	hooks?: AgentHooks;
 	logger?: BasicLogger;
 	telemetry?: ITelemetryService;
@@ -63,6 +68,7 @@ export interface RuntimeBuilderInput {
 	pluginSkillDirectories?: ReadonlyArray<string>;
 	configExtensions?: RuntimeConfigExtensionKind[];
 	toolExecutors?: Partial<ToolExecutors>;
+	runCommandExecutionController?: RunCommandExecutionController;
 	toolPolicies?: CoreSessionConfig["toolPolicies"];
 	workspaceManager?: WorkspaceManager;
 	logger?: BasicLogger;

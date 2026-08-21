@@ -100,6 +100,93 @@ describe("HubServerTransport boundaries", () => {
 		}
 	});
 
+	it("delegates pathless session.create and returns the host-resolved workspace", async () => {
+		let resolvedWorkspace = "";
+		let capturedStartInput: StartSessionInput | undefined;
+		const startSession = vi.fn(
+			async (input: StartSessionInput): Promise<StartSessionResult> => {
+				capturedStartInput = input;
+				const sessionId = input.config.sessionId?.trim() || "missing-session";
+				resolvedWorkspace = "/home/host/.cline/data/workspaces/chat";
+				return {
+					sessionId,
+					manifest: {
+						version: 1,
+						session_id: sessionId,
+						source: "core",
+						pid: 1,
+						started_at: new Date(0).toISOString(),
+						status: "running",
+						interactive: true,
+						provider: "cline",
+						model: "test-model",
+						cwd: resolvedWorkspace,
+						workspace_root: resolvedWorkspace,
+						enable_tools: true,
+						enable_spawn: true,
+						enable_teams: false,
+					},
+					manifestPath: "",
+					messagesPath: "",
+					result: undefined,
+				};
+			},
+		);
+		const transport = createTransport({
+			sessionHost: {
+				startSession,
+				getSession: vi.fn().mockImplementation(async (sessionId: string) => ({
+					sessionId,
+					source: "core",
+					status: "running",
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					interactive: true,
+					provider: "cline",
+					model: "test-model",
+					cwd: resolvedWorkspace,
+					workspaceRoot: resolvedWorkspace,
+					enableTools: true,
+					enableSpawn: true,
+					enableTeams: false,
+					isSubagent: false,
+				})),
+			},
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-pathless-create",
+			command: "session.create",
+			clientId: "client-1",
+			payload: {
+				sessionConfig: {
+					sessionId: "session-boundary",
+					providerId: "cline",
+					modelId: "test-model",
+					systemPrompt: "system",
+				},
+				metadata: { source: "core", interactive: true },
+			},
+		});
+
+		expect(reply.ok).toBe(true);
+		expect(startSession).toHaveBeenCalledTimes(1);
+		expect(capturedStartInput?.config.sessionId).toBe("session-boundary");
+		expect(capturedStartInput?.config.cwd).toBeUndefined();
+		expect(capturedStartInput?.config.workspaceRoot).toBeUndefined();
+		expect(reply.payload?.session).toMatchObject({
+			cwd: resolvedWorkspace,
+			workspaceRoot: resolvedWorkspace,
+		});
+		expect(reply.payload?.snapshot).toMatchObject({
+			workspace: {
+				cwd: resolvedWorkspace,
+				root: resolvedWorkspace,
+			},
+		});
+	});
+
 	it("denies non-interactive approval requests immediately", async () => {
 		const transport = createTransport();
 		const ctx = getContext(transport);
@@ -816,6 +903,7 @@ describe("HubServerTransport boundaries", () => {
 			payload: {
 				metadata: {
 					hubCapabilityOwnerClientId: "attacker-client",
+					autoApproveTools: true,
 					title: "safe title",
 				},
 			},
@@ -1293,7 +1381,7 @@ describe("HubServerTransport boundaries", () => {
 				runTurn,
 				abort: vi.fn(),
 				dispose: vi.fn(),
-				getSession: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
 				listSessions: vi.fn(),
 				deleteSession: vi.fn(),
 				updateSession: vi.fn(),
@@ -1361,7 +1449,7 @@ describe("HubServerTransport boundaries", () => {
 				runTurn,
 				abort: vi.fn(),
 				dispose: vi.fn(),
-				getSession: vi.fn(),
+				getSession: vi.fn().mockResolvedValue({ sessionId: "session-1" }),
 				listSessions: vi.fn(),
 				deleteSession: vi.fn(),
 				updateSession: vi.fn(),
@@ -1430,6 +1518,183 @@ describe("HubServerTransport boundaries", () => {
 		});
 
 		expect(published).toEqual(["iteration.started", "iteration.finished"]);
+	});
+
+	it("projects in-flight tool updates onto the hub stream", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+
+		await projectSessionEvent(getContext(transport), {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "content_update",
+					contentType: "tool",
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			},
+		});
+
+		expect(events).toContainEqual(
+			expect.objectContaining({
+				event: "tool.updated",
+				sessionId: "session-1",
+				payload: {
+					toolCallId: "call-1",
+					toolName: "run_commands",
+					update: {
+						stream: "stdout",
+						chunk: "\u001b[32mpassed\u001b[0m\n",
+					},
+				},
+			}),
+		);
+	});
+
+	it("detaches a running command through the hub command boundary", async () => {
+		const proceedWhileRunning = vi.fn().mockResolvedValue(2);
+		const transport = createTransport({
+			sessionHost: { proceedWhileRunning },
+		});
+
+		const reply = await transport.handleCommand({
+			version: "v1",
+			requestId: "req-proceed",
+			command: "run.proceed_while_running",
+			sessionId: "session-1",
+			payload: { sessionId: "session-1", toolCallId: "call-1" },
+		});
+
+		expect(reply).toMatchObject({
+			ok: true,
+			payload: { detachedCount: 2 },
+		});
+		expect(proceedWhileRunning).toHaveBeenCalledWith("session-1", "call-1");
+	});
+
+	it("projects an unreported non-recoverable agent error as run.failed", async () => {
+		const transport = createTransport({
+			sessionHost: {
+				getSession: vi.fn().mockResolvedValue({
+					sessionId: "session-1",
+					status: "running",
+					interactive: true,
+					startedAt: new Date(0).toISOString(),
+					updatedAt: new Date(0).toISOString(),
+					workspaceRoot: "/tmp/project",
+					cwd: "/tmp/project",
+				}),
+				readSessionMessages: vi.fn().mockResolvedValue([]),
+			},
+		});
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("Model claude-3-haiku is unavailable"),
+					recoverable: false,
+					iteration: 0,
+				},
+			},
+		});
+
+		const failed = events.filter((event) => event.event === "run.failed");
+		expect(failed).toHaveLength(1);
+		expect(failed[0]?.payload).toMatchObject({
+			reason: "error",
+			error: "Model claude-3-haiku is unavailable",
+			text: "Model claude-3-haiku is unavailable",
+		});
+		// The snapshot lets interactive clients keep the session alive instead
+		// of treating the failed turn as session end.
+		expect(failed[0]?.payload?.snapshot).toMatchObject({
+			interactive: true,
+			status: "running",
+		});
+	});
+
+	it("suppresses the agent-error projection while an RPC turn awaits the result", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+		ctx.activeRpcTurnCountBySession.set("session-1", 1);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("Provider rejected the request"),
+					recoverable: false,
+					iteration: 0,
+				},
+			},
+		});
+
+		expect(events.filter((event) => event.event === "run.failed")).toEqual([]);
+	});
+
+	it("ignores recoverable and non-lead agent error events", async () => {
+		const transport = createTransport();
+		const events: HubEventEnvelope[] = [];
+		transport.subscribe("test", (event) => events.push(event));
+		const ctx = getContext(transport);
+
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("extension setup hiccup"),
+					recoverable: true,
+					iteration: 0,
+				},
+			},
+		});
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				event: {
+					type: "error",
+					error: new Error("subagent blew up"),
+					recoverable: false,
+					iteration: 1,
+					parentAgentId: "lead-agent",
+				},
+			},
+		});
+		await projectSessionEvent(ctx, {
+			type: "agent_event",
+			payload: {
+				sessionId: "session-1",
+				teamRole: "teammate",
+				event: {
+					type: "error",
+					error: new Error("teammate blew up"),
+					recoverable: false,
+					iteration: 1,
+				},
+			},
+		});
+
+		expect(events.filter((event) => event.event === "run.failed")).toEqual([]);
 	});
 
 	it("projects live usage events with aggregate usage and agent identity", async () => {

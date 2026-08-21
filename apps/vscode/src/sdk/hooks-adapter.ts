@@ -37,13 +37,20 @@ function toStringRecord(input: unknown): Record<string, string> {
 	return result
 }
 
-function mapStopControl(hookOutput: { cancel?: boolean; errorMessage?: string }): AgentStopControl | undefined {
+function mapStopControl(hookOutput: {
+	cancel?: boolean
+	errorMessage?: string
+	contextModification?: string
+}): AgentStopControl | undefined {
 	if (!hookOutput.cancel) {
 		return undefined
 	}
+	// A cancelling hook's contextModification is never injected as context;
+	// it serves as the fallback explanation when no errorMessage was given.
+	const reason = hookOutput.errorMessage?.trim() || hookOutput.contextModification?.trim() || undefined
 	return {
 		stop: true,
-		reason: hookOutput.errorMessage || undefined,
+		reason,
 	}
 }
 
@@ -87,26 +94,36 @@ function buildHookStatusMessage(opts: {
 	}
 }
 
-export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: HookMessageEmitter): AgentHooks {
+export function buildAgentHooks(
+	stateManager: StateManager,
+	emitHookMessage?: HookMessageEmitter,
+	sessionWorkspaceRoot?: string,
+): AgentHooks {
 	const hooksEnabled = () => getHooksEnabledSafe(stateManager.getGlobalSettingsKey("hooksEnabled"))
+	// Session-scoped discovery: the shared workspaceRoots global state can be
+	// repointed by another Cline instance, so the factory also scans this
+	// session's own workspace for hook files.
+	const createFactory = () => new HookFactory({ sessionWorkspaceRoot })
 
 	return {
 		async beforeRun(ctx: AgentRunLifecycleContext): Promise<AgentStopControl | undefined> {
-			const taskStartControl = await runTaskStart(ctx, hooksEnabled, emitHookMessage)
+			const taskStartControl = await runTaskStart(ctx, hooksEnabled, createFactory, emitHookMessage)
 			if (taskStartControl) {
 				return taskStartControl
 			}
-			return runUserPromptSubmit(ctx, hooksEnabled, emitHookMessage)
+			return runUserPromptSubmit(ctx, hooksEnabled, createFactory, emitHookMessage)
 		},
 
-		async beforeTool(ctx: AgentBeforeToolContext): Promise<{ stop?: boolean; reason?: string } | undefined> {
+		async beforeTool(
+			ctx: AgentBeforeToolContext,
+		): Promise<{ stop?: boolean; reason?: string; appendContext?: string } | undefined> {
 			let runningTs: number | undefined
 			try {
 				if (!hooksEnabled()) {
 					return undefined
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook("PreToolUse"))) {
 					return undefined
 				}
@@ -133,7 +150,15 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 						ts: runningTs,
 					}),
 				)
-				return mapStopControl(result)
+				const stopControl = mapStopControl(result)
+				if (stopControl) {
+					return stopControl
+				}
+				// The runtime injects appendContext into the conversation as a
+				// <hook_context> block, restoring the documented contextModification
+				// behavior. HookFactory already truncates it at 50KB.
+				const contextModification = result.contextModification?.trim()
+				return contextModification ? { appendContext: contextModification } : undefined
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -148,14 +173,16 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 			}
 		},
 
-		async afterTool(ctx: AgentAfterToolContext): Promise<undefined> {
+		async afterTool(
+			ctx: AgentAfterToolContext,
+		): Promise<{ stop?: boolean; reason?: string; appendContext?: string } | undefined> {
 			let runningTs: number | undefined
 			try {
 				if (!hooksEnabled()) {
 					return undefined
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook("PostToolUse"))) {
 					return undefined
 				}
@@ -185,7 +212,15 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 						ts: runningTs,
 					}),
 				)
-				return undefined
+				const stopControl = mapStopControl(result)
+				if (stopControl) {
+					return stopControl
+				}
+				// The runtime injects appendContext into the conversation as a
+				// <hook_context> block, restoring the documented contextModification
+				// behavior. HookFactory already truncates it at 50KB.
+				const contextModification = result.contextModification?.trim()
+				return contextModification ? { appendContext: contextModification } : undefined
 			} catch (error) {
 				emitHookMessage?.(
 					buildHookStatusMessage({
@@ -218,7 +253,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 					return
 				}
 
-				const factory = new HookFactory()
+				const factory = createFactory()
 				if (!(await factory.hasHook(hookName))) {
 					return
 				}
@@ -270,6 +305,7 @@ export function buildAgentHooks(stateManager: StateManager, emitHookMessage?: Ho
 async function runTaskStart(
 	ctx: AgentRunLifecycleContext,
 	hooksEnabled: () => boolean,
+	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
 ): Promise<AgentStopControl | undefined> {
 	let runningTs: number | undefined
@@ -278,7 +314,7 @@ async function runTaskStart(
 			return undefined
 		}
 
-		const factory = new HookFactory()
+		const factory = createFactory()
 		if (!(await factory.hasHook("TaskStart"))) {
 			return undefined
 		}
@@ -318,6 +354,7 @@ async function runTaskStart(
 async function runUserPromptSubmit(
 	ctx: AgentRunLifecycleContext,
 	hooksEnabled: () => boolean,
+	createFactory: () => HookFactory,
 	emitHookMessage?: HookMessageEmitter,
 ): Promise<AgentStopControl | undefined> {
 	let runningTs: number | undefined
@@ -326,7 +363,7 @@ async function runUserPromptSubmit(
 			return undefined
 		}
 
-		const factory = new HookFactory()
+		const factory = createFactory()
 		if (!(await factory.hasHook("UserPromptSubmit"))) {
 			return undefined
 		}

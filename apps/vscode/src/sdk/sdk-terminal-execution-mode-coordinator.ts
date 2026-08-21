@@ -33,8 +33,11 @@ export class SdkTerminalExecutionModeCoordinator {
 		if (previous === next) {
 			return
 		}
+		this.requestRebuild(`Terminal execution mode changed: ${previous} -> ${next}`)
+	}
 
-		Logger.log(`[SdkController] Terminal execution mode changed: ${previous} -> ${next}`)
+	private requestRebuild(reason: string): void {
+		Logger.log(`[SdkController] ${reason}`)
 
 		const activeSession = this.options.sessions.getActiveSession()
 		if (!activeSession) {

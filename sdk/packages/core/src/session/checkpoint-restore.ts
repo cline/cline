@@ -1,18 +1,156 @@
 import { execFile as execFileCallback } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { promisify } from "node:util";
 import type * as LlmsProviders from "@cline/llms";
 import type {
 	CheckpointEntry,
 	CheckpointMetadata,
 } from "../hooks/checkpoint-hooks";
+import { isCheckpointStashMessage } from "../hooks/checkpoint-hooks";
 import type { SessionRecord } from "../types/sessions";
+import { getUserRunSpan } from "./user-run-messages";
 
 const execFile = promisify(execFileCallback);
 
 export interface CheckpointRestorePlan {
 	checkpoint: CheckpointEntry;
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	cwd: string;
+}
+
+export interface WorktreeRestoreTransaction {
+	commit(): Promise<void>;
+	rollback(): Promise<void>;
+}
+
+async function resolveOptionalGitRef(
+	cwd: string,
+	ref: string,
+): Promise<string | undefined> {
+	try {
+		const result = await execFile(
+			"git",
+			["-C", cwd, "rev-parse", "--verify", "--quiet", ref],
+			{ windowsHide: true },
+		);
+		return result.stdout.trim() || undefined;
+	} catch {
+		return undefined;
+	}
+}
+
+/**
+ * Captures the current worktree before a destructive checkpoint restore.
+ *
+ * `git stash create` omits untracked files, but checkpoint restoration runs
+ * `git clean -fd`. Use a short-lived `stash push --include-untracked`, move
+ * its object behind a private ref, and immediately remove it from the user's
+ * visible stash list. The private ref remains only until commit or rollback.
+ */
+export async function beginWorktreeRestoreTransaction(
+	cwd: string,
+): Promise<WorktreeRestoreTransaction> {
+	const check = await execFile(
+		"git",
+		["-C", cwd, "rev-parse", "--is-inside-work-tree"],
+		{ windowsHide: true },
+	);
+	if (check.stdout.trim() !== "true") {
+		throw new Error(`${cwd} is not a git repository`);
+	}
+	const originalHead = (
+		await execFile("git", ["-C", cwd, "rev-parse", "--verify", "HEAD"], {
+			windowsHide: true,
+		})
+	).stdout.trim();
+	const previousStashRef = await resolveOptionalGitRef(cwd, "refs/stash");
+	const transactionId = randomUUID();
+	const privateRef = `refs/cline/restore-transactions/${transactionId}`;
+
+	await execFile(
+		"git",
+		[
+			"-C",
+			cwd,
+			"stash",
+			"push",
+			"--include-untracked",
+			"--message",
+			`cline restore transaction ${transactionId}`,
+		],
+		{ windowsHide: true },
+	);
+
+	const capturedRef = await resolveOptionalGitRef(cwd, "refs/stash");
+	const hasSnapshot =
+		capturedRef !== undefined && capturedRef !== previousStashRef;
+	if (hasSnapshot) {
+		try {
+			await execFile(
+				"git",
+				["-C", cwd, "update-ref", privateRef, capturedRef],
+				{ windowsHide: true },
+			);
+			await execFile("git", ["-C", cwd, "stash", "drop", "stash@{0}"], {
+				windowsHide: true,
+			});
+		} catch (captureError) {
+			try {
+				await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
+					windowsHide: true,
+				});
+				await execFile("git", ["-C", cwd, "clean", "-fd"], {
+					windowsHide: true,
+				});
+				await execFile(
+					"git",
+					["-C", cwd, "stash", "apply", "--index", capturedRef],
+					{ windowsHide: true },
+				);
+			} catch (rollbackError) {
+				throw new AggregateError(
+					[captureError, rollbackError],
+					"Workspace snapshot and rollback both failed",
+				);
+			}
+			throw captureError;
+		}
+	}
+
+	let completed = false;
+	return {
+		async commit() {
+			if (completed) return;
+			completed = true;
+			if (!hasSnapshot) return;
+			// A cleanup failure must not turn a successfully started replacement
+			// session into a reported failure. The private ref is harmless and
+			// keeps the recovery object reachable if deletion ever fails.
+			await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
+				windowsHide: true,
+			}).catch(() => undefined);
+		},
+		async rollback() {
+			if (completed) return;
+			await execFile("git", ["-C", cwd, "reset", "--hard", originalHead], {
+				windowsHide: true,
+			});
+			await execFile("git", ["-C", cwd, "clean", "-fd"], {
+				windowsHide: true,
+			});
+			if (hasSnapshot) {
+				await execFile(
+					"git",
+					["-C", cwd, "stash", "apply", "--index", privateRef],
+					{ windowsHide: true },
+				);
+				await execFile("git", ["-C", cwd, "update-ref", "-d", privateRef], {
+					windowsHide: true,
+				});
+			}
+			completed = true;
+		},
+	};
 }
 
 export function readSessionCheckpointHistory(
@@ -76,52 +214,58 @@ export function findCheckpointForRun(
 	}, undefined);
 }
 
-function findCheckpointMessageIndex(
-	messages: LlmsProviders.Message[],
+function findUserRunMessage(
+	messages: LlmsProviders.MessageWithMetadata[],
 	runCount: number,
-): number {
+): { index: number; span: number } {
 	let userRunCount = 0;
 	for (let index = 0; index < messages.length; index += 1) {
 		const message = messages[index];
-		if (message?.role !== "user") {
+		if (!message) {
 			continue;
 		}
-		const metadata =
-			"metadata" in message &&
-			message.metadata &&
-			typeof message.metadata === "object"
-				? (message.metadata as Record<string, unknown>)
-				: undefined;
-		if (metadata?.kind === "recovery_notice") {
+		const span = getUserRunSpan(message);
+		if (span < 1) {
 			continue;
 		}
-		userRunCount += 1;
+		const firstRunCount = userRunCount + 1;
+		userRunCount += span;
 		if (userRunCount === runCount) {
-			return index;
+			return { index, span };
+		}
+		if (userRunCount > runCount) {
+			throw new Error(
+				`Run ${runCount} is folded into a compacted message spanning runs ${firstRunCount}-${userRunCount}`,
+			);
 		}
 	}
-	throw new Error(`Could not find user message for checkpoint run ${runCount}`);
+	throw new Error(`Could not find user message for run ${runCount}`);
 }
 
 export function trimMessagesToCheckpoint(
-	messages: LlmsProviders.Message[],
+	messages: LlmsProviders.MessageWithMetadata[],
 	runCount: number,
-): LlmsProviders.Message[] {
-	const index = findCheckpointMessageIndex(messages, runCount);
+): LlmsProviders.MessageWithMetadata[] {
+	const { index } = findUserRunMessage(messages, runCount);
 	return messages.slice(0, index + 1);
 }
 
-export function trimMessagesBeforeCheckpoint(
-	messages: LlmsProviders.Message[],
+export function trimMessagesBeforeUserRun(
+	messages: LlmsProviders.MessageWithMetadata[],
 	runCount: number,
-): LlmsProviders.Message[] {
-	const index = findCheckpointMessageIndex(messages, runCount);
+): LlmsProviders.MessageWithMetadata[] {
+	const { index, span } = findUserRunMessage(messages, runCount);
+	if (span !== 1) {
+		throw new Error(
+			`Cannot fork before run ${runCount} because it is folded into a compacted message`,
+		);
+	}
 	return messages.slice(0, index);
 }
 
 export function createCheckpointRestorePlan(input: {
 	session: SessionRecord;
-	messages?: LlmsProviders.Message[];
+	messages?: LlmsProviders.MessageWithMetadata[];
 	checkpointRunCount: number;
 	cwd?: string;
 	restoreMessages?: boolean;
@@ -158,6 +302,58 @@ export function createCheckpointRestorePlan(input: {
 	};
 }
 
+async function resolveCheckpointKind(
+	cwd: string,
+	checkpoint: CheckpointEntry,
+): Promise<NonNullable<CheckpointEntry["kind"]>> {
+	if (checkpoint.kind) {
+		return checkpoint.kind;
+	}
+	const result = await execFile(
+		"git",
+		["-C", cwd, "show", "-s", "--format=%P%x00%B", checkpoint.ref],
+		{ windowsHide: true },
+	);
+	const separatorIndex = result.stdout.indexOf("\0");
+	const parents =
+		separatorIndex < 0
+			? []
+			: result.stdout
+					.slice(0, separatorIndex)
+					.trim()
+					.split(/\s+/)
+					.filter(Boolean);
+	const message =
+		separatorIndex < 0 ? "" : result.stdout.slice(separatorIndex + 1);
+
+	// Checkpoints created before `kind` was persisted used Cline's stash
+	// message. Requiring both its merge shape and marker keeps ordinary merge
+	// commits from being passed to `git stash apply`.
+	return parents.length >= 2 && isCheckpointStashMessage(message)
+		? "stash"
+		: "commit";
+}
+
+/**
+ * True when `ref` is a snapshot stash that also captured untracked files as a
+ * third parent (created by `createWorktreeStashCommit`). Such snapshots can be
+ * fully rewound; older 2-parent stashes and HEAD-commit fallbacks cannot bring
+ * untracked files back, so restore leaves untracked files untouched for them.
+ */
+async function checkpointCapturedUntracked(
+	cwd: string,
+	ref: string,
+): Promise<boolean> {
+	try {
+		await execFile("git", ["-C", cwd, "cat-file", "-e", `${ref}^3^{commit}`], {
+			windowsHide: true,
+		});
+		return true;
+	} catch {
+		return false;
+	}
+}
+
 export async function applyCheckpointToWorktree(
 	cwd: string,
 	checkpoint: CheckpointEntry,
@@ -175,12 +371,40 @@ export async function applyCheckpointToWorktree(
 		["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^{commit}`],
 		{ windowsHide: true },
 	);
-	await execFile("git", ["-C", cwd, "reset", "--hard"], { windowsHide: true });
-	await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
-	if (checkpoint.kind === "commit") {
-		await execFile("git", ["-C", cwd, "reset", "--hard", checkpoint.ref], {
-			windowsHide: true,
-		});
+	const checkpointKind = await resolveCheckpointKind(cwd, checkpoint);
+	const restoreBase =
+		checkpointKind === "commit" ? checkpoint.ref : `${checkpoint.ref}^1`;
+	await execFile(
+		"git",
+		["-C", cwd, "cat-file", "-e", `${restoreBase}^{commit}`],
+		{ windowsHide: true },
+	);
+	if (checkpointKind === "stash") {
+		await execFile(
+			"git",
+			["-C", cwd, "cat-file", "-e", `${checkpoint.ref}^2^{commit}`],
+			{ windowsHide: true },
+		);
+	}
+	const capturedUntracked = await checkpointCapturedUntracked(
+		cwd,
+		checkpoint.ref,
+	);
+	await execFile("git", ["-C", cwd, "reset", "--hard", restoreBase], {
+		windowsHide: true,
+	});
+	// Only clear untracked files for snapshots that captured them (third
+	// parent): the following `git stash apply` restores each one to its
+	// checkpoint-time content from ^3, and files created after the checkpoint
+	// are meant to be rewound away. `git clean -fd` leaves .gitignored paths
+	// (build output, node_modules, .env) alone, and clearing before apply also
+	// avoids "already exists" apply conflicts. For 2-parent stashes and
+	// HEAD-commit fallbacks (no ^3) untracked files can't be reconstructed, so
+	// they are left untouched — deleting them would be unrecoverable data loss.
+	if (capturedUntracked) {
+		await execFile("git", ["-C", cwd, "clean", "-fd"], { windowsHide: true });
+	}
+	if (checkpointKind === "commit") {
 		return;
 	}
 	await execFile("git", ["-C", cwd, "stash", "apply", checkpoint.ref], {

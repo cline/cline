@@ -551,7 +551,7 @@ describe("ProviderCatalog Phase 3.5 listProviders", () => {
 		})
 		expect(listings[0]).not.toHaveProperty("models")
 		expect(mocks.listLocalProviders).toHaveBeenCalledTimes(1)
-		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: false })
+		expect(mocks.listLocalProviders).toHaveBeenCalledWith(expect.anything(), { isClinePassEnabled: true })
 	})
 
 	it("caches provider listings per catalog instance without reading provider config", async () => {

@@ -138,11 +138,15 @@ function makeBaseConfig(overrides: Partial<CoreSessionConfig> = {}): CoreSession
 
 describe("getDefaultModelIdForProvider", () => {
 	it("uses the SDK provider catalog for the Cline default model", () => {
-		expect(getDefaultModelIdForProvider("cline")).toBe("anthropic/claude-sonnet-4.6")
+		expect(getDefaultModelIdForProvider("cline")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.cline.provider.defaultModelId,
+		)
 	})
 
-	it("falls back to the first generated model when the SDK manifest default is not in the model catalog", () => {
-		expect(getDefaultModelIdForProvider("gemini")).toBe("gemini-3.5-flash")
+	it("uses the generated Gemini provider default", () => {
+		expect(getDefaultModelIdForProvider("gemini")).toBe(
+			LlmsModels.MODEL_COLLECTIONS_BY_PROVIDER_ID.gemini.provider.defaultModelId,
+		)
 	})
 
 	it("returns undefined for unknown providers", () => {
@@ -260,6 +264,13 @@ describe("normalizeSdkBaseUrl", () => {
 	it("preserves explicit user paths", () => {
 		expect(normalizeSdkBaseUrl("openai", " https://example.com/custom ")).toBe("https://example.com/custom")
 	})
+
+	it("inherits the AskSage default /server path when the custom URL has no path", () => {
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example")).toBe("https://asksage.internal.example/server")
+		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
+			"https://asksage.internal.example/custom",
+		)
+	})
 })
 
 // ---------------------------------------------------------------------------
@@ -289,6 +300,39 @@ describe("normalizeProviderReasoningSettings", () => {
 		const result = normalizeProviderReasoningSettings({ effort: "medium" })
 
 		expect(result).toEqual({ reasoningEffort: "medium" })
+	})
+
+	it("honors a migrated legacy budget as thinking-on with a derived effort", () => {
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 1024 })).toEqual({
+			thinking: true,
+			reasoningEffort: "low",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 6000 })).toEqual({
+			thinking: true,
+			reasoningEffort: "medium",
+		})
+		expect(normalizeProviderReasoningSettings({ budgetTokens: 32_767 })).toEqual({
+			thinking: true,
+			reasoningEffort: "high",
+		})
+	})
+
+	it("derives an effort from the budget when enabled without an effort", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "medium" })
+	})
+
+	it("prefers an explicit effort over a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: true, effort: "xhigh", budgetTokens: 1024 })
+
+		expect(result).toEqual({ thinking: true, reasoningEffort: "xhigh" })
+	})
+
+	it("keeps disabled reasoning off even with a stored budget", () => {
+		const result = normalizeProviderReasoningSettings({ enabled: false, budgetTokens: 4096 })
+
+		expect(result).toEqual({ thinking: false })
 	})
 })
 
@@ -370,6 +414,205 @@ describe("buildSessionConfig", () => {
 
 		expect(resolveApiKey("openai", {} as any)).toBe("migrated-openai-compatible-key")
 		expect(mocks.providerSettingsManager.getProviderSettings).toHaveBeenCalledWith("openai-compatible")
+	})
+
+	it("resolves the OpenAI Compatible base URL when the provider is stored under its SDK spelling", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+			openAiApiKey: "compat-key",
+			openAiBaseUrl: "http://127.0.0.1:4141/v1",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("openai-compatible")
+		// Without the base URL, ProviderConfig consumers that don't re-resolve
+		// settings (e.g. the compaction summarizer) would hit the provider
+		// default endpoint (api.openai.com) instead of the configured one.
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("falls back to the providers.json base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "openai-compatible") {
+				return undefined
+			}
+			return {
+				provider: "openai-compatible",
+				apiKey: "compat-key",
+				baseUrl: "http://127.0.0.1:4141/v1",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openai-compatible",
+			actModeApiModelId: "openai/gpt-4o-mini",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("http://127.0.0.1:4141/v1")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "openai-compatible",
+			baseUrl: "http://127.0.0.1:4141/v1",
+		})
+	})
+
+	it("resolves the AskSage base URL from the legacy asksageApiUrl state field", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+			asksageApiKey: "asksage-key",
+			asksageApiUrl: "https://asksage.internal.example/server",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("asksage")
+		// Without this mapping the custom URL saved in legacy state was
+		// silently ignored and requests went to the builtin default
+		// (https://api.asksage.ai/server).
+		expect(config.baseUrl).toBe("https://asksage.internal.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.internal.example/server",
+		})
+	})
+
+	it("falls back to the providers.json AskSage base URL when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "asksage") {
+				return undefined
+			}
+			return {
+				provider: "asksage",
+				apiKey: "asksage-key",
+				baseUrl: "https://asksage.migrated.example/server",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "asksage",
+			actModeApiModelId: "gpt-4o",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.baseUrl).toBe("https://asksage.migrated.example/server")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "asksage",
+			baseUrl: "https://asksage.migrated.example/server",
+		})
+	})
+
+	it("forwards the regional API line from legacy state so the gateway can route to the regional endpoint", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerId).toBe("zai")
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai",
+			apiLine: "china",
+		})
+		// No explicit base URL: the SDK gateway resolves the China endpoint
+		// (open.bigmodel.cn) from apiLine; a pre-filled base URL would win
+		// over that resolution.
+		expect(config.baseUrl).toBeUndefined()
+	})
+
+	it("falls back to the providers.json apiLine when legacy state has none", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "moonshot") {
+				return undefined
+			}
+			return {
+				provider: "moonshot",
+				apiKey: "moonshot-key",
+				apiLine: "china",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "moonshot",
+			actModeApiModelId: "kimi-k3",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "moonshot",
+			apiLine: "china",
+		})
+	})
+
+	it("inherits the base provider's legacy apiLine for coding variants", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "zai-coding-plan",
+			actModeApiModelId: "glm-5.2",
+			zaiApiKey: "zai-key",
+			zaiApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "zai-coding-plan",
+			apiLine: "china",
+		})
+	})
+
+	it("prefers the coding variant's own providers.json apiLine over the shared legacy field", async () => {
+		mocks.providerSettingsManager.getProviderSettings.mockImplementation((providerId?: string) => {
+			if (providerId !== "qwen-code") {
+				return undefined
+			}
+			return {
+				provider: "qwen-code",
+				apiKey: "qwen-code-key",
+				apiLine: "international",
+			} as any
+		})
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen-code",
+			actModeApiModelId: "qwen3-coder-plus",
+			qwenApiLine: "china",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).toMatchObject({
+			providerId: "qwen-code",
+			apiLine: "international",
+		})
+	})
+
+	it("omits apiLine for unrecognized values", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "qwen",
+			actModeApiModelId: "qwen-plus-latest",
+			qwenApiKey: "qwen-key",
+			qwenApiLine: "mars",
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.providerConfig).not.toHaveProperty("apiLine")
+	})
+
+	it("exposes knownModels at the top level so manual compaction can budget against the model catalog", async () => {
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		const providerConfigKnownModels = (config.providerConfig as { knownModels?: Record<string, unknown> }).knownModels
+		expect(providerConfigKnownModels).toBeDefined()
+		expect(config.knownModels).toBe(providerConfigKnownModels)
 	})
 
 	it("resolves OpenAI Codex through the shared OAuth provider registry", async () => {
@@ -470,6 +713,80 @@ describe("buildSessionConfig", () => {
 		expect(knownModel.family).toBe(expectedModel.family)
 	})
 
+	it("injects cached LiteLLM max input tokens when the dynamic model is absent from the SDK registry", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "openai/grok-4.6",
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				maxTokens: 64_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["openai/grok-4.6"]
+
+		expect(config.providerId).toBe("litellm")
+		expect(knownModel).toMatchObject({
+			id: "openai/grok-4.6",
+			name: "xai/grok-4.6",
+			contextWindow: 500_000,
+			maxInputTokens: 500_000,
+			maxTokens: 64_000,
+		})
+		expect(config.knownModels?.["openai/grok-4.6"]).toEqual(knownModel)
+		getModelsSpy.mockRestore()
+	})
+
+	it("keeps an explicit max-input override ahead of cached LiteLLM metadata", async () => {
+		const providerId = parseProviderId("litellm")
+		const modelId = "openai/grok-4.6"
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: modelId,
+			liteLlmApiKey: "litellm-key",
+			actModeLiteLlmModelInfo: {
+				name: "xai/grok-4.6",
+				contextWindow: 500_000,
+				maxInputTokens: 500_000,
+				supportsPromptCache: false,
+			},
+		} as any)
+		createProviderConfigStore().commitSelection(providerId, "act", {
+			providerId,
+			modelId,
+			overrides: { maxInputTokens: 300_000 },
+		})
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels[modelId]
+
+		expect(knownModel.contextWindow).toBe(500_000)
+		expect(knownModel.maxInputTokens).toBe(300_000)
+		getModelsSpy.mockRestore()
+	})
+
+	it("does not inject fabricated max input metadata for an unknown LiteLLM model", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "litellm",
+			actModeLiteLlmModelId: "custom/no-metadata",
+			liteLlmApiKey: "litellm-key",
+		} as any)
+		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockResolvedValueOnce({})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.knownModels).toBeUndefined()
+		expect(config.providerConfig).not.toHaveProperty("knownModels")
+		getModelsSpy.mockRestore()
+	})
+
 	it("keeps session creation non-fatal when known-model lookup fails", async () => {
 		const lookupError = new Error("registry unavailable")
 		const getModelsSpy = vi.spyOn(LlmsModels, "getModelsForProvider").mockRejectedValueOnce(lookupError)
@@ -505,9 +822,12 @@ describe("buildSessionConfig", () => {
 
 		expect(config.providerId).toBe("openai-compatible")
 		expect(config.modelId).toBe("custom-reasoner")
-		expect(config.knownModels).toBeUndefined()
+		// knownModels is exposed both inside providerConfig (inference) and at
+		// the top level (manual compaction budgets).
+		expect(config.knownModels).toBeDefined()
 		expect((config.providerConfig as any).knownModels).toBeDefined()
-		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
+		// Mirrored onto providerConfig for the compaction summarizer (CLINE-2911).
+		expect((config.providerConfig as any).maxOutputTokens).toBe(4_096)
 		expect((config as any).maxTokensPerTurn).toBe(4_096)
 	})
 
@@ -560,6 +880,75 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
+	it("defaults tool-calling on for dynamic-list models without preserved SDK capabilities", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/custom-model",
+			openRouterApiKey: "openrouter-key",
+			// Dynamic-list picker snapshot: legacy boolean flags but no SDK
+			// capability list. The reconstructed capabilities array must still
+			// carry "tools" — the SDK treats a populated list without it as
+			// "cannot call tools" and silently drops every tool from the session
+			// (the file-edit e2e regression).
+			actModeOpenRouterModelInfo: {
+				name: "Mock Custom Model",
+				contextWindow: 16_000,
+				supportsImages: true,
+				supportsPromptCache: true,
+				modalities: { input: ["text", "image"], output: ["text", "image"] },
+				inputPrice: 0,
+				outputPrice: 0,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/custom-model"]
+
+		expect(knownModel.capabilities).toEqual(expect.arrayContaining(["images", "prompt-cache", "tools"]))
+		expect(knownModel.modalities).toEqual({ input: ["text", "image"], output: ["text", "image"] })
+	})
+
+	it("keeps legacy supportsTools=false authoritative for dynamic-list models", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/no-tools-model",
+			openRouterApiKey: "openrouter-key",
+			actModeOpenRouterModelInfo: {
+				name: "No Tools",
+				supportsPromptCache: true,
+				supportsTools: false,
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/no-tools-model"]
+
+		expect(knownModel.capabilities).toContain("prompt-cache")
+		expect(knownModel.capabilities).not.toContain("tools")
+	})
+
+	it("trusts a preserved SDK capability list instead of injecting tools", async () => {
+		mocks.stateManager.getApiConfiguration.mockReturnValue({
+			actModeApiProvider: "openrouter",
+			actModeOpenRouterModelId: "mock/media-model",
+			openRouterApiKey: "openrouter-key",
+			// A capability list preserved from the SDK catalog boundary is
+			// authoritative: when it omits "tools", the session must not
+			// re-enable tool calling.
+			actModeOpenRouterModelInfo: {
+				name: "Media Model",
+				supportsPromptCache: false,
+				capabilities: ["images"],
+			},
+		} as any)
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+		const knownModel = (config.providerConfig as any).knownModels["mock/media-model"]
+
+		expect(knownModel.capabilities).toContain("images")
+		expect(knownModel.capabilities).not.toContain("tools")
+	})
+
 	it("keeps -1 OpenAI Compatible values out of request settings and fallback knownModels", async () => {
 		mocks.stateManager.getApiConfiguration.mockReturnValue({
 			actModeApiProvider: "openai",
@@ -581,6 +970,7 @@ describe("buildSessionConfig", () => {
 		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
 
 		expect((config as any).maxTokensPerTurn).toBeUndefined()
+		expect((config.providerConfig as any).maxOutputTokens).toBeUndefined()
 		expect((config as any).temperature).toBeUndefined()
 		const knownModel = (config.providerConfig as any).knownModels["custom-reasoner"]
 		expect(knownModel).not.toHaveProperty("maxTokens")
@@ -766,27 +1156,7 @@ describe("buildSessionConfig", () => {
 		expect(config.providerConfig).not.toHaveProperty("apiKey")
 	})
 
-	it("enables basic SDK compaction when global useAutoCondense is true", async () => {
-		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
-			if (key === "useAutoCondense") {
-				return true
-			}
-			if (key === "subagentsEnabled") {
-				return false
-			}
-			return undefined
-		})
-
-		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
-
-		expect(config.compaction).toEqual({
-			enabled: true,
-			strategy: "basic",
-		})
-	})
-
-	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "agentic" })
+	it("enables agentic SDK compaction when global useAutoCondense is true", async () => {
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -805,8 +1175,8 @@ describe("buildSessionConfig", () => {
 		})
 	})
 
-	it("falls back to basic SDK compaction for an invalid stored strategy", async () => {
-		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+	it("uses the configured SDK compaction strategy when auto condense is enabled", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "basic" })
 		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
 			if (key === "useAutoCondense") {
 				return true
@@ -822,6 +1192,26 @@ describe("buildSessionConfig", () => {
 		expect(config.compaction).toEqual({
 			enabled: true,
 			strategy: "basic",
+		})
+	})
+
+	it("falls back to agentic SDK compaction for an invalid stored strategy", async () => {
+		writeJson(process.env.CLINE_GLOBAL_SETTINGS_PATH!, { compactionStrategy: "invalid" })
+		mocks.stateManager.getGlobalSettingsKey.mockImplementation((key: string) => {
+			if (key === "useAutoCondense") {
+				return true
+			}
+			if (key === "subagentsEnabled") {
+				return false
+			}
+			return undefined
+		})
+
+		const config = await buildSessionConfig({ cwd: "/tmp/workspace" })
+
+		expect(config.compaction).toEqual({
+			enabled: true,
+			strategy: "agentic",
 		})
 	})
 
@@ -859,7 +1249,7 @@ describe("buildSessionConfig", () => {
 		expect(disabledConfig.compaction).toBeUndefined()
 		expect(enabledConfig.compaction).toEqual({
 			enabled: true,
-			strategy: "basic",
+			strategy: "agentic",
 		})
 	})
 
@@ -881,7 +1271,11 @@ describe("buildSessionConfig", () => {
 		expect(planConfig.systemPrompt).toContain(
 			"run_commands tool remains available in plan mode strictly for read-only inspection",
 		)
-		expect(planConfig.systemPrompt).toContain("switch_to_act_mode")
+		// Unlike the CLI, the extension never exposes switch_to_act_mode: the
+		// plan contract must direct the model to the manual Plan/Act toggle
+		// instead of a tool it does not have.
+		expect(planConfig.systemPrompt).not.toContain("switch_to_act_mode")
+		expect(planConfig.systemPrompt).toContain("Plan/Act toggle")
 	})
 })
 
