@@ -23,7 +23,7 @@ export function fixtureUnavailable(): DesktopProjection {
 		state: "unavailable",
 		startInstructions: [
 			"# Start the Cline Gateway, then press Reconnect:",
-			"cline-gateway start",
+			"clinegate start",
 		].join("\n"),
 		lastError: {
 			code: "gateway_unreachable",

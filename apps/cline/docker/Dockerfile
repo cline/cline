@@ -20,7 +20,7 @@ RUN case "${TARGETARCH}" in \
 	&& cd apps/cline \
 	&& TARGET="${target}" bun run scripts/build-sidecar-bin.ts \
 	&& cp "src-tauri/bin/cline-sidecar-${target}" /tmp/cline-sidecar \
-	&& cp "src-tauri/bin/cline-gateway-${target}" /tmp/cline-gateway
+	&& cp "src-tauri/bin/clinegate-${target}" /tmp/clinegate
 
 FROM caddy:2.10-alpine AS caddy
 
@@ -41,14 +41,14 @@ RUN apt-get update \
 
 COPY --from=caddy /usr/bin/caddy /usr/local/bin/caddy
 COPY --from=builder /tmp/cline-sidecar /usr/local/bin/cline-sidecar
-COPY --from=builder /tmp/cline-gateway /usr/local/bin/cline-gateway
+COPY --from=builder /tmp/clinegate /usr/local/bin/clinegate
 COPY apps/cline/docker/Caddyfile /etc/caddy/Caddyfile
 COPY apps/cline/docker/entrypoint.sh /usr/local/bin/cline-bots-container
 
 RUN chmod 0755 \
 	/usr/local/bin/caddy \
 	/usr/local/bin/cline-sidecar \
-	/usr/local/bin/cline-gateway \
+	/usr/local/bin/clinegate \
 	/usr/local/bin/cline-bots-container
 
 ENV CLINE_GATEWAY_DATA_ROOT=/data/gateway \

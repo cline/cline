@@ -1,6 +1,6 @@
 # Gateway Desktop
 
-A small native desktop client that bundles `cline-gateway` and exercises
+A small native desktop client that bundles `clinegate` and exercises
 its Phase 3 behavior end to end. This is a
 **validation client** for the Gateway RFC, not the final Cline Team
 desktop product: its job is to expose protocol and lifecycle mistakes
@@ -52,7 +52,7 @@ early with minimal product code.
 Tauri shell (Rust)          window, per-launch bridge secret, owns bundled Gateway
         |                   + broker, one native command: reveal diagnostics folder
 		v
-Bundled cline-gateway       standard `default` namespace; reads the
+Bundled clinegate       standard `default` namespace; reads the
         |                   shared provider settings from ~/.cline/data/settings
         v
 Bun broker (native/)        connects with @cline/gateway/client, owns the
@@ -112,7 +112,7 @@ chips have real data.
 ### Provider credentials (Phase 3 secrets, no onboarding UI)
 
 Gateway Desktop uses the standard `default` Gateway namespace, so it attaches
-to a Gateway started with `cline-gateway serve` unless
+to a Gateway started with `clinegate serve` unless
 `GATEWAY_DESKTOP_GATEWAY_NAMESPACE` or `CLINE_GATEWAY_NAMESPACE` selects a
 different namespace. Gateway Desktop deliberately has no credential onboarding. Real engine
 runs need provider credentials configured ON THE GATEWAY as mode-0600
@@ -120,12 +120,12 @@ secret files (the desktop never sees them):
 
 ```sh
 # Preferred: the Gateway CLI writes the 0600 file for you.
-printf '%s' "$ANTHROPIC_API_KEY" | cline-gateway secret-put anthropic
+printf '%s' "$ANTHROPIC_API_KEY" | clinegate secret-put anthropic
 
 # Equivalent: drop a mode-0600 file into the gateway's secrets dir:
 #   ~/.cline/gateway/<namespace>/secrets/<providerId>
 # Then select provider/model for runs:
-CLINE_GATEWAY_PROVIDER=anthropic CLINE_GATEWAY_MODEL=claude-sonnet-4-5 cline-gateway serve
+CLINE_GATEWAY_PROVIDER=anthropic CLINE_GATEWAY_MODEL=claude-sonnet-4-5 clinegate serve
 ```
 
 Environment variables (`ANTHROPIC_API_KEY`, `CLINE_GATEWAY_API_KEY`, …)

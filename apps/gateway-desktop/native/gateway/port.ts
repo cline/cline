@@ -75,6 +75,11 @@ export interface GatewayPort {
 		reason?: string;
 		idempotencyKey?: string;
 	}): Promise<{ state: string }>;
+	abortRun(input: {
+		runId: string;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<{ state: string }>;
 	retryRun(input: {
 		runId: string;
 		reason?: string;

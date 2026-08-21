@@ -49,6 +49,11 @@ describe("bridge command schema (closed set)", () => {
 				clientRequestId: REQUEST_ID,
 				runId: "run_1",
 			},
+			"run.abort": {
+				command: "run.abort",
+				clientRequestId: REQUEST_ID,
+				runId: "run_1",
+			},
 			"run.retry": {
 				command: "run.retry",
 				clientRequestId: REQUEST_ID,

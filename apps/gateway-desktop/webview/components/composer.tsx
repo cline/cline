@@ -111,16 +111,16 @@ export function Composer({
 				? "Start session"
 				: "Send turn";
 
-	const interrupt = useCallback(() => {
+	const abort = useCallback(() => {
 		if (!currentRun || currentRun.state !== "running") return;
 		void client
 			.send({
-				command: "run.interrupt",
+				command: "run.abort",
 				clientRequestId: createClientRequestId(),
 				runId: currentRun.runId,
 			})
 			.catch((failure: { message?: string; code?: string }) => {
-				setError(failure.message ?? failure.code ?? "Could not stop the run");
+				setError(failure.message ?? failure.code ?? "Could not abort the run");
 			});
 	}, [client, currentRun]);
 
@@ -181,11 +181,11 @@ export function Composer({
 					<div className="flex flex-col gap-1">
 						{running ? (
 							<Button
-								aria-label="Stop model response"
-								data-testid="composer-stop"
-								onClick={interrupt}
+								aria-label="Abort running task"
+								data-testid="composer-abort"
+								onClick={abort}
 								size="xs"
-								title="Stop"
+								title="Abort task"
 								variant="ghost"
 							>
 								<Square aria-hidden className="size-3" />

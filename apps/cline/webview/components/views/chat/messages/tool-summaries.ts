@@ -77,6 +77,12 @@ export type ToolPresentation = {
 	summary: ToolSummary;
 };
 
+// Tool results can contain complete web pages, command logs, or other large
+// payloads. Keeping the preview bounded prevents a historical transcript from
+// creating a very large hidden DOM subtree when it is opened in the web app.
+// The canonical result remains intact in session storage.
+const MAX_TOOL_OUTPUT_PREVIEW_CHARS = 16 * 1024;
+
 export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 	const payload = parseToolPayload(message.content);
 	const toolName = message.meta?.toolName || payload?.toolName || "tool";
@@ -85,12 +91,17 @@ export function buildToolPresentation(message: ChatMessage): ToolPresentation {
 		hookEventName === "tool_call_start" ||
 		hookEventName === "history_tool_use" ||
 		(Boolean(payload) && payload?.result == null && !payload?.isError);
-	const summary = buildToolSummary({
-		toolName,
-		input: payload?.input,
-		result: payload?.result,
-		isError: Boolean(payload?.isError),
-		inProgress,
-	});
+	const summary = buildToolSummary(
+		{
+			toolName,
+			input: payload?.input,
+			result: payload?.result,
+			isError: Boolean(payload?.isError),
+			inProgress,
+		},
+		{
+			maxOutputChars: MAX_TOOL_OUTPUT_PREVIEW_CHARS,
+		},
+	);
 	return { message, payload, toolName, inProgress, summary };
 }

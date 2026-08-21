@@ -1,0 +1,65 @@
+services:
+  traefik:
+    image: traefik:v3.5
+    restart: unless-stopped
+    command:
+      - --api.dashboard=false
+      - --providers.docker=true
+      - --providers.docker.exposedbydefault=false
+      - --providers.docker.network=cline-gate-ingress
+      - --entrypoints.web.address=:80
+      - --entrypoints.web.http.redirections.entrypoint.to=websecure
+      - --entrypoints.web.http.redirections.entrypoint.scheme=https
+      - --entrypoints.websecure.address=:443
+      - --certificatesresolvers.letsencrypt.acme.email=${TRAEFIK_ACME_EMAIL:?Set TRAEFIK_ACME_EMAIL}
+      - --certificatesresolvers.letsencrypt.acme.storage=/letsencrypt/acme.json
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge=true
+      - --certificatesresolvers.letsencrypt.acme.httpchallenge.entrypoint=web
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - traefik-letsencrypt:/letsencrypt
+    networks:
+      - ingress
+
+  root-gate:
+    build:
+      context: ../../../..
+      dockerfile: apps/cline/docker/Dockerfile
+    image: ${CLINE_GATE_IMAGE:-cline-bots-gateway:dev}
+    restart: unless-stopped
+    environment:
+      CLINE_GATEWAY_DOMAIN: ${CLINE_TEAM_ROOT_DOMAIN:?Set CLINE_TEAM_ROOT_DOMAIN}
+      CLINE_CADDY_SITE_ADDRESS: :8080
+      CLINE_GATEWAY_LEAD_PROFILE: ${CLINE_GATEWAY_LEAD_PROFILE:-cline}
+      CLINE_SIDECAR_TRUSTED_ORIGINS: ${CLINE_SIDECAR_TRUSTED_ORIGINS:-https://cline-gateway-connect.cline-8362.chatgpt.site}
+    expose:
+      - "8080"
+    volumes:
+      - root-gate-data:/data
+      - root-gate-workspaces:/workspaces
+    networks:
+      - ingress
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.cline-team-root.rule=Host(`${CLINE_TEAM_ROOT_DOMAIN}`)
+      - traefik.http.routers.cline-team-root.entrypoints=websecure
+      - traefik.http.routers.cline-team-root.tls=true
+      - traefik.http.routers.cline-team-root.tls.certresolver=letsencrypt
+      - traefik.http.services.cline-team-root.loadbalancer.server.port=8080
+    deploy:
+      resources:
+        limits:
+          cpus: ${CLINE_ROOT_CPU_LIMIT:-2}
+          memory: ${CLINE_ROOT_MEMORY_LIMIT:-4G}
+
+networks:
+  ingress:
+    name: cline-gate-ingress
+
+volumes:
+  traefik-letsencrypt:
+  root-gate-data:
+  root-gate-workspaces:

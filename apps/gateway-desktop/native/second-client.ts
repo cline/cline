@@ -31,7 +31,7 @@ async function connect(): Promise<GatewayClient> {
 	const record = readDiscoveryRecord(paths.discoveryFile);
 	if (!record) {
 		process.stderr.write(
-			`No Gateway discovery record at ${paths.discoveryFile}. Start it with: cline-gateway start\n`,
+			`No Gateway discovery record at ${paths.discoveryFile}. Start it with: clinegate start\n`,
 		);
 		process.exit(2);
 	}

@@ -149,7 +149,7 @@ export default function GatewayUiPage() {
 					<input
 						className="w-full rounded-md border bg-background px-3 py-2"
 						onChange={(event) => setEndpoint(event.target.value)}
-						placeholder="wss://your-cline-server.example.com/transport"
+						placeholder="wss://your-cline-server.example.com/"
 						required
 						value={endpoint}
 					/>

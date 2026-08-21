@@ -1,5 +1,6 @@
 import type { ChildProcess } from "node:child_process";
 import type { GatewayClient } from "@cline/gateway/client";
+import pkg from "../package.json";
 
 export type SidecarSocket = { send(message: string): void };
 
@@ -16,3 +17,4 @@ export interface SidecarContext {
 
 export const SIDECAR_PORT = Number(process.env.CLINE_SIDECAR_PORT) || 3126;
 export const SIDECAR_HOST = process.env.CLINE_SIDECAR_HOST?.trim() || "127.0.0.1";
+export const SIDECAR_VERSION = pkg.version;

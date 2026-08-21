@@ -3,7 +3,7 @@ services:
     build:
       context: ../../../..
       dockerfile: sdk/packages/gateway/docker/Dockerfile
-    image: cline-gateway:dev
+    image: clinegate:dev
     restart: unless-stopped
     ports:
       - "127.0.0.1:8080:8080"

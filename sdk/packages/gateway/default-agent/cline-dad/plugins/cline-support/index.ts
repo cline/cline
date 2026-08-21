@@ -165,7 +165,7 @@ const plugin: AgentPlugin = {
 		api.registerRule({
 			id: "cline-support-usage",
 			source: "cline-support",
-			content: "Use cline_doctor_report first for Gateway failures. These tools target cline-gateway, not the legacy Hub, and never return credential values.",
+			content: "Use cline_doctor_report first for Gateway failures. These tools target clinegate, not the legacy Hub, and never return credential values.",
 		});
 		api.registerCommand({
 			name: "cline-support",

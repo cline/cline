@@ -55,7 +55,7 @@ export interface WorkerEntrySpec {
 }
 
 export interface SandboxProcessDriverOptions {
-	/** The worker entry executable (e.g. `node bin/cline-gateway-worker.mjs`). */
+	/** The worker entry executable (e.g. `node bin/clinegate-worker.mjs`). */
 	entry: WorkerEntrySpec;
 	/**
 	 * EXPLICIT development-only escape hatch: spawn the worker without a

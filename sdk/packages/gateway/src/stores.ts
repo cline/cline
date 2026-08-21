@@ -802,6 +802,29 @@ export class MessageHistoryStore {
 			}));
 	}
 
+	listRecentBySession(
+		sessionId: SessionId,
+		limit: number,
+	): readonly StoredMessage[] {
+		const boundedLimit = Math.max(1, Math.floor(limit));
+		return this.database.db
+			.prepare(
+				`SELECT * FROM (
+					SELECT * FROM messages
+					WHERE session_id = ?
+					ORDER BY message_seq DESC
+					LIMIT ?
+				) ORDER BY message_seq;`,
+			)
+			.all(sessionId, boundedLimit)
+			.map((row) => ({
+				messageSeq: Number(row.message_seq),
+				sessionId: String(row.session_id) as SessionId,
+				runId: row.run_id === null ? undefined : (String(row.run_id) as RunId),
+				message: JSON.parse(String(row.message_json)) as AgentMessage,
+			}));
+	}
+
 	countBySession(sessionId: SessionId): number {
 		const row = this.database.db
 			.prepare("SELECT COUNT(*) AS n FROM messages WHERE session_id = ?;")

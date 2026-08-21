@@ -10,7 +10,7 @@ import {
 import { ToolFileDiff } from "@cline/ui/components/agent-chat/tool-diff";
 import type { ToolLabelPart } from "@cline/ui/components/agent-chat/tool-summary";
 import { AlertCircle } from "lucide-react";
-import { memo, useCallback, useEffect, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import type { BotSummary } from "@/hooks/use-bots";
 import type { ChatMessage } from "@/lib/chat-schema";
 import { cn } from "@/lib/utils";
@@ -54,8 +54,10 @@ const ToolCallRow = memo(function ToolCallRow({
 	message: ChatMessage;
 	onCreateBot: OnCreateBot;
 }) {
-	const { payload, toolName, inProgress, summary } =
-		buildToolPresentation(message);
+	const { payload, toolName, inProgress, summary } = useMemo(
+		() => buildToolPresentation(message),
+		[message],
+	);
 	const fileDiffs = summary.items.flatMap((item, index) => {
 		if (item.type !== "file") return [];
 		const hunks =
@@ -149,56 +151,60 @@ const ToolCallRow = memo(function ToolCallRow({
 				status={hasError ? "error" : inProgress ? "running" : "success"}
 			/>
 			<ToolActivityContent presentation="rail">
-				{details.length > 0 ? (
-					<ToolActivityDetails
-						className={cn(
-							"whitespace-pre-wrap",
-							isCommand && "font-mono text-xs",
+				{open ? (
+					<>
+						{details.length > 0 ? (
+							<ToolActivityDetails
+								className={cn(
+									"whitespace-pre-wrap",
+									isCommand && "font-mono text-xs",
+								)}
+							>
+								{details.map(({ detail, key }) => (
+									<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
+								))}
+							</ToolActivityDetails>
+						) : null}
+						{fileDiffs.map((entry) =>
+							entry.kind === "rich" && entry.hunk ? (
+								<ToolFileDiff
+									className="mt-1"
+									fragment={entry.item.fragment}
+									key={entry.key}
+									newText={entry.hunk.newText}
+									oldText={entry.hunk.oldText}
+									path={entry.item.path}
+								/>
+							) : (
+								<ToolActivityCode
+									className="mt-1 overflow-x-auto text-xs"
+									key={entry.key}
+								>
+									{entry.item.diff}
+								</ToolActivityCode>
+							),
 						)}
-					>
-						{details.map(({ detail, key }) => (
-							<div key={key}>{isCommand ? `$ ${detail}` : detail}</div>
-						))}
-					</ToolActivityDetails>
-				) : null}
-				{fileDiffs.map((entry) =>
-					entry.kind === "rich" && entry.hunk ? (
-						<ToolFileDiff
-							className="mt-1"
-							fragment={entry.item.fragment}
-							key={entry.key}
-							newText={entry.hunk.newText}
-							oldText={entry.hunk.oldText}
-							path={entry.item.path}
-						/>
-					) : (
-						<ToolActivityCode
-							className="mt-1 overflow-x-auto text-xs"
-							key={entry.key}
-						>
-							{entry.item.diff}
-						</ToolActivityCode>
-					),
-				)}
-				{summary.outputText ? (
-					<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
-						{summary.outputText}
-					</ToolActivityCode>
-				) : null}
-				{inputPreview ? (
-					<div className="space-y-1">
-						<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
-							Input
-						</div>
-						<ToolActivityCode className="text-sm">
-							{inputPreview}
-						</ToolActivityCode>
-					</div>
-				) : null}
-				{summary.errorText ? (
-					<div className="mt-1 break-words text-destructive">
-						{summary.errorText}
-					</div>
+						{summary.outputText ? (
+							<ToolActivityCode className="mt-1 max-h-64 overflow-auto whitespace-pre-wrap break-words font-mono text-xs">
+								{summary.outputText}
+							</ToolActivityCode>
+						) : null}
+						{inputPreview ? (
+							<div className="space-y-1">
+								<div className="text-[11px] uppercase tracking-wide text-muted-foreground/80">
+									Input
+								</div>
+								<ToolActivityCode className="text-sm">
+									{inputPreview}
+								</ToolActivityCode>
+							</div>
+						) : null}
+						{summary.errorText ? (
+							<div className="mt-1 break-words text-destructive">
+								{summary.errorText}
+							</div>
+						) : null}
+					</>
 				) : null}
 			</ToolActivityContent>
 		</ToolActivity>

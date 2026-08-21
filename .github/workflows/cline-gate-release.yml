@@ -1,0 +1,75 @@
+name: Cline Gate native release
+
+on:
+  push:
+    tags:
+      - "cline-gate-v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            platform: linux
+            architecture: amd64
+          - target: aarch64-unknown-linux-gnu
+            platform: linux
+            architecture: arm64
+          - target: x86_64-apple-darwin
+            platform: darwin
+            architecture: amd64
+          - target: aarch64-apple-darwin
+            platform: darwin
+            architecture: arm64
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.13
+      - run: bun install --frozen-lockfile
+      - run: bun run build:sdk
+      - name: Build native bundle
+        working-directory: apps/cline
+        env:
+          TARGET: ${{ matrix.target }}
+        run: bun run build:sidecar:bin
+      - name: Package native bundle
+        shell: bash
+        run: |
+          asset="cline-gate-${{ matrix.platform }}-${{ matrix.architecture }}.tar.gz"
+          staging="$(mktemp -d)"
+          install -m 0755 "apps/cline/src-tauri/bin/cline-sidecar-${{ matrix.target }}" "${staging}/cline-sidecar"
+          install -m 0755 "apps/cline/src-tauri/bin/clinegate-${{ matrix.target }}" "${staging}/clinegate"
+          tar -C "${staging}" -czf "${asset}" cline-sidecar clinegate
+          sha256sum "${asset}" >"${asset}.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cline-gate-${{ matrix.platform }}-${{ matrix.architecture }}
+          path: |
+            cline-gate-${{ matrix.platform }}-${{ matrix.architecture }}.tar.gz
+            cline-gate-${{ matrix.platform }}-${{ matrix.architecture }}.tar.gz.sha256
+          if-no-files-found: error
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: cline-gate-*
+          merge-multiple: true
+          path: release-assets
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" release-assets/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Cline Gate ${GITHUB_REF_NAME#cline-gate-v}" \
+            --generate-notes

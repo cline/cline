@@ -2,7 +2,7 @@
 	"name": "@cline/gateway-desktop",
 	"version": "0.0.1",
 	"private": true,
-	"description": "Gateway Desktop — a native macOS validation client for the Phase 3 cline-gateway",
+	"description": "Gateway Desktop — a native macOS validation client for the Phase 3 clinegate",
 	"type": "module",
 	"scripts": {
 		"build:ui": "bun -F @cline/ui build",

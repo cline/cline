@@ -48,4 +48,4 @@ else
 	set -- "$@" --allow-insecure-remote
 fi
 
-exec cline-gateway "$@"
+exec clinegate "$@"

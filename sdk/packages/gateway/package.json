@@ -27,8 +27,8 @@
 		}
 	},
 	"bin": {
-		"cline-gateway": "bin/cline-gateway.mjs",
-		"cline-gateway-worker": "bin/cline-gateway-worker.mjs"
+		"clinegate": "bin/clinegate.mjs",
+		"clinegate-worker": "bin/clinegate-worker.mjs"
 	},
 	"files": [
 		"dist",

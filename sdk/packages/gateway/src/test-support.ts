@@ -15,7 +15,7 @@ import type {
 	EngineRunHandle,
 } from "@cline/bot";
 
-export function tempDataRoot(prefix = "cline-gateway-test-"): string {
+export function tempDataRoot(prefix = "clinegate-test-"): string {
 	return mkdtempSync(join(tmpdir(), prefix));
 }
 

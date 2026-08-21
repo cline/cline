@@ -72,7 +72,7 @@ export function assertNonSecretConnectorConfig(
 		if (SECRETLIKE_CONFIG_KEY.test(key)) {
 			throw new ConnectorScopeViolationError(
 				`Connector config key "${key}" looks like credential material; ` +
-					"store secrets as owner-only files (cline-gateway secret-put) and reference them via credentialRef",
+					"store secrets as owner-only files (clinegate secret-put) and reference them via credentialRef",
 			);
 		}
 	}

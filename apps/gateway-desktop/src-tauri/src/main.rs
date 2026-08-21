@@ -95,7 +95,7 @@ fn gateway_command() -> Result<Command, String> {
     }
     if let Ok(current_exe) = std::env::current_exe() {
         if let Some(dir) = current_exe.parent() {
-            for name in ["cline-gateway", "cline-gateway.exe"] {
+            for name in ["clinegate", "clinegate.exe"] {
                 let candidate = dir.join(name);
                 if candidate.exists() {
                     return Ok(Command::new(candidate));
@@ -111,7 +111,7 @@ fn gateway_command() -> Result<Command, String> {
         .join("packages")
         .join("gateway")
         .join("bin")
-        .join("cline-gateway.mjs");
+        .join("clinegate.mjs");
     if !entry.exists() {
         return Err(format!(
             "Gateway entry not found at {} and no bundled sidecar is present",

@@ -865,8 +865,8 @@
       "name": "@cline/gateway",
       "version": "0.0.75",
       "bin": {
-        "cline-gateway": "bin/cline-gateway.mjs",
-        "cline-gateway-worker": "bin/cline-gateway-worker.mjs",
+        "clinegate": "bin/clinegate.mjs",
+        "clinegate-worker": "bin/clinegate-worker.mjs",
       },
       "dependencies": {
         "@anthropic-ai/sandbox-runtime": "^0.0.73",

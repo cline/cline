@@ -15,7 +15,7 @@ afterEach(async () => {
 
 async function startRemoteServer() {
 	const server = await GatewayServer.start({
-		dataRoot: tempDataRoot("cline-gateway-remote-"),
+		dataRoot: tempDataRoot("clinegate-remote-"),
 		engine: new ScriptedEnginePort(),
 		remote: {
 			host: "127.0.0.1",

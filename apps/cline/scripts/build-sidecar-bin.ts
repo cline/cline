@@ -40,7 +40,7 @@ const sidecarOutfile = (targetTriple: string): string => {
 
 const gatewayOutfile = (targetTriple: string): string => {
 	const extension = targetTriple.includes("windows") ? ".exe" : "";
-	return `./src-tauri/bin/cline-gateway-${targetTriple}${extension}`;
+	return `./src-tauri/bin/clinegate-${targetTriple}${extension}`;
 };
 
 const buildSidecar = async (targetTriple: string): Promise<string> => {
@@ -62,7 +62,7 @@ const buildSidecar = async (targetTriple: string): Promise<string> => {
 const buildGateway = async (targetTriple: string): Promise<string> => {
 	const outfile = gatewayOutfile(targetTriple);
 	const bunTarget = resolveBunCompileTarget(targetTriple);
-	const entry = "../../sdk/packages/gateway/bin/cline-gateway.mjs";
+	const entry = "../../sdk/packages/gateway/bin/clinegate.mjs";
 	if (bunTarget) {
 		await $`bun build ${entry} --compile --target=${bunTarget} --outfile ${outfile}`;
 	} else {

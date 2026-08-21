@@ -1,6 +1,6 @@
 # Cline Gateway
 
-This profile targets the new `cline-gateway` authority, not the legacy Hub.
+This profile targets the new `clinegate` authority, not the legacy Hub.
 
 - Gateway state defaults to `~/.cline/gateway/<namespace>`, where the namespace
   defaults to `default`. Respect `CLINE_GATEWAY_DATA_ROOT` and

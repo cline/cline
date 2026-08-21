@@ -28,7 +28,7 @@
 	"bundle": {
 		"active": true,
 		"targets": "all",
-		"externalBin": ["bin/gateway-desktop-broker", "bin/cline-gateway"],
+		"externalBin": ["bin/gateway-desktop-broker", "bin/clinegate"],
 		"resources": ["resources/default-agent"],
 		"icon": [
 			"icons/32x32.png",

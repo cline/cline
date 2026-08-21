@@ -22,6 +22,6 @@ bun -F @cline/gateway-ui dev
 bun -F @cline/gateway-ui build
 ```
 
-Deploy `apps/gateway-ui/out/`. Each remote sidecar must expose `/transport`
+Deploy `apps/gateway-ui/out/`. Each remote sidecar must expose `/`
 over TLS and include the official UI origin in
 `CLINE_SIDECAR_TRUSTED_ORIGINS`.

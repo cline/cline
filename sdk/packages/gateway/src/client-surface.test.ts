@@ -111,9 +111,9 @@ describe("typed client surface", () => {
 		});
 		expect(updated.content).toBe("You are the infrastructure bot.");
 		expect(updated.revision).toBe(initial.revision + 1);
-		expect(
-			await client.getBotSystemPrompt({ botId: defaultBotId() }),
-		).toEqual(updated);
+		expect(await client.getBotSystemPrompt({ botId: defaultBotId() })).toEqual(
+			updated,
+		);
 	});
 
 	it("starts a run in an explicitly created session without leaking session fields", async () => {
@@ -183,6 +183,33 @@ describe("session.get hydration snapshot", () => {
 		await expect(
 			client.getSession({ sessionId: "ses_does_not_exist" as never }),
 		).rejects.toMatchObject({ gatewayError: { code: "not_found" } });
+	});
+
+	it("returns only the newest messages when a hydration limit is requested", async () => {
+		const { server, connect, defaultBotId } = await startServer();
+		const client = await connect();
+		const session = await client.createSession({
+			botId: defaultBotId(),
+			workspaceRoot: "/tmp/paged-history",
+		});
+		for (let index = 1; index <= 25; index++) {
+			server.stores.messages.append(session.sessionId, undefined, {
+				id: `msg_${index}`,
+				role: "assistant",
+				content: [{ type: "text", text: `message ${index}` }],
+				createdAt: index,
+			});
+		}
+
+		const snapshot = await client.getSession({
+			sessionId: session.sessionId,
+			messageLimit: 20,
+		});
+
+		expect(snapshot.totalMessageCount).toBe(25);
+		expect(snapshot.messages).toHaveLength(20);
+		expect(snapshot.messages[0].message.id).toBe("msg_6");
+		expect(snapshot.messages.at(-1)?.message.id).toBe("msg_25");
 	});
 });
 

@@ -407,9 +407,15 @@ export class GatewayClient {
 		}>;
 	}
 
-	getSession(input: { sessionId: SessionId }): Promise<SessionSnapshot> {
+	getSession(input: {
+		sessionId: SessionId;
+		messageLimit?: number;
+	}): Promise<SessionSnapshot> {
 		return this.request("session.get", {
 			sessionId: input.sessionId,
+			...(input.messageLimit === undefined
+				? {}
+				: { messageLimit: input.messageLimit }),
 		}) as Promise<SessionSnapshot>;
 	}
 
@@ -531,6 +537,20 @@ export class GatewayClient {
 		idempotencyKey?: string;
 	}): Promise<{ state: string }> {
 		return this.mutate("run.interrupt", {
+			runId: input.runId,
+			...(input.reason ? { reason: input.reason } : {}),
+			...(input.idempotencyKey
+				? { [IDEMPOTENCY_KEY_PARAM]: input.idempotencyKey }
+				: {}),
+		}) as Promise<{ state: string }>;
+	}
+
+	abortRun(input: {
+		runId: RunId;
+		reason?: string;
+		idempotencyKey?: string;
+	}): Promise<{ state: string }> {
+		return this.mutate("run.abort", {
 			runId: input.runId,
 			...(input.reason ? { reason: input.reason } : {}),
 			...(input.idempotencyKey

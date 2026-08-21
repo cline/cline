@@ -31,7 +31,7 @@ await plugin.setup?.(
 		registerAutomationEventType() {},
 	} as never,
 	{
-		client: { name: "cline-gateway", platform: process.platform },
+		client: { name: "clinegate", platform: process.platform },
 		session: { sessionId: process.env.CLINE_SESSION_ID },
 		workspaceInfo: { rootPath: workspaceRoot, hint: workspaceRoot },
 		logger: {

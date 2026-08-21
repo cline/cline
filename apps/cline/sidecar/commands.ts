@@ -12,13 +12,14 @@ import {
 	stopConnectorChannel,
 } from "./connectors";
 import { listProviderCatalog, listProviderModels } from "./provider-catalog";
-import type { SidecarContext } from "./types";
+import { SIDECAR_VERSION, type SidecarContext } from "./types";
 
 type RecordValue = Record<string, unknown>;
 
 const MARKETPLACE_CATALOG_URL =
 	process.env.CLINE_MARKETPLACE_CATALOG_URL?.trim() ||
 	"https://cline.github.io/marketplace/catalog.json";
+const HISTORICAL_TOOL_PAYLOAD_CHARS = 16 * 1024;
 
 async function marketplaceCatalog(): Promise<unknown> {
 	const response = await fetch(MARKETPLACE_CATALOG_URL, {
@@ -97,16 +98,38 @@ async function uploadChatAttachments(
 	return uploads;
 }
 
-function text(parts: readonly AgentMessagePart[]): string {
+function truncateHistoricalToolPayload(
+	value: unknown,
+	maxChars: number,
+): unknown {
+	const serialized = JSON.stringify(value);
+	if (serialized === undefined) return value;
+	if (serialized.length <= maxChars) return value;
+	return `${serialized.slice(0, maxChars)}\n… [historical tool payload truncated; ${serialized.length - maxChars} characters omitted]`;
+}
+
+function text(
+	parts: readonly AgentMessagePart[],
+	maxToolPayloadChars?: number,
+): string {
 	return parts
 		.map((part) => {
 			if (part.type === "text" || part.type === "reasoning") return part.text;
 			if (part.type === "tool-call")
-				return JSON.stringify({ toolName: part.toolName, input: part.input });
+				return JSON.stringify({
+					toolName: part.toolName,
+					input:
+						maxToolPayloadChars === undefined
+							? part.input
+							: truncateHistoricalToolPayload(part.input, maxToolPayloadChars),
+				});
 			if (part.type === "tool-result")
 				return JSON.stringify({
 					toolName: part.toolName,
-					output: part.output,
+					output:
+						maxToolPayloadChars === undefined
+							? part.output
+							: truncateHistoricalToolPayload(part.output, maxToolPayloadChars),
 					error: part.isError,
 				});
 			return "";
@@ -115,12 +138,16 @@ function text(parts: readonly AgentMessagePart[]): string {
 		.join("\n");
 }
 
-function toChatMessage(sessionId: string, message: AgentMessage) {
+function toChatMessage(
+	sessionId: string,
+	message: AgentMessage,
+	maxToolPayloadChars?: number,
+) {
 	return {
 		id: message.id,
 		sessionId,
 		role: message.role,
-		content: text(message.content),
+		content: text(message.content, maxToolPayloadChars),
 		createdAt: message.createdAt,
 		meta: {
 			providerId: message.modelInfo?.provider,
@@ -199,12 +226,21 @@ async function setGatewayToolsDisabled(
 	return gatewayCustomizationLists(ctx);
 }
 
-async function sessionMessages(ctx: SidecarContext, sessionId: string) {
+async function sessionMessages(
+	ctx: SidecarContext,
+	sessionId: string,
+	maxMessages?: number,
+) {
 	const snapshot = await ctx.client.getSession({
 		sessionId: sessionId as SessionId,
+		...(maxMessages === undefined ? {} : { messageLimit: maxMessages }),
 	});
 	return snapshot.messages.map(({ message }) =>
-		toChatMessage(sessionId, message),
+		toChatMessage(
+			sessionId,
+			message,
+			maxMessages === undefined ? undefined : HISTORICAL_TOOL_PAYLOAD_CHARS,
+		),
 	);
 }
 
@@ -369,6 +405,46 @@ export async function handleCommand(
 		});
 		return null;
 	}
+	if (command === "get_bots_state") {
+		const { bots } = await ctx.client.listBots();
+		return {
+			bots: bots
+				.filter((bot) => bot.status === "active")
+				.map((bot) => ({
+					id: bot.identity.botId,
+					name: bot.identity.name,
+				})),
+		};
+	}
+	if (command === "create_bot") {
+		const name = String(args.name ?? "").trim();
+		if (!name) throw new Error("bot name is required");
+		const { bots } = await ctx.client.listBots();
+		const activeBots = bots.filter((bot) => bot.status === "active");
+		if (activeBots.length >= 5) throw new Error("maximum of 5 bots reached");
+		const parent =
+			activeBots.find((bot) => bot.identity.role === "lead") ?? activeBots[0];
+		if (!parent) throw new Error("No lead bot is configured");
+		const created = (await ctx.client.mutate("bot.delegate", {
+			parentBotId: parent.identity.botId,
+			name,
+			role: "worker",
+			reason: "Created from the Cline Bots UI",
+		})) as (typeof bots)[number];
+		const systemPrompt = String(args.systemPrompt ?? "").trim();
+		if (systemPrompt) {
+			await ctx.client.putBotSystemPrompt({
+				botId: created.identity.botId,
+				content: systemPrompt,
+				expectedRevision: created.revision,
+			});
+		}
+		return { id: created.identity.botId, name: created.identity.name };
+	}
+	if (command === "switch_active_bot") {
+		const botId = await resolveBotId(ctx, String(args.botId ?? ""));
+		return botId;
+	}
 	if (command === "set_tool_disabled") {
 		const names = Array.isArray(args.names)
 			? args.names.filter((name): name is string => typeof name === "string")
@@ -378,7 +454,11 @@ export async function handleCommand(
 	if (command === "chat_session_command")
 		return chatCommand(ctx, (args.request as RecordValue) ?? args);
 	if (command === "read_session_messages")
-		return sessionMessages(ctx, String(args.sessionId ?? ""));
+		return sessionMessages(
+			ctx,
+			String(args.sessionId ?? ""),
+			typeof args.maxMessages === "number" ? args.maxMessages : undefined,
+		);
 	if (
 		[
 			"list_chat_sessions",
@@ -386,11 +466,15 @@ export async function handleCommand(
 			"list_discovered_sessions",
 		].includes(command)
 	) {
-		const [{ sessions }, { bots }] = await Promise.all([
+		const [{ sessions }, { bots }, { connectors }] = await Promise.all([
 			ctx.client.listSessions(),
 			ctx.client.listBots(),
+			ctx.client.listConnectors(),
 		]);
 		const botsById = new Map(bots.map((bot) => [bot.identity.botId, bot]));
+		const connectorsById = new Map(
+			connectors.map((connector) => [connector.connectorId, connector]),
+		);
 		const limit = Math.max(1, Number(args.limit) || sessions.length);
 		return Promise.all(
 			sessions.slice(0, limit).map(async (session) => {
@@ -404,13 +488,23 @@ export async function handleCommand(
 				const firstUserMessage = messages.find(
 					(message) => message.role === "user",
 				);
+				const lastAssistantMessage = [...messages]
+					.reverse()
+					.find((message) => message.role === "assistant");
 				const latestRun = snapshot.runs.at(-1);
+				const provenance = latestRun?.provenance;
+				const source =
+					provenance?.mode === "connector" && provenance.connectorId
+						? connectorsById.get(provenance.connectorId)?.kind || "connector"
+						: provenance?.mode;
 				const latestMessageAt = messages.at(-1)?.createdAt ?? session.createdAt;
 				const bot = botsById.get(session.botId);
 				return {
 					sessionId: session.sessionId,
 					id: session.sessionId,
 					botId: session.botId,
+					botName: bot?.identity.name ?? "",
+					source: source ?? "",
 					workspaceRoot: session.workspace.rootPath,
 					cwd: session.workspace.rootPath,
 					status: latestRun?.state ?? session.state,
@@ -422,6 +516,9 @@ export async function handleCommand(
 						modelMessage?.modelInfo?.provider ?? bot?.config.providerId ?? "",
 					model: modelMessage?.modelInfo?.id ?? bot?.config.modelId ?? "",
 					prompt: firstUserMessage ? text(firstUserMessage.content) : "",
+					lastMessage: lastAssistantMessage
+						? text(lastAssistantMessage.content)
+						: "",
 				};
 			}),
 		);
@@ -438,7 +535,7 @@ export async function handleCommand(
 			cwd: ctx.workspaceRoot,
 			homeDir: homedir(),
 			platform: process.platform,
-			appVersion: "0.0.1",
+			appVersion: SIDECAR_VERSION,
 			runningSessionCount: status.counts.runningRuns,
 			gateway: {
 				status: "connected",

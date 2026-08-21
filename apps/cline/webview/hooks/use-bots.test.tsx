@@ -3,11 +3,11 @@
 import { act } from "react";
 import { createRoot, type Root } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { useBotRegistry } from "./use-bots";
+import { type BotSummary, useBotRegistry } from "./use-bots";
 
 const { invokeMock, isTauriAvailableMock } = vi.hoisted(() => ({
 	invokeMock: vi.fn(),
-	isTauriAvailableMock: vi.fn(() => true),
+	isTauriAvailableMock: vi.fn(() => false),
 }));
 
 vi.mock("@/lib/desktop-client", () => ({
@@ -39,7 +39,7 @@ beforeEach(() => {
 	Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true });
 	invokeMock.mockReset();
 	isTauriAvailableMock.mockReset();
-	isTauriAvailableMock.mockReturnValue(true);
+	isTauriAvailableMock.mockReturnValue(false);
 	container = document.createElement("div");
 	document.body.appendChild(container);
 	root = createRoot(container);
@@ -198,6 +198,43 @@ describe("useBotRegistry", () => {
 			"create_bot",
 			expect.objectContaining({ systemPrompt: "You manage recipes." }),
 		);
+	});
+
+	it("mirrors Gateway bots into the desktop shell before switching a new bot", async () => {
+		isTauriAvailableMock.mockReturnValue(true);
+		invokeMock.mockImplementation((command: string, args?: unknown) => {
+			if (command === "get_bots_state") {
+				return Promise.resolve({ bots: [{ id: "cline", name: "Cline" }] });
+			}
+			if (command === "sync_gateway_bots") {
+				return Promise.resolve({
+					bots: (args as { bots: BotSummary[] }).bots,
+					activeBotId: "cline",
+				});
+			}
+			if (command === "create_bot") {
+				return Promise.resolve({ id: "research", name: "Research" });
+			}
+			if (
+				command === "switch_active_bot" ||
+				command === "switch_active_bot_preference"
+			) {
+				return Promise.resolve("research");
+			}
+			throw new Error(`unexpected command: ${command}`);
+		});
+
+		await act(async () => root.render(<HookHarness />));
+		await flush();
+		await act(async () => current.createBot("Research"));
+
+		const commands = invokeMock.mock.calls.map((call) => call[0]);
+		expect(commands.slice(-4)).toEqual([
+			"create_bot",
+			"sync_gateway_bots",
+			"switch_active_bot",
+			"switch_active_bot_preference",
+		]);
 	});
 
 	it("does not mutate local state when creation is rejected (e.g. the 5-bot cap)", async () => {

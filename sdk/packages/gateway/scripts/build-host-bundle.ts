@@ -2,14 +2,14 @@ import { chmod, mkdir } from "node:fs/promises";
 import { resolve } from "node:path";
 
 const outputDir = resolve(import.meta.dir, "../dist-bin");
-const outputFile = resolve(outputDir, "cline-gateway");
+const outputFile = resolve(outputDir, "clinegate");
 
 await mkdir(outputDir, { recursive: true });
 const child = Bun.spawn(
 	[
 		"bun",
 		"build",
-		resolve(import.meta.dir, "../bin/cline-gateway.mjs"),
+		resolve(import.meta.dir, "../bin/clinegate.mjs"),
 		"--target=node",
 		`--outfile=${outputFile}`,
 		"--minify",

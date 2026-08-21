@@ -1,0 +1,32 @@
+services:
+  cline-gate:
+    image: ${CLINE_GATE_IMAGE:-cline-bots-gateway:dev}
+    restart: unless-stopped
+    environment:
+      CLINE_GATEWAY_DOMAIN: ${CLINE_GATEWAY_DOMAIN:?Set CLINE_GATEWAY_DOMAIN}
+      CLINE_CADDY_SITE_ADDRESS: :8080
+      CLINE_GATEWAY_LEAD_PROFILE: ${CLINE_GATEWAY_LEAD_PROFILE:-cline}
+      CLINE_SIDECAR_TRUSTED_ORIGINS: ${CLINE_SIDECAR_TRUSTED_ORIGINS:-https://cline-gateway-connect.cline-8362.chatgpt.site}
+    expose:
+      - "8080"
+    volumes:
+      - cline-data:/data
+      - cline-workspaces:/workspaces
+    networks:
+      - ingress
+    labels:
+      - traefik.enable=true
+      - traefik.http.routers.cline-gate-${CLINE_GATE_ROUTE_ID:?Set CLINE_GATE_ROUTE_ID}.rule=Host(`${CLINE_GATEWAY_DOMAIN}`)
+      - traefik.http.routers.cline-gate-${CLINE_GATE_ROUTE_ID}.entrypoints=websecure
+      - traefik.http.routers.cline-gate-${CLINE_GATE_ROUTE_ID}.tls=true
+      - traefik.http.routers.cline-gate-${CLINE_GATE_ROUTE_ID}.tls.certresolver=letsencrypt
+      - traefik.http.services.cline-gate-${CLINE_GATE_ROUTE_ID}.loadbalancer.server.port=8080
+
+networks:
+  ingress:
+    name: cline-gate-ingress
+    external: true
+
+volumes:
+  cline-data:
+  cline-workspaces:

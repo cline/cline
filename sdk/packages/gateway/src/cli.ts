@@ -70,10 +70,10 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 	const [command, ...rest] = argv;
 	if (!GATEWAY_CLI_COMMANDS.includes(command as GatewayCliCommand)) {
 		throw new Error(
-			`Usage: cline-gateway <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
+			`Usage: clinegate <${GATEWAY_CLI_COMMANDS.join("|")}> ` +
 				"[--data-root <dir>] [--namespace <name>] [--port <n>] [--reason <text>]\n" +
-				"       cline-gateway serve [--lead-profile <cline|cline-dad>]\n" +
-				"       cline-gateway secret-put <name>   (reads the secret from stdin)\n" +
+				"       clinegate serve [--lead-profile <cline|cline-dad>]\n" +
+				"       clinegate secret-put <name>   (reads the secret from stdin)\n" +
 				"       Remote: --remote-port <n> [--remote-host <host>] [--remote-token <secret-name>]\n" +
 				"               [--tls-cert <file> --tls-key <file> | --allow-insecure-remote]",
 		);
@@ -142,7 +142,7 @@ function parseArgs(argv: readonly string[]): ParsedArgs {
 
 async function connectTo(
 	record: DiscoveryRecord,
-	name = "cline-gateway-cli",
+	name = "clinegate-cli",
 ): Promise<GatewayClient> {
 	return GatewayClient.connectToDiscovery(record, {
 		clientName: name,
@@ -336,7 +336,7 @@ function remoteOptions(
 	const accessToken = readSecretFile(paths, tokenName)?.trim();
 	if (!accessToken) {
 		throw new Error(
-			`Missing remote access token; pipe one to: cline-gateway secret-put ${tokenName}`,
+			`Missing remote access token; pipe one to: clinegate secret-put ${tokenName}`,
 		);
 	}
 	return {
@@ -506,7 +506,7 @@ async function commandSecretPut(
 	const providerId = args.subject;
 	if (!providerId) {
 		io.err(
-			"Usage: cline-gateway secret-put <providerId>   (reads the secret from stdin)",
+			"Usage: clinegate secret-put <providerId>   (reads the secret from stdin)",
 		);
 		return 64;
 	}

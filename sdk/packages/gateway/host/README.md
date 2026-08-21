@@ -14,10 +14,10 @@ listener to loopback so TLS should terminate in a reverse proxy such as Caddy.
 
 ```sh
 bun -F @cline/gateway host:bundle
-install -Dm755 sdk/packages/gateway/dist-bin/cline-gateway ~/.local/bin/cline-gateway
-install -Dm644 sdk/packages/gateway/host/cline-gateway.service ~/.config/systemd/user/cline-gateway.service
+install -Dm755 sdk/packages/gateway/dist-bin/clinegate ~/.local/bin/clinegate
+install -Dm644 sdk/packages/gateway/host/clinegate.service ~/.config/systemd/user/clinegate.service
 systemctl --user daemon-reload
-systemctl --user enable --now cline-gateway.service
+systemctl --user enable --now clinegate.service
 ```
 
 Enable lingering once if the service must survive logout:

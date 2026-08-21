@@ -18,8 +18,8 @@ RUN bun -F @cline/shared build \
 	&& bun -F @cline/bot build \
 	&& bun -F @cline/gateway build
 RUN mkdir -p /out \
-	&& bun build sdk/packages/gateway/bin/cline-gateway.mjs --target=node --outfile /out/cline-gateway \
-	&& bun build sdk/packages/gateway/bin/cline-gateway-worker.mjs --target=node --outfile /out/cline-gateway-worker
+	&& bun build sdk/packages/gateway/bin/clinegate.mjs --target=node --outfile /out/clinegate \
+	&& bun build sdk/packages/gateway/bin/clinegate-worker.mjs --target=node --outfile /out/clinegate-worker
 
 FROM node:22-bookworm-slim AS runtime
 
@@ -33,14 +33,14 @@ RUN apt-get update \
 	&& useradd --uid "${CLINE_GATEWAY_UID}" --gid "${CLINE_GATEWAY_GID}" \
 		--create-home --home-dir /home/cline --shell /bin/sh cline
 
-COPY --from=builder /out/cline-gateway /usr/local/bin/cline-gateway
-COPY --from=builder /out/cline-gateway-worker /usr/local/bin/cline-gateway-worker
-COPY sdk/packages/gateway/docker/entrypoint.sh /usr/local/bin/cline-gateway-container
+COPY --from=builder /out/clinegate /usr/local/bin/clinegate
+COPY --from=builder /out/clinegate-worker /usr/local/bin/clinegate-worker
+COPY sdk/packages/gateway/docker/entrypoint.sh /usr/local/bin/clinegate-container
 
 RUN chmod 0755 \
-	/usr/local/bin/cline-gateway \
-	/usr/local/bin/cline-gateway-worker \
-	/usr/local/bin/cline-gateway-container \
+	/usr/local/bin/clinegate \
+	/usr/local/bin/clinegate-worker \
+	/usr/local/bin/clinegate-container \
 	&& mkdir -p /data \
 	&& chown cline:cline /data
 
@@ -59,6 +59,6 @@ VOLUME ["/data"]
 EXPOSE 8080
 
 HEALTHCHECK --interval=10s --timeout=5s --start-period=10s --retries=5 \
-	CMD cline-gateway status --data-root "$CLINE_GATEWAY_DATA_ROOT" --namespace "$CLINE_GATEWAY_NAMESPACE"
+	CMD clinegate status --data-root "$CLINE_GATEWAY_DATA_ROOT" --namespace "$CLINE_GATEWAY_NAMESPACE"
 
-ENTRYPOINT ["cline-gateway-container"]
+ENTRYPOINT ["clinegate-container"]

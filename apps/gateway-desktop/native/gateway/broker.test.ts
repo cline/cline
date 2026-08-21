@@ -128,7 +128,7 @@ describe("connection lifecycle", () => {
 		await harness.broker.start();
 		const projection = harness.broker.projectionSnapshot;
 		expect(projection.connection.state).toBe("unavailable");
-		expect(projection.connection.startInstructions).toContain("cline-gateway");
+		expect(projection.connection.startInstructions).toContain("clinegate");
 		expect(projection.connection.lastError?.action).toBe("start_gateway");
 	});
 

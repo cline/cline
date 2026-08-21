@@ -1,6 +1,6 @@
 # Cline Bots all-in-one container
 
-This image runs the bundled Cline Gateway, desktop-compatible `/transport`
+This image runs the bundled Cline Gateway, desktop-compatible WebSocket
 sidecar, and Caddy. Caddy obtains and renews TLS certificates automatically.
 Gateway state, access credentials, sessions, and workspaces survive container
 replacement in named volumes.
@@ -10,20 +10,29 @@ replacement in named volumes.
 Requirements:
 
 - Docker Engine with Compose and BuildKit
-- a VM with public TCP ports 80 and 443 open
-- a hostname resolving to that VM (a `nip.io` hostname is sufficient)
+- for public mode, a VM with TCP ports 80 and 443 open and either a hostname or
+  public IPv4 address
 
 ### One-command setup
 
-From the repository root, this detects the VM's public IPv4 address, creates a
-`gateway.<ip>.nip.io` hostname, writes `.env`, builds and starts the container,
-waits for health, and prints and saves the generated access token:
+From the repository root, the default is a local-only deployment. It replaces
+the generated `.env`, binds Docker to loopback, builds and starts the container,
+waits for health, and prints and saves the token:
 
 ```sh
 apps/cline/docker/quickstart.sh
 ```
 
-If public-IP detection is unavailable or you already have DNS:
+This is equivalent to:
+
+```sh
+apps/cline/docker/quickstart.sh --local --force
+```
+
+It exposes `ws://127.0.0.1:43126/`. Start the local UI with
+`bun -F @cline/gateway-ui dev` and open `http://127.0.0.1:3135/`.
+
+For an explicit public deployment:
 
 ```sh
 apps/cline/docker/quickstart.sh --public-ip 35.254.245.28
@@ -87,7 +96,7 @@ docker compose --env-file apps/cline/docker/.env \
 Connect the official UI using:
 
 ```text
-wss://<CLINE_GATEWAY_DOMAIN>/transport
+wss://<CLINE_GATEWAY_DOMAIN>/
 ```
 
 and the token printed above. The token is generated once and retained in the
@@ -99,7 +108,7 @@ Provision a provider credential without putting it on the command line:
 printf '%s' "$ANTHROPIC_API_KEY" | docker compose \
   --env-file apps/cline/docker/.env \
   -f apps/cline/docker/compose.yaml exec -T cline-bots \
-  cline-gateway secret-put anthropic \
+  clinegate secret-put anthropic \
     --data-root /data/gateway --namespace desktop
 ```
 
@@ -131,7 +140,7 @@ CLINE_BIND_ADDRESS=127.0.0.1
 
 The outer ingress terminates TLS and proxies each public hostname to that
 teammate's distinct `CLINE_HTTP_PORT`. The public browser endpoint remains
-`wss://<that-teammate-hostname>/transport`.
+`wss://<that-teammate-hostname>/`.
 
 For example, use project names `alice` and `bob`, distinct domains, and port
 pairs `18080/18443` and `28080/28443`:

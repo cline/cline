@@ -1,0 +1,23 @@
+services:
+  cline-gate:
+    image: ${CLINE_GATE_IMAGE:-cline-bots-gateway:dev}
+    restart: unless-stopped
+    environment:
+      CLINE_GATEWAY_DOMAIN: ${CLINE_GATEWAY_DOMAIN:?Set CLINE_GATEWAY_DOMAIN}
+      CLINE_CADDY_SITE_ADDRESS: :8080
+      CLINE_GATEWAY_LEAD_PROFILE: ${CLINE_GATEWAY_LEAD_PROFILE:-cline}
+      CLINE_SIDECAR_TRUSTED_ORIGINS: ${CLINE_SIDECAR_TRUSTED_ORIGINS:-https://cline-gateway-connect.cline-8362.chatgpt.site}
+    ports:
+      - "127.0.0.1:${CLINE_GATE_HTTP_PORT:?Set CLINE_GATE_HTTP_PORT}:8080"
+    volumes:
+      - cline-data:/data
+      - cline-workspaces:/workspaces
+    deploy:
+      resources:
+        limits:
+          cpus: ${CLINE_GATE_CPU_LIMIT:-2}
+          memory: ${CLINE_GATE_MEMORY_LIMIT:-4G}
+
+volumes:
+  cline-data:
+  cline-workspaces:

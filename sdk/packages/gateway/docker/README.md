@@ -11,7 +11,7 @@ Run from the repository root:
 ```sh
 docker build \
   -f sdk/packages/gateway/docker/Dockerfile \
-  -t cline-gateway:dev \
+  -t clinegate:dev \
   .
 ```
 
@@ -50,7 +50,7 @@ docker run --rm \
   -v "$PWD/privkey.pem:/run/tls/privkey.pem:ro" \
   -e CLINE_GATEWAY_TLS_CERT_FILE=/run/tls/fullchain.pem \
   -e CLINE_GATEWAY_TLS_KEY_FILE=/run/tls/privkey.pem \
-  cline-gateway:dev
+  clinegate:dev
 ```
 
 Without the TLS variables, the entrypoint deliberately enables Gateway's
@@ -76,7 +76,7 @@ example, a one-off provisioning command can read a secret from standard input:
 
 ```sh
 printf '%s' "$ANTHROPIC_API_KEY" | docker exec -i <container> \
-  cline-gateway secret-put anthropic --data-root /data --namespace default
+  clinegate secret-put anthropic --data-root /data --namespace default
 ```
 
 ## VM deployment

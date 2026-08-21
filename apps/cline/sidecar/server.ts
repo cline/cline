@@ -34,6 +34,67 @@ function authorized(request: Request): boolean {
 	return timingSafeEqual(Buffer.from(supplied), Buffer.from(expected));
 }
 
+const PAIRING_PIN_TTL_MS = 10 * 60 * 1000;
+const PAIRING_PIN_MAX_ATTEMPTS = 5;
+
+type PairingPinState = {
+	pin: string;
+	expiresAt: number;
+	attemptsRemaining: number;
+};
+
+let pairingPin: PairingPinState | undefined;
+
+export function isDesktopTransportPath(pathname: string): boolean {
+	return pathname === "/";
+}
+
+function issuePairingPin(): void {
+	const token = process.env.CLINE_SIDECAR_REMOTE_TOKEN?.trim();
+	if (!token) return;
+	const pin = crypto.randomInt(100000, 1000000).toString();
+	pairingPin = {
+		pin,
+		expiresAt: Date.now() + PAIRING_PIN_TTL_MS,
+		attemptsRemaining: PAIRING_PIN_MAX_ATTEMPTS,
+	};
+	console.log(
+		`One-time pairing PIN (valid ${PAIRING_PIN_TTL_MS / 60000} min): ${pin}`,
+	);
+}
+
+async function handlePairRequest(request: Request): Promise<Response> {
+	if (!pairingPin) return new Response("Not found", { status: 404 });
+	if (
+		Date.now() > pairingPin.expiresAt ||
+		pairingPin.attemptsRemaining <= 0
+	) {
+		pairingPin = undefined;
+		return new Response("Gone", { status: 410 });
+	}
+
+	let body: { pin?: unknown };
+	try {
+		body = await request.json();
+	} catch {
+		return new Response("Bad request", { status: 400 });
+	}
+	const supplied = typeof body.pin === "string" ? body.pin : "";
+	const matches =
+		supplied.length === pairingPin.pin.length &&
+		timingSafeEqual(Buffer.from(supplied), Buffer.from(pairingPin.pin));
+
+	if (!matches) {
+		pairingPin.attemptsRemaining -= 1;
+		if (pairingPin.attemptsRemaining <= 0) pairingPin = undefined;
+		return new Response("Unauthorized", { status: 401 });
+	}
+
+	const token = process.env.CLINE_SIDECAR_REMOTE_TOKEN?.trim() ?? "";
+	pairingPin = undefined;
+	return Response.json({ token });
+}
+
 export function broadcast(
 	ctx: SidecarContext,
 	name: string,
@@ -47,6 +108,7 @@ export function startServer(ctx: SidecarContext): {
 	port: number;
 	stop(): void;
 } {
+	issuePairingPin();
 	const server = Bun.serve<{ socket: SidecarSocket }>({
 		hostname: SIDECAR_HOST,
 		port: SIDECAR_PORT,
@@ -55,8 +117,10 @@ export function startServer(ctx: SidecarContext): {
 			const origin = request.headers.get("origin");
 			if (url.pathname === "/health")
 				return Response.json({ ok: true, mode: "gateway", pid: process.pid });
+			if (url.pathname === "/pair" && request.method === "POST")
+				return handlePairRequest(request);
 			if (
-				url.pathname === "/transport" &&
+				isDesktopTransportPath(url.pathname) &&
 				(!origin || trustedOrigins.has(origin)) &&
 				authorized(request) &&
 				server.upgrade(request, {
@@ -113,4 +177,5 @@ export function startServer(ctx: SidecarContext): {
 	return { port: server.port ?? SIDECAR_PORT, stop: () => server.stop() };
 }
 
+import * as crypto from "node:crypto";
 import { timingSafeEqual } from "node:crypto";

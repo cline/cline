@@ -620,6 +620,18 @@ export class DesktopBroker {
 					throw toPublicDesktopError(error);
 				}
 			}
+			case "run.abort": {
+				const port = this.requirePort();
+				try {
+					return await port.abortRun({
+						runId: command.runId,
+						...(command.reason ? { reason: command.reason } : {}),
+						idempotencyKey: command.clientRequestId,
+					});
+				} catch (error) {
+					throw toPublicDesktopError(error);
+				}
+			}
 			case "run.retry": {
 				const port = this.requirePort();
 				try {

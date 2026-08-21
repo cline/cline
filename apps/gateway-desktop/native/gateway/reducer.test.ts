@@ -85,6 +85,7 @@ function hydratedContext() {
 			},
 			runs: [],
 			messages: [],
+			totalMessageCount: 0,
 			lastEventSequence: 0,
 		},
 		cursorBasis: 0,
@@ -273,6 +274,23 @@ describe("run lifecycle projection", () => {
 		applyGatewayEvent(context, event(3, "run.attemptStarted", { attempt: 2 }));
 		expect(context.projection.activeSession?.currentRun?.attempt).toBe(2);
 	});
+
+	it("captures the submit_and_exit summary on a completed run", () => {
+		const context = hydratedContext();
+		applyGatewayEvent(context, event(1, "run.queued", { state: "queued" }));
+		applyGatewayEvent(context, event(2, "run.started", { state: "running" }));
+		applyGatewayEvent(
+			context,
+			event(3, "run.completed", {
+				state: "completed",
+				outputText: "Research Assistant could not be created.",
+			}),
+		);
+		expect(context.projection.activeSession?.currentRun).toMatchObject({
+			state: "completed",
+			outputPreview: "Research Assistant could not be created.",
+		});
+	});
 });
 
 describe("untrusted payload handling", () => {
@@ -366,7 +384,7 @@ describe("connection state", () => {
 		const context = createReducerContext(() => 1);
 		setConnection(context, { state: "unavailable" });
 		expect(context.projection.connection.startInstructions).toContain(
-			"cline-gateway",
+			"clinegate",
 		);
 	});
 });

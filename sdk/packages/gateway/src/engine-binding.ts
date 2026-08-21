@@ -38,7 +38,7 @@ export class ModelNotConfiguredError extends Error {
 export class MissingProviderCredentialError extends Error {
 	constructor(providerId: string) {
 		super(
-			`No credential for provider "${providerId}": configure providers.json, create it with \`cline-gateway secret-put ${providerId}\`, or set an environment override`,
+			`No credential for provider "${providerId}": configure providers.json, create it with \`clinegate secret-put ${providerId}\`, or set an environment override`,
 		);
 		this.name = "MissingProviderCredentialError";
 	}

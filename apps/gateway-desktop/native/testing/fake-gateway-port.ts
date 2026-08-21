@@ -634,6 +634,9 @@ export class FakeGatewayPort implements GatewayPort {
 			runs,
 			messages: (this.authority.messagesBySession.get(input.sessionId) ??
 				[]) as never,
+			totalMessageCount: (
+				this.authority.messagesBySession.get(input.sessionId) ?? []
+			).length,
 			lastEventSequence: this.authority.lastSequence,
 		};
 	}
@@ -692,6 +695,25 @@ export class FakeGatewayPort implements GatewayPort {
 			endedAt: Date.now(),
 		});
 		return { state: "running" };
+	}
+
+	async abortRun(input: { runId: string }): Promise<{ state: string }> {
+		this.assertOpen();
+		const run = this.authority.runs.get(input.runId);
+		if (!run) {
+			throw gatewayErrorObject("not_found", "unknown run", false);
+		}
+		if (run.state === "queued" || run.state === "running") {
+			this.authority.setRunState(input.runId, "aborted", {
+				endedAt: Date.now(),
+			});
+			return { state: "aborted" };
+		}
+		throw gatewayErrorObject(
+			"invalid_state_transition",
+			`Run is already ${run.state}`,
+			false,
+		);
 	}
 
 	async retryRun(input: {

@@ -25,7 +25,7 @@ From `apps/cline/`:
 
 The all-in-one Gateway + compatibility sidecar + Caddy image and Compose
 template live in [`docker/`](./docker/README.md). It provides the authenticated
-`wss://<host>/transport` endpoint consumed by the hosted Gateway UI.
+`wss://<host>/` endpoint consumed by the hosted Gateway UI.
 
 ## Login Shell PATH Resolution
 
@@ -112,7 +112,7 @@ Startup flow:
 
 1. Tauri starts a persistent local desktop backend and keeps only native window/file-picker/open-path responsibilities.
 2. The desktop backend starts the Bun sidecar, which discovers or starts the
-   canonical shared Cline Hub and exposes one websocket transport (`/transport`)
+   canonical shared Cline Hub and exposes one websocket transport (`/`)
    for desktop commands, queries, and pushed events.
 3. The React app uses `lib/desktop-client.ts` and no longer imports `@tauri-apps/api/core` directly in feature code.
 4. Tool approval updates are pushed from the backend instead of polled from the UI.

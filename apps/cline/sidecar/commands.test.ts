@@ -76,6 +76,45 @@ describe("Gateway desktop commands", () => {
 		});
 	});
 
+	it("creates a Gateway bot for browser clients and applies its system prompt", async () => {
+		const leadBotId = createBotId();
+		const workerBotId = createBotId();
+		const mutate = vi.fn(async () => ({
+			identity: { botId: workerBotId, name: "Research" },
+			revision: 0,
+		}));
+		const putBotSystemPrompt = vi.fn(async () => ({ revision: 1 }));
+		const result = await handleCommand(
+			context({
+				listBots: async () => ({
+					bots: [
+						{
+							identity: { botId: leadBotId, name: "Cline", role: "lead" },
+							status: "active",
+						},
+					],
+				}),
+				mutate,
+				putBotSystemPrompt,
+			}),
+			"create_bot",
+			{ name: "Research", systemPrompt: "Investigate carefully." },
+		);
+
+		expect(mutate).toHaveBeenCalledWith("bot.delegate", {
+			parentBotId: leadBotId,
+			name: "Research",
+			role: "worker",
+			reason: "Created from the Cline Bots UI",
+		});
+		expect(putBotSystemPrompt).toHaveBeenCalledWith({
+			botId: workerBotId,
+			content: "Investigate carefully.",
+			expectedRevision: 0,
+		});
+		expect(result).toEqual({ id: workerBotId, name: "Research" });
+	});
+
 	it("creates a session without requiring a prompt", async () => {
 		const botId = createBotId();
 		const sessionId = createSessionId();
@@ -162,6 +201,11 @@ describe("Gateway desktop commands", () => {
 		const result = await handleCommand(
 			context({
 				listBots: async () => ({ bots: [] }),
+				listConnectors: async () => ({
+					connectors: [
+						{ connectorId: "connector_slack", kind: "slack" },
+					],
+				}),
 				listSessions: async () => ({
 					sessions: [
 						{
@@ -174,7 +218,15 @@ describe("Gateway desktop commands", () => {
 					],
 				}),
 				getSession: async () => ({
-					runs: [{ state: "completed" }],
+					runs: [
+						{
+							state: "completed",
+							provenance: {
+								mode: "connector",
+								connectorId: "connector_slack",
+							},
+						},
+					],
 					messages: [
 						{
 							message: {
@@ -203,9 +255,44 @@ describe("Gateway desktop commands", () => {
 				provider: "anthropic",
 				model: "claude",
 				prompt: "hello",
+				source: "slack",
 				status: "completed",
 			}),
 		]);
+	});
+
+	it("bounds reopened history and truncates oversized tool payloads", async () => {
+		const sessionId = createSessionId();
+		const getSession = vi.fn(async () => ({
+			messages: [
+				{
+					message: {
+						id: "msg_large_tool_result",
+						role: "tool",
+						content: [
+							{
+								type: "tool-result",
+								toolCallId: "call_1",
+								toolName: "fetch_web_content",
+								output: "x".repeat(100_000),
+								isError: false,
+							},
+						],
+						createdAt: 1,
+					},
+				},
+			],
+		}));
+
+		const result = (await handleCommand(
+			context({ getSession }),
+			"read_session_messages",
+			{ sessionId, maxMessages: 20 },
+		)) as Array<{ content: string }>;
+
+		expect(getSession).toHaveBeenCalledWith({ sessionId, messageLimit: 20 });
+		expect(result[0]?.content).toContain("historical tool payload truncated");
+		expect(result[0]?.content.length).toBeLessThan(18_000);
 	});
 
 	it("returns the native Gateway connector catalog and active records", async () => {

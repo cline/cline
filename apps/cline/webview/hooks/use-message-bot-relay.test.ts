@@ -156,7 +156,7 @@ beforeEach(() => {
 		],
 	});
 	desktopMocks.tryTauriInvoke.mockResolvedValue(
-		"ws://127.0.0.1:43126/transport",
+		"ws://127.0.0.1:43126/",
 	);
 	sockets.length = 0;
 	requestHandler = () => {};

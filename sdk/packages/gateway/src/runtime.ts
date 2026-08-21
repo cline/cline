@@ -885,6 +885,7 @@ export interface SessionSnapshot {
 		readonly provenance?: RunProvenance;
 	})[];
 	readonly messages: readonly StoredMessage[];
+	readonly totalMessageCount: number;
 	/**
 	 * Event-log high-water mark observed in the same transaction as the
 	 * rest of the snapshot: the cursor basis for resuming subscriptions.
@@ -1527,7 +1528,10 @@ export class GatewayRuntime {
 	}
 
 	/** Consistent hydration snapshot of one session (single transaction). */
-	getSessionSnapshot(sessionId: SessionId): SessionSnapshot {
+	getSessionSnapshot(
+		sessionId: SessionId,
+		options: { messageLimit?: number } = {},
+	): SessionSnapshot {
 		return this.database.transaction(() => {
 			const session = this.stores.sessions.get(sessionId);
 			if (!session) {
@@ -1535,6 +1539,7 @@ export class GatewayRuntime {
 					createGatewayError("not_found", `Unknown session: ${sessionId}`),
 				);
 			}
+			const totalMessageCount = this.stores.messages.countBySession(sessionId);
 			return {
 				session,
 				runs: this.stores.runs.listBySession(sessionId).map((run) => {
@@ -1545,7 +1550,14 @@ export class GatewayRuntime {
 						...(provenance ? { provenance } : {}),
 					};
 				}),
-				messages: this.stores.messages.listBySession(sessionId),
+				messages:
+					options.messageLimit === undefined
+						? this.stores.messages.listBySession(sessionId)
+						: this.stores.messages.listRecentBySession(
+								sessionId,
+								options.messageLimit,
+							),
+				totalMessageCount,
 				lastEventSequence: this.stores.events.lastSequence(),
 			};
 		});
@@ -1795,7 +1807,7 @@ export class GatewayRuntime {
 
 	/**
 	 * Replace the credential REFERENCE (the secret itself is placed via
-	 * `cline-gateway secret-put` / an owner-only 0600 file, never here).
+	 * `clinegate secret-put` / an owner-only 0600 file, never here).
 	 */
 	setConnectorCredentialRef(
 		actor: string,

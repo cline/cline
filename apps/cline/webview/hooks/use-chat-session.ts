@@ -63,6 +63,7 @@ import {
 export { DEFAULT_CHAT_CONFIG } from "@/hooks/chat-session/constants";
 
 const MAX_MESSAGES = 800;
+const REOPENED_SESSION_MESSAGES = 20;
 
 // How long streamed text/reasoning deltas are buffered before a React commit.
 // ~3 frames: fast enough to feel live, slow enough to absorb per-token events.
@@ -2517,7 +2518,10 @@ export function useChatSession() {
 			try {
 				const historyMessages = await desktopClient.invoke<ChatMessage[]>(
 					"read_session_messages",
-					{ sessionId: session.sessionId, maxMessages: MAX_MESSAGES },
+					{
+						sessionId: session.sessionId,
+						maxMessages: REOPENED_SESSION_MESSAGES,
+					},
 				);
 				if (hydrationRequestIdRef.current !== requestId) return;
 				if (historyMessages.length > 0) {

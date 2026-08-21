@@ -65,7 +65,7 @@ function projectCacheKey(botId?: string, projectPath?: string): string | null {
  *    already cached, since resolving a *new* connection always needs to
  *    know which project's pooled process to reach.
  * 3. `NEXT_PUBLIC_SIDECAR_WS_ENDPOINT` (inlined at build time), then fallback
- *    to `ws://127.0.0.1:3126/transport` — the sidecar's default port when
+ *    to `ws://127.0.0.1:3126/` — the sidecar's default port when
  *    running in plain web/dev mode (`bun run dev:web` starts both processes).
  *
  * Callers that don't care which project (e.g. error-telemetry POSTs) can
@@ -126,7 +126,7 @@ export async function resolveDesktopBackendWsEndpoint(
 	// 3. Env override, then default sidecar port for local dev mode without
 	// the Tauri bridge.
 	const envEndpoint = process.env.NEXT_PUBLIC_SIDECAR_WS_ENDPOINT?.trim();
-	resolvedEndpointCache = envEndpoint || "ws://127.0.0.1:3126/transport";
+	resolvedEndpointCache = envEndpoint || "ws://127.0.0.1:3126/";
 	resolvedEndpointCacheKey = requestedKey;
 	return resolvedEndpointCache;
 }
@@ -135,9 +135,6 @@ export async function resolveDesktopBackendHttpEndpoint(): Promise<string> {
 	const wsEndpoint = await resolveDesktopBackendWsEndpoint();
 	const endpoint = new URL(wsEndpoint);
 	endpoint.protocol = endpoint.protocol === "wss:" ? "https:" : "http:";
-	if (endpoint.pathname.endsWith("/transport")) {
-		endpoint.pathname = endpoint.pathname.slice(0, -"/transport".length);
-	}
 	endpoint.search = "";
 	endpoint.hash = "";
 	return endpoint.toString().replace(/\/$/, "");
@@ -282,11 +279,8 @@ const NATIVE_COMMANDS = new Set([
 	"pick_bot_icon_file",
 	"list_assigned_projects",
 	"assign_project",
-	"get_bots_state",
-	"create_bot",
-	"switch_active_bot",
-	"read_bot_system_prompt",
-	"write_bot_system_prompt",
+	"sync_gateway_bots",
+	"switch_active_bot_preference",
 	"open_mcp_settings_file",
 	"get_update_status",
 	"restart_to_apply_update",

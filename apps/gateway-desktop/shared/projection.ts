@@ -261,10 +261,10 @@ export const MAX_PREVIEW_CHARS = 280;
 
 export const GATEWAY_START_INSTRUCTIONS = [
 	"# Start the Cline Gateway, then press Reconnect:",
-	"cline-gateway start",
+	"clinegate start",
 	"",
 	"# Or run it in the foreground:",
-	"cline-gateway serve",
+	"clinegate serve",
 ].join("\n");
 
 export function createInitialProjection(): DesktopProjection {

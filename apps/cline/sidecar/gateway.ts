@@ -73,11 +73,11 @@ async function startBundledGateway(): Promise<{
 }> {
 	const packaged = join(
 		dirname(process.execPath),
-		process.platform === "win32" ? "cline-gateway.exe" : "cline-gateway",
+		process.platform === "win32" ? "clinegate.exe" : "clinegate",
 	);
 	const entry = resolve(
 		import.meta.dir,
-		"../../../sdk/packages/gateway/bin/cline-gateway.mjs",
+		"../../../sdk/packages/gateway/bin/clinegate.mjs",
 	);
 	const compiledSidecar = basename(process.execPath).startsWith(
 		"cline-sidecar",

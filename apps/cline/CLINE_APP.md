@@ -9,7 +9,7 @@ backend is a Gateway client, not a `ClineCore` host and not a Hub client.
   sidecar lifecycle concerns.
 - The Bun sidecar preserves the webview's desktop command/event transport and
   translates that contract to the typed `@cline/gateway/client` surface.
-- The namespaced `cline-gateway` process is the sole authority for bots,
+- The namespaced `clinegate` process is the sole authority for bots,
   sessions, runs, messages, approvals, tools, schedules, connectors, provider
   settings, and persistence. The sidecar starts the bundled Gateway when it
   cannot discover an existing authority.

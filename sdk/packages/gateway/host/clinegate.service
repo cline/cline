@@ -8,7 +8,7 @@ After=network-online.target docker.service
 Type=simple
 Environment=NODE_ENV=production
 Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
-ExecStart=%h/.local/bin/cline-gateway serve --data-root %h/.cline/gateway --namespace default --remote-host 127.0.0.1 --remote-port 18080 --remote-token remote-access --allow-insecure-remote
+ExecStart=%h/.local/bin/clinegate serve --data-root %h/.cline/gateway --namespace default --remote-host 127.0.0.1 --remote-port 18080 --remote-token remote-access --allow-insecure-remote
 Restart=on-failure
 RestartSec=3
 TimeoutStopSec=30

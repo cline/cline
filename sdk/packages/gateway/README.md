@@ -91,16 +91,16 @@ history.
 ### Lifecycle
 
 ```
-cline-gateway serve                    # run the authority in the foreground
-cline-gateway serve --lead-profile cline-dad # run with the built-in Cline Dad lead
-cline-gateway start                    # ensure one is running (spawn detached, wait ready)
-cline-gateway status                   # read discovery, connect, report gateway.status
-cline-gateway drain                    # refuse new mutating work while runs finish
-cline-gateway upgrade                  # drain, wait idle, stop, start a fresh process
-cline-gateway stop                     # graceful stop
-cline-gateway secret-put <providerId>  # store a provider credential (reads stdin)
-cline-gateway secret-put remote-access # store a distinct remote access token
-cline-gateway serve --remote-port 18080 --remote-host 127.0.0.1
+clinegate serve                    # run the authority in the foreground
+clinegate serve --lead-profile cline-dad # run with the built-in Cline Dad lead
+clinegate start                    # ensure one is running (spawn detached, wait ready)
+clinegate status                   # read discovery, connect, report gateway.status
+clinegate drain                    # refuse new mutating work while runs finish
+clinegate upgrade                  # drain, wait idle, stop, start a fresh process
+clinegate stop                     # graceful stop
+clinegate secret-put <providerId>  # store a provider credential (reads stdin)
+clinegate secret-put remote-access # store a distinct remote access token
+clinegate serve --remote-port 18080 --remote-host 127.0.0.1
 ```
 
 The optional remote listener is the browser-facing WebSocket transport. It uses
@@ -176,7 +176,7 @@ directory's `secrets/` (dir 0700), one per provider (`anthropic`,
 or pipe one in:
 
 ```
-printf '%s' "$KEY" | cline-gateway secret-put anthropic
+printf '%s' "$KEY" | clinegate secret-put anthropic
 ```
 
 At execution time the Gateway resolves the run's **snapshotted** config
@@ -243,10 +243,10 @@ to 400 days, aggregates only): `statistics.summary`,
 | Loopback server + event replay | `src/server.ts` |
 | Loopback client | `src/client.ts` |
 | Outbox projections | `src/outbox.ts` |
-| Lifecycle CLI | `src/cli.ts`, `bin/cline-gateway.mjs` |
+| Lifecycle CLI | `src/cli.ts`, `bin/clinegate.mjs` |
 | Agent Plugins manifest/loader/catalog/bindings (Phase 4) | `src/plugins/` |
 | Bot workspace storage + mount policy (Phase 4) | `src/workspaces.ts` |
-| Worker supervision, drivers, protocol, entry (Phase 4) | `src/workers/`, `bin/cline-gateway-worker.mjs` |
+| Worker supervision, drivers, protocol, entry (Phase 4) | `src/workers/`, `bin/clinegate-worker.mjs` |
 | MCP definitions, transports, pool, tool views (Phase 5) | `src/mcp/` |
 | Connector stores, supervision, Telegram, Slack (Phase 6) | `src/connectors/` |
 | Schedules: triggers, durable claims, reports (Phase 6) | `src/schedules/` |

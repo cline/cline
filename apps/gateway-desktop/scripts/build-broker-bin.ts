@@ -43,7 +43,7 @@ if (!triple) {
 }
 
 const brokerOutfile = join(outDir, `gateway-desktop-broker-${triple}`);
-const gatewayOutfile = join(outDir, `cline-gateway-${triple}`);
+const gatewayOutfile = join(outDir, `clinegate-${triple}`);
 
 // The package entrypoint intentionally targets dist. Always rebuild it so the
 // desktop sidecar cannot silently bundle stale Gateway source.
@@ -52,7 +52,7 @@ await $`bun -F @cline/gateway build`.cwd(repoRoot);
 await $`bun build ${join(appRoot, "native", "index.ts")} --compile --outfile ${brokerOutfile}`.cwd(
 	appRoot,
 );
-await $`bun build ${join(repoRoot, "sdk", "packages", "gateway", "bin", "cline-gateway.mjs")} --compile --outfile ${gatewayOutfile}`.cwd(
+await $`bun build ${join(repoRoot, "sdk", "packages", "gateway", "bin", "clinegate.mjs")} --compile --outfile ${gatewayOutfile}`.cwd(
 	repoRoot,
 );
 

@@ -1099,7 +1099,10 @@ export class GatewayServer {
 					sessions: this.runtime.listSessions(p.botId as BotId | undefined),
 				};
 			case "session.get":
-				return this.runtime.getSessionSnapshot(p.sessionId as SessionId);
+				return this.runtime.getSessionSnapshot(p.sessionId as SessionId, {
+					messageLimit:
+						typeof p.messageLimit === "number" ? p.messageLimit : undefined,
+				});
 			// Statistics: bounded reads over the maintained aggregates only —
 			// never a rescan of runs, events, or session message history.
 			case "statistics.summary":

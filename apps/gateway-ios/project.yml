@@ -1,0 +1,29 @@
+name: GatewayMobile
+options:
+  bundleIdPrefix: bot.cline
+  deploymentTarget:
+    iOS: "17.0"
+targets:
+  GatewayMobile:
+    type: application
+    platform: iOS
+    sources:
+      - GatewayMobile/Sources
+    resources:
+      - GatewayMobile/Assets.xcassets
+    info:
+      path: GatewayMobile/Info.plist
+      properties:
+        UILaunchScreen: {}
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+        NSAppTransportSecurity:
+          NSAllowsArbitraryLoads: true
+        NSCameraUsageDescription: "Scan a QR code to pair with your gateway server."
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: bot.cline.gatewaymobile
+        SWIFT_VERSION: "5.0"
+        MARKETING_VERSION: "1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        TARGETED_DEVICE_FAMILY: "1"

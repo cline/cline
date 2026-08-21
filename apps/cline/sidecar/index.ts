@@ -2,7 +2,11 @@ import { resolve } from "node:path";
 import type { GatewayEvent, GatewayServerRequest } from "@cline/shared/gateway";
 import { ensureGateway, updateGateway } from "./gateway";
 import { broadcast, startServer } from "./server";
-import { SIDECAR_HOST, type SidecarContext } from "./types";
+import {
+	SIDECAR_HOST,
+	SIDECAR_VERSION,
+	type SidecarContext,
+} from "./types";
 
 function eventSession(event: GatewayEvent): string | undefined { return event.scope.sessionId; }
 
@@ -50,7 +54,7 @@ async function main(): Promise<void> {
 	await ctx.client.subscribe({});
 	const server = startServer(ctx);
 	const dialHost = SIDECAR_HOST === "0.0.0.0" ? "127.0.0.1" : SIDECAR_HOST;
-	process.stdout.write(`${JSON.stringify({ type: "ready", endpoint: `http://${dialHost}:${server.port}`, wsEndpoint: `ws://${dialHost}:${server.port}/transport`, pid: process.pid, mode: "bun" })}\n`);
+	process.stdout.write(`${JSON.stringify({ type: "ready", version: SIDECAR_VERSION, endpoint: `http://${dialHost}:${server.port}`, wsEndpoint: `ws://${dialHost}:${server.port}/`, pid: process.pid, mode: "bun" })}\n`);
 	const shutdown = () => { server.stop(); ctx.client.close(); ctx.ownedProcess?.kill("SIGTERM"); process.exit(0); };
 	process.once("SIGINT", shutdown); process.once("SIGTERM", shutdown);
 }

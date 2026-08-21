@@ -1027,6 +1027,27 @@ fn read_bot_registry_seeded(path: &Path) -> Result<BotRegistryState, String> {
     Ok(seeded)
 }
 
+fn resolve_backend_bot<'a>(
+    registry: &'a BotRegistryState,
+    requested_bot_id: &str,
+) -> Option<&'a BotSummary> {
+    registry
+        .bots
+        .iter()
+        .find(|bot| bot.id == requested_bot_id)
+        .or_else(|| {
+            (requested_bot_id == DEFAULT_BOT_ID)
+                .then(|| {
+                    registry
+                        .bots
+                        .iter()
+                        .find(|bot| bot.id == registry.active_bot_id)
+                        .or_else(|| registry.bots.first())
+                })
+                .flatten()
+        })
+}
+
 /// Derives a filesystem/URL-safe id from a user-typed bot display name:
 /// lowercase, runs of anything that isn't `[a-z0-9]` collapse to a single
 /// `-`, leading/trailing `-` trimmed. Falls back to `"bot"` if that leaves
@@ -1077,6 +1098,51 @@ fn dedupe_bot_id(base: &str, existing_ids: &[String]) -> String {
 fn get_bots_state(app: tauri::AppHandle) -> Result<BotRegistryState, String> {
     let path = resolve_bot_registry_path(&app)?;
     read_bot_registry_seeded(&path)
+}
+
+/// Mirrors Gateway-owned bot identities into the desktop shell's local
+/// preference registry. The Gateway remains authoritative for which bots
+/// exist; this file only retains desktop-only presentation fields and the
+/// last active selection so native backend routing can resolve the bot.
+#[tauri::command]
+fn sync_gateway_bots(
+    app: tauri::AppHandle,
+    bots: Vec<BotSummary>,
+) -> Result<BotRegistryState, String> {
+    if bots.is_empty() {
+        return Err("Gateway returned no active bots".to_string());
+    }
+    let registry_path = resolve_bot_registry_path(&app)?;
+    let current = read_bot_registry_seeded(&registry_path)?;
+    let mut synced_bots = bots;
+    for bot in &mut synced_bots {
+        if bot.icon.is_none() {
+            bot.icon = current
+                .bots
+                .iter()
+                .find(|existing| existing.id == bot.id)
+                .and_then(|existing| existing.icon.clone());
+        }
+    }
+    let active_bot_id = if synced_bots
+        .iter()
+        .any(|bot| bot.id == current.active_bot_id)
+    {
+        current.active_bot_id
+    } else {
+        synced_bots[0].id.clone()
+    };
+    let synced = BotRegistryState {
+        bots: synced_bots,
+        active_bot_id,
+    };
+    write_bot_registry(&registry_path, &synced)?;
+    Ok(synced)
+}
+
+#[tauri::command]
+fn switch_active_bot_preference(app: tauri::AppHandle, bot_id: String) -> Result<String, String> {
+    switch_active_bot(app, bot_id)
 }
 
 /// The bot's own rules directory - bot-owned data living inside
@@ -1296,20 +1362,32 @@ fn get_desktop_backend_endpoint(
     bot_id: String,
     project_path: String,
 ) -> Result<String, String> {
-    let project_path = normalize_requested_project_path(&bot_id, project_path);
     let bot_registry_path = resolve_bot_registry_path(&app)?;
     let bot_registry = read_bot_registry_seeded(&bot_registry_path)?;
-    let bot = bot_registry
-        .bots
-        .iter()
-        .find(|bot| bot.id == bot_id)
+    let bot = resolve_backend_bot(&bot_registry, &bot_id)
+        // The webview necessarily starts with the product-level placeholder
+        // `cline` before it can reach the Gateway and load its authoritative
+        // bot IDs. After Gateway bots have been mirrored locally, that literal
+        // ID may no longer exist. Resolve only this bootstrap sentinel to the
+        // persisted active bot; arbitrary unknown IDs still fail closed.
         .ok_or_else(|| format!("unknown bot: {bot_id}"))?;
+    let bot_id = bot.id.clone();
+    let project_path = normalize_requested_project_path(&bot_id, project_path);
     let is_chat_workspace = resolve_bot_chat_workspace_path(&bot_id)
         .map(|chat_path| chat_path.to_string_lossy() == project_path)
         .unwrap_or(false)
         || resolve_bot_home_dir_path(&bot_id)
             .map(|home_path| home_path.to_string_lossy() == project_path)
             .unwrap_or(false);
+    // The first launch of a newly-created Gateway bot has no local data tree
+    // yet. This path becomes the child process working directory below, so it
+    // must exist before Command::spawn; otherwise macOS reports the misleading
+    // "failed to start desktop backend sidecar: No such file or directory" even
+    // though the bundled sidecar binary itself is present.
+    if is_chat_workspace && !project_path.is_empty() {
+        fs::create_dir_all(&project_path)
+            .map_err(|e| format!("failed to create bot chat workspace: {e}"))?;
+    }
     if !is_chat_workspace && !project_path.is_empty() {
         let registry_path = resolve_project_registry_path(&app, &bot_id)?;
         let registry = read_project_registry(&registry_path);
@@ -1791,6 +1869,8 @@ fn main() {
             get_bots_state,
             create_bot,
             switch_active_bot,
+            sync_gateway_bots,
+            switch_active_bot_preference,
             read_bot_system_prompt,
             write_bot_system_prompt,
             pick_workspace_directory,
@@ -2052,6 +2132,24 @@ mod tests {
             active_bot_id: "research".to_string(),
         };
         assert_eq!(seeded_bot_registry(already_valid.clone()), already_valid);
+    }
+
+    #[test]
+    fn backend_bootstrap_resolves_cline_sentinel_to_persisted_gateway_bot() {
+        let registry = BotRegistryState {
+            bots: vec![BotSummary {
+                id: "gateway-lead-123".to_string(),
+                name: "Cline".to_string(),
+                icon: None,
+            }],
+            active_bot_id: "gateway-lead-123".to_string(),
+        };
+
+        assert_eq!(
+            resolve_backend_bot(&registry, DEFAULT_BOT_ID).map(|bot| bot.id.as_str()),
+            Some("gateway-lead-123")
+        );
+        assert!(resolve_backend_bot(&registry, "unknown-worker").is_none());
     }
 
     #[test]

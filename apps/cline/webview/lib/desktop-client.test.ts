@@ -102,7 +102,7 @@ beforeEach(() => {
 	globalThis.fetch = fetchMock as unknown as typeof fetch;
 	fetchMock.mockClear();
 	(window as unknown as Record<string, unknown>).__SIDECAR_WS_ENDPOINT__ =
-		"ws://127.0.0.1:3126/transport";
+		"ws://127.0.0.1:3126/";
 });
 
 afterEach(() => {

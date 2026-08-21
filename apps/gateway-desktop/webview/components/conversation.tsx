@@ -149,6 +149,16 @@ export function Conversation({
 										) : null}
 									</div>
 								))}
+								{currentRun?.state === "completed" && currentRun.outputPreview ? (
+									<div className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 p-4 text-sm">
+										<p className="mb-1 font-medium text-emerald-700 dark:text-emerald-300">
+											Task completed
+										</p>
+										<p className="cline-chat-selectable whitespace-pre-wrap text-muted-foreground">
+											{currentRun.outputPreview}
+										</p>
+									</div>
+								) : null}
 								{currentRun?.error ? (
 									<div className="flex gap-3 rounded-lg border border-destructive/40 bg-destructive/10 p-4 text-sm">
 										<CircleAlert className="mt-0.5 size-4 shrink-0 text-destructive" />

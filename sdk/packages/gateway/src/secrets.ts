@@ -4,7 +4,7 @@
  * The Gateway owns credentials. Secrets are stored exclusively as
  * mode-0600 files in the Gateway's owner-only secrets directory
  * (`<dataDir>/secrets/<name>`): one file per LLM provider (Phase 3
- * credential management, `cline-gateway secret-put <providerId>`) and
+ * credential management, `clinegate secret-put <providerId>`) and
  * one per connector `credentialRef` (Phase 6 adapter tokens). They are
  * read by the Gateway process itself and injected in memory at the
  * consuming boundary — the engine binding, a connector adapter, an MCP

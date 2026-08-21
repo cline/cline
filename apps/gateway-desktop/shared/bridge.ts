@@ -121,6 +121,14 @@ export const BridgeCommandSchema = z.discriminatedUnion("command", [
 		.strict(),
 	z
 		.object({
+			command: z.literal("run.abort"),
+			clientRequestId: ClientRequestIdSchema,
+			runId: z.string().min(1).max(256),
+			reason: shortText.optional(),
+		})
+		.strict(),
+	z
+		.object({
 			command: z.literal("run.retry"),
 			clientRequestId: ClientRequestIdSchema,
 			runId: z.string().min(1).max(256),
@@ -155,6 +163,7 @@ export const BRIDGE_COMMAND_NAMES = [
 	"run.start",
 	"run.steer",
 	"run.interrupt",
+	"run.abort",
 	"run.retry",
 	"approval.resolve",
 	"diagnostics.reveal",

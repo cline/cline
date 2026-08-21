@@ -30,7 +30,7 @@ export function GatewayGate({
 }) {
 	const connection = projection.connection;
 	const [copied, setCopied] = useState(false);
-	const instructions = connection.startInstructions ?? "cline-gateway start";
+	const instructions = connection.startInstructions ?? "clinegate start";
 	const copy = useCallback(() => {
 		void navigator.clipboard.writeText(instructions).then(() => {
 			setCopied(true);

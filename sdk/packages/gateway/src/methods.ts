@@ -190,7 +190,12 @@ export const GATEWAY_METHODS: readonly GatewayMethodDefinition[] = [
 	define(
 		"session.get",
 		false,
-		z.object({ sessionId: SessionIdSchema }).strict(),
+		z
+			.object({
+				sessionId: SessionIdSchema,
+				messageLimit: z.number().int().positive().max(800).optional(),
+			})
+			.strict(),
 	),
 	define(
 		"run.list",

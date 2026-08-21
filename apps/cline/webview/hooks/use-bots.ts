@@ -18,7 +18,16 @@ export interface BotSummary {
 
 interface BotRegistryState {
 	bots: BotSummary[];
-	activeBotId: string;
+	activeBotId?: string;
+}
+
+async function syncDesktopBotPreferences(
+	state: BotRegistryState,
+): Promise<BotRegistryState> {
+	if (!isTauriAvailable()) return state;
+	return desktopClient.invoke<BotRegistryState>("sync_gateway_bots", {
+		bots: state.bots,
+	});
 }
 
 export interface UseBotsResult {
@@ -37,13 +46,11 @@ export interface UseBotsResult {
 const FALLBACK_BOT: BotSummary = { id: DEFAULT_BOT_ID, name: DEFAULT_BOT_NAME };
 
 /**
- * Owns the top-level bot registry (host-owned, see main.rs's
- * get_bots_state/create_bot/switch_active_bot - never webview localStorage,
- * for the same reason the assigned-projects list isn't sourced from it
- * either). Seeded with the single default bot before the first real
- * response lands, matching desktopClient's own bootstrap default - there's
- * no reliable effect ordering to lean on instead, since arbitrary
- * components can issue commands as soon as they mount.
+ * Owns the top-level bot registry exposed by the active host transport. In a
+ * browser that is the remote Gateway; in Tauri it is the desktop host. The
+ * seeded default only covers the interval before the authoritative response
+ * lands, because arbitrary components may issue commands as soon as they
+ * mount.
  */
 export function useBotRegistry(): UseBotsResult {
 	const [bots, setBots] = useState<BotSummary[]>([FALLBACK_BOT]);
@@ -58,20 +65,23 @@ export function useBotRegistry(): UseBotsResult {
 	}, []);
 
 	useEffect(() => {
-		if (!isTauriAvailable()) {
-			return;
-		}
 		let cancelled = false;
 		void desktopClient
 			.invoke<BotRegistryState>("get_bots_state")
+			.then(syncDesktopBotPreferences)
 			.then((state) => {
 				if (cancelled) return;
 				setBots(state.bots);
-				setActiveBotId(state.activeBotId);
+				setActiveBotId((current) => {
+					const requested = state.activeBotId ?? current;
+					return state.bots.some((bot) => bot.id === requested)
+						? requested
+						: (state.bots[0]?.id ?? DEFAULT_BOT_ID);
+				});
 			})
 			.catch(() => {
-				// Outside Tauri, or a transient failure - keep the seeded
-				// single-bot fallback rather than surfacing an error for a
+				// Keep the seeded single-bot fallback through a transient
+				// transport failure rather than surfacing an error for a
 				// background bootstrap fetch.
 			});
 		return () => {
@@ -86,15 +96,33 @@ export function useBotRegistry(): UseBotsResult {
 			icon?: string,
 			systemPrompt?: string,
 		): Promise<BotSummary> => {
-			if (!isTauriAvailable()) {
-				throw new Error("Bots are only available in the desktop app.");
-			}
 			const created = await desktopClient.invoke<BotSummary>("create_bot", {
 				name,
 				initialProjectPath: initialProjectPath?.trim() || undefined,
 				icon: icon?.trim() || undefined,
 				systemPrompt: systemPrompt?.trim() || undefined,
 			});
+			let nextBots = [...bots, created];
+			if (isTauriAvailable()) {
+				const synced = await desktopClient.invoke<BotRegistryState>(
+					"sync_gateway_bots",
+					{
+						bots: nextBots.map((bot) =>
+							bot.id === created.id && icon?.trim()
+								? { ...bot, icon: icon.trim() }
+								: bot,
+						),
+					},
+				);
+				nextBots = synced.bots;
+				const projectPath = initialProjectPath?.trim();
+				if (projectPath) {
+					await desktopClient.invoke("assign_project", {
+						botId: created.id,
+						path: projectPath,
+					});
+				}
+			}
 			// Switching here (rather than leaving it to the caller) means
 			// createBot always leaves the registry and the active id in
 			// sync in one call - the same reason switchWorkspace adopts
@@ -102,13 +130,18 @@ export function useBotRegistry(): UseBotsResult {
 			await desktopClient.invoke<string>("switch_active_bot", {
 				botId: created.id,
 			});
+			if (isTauriAvailable()) {
+				await desktopClient.invoke<string>("switch_active_bot_preference", {
+					botId: created.id,
+				});
+			}
 			if (mountedRef.current) {
-				setBots((current) => [...current, created]);
+				setBots(nextBots);
 				setActiveBotId(created.id);
 			}
 			return created;
 		},
-		[],
+		[bots],
 	);
 
 	const switchBot = useCallback(
@@ -116,10 +149,12 @@ export function useBotRegistry(): UseBotsResult {
 			if (botId === activeBotId) {
 				return;
 			}
-			if (!isTauriAvailable()) {
-				throw new Error("Bots are only available in the desktop app.");
-			}
 			await desktopClient.invoke<string>("switch_active_bot", { botId });
+			if (isTauriAvailable()) {
+				await desktopClient.invoke<string>("switch_active_bot_preference", {
+					botId,
+				});
+			}
 			if (mountedRef.current) {
 				setActiveBotId(botId);
 			}
@@ -130,7 +165,7 @@ export function useBotRegistry(): UseBotsResult {
 	return {
 		bots,
 		activeBotId,
-		canCreateBot: isTauriAvailable() && bots.length < MAX_BOTS,
+		canCreateBot: bots.length < MAX_BOTS,
 		createBot,
 		switchBot,
 	};

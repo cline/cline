@@ -80,7 +80,7 @@ export class StdioMcpTransport implements McpTransport {
 		child.on("error", (error) => this.emitClose(error));
 		await this.request("initialize", {
 			protocolVersion: "2024-11-05",
-			clientInfo: { name: "cline-gateway", version: "1" },
+			clientInfo: { name: "clinegate", version: "1" },
 			capabilities: {},
 		});
 		this.notify("notifications/initialized", {});
