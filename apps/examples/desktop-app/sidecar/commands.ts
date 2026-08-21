@@ -71,6 +71,10 @@ import {
 	sendEventToClient,
 } from "./context";
 import {
+	identifyDesktopFeatureFlagsAccount,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
+import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
 	uninstallLocalPrimitive,
@@ -293,6 +297,33 @@ function removePathIfExists(
 // requests single-flight; the refresh token is single-use, so parallel
 // refreshes would invalidate each other.
 let clineOAuthTokenManager: RuntimeOAuthTokenManager | undefined;
+
+function syncFeatureFlagsAccountFromResult(
+	ctx: SidecarContext,
+	operation: string,
+	result: unknown,
+): void {
+	if (operation === "fetchMe") {
+		const user = result as { id?: string; email?: string } | undefined;
+		if (user?.id) {
+			void identifyDesktopFeatureFlagsAccount(
+				{ id: user.id, email: user.email },
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+		}
+		return;
+	}
+}
+
+function syncFeatureFlagsAccountFromSettings(
+	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
+): void {
+	void identifyDesktopFeatureFlagsAccount(
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
+}
 
 async function resolveFreshClineAuthToken(
 	ctx: SidecarContext,
@@ -1548,6 +1579,14 @@ export async function handleCommand(
 		// would be captured as error telemetry and shown raw to the user.
 		const authToken = await resolveFreshClineAuthToken(ctx, manager);
 		if (!authToken) {
+			// Backstop for credentials that go away without a settings write —
+			// an expired or server-revoked token. Explicit sign-out is handled
+			// at its source in `save_provider_settings`; this catches the rest
+			// so a stale account never keeps serving its rollout cohort.
+			void identifyDesktopFeatureFlagsAccount(
+				{},
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1556,10 +1595,12 @@ export async function handleCommand(
 				settings?.baseUrl?.trim() || getClineEnvironmentConfig().apiBaseUrl,
 			getAuthToken: async () => authToken,
 		});
-		return await executeClineAccountAction(
+		const result = await executeClineAccountAction(
 			args as ClineAccountActionRequest,
 			accountService,
 		);
+		syncFeatureFlagsAccountFromResult(ctx, operation, result);
+		return result;
 	}
 
 	// ── Provider management ────────────────────────────────────────────
@@ -1718,13 +1759,21 @@ export async function handleCommand(
 	}
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
-		return saveLocalProviderSettings(manager, {
+		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId: String(args?.provider ?? ""),
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
 			apiKey: typeof args?.api_key === "string" ? args.api_key : undefined,
 			baseUrl: typeof args?.base_url === "string" ? args.base_url : undefined,
 		});
+		// Sign-out is a `save_provider_settings` that blanks the cline auth block
+		// (see signOut in webview settings/account-view.tsx), so this is the
+		// authoritative signal — it fires the moment credentials are cleared
+		// rather than waiting for the next account fetch.
+		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			syncFeatureFlagsAccountFromSettings(ctx, manager);
+		}
+		return saved;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();
@@ -1825,6 +1874,18 @@ export async function handleCommand(
 		}
 		setModelToolEnabledGlobally("web_search", args.web_search_enabled);
 		return readGlobalSettings();
+	}
+
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
+	if (command === "get_feature_flags") {
+		return await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
 	}
 
 	// ── Connector channels ─────────────────────────────────────────────
