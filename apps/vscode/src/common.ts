@@ -171,10 +171,6 @@ export async function tearDown(): Promise<void> {
 		AgentConfigLoader.getInstance()?.dispose()
 		PostHogClientProvider.getInstance().dispose()
 		telemetryService.dispose()
-		// Both telemetry pipelines write through the shared OTel clients; shut
-		// them down (flushing pending batches) after the services stop capturing.
-		await disposeSharedOtelClients()
-		disposeTelemetryPolicy()
 		ErrorService.get().dispose()
 		featureFlagsService.dispose()
 		// Dispose all webview instances
@@ -188,6 +184,15 @@ export async function tearDown(): Promise<void> {
 		HookDiscoveryCache.getInstance().dispose()
 		// Stop periodic temp file cleanup
 		ClineTempManager.stopPeriodicCleanup()
+
+		// Shut the shared OpenTelemetry clients down LAST: both telemetry
+		// pipelines export through them, so the exporters have to outlive every
+		// capture site. In particular the SDK pipeline is torn down inside
+		// WebviewProvider.disposeAllInstances() above and still emits while doing
+		// so (session end, the deferred telemetry.provider_created), so shutting
+		// the clients down any earlier silently drops those records.
+		await disposeSharedOtelClients()
+		disposeTelemetryPolicy()
 	} finally {
 		try {
 			await StateManager.get().flushPendingState()

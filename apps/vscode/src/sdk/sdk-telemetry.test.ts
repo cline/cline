@@ -132,6 +132,29 @@ describe("createVscodeSdkTelemetryHandle (shared-stack construction)", () => {
 		})
 	})
 
+	it("exports through the real @cline/core adapter, not a test double", async () => {
+		// Pins that the vitest @cline/core alias re-exports the shipped
+		// OpenTelemetryAdapter rather than a hand-written copy: attribute
+		// flattening (nested -> dot notation, arrays -> JSON) is behavior only the
+		// real adapter has, so this fails if the alias ever regresses to a stub.
+		const { emitted, shared } = createFakeSharedClient()
+		otelClientMocks.clients = [shared]
+
+		const handle = createVscodeSdkTelemetryHandle()
+		await settlePromises()
+
+		handle.telemetry.capture({
+			event: "session.started",
+			properties: { nested: { depth: 2 }, list: [1, 2] },
+		})
+
+		const event = emitted.find((record) => record.body === "session.started")
+		expect(event?.attributes).toMatchObject({
+			"nested.depth": 2,
+			list: "[1,2]",
+		})
+	})
+
 	it("keeps the unknown host identity fallbacks when the host version lookup fails", async () => {
 		// "unknown" must survive a failed lookup instead of a VSCode mislabel.
 		telemetryState.hostVersionError = new Error("host bridge unavailable")

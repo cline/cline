@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs"
 import { getGeneratedModelsForProvider, MODEL_COLLECTIONS_BY_PROVIDER_ID } from "@cline/llms"
 import { createFileReadExecutor } from "../../../../sdk/packages/core/src/extensions/tools/executors/file-read"
+import type { ITelemetryAdapter } from "../../../../sdk/packages/core/src/services/telemetry/ITelemetryAdapter"
 
 export interface OAuthCredentials {
 	accessToken?: string
@@ -319,135 +320,18 @@ export function resolveCoreDistinctId(distinctId?: string): string {
 	return distinctId ?? "stub-core-distinct-id"
 }
 
-export interface ITelemetryAdapter {
-	readonly name: string
-	emit(event: string, properties?: TelemetryProperties): void
-	emitRequired(event: string, properties?: TelemetryProperties): void
-	recordCounter(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
-	recordHistogram(name: string, value: number, attributes?: TelemetryProperties, description?: string, required?: boolean): void
-	recordGauge(
-		name: string,
-		value: number | null,
-		attributes?: TelemetryProperties,
-		description?: string,
-		required?: boolean,
-	): void
-	isEnabled(): boolean
-	setDistinctId(distinctId?: string): void
-	setCommonProperties(properties: TelemetryProperties): void
-	updateCommonProperties(properties: TelemetryProperties): void
-	flush(): Promise<void>
-	dispose(): Promise<void>
-}
-
-export interface OpenTelemetryAdapterOptions {
-	readonly metadata: TelemetryMetadata
-	readonly meterProvider?: { getMeter(name: string): unknown; forceFlush?(): Promise<void>; shutdown?(): Promise<void> } | null
-	readonly loggerProvider?: {
-		getLogger(name: string): { emit(record: Record<string, unknown>): void }
-		forceFlush?(): Promise<void>
-		shutdown?(): Promise<void>
-	} | null
-	readonly name?: string
-	readonly enabled?: boolean | (() => boolean)
-	readonly distinctId?: string
-	readonly commonProperties?: TelemetryProperties
-	readonly ownsProviders?: boolean
-}
-
-/**
- * Behavior-faithful stub of @cline/core's OpenTelemetryAdapter: same enabled
- * gating (`emit` gated, `emitRequired` not) and the same attribute merge order,
- * minus metric instruments and property flattening.
- */
-export class OpenTelemetryAdapter implements ITelemetryAdapter {
-	readonly name: string
-	private readonly metadata: TelemetryMetadata
-	private readonly logger: { emit(record: Record<string, unknown>): void } | null
-	private readonly enabled: boolean | (() => boolean)
-	private readonly ownsProviders: boolean
-	private readonly meterProvider?: OpenTelemetryAdapterOptions["meterProvider"]
-	private readonly loggerProvider?: OpenTelemetryAdapterOptions["loggerProvider"]
-	private distinctId?: string
-	private commonProperties: TelemetryProperties
-
-	constructor(options: OpenTelemetryAdapterOptions) {
-		this.name = options.name ?? "OpenTelemetryAdapter"
-		this.metadata = { ...options.metadata }
-		this.meterProvider = options.meterProvider
-		this.loggerProvider = options.loggerProvider
-		this.logger = options.loggerProvider?.getLogger("cline") ?? null
-		this.enabled = options.enabled ?? true
-		this.ownsProviders = options.ownsProviders ?? true
-		this.distinctId = options.distinctId
-		this.commonProperties = { ...(options.commonProperties ?? {}) }
-	}
-
-	isEnabled(): boolean {
-		return typeof this.enabled === "function" ? this.enabled() : this.enabled
-	}
-
-	emit(event: string, properties?: TelemetryProperties): void {
-		if (!this.isEnabled()) {
-			return
-		}
-		this.emitLog(event, properties, false)
-	}
-
-	emitRequired(event: string, properties?: TelemetryProperties): void {
-		this.emitLog(event, properties, true)
-	}
-
-	recordCounter(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string, _required = false) {}
-	recordHistogram(_name: string, _value: number, _attributes?: TelemetryProperties, _description?: string, _required = false) {}
-	recordGauge(
-		_name: string,
-		_value: number | null,
-		_attributes?: TelemetryProperties,
-		_description?: string,
-		_required = false,
-	) {}
-
-	setDistinctId(distinctId?: string): void {
-		this.distinctId = distinctId
-	}
-
-	setCommonProperties(properties: TelemetryProperties): void {
-		this.commonProperties = { ...properties }
-	}
-
-	updateCommonProperties(properties: TelemetryProperties): void {
-		this.commonProperties = { ...this.commonProperties, ...properties }
-	}
-
-	async flush(): Promise<void> {
-		await Promise.all([this.meterProvider?.forceFlush?.(), this.loggerProvider?.forceFlush?.()])
-	}
-
-	async dispose(): Promise<void> {
-		if (!this.ownsProviders) {
-			return
-		}
-		await Promise.all([this.meterProvider?.shutdown?.(), this.loggerProvider?.shutdown?.()])
-	}
-
-	private emitLog(event: string, properties: TelemetryProperties | undefined, required: boolean): void {
-		if (!this.logger) {
-			return
-		}
-		this.logger.emit({
-			severityText: "INFO",
-			body: event,
-			attributes: {
-				...this.commonProperties,
-				...this.metadata,
-				...properties,
-				...(this.distinctId ? { distinct_id: this.distinctId } : {}),
-				...(required ? { _required: true } : {}),
-			},
-		})
-	}
-}
+// Real OpenTelemetryAdapter, re-exported from the sdk source (same pattern as the
+// executors above) so the telemetry parity suite asserts the adapter's actual
+// enabled-gating rather than a copy that could silently drift from it. Safe to
+// pull in: OpenTelemetryAdapter's own imports are all type-only, so it brings no
+// runtime dependencies with it.
+export type { ITelemetryAdapter }
+export {
+	OpenTelemetryAdapter,
+	type OpenTelemetryAdapterOptions,
+	type TelemetryLoggerProviderLike,
+	type TelemetryMeterProviderLike,
+} from "../../../../sdk/packages/core/src/services/telemetry/OpenTelemetryAdapter"
 
 export interface TelemetryServiceOptions {
 	adapters?: ITelemetryAdapter[]
