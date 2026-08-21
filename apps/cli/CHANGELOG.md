@@ -2,7 +2,6 @@
 
 ## 3.0.56
 
-- Agents can now create and manage durable todos and one-time or recurring schedules through a new `tasks` tool, enabled by default (yolo mode excludes it). Schedules are authorized against the workspace that registered them, and `cline schedule` now registers a workspace client so it keeps working against a remote hub
 - Models that support image generation can now produce media during a turn. The TUI saves each generated file to a temporary path and prints it so you can open it with your usual tools, HTML session exports embed images inline, and ACP clients receive generated images as image content
 - Skill slash commands now load through the skills tool instead of expanding into your message. History and resume show the `/command` you typed instead of the whole skill body, and the instructions reach the model once instead of twice. Workflows still expand, as does zen mode, whose preset has no skills tool
 - Image, voice, and other non-chat models are no longer offered in the onboarding and model pickers or ACP model listings, and are rejected for `--model`
@@ -13,8 +12,9 @@
 - Fixed `run_commands` failing with ENOENT when a structured command carried a full command line with no `args`
 - PowerShell commands now fail fast on the first error instead of emitting an error record per enumerated item and still reporting success
 - Fixed Gemini custom base URLs configured as a host root
+- Fixed `cline schedule` commands against a remote hub, which now register a workspace client so they are authorized under the new workspace-scoped schedule rules
 - Usage now displays the billed gateway cost
-- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists and per-provider default models across the board
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board
 
 ## 3.0.55
 
