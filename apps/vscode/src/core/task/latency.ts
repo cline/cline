@@ -50,6 +50,11 @@ export function isPresentationSchedulingDisabled(): boolean {
 	return schedulingDisabled
 }
 
+/** True only for first-token / tool / finalize flushes. Logging every delta froze the host (#13339). */
+export function shouldLogAssistantPresentationSchedule(priority: PresentationPriority): boolean {
+	return priority === "immediate"
+}
+
 export function getPresentationCadenceMs(isRemoteWorkspace: boolean, priority: PresentationPriority): number {
 	if (priority === "immediate") {
 		return 0

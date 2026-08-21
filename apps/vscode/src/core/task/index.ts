@@ -144,6 +144,7 @@ import {
 	getPresentationCadenceMs,
 	isPresentationSchedulingDisabled,
 	isRemoteWorkspaceEnvironment,
+	shouldLogAssistantPresentationSchedule,
 	type TaskLatencyTrigger,
 } from "./latency";
 import { MessageStateHandler } from "./message-state";
@@ -757,10 +758,13 @@ export class Task {
 			return;
 		}
 
-		// Immediate semantic boundaries: first visible token, tool transitions, finalization, and cleanup drains.
-		Logger.debug(
-			`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`,
-		);
+		// Do not log coalesced (text, normal) deltas — that line ran once per
+		// stream chunk and froze the extension host (#13339).
+		if (shouldLogAssistantPresentationSchedule(priority)) {
+			Logger.debug(
+				`[Task ${this.taskId}] schedule assistant presentation (${trigger}, ${priority})`,
+			);
+		}
 		this.presentationScheduler.requestFlush(priority);
 	}
 
@@ -3551,6 +3555,9 @@ export class Task {
 							}
 							if (chunk.id) {
 								assistantMessageId = chunk.id;
+							}
+							if (!chunk.text) {
+								break;
 							}
 							assistantMessage += chunk.text;
 							assistantTextOnly += chunk.text; // Accumulate text separately
