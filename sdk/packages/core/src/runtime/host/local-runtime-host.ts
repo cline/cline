@@ -614,6 +614,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 		if (!resumedArtifacts) manifest.metadata = initialSessionMetadata;
 		const runtime = await this.runtimeBuilder.build({
 			...bootstrap.runtimeBuilderInput,
+			distinctId: this.distinctId,
 			runCommandExecutionController: this.runCommandExecutionController,
 		});
 		const configWithProvider = bootstrap.config;
