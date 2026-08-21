@@ -1,5 +1,12 @@
 # Cline Desktop Changelog
 
+## 0.0.16-beta.1
+
+- Beta: your typed prompt is no longer lost when a cloud handoff starts — the live draft carries into the handoff and is restored if it fails.
+- Beta: fixed a closed model popover blocking clicks in the composer.
+- Beta: cleaned up visual regressions in provider settings, notifications, and the avatar overlay from the previous sync.
+- Includes the 0.0.16-track main updates: the redesigned first-run onboarding with an interactive welcome graphic, centralized tool availability, hook fixes (PostToolUse output and context changes now reach the model), and the fix for checkpoint restore staying locked after queued turns.
+
 ## 0.0.15
 
 - The app is now called Cline, renamed from Cline Code. Your settings, sessions, and credentials carry over untouched — only the name and icon change
