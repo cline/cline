@@ -1,5 +1,25 @@
 # Cline SDK Changelog
 
+## 0.0.76
+
+- Added model-driven image generation. Models that support it can generate images during a turn, and generated images are persisted in session history and exports
+- Agents can now create and manage scheduled tasks and a durable todo agenda. Schedules are scoped to the workspace that registered them
+- Skill slash commands now load through the skills tool instead of being pasted into the user message. The persisted transcript records what you typed (`/my-skill ...`) rather than the whole SKILL.md body, and skill instructions arrive once instead of twice. Workflows keep textual expansion
+- Fixed provider-executed tool activity being dropped entirely — every tool the Claude Code provider ran inside its own session modified the workspace with no tool activity in runtime events, transcripts, or the UI. These now surface as observational tool events
+- Fixed `PreToolUse` hook `contextModification` never reaching the model on the next engine; it is delivered again as a `<hook_context>` block stamped with the tool name and call id, hidden from user-facing transcripts
+- Fixed `PostToolUse` hooks running fire-and-forget with their output discarded. They are awaited now (120s bound) and their `contextModification` and `cancel` controls are honored, matching legacy
+- Fixed `run_commands` failing with ENOENT for the structured `{ command }` form when the command contained a space; it routes through the shell when no `args` key is present
+- PowerShell commands now run fail-fast (`$ErrorActionPreference='Stop'`). A pipeline erroring per item no longer emits tens of thousands of stderr records and then reports success
+- Fixed Gemini custom base URLs configured as a host root
+- Image and voice models no longer appear in chat model pickers
+- Provider model lists now carry featured tiers (Recommended/Free, and Subscribed/Free for ClinePass) plus model descriptions, served from the SDK with a cached recommended-models feed and a bundled offline fallback, so clients no longer join the feed themselves
+- Fixed sessions reporting a bogus "running" status — interactive sessions that were never prompted, and snapshot-only session updates — which left clients that gate on turn activity (desktop checkpoint restore) stuck busy forever
+- Detached command output now streams live and survives hub restarts instead of being reaped
+- Gateway usage now displays the billed cost
+- Fixed Windows crashes from the agenda spec watcher when the specs directory resolved through an 8.3 short path
+- AI SDK telemetry spans now carry user, session, conversation, run, provider, and model context under a stable `cline-sdk` service name
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers, renames `scx` to `scx-ai`, and updates model lists and per-provider default models across the board
+
 ## 0.0.75
 
 - Added provider-executed web search. Models that support it can search the web during a turn, and the search calls and their results are persisted in session history so they replay on reload. Off by default; enable the `web_search` model tool in settings
