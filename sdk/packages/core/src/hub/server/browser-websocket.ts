@@ -336,7 +336,18 @@ export class BrowserWebSocketHubAdapter {
 						let replayDone = false;
 						let lastDelivered = sinceSequence;
 						const buffered: HubEventEnvelope[] = [];
+						// A pending approval buffered from the live gate (re-issued by
+						// subscribe() sequence-less, since it predates any durable-log
+						// append) and its durable-log replay copy (sequence-stamped by
+						// HubEventLogStore.append, which returns a new object rather than
+						// mutating the original) share the same eventId. The sequence
+						// cursor alone can't catch that: dedupe by eventId too, or the
+						// buffer flush below re-delivers it after replay already did.
+						const deliveredEventIds = new Set<string>();
 						const deliver = (envelope: HubEventEnvelope): void => {
+							if (envelope.eventId && deliveredEventIds.has(envelope.eventId)) {
+								return;
+							}
 							if (
 								typeof envelope.sequence === "number" &&
 								envelope.sequence <= lastDelivered
@@ -345,6 +356,9 @@ export class BrowserWebSocketHubAdapter {
 							}
 							if (typeof envelope.sequence === "number") {
 								lastDelivered = envelope.sequence;
+							}
+							if (envelope.eventId) {
+								deliveredEventIds.add(envelope.eventId);
 							}
 							onEvent(envelope);
 						};

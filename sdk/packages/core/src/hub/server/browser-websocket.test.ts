@@ -1,5 +1,9 @@
 import { resolve } from "node:path";
-import type { HubCommandEnvelope, HubReplyEnvelope } from "@cline/shared";
+import type {
+	HubCommandEnvelope,
+	HubEventEnvelope,
+	HubReplyEnvelope,
+} from "@cline/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { BrowserWebSocketHubAdapter } from "./browser-websocket";
 import type { HubConnectionAuthority } from "./command-transport";
@@ -413,5 +417,68 @@ describe("BrowserWebSocketHubAdapter", () => {
 				},
 			},
 		});
+	});
+
+	it("does not duplicate a pending approval replayed via both the live gate and the durable log", async () => {
+		// Mirrors HubServerTransport.subscribe(): a pending approval predates
+		// any durable-log append, so it's re-issued sequence-less through the
+		// live listener (queued as a microtask, same as the real reissue).
+		const pendingApproval: HubEventEnvelope = {
+			version: "v1",
+			event: "approval.requested",
+			eventId: "hevt_pending_approval",
+			sessionId: "session-1",
+			timestamp: Date.now(),
+			payload: { approvalId: "approval_1" },
+		};
+		// HubEventLogStore.append() returns a *new* object stamped with a
+		// sequence rather than mutating the original — same eventId, though.
+		const stampedApproval: HubEventEnvelope = {
+			...pendingApproval,
+			sequence: 1,
+		};
+
+		let replayCalls = 0;
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(
+				(_clientId: string, listener: (event: HubEventEnvelope) => void) => {
+					queueMicrotask(() => listener(pendingApproval));
+					return () => {};
+				},
+			),
+			replayEventsAfter: vi.fn(() => {
+				replayCalls += 1;
+				return replayCalls === 1 ? [stampedApproval] : [];
+			}),
+		};
+		const socket = createSocket();
+		const adapter = new BrowserWebSocketHubAdapter(transport);
+		adapter.attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "stream.subscribe",
+				clientId: "late-reader",
+				sessionId: "session-1",
+				sinceSequence: 0,
+			}),
+		);
+
+		const deadline = Date.now() + 2_000;
+		while (transport.replayEventsAfter.mock.calls.length < 2 && Date.now() < deadline) {
+			await new Promise((r) => setTimeout(r, 5));
+		}
+		// Let the buffered-flush finally-block run past the last replay page.
+		await new Promise((r) => setTimeout(r, 25));
+
+		const delivered = socket.sent
+			.map((entry) => JSON.parse(entry))
+			.filter(
+				(frame) =>
+					frame.kind === "event" &&
+					frame.envelope.eventId === "hevt_pending_approval",
+			);
+		expect(delivered).toHaveLength(1);
 	});
 });
