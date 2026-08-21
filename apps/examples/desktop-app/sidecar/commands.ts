@@ -76,7 +76,12 @@ import {
 	readDesktopSettings,
 	setCloudSessionsEnabled,
 } from "./desktop-settings";
-import { isCloudAgentsEnabled } from "./feature-flags";
+import {
+	identifyDesktopFeatureFlagsAccount,
+	isCloudAgentsAvailable,
+	isCloudAgentsEnabled,
+	refreshDesktopFeatureFlags,
+} from "./feature-flags";
 import {
 	installMarketplaceEntryForDesktopCommand,
 	listMarketplaceInstalledEntries,
@@ -300,6 +305,33 @@ function removePathIfExists(
 		recursive: options?.recursive === true,
 	});
 	return true;
+}
+
+function syncFeatureFlagsAccountFromResult(
+	ctx: SidecarContext,
+	operation: string,
+	result: unknown,
+): void {
+	if (operation === "fetchMe") {
+		const user = result as { id?: string; email?: string } | undefined;
+		if (user?.id) {
+			void identifyDesktopFeatureFlagsAccount(
+				{ id: user.id, email: user.email },
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
+		}
+		return;
+	}
+}
+
+function syncFeatureFlagsAccountFromSettings(
+	ctx: SidecarContext,
+	manager: ProviderSettingsManager,
+): void {
+	void identifyDesktopFeatureFlagsAccount(
+		{ id: manager.getProviderSettings("cline")?.auth?.accountId },
+		{ logger: ctx.logger, telemetry: ctx.telemetry },
+	);
 }
 
 function mergePersistedSessionRecord(
@@ -1248,7 +1280,26 @@ export async function handleCommand(
 		};
 	}
 	if (command === "get_feature_flags") {
-		return { cloudAgents: isCloudAgentsEnabled() };
+		// PostHog flags resolve sidecar-side (build-time key, telemetry
+		// distinct id); the webview reads resolved values only. Cloud gets
+		// two derived fields: `cloudAgentsAvailable` (rollout flag — shows
+		// the Settings opt-in) and `cloudAgents` (flag AND the user's
+		// opt-in — enables the feature).
+		const snapshot = await refreshDesktopFeatureFlags({
+			logger: ctx.logger,
+			telemetry: ctx.telemetry,
+		});
+		return {
+			...snapshot,
+			cloudAgents: isCloudAgentsEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+			cloudAgentsAvailable: isCloudAgentsAvailable({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
+		};
 	}
 	if (command === "list_cloud_repositories") {
 		return await getCloudSessionManager(ctx).listRepositories();
@@ -1578,6 +1629,14 @@ export async function handleCommand(
 		// would be captured as error telemetry and shown raw to the user.
 		const authToken = await resolveFreshClineAuthToken(manager, ctx);
 		if (!authToken) {
+			// Backstop for credentials that go away without a settings write —
+			// an expired or server-revoked token. Explicit sign-out is handled
+			// at its source in `save_provider_settings`; this catches the rest
+			// so a stale account never keeps serving its rollout cohort.
+			void identifyDesktopFeatureFlagsAccount(
+				{},
+				{ logger: ctx.logger, telemetry: ctx.telemetry },
+			);
 			return CLINE_ACCOUNT_NOT_AUTHENTICATED_RESULT;
 		}
 		const settings = manager.getProviderSettings("cline");
@@ -1596,6 +1655,7 @@ export async function handleCommand(
 			// the next 12s poll.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
+		syncFeatureFlagsAccountFromResult(ctx, operation, result);
 		return result;
 	}
 
@@ -1758,7 +1818,7 @@ export async function handleCommand(
 	if (command === "save_provider_settings") {
 		const manager = new ProviderSettingsManager();
 		const providerId = String(args?.provider ?? "").trim();
-		const result = saveLocalProviderSettings(manager, {
+		const saved = saveLocalProviderSettings(manager, {
 			...readProviderSettingsUpdate(args),
 			providerId,
 			enabled: typeof args?.enabled === "boolean" ? args.enabled : undefined,
@@ -1771,7 +1831,14 @@ export async function handleCommand(
 			// not on the next 12s poll.
 			broadcastEvent(ctx, "cloud_sessions_changed", {});
 		}
-		return result;
+		// Sign-out is a `save_provider_settings` that blanks the cline auth block
+		// (see signOut in webview settings/account-view.tsx), so this is the
+		// authoritative signal — it fires the moment credentials are cleared
+		// rather than waiting for the next account fetch.
+		if (saved.providerId === "cline" || saved.providerId === "cline-pass") {
+			syncFeatureFlagsAccountFromSettings(ctx, manager);
+		}
+		return saved;
 	}
 	if (command === "add_provider") {
 		const manager = new ProviderSettingsManager();
@@ -1886,6 +1953,7 @@ export async function handleCommand(
 		// gate immediately instead of waiting for the next sign-in refresh.
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
+			cloudAgentsAvailable: isCloudAgentsAvailable(),
 		});
 		return settings;
 	}
@@ -1897,6 +1965,11 @@ export async function handleCommand(
 		return readGlobalSettings();
 	}
 
+	// ── Feature flags ──────────────────────────────────────────────────
+	// Flags are evaluated here, not in the webview: the sidecar already has
+	// the PostHog key inlined at build time and evaluates against the same
+	// distinct ID it reports telemetry with. The client just reads the
+	// resolved values.
 	// ── Connector channels ─────────────────────────────────────────────
 	if (command === "list_connector_channels") {
 		return connectorChannelsPayload();

@@ -613,19 +613,20 @@ function GeneralSettingsContent({
 	const [cloudSessionsEffective, setCloudSessionsEffective] = useState<
 		boolean | null
 	>(null);
-	// Hard-wired on for the preview. If rollout control is ever needed,
-	// gate this on a PostHog flag exposed through the sidecar's
-	// get_feature_flags command (the sidecar's remote-flag evaluation
-	// plumbing was removed with the old rollout gate; see the git history
-	// of sidecar/feature-flags.ts for the hardened version).
-	const cloudSessionsSettingVisible = true;
+	// The PostHog rollout flag (code-cloud-agents) controls who sees the
+	// opt-in at all; default to visible until the first flag fetch answers
+	// so an existing opted-in user never watches the row flicker out.
+	const [cloudSessionsAvailable, setCloudSessionsAvailable] = useState(true);
+	const cloudSessionsSettingVisible = cloudSessionsAvailable;
 
 	const refreshCloudSessionsEffective = useCallback(async () => {
 		try {
-			const flags = await desktopClient.invoke<{ cloudAgents?: boolean }>(
-				"get_feature_flags",
-			);
+			const flags = await desktopClient.invoke<{
+				cloudAgents?: boolean;
+				cloudAgentsAvailable?: boolean;
+			}>("get_feature_flags");
 			setCloudSessionsEffective(Boolean(flags.cloudAgents));
+			setCloudSessionsAvailable(flags.cloudAgentsAvailable !== false);
 		} catch {
 			setCloudSessionsEffective(null);
 		}
