@@ -14,7 +14,7 @@ vi.mock("./providers", () => ({
 	createHandlerAsync: createHandlerAsyncMock,
 }));
 
-import { generateMedia } from "./media-generation";
+import { generateMedia, MediaGenerationError } from "./media-generation";
 
 function apiStream(chunks: ApiStreamChunk[]): ApiStream {
 	return (async function* () {
@@ -170,6 +170,33 @@ describe("generateMedia", () => {
 				mediaType: "image",
 			}),
 		).rejects.toThrow("Media generation returned no image media");
+	});
+
+	it("preserves provider-reported usage on a no-media failure", async () => {
+		mockHandler([
+			{
+				type: "usage",
+				inputTokens: 8,
+				outputTokens: 0,
+				id: "response-1",
+			},
+			{ type: "done", success: true, id: "response-1" },
+		]);
+
+		const error = await generateMedia({
+			providerConfig: providerConfig(),
+			modelId: "image-model",
+			prompt: "Draw a bee",
+			mediaType: "image",
+		}).catch((caught) => caught);
+
+		expect(error).toBeInstanceOf(MediaGenerationError);
+		expect((error as MediaGenerationError).usage).toEqual({
+			inputTokens: 8,
+			outputTokens: 0,
+			cacheReadTokens: 0,
+			cacheWriteTokens: 0,
+		});
 	});
 
 	it("composes provider and request cancellation signals", async () => {

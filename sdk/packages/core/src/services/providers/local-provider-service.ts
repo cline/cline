@@ -155,6 +155,8 @@ export interface GenerateConfiguredMediaRequest {
 	mediaType: "image";
 	prompt: string;
 	abortSignal?: AbortSignal;
+	/** Host-provided custom fetch, threaded through to the AI gateway provider. */
+	fetch?: typeof fetch;
 }
 
 export interface GenerateConfiguredMediaResult {
@@ -391,6 +393,7 @@ async function resolveMediaGenerationSelection(
 	manager: ProviderSettingsManager,
 	mediaType: MediaGenerationType,
 	selection: MediaModelSelection | undefined,
+	defaultFetch?: typeof fetch,
 ): Promise<ResolvedMediaGenerationTarget | undefined> {
 	if (mediaType !== "image") return undefined;
 	if (!selection) return undefined;
@@ -413,6 +416,7 @@ async function resolveMediaGenerationSelection(
 			return undefined;
 		}
 
+		const resolvedFetch = config.fetch ?? defaultFetch;
 		return {
 			mediaType,
 			selection: { providerId, modelId },
@@ -424,6 +428,7 @@ async function resolveMediaGenerationSelection(
 					...(config.knownModels ?? {}),
 					[modelId]: model,
 				},
+				...(resolvedFetch ? { fetch: resolvedFetch } : {}),
 			},
 			model,
 		};
@@ -436,12 +441,14 @@ async function resolveMediaGenerationSelection(
 export async function resolveConfiguredMediaGenerationTarget(
 	manager: ProviderSettingsManager,
 	mediaType: MediaGenerationType,
+	defaultFetch?: typeof fetch,
 ): Promise<ResolvedMediaGenerationTarget | undefined> {
 	try {
 		return await resolveMediaGenerationSelection(
 			manager,
 			mediaType,
 			manager.getMediaGenerationSettings()?.[mediaType],
+			defaultFetch,
 		);
 	} catch {
 		return undefined;
@@ -1289,6 +1296,7 @@ export async function generateConfiguredMedia(
 	const target = await resolveConfiguredMediaGenerationTarget(
 		manager,
 		request.mediaType,
+		request.fetch,
 	);
 	if (!target) {
 		throw new Error(

@@ -563,6 +563,8 @@ export {
 	filterExtensionToolRegistrations,
 	GlobalSettingsSchema,
 	isAutoUpdateEnabledGlobally,
+	/** @deprecated Use `isOptInToolEnabledGlobally` instead. */
+	isModelToolEnabledGlobally,
 	isOptInToolEnabledGlobally,
 	isPluginDisabledGlobally,
 	isTelemetryOptedOutGlobally,
@@ -576,12 +578,16 @@ export {
 	resolveDisabledPluginPaths,
 	resolveDisabledToolNames,
 	resolveEnabledOptInToolNames,
+	/** @deprecated Use `resolveOptInToolSettings` instead. */
+	resolveModelToolSettings,
 	resolveOptInToolSettings,
 	setAutoUpdateEnabledGlobally,
 	setCompactionModeGlobally,
 	setCompactionStrategyGlobally,
 	setDisabledPlugin,
 	setDisabledTools,
+	/** @deprecated Use `setOptInToolEnabledGlobally` instead. */
+	setModelToolEnabledGlobally,
 	setOptInToolEnabledGlobally,
 	setPlanActModeGlobally,
 	setTelemetryOptOutGlobally,

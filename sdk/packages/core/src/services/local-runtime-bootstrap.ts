@@ -1,4 +1,7 @@
-import { resolveProviderRequestHeaders } from "@cline/llms";
+import {
+	MediaGenerationError,
+	resolveProviderRequestHeaders,
+} from "@cline/llms";
 import type {
 	AgentConfig,
 	AgentEvent,
@@ -462,22 +465,31 @@ export async function prepareLocalRuntimeBootstrap(
 	const configuredMediaTarget = await resolveConfiguredMediaGenerationTarget(
 		providerSettingsManager,
 		"image",
+		defaultFetch,
 	);
 	const configuredGenerateMediaExecutor: GenerateMediaExecutor | undefined =
 		configuredMediaTarget
 			? async (mediaInput, context) => {
-					const generated = await generateConfiguredMedia(
-						providerSettingsManager,
-						{
-							mediaType: mediaInput.media_type,
-							prompt: mediaInput.prompt,
-							abortSignal: context.signal,
-						},
-					);
-					if (generated.usage) {
-						await context.reportUsage?.(generated.usage);
+					try {
+						const generated = await generateConfiguredMedia(
+							providerSettingsManager,
+							{
+								mediaType: mediaInput.media_type,
+								prompt: mediaInput.prompt,
+								abortSignal: context.signal,
+								fetch: defaultFetch,
+							},
+						);
+						if (generated.usage) {
+							await context.reportUsage?.(generated.usage);
+						}
+						return generated.content;
+					} catch (error) {
+						if (error instanceof MediaGenerationError && error.usage) {
+							await context.reportUsage?.(error.usage);
+						}
+						throw error;
 					}
-					return generated.content;
 				}
 			: undefined;
 	const hostToolExecutors = capabilities?.toolExecutors;

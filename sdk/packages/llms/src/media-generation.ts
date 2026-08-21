@@ -24,6 +24,21 @@ export interface MediaGenerationResult {
 	usage?: AgentUsage;
 }
 
+/**
+ * Thrown when a generation request fails or produces no usable media. Carries
+ * any usage the provider reported before the failure so callers can still
+ * account for tokens billed on an otherwise-failed request.
+ */
+export class MediaGenerationError extends Error {
+	readonly usage?: AgentUsage;
+
+	constructor(message: string, usage?: AgentUsage) {
+		super(message);
+		this.name = "MediaGenerationError";
+		this.usage = usage;
+	}
+}
+
 function resolveAbortSignal(
 	config: ProviderConfig,
 	requestSignal: AbortSignal | undefined,
@@ -55,10 +70,14 @@ function toUsage(chunk: ApiStreamUsageChunk): AgentUsage {
 	};
 }
 
-function unsuccessfulDoneError(chunk: ApiStreamDoneChunk): Error {
+function unsuccessfulDoneError(
+	chunk: ApiStreamDoneChunk,
+	usage: AgentUsage | undefined,
+): MediaGenerationError {
 	const detail = chunk.error?.trim() || chunk.incompleteReason?.trim();
-	return new Error(
+	return new MediaGenerationError(
 		detail ? `Media generation failed: ${detail}` : "Media generation failed",
+		usage,
 	);
 }
 
@@ -125,7 +144,7 @@ export async function generateMedia(
 				break;
 			case "done":
 				if (!chunk.success) {
-					throw unsuccessfulDoneError(chunk);
+					throw unsuccessfulDoneError(chunk, usage);
 				}
 				break;
 		}
@@ -133,7 +152,10 @@ export async function generateMedia(
 
 	abortSignal?.throwIfAborted();
 	if (media.length === 0) {
-		throw new Error(`Media generation returned no ${request.mediaType} media`);
+		throw new MediaGenerationError(
+			`Media generation returned no ${request.mediaType} media`,
+			usage,
+		);
 	}
 	return { media, ...(usage ? { usage } : {}) };
 }
