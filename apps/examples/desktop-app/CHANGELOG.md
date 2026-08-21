@@ -1,5 +1,27 @@
 # Cline Desktop Changelog
 
+## 0.0.15
+
+- The app is now called Cline, renamed from Cline Code. Your settings, sessions, and credentials carry over untouched — only the name and icon change
+- Refreshed app icons and branding
+- Reskinned the first-run onboarding, with an interactive welcome graphic
+- Plugins, MCP servers, and Skills are now one Plugins hub with a dedicated Marketplace page
+- The composer's model selector now leads with Recommended and Free tiers (Subscribed and Free on ClinePass), labeled by display name with descriptions, instead of an alphabetized list of raw model ids. Provider settings show the same badges and descriptions
+- Agents can now create and manage durable todos and one-time or recurring schedules
+- Fixed checkpoint restore wedging permanently. Sessions that were never prompted — and persistence-only updates — reported a bogus "running" status, so anything gated on an active turn stayed blocked forever
+- Fixed "No sessions found" flashing while session history was still loading
+- Fixed the work summary undercounting elapsed time when thinking before a tool call attached to the answer instead of the run
+- Fixed the settings gear keeping its hover state while the Account screen is open
+- Fixed ClinePass not being recognized as OAuth-managed in the chat credential gate, which asked for credentials it already had
+- Fixed copying a user message bringing along its internal envelope
+- Fixed multi-line code blocks collapsing onto a single line
+- Image, voice, and other non-chat models are no longer offered in chat model pickers
+- Fixed `PreToolUse` hook `contextModification` never reaching the model, and `PostToolUse` hook output and `cancel` control being discarded
+- Fixed provider-executed tool activity — every tool the Claude Code provider runs inside its own session — being dropped instead of shown
+- PowerShell commands now fail fast on the first error instead of flooding output and still reporting success
+- Usage now displays the billed gateway cost
+- Refreshed the model catalog, which adds AMD, Arcee, Echo, Jalapeno, Kosmik, LLM Gateway, RunInfra, and SCNet as providers and updates model lists, pricing, and per-provider default models across the board
+
 ## 0.0.14
 
 - The app now posts native macOS notifications when a task finishes or needs your input, so you can leave Cline working in the background. Configure them under Settings → Notifications.
