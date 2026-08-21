@@ -406,6 +406,16 @@ describe("ensureDetachedHubServer", () => {
 				"ws://127.0.0.1:25463/hub",
 				"old-token",
 			);
+			// Retirement is drain-first: the hub refuses new work before it is
+			// asked to shut down.
+			expect(requestHubDrain).toHaveBeenCalledWith(
+				"ws://127.0.0.1:25463/hub",
+				"old-token",
+				"retired by newer install",
+			);
+			expect(requestHubDrain.mock.invocationCallOrder[0]).toBeLessThan(
+				requestHubShutdown.mock.invocationCallOrder[0] ?? 0,
+			);
 			expect(kill).not.toHaveBeenCalledWith(12345, "SIGTERM");
 			expect(clearHubDiscovery).toHaveBeenCalledWith("/tmp/hub-discovery.json");
 			expect(spawn).toHaveBeenCalledOnce();
@@ -542,6 +552,10 @@ describe("ensureDetachedHubServer", () => {
 
 			await pending;
 			expect(spawn).not.toHaveBeenCalled();
+			// The hub survived the retirement attempt, so its discovery record
+			// must not be cleared — clearing it would leave the live daemon
+			// undiscoverable.
+			expect(clearHubDiscovery).not.toHaveBeenCalled();
 		} finally {
 			vi.useRealTimers();
 		}

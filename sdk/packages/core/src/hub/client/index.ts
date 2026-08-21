@@ -1109,11 +1109,16 @@ export async function ensureCompatibleLocalHubUrl(
  * Ask a hub to stop admitting new mutating work (sessions, runs) while its
  * accepted work finishes. Best-effort: pre-drain hubs answer 404 and the
  * caller proceeds without it.
+ *
+ * Pass `{ off: true }` to lift a drain (`POST /drain?off`): an aborted
+ * upgrade must be able to hand the hub back instead of leaving it refusing
+ * work until a restart.
  */
 export async function requestHubDrain(
 	url: string,
 	authToken?: string,
 	reason?: string,
+	options?: { off?: boolean },
 ): Promise<boolean> {
 	const parsed = new URL(url);
 	const resolvedAuthToken =
@@ -1127,6 +1132,9 @@ export async function requestHubDrain(
 	parsed.hash = "";
 	if (reason) {
 		parsed.searchParams.set("reason", reason);
+	}
+	if (options?.off) {
+		parsed.searchParams.set("off", "1");
 	}
 	const response = await fetch(parsed, {
 		method: "POST",

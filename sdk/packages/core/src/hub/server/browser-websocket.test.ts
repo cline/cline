@@ -481,4 +481,144 @@ describe("BrowserWebSocketHubAdapter", () => {
 			);
 		expect(delivered).toHaveLength(1);
 	});
+
+	it("advances the replay cursor past events skipped by eventId dedupe", async () => {
+		// The same eventId appended twice to the durable log (e.g. a pending
+		// approval re-issued and re-logged) used to wedge replay: the skipped
+		// duplicate never advanced lastDelivered, so the same page was
+		// refetched forever.
+		const duplicate = (sequence: number): HubEventEnvelope => ({
+			version: "v1",
+			event: "approval.requested",
+			eventId: "hevt_duplicated",
+			sessionId: "session-1",
+			timestamp: Date.now(),
+			sequence,
+		});
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			replayEventsAfter: vi.fn((sinceSequence: number) => {
+				if (sinceSequence === 0) return [duplicate(1)];
+				if (sinceSequence === 1) return [duplicate(2)];
+				return [];
+			}),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "stream.subscribe",
+				clientId: "resumer",
+				sessionId: "session-1",
+				sinceSequence: 0,
+			}),
+		);
+
+		await vi.waitFor(() =>
+			expect(transport.replayEventsAfter).toHaveBeenCalledWith(2, {
+				sessionId: "session-1",
+				limit: 200,
+			}),
+		);
+		expect(transport.replayEventsAfter).toHaveBeenCalledTimes(3);
+		const delivered = socket.sent
+			.map((entry) => JSON.parse(entry))
+			.filter((frame) => frame.kind === "event");
+		expect(delivered).toHaveLength(1);
+		expect(delivered[0]?.envelope.sequence).toBe(1);
+	});
+
+	it("stops replay when a misbehaving source never advances the cursor", async () => {
+		const stuck: HubEventEnvelope = {
+			version: "v1",
+			event: "assistant.delta",
+			eventId: "hevt_stuck",
+			sessionId: "session-1",
+			timestamp: Date.now(),
+			sequence: 1,
+		};
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(() => () => {}),
+			// Always returns the same non-empty page regardless of the cursor.
+			replayEventsAfter: vi.fn(() => [stuck]),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "stream.subscribe",
+				clientId: "resumer",
+				sessionId: "session-1",
+				sinceSequence: 0,
+			}),
+		);
+
+		await vi.waitFor(() =>
+			expect(transport.replayEventsAfter).toHaveBeenCalledTimes(2),
+		);
+		// Give a would-be third iteration time to run; the guard must break out.
+		await new Promise((resolve) => setTimeout(resolve, 25));
+		expect(transport.replayEventsAfter).toHaveBeenCalledTimes(2);
+		const delivered = socket.sent
+			.map((entry) => JSON.parse(entry))
+			.filter((frame) => frame.kind === "event");
+		expect(delivered).toHaveLength(1);
+	});
+
+	it("drops replay dedupe state once the buffered flush completes", async () => {
+		const stamped: HubEventEnvelope = {
+			version: "v1",
+			event: "approval.requested",
+			eventId: "hevt_reissued",
+			sessionId: "session-1",
+			timestamp: Date.now(),
+			sequence: 1,
+		};
+		let liveListener: ((event: HubEventEnvelope) => void) | undefined;
+		const transport = {
+			command: vi.fn(),
+			subscribe: vi.fn(
+				(_clientId: string, listener: (event: HubEventEnvelope) => void) => {
+					liveListener = listener;
+					return () => {};
+				},
+			),
+			replayEventsAfter: vi.fn((sinceSequence: number) =>
+				sinceSequence === 0 ? [stamped] : [],
+			),
+		};
+		const socket = createSocket();
+		new BrowserWebSocketHubAdapter(transport).attach(socket);
+
+		socket.emitMessage(
+			JSON.stringify({
+				kind: "stream.subscribe",
+				clientId: "late-reader",
+				sessionId: "session-1",
+				sinceSequence: 0,
+			}),
+		);
+		await vi.waitFor(() =>
+			expect(transport.replayEventsAfter).toHaveBeenCalledTimes(2),
+		);
+		// Let the buffered-flush finally-block complete.
+		await new Promise((resolve) => setTimeout(resolve, 25));
+
+		// A live re-issue after replay (sequence-less, e.g. a pending approval
+		// re-raised much later) follows the live-only contract: it is delivered,
+		// not swallowed by replay-era dedupe state.
+		liveListener?.({ ...stamped, sequence: undefined });
+		const delivered = socket.sent
+			.map((entry) => JSON.parse(entry))
+			.filter(
+				(frame) =>
+					frame.kind === "event" &&
+					frame.envelope.eventId === "hevt_reissued",
+			);
+		expect(delivered).toHaveLength(2);
+	});
 });

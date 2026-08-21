@@ -1,7 +1,30 @@
+import { mkdtempSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { loadSqliteDb } from "@cline/shared/db";
 import { describe, expect, it } from "vitest";
 import { HubRunAdmissionRejectedError, HubRunQueue } from "./hub-run-queue";
 
 describe("HubRunQueue", () => {
+	it("opens its database in WAL mode", () => {
+		const dbPath = join(
+			mkdtempSync(join(tmpdir(), "cline-hub-runs-")),
+			"hub-runs.db",
+		);
+		const queue = new HubRunQueue({ dbPath });
+		queue.admit("s1", { prompt: "one" });
+		queue.close();
+		// WAL is persistent: a fresh connection observes the configured mode.
+		const db = loadSqliteDb(dbPath);
+		try {
+			expect(
+				String(db.prepare("PRAGMA journal_mode;").get()?.journal_mode),
+			).toBe("wal");
+		} finally {
+			db.close?.();
+		}
+	});
+
 	it("acks admission immediately with runId, acceptedAt, and queue position", () => {
 		const queue = new HubRunQueue({ dbPath: ":memory:" });
 		const first = queue.admit("s1", { prompt: "one" }, "client-a");

@@ -60,6 +60,11 @@ export class HubEventLogStore {
 		);
 		this.retentionMs = options.retentionMs ?? DEFAULT_RETENTION_MS;
 		this.maxRows = options.maxRows ?? DEFAULT_MAX_ROWS;
+		// Every streaming chunk lands here as an INSERT; WAL keeps those
+		// appends from serializing against replay reads, and the busy timeout
+		// matches the other SQLite stores instead of failing fast on contention.
+		this.db.exec("PRAGMA journal_mode = WAL;");
+		this.db.exec("PRAGMA busy_timeout = 5000;");
 		this.db.exec(`
 			CREATE TABLE IF NOT EXISTS hub_events (
 				sequence INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -85,7 +90,7 @@ export class HubEventLogStore {
 			return envelope;
 		}
 		const createdAt = envelope.timestamp ?? Date.now();
-		this.db
+		const inserted = this.db
 			.prepare(
 				`INSERT INTO hub_events (event, session_id, envelope_json, created_at)
 				 VALUES (?, ?, ?, ?);`,
@@ -97,10 +102,14 @@ export class HubEventLogStore {
 				JSON.stringify(envelope),
 				createdAt,
 			);
-		const row = this.db
-			.prepare("SELECT MAX(sequence) AS sequence FROM hub_events;")
-			.get();
-		return { ...envelope, sequence: Number(row?.sequence ?? 0) };
+		// The AUTOINCREMENT primary key IS the sequence, so the insert's own
+		// rowid stamps it without a second round-trip per streaming chunk.
+		const rowid = inserted?.lastInsertRowid;
+		const sequence =
+			typeof rowid === "number" || typeof rowid === "bigint"
+				? Number(rowid)
+				: this.lastSequence();
+		return { ...envelope, sequence };
 	}
 
 	/** Events after `sequence`, oldest first, optionally scoped to a session. */

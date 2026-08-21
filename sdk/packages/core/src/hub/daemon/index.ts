@@ -196,7 +196,13 @@ async function waitForHubToRetire(
 	return false;
 }
 
-async function retireDiscoveredHub(
+/**
+ * Gracefully retire a discovered hub. Shared by every replacement path
+ * (detached ensure, in-process ensure) so retirement always means the same
+ * thing: drain first, then an authenticated shutdown, SIGTERM only as a
+ * last resort, and discovery cleared only once the hub is actually gone.
+ */
+export async function retireDiscoveredHub(
 	record: { url: string; authToken?: string; pid?: number },
 	discoveryPath: string,
 ): Promise<boolean> {
@@ -254,8 +260,8 @@ export type HubRetirementOutcome =
  * replacement path for a Hub that is wedged or too old to answer the query;
  * only a Hub that positively reports live sessions is spared.
  */
-async function hubHasLiveSessions(
-	record: HubServerProbeRecord,
+export async function hubHasLiveSessions(
+	record: Pick<HubServerProbeRecord, "url" | "authToken">,
 ): Promise<boolean> {
 	try {
 		return !(await localHubHasNoActiveSessions(record.url, record.authToken));
