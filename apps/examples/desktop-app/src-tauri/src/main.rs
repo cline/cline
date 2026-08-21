@@ -757,13 +757,13 @@ async fn check_for_update_now(
     Ok(update_state.snapshot())
 }
 
-/// Icon ids accepted by `set_app_icon`; kept in sync with APP_ICONS in
-/// webview/lib/app-icon.ts. Every non-default id has a matching bundled
-/// resource at icons/dock/<id>.png.
+/// Icon ids accepted by `set_app_icon`; validated against APP_ICONS in
+/// webview/lib/app-icon-manifest.ts by scripts/sync-app-icons.ts. Every id has
+/// a matching bundled resource at icons/dock/<id>.png.
 const APP_DOCK_ICONS: [&str; 4] = ["classic", "midnight", "hologram", "chip"];
 
 #[tauri::command]
-fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
+async fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
     if !APP_DOCK_ICONS.contains(&icon.as_str()) {
         return Err(format!("unknown app icon: {icon}"));
     }
@@ -785,26 +785,33 @@ fn set_app_icon(app: tauri::AppHandle, icon: String) -> Result<bool, String> {
                 icon_path.display()
             ));
         }
+        let (result_tx, result_rx) = tokio::sync::oneshot::channel();
         app.run_on_main_thread(move || {
             use objc2::{AllocAnyThread, MainThreadMarker};
             use objc2_app_kit::{NSApplication, NSImage};
             use objc2_foundation::NSString;
 
-            let Some(mtm) = MainThreadMarker::new() else {
-                return;
-            };
-            let ns_app = NSApplication::sharedApplication(mtm);
-            let Some(image) = NSImage::initWithContentsOfFile(
-                NSImage::alloc(),
-                &NSString::from_str(&icon_path.to_string_lossy()),
-            ) else {
-                eprintln!("[dock-icon] failed loading image: {}", icon_path.display());
-                return;
-            };
-            // SAFETY: called on the main thread with a valid, non-nil image.
-            unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+            let result: Result<(), String> = (|| {
+                let mtm = MainThreadMarker::new()
+                    .ok_or_else(|| "dock icon update did not run on the main thread".to_string())?;
+                let ns_app = NSApplication::sharedApplication(mtm);
+                let image = NSImage::initWithContentsOfFile(
+                    NSImage::alloc(),
+                    &NSString::from_str(&icon_path.to_string_lossy()),
+                )
+                .ok_or_else(|| {
+                    format!("failed loading dock icon image: {}", icon_path.display())
+                })?;
+                // SAFETY: called on the main thread with a valid, non-nil image.
+                unsafe { ns_app.setApplicationIconImage(Some(&image)) };
+                Ok(())
+            })();
+            let _ = result_tx.send(result);
         })
         .map_err(|e| format!("failed switching dock icon: {e}"))?;
+        result_rx
+            .await
+            .map_err(|_| "dock icon update ended before AppKit completed".to_string())??;
         Ok(true)
     }
     #[cfg(not(target_os = "macos"))]

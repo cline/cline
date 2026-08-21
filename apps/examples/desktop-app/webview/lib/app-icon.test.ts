@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { invoke, isTauriAvailable } = vi.hoisted(() => ({
 	invoke: vi.fn(),
@@ -20,6 +20,35 @@ import {
 	setStoredAppIcon,
 	syncAppIcon,
 } from "./app-icon";
+
+class StorageStub implements Storage {
+	readonly #values = new Map<string, string>();
+	get length() {
+		return this.#values.size;
+	}
+	clear() {
+		this.#values.clear();
+	}
+	getItem(key: string) {
+		return this.#values.get(key) ?? null;
+	}
+	key(index: number) {
+		return [...this.#values.keys()][index] ?? null;
+	}
+	removeItem(key: string) {
+		this.#values.delete(key);
+	}
+	setItem(key: string, value: string) {
+		this.#values.set(key, value);
+	}
+}
+
+beforeEach(() => {
+	Object.defineProperty(window, "localStorage", {
+		configurable: true,
+		value: new StorageStub(),
+	});
+});
 
 afterEach(() => {
 	window.localStorage.clear();
@@ -72,12 +101,23 @@ describe("app icon", () => {
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
 	});
 
-	it("re-applies only non-bundled choices at boot", async () => {
+	it("does not persist a native selection that fails to apply", async () => {
+		isTauriAvailable.mockReturnValue(true);
+		invoke.mockRejectedValue(new Error("AppKit rejected the icon"));
+
+		await expect(setStoredAppIcon("classic")).rejects.toThrow(
+			"AppKit rejected the icon",
+		);
+		expect(window.localStorage.getItem(APP_ICON_STORAGE_KEY)).toBeNull();
+	});
+
+	it("re-applies the default and stored choices at boot", async () => {
 		isTauriAvailable.mockReturnValue(true);
 		invoke.mockResolvedValue(true);
 		await syncAppIcon();
-		expect(invoke).not.toHaveBeenCalled();
+		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "midnight" });
 
+		invoke.mockClear();
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, "classic");
 		await syncAppIcon();
 		expect(invoke).toHaveBeenCalledWith("set_app_icon", { icon: "classic" });

@@ -1,5 +1,6 @@
 import { providerOffersModelTool } from "@cline/llms/browser";
 import { Minus, Plus, RotateCcw } from "lucide-react";
+import NextImage from "next/image";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -593,6 +594,8 @@ function GeneralSettingsContent({
 	});
 	const [appIconError, setAppIconError] = useState<string | null>(null);
 	const appIconRequestRef = useRef(0);
+	const appliedAppIconRef = useRef(appIcon);
+	const appIconUpdateQueueRef = useRef(Promise.resolve());
 	const [telemetryOptOut, setTelemetryOptOut] = useState(false);
 	const [telemetryLoading, setTelemetryLoading] = useState(true);
 	const [telemetrySaving, setTelemetrySaving] = useState(false);
@@ -783,23 +786,31 @@ function GeneralSettingsContent({
 
 	const updateAppIcon = async (nextIcon: AppIconId) => {
 		const requestId = ++appIconRequestRef.current;
-		const previousIcon = appIcon;
 		setAppIcon(nextIcon);
 		setAppIconError(null);
-		try {
-			await setStoredAppIcon(nextIcon);
-		} catch (error) {
-			// A newer selection supersedes this request; rolling back now
-			// would clobber it.
-			if (appIconRequestRef.current !== requestId) {
-				return;
-			}
-			setAppIcon(previousIcon);
-			setAppIconError(error instanceof Error ? error.message : String(error));
-			// Storage was written before the native call failed; roll it back
-			// so the persisted choice matches what the dock actually shows.
-			await setStoredAppIcon(previousIcon).catch(() => {});
-		}
+
+		// Native Dock updates cannot be cancelled. Serialize them so a slower,
+		// older selection can never finish after and overwrite a newer choice.
+		appIconUpdateQueueRef.current = appIconUpdateQueueRef.current.then(
+			async () => {
+				try {
+					await setStoredAppIcon(nextIcon);
+					appliedAppIconRef.current = nextIcon;
+				} catch (error) {
+					// A newer queued selection will establish the final state.
+					if (appIconRequestRef.current !== requestId) return;
+
+					const previousIcon = appliedAppIconRef.current;
+					setAppIcon(previousIcon);
+					setAppIconError(
+						error instanceof Error ? error.message : String(error),
+					);
+					// The favicon changes before the native command completes.
+					await setStoredAppIcon(previousIcon).catch(() => {});
+				}
+			},
+		);
+		await appIconUpdateQueueRef.current;
 	};
 
 	// resetOnboarding dispatches ONBOARDING_RESET_EVENT, which the app shell
@@ -916,26 +927,27 @@ function GeneralSettingsContent({
 							</p>
 						) : null}
 					</div>
-					<div className="flex shrink-0 items-start gap-2.5">
+					<div className="flex shrink-0 items-start gap-4">
 						{APP_ICONS.map((icon) => (
 							<button
 								aria-label={icon.label}
 								aria-pressed={appIcon === icon.id}
-								className="group flex flex-col items-center gap-2"
+								className="group flex flex-col items-center gap-3"
 								key={icon.id}
 								onClick={() => void updateAppIcon(icon.id)}
 								type="button"
 							>
-								<img
+								<NextImage
 									alt=""
 									className={cn(
-										"size-14 rounded-2xl transition-transform group-hover:scale-105",
+										"size-14 rounded-xl transition-transform duration-80 group-hover:scale-105 ",
 										appIcon === icon.id &&
 											"ring-2 ring-ring ring-offset-2 ring-offset-background",
 									)}
 									draggable={false}
 									height={112}
 									src={appIconAssetPath(icon.id)}
+									unoptimized
 									width={112}
 								/>
 								<span

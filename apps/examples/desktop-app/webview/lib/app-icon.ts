@@ -1,36 +1,16 @@
 import { desktopClient, isTauriAvailable } from "@/lib/desktop-client";
+import {
+	APP_ICONS,
+	type AppIconId,
+	DEFAULT_APP_ICON,
+	isRetiredAppIconId,
+	RETIRED_APP_ICON_MIGRATIONS,
+} from "./app-icon-manifest";
+
+export { APP_ICONS, DEFAULT_APP_ICON };
+export type { AppIconId };
 
 export const APP_ICON_STORAGE_KEY = "cline.code.app-icon.v1";
-
-/**
- * App icon variants selectable in Settings. "midnight" is the icon bundled
- * with the app; the others live in webview/public/app-icons (picker +
- * browser favicon) and src-tauri/icons/dock (runtime dock icon resources).
- */
-export const APP_ICONS = [
-	{ id: "classic", label: "Classic" },
-	{ id: "midnight", label: "Midnight" },
-	{ id: "hologram", label: "Hologram" },
-	{ id: "chip", label: "Chip" },
-] as const;
-
-export type AppIconId = (typeof APP_ICONS)[number]["id"];
-
-export const DEFAULT_APP_ICON: AppIconId = "midnight";
-
-const RETIRED_APP_ICON_MIGRATIONS = {
-	sunrise: "hologram",
-	steel: DEFAULT_APP_ICON,
-} as const satisfies Record<string, AppIconId>;
-
-type RetiredAppIconId = keyof typeof RETIRED_APP_ICON_MIGRATIONS;
-
-function isRetiredAppIconId(value: unknown): value is RetiredAppIconId {
-	return (
-		typeof value === "string" &&
-		Object.hasOwn(RETIRED_APP_ICON_MIGRATIONS, value)
-	);
-}
 
 export function isAppIconId(value: unknown): value is AppIconId {
 	return APP_ICONS.some((icon) => icon.id === value);
@@ -66,7 +46,7 @@ function applyFavicon(icon: AppIconId): void {
 
 /**
  * Applies the icon to whatever this runtime can control: the macOS dock
- * icon in the Tauri shell (native `set_app_icon` command, best-effort) and
+ * icon in the Tauri shell (native `set_app_icon` command) and
  * the favicon in browser dev mode so the choice is still visible there.
  */
 export async function applyAppIcon(icon: AppIconId): Promise<void> {
@@ -78,12 +58,12 @@ export async function applyAppIcon(icon: AppIconId): Promise<void> {
 }
 
 export async function setStoredAppIcon(icon: AppIconId): Promise<void> {
+	await applyAppIcon(icon);
 	try {
 		window.localStorage.setItem(APP_ICON_STORAGE_KEY, icon);
 	} catch {
 		// Selection falls back to default next launch; applying still works.
 	}
-	await applyAppIcon(icon);
 }
 
 /**
@@ -92,7 +72,5 @@ export async function setStoredAppIcon(icon: AppIconId): Promise<void> {
  */
 export async function syncAppIcon(): Promise<void> {
 	const icon = readStoredAppIcon();
-	if (icon !== DEFAULT_APP_ICON) {
-		await applyAppIcon(icon);
-	}
+	await applyAppIcon(icon);
 }
