@@ -1917,13 +1917,20 @@ export class HubRuntimeHost implements RuntimeHost {
 						payload: { sessionId, snapshot },
 					});
 				}
-				this.events.emit({
-					type: "status",
-					payload: {
-						sessionId,
-						status: session?.status ?? "running",
-					},
-				});
+				// Snapshot-only session.updated events (persistence updates)
+				// carry no session record and can trail a turn's final idle
+				// update. Defaulting them to "running" flipped clients back to
+				// busy after the turn had finished — for queue-drained turns
+				// nothing else owns the busy flag, so it stuck forever (e.g.
+				// the desktop's workspace-restore gate). Report the snapshot's
+				// real status, or nothing when neither source has one.
+				const status = session?.status ?? snapshot?.status;
+				if (status) {
+					this.events.emit({
+						type: "status",
+						payload: { sessionId, status },
+					});
+				}
 				return;
 			}
 			case "session.pending_prompts": {

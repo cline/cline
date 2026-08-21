@@ -254,7 +254,7 @@ describe("desktop notifications", () => {
 		expect(mocks.invoke).toHaveBeenCalledWith(
 			"show_session_notification",
 			expect.objectContaining({
-				title: "Failed",
+				title: "Task failed",
 				body: "The provider is unavailable.",
 				sessionId: "session-5",
 			}),

@@ -363,15 +363,15 @@ export function watchDesktopNotifications(): () => void {
 				eventType: "taskCompletion",
 				sessionId,
 				title: "Task completed",
-				body: "The response is ready!",
+				body: "Cline finished working and the result is ready.",
 			});
 			return;
 		}
 		void notify({
 			eventType: "sessionError",
 			sessionId,
-			title: "Failed",
-			body: detail || "There was an error!",
+			title: "Task failed",
+			body: detail || "Cline encountered an error while running this task.",
 		});
 	};
 
@@ -427,7 +427,7 @@ export function watchDesktopNotifications(): () => void {
 				return;
 			}
 			const kind = terminalKind(status);
-			if (kind) handleTerminal(sessionId, kind);
+			if (kind && status !== "idle") handleTerminal(sessionId, kind);
 		}),
 		desktopClient.subscribe("chat_session_ended", (payload) => {
 			if (!payload || typeof payload !== "object") return;

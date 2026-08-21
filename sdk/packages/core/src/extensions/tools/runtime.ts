@@ -14,10 +14,22 @@ export interface ToolCatalogEntry {
 	description: string;
 	defaultEnabled: boolean;
 	headlessToolNames: string[];
+	unavailableClientTypes?: readonly ToolClientType[];
+}
+
+export type ToolClientType = "cli" | "vscode";
+
+export function resolveToolClientType(
+	source?: string,
+): ToolClientType | undefined {
+	if (source === "vscode") return "vscode";
+	if (source === "cli" || source?.startsWith("cline-cli")) return "cli";
+	return undefined;
 }
 
 export interface BuiltinToolAvailabilityContext {
 	mode?: CoreAgentMode;
+	clientType?: ToolClientType;
 	providerId?: string;
 	modelId?: string;
 	enableSpawnAgent?: boolean;
@@ -82,6 +94,7 @@ const BASE_TOOL_CATALOG: readonly RuntimeToolCatalogEntry[] = [
 		description:
 			"Create and manage durable Todo items or explicitly requested one-time and recurring agent schedules.",
 		headlessToolNames: ["tasks"],
+		unavailableClientTypes: ["cli", "vscode"],
 	},
 	{
 		id: "spawn_agent",
@@ -173,6 +186,19 @@ function resolvePresetFlags(context: BuiltinToolAvailabilityContext): {
 	};
 }
 
+export function isCoreBuiltinToolAvailable(
+	toolName: string,
+	clientType?: ToolClientType,
+): boolean {
+	if (!clientType) return true;
+	const entry = BASE_TOOL_CATALOG.find(
+		(candidate) =>
+			candidate.id === toolName ||
+			candidate.headlessToolNames.includes(toolName),
+	);
+	return !entry?.unavailableClientTypes?.includes(clientType);
+}
+
 function isEntryEnabledByDefault(
 	entryId: string,
 	context: BuiltinToolAvailabilityContext,
@@ -228,6 +254,7 @@ export function getCoreBuiltinToolCatalog(
 ): ToolCatalogEntry[] {
 	return BASE_TOOL_CATALOG.filter(
 		(entry) =>
+			isCoreBuiltinToolAvailable(entry.id, context.clientType) &&
 			(entry.id !== "tasks" || resolveContextMode(context.mode) !== "yolo") &&
 			(entry.id !== "web_search" ||
 				supportsModelTool(

@@ -9,6 +9,10 @@ import {
 	parseRuntimeConfigExtensions,
 	ReasoningEffortSchema,
 } from "@cline/shared";
+import {
+	isCoreBuiltinToolAvailable,
+	resolveToolClientType,
+} from "../../../extensions/tools/runtime";
 import { normalizeConnectionUpdate } from "../../../runtime/config/connection-update";
 import type {
 	RuntimeSessionConfig,
@@ -44,10 +48,14 @@ const CAPABILITY_OWNER_METADATA_KEY = "hubCapabilityOwnerClientId";
 export function selectSessionTools<T extends { name: string }>(
 	tools: readonly T[],
 	mode: string,
+	source?: string,
 ): T[] {
-	return mode === "yolo"
-		? tools.filter((tool) => tool.name !== TASKS_TOOL_NAME)
-		: [...tools];
+	const clientType = resolveToolClientType(source);
+	return tools.filter(
+		(tool) =>
+			(mode !== "yolo" || tool.name !== TASKS_TOOL_NAME) &&
+			isCoreBuiltinToolAvailable(tool.name, clientType),
+	);
 }
 
 function readConnectionString(value: unknown): string | undefined {
@@ -321,6 +329,7 @@ export async function handleSessionCreate(
 					...(clientContributionRuntime.localRuntime.extraTools ?? []),
 				],
 				sessionMode,
+				typeof metadata.source === "string" ? metadata.source : undefined,
 			),
 		},
 		capabilities: {
@@ -602,6 +611,7 @@ export async function handleSessionRestore(
 								...(clientContributionRuntime.localRuntime.extraTools ?? []),
 							],
 							sessionMode,
+							typeof metadata.source === "string" ? metadata.source : undefined,
 						),
 					},
 					capabilities: {
