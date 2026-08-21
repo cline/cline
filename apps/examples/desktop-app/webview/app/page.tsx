@@ -49,8 +49,14 @@ import type { OnboardingStep } from "@/components/views/onboarding/onboarding-vi
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
-import type { ProcessContext } from "@/hooks/chat-session/types";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
+import type {
+	ProcessContext,
+	SerializedAttachments,
+} from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
@@ -73,9 +79,13 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
+	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	matchingUserPromptCount,
+	type PendingHandoffPrompt,
+	pendingHandoffPromptCaughtUp,
 } from "@/lib/cloud-handoff-ui-state";
 import {
 	cloudRepositoryLabel,
@@ -1805,7 +1815,9 @@ function ChatThreadPane({
 			preflight: HandoffPreflight,
 			nextCommand: string,
 			sourceAttachments: File[],
+			attachments: SerializedAttachments,
 			sourceSessionId: string,
+			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
 				type: "progress",
@@ -1813,7 +1825,6 @@ function ChatThreadPane({
 				phase: "creating",
 			});
 			try {
-				const attachments = await serializeAttachments(sourceAttachments);
 				const result = await desktopClient.invoke<HandoffResult>(
 					"chat_session_command",
 					{
@@ -1845,7 +1856,14 @@ function ChatThreadPane({
 					sourceSessionId,
 					receipt,
 					externalPresentation: destination === "external",
+					pendingPrompt,
 				});
+				if (result.warning) {
+					onHandoffUiAction({
+						type: "prompt_reconciled",
+						sourceSessionId: targetSessionId,
+					});
+				}
 				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
 					const opened = await Promise.resolve(
 						onOpenSessionById?.(targetSessionId, undefined, { silent: true }),
@@ -1983,12 +2001,32 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			onHandoffUiAction({
-				type: "start",
-				sourceSessionId,
-			});
+			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
+				const attachments = await serializeAttachments(sourceAttachments);
+				const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
+					? {
+							content: nextCommand,
+							submittedAt,
+							baselineOccurrences: matchingUserPromptCount(
+								messages,
+								nextCommand,
+							),
+							baselineTailMessageId: pendingHandoffRecovery
+								? undefined
+								: messages.at(-1)?.id,
+							images: toChatMessageImages(
+								attachments.userImages,
+								`handoff_prompt_${sourceSessionId}`,
+							),
+						}
+					: undefined;
+				onHandoffUiAction({
+					type: "start",
+					sourceSessionId,
+					pendingPrompt,
+				});
 				const preflight = await desktopClient.invoke<HandoffPreflight>(
 					"chat_session_command",
 					{
@@ -2012,7 +2050,9 @@ function ChatThreadPane({
 					preflight,
 					nextCommand,
 					sourceAttachments,
+					attachments,
 					sourceSessionId,
+					pendingPrompt,
 				);
 			} catch (error) {
 				onHandoffUiAction({
@@ -2049,7 +2089,9 @@ function ChatThreadPane({
 			config,
 			historySession?.sessionId,
 			isCloudSession,
+			messages,
 			pendingAttachments,
+			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
 			sessionId,
@@ -2585,7 +2627,17 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
+	useEffect(() => {
+		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
+			onHandoffUiAction({
+				type: "prompt_reconciled",
+				sourceSessionId,
+			});
+		}
+	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)

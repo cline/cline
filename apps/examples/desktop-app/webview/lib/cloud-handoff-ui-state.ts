@@ -1,4 +1,14 @@
+import { formatDisplayUserInput } from "@cline/shared/browser";
+import type { ChatMessage } from "@/lib/chat-schema";
 import type { HandoffProgressPhase, HandoffReceipt } from "@/lib/cloud-handoff";
+
+export type PendingHandoffPrompt = {
+	content: string;
+	submittedAt: number;
+	baselineOccurrences: number;
+	baselineTailMessageId?: string;
+	images?: ChatMessage["images"];
+};
 
 export type CloudHandoffUiEntry =
 	| {
@@ -6,6 +16,7 @@ export type CloudHandoffUiEntry =
 			phase: HandoffProgressPhase;
 			message?: string;
 			dashboardUrl?: string;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| {
 			status: "recovery";
@@ -16,6 +27,7 @@ export type CloudHandoffUiEntry =
 	| { status: "recovery_dismissed"; dashboardUrl: string }
 	| { status: "failed"; retryDraft?: string; retryAttachments?: File[] }
 	| { status: "retry_restored" }
+	| { status: "target_prompt"; pendingPrompt: PendingHandoffPrompt }
 	| {
 			status: "complete";
 			receipt: HandoffReceipt;
@@ -28,6 +40,7 @@ export type CloudHandoffUiAction =
 	| {
 			type: "start";
 			sourceSessionId: string;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| {
 			type: "progress";
@@ -50,8 +63,10 @@ export type CloudHandoffUiAction =
 			sourceSessionId: string;
 			receipt: HandoffReceipt;
 			externalPresentation: boolean;
+			pendingPrompt?: PendingHandoffPrompt;
 	  }
 	| { type: "external"; sourceSessionId: string }
+	| { type: "prompt_reconciled"; sourceSessionId: string }
 	| {
 			type: "dismiss_recovery";
 			sourceSessionId: string;
@@ -59,37 +74,64 @@ export type CloudHandoffUiAction =
 	  }
 	| { type: "retry_restored"; sourceSessionId: string };
 
+function completeHandoff(
+	state: CloudHandoffUiState,
+	sourceSessionId: string,
+	receipt: HandoffReceipt,
+	externalPresentation: boolean,
+	pendingPrompt?: PendingHandoffPrompt,
+): CloudHandoffUiState {
+	return {
+		...state,
+		[sourceSessionId]: {
+			status: "complete",
+			receipt,
+			externalPresentation,
+		},
+		...(!externalPresentation && pendingPrompt
+			? {
+					[receipt.targetSessionId]: {
+						status: "target_prompt" as const,
+						pendingPrompt,
+					},
+				}
+			: {}),
+	};
+}
+
 export function cloudHandoffUiReducer(
 	state: CloudHandoffUiState,
 	action: CloudHandoffUiAction,
 ): CloudHandoffUiState {
 	const current = state[action.sourceSessionId];
 	switch (action.type) {
-		case "start":
+		case "start": {
 			return {
 				...state,
 				[action.sourceSessionId]: {
 					status: "progress",
 					phase: "checking",
+					...(action.pendingPrompt
+						? { pendingPrompt: action.pendingPrompt }
+						: {}),
 				},
 			};
+		}
 		case "progress":
 			if (
 				action.phase === "complete" &&
 				action.sessionId?.trim() &&
 				action.dashboardUrl?.trim()
 			) {
-				return {
-					...state,
-					[action.sourceSessionId]: {
-						status: "complete",
-						receipt: {
-							targetSessionId: action.sessionId,
-							dashboardUrl: action.dashboardUrl,
-						},
-						externalPresentation: action.destination === "external",
+				return completeHandoff(
+					state,
+					action.sourceSessionId,
+					{
+						targetSessionId: action.sessionId,
+						dashboardUrl: action.dashboardUrl,
 					},
-				};
+					action.destination === "external",
+				);
 			}
 			if (
 				current?.status === "complete" ||
@@ -109,6 +151,8 @@ export function cloudHandoffUiReducer(
 					dashboardUrl:
 						action.dashboardUrl ||
 						(current?.status === "progress" ? current.dashboardUrl : undefined),
+					pendingPrompt:
+						current?.status === "progress" ? current.pendingPrompt : undefined,
 				},
 			};
 		case "failed": {
@@ -135,24 +179,33 @@ export function cloudHandoffUiReducer(
 			};
 		}
 		case "complete":
-			return {
+			return completeHandoff(
+				state,
+				action.sourceSessionId,
+				action.receipt,
+				action.externalPresentation,
+				action.pendingPrompt,
+			);
+		case "external": {
+			if (current?.status !== "complete") return state;
+			const next = {
 				...state,
 				[action.sourceSessionId]: {
-					status: "complete",
-					receipt: action.receipt,
-					externalPresentation: action.externalPresentation,
+					...current,
+					externalPresentation: true,
 				},
 			};
-		case "external":
-			return current?.status === "complete"
-				? {
-						...state,
-						[action.sourceSessionId]: {
-							...current,
-							externalPresentation: true,
-						},
-					}
-				: state;
+			if (next[current.receipt.targetSessionId]?.status === "target_prompt") {
+				delete next[current.receipt.targetSessionId];
+			}
+			return next;
+		}
+		case "prompt_reconciled": {
+			if (current?.status !== "target_prompt") return state;
+			const next = { ...state };
+			delete next[action.sourceSessionId];
+			return next;
+		}
 		case "dismiss_recovery":
 			return {
 				...state,
@@ -179,4 +232,92 @@ export function cloudHandoffUiReducer(
 			}
 			return state;
 	}
+}
+
+export function appendPendingHandoffPrompt(
+	messages: ChatMessage[],
+	sessionId: string | undefined,
+	handoff: CloudHandoffUiEntry | undefined,
+): ChatMessage[] {
+	if (
+		!sessionId ||
+		(handoff?.status !== "progress" && handoff?.status !== "target_prompt") ||
+		!handoff.pendingPrompt
+	) {
+		return messages;
+	}
+	const prompt = handoff.pendingPrompt;
+	if (pendingHandoffPromptCaughtUp(messages, handoff)) return messages;
+
+	const message: ChatMessage = {
+		id: `handoff_prompt_${sessionId}_${prompt.submittedAt}`,
+		sessionId,
+		role: "user",
+		content: prompt.content,
+		images: prompt.images,
+		createdAt: prompt.submittedAt,
+		meta: { userRunSpan: 0 },
+	};
+	const baselineTailIndex = prompt.baselineTailMessageId
+		? messages.findIndex(
+				(existing) => existing.id === prompt.baselineTailMessageId,
+			)
+		: -1;
+	const insertionIndex =
+		baselineTailIndex >= 0
+			? baselineTailIndex + 1
+			: messages.findIndex(
+					(existing) => existing.createdAt >= prompt.submittedAt,
+				);
+	if (insertionIndex < 0) return [...messages, message];
+	return [
+		...messages.slice(0, insertionIndex),
+		message,
+		...messages.slice(insertionIndex),
+	];
+}
+
+export function pendingHandoffPromptCaughtUp(
+	messages: ChatMessage[],
+	handoff: CloudHandoffUiEntry | undefined,
+): boolean {
+	if (handoff?.status !== "target_prompt") return false;
+	const baselineTailIndex = handoff.pendingPrompt.baselineTailMessageId
+		? messages.findIndex(
+				(message) => message.id === handoff.pendingPrompt.baselineTailMessageId,
+			)
+		: -1;
+	if (baselineTailIndex >= 0) {
+		const messagesAfterSeed = messages.slice(baselineTailIndex + 1);
+		const firstResponseIndex = messagesAfterSeed.findIndex(
+			(message) => message.role === "assistant",
+		);
+		const messagesBeforeResponse =
+			firstResponseIndex >= 0
+				? messagesAfterSeed.slice(0, firstResponseIndex)
+				: messagesAfterSeed;
+		return (
+			matchingUserPromptCount(
+				messagesBeforeResponse,
+				handoff.pendingPrompt.content,
+			) > 0
+		);
+	}
+	return (
+		matchingUserPromptCount(messages, handoff.pendingPrompt.content) >
+		handoff.pendingPrompt.baselineOccurrences
+	);
+}
+
+export function matchingUserPromptCount(
+	messages: ChatMessage[],
+	prompt: string,
+): number {
+	const expected = formatDisplayUserInput(prompt);
+	return messages.filter(
+		(message) =>
+			message.role === "user" &&
+			!message.id.startsWith("user_") &&
+			formatDisplayUserInput(message.content) === expected,
+	).length;
 }
