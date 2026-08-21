@@ -151,8 +151,14 @@ const StructuredCommandAliasInputSchema = z
 			.string()
 			.min(1)
 			.describe("Alias for `command` - the executable to run directly."),
+		args: z
+			.array(z.string())
+			.optional()
+			.describe("Optional argv list passed directly to the executable."),
 	})
-	.transform(({ cmd }) => ({ command: cmd }));
+	.transform(({ cmd, args }) =>
+		args === undefined ? { command: cmd } : { command: cmd, args },
+	);
 
 export const StructuredCommandEntrySchema = z.union([
 	CommandInputSchema,

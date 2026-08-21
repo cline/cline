@@ -661,6 +661,38 @@ describe("default run_commands tool", () => {
 		);
 	});
 
+	it("preserves argv on cmd-aliased array entries", async () => {
+		const execute = vi.fn(
+			async (command: string | { command: string; args?: string[] }) =>
+				typeof command === "string"
+					? `ran:${command}`
+					: `ran:${command.command}:${(command.args ?? []).join(",")}`,
+		);
+		const tool = createShellTool(execute);
+
+		const result = await tool.execute(
+			{ commands: [{ cmd: "node", args: ["-e", "console.log('ok')"] }] } as never,
+			{
+				agentId: "agent-1",
+				conversationId: "conv-1",
+				iteration: 1,
+			},
+		);
+
+		expect(result).toEqual([
+			{
+				query: "node -e console.log('ok')",
+				result: "ran:node:-e,console.log('ok')",
+				success: true,
+			},
+		]);
+		expect(execute).toHaveBeenCalledWith(
+			{ command: "node", args: ["-e", "console.log('ok')"] },
+			process.cwd(),
+			expect.objectContaining({ agentId: "agent-1" }),
+		);
+	});
+
 	it("accepts structured commands and preserves argv", async () => {
 		const execute = vi.fn(
 			async (command: string | { command: string; args?: string[] }) =>
