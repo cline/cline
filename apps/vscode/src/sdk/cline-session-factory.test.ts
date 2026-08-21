@@ -6,6 +6,7 @@ import * as LlmsModels from "@cline/llms"
 import { ApiFormat } from "@shared/proto/cline/models"
 import { Logger } from "@shared/services/Logger"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
+import * as netModule from "@/shared/net"
 import {
 	buildResumeSessionInput,
 	buildSessionConfig,
@@ -16,6 +17,7 @@ import {
 	normalizeProviderReasoningSettings,
 	normalizeSdkBaseUrl,
 	resolveApiKey,
+	resolveProviderFetch,
 	updateHistoryItem,
 } from "./cline-session-factory"
 import { parseProviderId } from "./model-catalog/provider-id"
@@ -270,6 +272,22 @@ describe("normalizeSdkBaseUrl", () => {
 		expect(normalizeSdkBaseUrl("asksage", "https://asksage.internal.example/custom")).toBe(
 			"https://asksage.internal.example/custom",
 		)
+	})
+})
+
+// ---------------------------------------------------------------------------
+// resolveProviderFetch
+// ---------------------------------------------------------------------------
+
+describe("resolveProviderFetch", () => {
+	it("gives local model servers the idle-timeout-free fetch so long prompt processing is not killed by UND_ERR_BODY_TIMEOUT", () => {
+		expect(resolveProviderFetch("lmstudio")).toBe(netModule.fetchWithoutIdleTimeouts)
+		expect(resolveProviderFetch("ollama")).toBe(netModule.fetchWithoutIdleTimeouts)
+	})
+
+	it("keeps the proxy/CA-aware fetch for everything else", () => {
+		expect(resolveProviderFetch("anthropic")).toBe(netModule.fetch)
+		expect(resolveProviderFetch("openai-compatible")).toBe(netModule.fetch)
 	})
 })
 

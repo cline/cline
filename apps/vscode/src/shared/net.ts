@@ -129,6 +129,46 @@ export const fetch: typeof globalThis.fetch = (() => {
 		(mockFetch || baseFetch)(input, init)) as typeof globalThis.fetch
 })()
 
+let noIdleTimeoutDispatcher: EnvHttpProxyAgent | undefined
+
+/**
+ * Fetch for local model servers (LM Studio, Ollama) with undici's idle
+ * timeouts disabled.
+ *
+ * Node's fetch applies undici's default `headersTimeout`/`bodyTimeout` of
+ * 300s, each measuring time since the last byte received. A local server
+ * legitimately goes silent for longer than that while it processes a large
+ * prompt (headers arrive immediately, then no body bytes until the first
+ * token), so long requests die mid-task with
+ * `terminated: BodyTimeoutError (UND_ERR_BODY_TIMEOUT)` even though the
+ * server is still working (see cline/cline#13464). Disabling the idle
+ * timeouts is safe here: cancellation stays with each request's AbortSignal,
+ * and users can always cancel from the UI.
+ *
+ * This must call undici's own fetch rather than global fetch: in the VS Code
+ * extension host, `http.fetchAdditionalSupport` (default on) patches global
+ * fetch with a wrapper that replaces any caller-supplied dispatcher with its
+ * own default-timeout Agent, so a per-request dispatcher would be silently
+ * dropped. `EnvHttpProxyAgent` keeps `http_proxy`/`https_proxy`/`no_proxy`
+ * support, matching the standalone (JetBrains/CLI) proxy behavior above.
+ */
+export const fetchWithoutIdleTimeouts: typeof globalThis.fetch = ((
+	input: string | URL | Request,
+	init?: RequestInit,
+): Promise<Response> => {
+	if (mockFetch) {
+		return mockFetch(input, init)
+	}
+	noIdleTimeoutDispatcher ??= new EnvHttpProxyAgent({ headersTimeout: 0, bodyTimeout: 0 })
+	return undiciFetch(
+		input as Parameters<typeof undiciFetch>[0],
+		{
+			...init,
+			dispatcher: noIdleTimeoutDispatcher,
+		} as Parameters<typeof undiciFetch>[1],
+	) as unknown as Promise<Response>
+}) as typeof globalThis.fetch
+
 /**
  * Mocks `fetch` for testing and calls `callback`. Then restores `fetch`. If the
  * specified callback returns a Promise, the fetch is restored when that Promise

@@ -40,7 +40,7 @@ import { StateManager } from "@/core/storage/StateManager"
 import { HostProvider } from "@/hosts/host-provider"
 import { ExtensionRegistryInfo } from "@/registry"
 import { getDistinctId } from "@/services/logging/distinctId"
-import { fetch } from "@/shared/net"
+import { fetch, fetchWithoutIdleTimeouts } from "@/shared/net"
 import { type BedrockProviderConfig, buildBedrockProviderConfig } from "./bedrock-config"
 import { buildAgentHooks } from "./hooks-adapter"
 import { readTaskHistory, resolveDataDir } from "./legacy-state-reader"
@@ -640,6 +640,19 @@ export function resolveOllamaProviderConfig(config: ApiConfiguration, modelId: s
 	}
 }
 
+/**
+ * Pick the fetch implementation for a provider's inference requests.
+ *
+ * Local model servers get `fetchWithoutIdleTimeouts`: they can legitimately
+ * spend many minutes processing a large prompt without writing a body byte,
+ * which trips undici's default 300s idle timeouts and kills the request with
+ * `UND_ERR_BODY_TIMEOUT` while the server is still generating
+ * (cline/cline#13464). Everything else keeps the proxy/CA-aware fetch.
+ */
+export function resolveProviderFetch(sdkProviderId: string): typeof globalThis.fetch {
+	return sdkProviderId === "lmstudio" || sdkProviderId === "ollama" ? fetchWithoutIdleTimeouts : fetch
+}
+
 export function resolveBaseUrl(providerId: string, config: ApiConfiguration): string | undefined {
 	const baseUrlMap: Record<string, keyof ApiConfiguration> = {
 		anthropic: "anthropicBaseUrl",
@@ -987,7 +1000,7 @@ export async function buildSessionConfig(input: SessionConfigInput): Promise<Cor
 		// straight from providerConfig — notably the compaction summarizer, which
 		// otherwise falls back to a small default output cap (CLINE-2911).
 		...(maxTokensPerTurn !== undefined ? { maxOutputTokens: maxTokensPerTurn } : {}),
-		fetch,
+		fetch: resolveProviderFetch(sdkProviderId),
 	}
 
 	const config: CoreSessionConfig = {
