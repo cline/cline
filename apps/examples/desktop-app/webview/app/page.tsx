@@ -31,14 +31,25 @@ import {
 	SidebarRail,
 	SidebarTrigger,
 } from "@/components/ui/sidebar";
+import { ToastAction } from "@/components/ui/toast";
 import { ChatInputBar } from "@/components/views/chat/chat-input-bar";
 import { ChatMessages } from "@/components/views/chat/chat-messages";
+import {
+	CloudHandoffProgress,
+	CloudHandoffReceipt,
+	CloudHandoffRecoveryNotice,
+} from "@/components/views/chat/cloud-handoff";
 import { WelcomeScreen } from "@/components/views/chat/welcome-chat";
 import { WelcomeSetupNotice } from "@/components/views/chat/welcome-setup-notice";
 import type { OnboardingStep } from "@/components/views/onboarding/onboarding-view";
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
+import type { SerializedAttachments } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
@@ -49,10 +60,32 @@ import { applyAppZoomAction, syncAppFontSize } from "@/lib/app-font-size";
 import { syncAppIcon } from "@/lib/app-icon";
 import type { ChatSessionConfig } from "@/lib/chat-schema";
 import {
+	formatHandoffModelFallback,
+	HANDOFF_PROGRESS_LABELS,
+	type HandoffPreflight,
+	type HandoffProgressPhase,
+	type HandoffResult,
+	parseHandoffCommand,
+	readHandoffReceipt,
+	readPendingHandoffRecovery,
+	shouldOpenHandoffInApp,
+	validateHandoffAttachments,
+} from "@/lib/cloud-handoff";
+import {
+	appendPendingHandoffPrompt,
+	type CloudHandoffUiAction,
+	type CloudHandoffUiState,
+	cloudHandoffUiReducer,
+	matchingUserPromptCount,
+	type PendingHandoffPrompt,
+	pendingHandoffPromptCaughtUp,
+} from "@/lib/cloud-handoff-ui-state";
+import {
 	cloudRepositoryLabel,
 	isCloudProvisioningSessionId,
 } from "@/lib/cloud-repositories";
 import {
+	humanizeCloudHandoffError,
 	humanizeCloudSessionError,
 	parseCloudSessionError,
 } from "@/lib/cloud-session-error";
@@ -62,7 +95,7 @@ import {
 	type DesktopAppView,
 	desktopAppReducer,
 } from "@/lib/desktop-app-state";
-import { desktopClient } from "@/lib/desktop-client";
+import { desktopClient, openExternalUrl } from "@/lib/desktop-client";
 import { watchDesktopNotifications } from "@/lib/desktop-notifications";
 import {
 	subscribeToDesktopActions,
@@ -156,6 +189,10 @@ const GIT_BRANCH_REFRESH_INTERVAL_MS = 5_000;
 type AppLocation = DesktopAppLocation<SettingsSection>;
 
 const PROVISIONING_PHASE_INTERVAL_MS = 4_500;
+// create() can spend one 610s window on the original POST and another on
+// timeout recovery. Leave room for auth, Hub attach, seeding, and verification
+// without waiting forever for a lost transport response.
+const HANDOFF_INVOKE_TIMEOUT_MS = 25 * 60_000;
 
 /** Shared provisioning status for the originating thread and placeholder. */
 function useCloudProvisioningPhase(repoUrl?: string): string {
@@ -215,6 +252,41 @@ export default function Home() {
 		desktopAppReducer<SettingsSection>,
 		initialThreadId,
 		(threadId) => createDesktopAppState(threadId, "General"),
+	);
+	const [handoffUiState, dispatchHandoffUi] = useReducer(
+		cloudHandoffUiReducer,
+		{},
+	);
+	useEffect(
+		() =>
+			desktopClient.subscribe("cloud_handoff_progress", (payload) => {
+				if (!payload || typeof payload !== "object") return;
+				const progress = payload as {
+					sourceSessionId?: string;
+					phase?: HandoffProgressPhase;
+					message?: string;
+					dashboardUrl?: string;
+					sessionId?: string;
+					destination?: "in_app" | "external";
+				};
+				if (
+					!progress.sourceSessionId?.trim() ||
+					!progress.phase ||
+					!(progress.phase in HANDOFF_PROGRESS_LABELS)
+				) {
+					return;
+				}
+				dispatchHandoffUi({
+					type: "progress",
+					sourceSessionId: progress.sourceSessionId,
+					phase: progress.phase,
+					message: progress.message,
+					dashboardUrl: progress.dashboardUrl,
+					sessionId: progress.sessionId,
+					destination: progress.destination,
+				});
+			}),
+		[],
 	);
 	// Starts false on both server and first client render (hydration-safe);
 	// the effect below reads the persisted state right after mount.
@@ -338,6 +410,8 @@ export default function Home() {
 			?.sessionId ?? null;
 	const activeThread =
 		threads.find((thread) => thread.id === activeThreadId) ?? threads[0];
+	const activeLocationRef = useRef({ activeThreadId, view });
+	activeLocationRef.current = { activeThreadId, view };
 	const handleHome = useCallback(() => {
 		if (activeThread?.historySession || activeThread?.hasStarted) {
 			handleNewThread();
@@ -556,6 +630,8 @@ export default function Home() {
 								<ChatThreadPane
 									key={activeThread.id}
 									historySession={activeThread.historySession}
+									handoffUiState={handoffUiState}
+									onHandoffUiAction={dispatchHandoffUi}
 									liveHistoryStatus={
 										// Live entry wins; otherwise trust the clicked snapshot
 										// (the list can lag by a refresh). Resolution is handled
@@ -573,6 +649,11 @@ export default function Home() {
 									}
 									onUpdateSessionMetadata={handleUpdateSessionMetadata}
 									threadId={activeThread.id}
+									isThreadActive={() =>
+										activeLocationRef.current.activeThreadId ===
+											activeThread.id &&
+										activeLocationRef.current.view === "chat"
+									}
 									onDeleteSession={handleDeleteSession}
 									onNewThread={handleNewThread}
 									onOpenSession={handleOpenSession}
@@ -638,6 +719,9 @@ function ChatThreadPane({
 	parentSession,
 	onOpenVoiceInputSettings,
 	onThreadStarted,
+	isThreadActive,
+	handoffUiState,
+	onHandoffUiAction,
 }: {
 	threadId: string;
 	historySession?: SessionHistoryItem;
@@ -665,6 +749,9 @@ function ChatThreadPane({
 	parentSession?: { sessionId: string; title?: string };
 	onOpenVoiceInputSettings?: () => void;
 	onThreadStarted?: (threadId: string) => void;
+	isThreadActive?: () => boolean;
+	handoffUiState: CloudHandoffUiState;
+	onHandoffUiAction: (action: CloudHandoffUiAction) => void;
 }) {
 	const {
 		sessionId,
@@ -725,6 +812,40 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	// `code-cloud-handoff` rollout flag (resolved sidecar-side); /handoff also
+	// requires cloud sessions, so the effective gate ANDs the two.
+	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
+	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
+	const handoffStartingRef = useRef(false);
+	const sourceSessionId = sessionId ?? historySession?.sessionId;
+	const handoffUi = sourceSessionId
+		? handoffUiState[sourceSessionId]
+		: undefined;
+	const handoffProgress = handoffUi?.status === "progress" ? handoffUi : null;
+	const pendingHandoffRecovery = readPendingHandoffRecovery(
+		historySession?.metadata,
+	);
+	const dismissedHandoffRecoveryUrl =
+		handoffUi?.status === "recovery_dismissed" ? handoffUi.dashboardUrl : null;
+	const handoffRecoveryUrl =
+		(handoffUi?.status === "recovery" ? handoffUi.dashboardUrl : null) ??
+		(pendingHandoffRecovery?.dashboardUrl !== dismissedHandoffRecoveryUrl
+			? pendingHandoffRecovery?.dashboardUrl
+			: null) ??
+		null;
+	const handoffRetry =
+		(handoffUi?.status === "recovery" || handoffUi?.status === "failed") &&
+		(handoffUi.retryDraft || handoffUi.retryAttachments?.length)
+			? {
+					draft: handoffUi.retryDraft,
+					attachments: handoffUi.retryAttachments,
+				}
+			: null;
+	const handoffReceipt =
+		(handoffUi?.status === "complete" ? handoffUi.receipt : null) ??
+		readHandoffReceipt(historySession?.metadata);
+	const handoffExternalPresentation =
+		handoffUi?.status === "complete" && handoffUi.externalPresentation;
 	const { user: accountUser } = useAccount();
 	const accountUserId = accountUser?.id ?? null;
 	useEffect(() => {
@@ -737,9 +858,12 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						setCloudAgentsEnabled(
-							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-						);
+						const featureFlags = flags as {
+							cloudAgents?: boolean;
+							cloudHandoff?: boolean;
+						};
+						setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
+						setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -756,9 +880,12 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					setCloudAgentsEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
+					const featureFlags = payload as {
+						cloudAgents?: boolean;
+						cloudHandoff?: boolean;
+					};
+					setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
+					setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 				}
 			},
 		);
@@ -1263,9 +1390,322 @@ function ChatThreadPane({
 		threadId,
 	]);
 
+	// Hydrate first, then restore a failed handoff's draft and attachments. If
+	// this ran above the hydration effect, hydration would immediately wipe the
+	// only retained retry payload after navigation back to the source session.
+	useEffect(() => {
+		if (!sourceSessionId || !handoffRetry) return;
+		if (handoffRetry.draft) setPromptInput(handoffRetry.draft);
+		if (handoffRetry.attachments?.length) {
+			setPendingAttachments([...handoffRetry.attachments]);
+		}
+		onHandoffUiAction({
+			type: "retry_restored",
+			sourceSessionId,
+		});
+	}, [handoffRetry, onHandoffUiAction, setPromptInput, sourceSessionId]);
+
+	const runHandoff = useCallback(
+		async (
+			preflight: HandoffPreflight,
+			nextCommand: string,
+			sourceAttachments: File[],
+			attachments: SerializedAttachments,
+			sourceSessionId: string,
+			pendingPrompt?: PendingHandoffPrompt,
+		) => {
+			onHandoffUiAction({
+				type: "progress",
+				sourceSessionId,
+				phase: "creating",
+			});
+			try {
+				const result = await desktopClient.invoke<HandoffResult>(
+					"chat_session_command",
+					{
+						request: {
+							action: "handoff",
+							sessionId: sourceSessionId,
+							config,
+							fingerprint: preflight.fingerprint,
+							nextCommand: nextCommand || undefined,
+							attachments:
+								attachments.userImages.length > 0 ? attachments : undefined,
+						},
+					},
+					{ timeoutMs: HANDOFF_INVOKE_TIMEOUT_MS },
+				);
+				const targetSessionId = (
+					result.outerSessionId ||
+					result.sessionId ||
+					""
+				).trim();
+				const dashboardUrl = result.dashboardUrl?.trim();
+				if (!targetSessionId || !dashboardUrl) {
+					throw new Error("Cloud handoff did not return a cloud session.");
+				}
+				const receipt = { targetSessionId, dashboardUrl };
+				const destination = result.destination ?? "in_app";
+				onHandoffUiAction({
+					type: "complete",
+					sourceSessionId,
+					receipt,
+					externalPresentation: destination === "external",
+					pendingPrompt,
+				});
+				if (result.warning) {
+					onHandoffUiAction({
+						type: "prompt_reconciled",
+						sourceSessionId: targetSessionId,
+					});
+				}
+				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
+					const opened = await Promise.resolve(
+						onOpenSessionById?.(targetSessionId, { silent: true }),
+					).catch(() => false);
+					if (!opened) {
+						onHandoffUiAction({ type: "external", sourceSessionId });
+						try {
+							await openExternalUrl(dashboardUrl);
+							toast({
+								title: "Opened handoff in your browser",
+								description:
+									"The cloud session could not be attached inside Cline.",
+							});
+						} catch {
+							toast({
+								title: "Unable to open the browser",
+								description:
+									"Use the recovery link to open the cloud session manually.",
+								variant: "destructive",
+							});
+						}
+					}
+				} else if (destination === "external") {
+					await openExternalUrl(dashboardUrl).catch(() =>
+						toast({
+							title: "Cloud handoff complete",
+							description: "Use the recovery link to open the cloud session.",
+						}),
+					);
+				} else {
+					toast({
+						title: "Cloud handoff complete",
+						description: "The cloud session is ready in your session list.",
+					});
+				}
+				if (result.warning) {
+					toast({
+						title: "Handoff completed with a warning",
+						description: result.warning,
+					});
+				}
+			} catch (error) {
+				onHandoffUiAction({
+					type: "failed",
+					sourceSessionId,
+					exposeRecovery: true,
+					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+					retryAttachments: sourceAttachments,
+				});
+				const rawError = error instanceof Error ? error.message : String(error);
+				const cloudError = parseCloudSessionError(rawError);
+				const connectUrl = cloudError?.connectUrl;
+				toast({
+					title: "Handoff failed",
+					description: humanizeCloudHandoffError(
+						cloudError?.message ?? rawError,
+					),
+					variant: "destructive",
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				});
+			}
+		},
+		[config, isThreadActive, onOpenSessionById, onHandoffUiAction],
+	);
+
+	const prepareHandoff = useCallback(
+		async (nextCommand: string) => {
+			const sourceSessionId = sessionId ?? historySession?.sessionId;
+			if (isCloudSession) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Already in Cline Cloud",
+					description: "Handoff is available from local sessions.",
+				});
+				return;
+			}
+			if (!cloudHandoffAvailable) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Cloud handoff is not available",
+					description: cloudAgentsEnabled
+						? "Cloud handoff is not enabled for this account yet."
+						: "Enable Cloud sessions in Settings before using /handoff.",
+				});
+				return;
+			}
+			if (!sourceSessionId) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Start the local session first",
+					description: "Send at least one message before handing off to cloud.",
+				});
+				return;
+			}
+			if (
+				status === "starting" ||
+				status === "running" ||
+				status === "stopping" ||
+				promptsInQueue.length > 0
+			) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Wait for the current turn",
+					description:
+						"Handoff can start once the local agent is idle and its prompt queue is empty.",
+				});
+				return;
+			}
+			const attachmentError = validateHandoffAttachments(
+				pendingAttachments,
+				nextCommand,
+			);
+			if (attachmentError) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Handoff is not ready",
+					description: attachmentError,
+					variant: "destructive",
+				});
+				return;
+			}
+
+			if (handoffStartingRef.current) {
+				toast({
+					title: "Handoff is already starting",
+					description: "Wait for the current handoff request to finish.",
+				});
+				return;
+			}
+			handoffStartingRef.current = true;
+			const sourceAttachments = [...pendingAttachments];
+			const submittedAt = Date.now();
+			setPendingAttachments([]);
+			try {
+				const attachments = await serializeAttachments(sourceAttachments);
+				const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
+					? {
+							content: nextCommand,
+							submittedAt,
+							baselineOccurrences: matchingUserPromptCount(
+								messages,
+								nextCommand,
+							),
+							baselineTailMessageId: pendingHandoffRecovery
+								? undefined
+								: messages.at(-1)?.id,
+							images: toChatMessageImages(
+								attachments.userImages,
+								`handoff_prompt_${sourceSessionId}`,
+							),
+						}
+					: undefined;
+				onHandoffUiAction({
+					type: "start",
+					sourceSessionId,
+					pendingPrompt,
+				});
+				const preflight = await desktopClient.invoke<HandoffPreflight>(
+					"chat_session_command",
+					{
+						request: {
+							action: "prepare_handoff",
+							sessionId: sourceSessionId,
+							config,
+						},
+					},
+				);
+				const fallbackMessage = formatHandoffModelFallback(
+					preflight.modelFallback,
+				);
+				if (fallbackMessage) {
+					toast({
+						title: "Using a cloud-compatible model",
+						description: fallbackMessage,
+					});
+				}
+				await runHandoff(
+					preflight,
+					nextCommand,
+					sourceAttachments,
+					attachments,
+					sourceSessionId,
+					pendingPrompt,
+				);
+			} catch (error) {
+				onHandoffUiAction({
+					type: "failed",
+					sourceSessionId,
+					exposeRecovery: true,
+					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
+					retryAttachments: sourceAttachments,
+				});
+				const rawError = error instanceof Error ? error.message : String(error);
+				const cloudError = parseCloudSessionError(rawError);
+				const connectUrl = cloudError?.connectUrl;
+				toast({
+					title: "Handoff is not ready",
+					description: humanizeCloudHandoffError(
+						cloudError?.message ?? rawError,
+					),
+					variant: "destructive",
+					action: connectUrl ? (
+						<ToastAction
+							altText="Connect GitHub"
+							onClick={() => void openExternalUrl(connectUrl)}
+						>
+							Connect GitHub
+						</ToastAction>
+					) : undefined,
+				});
+			} finally {
+				handoffStartingRef.current = false;
+			}
+		},
+		[
+			cloudAgentsEnabled,
+			cloudHandoffAvailable,
+			config,
+			historySession?.sessionId,
+			isCloudSession,
+			messages,
+			pendingAttachments,
+			pendingHandoffRecovery,
+			promptsInQueue.length,
+			runHandoff,
+			sessionId,
+			setPromptInput,
+			status,
+			onHandoffUiAction,
+		],
+	);
+
 	const handleSend = useCallback(
 		async (prompt: string) => {
 			const trimmed = prompt.trim();
+			const handoff = parseHandoffCommand(trimmed);
+			if (handoff) {
+				await prepareHandoff(handoff.nextCommand);
+				return;
+			}
 			if (!trimmed && pendingAttachments.length === 0) {
 				return;
 			}
@@ -1286,6 +1726,7 @@ function ChatThreadPane({
 			isCloudSession,
 			onThreadStarted,
 			pendingAttachments,
+			prepareHandoff,
 			sendPrompt,
 			sessionId,
 			setPromptInput,
@@ -1398,13 +1839,16 @@ function ChatThreadPane({
 	const activeSessionToDelete = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
+	const handoffDeleteLocked = Boolean(
+		handoffProgress || pendingHandoffRecovery,
+	);
 
 	const requestDeleteSession = useCallback(() => {
-		if (!activeSessionToDelete || deletingSession) {
+		if (!activeSessionToDelete || deletingSession || handoffDeleteLocked) {
 			return;
 		}
 		setDeleteConfirmOpen(true);
-	}, [activeSessionToDelete, deletingSession]);
+	}, [activeSessionToDelete, deletingSession, handoffDeleteLocked]);
 
 	const handleDeleteSession = useCallback(async () => {
 		if (!activeSessionToDelete || deletingSession) {
@@ -1661,6 +2105,56 @@ function ChatThreadPane({
 		(prompt: string) => void handleSend(prompt),
 		[handleSend],
 	);
+	const handleOpenHandoffCloud = useCallback(async () => {
+		const receipt = handoffReceipt;
+		if (!receipt) {
+			return;
+		}
+		if (cloudAgentsEnabled) {
+			const opened = await Promise.resolve(
+				onOpenSessionById?.(receipt.targetSessionId, { silent: true }),
+			).catch(() => false);
+			if (opened) {
+				return;
+			}
+			if (sourceSessionId) {
+				onHandoffUiAction({ type: "external", sourceSessionId });
+			}
+		}
+		await openExternalUrl(receipt.dashboardUrl).catch(() =>
+			toast({
+				title: "Unable to open the browser",
+				description: "Copy the recovery link and open it manually.",
+				variant: "destructive",
+			}),
+		);
+	}, [
+		cloudAgentsEnabled,
+		handoffReceipt,
+		onHandoffUiAction,
+		onOpenSessionById,
+		sourceSessionId,
+	]);
+	const handleOpenHandoffProgressLink = useCallback(() => {
+		const dashboardUrl = handoffProgress?.dashboardUrl ?? handoffRecoveryUrl;
+		if (dashboardUrl) {
+			void openExternalUrl(dashboardUrl).catch(() =>
+				toast({
+					title: "Unable to open the browser",
+					description: "Copy the link shown above and open it manually.",
+					variant: "destructive",
+				}),
+			);
+		}
+	}, [handoffProgress?.dashboardUrl, handoffRecoveryUrl]);
+	const handleDismissHandoffRecovery = useCallback(() => {
+		if (!sourceSessionId || !handoffRecoveryUrl) return;
+		onHandoffUiAction({
+			type: "dismiss_recovery",
+			sourceSessionId,
+			dashboardUrl: handoffRecoveryUrl,
+		});
+	}, [handoffRecoveryUrl, onHandoffUiAction, sourceSessionId]);
 
 	const firstUserMessage = messages.find(
 		(message) => message.role === "user",
@@ -1690,7 +2184,17 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
+	useEffect(() => {
+		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
+			onHandoffUiAction({
+				type: "prompt_reconciled",
+				sourceSessionId,
+			});
+		}
+	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
@@ -1842,9 +2346,10 @@ function ChatThreadPane({
 		);
 	}
 
-	const composer = (
+	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			cloudHandoffAvailable={cloudHandoffAvailable}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}
@@ -1877,6 +2382,34 @@ function ChatThreadPane({
 			thinking={config.thinking}
 			variant={isWelcomeState ? "welcome" : "conversation"}
 		/>
+	);
+	const composer = handoffReceipt ? (
+		<CloudHandoffReceipt
+			onForkLocally={() => void handleForkSession()}
+			onOpenCloud={() => void handleOpenHandoffCloud()}
+			receipt={handoffReceipt}
+			showRecoveryUrl={handoffExternalPresentation || !cloudAgentsEnabled}
+		/>
+	) : handoffProgress ? (
+		<CloudHandoffProgress
+			dashboardUrl={
+				cloudAgentsEnabled ? undefined : handoffProgress.dashboardUrl
+			}
+			message={handoffProgress.message}
+			onOpenCloud={handleOpenHandoffProgressLink}
+			phase={handoffProgress.phase}
+		/>
+	) : handoffRecoveryUrl ? (
+		<div className="w-full">
+			<CloudHandoffRecoveryNotice
+				dashboardUrl={handoffRecoveryUrl}
+				onDismiss={handleDismissHandoffRecovery}
+				onOpenCloud={handleOpenHandoffProgressLink}
+			/>
+			{chatComposer}
+		</div>
+	) : (
+		chatComposer
 	);
 
 	return (
@@ -1920,7 +2453,9 @@ function ChatThreadPane({
 							canEditTitle={
 								Boolean(activeSessionForTitle) && !isProvisioningCloudSession
 							}
-							canDeleteSession={Boolean(activeSessionToDelete)}
+							canDeleteSession={
+								Boolean(activeSessionToDelete) && !handoffDeleteLocked
+							}
 							deletingSession={deletingSession}
 							diff={isCloudSession ? undefined : headerDiff}
 							onDeleteSession={requestDeleteSession}
@@ -1983,7 +2518,9 @@ function ChatThreadPane({
 								messages={displayedMessages}
 								onEditMessage={isCloudSession ? undefined : handleEditMessage}
 								onRestoreCheckpoint={
-									isCloudSession ? undefined : handleRestoreCheckpoint
+									isCloudSession || handoffReceipt
+										? undefined
+										: handleRestoreCheckpoint
 								}
 								onForkSession={isCloudSession ? undefined : handleForkSession}
 								onProceedWhileRunning={

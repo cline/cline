@@ -281,3 +281,36 @@ describe("cloud agents gate", () => {
 		expect(isCloudAgentsEnabled()).toBe(false);
 	});
 });
+
+describe("cloud handoff gate", () => {
+	beforeEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	});
+
+	afterEach(() => {
+		delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+	});
+
+	it("is disabled while the rollout flag is off", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue(undefined);
+		expect(isCloudHandoffEnabled()).toBe(false);
+	});
+
+	it("enables from the rollout flag alone", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getFlagPayload.mockImplementation((flag: unknown) =>
+			flag === "code-cloud-handoff" ? true : undefined,
+		);
+		expect(isCloudHandoffEnabled()).toBe(true);
+	});
+
+	it("lets the env override force the gate in both directions", async () => {
+		const { isCloudHandoffEnabled } = await import("./feature-flags");
+		mocks.getFlagPayload.mockReturnValue(undefined);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+		expect(isCloudHandoffEnabled()).toBe(true);
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		expect(isCloudHandoffEnabled()).toBe(false);
+	});
+});

@@ -94,13 +94,26 @@ type UserInstructionConfigResponse = {
 	runtimeCommands?: UserInstructionCommand[];
 };
 
-const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+export const BUILTIN_SLASH_COMMANDS: SlashCommand[] = [
+	{
+		name: "handoff",
+		description: "Continue this local session in Cline Cloud",
+	},
 	{
 		name: "fork",
 		description: "Create a copy of the current session into a new session",
 	},
 	{ name: "team", description: "Start the task with an agent team" },
 ];
+
+export function filterSlashCommandsForHandoff(
+	commands: SlashCommand[],
+	cloudHandoffAvailable: boolean,
+): SlashCommand[] {
+	return cloudHandoffAvailable
+		? commands
+		: commands.filter((command) => command.name !== "handoff");
+}
 
 // Last known user commands, kept across composer instances so reopening the
 // slash menu paints instantly (stale-while-revalidate); the fetch that
@@ -296,6 +309,7 @@ type ChatInputBarProps = {
 	/** Branch name, "no-git" for a non-repo folder, null while discovery is pending. */
 	gitBranch: string | null;
 	executionTarget?: "local" | "cloud";
+	cloudHandoffAvailable?: boolean;
 	repoUrl?: string;
 	cloudBranch?: string;
 	hasActiveSession?: boolean;
@@ -342,6 +356,7 @@ function ChatInputBarImpl({
 	reasoningEffort,
 	gitBranch,
 	executionTarget = "local",
+	cloudHandoffAvailable = false,
 	repoUrl,
 	cloudBranch,
 	hasActiveSession = false,
@@ -996,11 +1011,15 @@ function ChatInputBarImpl({
 	// Filtered slash commands based on the current query.
 	const filteredSlashCommands = useMemo(() => {
 		if (!slashOpen) return [];
+		const availableCommands = filterSlashCommandsForHandoff(
+			slashCommands,
+			cloudHandoffAvailable,
+		);
 		const query = (activeSlash?.query ?? "").trim().toLowerCase();
 		if (!query) {
-			return slashCommands.slice(0, 10);
+			return availableCommands.slice(0, 10);
 		}
-		return slashCommands
+		return availableCommands
 			.filter((cmd) => cmd.name.toLowerCase().includes(query))
 			.sort((a, b) => {
 				const aStarts = a.name.toLowerCase().startsWith(query);
@@ -1010,7 +1029,7 @@ function ChatInputBarImpl({
 				return a.name.localeCompare(b.name);
 			})
 			.slice(0, 10);
-	}, [slashOpen, activeSlash?.query, slashCommands]);
+	}, [slashOpen, activeSlash?.query, slashCommands, cloudHandoffAvailable]);
 
 	const insertSlashCommandItem = useCallback(
 		(commandName: string) => {

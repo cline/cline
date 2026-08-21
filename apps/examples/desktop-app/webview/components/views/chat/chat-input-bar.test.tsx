@@ -10,8 +10,10 @@ import {
 	parseModelSelectionStorage,
 } from "@/lib/model-selection";
 import {
+	BUILTIN_SLASH_COMMANDS,
 	buildUserInstructionSlashCommands,
 	ChatInputBar,
+	filterSlashCommandsForHandoff,
 } from "./chat-input-bar";
 
 const {
@@ -203,6 +205,10 @@ async function renderVoiceComposer({
 
 describe("ChatInputBar", () => {
 	it("builds slash commands from both workflows and skills", () => {
+		expect(BUILTIN_SLASH_COMMANDS).toContainEqual({
+			name: "handoff",
+			description: "Continue this local session in Cline Cloud",
+		});
 		expect(
 			buildUserInstructionSlashCommands({
 				runtimeCommands: [
@@ -218,12 +224,22 @@ describe("ChatInputBar", () => {
 						kind: "skill",
 					},
 					{ id: "skill:fork", name: "fork", kind: "skill" },
+					{ id: "workflow:handoff", name: "handoff", kind: "workflow" },
 				],
 			}),
 		).toEqual([
 			{ name: "release", description: "Ship it" },
 			{ name: "publish-ui-skill", description: "Skill command" },
 		]);
+	});
+
+	it("hides handoff unless its effective feature gate is enabled", () => {
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, false),
+		).not.toContainEqual(expect.objectContaining({ name: "handoff" }));
+		expect(
+			filterSlashCommandsForHandoff(BUILTIN_SLASH_COMMANDS, true),
+		).toContainEqual(expect.objectContaining({ name: "handoff" }));
 	});
 
 	it("allows cloud image and model selection without replacing local defaults", async () => {

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { parseCloudSessionError } from "./cloud-session-error";
+import {
+	humanizeCloudHandoffError,
+	humanizeCloudSessionError,
+	parseCloudSessionError,
+} from "./cloud-session-error";
 
 describe("parseCloudSessionError", () => {
 	it("parses environment-aware GitHub connection guidance", () => {
@@ -47,5 +51,47 @@ describe("parseCloudSessionError", () => {
 	it("ignores ordinary and malformed errors", () => {
 		expect(parseCloudSessionError("fetch failed")).toBeNull();
 		expect(parseCloudSessionError("CLOUD_SESSION_ERROR:not-json")).toBeNull();
+	});
+
+	it("shows the cloud message without exposing the transport envelope", () => {
+		expect(
+			humanizeCloudSessionError(
+				'CLOUD_SESSION_ERROR:{"code":"request_failed","message":"Switch to Personal and try again."}',
+			),
+		).toBe("Switch to Personal and try again.");
+	});
+
+	it("shows terminal provisioning failure details without the transport envelope", () => {
+		expect(
+			humanizeCloudSessionError(
+				'CLOUD_SESSION_ERROR:{"code":"session_failed","message":"Repository clone failed."}',
+			),
+		).toBe("Repository clone failed.");
+	});
+
+	it("replaces malformed environment mismatch details with actionable copy", () => {
+		expect(
+			humanizeCloudSessionError(
+				"The session belongs to environment undefined, not [object Object].",
+			),
+		).toBe(
+			"Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
+		);
+	});
+
+	it("reassures handoff users when Cline Cloud is unreachable", () => {
+		for (const message of [
+			"fetch failed",
+			"Failed to fetch",
+			"network request failed",
+			"Load failed",
+		]) {
+			expect(humanizeCloudHandoffError(message)).toBe(
+				"Couldn’t reach Cline Cloud. Your local conversation is still available.",
+			);
+		}
+		expect(humanizeCloudHandoffError("Cloud session expired")).toBe(
+			"Cloud session expired",
+		);
 	});
 });
