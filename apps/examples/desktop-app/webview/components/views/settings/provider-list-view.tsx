@@ -29,18 +29,44 @@ import { openExternalUrl } from "@/lib/desktop-client";
 import { getProviderApiKeyUrl } from "@/lib/provider-key-urls";
 import {
 	isDedicatedTranscriptionModel,
+	loadProviderModels,
 	supportsAudio,
 } from "@/lib/provider-model-catalog";
 import type {
 	Provider,
 	ProviderConfigField,
 	ProviderConfigFieldPrimitive,
+	ProviderModel,
 	ProviderSettingsUpdate,
 	VoiceInputSelection,
 } from "@/lib/provider-schema";
 import { cn } from "@/lib/utils";
 
 const FAVORITE_MODELS_STORAGE_KEY = "cline.favorite-provider-models.v1";
+
+// Providers whose model lists carry recommended-feed tiers (see the SDK's
+// applyClineFeaturedModels). Only these are worth a per-card list fetch.
+const FEATURED_PROVIDER_IDS = new Set(["cline", "cline-pass"]);
+
+/** Tier + feed tags rendered as small pills next to the model name. */
+function featuredBadges(model: ProviderModel): string[] {
+	const featured = model.featured;
+	if (!featured) {
+		return [];
+	}
+	const badges: string[] = [];
+	if (featured.tier === "recommended") {
+		badges.push("Recommended");
+	} else if (featured.tier === "free") {
+		badges.push("Free");
+	}
+	for (const tag of featured.tags) {
+		if (!badges.some((badge) => badge.toLowerCase() === tag.toLowerCase())) {
+			badges.push(tag);
+		}
+	}
+	return badges;
+}
 
 function readFavoriteModels(): Record<string, string[]> {
 	if (typeof window === "undefined") return {};
@@ -419,7 +445,47 @@ export function ProviderDetailContent({
 	const configFields = provider.configFields ?? [];
 	const apiKeyValue = fieldValueToString(localConfigValues.apiKey);
 	const providerKeyUrl = getProviderApiKeyUrl(provider);
-	const modelList = provider.modelList ?? [];
+	// The catalog's modelList is fetched without the recommended-feed overlay
+	// (the catalog must not block on the feed); featured providers refresh
+	// their list here so tier badges and live entries can render. The result
+	// is scoped to the provider AND the modelList revision it was fetched
+	// for: an unscoped copy kept shadowing the next provider's models after
+	// a switch (even when its own request failed) and masked membership
+	// updates — adding a model would then submit the stale list as the
+	// complete configuration and drop earlier additions.
+	const [featuredModelList, setFeaturedModelList] = useState<{
+		providerId: string;
+		baseModelList: Provider["modelList"];
+		models: ProviderModel[];
+	} | null>(null);
+	useEffect(() => {
+		if (!FEATURED_PROVIDER_IDS.has(provider.id)) {
+			return;
+		}
+		let cancelled = false;
+		loadProviderModels(provider.id)
+			.then((models) => {
+				if (!cancelled && models.length > 0) {
+					setFeaturedModelList({
+						providerId: provider.id,
+						baseModelList: provider.modelList,
+						models,
+					});
+				}
+			})
+			.catch(() => {
+				// Keep the catalog snapshot when the refresh fails.
+			});
+		return () => {
+			cancelled = true;
+		};
+	}, [provider.id, provider.modelList]);
+	const modelList =
+		featuredModelList &&
+		featuredModelList.providerId === provider.id &&
+		featuredModelList.baseModelList === provider.modelList
+			? featuredModelList.models
+			: (provider.modelList ?? []);
 	const modelSearch =
 		modelSearchState?.providerId === provider.id ? modelSearchState.value : "";
 	const copiedModelId =
@@ -493,10 +559,20 @@ export function ProviderDetailContent({
 
 	const addModel = () => {
 		const modelId = newModelId.trim();
-		if (!modelId || modelList.some((model) => model.id === modelId)) {
+		// Submit the union of the displayed and configured lists: the update
+		// replaces the provider's complete model configuration, so basing it
+		// on the displayed list alone could silently drop configured entries
+		// whenever the two diverge.
+		const baseIds = [
+			...new Set([
+				...modelList.map((model) => model.id),
+				...(provider.modelList ?? []).map((model) => model.id),
+			]),
+		];
+		if (!modelId || baseIds.includes(modelId)) {
 			return;
 		}
-		onUpdateModels?.([...modelList.map((model) => model.id), modelId]);
+		onUpdateModels?.([...baseIds, modelId]);
 		setAddModelState(null);
 	};
 
@@ -815,6 +891,14 @@ export function ProviderDetailContent({
 											<div className="min-w-0 flex-1 font-mono">
 												<div className="flex min-w-0 items-center gap-1.5 px-1 text-sm text-foreground">
 													<span className="truncate">{model.name}</span>
+													{featuredBadges(model).map((badge) => (
+														<span
+															className="inline-flex shrink-0 items-center rounded bg-surface-hover px-1 py-px font-sans text-[0.625rem] font-medium uppercase tracking-wide text-muted-foreground"
+															key={badge}
+														>
+															{badge}
+														</span>
+													))}
 													{/* Capability icons */}
 													{model.supportsAttachments && (
 														<span
@@ -865,6 +949,11 @@ export function ProviderDetailContent({
 														</span>
 													)}
 												</div>
+												{model.description ? (
+													<p className="mt-0.5 truncate px-1 font-sans text-xs text-muted-foreground">
+														{model.description}
+													</p>
+												) : null}
 												<button
 													aria-label={`Copy model ID ${model.id}`}
 													className="mt-1 flex max-w-full items-center gap-1.5 px-1 text-left text-xs text-muted-foreground  hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"

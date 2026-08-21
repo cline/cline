@@ -2803,8 +2803,29 @@ export class CloudSessionManager {
 					? payload.conversationId
 					: undefined,
 		};
+		// Approvals are answered through a trusted webview connection (the
+		// same ownership contract local approvals follow); without one there
+		// is nobody to ask, so decline pod-side rather than queueing forever.
+		const owner = [...this.ctx.wsClients].find(
+			(client) => client.data?.canApproveTools === true,
+		);
+		if (!owner) {
+			void connection.client
+				.command(
+					"approval.respond",
+					{
+						approvalId,
+						approved: false,
+						reason: "No trusted desktop approval surface is connected",
+					},
+					connection.innerSessionId ?? undefined,
+				)
+				.catch(() => undefined);
+			return;
+		}
 		this.ctx.pendingApprovals.set(requestId, {
 			item,
+			owner,
 			resolve: async (result) => {
 				if (connection.disposed) {
 					// Commanding a disposed NodeHubClient would silently redial;

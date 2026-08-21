@@ -88,11 +88,13 @@ export type ToolApprovalRequestItem = {
 
 export type PendingToolApproval = {
 	item: ToolApprovalRequestItem;
+	owner: SidecarWebSocketClient;
 	resolve: (result: ToolApprovalResult) => void | Promise<void>;
 };
 
 export type AskQuestionRequestItem = {
 	requestId: string;
+	sessionId: string;
 	createdAt: string;
 	question: string;
 	options: string[];
@@ -110,6 +112,7 @@ export type PendingAskQuestion = {
 };
 
 export type SidecarWebSocketClient = {
+	data?: { canApproveTools?: boolean };
 	send: (message: string) => void;
 	close?: () => void;
 };

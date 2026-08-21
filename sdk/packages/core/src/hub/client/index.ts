@@ -181,6 +181,7 @@ export interface HubClientOptions {
 	resolveConnectionHeaders?: () =>
 		| Readonly<Record<string, string>>
 		| Promise<Readonly<Record<string, string>>>;
+	capabilities?: HubClientRegistration["capabilities"];
 }
 
 export interface LocalHubResolutionOptions {
@@ -331,6 +332,7 @@ export class NodeHubClient {
 	);
 	private sawSocketClose = false;
 	private registered = false;
+	private capabilities: NonNullable<HubClientRegistration["capabilities"]>;
 
 	constructor(private readonly options: HubClientOptions) {
 		if (options.authToken?.trim() && options.resolveConnectionHeaders) {
@@ -342,6 +344,7 @@ export class NodeHubClient {
 			options.clientId ??
 			`core-${Math.random().toString(36).slice(2, 10)}-${Date.now().toString(36)}`;
 		this.currentUrl = options.url;
+		this.capabilities = [...(options.capabilities ?? [])];
 	}
 
 	getClientId(): string {
@@ -358,6 +361,16 @@ export class NodeHubClient {
 
 	getConnectionError(): HubTransportError | null {
 		return this.isConnected() ? null : this.lastCloseError;
+	}
+
+	async updateCapabilities(
+		capabilities: NonNullable<HubClientRegistration["capabilities"]>,
+	): Promise<void> {
+		this.capabilities = capabilities.map((capability) => ({ ...capability }));
+		if (!this.registered) return;
+		await this.command("client.update", {
+			capabilities: this.capabilities,
+		});
 	}
 
 	async connect(): Promise<void> {
@@ -399,6 +412,7 @@ export class NodeHubClient {
 					displayName: this.options.displayName ?? "core",
 					transport: "native",
 					actorKind: "client",
+					capabilities: this.capabilities,
 					workspaceContext: {
 						workspaceRoot: this.options.workspaceRoot,
 						cwd: this.options.cwd,

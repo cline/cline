@@ -1,4 +1,6 @@
 import type {
+	AgentExtension,
+	AgentTool,
 	HubClientRecord,
 	HubCommandEnvelope,
 	HubEventEnvelope,
@@ -11,6 +13,7 @@ import type {
 } from "@cline/shared";
 import { createSessionId } from "@cline/shared";
 import type {
+	CommandExecutionRuntimeService,
 	PendingPromptsRuntimeService,
 	RuntimeHost,
 	SessionConnectionRuntimeService,
@@ -29,6 +32,7 @@ export type PendingApproval = {
 	sessionId: string;
 	request: ToolApprovalRequest;
 	createdAt: number;
+	agendaTaskId?: string;
 	resolve: (result: { approved: boolean; reason?: string }) => void;
 };
 
@@ -65,9 +69,14 @@ export interface HubTransportContext {
 	 */
 	readonly activeRpcTurnCountBySession: Map<string, number>;
 	readonly telemetry?: ITelemetryService;
+	/** Hub-owned tools injected into every local session runtime. */
+	readonly sessionTools?: readonly AgentTool[];
+	/** Hub-owned extensions injected into every local session runtime. */
+	readonly sessionExtensions?: readonly AgentExtension[];
 	readonly sessionHost: RuntimeHost &
 		Partial<
-			PendingPromptsRuntimeService &
+			CommandExecutionRuntimeService &
+				PendingPromptsRuntimeService &
 				SessionUsageRuntimeService &
 				SessionConnectionRuntimeService
 		>;

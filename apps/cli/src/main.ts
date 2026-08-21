@@ -17,6 +17,7 @@ import {
 } from "./commands/update";
 import { CLI_DEFAULT_CHECKPOINT_CONFIG } from "./runtime/defaults";
 import type { TuiStartupTarget } from "./tui/types";
+import { filterChatModels } from "./utils/chat-models";
 import { getCliBuildInfo } from "./utils/common";
 import {
 	buildCliCompactionConfig,
@@ -1029,7 +1030,9 @@ export async function runCli(): Promise<void> {
 				`${c.dim}[model-catalog] catalog resolution failed (${message})${c.reset}`,
 			);
 		}
-		const knownModelIds = knownModels ? Object.keys(knownModels) : [];
+		const knownModelIds = knownModels
+			? Object.keys(filterChatModels(knownModels))
+			: [];
 		const resolvedReasoning = resolveCliReasoning({
 			thinking: args.thinking,
 			thinkingExplicitlySet: args.thinkingExplicitlySet,

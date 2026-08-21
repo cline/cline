@@ -20,6 +20,7 @@ import {
 	hasProviderChanged,
 	mergeSessionConfig,
 	prewarmWorkspaceMetadata,
+	resolveDesktopSessionMode,
 	reconcilePendingCloudHandoff,
 	rewriteDesktopTeamPrompt,
 	shouldCleanupFailedHandoffVerification,
@@ -27,6 +28,20 @@ import {
 	updateHandoffMetadataOrThrow,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import { handleCoreSessionEvent } from "./context";
+import type { SidecarContext } from "./types";
+
+describe("resolveDesktopSessionMode", () => {
+	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
+		expect(
+			resolveDesktopSessionMode({ mode: "act", autoApproveTools: true }),
+		).toBe("act");
+		expect(resolveDesktopSessionMode({ autoApproveTools: true })).toBe("act");
+	});
+
+	it("preserves explicit Plan and Yolo modes", () => {
+		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
+		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
 import {
 	CloudHandoffSeedUnsupportedError,
 	CloudSessionError,
@@ -861,6 +876,81 @@ describe("session forks", () => {
 		expect(ctx.restoringWorkspacePaths.size).toBe(0);
 	});
 
+	it("allows a workspace restore after a queued turn completes through the event stream", async () => {
+		const sessionId = `queued-turn-session-${Date.now()}`;
+		const dataDir = mkdtempSync(join(tmpdir(), "cline-queued-restore-"));
+		const originalDataDir = process.env.CLINE_SESSION_DATA_DIR;
+		process.env.CLINE_SESSION_DATA_DIR = dataDir;
+		try {
+			const restore = vi.fn(async () => ({
+				sessionId,
+				messages: [{ role: "user", content: "first prompt" }],
+				checkpoint: { ref: "first", createdAt: 1, runCount: 1 },
+			}));
+			const ctx = {
+				liveSessions: new Map([
+					[
+						sessionId,
+						{
+							config: { cwd: "/workspace/project" },
+							messages: [{ role: "user", content: "first prompt" }],
+							promptsInQueue: [],
+							// A drained queued turn is running: no send() RPC owns
+							// this turn's busy flag, only the event stream does.
+							busy: true,
+							startedAt: Date.now(),
+							status: "running",
+						},
+					],
+				]),
+				restoringWorkspacePaths: new Set(),
+				streamIndices: new Map(),
+				wsClients: new Set(),
+				sessionManager: { restore },
+			} as unknown as SidecarContext;
+			const restoreRequest = {
+				action: "restore_checkpoint" as const,
+				sessionId,
+				checkpointRunCount: 1,
+				config: {
+					cwd: "/workspace/project",
+					provider: "cline",
+					model: "test-model",
+				},
+			};
+
+			// While the queued turn is still running the workspace stays locked.
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).rejects.toThrow("Wait for all turns in this workspace to finish");
+			expect(restore).not.toHaveBeenCalled();
+
+			// The queued turn settles through the event stream: the runtime
+			// host reports the session back at idle (there is no send() RPC
+			// response to clear the busy flag for event-settled turns).
+			handleCoreSessionEvent(ctx, {
+				type: "status",
+				payload: { sessionId, status: "idle" },
+			});
+			expect(ctx.liveSessions.get(sessionId)).toMatchObject({
+				busy: false,
+				status: "idle",
+			});
+
+			await expect(
+				handleChatSessionCommand(ctx, restoreRequest),
+			).resolves.toMatchObject({ sessionId });
+			expect(restore).toHaveBeenCalledTimes(1);
+		} finally {
+			if (originalDataDir === undefined) {
+				delete process.env.CLINE_SESSION_DATA_DIR;
+			} else {
+				process.env.CLINE_SESSION_DATA_DIR = originalDataDir;
+			}
+			rmSync(dataDir, { force: true, recursive: true });
+		}
+	});
+
 	it("blocks sends from sibling sessions while their workspace is restored", async () => {
 		const send = vi.fn();
 		const sessionId = "workspace-sibling-session";
@@ -1557,6 +1647,7 @@ describe("first-send connection updates", () => {
 		});
 
 		expect(updateSessionConnection).toHaveBeenCalledTimes(1);
+		expect(ctx.liveSessions.get(sessionId)?.attachedViaHub).toBe(false);
 	});
 });
 
@@ -1884,6 +1975,15 @@ name: desktop-send-skill
 ---
 Follow the desktop send skill instructions.`,
 		);
+		const workflowsDir = join(workspace, ".cline", "workflows");
+		mkdirSync(workflowsDir, { recursive: true });
+		writeFileSync(
+			join(workflowsDir, "desktop-send-workflow.md"),
+			`---
+name: desktop-send-workflow
+---
+Follow the desktop send workflow instructions.`,
+		);
 		return workspace;
 	}
 
@@ -1927,7 +2027,7 @@ Follow the desktop send skill instructions.`,
 		return { ctx, send, session, sessionId, updatePendingPrompt };
 	}
 
-	it("expands a leading skill command into its instructions", async () => {
+	it("sends a skill command through as typed for the skills tool", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, send, session, sessionId } = createContext(workspace);
 
@@ -1937,16 +2037,59 @@ Follow the desktop send skill instructions.`,
 			prompt: "/desktop-send-skill write the docs",
 		});
 
+		// Skills are not expanded into the user message: the runtime's skills
+		// tool loads the instructions, and the persisted transcript keeps the
+		// typed command.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "/desktop-send-skill write the docs",
+			}),
+		);
+		expect(session.prompt).toBe("/desktop-send-skill write the docs");
+	});
+
+	it("expands a skill command in yolo mode, where the skills tool is unavailable", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+		(session.config as Record<string, unknown>).mode = "yolo";
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-skill write the docs",
+		});
+
+		// The yolo preset has no skills tool, so textual expansion is the only
+		// way the instructions reach the model.
 		expect(send).toHaveBeenCalledWith(
 			expect.objectContaining({
 				prompt: "Follow the desktop send skill instructions. write the docs",
 			}),
 		);
-		// The session's display prompt keeps the raw token.
-		expect(session.prompt).toBe("/desktop-send-skill write the docs");
 	});
 
-	it("expands a skill command when a queued prompt is edited", async () => {
+	it("expands a leading workflow command into its instructions", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, send, session, sessionId } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "send",
+			sessionId,
+			prompt: "/desktop-send-workflow ship it",
+		});
+
+		// Workflows are not served by the skills tool, so they keep textual
+		// expansion.
+		expect(send).toHaveBeenCalledWith(
+			expect.objectContaining({
+				prompt: "Follow the desktop send workflow instructions. ship it",
+			}),
+		);
+		// The session's display prompt keeps the raw token.
+		expect(session.prompt).toBe("/desktop-send-workflow ship it");
+	});
+
+	it("keeps a skill command as typed when a queued prompt is edited", async () => {
 		const workspace = createWorkspaceWithSkill();
 		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
 
@@ -1960,7 +2103,25 @@ Follow the desktop send skill instructions.`,
 		expect(updatePendingPrompt).toHaveBeenCalledWith({
 			sessionId,
 			promptId: "queued-1",
-			prompt: "Follow the desktop send skill instructions. later please",
+			prompt: "/desktop-send-skill later please",
+		});
+	});
+
+	it("expands a workflow command when a queued prompt is edited", async () => {
+		const workspace = createWorkspaceWithSkill();
+		const { ctx, sessionId, updatePendingPrompt } = createContext(workspace);
+
+		await handleChatSessionCommand(ctx, {
+			action: "update_pending_prompt",
+			sessionId,
+			promptId: "queued-2",
+			prompt: "/desktop-send-workflow later please",
+		});
+
+		expect(updatePendingPrompt).toHaveBeenCalledWith({
+			sessionId,
+			promptId: "queued-2",
+			prompt: "Follow the desktop send workflow instructions. later please",
 		});
 	});
 

@@ -3,10 +3,16 @@ import type {
 	HubEventEnvelope,
 	HubReplyEnvelope,
 } from "@cline/shared";
-import type { HubCommandTransport } from "./command-transport";
+import type {
+	HubCommandTransport,
+	HubConnectionAuthority,
+} from "./command-transport";
 
 export interface NativeHubTransport {
-	handleCommand(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope>;
+	handleCommand(
+		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority | null,
+	): Promise<HubReplyEnvelope>;
 	subscribe(
 		clientId: string,
 		listener: (event: HubEventEnvelope) => void,
@@ -17,8 +23,11 @@ export interface NativeHubTransport {
 export class NativeHubTransportAdapter implements HubCommandTransport {
 	constructor(private readonly transport: NativeHubTransport) {}
 
-	command(envelope: HubCommandEnvelope): Promise<HubReplyEnvelope> {
-		return this.transport.handleCommand(envelope);
+	command(
+		envelope: HubCommandEnvelope,
+		authority?: HubConnectionAuthority | null,
+	): Promise<HubReplyEnvelope> {
+		return this.transport.handleCommand(envelope, authority);
 	}
 
 	subscribe(

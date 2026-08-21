@@ -80,6 +80,8 @@ function createContext(): {
 		streamIndices: new Map(),
 		wsClients: new Set([
 			{
+				// Approval ownership requires a trusted desktop connection.
+				data: { canApproveTools: true },
 				send(message: string) {
 					const parsed = JSON.parse(message) as {
 						event: { name: string; payload: Record<string, unknown> };
@@ -2923,6 +2925,7 @@ describe("CloudSessionManager", () => {
 				requestId: "ses-outer:app-1",
 				sessionId: "ses-outer",
 			},
+			owner: { data: { canApproveTools: true }, send: vi.fn() },
 			resolve: cloudResolve,
 		});
 		ctx.pendingApprovals.set("local-1:app-2", {
@@ -2931,6 +2934,7 @@ describe("CloudSessionManager", () => {
 				requestId: "local-1:app-2",
 				sessionId: "local-1",
 			},
+			owner: { data: { canApproveTools: true }, send: vi.fn() },
 			resolve: localResolve,
 		});
 
