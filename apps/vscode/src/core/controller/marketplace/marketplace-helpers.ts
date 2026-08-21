@@ -82,8 +82,17 @@ function sanitizeEntry(raw: unknown): MarketplaceEntry | undefined {
 		description: typeof record.description === "string" ? record.description : undefined,
 		tags: asStringArray(record.tags),
 		author: typeof record.author === "string" ? record.author : undefined,
-		sourceUrl: typeof record.sourceUrl === "string" ? record.sourceUrl : undefined,
-		homepageUrl: typeof record.homepageUrl === "string" ? record.homepageUrl : undefined,
+		// The published catalog uses "repo"/"homepage"; older entries may use
+		// "sourceUrl"/"homepageUrl". Accept both so URL-based enterprise
+		// allowlist ids can be matched against the entry.
+		sourceUrl:
+			typeof record.sourceUrl === "string" ? record.sourceUrl : typeof record.repo === "string" ? record.repo : undefined,
+		homepageUrl:
+			typeof record.homepageUrl === "string"
+				? record.homepageUrl
+				: typeof record.homepage === "string"
+					? record.homepage
+					: undefined,
 		install: install
 			? {
 					args: asStringArray(install.args),

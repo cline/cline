@@ -4,7 +4,7 @@ sidebarTitle: "MCP Server Controls"
 description: "Enterprise controls for MCP server allowlisting and remote MCP server management"
 ---
 
-Cline no longer exposes an MCP Marketplace browse/install surface in the SDK-backed VS Code extension. For Enterprise administrators, the legacy remote configuration field names are still supported for compatibility and now govern MCP server access: local server availability, local server allowlisting, organization-managed remote MCP servers, and blocking personal remote MCP servers.
+The VS Code extension exposes an MCP marketplace browse/install surface in the Customize view. For Enterprise administrators, the legacy remote configuration field names govern both the marketplace and MCP server access: marketplace availability, local server availability, local server allowlisting, organization-managed remote MCP servers, and blocking personal remote MCP servers.
 
 ## Overview
 
@@ -12,8 +12,8 @@ Enterprise administrators have four configuration options to govern MCP server u
 
 | Setting | Purpose |
 |---------|---------|
-| `mcpMarketplaceEnabled` | Allow or block locally configured MCP servers |
-| `allowedMCPServers` | Restrict locally configured MCP servers to approved server IDs |
+| `mcpMarketplaceEnabled` | Allow or block the MCP marketplace and locally configured MCP servers |
+| `allowedMCPServers` | Restrict the MCP marketplace and locally configured MCP servers to approved server IDs |
 | `remoteMCPServers` | Push pre-configured remote MCP servers to all users |
 | `blockPersonalRemoteMCPServers` | Prevent users from adding their own remote MCP servers |
 
@@ -30,10 +30,12 @@ To block locally configured MCP servers for your organization, set `mcpMarketpla
 ```
 
 When `mcpMarketplaceEnabled` is set to `false`:
+- The MCP marketplace is hidden and MCP marketplace installs are blocked
 - Locally configured MCP servers are blocked
 - Enterprise policy takes precedence over individual preferences
 
 When `mcpMarketplaceEnabled` is set to `true` or omitted:
+- The MCP marketplace is available unless restricted by `allowedMCPServers`
 - Locally configured MCP servers are allowed unless restricted by `allowedMCPServers`
 
 <Warning>
@@ -63,10 +65,11 @@ Add an `allowedMCPServers` array to your remote configuration. Each entry requir
 When `allowedMCPServers` is configured with one or more entries:
 - Local MCP servers can connect only when their configured server name matches an allowed `id`
 - Local MCP servers not on the list are blocked
+- The MCP marketplace shows only entries matching an allowed `id`, and installs of other entries are blocked. Marketplace entries match when the `id` equals the entry's marketplace id, display name, installed server name, or source repository URL
 - The allowlist applies to all team members in the organization
 
 When `allowedMCPServers` is omitted, `undefined`, or an empty array (`[]`):
-- No local server allowlist restriction is applied
+- No local server or marketplace allowlist restriction is applied
 
 ### Choosing Server IDs
 
