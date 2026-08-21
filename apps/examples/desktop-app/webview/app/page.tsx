@@ -45,7 +45,11 @@ import type { OnboardingStep } from "@/components/views/onboarding/onboarding-vi
 import type { SettingsSection } from "@/components/views/settings/sections";
 import { AccountProvider, useAccount } from "@/contexts/account-context";
 import { WorkspaceProvider } from "@/contexts/workspace-context";
-import { serializeAttachments } from "@/hooks/chat-session/attachments";
+import {
+	serializeAttachments,
+	toChatMessageImages,
+} from "@/hooks/chat-session/attachments";
+import type { SerializedAttachments } from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
@@ -68,9 +72,13 @@ import {
 	validateHandoffAttachments,
 } from "@/lib/cloud-handoff";
 import {
+	appendPendingHandoffPrompt,
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	matchingUserPromptCount,
+	type PendingHandoffPrompt,
+	pendingHandoffPromptCaughtUp,
 } from "@/lib/cloud-handoff-ui-state";
 import {
 	cloudRepositoryLabel,
@@ -258,6 +266,8 @@ export default function Home() {
 					phase?: HandoffProgressPhase;
 					message?: string;
 					dashboardUrl?: string;
+					sessionId?: string;
+					destination?: "in_app" | "external";
 				};
 				if (
 					!progress.sourceSessionId?.trim() ||
@@ -272,6 +282,8 @@ export default function Home() {
 					phase: progress.phase,
 					message: progress.message,
 					dashboardUrl: progress.dashboardUrl,
+					sessionId: progress.sessionId,
+					destination: progress.destination,
 				});
 			}),
 		[],
@@ -800,6 +812,10 @@ function ChatThreadPane({
 	const [gitBranch, setGitBranch] = useState<string | null>(null);
 	// Re-evaluate the account-targeted flag after sign-in changes.
 	const [cloudAgentsEnabled, setCloudAgentsEnabled] = useState(false);
+	// `code-cloud-handoff` rollout flag (resolved sidecar-side); /handoff also
+	// requires cloud sessions, so the effective gate ANDs the two.
+	const [cloudHandoffEnabled, setCloudHandoffEnabled] = useState(false);
+	const cloudHandoffAvailable = cloudAgentsEnabled && cloudHandoffEnabled;
 	const handoffStartingRef = useRef(false);
 	const sourceSessionId = sessionId ?? historySession?.sessionId;
 	const handoffUi = sourceSessionId
@@ -842,9 +858,12 @@ function ChatThreadPane({
 				.invoke("get_feature_flags", {})
 				.then((flags) => {
 					if (!cancelled) {
-						setCloudAgentsEnabled(
-							Boolean((flags as { cloudAgents?: boolean })?.cloudAgents),
-						);
+						const featureFlags = flags as {
+							cloudAgents?: boolean;
+							cloudHandoff?: boolean;
+						};
+						setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
+						setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 					}
 				})
 				.catch(() => {
@@ -861,9 +880,12 @@ function ChatThreadPane({
 			"feature_flags_changed",
 			(payload) => {
 				if (!cancelled) {
-					setCloudAgentsEnabled(
-						Boolean((payload as { cloudAgents?: boolean })?.cloudAgents),
-					);
+					const featureFlags = payload as {
+						cloudAgents?: boolean;
+						cloudHandoff?: boolean;
+					};
+					setCloudAgentsEnabled(Boolean(featureFlags?.cloudAgents));
+					setCloudHandoffEnabled(Boolean(featureFlags?.cloudHandoff));
 				}
 			},
 		);
@@ -1388,7 +1410,9 @@ function ChatThreadPane({
 			preflight: HandoffPreflight,
 			nextCommand: string,
 			sourceAttachments: File[],
+			attachments: SerializedAttachments,
 			sourceSessionId: string,
+			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
 				type: "progress",
@@ -1396,7 +1420,6 @@ function ChatThreadPane({
 				phase: "creating",
 			});
 			try {
-				const attachments = await serializeAttachments(sourceAttachments);
 				const result = await desktopClient.invoke<HandoffResult>(
 					"chat_session_command",
 					{
@@ -1422,26 +1445,41 @@ function ChatThreadPane({
 					throw new Error("Cloud handoff did not return a cloud session.");
 				}
 				const receipt = { targetSessionId, dashboardUrl };
-				const destination =
-					result.destination ?? (cloudAgentsEnabled ? "in_app" : "external");
+				const destination = result.destination ?? "in_app";
 				onHandoffUiAction({
 					type: "complete",
 					sourceSessionId,
 					receipt,
 					externalPresentation: destination === "external",
+					pendingPrompt,
 				});
+				if (result.warning) {
+					onHandoffUiAction({
+						type: "prompt_reconciled",
+						sourceSessionId: targetSessionId,
+					});
+				}
 				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
-					const opened = await onOpenSessionById?.(targetSessionId, {
-						silent: true,
-					}).catch(() => false);
+					const opened = await Promise.resolve(
+						onOpenSessionById?.(targetSessionId, { silent: true }),
+					).catch(() => false);
 					if (!opened) {
 						onHandoffUiAction({ type: "external", sourceSessionId });
-						await openExternalUrl(dashboardUrl).catch(() => undefined);
-						toast({
-							title: "Opened handoff in your browser",
-							description:
-								"The cloud session could not be attached inside Cline Code.",
-						});
+						try {
+							await openExternalUrl(dashboardUrl);
+							toast({
+								title: "Opened handoff in your browser",
+								description:
+									"The cloud session could not be attached inside Cline.",
+							});
+						} catch {
+							toast({
+								title: "Unable to open the browser",
+								description:
+									"Use the recovery link to open the cloud session manually.",
+								variant: "destructive",
+							});
+						}
 					}
 				} else if (destination === "external") {
 					await openExternalUrl(dashboardUrl).catch(() =>
@@ -1490,13 +1528,7 @@ function ChatThreadPane({
 				});
 			}
 		},
-		[
-			cloudAgentsEnabled,
-			config,
-			isThreadActive,
-			onOpenSessionById,
-			onHandoffUiAction,
-		],
+		[config, isThreadActive, onOpenSessionById, onHandoffUiAction],
 	);
 
 	const prepareHandoff = useCallback(
@@ -1507,6 +1539,16 @@ function ChatThreadPane({
 				toast({
 					title: "Already in Cline Cloud",
 					description: "Handoff is available from local sessions.",
+				});
+				return;
+			}
+			if (!cloudHandoffAvailable) {
+				setPromptInput(nextCommand ? `/handoff ${nextCommand}` : "/handoff");
+				toast({
+					title: "Cloud handoff is not available",
+					description: cloudAgentsEnabled
+						? "Cloud handoff is not enabled for this account yet."
+						: "Enable Cloud sessions in Settings before using /handoff.",
 				});
 				return;
 			}
@@ -1555,12 +1597,32 @@ function ChatThreadPane({
 			}
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
-			onHandoffUiAction({
-				type: "start",
-				sourceSessionId,
-			});
+			const submittedAt = Date.now();
 			setPendingAttachments([]);
 			try {
+				const attachments = await serializeAttachments(sourceAttachments);
+				const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
+					? {
+							content: nextCommand,
+							submittedAt,
+							baselineOccurrences: matchingUserPromptCount(
+								messages,
+								nextCommand,
+							),
+							baselineTailMessageId: pendingHandoffRecovery
+								? undefined
+								: messages.at(-1)?.id,
+							images: toChatMessageImages(
+								attachments.userImages,
+								`handoff_prompt_${sourceSessionId}`,
+							),
+						}
+					: undefined;
+				onHandoffUiAction({
+					type: "start",
+					sourceSessionId,
+					pendingPrompt,
+				});
 				const preflight = await desktopClient.invoke<HandoffPreflight>(
 					"chat_session_command",
 					{
@@ -1584,7 +1646,9 @@ function ChatThreadPane({
 					preflight,
 					nextCommand,
 					sourceAttachments,
+					attachments,
 					sourceSessionId,
+					pendingPrompt,
 				);
 			} catch (error) {
 				onHandoffUiAction({
@@ -1617,10 +1681,14 @@ function ChatThreadPane({
 			}
 		},
 		[
+			cloudAgentsEnabled,
+			cloudHandoffAvailable,
 			config,
 			historySession?.sessionId,
 			isCloudSession,
+			messages,
 			pendingAttachments,
+			pendingHandoffRecovery,
 			promptsInQueue.length,
 			runHandoff,
 			sessionId,
@@ -2043,9 +2111,9 @@ function ChatThreadPane({
 			return;
 		}
 		if (cloudAgentsEnabled) {
-			const opened = await onOpenSessionById?.(receipt.targetSessionId, {
-				silent: true,
-			}).catch(() => false);
+			const opened = await Promise.resolve(
+				onOpenSessionById?.(receipt.targetSessionId, { silent: true }),
+			).catch(() => false);
 			if (opened) {
 				return;
 			}
@@ -2116,7 +2184,17 @@ function ChatThreadPane({
 	const activeSessionForTitle = hideDeletedSessionUi
 		? null
 		: (sessionId ?? visibleHistorySession?.sessionId ?? null);
-	const displayedMessages = hideDeletedSessionUi ? [] : messages;
+	const displayedMessages = hideDeletedSessionUi
+		? []
+		: appendPendingHandoffPrompt(messages, sourceSessionId, handoffUi);
+	useEffect(() => {
+		if (sourceSessionId && pendingHandoffPromptCaughtUp(messages, handoffUi)) {
+			onHandoffUiAction({
+				type: "prompt_reconciled",
+				sourceSessionId,
+			});
+		}
+	}, [handoffUi, messages, onHandoffUiAction, sourceSessionId]);
 	const displayedError = hideDeletedSessionUi ? null : error;
 	const cloudSessionError = isCloudSession
 		? parseCloudSessionError(displayedError)
@@ -2271,6 +2349,7 @@ function ChatThreadPane({
 	const chatComposer = (
 		<ChatInputBar
 			attachments={attachmentList}
+			cloudHandoffAvailable={cloudHandoffAvailable}
 			onAbort={handleAbort}
 			onAttachFiles={handleAttachFiles}
 			onListGitBranches={listGitBranches}

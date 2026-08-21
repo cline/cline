@@ -4,6 +4,10 @@ export type CloudHandoffFingerprint = {
 	headSha: string;
 	modelId: string;
 	organizationId?: string;
+	/** Repository-relative source cwd; omitted when the session is at repo root. */
+	workspaceRelativePath?: string;
+	/** Source interaction mode; omitted for the default Act mode. */
+	mode?: "plan" | "yolo" | "zen";
 };
 
 export type CloudHandoffMetadata = {

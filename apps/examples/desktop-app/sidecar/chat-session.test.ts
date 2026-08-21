@@ -8,14 +8,19 @@ import {
 } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { selectCloudHandoffModel } from "@cline/core";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import {
+	CloudHandoffTranscriptMismatchError,
+	selectCloudHandoffModel,
+} from "@cline/core";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { materializeUserFiles } from "./attachments";
 import {
 	assertSessionDeleteAllowedDuringHandoff,
 	buildSessionConnectionUpdate,
+	cloudHandoffGitStateMatchesFingerprint,
 	combineCloudHandoffModels,
 	consumeWorkspaceMetadata,
+	formatPendingHandoffVerificationError,
 	handleChatSessionCommand,
 	hasProviderChanged,
 	mergeSessionConfig,
@@ -34,6 +39,10 @@ import {
 } from "./cloud-sessions";
 import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
+
+afterEach(() => {
+	delete process.env.CLINE_CODE_CLOUD_HANDOFF;
+});
 
 describe("resolveDesktopSessionMode", () => {
 	it("does not turn auto-approved Act sessions into Yolo sessions", () => {
@@ -311,6 +320,7 @@ describe("session forks", () => {
 	});
 
 	it("blocks deletion while the handoff request is starting", async () => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
 		let releaseGet: ((value: undefined) => void) | undefined;
 		const ctx = {
 			liveSessions: new Map(),
@@ -1722,12 +1732,97 @@ describe("workspace metadata prewarming", () => {
 });
 
 describe("cloud handoff gates", () => {
+	beforeEach(() => {
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "1";
+	});
+
+	it("blocks handoff actions when the rollout flag is off", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({ busy: false });
+
+		process.env.CLINE_CODE_CLOUD_HANDOFF = "0";
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "handoff",
+				sessionId,
+				fingerprint: {
+					repoUrl: "https://github.com/cline/cline.git",
+					branch: "main",
+					headSha: "abc123",
+					modelId: "anthropic/claude-sonnet-4.6",
+				},
+			}),
+		).rejects.toThrow("Cloud handoff is not enabled for this account.");
+		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("explains how to recover a mismatched resumed handoff", () => {
+		const dashboardUrl = "https://app.cline.bot/agents?sessionId=ses-pending";
+		const message = formatPendingHandoffVerificationError(
+			new CloudHandoffTranscriptMismatchError(2, 3),
+			dashboardUrl,
+		);
+
+		expect(message).toContain("delete it before retrying /handoff");
+		expect(message).toContain(dashboardUrl);
+	});
+
+	it("detects repository drift after cloud provisioning", () => {
+		const fingerprint = {
+			repoUrl: "https://github.com/cline/cline",
+			branch: "main",
+			headSha: "A".repeat(40),
+			modelId: "anthropic/claude-sonnet-4.6",
+			workspaceRelativePath: "apps/examples/desktop-app",
+		};
+
+		expect(
+			cloudHandoffGitStateMatchesFingerprint(
+				{
+					repoUrl: fingerprint.repoUrl,
+					branch: fingerprint.branch,
+					headSha: fingerprint.headSha.toLowerCase(),
+					workspaceRelativePath: fingerprint.workspaceRelativePath,
+				},
+				fingerprint,
+			),
+		).toBe(true);
+		expect(
+			cloudHandoffGitStateMatchesFingerprint(
+				{
+					repoUrl: fingerprint.repoUrl,
+					branch: fingerprint.branch,
+					headSha: "B".repeat(40),
+					workspaceRelativePath: fingerprint.workspaceRelativePath,
+				},
+				fingerprint,
+			),
+		).toBe(false);
+	});
+
 	it("cleans up an old runtime that ignored the seeded transcript", () => {
 		expect(
 			shouldCleanupFailedHandoffVerification(
 				new CloudHandoffSeedUnsupportedError(),
 			),
 		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffSeedUnsupportedError(),
+				false,
+			),
+		).toBe(true);
+		expect(
+			shouldCleanupFailedHandoffVerification(
+				new CloudHandoffTranscriptMismatchError(1, 2),
+				false,
+			),
+		).toBe(false);
 		expect(
 			shouldCleanupFailedHandoffVerification(
 				new CloudSessionError("request_failed", "temporary read failure"),
@@ -1863,6 +1958,7 @@ describe("cloud handoff gates", () => {
 
 	function createHandoffGateContext(options: {
 		busy?: boolean;
+		persistedStatus?: string;
 		messages?: Array<{ role: "user" | "assistant"; content: string }>;
 		metadata?: Record<string, unknown>;
 	}) {
@@ -1896,7 +1992,9 @@ describe("cloud handoff gates", () => {
 			sessionManager: {
 				get: vi.fn(async () => ({
 					sessionId,
-					status: options.busy ? "running" : "completed",
+					status:
+						options.persistedStatus ??
+						(options.busy ? "running" : "completed"),
 					cwd: "/workspace/project",
 					model: "anthropic/claude-sonnet-4.6",
 					metadata: options.metadata,
@@ -1918,6 +2016,20 @@ describe("cloud handoff gates", () => {
 			}),
 		).rejects.toThrow("Stop the current run");
 		expect(ctx.cloudSessionManager).toBeFalsy();
+	});
+
+	it("trusts an authoritative idle live session over a legacy running record", async () => {
+		const { ctx, sessionId } = createHandoffGateContext({
+			busy: false,
+			persistedStatus: "running",
+		});
+
+		await expect(
+			handleChatSessionCommand(ctx, {
+				action: "prepare_handoff",
+				sessionId,
+			}),
+		).rejects.not.toThrow("Stop the current run");
 	});
 
 	it("rejects an empty source before provisioning", async () => {

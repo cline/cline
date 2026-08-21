@@ -80,6 +80,7 @@ import {
 	identifyDesktopFeatureFlagsAccount,
 	isCloudAgentsAvailable,
 	isCloudAgentsEnabled,
+	isCloudHandoffEnabled,
 	refreshDesktopFeatureFlags,
 } from "./feature-flags";
 import {
@@ -1299,6 +1300,10 @@ export async function handleCommand(
 				logger: ctx.logger,
 				telemetry: ctx.telemetry,
 			}),
+			cloudHandoff: isCloudHandoffEnabled({
+				logger: ctx.logger,
+				telemetry: ctx.telemetry,
+			}),
 		};
 	}
 	if (command === "list_cloud_repositories") {
@@ -1427,10 +1432,13 @@ export async function handleCommand(
 		const cloud = getCloudSessionManager(ctx);
 		if (cloud.isCloudSession(sessionId)) {
 			try {
+				const listed = (await cloud.listForDiscovery()).find(
+					(session) => session.sessionId === sessionId,
+				);
 				return (
-					(await cloud.listForDiscovery()).find(
-						(session) => session.sessionId === sessionId,
-					) ?? null
+					listed ??
+					(await cloud.getCrossScopeDiscoveryRecord(sessionId)) ??
+					null
 				);
 			} catch {
 				// Preserve offline access, but never let a successful fresh list be
@@ -1964,6 +1972,7 @@ export async function handleCommand(
 		broadcastEvent(ctx, "feature_flags_changed", {
 			cloudAgents: isCloudAgentsEnabled(),
 			cloudAgentsAvailable: isCloudAgentsAvailable(),
+			cloudHandoff: isCloudHandoffEnabled(),
 		});
 		return settings;
 	}

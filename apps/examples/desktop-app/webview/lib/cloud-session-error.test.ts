@@ -61,13 +61,21 @@ describe("parseCloudSessionError", () => {
 		).toBe("Switch to Personal and try again.");
 	});
 
+	it("shows terminal provisioning failure details without the transport envelope", () => {
+		expect(
+			humanizeCloudSessionError(
+				'CLOUD_SESSION_ERROR:{"code":"session_failed","message":"Repository clone failed."}',
+			),
+		).toBe("Repository clone failed.");
+	});
+
 	it("replaces malformed environment mismatch details with actionable copy", () => {
 		expect(
 			humanizeCloudSessionError(
 				"The session belongs to environment undefined, not [object Object].",
 			),
 		).toBe(
-			"Cline Code couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
+			"Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.",
 		);
 	});
 

@@ -1,4 +1,5 @@
 import {
+	CloudHandoffTranscriptMismatchError,
 	cloudHandoffTranscriptsEqual,
 	HubCommandError,
 	HubTransportError,
@@ -579,8 +580,8 @@ describe("CloudSessionApi", () => {
 		}
 	});
 
-	it("refreshes authentication while polling provisioning status", async () => {
-		const tokens = ["workos:create", "workos:poll-1", "workos:poll-2"];
+	it("keeps provisioning polls bound to the account that created the session", async () => {
+		const tokens = ["workos:create", "workos:new-account"];
 		const authorizations: string[] = [];
 		vi.useFakeTimers();
 		let statusCalls = 0;
@@ -626,12 +627,67 @@ describe("CloudSessionApi", () => {
 
 			expect(authorizations).toEqual([
 				"Bearer workos:create",
-				"Bearer workos:poll-1",
-				"Bearer workos:poll-2",
+				"Bearer workos:create",
+				"Bearer workos:create",
 			]);
+			expect(tokens).toEqual(["workos:new-account"]);
 		} finally {
 			vi.useRealTimers();
 		}
+	});
+
+	it("cleans up terminal provisioning failures with the creation identity", async () => {
+		const authorizations: string[] = [];
+		const removed = vi.fn();
+		const api = new CloudSessionApi({
+			apiBaseUrl: "https://api.example",
+			appBaseUrl: "https://app.example",
+			getAuthToken: async () => "workos:create",
+			fetch: async (input, init) => {
+				authorizations.push(
+					new Headers(init?.headers).get("Authorization") ?? "",
+				);
+				if (init?.method === "POST") {
+					return jsonResponse({
+						success: true,
+						data: { sessionId: "ses-failed", status: "provisioning" },
+					});
+				}
+				if (init?.method === "DELETE") {
+					return new Response(undefined, { status: 204 });
+				}
+				expect(new URL(String(input)).pathname).toBe(
+					"/api/v1/session/ses-failed/status",
+				);
+				return jsonResponse({
+					success: true,
+					data: {
+						sessionId: "ses-failed",
+						status: "failed",
+						statusReason: "clone failed",
+					},
+				});
+			},
+		});
+
+		await expect(
+			api.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+				handoff: {
+					sourceSessionId: "local-1",
+					resolveMessages: async () => [],
+					onOuterSessionCreated: async () => undefined,
+					onOuterSessionRemoved: removed,
+				},
+			}),
+		).rejects.toMatchObject({ code: "session_failed", detail: "clone failed" });
+		expect(removed).toHaveBeenCalledWith("ses-failed");
+		expect(authorizations).toEqual([
+			"Bearer workos:create",
+			"Bearer workos:create",
+			"Bearer workos:create",
+		]);
 	});
 
 	it("waits for a recovered provisioning session before returning it", async () => {
@@ -1243,20 +1299,15 @@ describe("CloudSessionApi", () => {
 		await expect(failing).rejects.toThrow();
 	});
 
-	it("rechecks peers that start while recovery credentials are loading", async () => {
+	it("rechecks peers that start while the recovery list is loading", async () => {
 		const now = new Date().toISOString();
-		let authCalls = 0;
-		let releaseRecoveryAuth!: () => void;
-		const recoveryAuthBlocked = new Promise<void>((resolve) => {
-			releaseRecoveryAuth = resolve;
-		});
-		let announceRecoveryAuth!: () => void;
-		const recoveryAuthStarted = new Promise<void>((resolve) => {
-			announceRecoveryAuth = resolve;
-		});
 		let releaseSuccessfulPost!: () => void;
 		const successfulPostBlocked = new Promise<void>((resolve) => {
 			releaseSuccessfulPost = resolve;
+		});
+		let releaseRecoveryList!: () => void;
+		const recoveryListBlocked = new Promise<void>((resolve) => {
+			releaseRecoveryList = resolve;
 		});
 		let announceRecoveryList!: () => void;
 		const recoveryListStarted = new Promise<void>((resolve) => {
@@ -1266,14 +1317,7 @@ describe("CloudSessionApi", () => {
 		const api = new CloudSessionApi({
 			apiBaseUrl: "https://api.example",
 			appBaseUrl: "https://app.example",
-			getAuthToken: async () => {
-				authCalls += 1;
-				if (authCalls === 2) {
-					announceRecoveryAuth();
-					await recoveryAuthBlocked;
-				}
-				return "sk_test";
-			},
+			getAuthToken: async () => "sk_test",
 			fetch: async (_input, init) => {
 				if (init?.method === "POST") {
 					posts += 1;
@@ -1293,6 +1337,7 @@ describe("CloudSessionApi", () => {
 					);
 				}
 				announceRecoveryList();
+				await recoveryListBlocked;
 				return jsonResponse({
 					success: true,
 					data: [
@@ -1315,10 +1360,9 @@ describe("CloudSessionApi", () => {
 		};
 
 		const failing = api.create(input);
-		await recoveryAuthStarted;
-		const successful = api.create(input);
-		releaseRecoveryAuth();
 		await recoveryListStarted;
+		const successful = api.create(input);
+		releaseRecoveryList();
 		await new Promise((resolve) => setTimeout(resolve, 0));
 		releaseSuccessfulPost();
 
@@ -2167,6 +2211,75 @@ describe("CloudSessionManager", () => {
 		});
 	});
 
+	it("retries only the transient GitHub installation-token failure", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient(false);
+		const create = vi
+			.fn()
+			.mockRejectedValueOnce(
+				new CloudSessionError(
+					"request_failed",
+					"couldn't authenticate with GitHub; try reconnecting the integration",
+					undefined,
+					502,
+				),
+			)
+			.mockRejectedValueOnce(
+				new CloudSessionError(
+					"request_failed",
+					"couldn't authenticate with GitHub; try reconnecting the integration",
+					undefined,
+					502,
+				),
+			)
+			.mockResolvedValue({ sessionId: "ses-retried", sandboxUrl: "pod" });
+		const sleep = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: { create } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+			sleep,
+		});
+
+		await expect(
+			manager.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).resolves.toMatchObject({ sessionId: "ses-retried" });
+		expect(create).toHaveBeenCalledTimes(3);
+		expect(sleep.mock.calls).toEqual([[500], [1000]]);
+	});
+
+	it("does not retry an arbitrary 502 that could have provisioned", async () => {
+		const { ctx } = createContext();
+		const create = vi.fn(async () => {
+			throw new CloudSessionError(
+				"request_failed",
+				"upstream request failed",
+				undefined,
+				502,
+			);
+		});
+		const sleep = vi.fn(async () => undefined);
+		const manager = new CloudSessionManager(ctx, {
+			api: { create } as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			sleep,
+		});
+
+		await expect(
+			manager.create({
+				modelId: "model",
+				repoUrl: "https://github.com/cline/test",
+			}),
+		).rejects.toThrow("upstream request failed");
+		expect(create).toHaveBeenCalledOnce();
+		expect(sleep).not.toHaveBeenCalled();
+	});
+
 	it("persists the outer handoff before seeding rich initial messages", async () => {
 		const { ctx } = createContext();
 		const hub = new FakeHubClient(false);
@@ -2205,6 +2318,8 @@ describe("CloudSessionManager", () => {
 			modelId: "anthropic/claude-sonnet-5",
 			repoUrl: "https://github.com/cline/test",
 			branch: "main",
+			mode: "plan",
+			workspaceRelativePath: "apps/examples/desktop-app",
 			handoff: {
 				sourceSessionId: "local-1",
 				onOuterSessionCreated: async () => {
@@ -2227,7 +2342,15 @@ describe("CloudSessionManager", () => {
 			(entry) => entry.command === "session.create",
 		);
 		expect(innerCreate?.payload).toMatchObject({
+			workspaceRoot: "/workspace",
+			cwd: "/workspace/apps/examples/desktop-app",
 			initialMessages,
+			sessionConfig: {
+				workspaceRoot: "/workspace",
+				cwd: "/workspace/apps/examples/desktop-app",
+				mode: "plan",
+			},
+			runtimeOptions: { mode: "plan" },
 			metadata: {
 				handoff: {
 					from: "local",
@@ -2303,6 +2426,32 @@ describe("CloudSessionManager", () => {
 			.catch((caught) => caught);
 		expect(error).toBeInstanceOf(CloudHandoffSeedUnsupportedError);
 		expect(String(error)).toContain("must use @cline/core 0.0.72 or newer");
+	});
+
+	it("accepts newer cloud turns after the seeded transcript on resume", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const expected = [{ role: "user" as const, content: "continue" }];
+		hub.messages = [
+			...expected,
+			{ role: "assistant", content: "continued in cloud" },
+		];
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+
+		await expect(
+			manager.verifyHandoffTranscript("ses-outer", expected, {
+				allowAppendedMessages: true,
+			}),
+		).resolves.toBeUndefined();
+		await expect(
+			manager.verifyHandoffTranscript("ses-outer", expected),
+		).rejects.toBeInstanceOf(CloudHandoffTranscriptMismatchError);
 	});
 
 	it("reuses only one inner session owned by the same handoff source", async () => {
@@ -2784,6 +2933,25 @@ describe("CloudSessionManager", () => {
 		expect(
 			hub.commands.filter((entry) => entry.command === "session.send_input"),
 		).toHaveLength(1);
+	});
+
+	it("does not advise resending when queue recovery itself is unavailable", async () => {
+		const { ctx } = createContext();
+		const hub = new FakeHubClient();
+		const manager = new CloudSessionManager(ctx, {
+			api: { list: async () => [REMOTE_SESSION] } as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+			createHubClient: () => hub as never,
+		});
+		await manager.list();
+		await manager.attach("ses-outer");
+		hub.failNextSend = true;
+		hub.malformedQueueReply = true;
+
+		await expect(
+			manager.send("ses-outer", "Possibly queued", "queue"),
+		).rejects.toThrow(/check the cloud session before resending/i);
 	});
 
 	it("disposes the Hub connection before deleting the outer session", async () => {
@@ -3548,7 +3716,12 @@ describe("CloudSessionManager", () => {
 		const { ctx } = createContext();
 		let sessions = [REMOTE_SESSION];
 		const manager = new CloudSessionManager(ctx, {
-			api: { list: async () => sessions } as unknown as CloudSessionApi,
+			api: {
+				list: async () => sessions,
+				status: async () => {
+					throw new CloudSessionError("session_not_found", "gone");
+				},
+			} as unknown as CloudSessionApi,
 			apiBaseUrl: "https://api.example",
 			getAuthToken: async () => "workos:fresh",
 		});
@@ -3561,6 +3734,30 @@ describe("CloudSessionManager", () => {
 				session_id: "ses-outer",
 			}),
 		).resolves.toBeNull();
+	});
+
+	it("opens a cached session from another scope after id revalidation", async () => {
+		const { ctx } = createContext();
+		let sessions = [REMOTE_SESSION];
+		const manager = new CloudSessionManager(ctx, {
+			api: {
+				list: async () => sessions,
+				status: async () => ({ status: "ready" }),
+			} as unknown as CloudSessionApi,
+			apiBaseUrl: "https://api.example",
+			getAuthToken: async () => "workos:fresh",
+		});
+		await manager.list();
+		ctx.cloudSessionManager = manager;
+		sessions = [];
+
+		await expect(
+			handleCommand(ctx, "get_discovered_session", {
+				session_id: "ses-outer",
+			}),
+		).resolves.toEqual(
+			expect.objectContaining({ sessionId: "ses-outer", status: "ready" }),
+		);
 	});
 
 	it("uses only the active organization for billing and session listing", async () => {

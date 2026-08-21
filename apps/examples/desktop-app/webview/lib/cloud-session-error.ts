@@ -8,6 +8,7 @@ export type CloudSessionError = {
 		| "authentication_required"
 		| "session_not_found"
 		| "session_expired"
+		| "session_failed"
 		| "request_failed";
 	message: string;
 	connectUrl?: string;
@@ -53,6 +54,7 @@ export function parseCloudSessionError(
 			parsed.code !== "authentication_required" &&
 			parsed.code !== "session_not_found" &&
 			parsed.code !== "session_expired" &&
+			parsed.code !== "session_failed" &&
 			parsed.code !== "request_failed"
 		) {
 			return null;
@@ -74,7 +76,7 @@ export function humanizeCloudSessionError(value: string): string {
 		/session belongs to environment/i.test(message) &&
 		(/\bundefined\b/i.test(message) || message.includes("[object Object]"))
 	) {
-		return "Cline Code couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.";
+		return "Cline couldn’t identify this cloud session’s environment. Open it from its dashboard link or retry where it was created.";
 	}
 	return message;
 }
