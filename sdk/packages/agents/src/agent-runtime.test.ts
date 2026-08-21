@@ -2097,6 +2097,7 @@ describe("AgentRuntime", () => {
 					| Record<string, unknown>
 					| undefined;
 				expect(metadata).toMatchObject({
+					distinctId: "user-runtime",
 					sessionId: "session-runtime",
 					agentId: "agent-runtime",
 					conversationId: "conversation-runtime",
@@ -2110,6 +2111,7 @@ describe("AgentRuntime", () => {
 			},
 		]);
 		const runtime = new AgentRuntime({
+			distinctId: "user-runtime",
 			sessionId: "session-runtime",
 			agentId: "agent-runtime",
 			conversationId: "conversation-runtime",

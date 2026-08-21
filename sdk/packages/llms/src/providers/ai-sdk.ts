@@ -599,6 +599,48 @@ async function ensureGatewayLangfuseTelemetry(
 	}
 }
 
+function buildAiSdkRuntimeContext(
+	request: GatewayStreamRequest,
+	context: GatewayProviderContext,
+): Record<string, unknown> {
+	const requestMetadata = request.metadata;
+	const metadata =
+		requestMetadata && typeof requestMetadata === "object"
+			? requestMetadata
+			: {};
+	const tags = Array.isArray(metadata.tags)
+		? metadata.tags.filter(
+				(value): value is string =>
+					typeof value === "string" && value.trim().length > 0,
+			)
+		: undefined;
+	const distinctId =
+		typeof metadata.distinctId === "string" ? metadata.distinctId : undefined;
+
+	return {
+		// `distinctId` is Cline's canonical identity field. Langfuse's data
+		// model calls the same value `userId`, so expose both in runtime
+		// context and explicitly map distinctId to Langfuse's userId below.
+		...(distinctId ? { distinctId, userId: distinctId } : {}),
+		...(typeof metadata.sessionId === "string"
+			? { sessionId: metadata.sessionId }
+			: {}),
+		...(tags && tags.length > 0 ? { tags } : {}),
+		// Keep Cline correlation fields available even when the integration
+		// does not promote them to first-class Langfuse fields.
+		...(typeof metadata.conversationId === "string"
+			? { conversationId: metadata.conversationId }
+			: {}),
+		...(typeof metadata.runId === "string" ? { runId: metadata.runId } : {}),
+		...(typeof metadata.iteration === "number"
+			? { iteration: metadata.iteration }
+			: {}),
+		providerId: request.providerId,
+		modelId: request.modelId,
+		resolvedModelId: context.model.id,
+	};
+}
+
 function toAiSdkMessages(
 	messages: readonly AgentMessage[],
 	systemPrompt?: string,
@@ -2121,9 +2163,23 @@ function createAiSdkProvider(kind: ProviderModuleKind): GatewayProviderFactory {
 					...(tools ? { tools } : {}),
 					abortSignal: request.signal,
 					experimental_repairToolCall: repairMalformedToolCall as never,
-					experimental_telemetry: {
+						experimental_telemetry: {
 						isEnabled: langfuse,
+						functionId: "cline-agent-turn",
+						includeRuntimeContext: {
+							distinctId: true,
+							userId: true,
+							sessionId: true,
+							tags: true,
+							conversationId: true,
+							runId: true,
+							iteration: true,
+							providerId: true,
+							modelId: true,
+							resolvedModelId: true,
+						},
 					},
+					runtimeContext: buildAiSdkRuntimeContext(request, context),
 					providerOptions: providerOptions as never,
 					...(provider.executesModelTools && activeModelTools.length
 						? { stopWhen: stepCountIs(8) }
