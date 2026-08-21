@@ -1,5 +1,14 @@
 # Changelog
 
+## [4.1.12]
+
+Everything here lands through the SDK bundle, so it applies to windows running that bundle.
+
+### Fixed
+
+- Enforce enterprise MCP controls on the Customize marketplace. MCP entries are now hidden when remote config disables the marketplace, and limited to `allowedMCPServers` when an allowlist is configured.
+- Restore tool calling for custom OpenAI-Compatible models whose stored capability list was empty.
+
 ## [4.1.11]
 
 Everything here lands through the SDK bundle, so it applies to windows running that bundle — except the last section, which is a legacy-bundle fix.
