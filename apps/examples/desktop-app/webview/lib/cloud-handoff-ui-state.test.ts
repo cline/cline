@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
 	appendPendingHandoffPrompt,
 	cloudHandoffUiReducer,
+	matchingHandoffPromptMessageIds,
 } from "./cloud-handoff-ui-state";
 
 describe("cloudHandoffUiReducer", () => {
@@ -101,28 +102,69 @@ describe("cloudHandoffUiReducer", () => {
 		).toBe(restored);
 	});
 
-	it("lets an explicit retry replace recovery while ignoring late old progress", () => {
+	it("does not attribute ambiguous completion progress to an edited retry", () => {
+		const oldPrompt = {
+			content: "old cloud task",
+			submittedAt: 100,
+			baselineMessageIds: [],
+		};
+		const newPrompt = {
+			content: "edited cloud task",
+			submittedAt: 200,
+			baselineMessageIds: [],
+		};
 		const recovery = {
 			"local-1": {
 				status: "recovery" as const,
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				pendingPrompt: oldPrompt,
 			},
 		};
-		expect(
-			cloudHandoffUiReducer(recovery, {
-				type: "progress",
-				sourceSessionId: "local-1",
-				phase: "complete",
-			}),
-		).toBe(recovery);
-
 		const retry = cloudHandoffUiReducer(recovery, {
 			type: "start",
 			sourceSessionId: "local-1",
+			pendingPrompt: newPrompt,
 		});
-		expect(retry["local-1"]).toEqual({
+		expect(retry["local-1"]).toMatchObject({
 			status: "progress",
 			phase: "checking",
+			pendingPrompt: newPrompt,
+			retry: true,
+		});
+		const rejectedRetry = cloudHandoffUiReducer(retry, {
+			type: "failed",
+			sourceSessionId: "local-1",
+			exposeRecovery: false,
+		});
+		expect(rejectedRetry["local-1"]).toMatchObject({
+			status: "failed",
+			pendingPrompt: newPrompt,
+			retry: true,
+		});
+
+		const ambiguousCompletion = cloudHandoffUiReducer(rejectedRetry, {
+			type: "progress",
+			sourceSessionId: "local-1",
+			phase: "complete",
+			sessionId: "cloud-old",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-old",
+			destination: "in_app",
+		});
+		expect(ambiguousCompletion["cloud-old"]).toBeUndefined();
+
+		const retryCompleted = cloudHandoffUiReducer(ambiguousCompletion, {
+			type: "complete",
+			sourceSessionId: "local-1",
+			receipt: {
+				targetSessionId: "cloud-new",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-new",
+			},
+			externalPresentation: false,
+			pendingPrompt: newPrompt,
+		});
+		expect(retryCompleted["cloud-new"]).toEqual({
+			status: "target_prompt",
+			pendingPrompt: newPrompt,
 		});
 	});
 
@@ -135,7 +177,7 @@ describe("cloudHandoffUiReducer", () => {
 				pendingPrompt: {
 					content: "continue in cloud",
 					submittedAt: 100,
-					occurrence: 1,
+					baselineMessageIds: ["prior-user"],
 				},
 			},
 		);
@@ -155,14 +197,24 @@ describe("cloudHandoffUiReducer", () => {
 			sourceSessionId: "local-1",
 			phase: "provisioning",
 		});
-		const existing = [];
+		const existing = [
+			{
+				id: "prior-user",
+				sessionId: "local-1",
+				role: "user" as const,
+				content: '<user_input mode="act">continue in cloud</user_input>',
+				createdAt: 50,
+			},
+		];
 		const displayed = appendPendingHandoffPrompt(
 			existing,
 			"local-1",
 			provisioning["local-1"],
 		);
-		expect(displayed).toHaveLength(1);
-		expect(displayed[0]).toMatchObject({
+		expect(displayed).toHaveLength(2);
+		const preview = displayed.at(-1);
+		if (!preview) throw new Error("expected a handoff prompt preview");
+		expect(preview).toMatchObject({
 			role: "user",
 			content: "continue in cloud",
 			createdAt: 100,
@@ -182,12 +234,29 @@ describe("cloudHandoffUiReducer", () => {
 				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
 			},
 			externalPresentation: false,
+			pendingPrompt:
+				provisioning["local-1"]?.status === "progress"
+					? provisioning["local-1"].pendingPrompt
+					: undefined,
 		});
+		const seededPrior = { ...existing[0], id: "prior-canonical" };
 		expect(
-			appendPendingHandoffPrompt([], "cloud-1", completed["cloud-1"])[0],
+			appendPendingHandoffPrompt(
+				[seededPrior],
+				"cloud-1",
+				completed["cloud-1"],
+			).at(-1),
 		).toMatchObject({ content: "continue in cloud" });
 
-		const canonical = [{ ...displayed[0], id: "canonical-user" }];
+		const canonical = [
+			seededPrior,
+			{
+				...preview,
+				id: "canonical-user",
+				content: '<user_input mode="act">continue in cloud</user_input>',
+				createdAt: 110,
+			},
+		];
 		expect(
 			appendPendingHandoffPrompt(canonical, "cloud-1", completed["cloud-1"]),
 		).toBe(canonical);
@@ -197,6 +266,18 @@ describe("cloudHandoffUiReducer", () => {
 				sourceSessionId: "cloud-1",
 			})["cloud-1"],
 		).toBeUndefined();
+		expect(
+			matchingHandoffPromptMessageIds(
+				[
+					{
+						...canonical[1],
+						content:
+							'<user_command slash="team">spawn a team of agents for the following task: inspect rpc startup</user_command>',
+					},
+				],
+				"/team inspect rpc startup",
+			),
+		).toEqual(["canonical-user"]);
 
 		const failed = cloudHandoffUiReducer(provisioning, {
 			type: "failed",
@@ -206,6 +287,42 @@ describe("cloudHandoffUiReducer", () => {
 		expect(
 			appendPendingHandoffPrompt(existing, "local-1", failed["local-1"]),
 		).toBe(existing);
+		const restored = cloudHandoffUiReducer(failed, {
+			type: "retry_restored",
+			sourceSessionId: "local-1",
+		});
+		const lateCompleted = cloudHandoffUiReducer(restored, {
+			type: "progress",
+			sourceSessionId: "local-1",
+			phase: "complete",
+			sessionId: "cloud-1",
+			dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+			destination: "in_app",
+		});
+		expect(lateCompleted["cloud-1"]).toMatchObject({
+			status: "target_prompt",
+		});
+		expect(
+			cloudHandoffUiReducer(completed, {
+				type: "failed",
+				sourceSessionId: "local-1",
+				exposeRecovery: false,
+			}),
+		).toBe(completed);
+		const externalized = cloudHandoffUiReducer(completed, {
+			type: "external",
+			sourceSessionId: "local-1",
+		});
+		expect(
+			cloudHandoffUiReducer(externalized, {
+				type: "progress",
+				sourceSessionId: "local-1",
+				phase: "complete",
+				sessionId: "cloud-1",
+				dashboardUrl: "https://app.cline.bot/agents?sessionId=cloud-1",
+				destination: "in_app",
+			})["local-1"],
+		).toMatchObject({ externalPresentation: true });
 	});
 
 	it("reconciles an authoritative late completion after a webview failure", () => {

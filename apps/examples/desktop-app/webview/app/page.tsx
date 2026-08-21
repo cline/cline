@@ -53,7 +53,10 @@ import {
 	serializeAttachments,
 	toChatMessageImages,
 } from "@/hooks/chat-session/attachments";
-import type { ProcessContext } from "@/hooks/chat-session/types";
+import type {
+	ProcessContext,
+	SerializedAttachments,
+} from "@/hooks/chat-session/types";
 import { useAppUpdate } from "@/hooks/use-app-update";
 import { useChatSession } from "@/hooks/use-chat-session";
 import { useProvisioningOutcome } from "@/hooks/use-provisioning-outcome";
@@ -80,6 +83,8 @@ import {
 	type CloudHandoffUiAction,
 	type CloudHandoffUiState,
 	cloudHandoffUiReducer,
+	matchingHandoffPromptMessageIds,
+	type PendingHandoffPrompt,
 	pendingHandoffPromptCaughtUp,
 } from "@/lib/cloud-handoff-ui-state";
 import {
@@ -1810,7 +1815,10 @@ function ChatThreadPane({
 			preflight: HandoffPreflight,
 			nextCommand: string,
 			sourceAttachments: File[],
+			attachments: SerializedAttachments,
+			promptImages: NonNullable<PendingHandoffPrompt["images"]>,
 			sourceSessionId: string,
+			pendingPrompt?: PendingHandoffPrompt,
 		) => {
 			onHandoffUiAction({
 				type: "progress",
@@ -1818,15 +1826,6 @@ function ChatThreadPane({
 				phase: "creating",
 			});
 			try {
-				const attachments = await serializeAttachments(sourceAttachments);
-				onHandoffUiAction({
-					type: "prompt_images",
-					sourceSessionId,
-					images: toChatMessageImages(
-						attachments.userImages,
-						`handoff_prompt_${sourceSessionId}`,
-					),
-				});
 				const result = await desktopClient.invoke<HandoffResult>(
 					"chat_session_command",
 					{
@@ -1858,7 +1857,19 @@ function ChatThreadPane({
 					sourceSessionId,
 					receipt,
 					externalPresentation: destination === "external",
+					pendingPrompt: pendingPrompt
+						? {
+								...pendingPrompt,
+								...(promptImages.length > 0 ? { images: promptImages } : {}),
+							}
+						: undefined,
 				});
+				if (result.warning) {
+					onHandoffUiAction({
+						type: "prompt_reconciled",
+						sourceSessionId: targetSessionId,
+					});
+				}
 				if (shouldOpenHandoffInApp(destination, isThreadActive?.() ?? true)) {
 					const opened = await Promise.resolve(
 						onOpenSessionById?.(targetSessionId, undefined, { silent: true }),
@@ -1901,6 +1912,7 @@ function ChatThreadPane({
 					});
 				}
 			} catch (error) {
+				const rawError = error instanceof Error ? error.message : String(error);
 				onHandoffUiAction({
 					type: "failed",
 					sourceSessionId,
@@ -1908,7 +1920,6 @@ function ChatThreadPane({
 					retryDraft: nextCommand ? `/handoff ${nextCommand}` : "/handoff",
 					retryAttachments: sourceAttachments,
 				});
-				const rawError = error instanceof Error ? error.message : String(error);
 				const cloudError = parseCloudSessionError(rawError);
 				const connectUrl = cloudError?.connectUrl;
 				toast({
@@ -1997,25 +2008,24 @@ function ChatThreadPane({
 			handoffStartingRef.current = true;
 			const sourceAttachments = [...pendingAttachments];
 			const submittedAt = Date.now();
+			const pendingPrompt: PendingHandoffPrompt | undefined = nextCommand
+				? {
+						content: nextCommand,
+						submittedAt,
+						baselineMessageIds: matchingHandoffPromptMessageIds(
+							messages,
+							nextCommand,
+						),
+					}
+				: undefined;
 			onHandoffUiAction({
 				type: "start",
 				sourceSessionId,
-				pendingPrompt: nextCommand
-					? {
-							content: nextCommand,
-							submittedAt,
-							occurrence:
-								messages.filter(
-									(message) =>
-										message.role === "user" &&
-										message.content.trim() === nextCommand,
-								).length + 1,
-						}
-					: undefined,
+				pendingPrompt,
 			});
 			setPendingAttachments([]);
 			try {
-				const preflight = await desktopClient.invoke<HandoffPreflight>(
+				const preflightTask = desktopClient.invoke<HandoffPreflight>(
 					"chat_session_command",
 					{
 						request: {
@@ -2025,6 +2035,24 @@ function ChatThreadPane({
 						},
 					},
 				);
+				const attachmentsTask = serializeAttachments(sourceAttachments).then(
+					(attachments) => {
+						const promptImages = toChatMessageImages(
+							attachments.userImages,
+							`handoff_prompt_${sourceSessionId}`,
+						);
+						onHandoffUiAction({
+							type: "prompt_images",
+							sourceSessionId,
+							images: promptImages,
+						});
+						return { attachments, promptImages };
+					},
+				);
+				const [preflight, serialized] = await Promise.all([
+					preflightTask,
+					attachmentsTask,
+				]);
 				const fallbackMessage = formatHandoffModelFallback(
 					preflight.modelFallback,
 				);
@@ -2038,7 +2066,10 @@ function ChatThreadPane({
 					preflight,
 					nextCommand,
 					sourceAttachments,
+					serialized.attachments,
+					serialized.promptImages,
 					sourceSessionId,
+					pendingPrompt,
 				);
 			} catch (error) {
 				onHandoffUiAction({
