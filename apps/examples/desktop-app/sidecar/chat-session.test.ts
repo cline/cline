@@ -28,6 +28,10 @@ import {
 	updateHandoffMetadataOrThrow,
 	WORKSPACE_METADATA_PREWARM_TTL_MS,
 } from "./chat-session";
+import {
+	CloudHandoffSeedUnsupportedError,
+	CloudSessionError,
+} from "./cloud-sessions";
 import { handleCoreSessionEvent } from "./context";
 import type { SidecarContext } from "./types";
 
@@ -42,11 +46,8 @@ describe("resolveDesktopSessionMode", () => {
 	it("preserves explicit Plan and Yolo modes", () => {
 		expect(resolveDesktopSessionMode({ mode: "plan" })).toBe("plan");
 		expect(resolveDesktopSessionMode({ mode: "yolo" })).toBe("yolo");
-import {
-	CloudHandoffSeedUnsupportedError,
-	CloudSessionError,
-} from "./cloud-sessions";
-import type { SidecarContext } from "./types";
+	});
+});
 
 describe("cloud handoff model catalog", () => {
 	it("retains a catalog model duplicated in Cline Pass for organization use", () => {
@@ -906,7 +907,7 @@ describe("session forks", () => {
 				restoringWorkspacePaths: new Set(),
 				streamIndices: new Map(),
 				wsClients: new Set(),
-				sessionManager: { restore },
+				sessionManager: { restore, get: vi.fn(async () => undefined) },
 			} as unknown as SidecarContext;
 			const restoreRequest = {
 				action: "restore_checkpoint" as const,
