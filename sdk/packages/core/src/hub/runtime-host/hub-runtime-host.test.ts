@@ -508,6 +508,27 @@ describe("HubRuntimeHost", () => {
 				}),
 			]),
 		);
+		// A snapshot-only session.updated reports the snapshot's status; it
+		// must not fabricate "running" for a session whose turn has finished.
+		const statusEvents = events.filter(
+			(event): event is { type: "status"; payload: { status: string } } =>
+				(event as { type?: unknown }).type === "status",
+		);
+		expect(statusEvents.at(-1)?.payload).toMatchObject({
+			status: "completed",
+		});
+
+		// A session.updated with neither session nor snapshot reports nothing.
+		onEvent?.({
+			version: "v1",
+			event: "session.updated",
+			sessionId: "sess-snapshot",
+			payload: {},
+		});
+		expect(
+			events.filter((event) => (event as { type?: unknown }).type === "status")
+				.length,
+		).toBe(statusEvents.length);
 
 		commandMock.mockResolvedValueOnce({ ok: true, payload: { snapshot } });
 		await expect(host.getSession("sess-snapshot")).resolves.toMatchObject({

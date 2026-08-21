@@ -434,7 +434,7 @@ function emitQueuedPromptStart(
 	);
 }
 
-function handleCoreSessionEvent(
+export function handleCoreSessionEvent(
 	ctx: SidecarContext,
 	event: CoreSessionEvent,
 ): void {

@@ -452,13 +452,21 @@ export class LocalRuntimeHost implements RuntimeHost {
 		const manifestPath = join(sessionDir, `${sessionId}.json`);
 		const workspacePath = resolveWorkspacePath(input.config);
 
+		// An interactive session started without a prompt has no turn in
+		// flight (turns arrive through separate send calls), so it must not
+		// report "running" — a created-but-never-prompted session otherwise
+		// stayed "running" forever, wedging clients that gate workspace
+		// operations (e.g. checkpoint restore) on active turns. One-shot
+		// starts still run their prompt inside start() and begin "running".
+		const startsWithoutTurn =
+			input.interactive === true && !startInput.prompt?.trim();
 		let manifest = SessionManifestSchema.parse({
 			version: 1,
 			session_id: sessionId,
 			source,
 			pid: process.pid,
 			started_at: startedAt,
-			status: "running",
+			status: startsWithoutTurn ? "idle" : "running",
 			interactive: input.interactive === true,
 			provider: startInput.config.providerId,
 			model: startInput.config.modelId,
@@ -863,7 +871,9 @@ export class LocalRuntimeHost implements RuntimeHost {
 			runtime,
 			agent,
 			started: false,
-			status: resumedArtifacts?.manifest.status ?? "running",
+			status:
+				resumedArtifacts?.manifest.status ??
+				(startsWithoutTurn ? "idle" : "running"),
 			aborting: false,
 			interactive: input.interactive === true,
 			persistedMessages: initialMessages,
@@ -934,7 +944,7 @@ export class LocalRuntimeHost implements RuntimeHost {
 				});
 			}
 		}
-		this.emitStatus(sessionId, "running");
+		this.emitStatus(sessionId, active.status);
 
 		let result: AgentResult | undefined;
 		try {
