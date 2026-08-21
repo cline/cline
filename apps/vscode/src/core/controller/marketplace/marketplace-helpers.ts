@@ -143,6 +143,31 @@ function marketplaceKey(entry: MarketplaceEntry): string {
 	return `${entry.type}:${entry.id}`
 }
 
+/** Normalizes an allowlist id or entry identifier; legacy allowlist ids may be GitHub repo URLs. */
+function normalizePolicyValue(value: string | undefined): string {
+	return normalizeMatchValue((value ?? "").replace(/^https?:\/\//i, "").replace(/\/+$/, ""))
+}
+
+/**
+ * Enterprise remote config can disable the MCP marketplace (`mcpMarketplaceEnabled: false`)
+ * or restrict it to an allowlist (`allowedMCPServers`). Non-MCP entries are not governed
+ * by these controls. Allowlist ids match the entry id, display name, installed server
+ * name, or source/homepage URL.
+ */
+export function isMcpEntryAllowedByPolicy(
+	entry: MarketplaceEntry,
+	policy: { mcpMarketplaceEnabled?: boolean; allowedMCPServers?: Array<{ id: string }> },
+): boolean {
+	if (entry.type !== "mcp") return true
+	if (policy.mcpMarketplaceEnabled === false) return false
+	if (!policy.allowedMCPServers?.length) return true
+	const candidates = new Set(
+		[entry.id, entry.name, getEntryArgs(entry)[0], entry.sourceUrl, entry.homepageUrl].map(normalizePolicyValue),
+	)
+	candidates.delete("")
+	return policy.allowedMCPServers.some((server) => candidates.has(normalizePolicyValue(server.id)))
+}
+
 function getEntryArgs(entry: MarketplaceEntry): string[] {
 	return entry.install?.args ?? []
 }
