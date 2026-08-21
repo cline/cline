@@ -1,17 +1,17 @@
 "use client";
 
-import { AgentAurora } from "@cline/ui";
+import { Button, IconButton } from "@cline/ui";
 import {
 	ArrowLeft,
 	CheckCircle2,
+	ChevronDown,
 	ExternalLink,
 	KeyRound,
 	Loader2,
-	LogIn,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { ClineLogo } from "@/components/cline-logo";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
 	Select,
@@ -20,6 +20,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { WelcomeHero } from "@/components/views/chat/welcome-hero";
 import { useAccount } from "@/contexts/account-context";
 import { OAUTH_MANAGED_PROVIDERS } from "@/hooks/chat-session/constants";
 import { isClineAccountNotAuthenticatedResult } from "@/lib/cline-account-state";
@@ -37,6 +38,7 @@ import {
 	invalidateProviderCatalogCache,
 } from "@/lib/provider-model-catalog";
 import type { Provider } from "@/lib/provider-schema";
+import { cn } from "@/lib/utils";
 
 const CREATE_ACCOUNT_URL = "https://app.cline.bot";
 
@@ -45,6 +47,8 @@ export type OnboardingStep = "welcome" | "connect" | "done";
 type OnboardingConnection =
 	| { kind: "cline" }
 	| { kind: "provider"; providerName: string };
+
+type SetupMethod = "cline" | "api-key";
 
 /**
  * Providers surfaced first in the bring-your-own-key picker. Everything else
@@ -122,62 +126,172 @@ function rememberProviderSelection(provider: {
 	});
 }
 
-function OnboardingCard({
+function OnboardingContent({
 	children,
-	wide = false,
+	surface = "plain",
 }: {
 	children: React.ReactNode;
-	wide?: boolean;
+	surface?: "panel" | "plain" | "transparent";
 }) {
 	return (
 		<div
-			className={
-				wide
-					? "relative z-10 w-full max-w-130 rounded-3xl border border-border/50 bg-background/80 p-8 shadow-2xl backdrop-blur-2xl max-[720px]:p-6"
-					: "relative z-10 w-full max-w-105 rounded-3xl border border-border/50 bg-background/80 p-8 shadow-2xl backdrop-blur-2xl max-[720px]:p-6"
-			}
+			className={cn(
+				"relative z-10 w-full max-w-148 rounded-2xl p-8 pb-6 max-[720px]:p-5",
+				surface === "panel" && "border border-border bg-background",
+				surface === "plain" && "bg-background",
+				surface === "transparent" && "bg-transparent",
+			)}
+			data-onboarding-content={surface}
 		>
 			{children}
 		</div>
 	);
 }
 
+function SetupOptionCard({
+	children,
+	id,
+	onSelect,
+	selectLabel,
+	selected,
+}: {
+	children: React.ReactNode;
+	id: SetupMethod;
+	onSelect: () => void;
+	selectLabel: string;
+	selected: boolean;
+}) {
+	const contentRef = useRef<HTMLDivElement>(null);
+	const wasSelectedRef = useRef(selected);
+
+	useEffect(() => {
+		if (selected && !wasSelectedRef.current) {
+			contentRef.current
+				?.querySelector<HTMLElement>(
+					'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+				)
+				?.focus();
+		}
+		wasSelectedRef.current = selected;
+	}, [selected]);
+
+	return (
+		<div
+			className={cn(
+				"relative rounded-xl border p-6 pb-8",
+				selected
+					? "border-primary/20 bg-primary/4 ring-1 ring-primary/20 ring-inset hover:bg-primary/8"
+					: "border-border/70 hover:bg-surface-hover-lighter/60",
+			)}
+			data-onboarding-option={id}
+			data-selected={selected}
+		>
+			{!selected ? (
+				<button
+					aria-label={selectLabel}
+					className="absolute inset-0 z-10 cursor-pointer rounded-xl bg-transparent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed"
+					onClick={onSelect}
+					type="button"
+				/>
+			) : null}
+			<div
+				data-onboarding-option-content
+				inert={!selected ? true : undefined}
+				ref={contentRef}
+			>
+				{children}
+			</div>
+		</div>
+	);
+}
+
+function SetupOptionHeader({
+	accessory,
+	description,
+	icon,
+	title,
+}: {
+	accessory?: React.ReactNode;
+	description: string;
+	icon: React.ReactNode;
+	title: string;
+}) {
+	return (
+		<div className="grid w-full grid-cols-[auto_minmax(0,1fr)_auto] items-start gap-x-4 text-left max-[720px]:gap-x-3 max-[720px]:gap-y-3">
+			<span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-foreground/4 text-muted-foreground max-[720px]:mt-0">
+				{icon}
+			</span>
+			<div className="min-w-0 mt-1 max-[720px]:col-span-3 max-[720px]:col-start-1 max-[720px]:row-start-2 max-[720px]:mt-0">
+				<h4 className="text-lg font-semibold text-foreground">{title}</h4>
+				<p className="mt-2 text-sm text-muted-foreground">{description}</p>
+			</div>
+			{accessory ? (
+				<div className="mt-1 max-[720px]:col-start-3 max-[720px]:row-start-1 max-[720px]:mt-0">
+					{accessory}
+				</div>
+			) : null}
+		</div>
+	);
+}
+
+function ExpandablePanel({
+	children,
+	className,
+	expanded,
+	...props
+}: React.HTMLAttributes<HTMLDivElement> & {
+	expanded: boolean;
+}) {
+	return (
+		<div
+			{...props}
+			aria-hidden={!expanded}
+			className={cn(
+				"grid transition-[grid-template-rows,opacity] duration-120 ease-in-out motion-reduce:transition-none",
+				expanded ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0",
+				className,
+			)}
+			data-expanded={expanded}
+			inert={!expanded ? true : undefined}
+		>
+			<div className="min-h-0 overflow-hidden">{children}</div>
+		</div>
+	);
+}
+
+function getErrorMessage(error: unknown): string {
+	return error instanceof Error ? error.message : String(error);
+}
+
 function WelcomeStep({ onContinue }: { onContinue: () => void }) {
 	return (
-		<OnboardingCard>
+		<OnboardingContent surface="transparent">
 			<div className="flex flex-col items-center py-4 text-center">
-				<img
-					alt=""
-					aria-hidden="true"
-					className="h-28 w-auto drop-shadow-[0_16px_32px_color-mix(in_oklab,var(--brand-violet)_35%,transparent)]"
-					draggable={false}
-					height={477}
-					src="/cline-logo-glass.png"
-					width={486}
-				/>
-				<h1 className="mt-5 text-3xl font-semibold tracking-tight text-foreground">
-					Cline
-				</h1>
-				<p className="mt-2 text-base text-muted-foreground">
-					Build software your way
-				</p>
-				<p className="mt-3 max-w-xs text-sm leading-relaxed text-muted-foreground">
+				<div className="w-full">
+					<WelcomeHero variant="bot-only" />
+				</div>
+				<h1 className="mt-5 text-4xl font-semibold text-foreground">Cline</h1>
+				<p className="mt-2 text-lg text-foreground">Build software your way</p>
+				<p className="mt-6 text-md text-muted-foreground">
 					Cline is an AI coding agent. It reads your code, edits files, runs
 					commands, and works through tasks with you — in any project on your
 					machine.
 				</p>
 				<Button
-					className="mt-9 h-11 w-full rounded-full text-base"
+					className="mt-8 w-full max-w-64"
 					onClick={onContinue}
+					size="lg"
+					tone="accent"
 					type="button"
+					variant="fill"
 				>
 					Get started
 				</Button>
-				<p className="mt-4 text-xs text-muted-foreground">
+				<p className="mt-8 text-xs text-muted-foreground">
 					Takes less than a minute. Everything can be changed later in Settings.
 				</p>
 			</div>
-		</OnboardingCard>
+		</OnboardingContent>
 	);
 }
 
@@ -193,49 +307,9 @@ function ConnectStep({
 	const { user, refreshAccount } = useAccount();
 	const [signingIn, setSigningIn] = useState(false);
 	const [signInError, setSignInError] = useState<string | null>(null);
-
-	const [showClineKeyForm, setShowClineKeyForm] = useState(false);
 	const [clineApiKey, setClineApiKey] = useState("");
 	const [clineKeySaving, setClineKeySaving] = useState(false);
 	const [clineKeyError, setClineKeyError] = useState<string | null>(null);
-
-	const [showApiKeyForm, setShowApiKeyForm] = useState(false);
-	const [providers, setProviders] = useState<Provider[]>([]);
-	const [providersLoading, setProvidersLoading] = useState(true);
-	const [providersError, setProvidersError] = useState<string | null>(null);
-	const [selectedProviderId, setSelectedProviderId] = useState("");
-	const [apiKey, setApiKey] = useState("");
-	const [saving, setSaving] = useState(false);
-	const [saveError, setSaveError] = useState<string | null>(null);
-
-	useEffect(() => {
-		let cancelled = false;
-		async function loadProviders() {
-			try {
-				const payload = await fetchProviderCatalog();
-				if (cancelled) {
-					return;
-				}
-				setProviders(sortProvidersForApiKeySetup(payload.providers ?? []));
-				setProvidersError(null);
-			} catch (error) {
-				if (cancelled) {
-					return;
-				}
-				setProvidersError(
-					error instanceof Error ? error.message : String(error),
-				);
-			} finally {
-				if (!cancelled) {
-					setProvidersLoading(false);
-				}
-			}
-		}
-		void loadProviders();
-		return () => {
-			cancelled = true;
-		};
-	}, []);
 
 	// Increments whenever the user cancels a pending browser sign-in so a
 	// stale OAuth round-trip (which can dangle until the transport timeout)
@@ -266,7 +340,7 @@ function ConnectStep({
 			if (signInAttemptRef.current !== attempt) {
 				return;
 			}
-			setSignInError(error instanceof Error ? error.message : String(error));
+			setSignInError(getErrorMessage(error));
 		} finally {
 			// The login may have persisted credentials; drop the short-lived
 			// catalog cache so the app reloads them instead of a pre-save copy.
@@ -335,17 +409,15 @@ function ConnectStep({
 						api_key: "",
 					})
 					.catch(() => undefined);
-				const message =
-					verifyError instanceof Error
-						? verifyError.message
-						: String(verifyError);
-				throw new Error(`the key could not be verified (${message})`);
+				throw new Error(
+					`the key could not be verified (${getErrorMessage(verifyError)})`,
+				);
 			}
 			rememberProviderSelection({ id: "cline" });
 			await refreshAccount();
 			onConnected({ kind: "cline" });
 		} catch (error) {
-			setClineKeyError(error instanceof Error ? error.message : String(error));
+			setClineKeyError(getErrorMessage(error));
 		} finally {
 			// Credentials may have been saved (or rolled back); drop the
 			// short-lived catalog cache so consumers reload the persisted state.
@@ -353,6 +425,43 @@ function ConnectStep({
 			setClineKeySaving(false);
 		}
 	}, [clineApiKey, onConnected, refreshAccount]);
+
+	const clineBusy = signingIn || clineKeySaving;
+
+	const [providers, setProviders] = useState<Provider[]>([]);
+	const [providersLoading, setProvidersLoading] = useState(true);
+	const [providersError, setProvidersError] = useState<string | null>(null);
+	const [selectedProviderId, setSelectedProviderId] = useState("");
+	const [apiKey, setApiKey] = useState("");
+	const [saving, setSaving] = useState(false);
+	const [saveError, setSaveError] = useState<string | null>(null);
+
+	useEffect(() => {
+		let cancelled = false;
+		async function loadProviders() {
+			try {
+				const payload = await fetchProviderCatalog();
+				if (cancelled) {
+					return;
+				}
+				setProviders(sortProvidersForApiKeySetup(payload.providers ?? []));
+				setProvidersError(null);
+			} catch (error) {
+				if (cancelled) {
+					return;
+				}
+				setProvidersError(getErrorMessage(error));
+			} finally {
+				if (!cancelled) {
+					setProvidersLoading(false);
+				}
+			}
+		}
+		void loadProviders();
+		return () => {
+			cancelled = true;
+		};
+	}, []);
 
 	const selectedProvider =
 		providers.find((provider) => provider.id === selectedProviderId) ?? null;
@@ -372,13 +481,16 @@ function ConnectStep({
 				enabled: true,
 				api_key: apiKey.trim(),
 			});
-			rememberProviderSelection(selectedProvider);
+			rememberProviderSelection({
+				id: selectedProviderId,
+				defaultModelId: selectedProvider.defaultModelId,
+			});
 			onConnected({
 				kind: "provider",
 				providerName: selectedProvider.name,
 			});
 		} catch (error) {
-			setSaveError(error instanceof Error ? error.message : String(error));
+			setSaveError(getErrorMessage(error));
 		} finally {
 			// Onboarding completion remounts the chat pane to reload provider
 			// credentials; drop the short-lived catalog cache so that reload
@@ -386,121 +498,149 @@ function ConnectStep({
 			invalidateProviderCatalogCache();
 			setSaving(false);
 		}
-	}, [apiKey, onConnected, selectedProvider]);
+	}, [apiKey, onConnected, selectedProvider, selectedProviderId]);
+
+	const [selectedMethod, setSelectedMethod] = useState<SetupMethod>("cline");
+	const [clineKeyFormExpanded, setClineKeyFormExpanded] = useState(false);
 
 	return (
-		<OnboardingCard wide>
-			<div className="flex items-center gap-2">
-				<Button
+		<OnboardingContent surface="panel">
+			<div className="flex flex-col">
+				<IconButton
 					aria-label="Back"
-					className="-ml-2 size-8 rounded-full p-0 text-muted-foreground"
+					className="-ml-2"
 					onClick={onBack}
+					size="md"
+					tone="neutral"
 					type="button"
 					variant="ghost"
 				>
 					<ArrowLeft className="size-4" />
-				</Button>
-				<h1 className="text-2xl font-semibold tracking-tight text-foreground">
+				</IconButton>
+				<h1 className="mt-6 text-2xl font-semibold tracking-tight text-foreground">
 					Set up Cline
 				</h1>
+				<p className="mt-4 text-sm text-muted-foreground">
+					Choose how Cline connects to models. You can add more providers
+					anytime in Settings.
+				</p>
 			</div>
-			<p className="mt-2 text-sm text-muted-foreground">
-				Choose how Cline connects to a model. You can add more providers anytime
-				in Settings.
-			</p>
 
-			<div className="mt-6 flex flex-col gap-3">
-				{/* Cline account */}
-				<div className="rounded-2xl border border-primary/30 bg-primary/5 p-4">
-					<div className="flex items-center gap-2">
-						<p className="text-base font-semibold text-foreground">
-							Sign in with Cline
-						</p>
-						<Badge className="bg-primary/15 text-primary" variant="secondary">
-							Recommended
-						</Badge>
-					</div>
-					<p className="mt-1 text-sm text-muted-foreground">
-						Latest models with regular free promos. No API keys needed.
-					</p>
+			<div className="mt-8 flex flex-col gap-3">
+				<SetupOptionCard
+					id="cline"
+					onSelect={() => setSelectedMethod("cline")}
+					selectLabel="Sign in with Cline"
+					selected={selectedMethod === "cline"}
+				>
+					<SetupOptionHeader
+						accessory={
+							<Badge
+								className="-mt-2 rounded-sm border-primary/30 bg-primary/10 px-1.5 !pt-[0.3rem] !pb-[0.2rem] text-primary-emphasis"
+								variant="outline"
+							>
+								Recommended
+							</Badge>
+						}
+						description="Latest models with regular free promos. No API keys needed."
+						icon={<ClineLogo className="size-5" />}
+						title="Sign in with Cline"
+					/>
 					{user ? (
-						<div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-							<p className="text-sm text-foreground">
+						<div className="mt-6 flex flex-wrap items-center justify-end gap-6">
+							<p className="text-sm text-muted-foreground">
 								Signed in as{" "}
 								<span className="font-medium">
 									{user.displayName || user.email}
 								</span>
 							</p>
 							<Button
-								className="rounded-full"
 								onClick={() => {
 									rememberProviderSelection({ id: "cline" });
 									onConnected({ kind: "cline" });
 								}}
+								size="md"
+								tone="accent"
 								type="button"
+								variant="fill"
 							>
 								Continue
 							</Button>
 						</div>
 					) : (
-						<div className="mt-3 flex flex-wrap items-center gap-3">
+						<div className="mt-8 ml-12 flex flex-wrap items-center gap-1 max-[720px]:ml-0">
 							<Button
-								className="rounded-full"
-								disabled={signingIn}
+								disabled={clineBusy}
 								onClick={() => void signInWithCline()}
+								size="md"
+								tone="accent"
 								type="button"
+								variant="fill"
 							>
-								{signingIn ? (
-									<Loader2 className="size-4 animate-spin" />
-								) : (
-									<LogIn className="size-4" />
-								)}
+								{signingIn && <Loader2 className="size-4 animate-spin" />}
 								{signingIn ? "Waiting for browser..." : "Sign in"}
 							</Button>
 							{signingIn ? (
-								<button
-									className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+								<Button
 									onClick={cancelSignInWithCline}
+									size="md"
+									tone="neutral"
 									type="button"
+									variant="ghost"
 								>
 									Cancel
-								</button>
+								</Button>
 							) : (
-								<button
-									className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+								<Button
 									onClick={() => void openExternalUrl(CREATE_ACCOUNT_URL)}
+									size="md"
+									tone="neutral"
 									type="button"
+									variant="ghost"
 								>
-									Create account
-									<ExternalLink className="size-3.5" />
-								</button>
+									Sign up
+								</Button>
 							)}
 						</div>
 					)}
 					{signInError ? (
-						<p className="mt-2 text-xs text-destructive" role="alert">
+						<p
+							className="mt-6 ml-12 text-xs text-destructive max-[720px]:ml-0"
+							role="alert"
+						>
 							Sign in failed: {signInError}
 						</p>
 					) : null}
 					{!user ? (
-						<div className="mt-3">
-							<button
-								aria-expanded={showClineKeyForm}
-								className="text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
-								onClick={() => setShowClineKeyForm((current) => !current)}
+						<div className="mt-6 ml-10 -mb-2 max-[720px]:ml-0">
+							<Button
+								aria-controls="onboarding-cline-key-form"
+								aria-expanded={clineKeyFormExpanded}
+								disabled={clineBusy}
+								onClick={() => {
+									setSelectedMethod("cline");
+									setClineKeyFormExpanded(!clineKeyFormExpanded);
+								}}
+								size="xs"
+								tone="neutral"
 								type="button"
+								variant="ghost"
 							>
-								{showClineKeyForm
-									? "Hide Cline API key"
-									: "Use a Cline API key instead"}
-							</button>
-							{showClineKeyForm ? (
-								<div className="mt-3 flex flex-col gap-2">
+								Use a Cline API key
+								<ChevronDown aria-hidden="true" className="size-3.5" />
+							</Button>
+							<ExpandablePanel
+								data-onboarding-cline-key-form
+								expanded={clineKeyFormExpanded}
+								id="onboarding-cline-key-form"
+							>
+								<div className="flex flex-col gap-2 pt-3 ml-2 max-[720px]:ml-0">
 									<div className="flex flex-wrap items-center gap-2">
 										<Input
 											aria-label="Cline API key"
 											autoComplete="off"
 											className="min-w-52 flex-1 bg-background"
+											disabled={clineKeySaving}
 											onChange={(event) => {
 												setClineApiKey(event.target.value);
 												setClineKeyError(null);
@@ -519,10 +659,12 @@ function ConnectStep({
 											value={clineApiKey}
 										/>
 										<Button
-											className="rounded-full"
 											disabled={!clineApiKey.trim() || clineKeySaving}
 											onClick={() => void connectWithClineApiKey()}
+											size="md"
+											tone="accent"
 											type="button"
+											variant="fill"
 										>
 											{clineKeySaving ? (
 												<Loader2 className="size-4 animate-spin" />
@@ -530,53 +672,54 @@ function ConnectStep({
 											{clineKeySaving ? "Connecting..." : "Connect"}
 										</Button>
 									</div>
-									<button
-										className="inline-flex items-center gap-1 self-start text-xs text-muted-foreground underline-offset-2 transition-colors hover:text-foreground hover:underline"
+									<Button
+										className="self-start -ml-1 mt-1"
+										disabled={clineKeySaving}
 										onClick={() => void openExternalUrl(CLINE_DASHBOARD_URL)}
+										size="xs"
+										tone="neutral"
 										type="button"
+										variant="ghost"
 									>
-										Find your key in the Cline dashboard under Account
+										Find your key
 										<ExternalLink className="size-3" />
-									</button>
+									</Button>
 									{clineKeyError ? (
 										<p className="text-xs text-destructive" role="alert">
 											Failed to save API key: {clineKeyError}
 										</p>
 									) : null}
 								</div>
-							) : null}
+							</ExpandablePanel>
 						</div>
 					) : null}
-				</div>
-
-				{/* Bring your own key */}
-				<div className="rounded-2xl border border-border/70 bg-background/60 p-4">
-					<button
-						aria-expanded={showApiKeyForm}
-						className="flex w-full items-start gap-3 text-left"
-						onClick={() => setShowApiKeyForm((current) => !current)}
-						type="button"
+				</SetupOptionCard>
+				<SetupOptionCard
+					id="api-key"
+					onSelect={() => {
+						setSelectedMethod("api-key");
+						setClineKeyFormExpanded(false);
+					}}
+					selectLabel="Use your own API key"
+					selected={selectedMethod === "api-key"}
+				>
+					<SetupOptionHeader
+						description="Anthropic, OpenAI, OpenRouter, and more."
+						icon={<KeyRound className="size-4" />}
+						title="Use your own API key"
+					/>
+					<ExpandablePanel
+						data-onboarding-api-key-form
+						expanded={selectedMethod === "api-key"}
 					>
-						<span className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-secondary text-muted-foreground">
-							<KeyRound className="size-4" />
-						</span>
-						<span className="min-w-0">
-							<span className="block text-base font-semibold text-foreground">
-								Use your own API key
-							</span>
-							<span className="mt-0.5 block text-sm text-muted-foreground">
-								Anthropic, OpenAI, OpenRouter, and more.
-							</span>
-						</span>
-					</button>
-					{showApiKeyForm ? (
-						<div className="mt-4 flex flex-col gap-3">
+						<div className="flex flex-col gap-3 pt-6">
 							{providersError ? (
 								<p className="text-xs text-destructive" role="alert">
 									Failed to load providers: {providersError}
 								</p>
 							) : (
 								<Select
+									disabled={saving}
 									onValueChange={(value) => {
 										setSelectedProviderId(value);
 										setSaveError(null);
@@ -608,6 +751,7 @@ function ConnectStep({
 								aria-label="API key"
 								autoComplete="off"
 								className="bg-background"
+								disabled={saving}
 								onChange={(event) => {
 									setApiKey(event.target.value);
 									setSaveError(null);
@@ -620,25 +764,29 @@ function ConnectStep({
 								type="password"
 								value={apiKey}
 							/>
-							<div className="flex flex-wrap items-center justify-between gap-2">
-								{selectedProviderKeyUrl ? (
-									<button
-										className="inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+							<div className="flex flex-wrap items-center justify-end gap-2">
+								{selectedProvider && selectedProviderKeyUrl ? (
+									<Button
+										className="mr-auto"
+										disabled={saving}
 										onClick={() => void openExternalUrl(selectedProviderKeyUrl)}
+										size="xs"
+										tone="neutral"
 										type="button"
+										variant="ghost"
 									>
-										{selectedProvider?.docLabel ||
-											`Get ${selectedProvider ? `a ${selectedProvider.name}` : "an"} API key`}
+										{selectedProvider.docLabel ||
+											`Get a ${selectedProvider.name} API key`}
 										<ExternalLink className="size-3.5" />
-									</button>
-								) : (
-									<span />
-								)}
+									</Button>
+								) : null}
 								<Button
-									className="rounded-full"
 									disabled={!selectedProvider || !apiKey.trim() || saving}
 									onClick={() => void connectProvider()}
+									size="md"
+									tone="accent"
 									type="button"
+									variant="fill"
 								>
 									{saving ? <Loader2 className="size-4 animate-spin" /> : null}
 									{saving ? "Connecting..." : "Connect"}
@@ -650,20 +798,22 @@ function ConnectStep({
 								</p>
 							) : null}
 						</div>
-					) : null}
-				</div>
+					</ExpandablePanel>
+				</SetupOptionCard>
 			</div>
 
 			<div className="mt-5 flex justify-center">
-				<button
-					className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+				<Button
 					onClick={onSkip}
+					size="sm"
+					tone="neutral"
 					type="button"
+					variant="ghost"
 				>
-					Skip for now
-				</button>
+					Skip
+				</Button>
 			</div>
-		</OnboardingCard>
+		</OnboardingContent>
 	);
 }
 
@@ -675,26 +825,29 @@ function DoneStep({
 	onFinish: () => void;
 }) {
 	return (
-		<OnboardingCard>
+		<OnboardingContent surface="transparent">
 			<div className="flex flex-col items-center py-4 text-center">
 				<CheckCircle2 aria-hidden="true" className="size-10 text-primary" />
-				<h1 className="mt-4 text-2xl font-semibold tracking-tight text-foreground">
+				<h1 className="mt-4 text-3xl font-semibold tracking-tight text-foreground">
 					You&apos;re all set
 				</h1>
-				<p className="mt-2 text-sm text-muted-foreground">
+				<p className="mt-3 text-md text-muted-foreground">
 					{connection?.kind === "provider"
-						? `${connection.providerName} is connected. Pick a project and start your first session.`
-						: "Your Cline account is connected. Pick a project and start your first session."}
+						? `${connection.providerName} is connected.`
+						: "Your Cline account is connected."}
 				</p>
 				<Button
-					className="mt-8 h-11 w-full rounded-full text-base"
+					className="mt-8 w-full max-w-64"
 					onClick={onFinish}
+					size="lg"
+					tone="accent"
 					type="button"
+					variant="fill"
 				>
 					Start building
 				</Button>
 			</div>
-		</OnboardingCard>
+		</OnboardingContent>
 	);
 }
 
@@ -717,22 +870,37 @@ export function OnboardingView({
 	);
 
 	return (
-		<div className="relative flex h-full w-full items-center justify-center overflow-hidden bg-background p-6">
-			<AgentAurora />
-			{step === "welcome" ? (
-				<WelcomeStep onContinue={() => setStep("connect")} />
-			) : step === "connect" ? (
-				<ConnectStep
-					onBack={() => setStep("welcome")}
-					onConnected={(nextConnection) => {
-						setConnection(nextConnection);
-						setStep("done");
-					}}
-					onSkip={onComplete}
-				/>
-			) : (
-				<DoneStep connection={connection} onFinish={onComplete} />
-			)}
+		<div className="relative h-full w-full overflow-y-auto bg-background">
+			<div className="relative flex min-h-full w-full items-center justify-center overflow-hidden p-6">
+				<div
+					className={
+						step === "done"
+							? "pointer-events-none absolute inset-x-0 top-1/2 -translate-y-1/2"
+							: "pointer-events-none absolute inset-0"
+					}
+					data-onboarding-grid={step}
+				>
+					<WelcomeHero
+						interactive={step !== "done"}
+						layout={step === "done" ? "wide-grid" : "full-bleed"}
+						variant="grid-only"
+					/>
+				</div>
+				{step === "welcome" ? (
+					<WelcomeStep onContinue={() => setStep("connect")} />
+				) : step === "connect" ? (
+					<ConnectStep
+						onBack={() => setStep("welcome")}
+						onConnected={(nextConnection) => {
+							setConnection(nextConnection);
+							setStep("done");
+						}}
+						onSkip={onComplete}
+					/>
+				) : (
+					<DoneStep connection={connection} onFinish={onComplete} />
+				)}
+			</div>
 		</div>
 	);
 }
